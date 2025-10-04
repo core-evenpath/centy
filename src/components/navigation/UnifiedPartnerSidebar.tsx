@@ -20,7 +20,7 @@ import { useAuth } from '../../hooks/use-auth';
 
 const navigation = [
   {
-    name: 'Dashboard',
+    name: 'Insights',
     href: '/partner/dashboard',
     icon: BarChart3,
   },
@@ -28,6 +28,11 @@ const navigation = [
     name: 'Tasks',
     href: '/partner/tasks',
     icon: CheckSquare,
+  },
+  {
+    name: 'Messaging',
+    href: '/partner/messaging',
+    icon: MessageSquare,
   },
   {
     name: 'Campaigns',
