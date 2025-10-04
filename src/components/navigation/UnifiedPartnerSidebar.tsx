@@ -4,7 +4,7 @@
 import React from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { CheckSquare, Settings, LogOut, ChevronLeft, ChevronRight } from 'lucide-react';
+import { CheckSquare, Settings, LogOut, ChevronLeft, ChevronRight, MessageSquare } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import {
   Sidebar,
@@ -23,6 +23,11 @@ const navigation = [
     name: 'Tasks',
     href: '/partner/tasks',
     icon: CheckSquare,
+  },
+  {
+    name: 'Messaging',
+    href: '/partner/messaging',
+    icon: MessageSquare,
   },
   {
     name: 'Settings',
