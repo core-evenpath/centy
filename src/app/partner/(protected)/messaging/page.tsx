@@ -26,17 +26,17 @@ import {
 } from 'lucide-react';
 import { db } from '@/lib/firebase';
 import { collection, query, where, onSnapshot, orderBy, Timestamp } from 'firebase/firestore';
-import { sendWhatsAppMessageAction } from '@/actions/whatsapp-actions';
-import type { WhatsAppConversation, WhatsAppMessage } from '@/lib/types';
+import { sendSMSAction } from '@/actions/sms-actions';
+import type { SMSConversation, SMSMessage } from '@/lib/types';
 import { formatDistanceToNow } from 'date-fns';
 
 export default function MessagingPage() {
   const { user, currentWorkspace } = useMultiWorkspaceAuth();
   const { toast } = useToast();
 
-  const [conversations, setConversations] = useState<WhatsAppConversation[]>([]);
-  const [selectedConversation, setSelectedConversation] = useState<WhatsAppConversation | null>(null);
-  const [messages, setMessages] = useState<WhatsAppMessage[]>([]);
+  const [conversations, setConversations] = useState<SMSConversation[]>([]);
+  const [selectedConversation, setSelectedConversation] = useState<SMSConversation | null>(null);
+  const [messages, setMessages] = useState<SMSMessage[]>([]);
   const [messageInput, setMessageInput] = useState('');
   const [newPhoneNumber, setNewPhoneNumber] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
@@ -57,7 +57,7 @@ export default function MessagingPage() {
     setIsLoadingConversations(true);
 
     const conversationsQuery = query(
-      collection(db, 'whatsappConversations'),
+      collection(db, 'smsConversations'),
       where('partnerId', '==', partnerId),
       orderBy('lastMessageAt', 'desc')
     );
@@ -72,7 +72,7 @@ export default function MessagingPage() {
             ...data,
             createdAt: data.createdAt,
             lastMessageAt: data.lastMessageAt,
-          } as WhatsAppConversation;
+          } as SMSConversation;
         });
         setConversations(convos);
         setIsLoadingConversations(false);
@@ -101,7 +101,7 @@ export default function MessagingPage() {
     setIsLoadingMessages(true);
 
     const messagesQuery = query(
-      collection(db, 'whatsappMessages'),
+      collection(db, 'smsMessages'),
       where('conversationId', '==', selectedConversation.id),
       orderBy('createdAt', 'asc')
     );
@@ -115,7 +115,7 @@ export default function MessagingPage() {
             id: doc.id,
             ...data,
             createdAt: data.createdAt,
-          } as WhatsAppMessage;
+          } as SMSMessage;
         });
         setMessages(msgs);
         setIsLoadingMessages(false);
@@ -173,7 +173,7 @@ export default function MessagingPage() {
     setIsSending(true);
 
     try {
-      const result = await sendWhatsAppMessageAction({
+      const result = await sendSMSAction({
         partnerId,
         to: phoneNumber,
         message: messageInput.trim(),
@@ -187,7 +187,7 @@ export default function MessagingPage() {
 
         toast({
           title: 'Success',
-          description: 'Message sent successfully',
+          description: 'SMS sent successfully',
         });
 
         // Select the conversation if it's new
@@ -205,11 +205,11 @@ export default function MessagingPage() {
         });
       }
     } catch (error: any) {
-      console.error('Error sending message:', error);
+      console.error('Error sending SMS:', error);
       toast({
         variant: 'destructive',
         title: 'Error',
-        description: 'Failed to send message',
+        description: 'Failed to send SMS',
       });
     } finally {
       setIsSending(false);
@@ -232,8 +232,6 @@ export default function MessagingPage() {
     switch (status) {
       case 'delivered':
         return <CheckCheck className="w-3 h-3 text-blue-500" />;
-      case 'read':
-        return <CheckCheck className="w-3 h-3 text-green-500" />;
       case 'sent':
         return <Check className="w-3 h-3 text-gray-500" />;
       case 'failed':
@@ -264,9 +262,9 @@ export default function MessagingPage() {
       <header className="bg-white dark:bg-gray-800 border-b px-6 py-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <MessageSquare className="w-6 h-6 text-green-600" />
+            <MessageSquare className="w-6 h-6 text-blue-600" />
             <div>
-              <h1 className="text-2xl font-bold">WhatsApp Messaging</h1>
+              <h1 className="text-2xl font-bold">SMS Messaging</h1>
               <p className="text-sm text-muted-foreground">
                 Powered by Twilio
               </p>
@@ -322,7 +320,7 @@ export default function MessagingPage() {
                   >
                     <div className="flex items-start gap-3">
                       <Avatar>
-                        <AvatarFallback className="bg-green-100 text-green-700">
+                        <AvatarFallback className="bg-blue-100 text-blue-700">
                           <Phone className="w-4 h-4" />
                         </AvatarFallback>
                       </Avatar>
@@ -360,7 +358,7 @@ export default function MessagingPage() {
               <div className="flex-1 flex items-center justify-center p-8">
                 <Card className="w-full max-w-md">
                   <CardHeader>
-                    <CardTitle>Start WhatsApp Conversation</CardTitle>
+                    <CardTitle>Start SMS Conversation</CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-4">
                     <div>
@@ -406,7 +404,7 @@ export default function MessagingPage() {
                         ) : (
                           <Send className="w-4 h-4 mr-2" />
                         )}
-                        Send Message
+                        Send SMS
                       </Button>
                     </div>
                   </CardContent>
@@ -419,7 +417,7 @@ export default function MessagingPage() {
               <div className="bg-white dark:bg-gray-800 border-b px-6 py-4">
                 <div className="flex items-center gap-3">
                   <Avatar>
-                    <AvatarFallback className="bg-green-100 text-green-700">
+                    <AvatarFallback className="bg-blue-100 text-blue-700">
                       <Phone className="w-5 h-5" />
                     </AvatarFallback>
                   </Avatar>
@@ -460,34 +458,22 @@ export default function MessagingPage() {
                         <div
                           className={`max-w-[70%] rounded-lg px-4 py-2 ${
                             message.direction === 'outbound'
-                              ? 'bg-green-600 text-white'
+                              ? 'bg-blue-600 text-white'
                               : 'bg-white dark:bg-gray-800 border'
                           }`}
                         >
                           <p className="whitespace-pre-wrap break-words">{message.content}</p>
-                          {message.attachments && message.attachments.length > 0 && (
-                            <div className="mt-2">
-                              {message.attachments.map((attachment) => (
-                                <img
-                                  key={attachment.id}
-                                  src={attachment.url}
-                                  alt={attachment.name}
-                                  className="max-w-full rounded"
-                                />
-                              ))}
-                            </div>
-                          )}
                           <div
                             className={`flex items-center gap-1 mt-1 text-xs ${
                               message.direction === 'outbound'
-                                ? 'text-green-100'
+                                ? 'text-blue-100'
                                 : 'text-muted-foreground'
                             }`}
                           >
                             <span>{formatTimestamp(message.createdAt)}</span>
                             {message.direction === 'outbound' && (
                               <span className="ml-1">
-                                {getMessageStatusIcon(message.whatsappMetadata?.twilioStatus)}
+                                {getMessageStatusIcon(message.smsMetadata?.twilioStatus)}
                               </span>
                             )}
                           </div>

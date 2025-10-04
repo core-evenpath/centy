@@ -3,67 +3,76 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-
-    // Partners: Only authenticated admins can read/write partner data.
-    // Partners can only read their own data.
-    match /partners/{partnerId} {
-      allow read: if request.auth != null && 
-                  (request.auth.token.role == 'Admin' || request.auth.token.role == 'Super Admin' || request.auth.uid == partnerId);
-      allow write: if request.auth != null && 
-                   (request.auth.token.role == 'Admin' || request.auth.token.role == 'Super Admin');
-    }
-
-    // Team Members:
-    // Partner admins can manage members of their own team.
-    // Employees can read their own data.
-    match /teamMembers/{userId} {
-        allow read: if request.auth != null &&
-                    (request.auth.token.partnerId == resource.data.partnerId || request.auth.uid == userId);
-        allow create, update, delete: if request.auth != null &&
-                           (request.auth.token.role == 'partner_admin' && request.auth.token.partnerId == resource.data.partnerId) ||
-                           (request.auth.token.role == 'Admin' || request.auth.token.role == 'Super Admin');
-    }
-
-    // Tasks:
-    // Partner admins can manage all tasks in their workspace.
-    // Employees can only manage tasks assigned to them.
-    match /tasks/{taskId} {
-        allow read: if request.auth != null &&
-                    (request.auth.token.role == 'partner_admin' && request.auth.token.partnerId == resource.data.partnerId) ||
-                    (request.auth.uid == resource.data.assignee);
-        allow create, update, delete: if request.auth != null &&
-                        (request.auth.token.role == 'partner_admin' && request.auth.token.partnerId == resource.data.partnerId) ||
-                        (request.auth.uid == resource.data.assignee);
-    }
+  
+    // ============================================================================
+    // PARTNER & ADMIN DATA
+    // ============================================================================
     
-    // User Mappings: Used for tenant lookups during login.
-    // Should be readable by any authenticated user attempting to log in.
-    // Writes should be restricted to server-side admin processes.
-    match /userMappings/{identifier} {
-      allow read: if request.auth != null;
-      allow write: if false; // Only server-side admin should write
-    }
-
-    // User Workspace Links: Controls which user has access to which workspace.
-    // Users can read their own links. Writes are server-side.
-    match /userWorkspaceLinks/{linkId} {
-      allow read: if request.auth != null && request.auth.uid == resource.data.userId;
-      allow write: if false; // Only server-side admin should write
-    }
-
-    // User Workspace Context: Stores the user's active workspace.
-    // Users can read and write their own context.
-    match /userWorkspaceContexts/{userId} {
-      allow read, write: if request.auth != null && request.auth.uid == userId;
-    }
-
-    // Admin Users collection
-    match /adminUsers/{userId} {
-      allow read: if request.auth != null && 
-                     (request.auth.token.role == 'Admin' || request.auth.token.role == 'Super Admin');
+    // Partners can be read by anyone (for public profiles), but only created/updated by admins.
+    match /partners/{partnerId} {
+      allow read;
       allow write: if request.auth != null && request.auth.token.role == 'Super Admin';
     }
+    
+    // Admin users can only be managed by Super Admins.
+    match /adminUsers/{userId} {
+        allow read, write: if request.auth != null && request.auth.token.role == 'Super Admin';
+    }
+    
+    // User Mappings for tenant lookup. Read-only for clients.
+    match /userMappings/{email} {
+        allow read;
+        allow create, update, delete: if false; // Server-side only
+    }
 
+    // ============================================================================
+    // TEAM & WORKSPACE DATA
+    // ============================================================================
+
+    // Team members can be read by other members of the same partner org.
+    // Only partner admins can create/update/delete members.
+    match /teamMembers/{userId} {
+      allow read: if request.auth != null && request.auth.token.partnerId == resource.data.partnerId;
+      allow write: if request.auth != null && request.auth.token.role == 'partner_admin' && request.auth.token.partnerId == resource.data.partnerId;
+    }
+    
+    // User workspace links determine which workspaces a user can access.
+    // They are managed server-side.
+    match /userWorkspaceLinks/{linkId} {
+        allow read: if request.auth != null && request.auth.uid == linkId.split('_')[0];
+        allow write: if false; // Server-side only
+    }
+    
+    // ============================================================================
+    // CORE APPLICATION DATA (TASKS, WORKFLOWS, ETC.)
+    // ============================================================================
+    
+    match /tasks/{taskId} {
+      // Admins can read/write all tasks in their workspace
+      // Employees can read/write tasks assigned to them
+      allow read, write: if request.auth != null && (
+        (request.auth.token.role == 'partner_admin' && request.auth.token.partnerId == resource.data.partnerId) ||
+        (request.auth.token.role == 'employee' && request.auth.uid == resource.data.assignee)
+      );
+    }
+    
+    match /workflows/{workflowId} {
+       allow read: if request.auth != null;
+       allow write: if request.auth != null && request.auth.token.role == 'partner_admin';
+    }
+
+    // ============================================================================
+    // COMMUNICATION
+    // ============================================================================
+
+    match /conversations/{conversationId} {
+      allow read, write: if request.auth != null && request.auth.uid in resource.data.participants;
+    }
+
+    match /messages/{messageId} {
+      allow read, write: if request.auth != null; // Further rules can be added based on conversation participants
+    }
+    
     match /whatsappConversations/{conversationId} {
       allow read: if request.auth != null && 
         request.auth.token.partnerId == resource.data.partnerId;
@@ -74,6 +83,27 @@ service cloud.firestore {
     match /whatsappMessages/{messageId} {
       allow read: if request.auth != null;
       allow write: if request.auth != null;
+    }
+    
+    match /smsConversations/{conversationId} {
+      allow read: if request.auth != null && 
+        request.auth.token.partnerId == resource.data.partnerId;
+      allow write: if request.auth != null && 
+        request.auth.token.partnerId == resource.data.partnerId;
+    }
+
+    match /smsMessages/{messageId} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null;
+    }
+
+    // ============================================================================
+    // SYSTEM & AUDIT
+    // ============================================================================
+    
+    match /auditLogs/{logId} {
+        allow read: if request.auth != null && request.auth.token.role == 'Super Admin';
+        allow write: if false; // Server-side only
     }
   }
 }

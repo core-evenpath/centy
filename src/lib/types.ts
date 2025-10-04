@@ -1731,3 +1731,58 @@ export interface SendWhatsAppMessageResult {
   twilioSid?: string;
   conversationId?: string;
 }
+
+// ============================================================================
+// SMS MESSAGING TYPES
+// ============================================================================
+
+export interface SMSMessage extends ChatMessage {
+  smsMetadata: {
+    twilioSid?: string;
+    twilioStatus?: 'queued' | 'sent' | 'delivered' | 'failed' | 'undelivered';
+    to: string; // Phone number in E.164 format: +1234567890
+    from: string; // Twilio phone number
+    errorCode?: string;
+    errorMessage?: string;
+  };
+  direction: 'outbound' | 'inbound';
+  platform: 'sms';
+}
+
+export interface SMSConversation extends Conversation {
+  platform: 'sms';
+  customerPhone: string; // Phone number
+  customerName?: string;
+  lastSMSStatus?: 'active' | 'opt_out' | 'blocked';
+}
+
+export interface TwilioSMSWebhookPayload {
+  MessageSid: string;
+  AccountSid: string;
+  MessagingServiceSid?: string;
+  From: string; // +1234567890
+  To: string; // +1234567890
+  Body: string;
+  NumMedia?: string;
+  MediaUrl0?: string;
+  MediaContentType0?: string;
+  SmsStatus?: string;
+  MessageStatus?: string;
+  ApiVersion?: string;
+  SmsSid?: string;
+}
+
+export interface SendSMSInput {
+  partnerId: string;
+  to: string; // Phone number in E.164 format
+  message: string;
+  conversationId?: string;
+}
+
+export interface SendSMSResult {
+  success: boolean;
+  message: string;
+  messageId?: string;
+  twilioSid?: string;
+  conversationId?: string;
+}

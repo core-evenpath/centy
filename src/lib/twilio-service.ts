@@ -5,7 +5,7 @@ import twilio from 'twilio';
 
 const accountSid = process.env.TWILIO_ACCOUNT_SID;
 const authToken = process.env.TWILIO_AUTH_TOKEN;
-const whatsappNumber = process.env.TWILIO_WHATSAPP_NUMBER;
+const twilioPhoneNumber = process.env.TWILIO_PHONE_NUMBER;
 
 let twilioClient: twilio.Twilio | null = null;
 
@@ -21,10 +21,9 @@ function getTwilioClient() {
   return twilioClient;
 }
 
-export interface SendWhatsAppOptions {
+export interface SendSMSOptions {
   to: string; // Phone number in E.164 format (e.g., +1234567890)
   body: string;
-  mediaUrl?: string;
 }
 
 export interface TwilioMessageResponse {
@@ -38,31 +37,26 @@ export interface TwilioMessageResponse {
 }
 
 /**
- * Send a WhatsApp message via Twilio
+ * Send an SMS message via Twilio
  */
-export async function sendWhatsAppMessage(options: SendWhatsAppOptions): Promise<TwilioMessageResponse> {
+export async function sendSMS(options: SendSMSOptions): Promise<TwilioMessageResponse> {
   try {
     const client = getTwilioClient();
     
-    if (!whatsappNumber) {
-      throw new Error('TWILIO_WHATSAPP_NUMBER not configured');
+    if (!twilioPhoneNumber) {
+      throw new Error('TWILIO_PHONE_NUMBER not configured');
     }
 
-    // Format phone number for WhatsApp
-    const formattedTo = options.to.startsWith('whatsapp:') 
+    // Format phone number for SMS (E.164 format)
+    const formattedTo = options.to.startsWith('+') 
       ? options.to 
-      : `whatsapp:${options.to}`;
+      : `+${options.to}`;
     
     const messageParams: any = {
-      from: whatsappNumber,
+      from: twilioPhoneNumber,
       to: formattedTo,
       body: options.body,
     };
-
-    // Add media if provided
-    if (options.mediaUrl) {
-      messageParams.mediaUrl = [options.mediaUrl];
-    }
 
     const message = await client.messages.create(messageParams);
 
@@ -76,8 +70,8 @@ export async function sendWhatsAppMessage(options: SendWhatsAppOptions): Promise
       errorMessage: message.errorMessage || undefined,
     };
   } catch (error: any) {
-    console.error('Error sending WhatsApp message:', error);
-    throw new Error(error.message || 'Failed to send WhatsApp message');
+    console.error('Error sending SMS:', error);
+    throw new Error(error.message || 'Failed to send SMS');
   }
 }
 
@@ -96,9 +90,9 @@ export async function getMessageStatus(messageSid: string): Promise<string> {
 }
 
 /**
- * Validate if a phone number can receive WhatsApp messages
+ * Validate if a phone number is valid
  */
-export async function validateWhatsAppNumber(phoneNumber: string): Promise<boolean> {
+export async function validatePhoneNumber(phoneNumber: string): Promise<boolean> {
   try {
     const client = getTwilioClient();
     const lookup = await client.lookups.v1.phoneNumbers(phoneNumber).fetch();
