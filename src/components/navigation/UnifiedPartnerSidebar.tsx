@@ -19,17 +19,7 @@ import {
 import { useAuth } from '../../hooks/use-auth';
 
 const navigation = [
-  {
-    name: 'Insights',
-    href: '/partner/dashboard',
-    icon: BarChart3,
-  },
-  {
-    name: 'Tasks',
-    href: '/partner/tasks',
-    icon: CheckSquare,
-  },
-  {
+    {
     name: 'Messaging',
     href: '/partner/messaging',
     icon: MessageSquare,
@@ -48,6 +38,16 @@ const navigation = [
     name: 'Templates',
     href: '/partner/messaging?tab=templates',
     icon: FileText,
+  },
+    {
+    name: 'Insights',
+    href: '/partner/dashboard',
+    icon: BarChart3,
+  },
+  {
+    name: 'Tasks',
+    href: '/partner/tasks',
+    icon: CheckSquare,
   },
   {
     name: 'Settings',
