@@ -46,6 +46,12 @@ export interface AdminUser {
   permissions: string[];
 }
 
+export type SecurityRuleContext = {
+  path: string;
+  operation: 'get' | 'list' | 'create' | 'update' | 'delete';
+  requestResourceData?: any;
+};
+
 // ============================================================================
 // 2. USER MANAGEMENT VARIABLES
 // ============================================================================
@@ -1125,16 +1131,16 @@ export interface NotificationChannel {
 export interface Conversation {
   id: string;
   partnerId: string;
-  type: 'general' | 'workflow_specific' | 'support' | 'direct_message';
+  type: 'general' | 'workflow_specific' | 'support' | 'direct_message' | 'direct' | 'group';
   title: string;
   description?: string;
-  participants: ConversationParticipant[];
+  participants: ConversationParticipant[] | string[]; // Allow both formats
   workflowId?: string;
   isActive: boolean;
-  lastMessageAt?: Date;
+  lastMessageAt?: any; // Firebase Timestamp
   messageCount: number;
   createdBy: string;
-  createdAt: Date;
+  createdAt: any; // Firebase Timestamp
 }
 
 export interface ConversationParticipant {
@@ -1160,7 +1166,7 @@ export interface ChatMessage {
   reactions?: MessageReaction[];
   replyToId?: string;
   mentions?: string[];
-  createdAt: Date;
+  createdAt: any;
 }
 
 export interface MessageAttachment {
@@ -1176,6 +1182,149 @@ export interface MessageReaction {
   emoji: string;
   users: string[];
   count: number;
+}
+
+export interface TeamMember {
+  id: string;
+  partnerId: string;
+  userId: string;
+  name: string;
+  email: string;
+  role: string;
+  status: 'active' | 'inactive' | 'pending' | 'suspended';
+  phoneNumber?: string;
+  avatar?: string;
+  joinedAt: any; // Firebase Timestamp
+  lastActiveAt?: any; // Firebase Timestamp
+  permissions?: string[];
+}
+
+// Ensure UserProfile exists
+export interface UserProfile {
+  uid: string;
+  email: string;
+  displayName?: string;
+  name?: string;
+  phoneNumber?: string;
+  avatar?: string;
+  role?: string;
+  status?: 'active' | 'inactive';
+  partnerId?: string;
+  workspaces?: WorkspaceAccess[];
+}
+
+
+// ============================================================================
+// WHATSAPP MESSAGING TYPES
+// ============================================================================
+
+export interface WhatsAppMessage extends ChatMessage {
+  whatsappMetadata: {
+    twilioSid?: string;
+    twilioStatus?: 'queued' | 'sent' | 'delivered' | 'read' | 'failed' | 'undelivered';
+    to: string; // WhatsApp number in format: whatsapp:+1234567890
+    from: string; // Twilio WhatsApp number
+    errorCode?: string;
+    errorMessage?: string;
+    numMedia?: number;
+    mediaUrls?: string[];
+  };
+  direction: 'outbound' | 'inbound';
+  platform: 'whatsapp';
+}
+
+export interface WhatsAppConversation extends Conversation {
+  platform: 'whatsapp';
+  customerPhone: string; // WhatsApp number
+  customerName?: string;
+  lastWhatsAppStatus?: 'active' | 'opt_out' | 'blocked';
+}
+
+export interface TwilioWebhookPayload {
+  MessageSid: string;
+  AccountSid: string;
+  MessagingServiceSid?: string;
+  From: string; // whatsapp:+1234567890
+  To: string; // whatsapp:+1234567890
+  Body: string;
+  NumMedia?: string;
+  MediaUrl0?: string;
+  MediaContentType0?: string;
+  SmsStatus?: string;
+  MessageStatus?: string;
+  ApiVersion?: string;
+  SmsSid?: string;
+}
+
+export interface SendWhatsAppMessageInput {
+  partnerId: string;
+  to: string; // Phone number without whatsapp: prefix
+  message: string;
+  conversationId?: string;
+  mediaUrl?: string;
+}
+
+export interface SendWhatsAppMessageResult {
+  success: boolean;
+  message: string;
+  messageId?: string;
+  twilioSid?: string;
+  conversationId?: string;
+}
+
+// ============================================================================
+// SMS MESSAGING TYPES
+// ============================================================================
+
+export interface SMSMessage extends ChatMessage {
+  smsMetadata: {
+    twilioSid?: string;
+    twilioStatus?: 'queued' | 'sent' | 'delivered' | 'failed' | 'undelivered';
+    to: string; // Phone number in E.164 format: +1234567890
+    from: string; // Twilio phone number
+    errorCode?: string;
+    errorMessage?: string;
+  };
+  direction: 'outbound' | 'inbound';
+  platform: 'sms';
+}
+
+export interface SMSConversation extends Conversation {
+  platform: 'sms';
+  customerPhone: string; // Phone number
+  customerName?: string;
+  lastSMSStatus?: 'active' | 'opt_out' | 'blocked';
+}
+
+export interface TwilioSMSWebhookPayload {
+  MessageSid: string;
+  AccountSid: string;
+  MessagingServiceSid?: string;
+  From: string; // +1234567890
+  To: string; // +1234567890
+  Body: string;
+  NumMedia?: string;
+  MediaUrl0?: string;
+  MediaContentType0?: string;
+  SmsStatus?: string;
+  MessageStatus?: string;
+  ApiVersion?: string;
+  SmsSid?: string;
+}
+
+export interface SendSMSInput {
+  partnerId: string;
+  to: string; // Phone number in E.164 format
+  message: string;
+  conversationId?: string;
+}
+
+export interface SendSMSResult {
+  success: boolean;
+  message: string;
+  messageId?: string;
+  twilioSid?: string;
+  conversationId?: string;
 }
 
 // ============================================================================

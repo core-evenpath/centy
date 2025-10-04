@@ -5,6 +5,8 @@ import { db } from '@/lib/firebase-admin';
 import { sendSMS, getMessageStatus } from '@/lib/twilio-service';
 import { FieldValue } from 'firebase-admin/firestore';
 import type { SendSMSInput, SendSMSResult, SMSMessage, SMSConversation } from '@/lib/types';
+import { FirestorePermissionError } from '@/firebase/errors';
+import { errorEmitter } from '@/firebase/error-emitter';
 
 /**
  * Send an SMS message and store it in Firestore
@@ -14,91 +16,106 @@ export async function sendSMSAction(input: SendSMSInput): Promise<SendSMSResult>
     return { success: false, message: 'Server not configured' };
   }
 
-  try {
-    // Validate input
-    if (!input.to || !input.message) {
-      return { success: false, message: 'Phone number and message are required' };
-    }
-
-    // Format phone number to E.164 if not already
-    const phoneNumber = input.to.startsWith('+') ? input.to : `+${input.to}`;
-
-    // Send via Twilio
-    const twilioResponse = await sendSMS({
-      to: phoneNumber,
-      body: input.message,
-    });
-
-    // Get or create conversation
-    let conversationId = input.conversationId;
-    
-    if (!conversationId) {
-      // Create new conversation
-      const conversationRef = db.collection('smsConversations').doc();
-      conversationId = conversationRef.id;
-
-      const newConversation: Partial<SMSConversation> = {
-        id: conversationId,
-        partnerId: input.partnerId,
-        type: 'direct',
-        platform: 'sms',
-        title: `SMS: ${phoneNumber}`,
-        customerPhone: phoneNumber,
-        participants: [],
-        isActive: true,
-        messageCount: 0,
-        createdBy: input.partnerId,
-        createdAt: FieldValue.serverTimestamp(),
-        lastMessageAt: FieldValue.serverTimestamp(),
-      };
-
-      await conversationRef.set(newConversation);
-    } else {
-      // Update existing conversation
-      await db.collection('smsConversations').doc(conversationId).update({
-        lastMessageAt: FieldValue.serverTimestamp(),
-        messageCount: FieldValue.increment(1),
-      });
-    }
-
-    // Store message in Firestore
-    const messageRef = db.collection('smsMessages').doc();
-    const messageData: Partial<SMSMessage> = {
-      id: messageRef.id,
-      conversationId,
-      senderId: input.partnerId,
-      type: 'text',
-      content: input.message,
-      direction: 'outbound',
-      platform: 'sms',
-      smsMetadata: {
-        twilioSid: twilioResponse.sid,
-        twilioStatus: twilioResponse.status as any,
-        to: twilioResponse.to,
-        from: twilioResponse.from,
-        errorCode: twilioResponse.errorCode,
-        errorMessage: twilioResponse.errorMessage,
-      },
-      isEdited: false,
-      createdAt: FieldValue.serverTimestamp(),
-    };
-
-    await messageRef.set(messageData);
-
-    return {
-      success: true,
-      message: 'SMS sent successfully',
-      messageId: messageRef.id,
-      twilioSid: twilioResponse.sid,
-      conversationId,
-    };
-  } catch (error: any) {
-    console.error('Error sending SMS:', error);
-    return {
-      success: false,
-      message: error.message || 'Failed to send SMS',
-    };
+  // Validate input
+  if (!input.to || !input.message) {
+    return { success: false, message: 'Phone number and message are required' };
   }
+
+  // Format phone number to E.164 if not already
+  const phoneNumber = input.to.startsWith('+') ? input.to : `+${input.to}`;
+
+  // Send via Twilio
+  const twilioResponse = await sendSMS({
+    to: phoneNumber,
+    body: input.message,
+  });
+
+  // Get or create conversation
+  let conversationId = input.conversationId;
+  let conversationRef;
+
+  if (!conversationId) {
+    // Create new conversation
+    conversationRef = db.collection('smsConversations').doc();
+    conversationId = conversationRef.id;
+
+    const newConversation: Partial<SMSConversation> = {
+      id: conversationId,
+      partnerId: input.partnerId,
+      type: 'direct',
+      platform: 'sms',
+      title: `SMS: ${phoneNumber}`,
+      customerPhone: phoneNumber,
+      participants: [],
+      isActive: true,
+      messageCount: 0,
+      createdBy: input.partnerId,
+      createdAt: FieldValue.serverTimestamp(),
+      lastMessageAt: FieldValue.serverTimestamp(),
+    };
+
+    conversationRef.set(newConversation).catch(async (serverError) => {
+        errorEmitter.emit('permission-error', new FirestorePermissionError({
+          path: conversationRef.path,
+          operation: 'create',
+          requestResourceData: newConversation,
+          serverError,
+        }));
+    });
+  } else {
+    // Update existing conversation
+    conversationRef = db.collection('smsConversations').doc(conversationId)
+    conversationRef.update({
+      lastMessageAt: FieldValue.serverTimestamp(),
+      messageCount: FieldValue.increment(1),
+    }).catch(async (serverError) => {
+        errorEmitter.emit('permission-error', new FirestorePermissionError({
+          path: conversationRef.path,
+          operation: 'update',
+          requestResourceData: { lastMessageAt: 'SERVER_TIMESTAMP', messageCount: 'INCREMENT' },
+          serverError,
+        }));
+    });
+  }
+
+  // Store message in Firestore
+  const messageRef = db.collection('smsMessages').doc();
+  const messageData: Partial<SMSMessage> = {
+    id: messageRef.id,
+    conversationId,
+    senderId: input.partnerId,
+    type: 'text',
+    content: input.message,
+    direction: 'outbound',
+    platform: 'sms',
+    smsMetadata: {
+      twilioSid: twilioResponse.sid,
+      twilioStatus: twilioResponse.status as any,
+      to: twilioResponse.to,
+      from: twilioResponse.from,
+      errorCode: twilioResponse.errorCode,
+      errorMessage: twilioResponse.errorMessage,
+    },
+    isEdited: false,
+    createdAt: FieldValue.serverTimestamp(),
+  };
+
+  messageRef.set(messageData).catch(async (serverError) => {
+    errorEmitter.emit('permission-error', new FirestorePermissionError({
+      path: messageRef.path,
+      operation: 'create',
+      requestResourceData: messageData,
+      serverError,
+    }));
+  });
+
+  return {
+    success: true,
+    message: 'SMS sent successfully',
+    messageId: messageRef.id,
+    twilioSid: twilioResponse.sid,
+    conversationId,
+  };
 }
 
 /**

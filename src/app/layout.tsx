@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { Inter, Poppins } from 'next/font/google';
 import { Toaster } from "../components/ui/toaster";
+import FirebaseErrorListener from '../components/FirebaseErrorListener';
 import './globals.css';
 
 const inter = Inter({
@@ -29,6 +30,7 @@ export default function RootLayout({
       <body className={`${inter.variable} ${poppins.variable} font-sans antialiased`}>
         {children}
         <Toaster />
+        <FirebaseErrorListener />
       </body>
     </html>
   );
