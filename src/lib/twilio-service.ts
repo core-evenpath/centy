@@ -6,6 +6,7 @@ import twilio from 'twilio';
 const accountSid = process.env.TWILIO_ACCOUNT_SID;
 const authToken = process.env.TWILIO_AUTH_TOKEN;
 const twilioPhoneNumber = process.env.TWILIO_PHONE_NUMBER;
+const twilioWhatsAppNumber = process.env.TWILIO_WHATSAPP_NUMBER;
 
 let twilioClient: twilio.Twilio | null = null;
 
@@ -26,14 +27,20 @@ export interface SendSMSOptions {
   body: string;
 }
 
+export interface SendWhatsAppMessageOptions {
+  to: string; // Phone number in E.164 format (e.g., +1234567890)
+  body: string;
+  mediaUrl?: string;
+}
+
 export interface TwilioMessageResponse {
   sid: string;
   status: string;
   to: string;
   from: string;
   body: string;
-  errorCode?: string;
-  errorMessage?: string;
+  errorCode?: string | null;
+  errorMessage?: string | null;
 }
 
 /**
@@ -66,12 +73,54 @@ export async function sendSMS(options: SendSMSOptions): Promise<TwilioMessageRes
       to: message.to,
       from: message.from,
       body: message.body,
-      errorCode: message.errorCode || undefined,
-      errorMessage: message.errorMessage || undefined,
+      errorCode: message.errorCode || null,
+      errorMessage: message.errorMessage || null,
     };
   } catch (error: any) {
     console.error('Error sending SMS:', error);
     throw new Error(error.message || 'Failed to send SMS');
+  }
+}
+
+/**
+ * Send a WhatsApp message via Twilio
+ */
+export async function sendWhatsAppMessage(options: SendWhatsAppMessageOptions): Promise<TwilioMessageResponse> {
+  try {
+    const client = getTwilioClient();
+    
+    if (!twilioWhatsAppNumber) {
+      throw new Error('TWILIO_WHATSAPP_NUMBER not configured');
+    }
+
+    // Format phone numbers for WhatsApp
+    const to = `whatsapp:${options.to.startsWith('+') ? options.to : '+' + options.to}`;
+    const from = `whatsapp:${twilioWhatsAppNumber}`;
+    
+    const messageParams: any = {
+      from,
+      to,
+      body: options.body,
+    };
+    
+    if (options.mediaUrl) {
+      messageParams.mediaUrl = [options.mediaUrl];
+    }
+
+    const message = await client.messages.create(messageParams);
+
+    return {
+      sid: message.sid,
+      status: message.status,
+      to: message.to,
+      from: message.from,
+      body: message.body,
+      errorCode: message.errorCode || null,
+      errorMessage: message.errorMessage || null,
+    };
+  } catch (error: any) {
+    console.error('Error sending WhatsApp message:', error);
+    throw new Error(error.message || 'Failed to send WhatsApp message');
   }
 }
 
