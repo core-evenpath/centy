@@ -1672,3 +1672,62 @@ export interface UserProfile {
   partnerId?: string;
   workspaces?: WorkspaceAccess[];
 }
+
+
+// ============================================================================
+// WHATSAPP MESSAGING TYPES
+// ============================================================================
+
+export interface WhatsAppMessage extends ChatMessage {
+  whatsappMetadata: {
+    twilioSid?: string;
+    twilioStatus?: 'queued' | 'sent' | 'delivered' | 'read' | 'failed' | 'undelivered';
+    to: string; // WhatsApp number in format: whatsapp:+1234567890
+    from: string; // Twilio WhatsApp number
+    errorCode?: string;
+    errorMessage?: string;
+    numMedia?: number;
+    mediaUrls?: string[];
+  };
+  direction: 'outbound' | 'inbound';
+  platform: 'whatsapp';
+}
+
+export interface WhatsAppConversation extends Conversation {
+  platform: 'whatsapp';
+  customerPhone: string; // WhatsApp number
+  customerName?: string;
+  lastWhatsAppStatus?: 'active' | 'opt_out' | 'blocked';
+}
+
+export interface TwilioWebhookPayload {
+  MessageSid: string;
+  AccountSid: string;
+  MessagingServiceSid?: string;
+  From: string; // whatsapp:+1234567890
+  To: string; // whatsapp:+1234567890
+  Body: string;
+  NumMedia?: string;
+  MediaUrl0?: string;
+  MediaContentType0?: string;
+  SmsStatus?: string;
+  MessageStatus?: string;
+  ApiVersion?: string;
+  SmsSid?: string;
+}
+
+export interface SendWhatsAppMessageInput {
+  partnerId: string;
+  to: string; // Phone number without whatsapp: prefix
+  message: string;
+  conversationId?: string;
+  mediaUrl?: string;
+}
+
+export interface SendWhatsAppMessageResult {
+  success: boolean;
+  message: string;
+  messageId?: string;
+  twilioSid?: string;
+  conversationId?: string;
+}

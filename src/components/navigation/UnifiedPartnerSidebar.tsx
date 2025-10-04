@@ -1,122 +1,371 @@
 // src/components/navigation/UnifiedPartnerSidebar.tsx
 "use client";
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
-import { CheckSquare, Settings, LogOut, ChevronLeft, ChevronRight, MessageSquare, Target, Users, FileText, BarChart3 } from 'lucide-react';
-import { cn } from '../../lib/utils';
+import { usePathname, useRouter } from 'next/navigation';
+import { 
+  LayoutDashboard, 
+  ListTodo, 
+  Users, 
+  Workflow, 
+  BarChart3, 
+  Settings, 
+  ChevronDown,
+  LogOut,
+  Building2,
+  MessageSquare,
+  Bell,
+  HelpCircle,
+  Zap
+} from 'lucide-react';
+import { Button } from '../ui/button';
+import { Badge } from '../ui/badge';
+import { Avatar, AvatarFallback } from '../ui/avatar';
+import { Separator } from '../ui/separator';
+import { ScrollArea } from '../ui/scroll-area';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '../ui/dropdown-menu';
 import {
   Sidebar,
-  SidebarHeader,
   SidebarContent,
   SidebarFooter,
+  SidebarHeader,
   SidebarMenu,
   SidebarMenuItem,
   SidebarMenuButton,
-  useSidebar
+  SidebarProvider,
+  SidebarTrigger,
 } from '../ui/sidebar';
 import { useAuth } from '../../hooks/use-auth';
+import { useMultiWorkspaceAuth } from '../../hooks/use-multi-workspace-auth';
+import { useToast } from '../../hooks/use-toast';
+import { getAuth, signOut } from 'firebase/auth';
+import { app } from '../../lib/firebase';
+import type { WorkspaceAccess } from '../../lib/types';
 
-const navigation = [
-    {
-    name: 'Messaging',
-    href: '/partner/messaging',
-    icon: MessageSquare,
-  },
-  {
-    name: 'Campaigns',
-    href: '/partner/messaging?tab=campaigns',
-    icon: Target,
-  },
-  {
-    name: 'Contacts',
-    href: '/partner/messaging?tab=contacts',
-    icon: Users,
-  },
-  {
-    name: 'Templates',
-    href: '/partner/messaging?tab=templates',
-    icon: FileText,
-  },
-    {
-    name: 'Insights',
-    href: '/partner/dashboard',
-    icon: BarChart3,
-  },
-  {
-    name: 'Tasks',
-    href: '/partner/tasks',
-    icon: CheckSquare,
-  },
-  {
-    name: 'Settings',
-    href: '/partner/settings',
-    icon: Settings,
-  },
-];
+interface MenuItem {
+  icon: any;
+  label: string;
+  href: string;
+  badge: number | null;
+  description?: string;
+}
+
+interface SidebarStats {
+  pendingTasks?: number;
+  activeWorkflows?: number;
+  teamMembers?: number;
+  unreadMessages?: number;
+}
 
 export default function UnifiedPartnerSidebar() {
   const pathname = usePathname();
-  const searchParams = typeof window !== "undefined" ? new URLSearchParams(window.location.search) : new URLSearchParams();
-  const { user } = useAuth();
-  const { state, setOpen } = useSidebar();
-  const isExpanded = state === 'expanded';
+  const router = useRouter();
+  const { toast } = useToast();
+  const auth = getAuth(app);
+  
+  const { 
+    user, 
+    currentWorkspace, 
+    availableWorkspaces,
+    switchWorkspace 
+  } = useMultiWorkspaceAuth();
+
+  const [stats, setStats] = useState<SidebarStats>({});
+  const [isWorkspaceSwitching, setIsWorkspaceSwitching] = useState(false);
+
+  // Menu items with messaging added
+  const menuItems: MenuItem[] = [
+    { 
+      icon: LayoutDashboard, 
+      label: 'Dashboard', 
+      href: '/partner/dashboard',
+      badge: null 
+    },
+    { 
+      icon: ListTodo, 
+      label: 'Tasks', 
+      href: '/partner/tasks',
+      badge: stats?.pendingTasks || null
+    },
+    { 
+      icon: Users, 
+      label: 'Team', 
+      href: '/partner/team',
+      badge: stats?.teamMembers || null
+    },
+    { 
+      icon: Workflow, 
+      label: 'Workflows', 
+      href: '/partner/workflows',
+      badge: stats?.activeWorkflows || null
+    },
+    { 
+      icon: MessageSquare, 
+      label: 'Messaging', 
+      href: '/partner/messaging',
+      badge: stats?.unreadMessages || null,
+      description: 'WhatsApp Messages'
+    },
+    { 
+      icon: BarChart3, 
+      label: 'Analytics', 
+      href: '/partner/analytics',
+      badge: null 
+    },
+    { 
+      icon: Settings, 
+      label: 'Settings', 
+      href: '/partner/settings',
+      badge: null 
+    },
+  ];
+
+  // Load sidebar stats (you can implement this based on your needs)
+  useEffect(() => {
+    // TODO: Fetch real stats from Firestore
+    // For now, using placeholder values
+    setStats({
+      pendingTasks: 0,
+      activeWorkflows: 0,
+      teamMembers: 0,
+      unreadMessages: 0,
+    });
+  }, [currentWorkspace?.partnerId]);
+
+  const handleWorkspaceSwitch = async (workspace: WorkspaceAccess) => {
+    if (workspace.partnerId === currentWorkspace?.partnerId) return;
+
+    setIsWorkspaceSwitching(true);
+    toast({
+      title: "Switching Workspace",
+      description: `Switching to ${workspace.partnerName}...`
+    });
+
+    const success = await switchWorkspace(workspace.partnerId);
+    
+    if (success) {
+      // Reload to refresh all data
+      window.location.reload();
+    } else {
+      toast({
+        variant: "destructive",
+        title: "Switch Failed",
+        description: "Unable to switch workspace. Please try again."
+      });
+      setIsWorkspaceSwitching(false);
+    }
+  };
+
+  const handleSignOut = async () => {
+    try {
+      await signOut(auth);
+      toast({
+        title: "Signed Out",
+        description: "You have been successfully signed out."
+      });
+      router.push('/partner/login');
+    } catch (error) {
+      toast({
+        variant: "destructive",
+        title: "Sign Out Failed",
+        description: "Unable to sign out. Please try again."
+      });
+    }
+  };
+
+  const WorkspaceAvatar = ({ workspace, size = 'md' }: { workspace: WorkspaceAccess | null, size?: 'sm' | 'md' | 'lg' }) => {
+    const sizeClasses = {
+      sm: 'w-8 h-8 text-xs',
+      md: 'w-10 h-10 text-sm',
+      lg: 'w-12 h-12 text-base'
+    };
+
+    const workspaceName = workspace?.partnerName || 'Workspace';
+
+    return (
+      <div className={`${sizeClasses[size]} bg-primary text-primary-foreground rounded-lg flex items-center justify-center font-bold`}>
+        {workspaceName?.charAt(0)?.toUpperCase() || '?'}
+      </div>
+    );
+  };
 
   return (
-    <Sidebar>
-      <SidebarHeader>
-        <div className="flex items-center gap-3 p-1">
-           <div className={`flex items-center justify-center ${isExpanded ? 'w-10 h-10' : 'w-full'}`}>
-              <div className={`flex items-center justify-center bg-blue-600 rounded-lg ${isExpanded ? 'w-10 h-10' : 'w-8 h-8'}`}>
-                  <div className={`bg-white rounded-sm ${isExpanded ? 'w-5 h-5' : 'w-4 h-4'}`}></div>
+    <Sidebar className="border-r">
+      {/* Header */}
+      <SidebarHeader className="border-b p-4">
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button 
+              variant="ghost" 
+              className="w-full justify-between h-auto p-3 hover:bg-accent"
+              disabled={isWorkspaceSwitching}
+            >
+              <div className="flex items-center gap-3 flex-1 min-w-0">
+                <WorkspaceAvatar workspace={currentWorkspace} size="md" />
+                <div className="flex-1 text-left min-w-0">
+                  <p className="font-semibold text-sm truncate">
+                    {currentWorkspace?.partnerName || 'Select Workspace'}
+                  </p>
+                  <p className="text-xs text-muted-foreground truncate">
+                    {currentWorkspace?.role === 'partner_admin' ? 'Admin' : 'Member'}
+                  </p>
+                </div>
               </div>
-          </div>
-          {isExpanded && (
-            <div>
-              <h1 className="text-lg font-semibold text-gray-900">Partner</h1>
-              <p className="text-sm text-gray-500">Workspace</p>
+              <ChevronDown className="w-4 h-4 flex-shrink-0 opacity-50" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start" className="w-64">
+            <div className="px-2 py-1.5">
+              <p className="text-xs font-medium text-muted-foreground mb-2">
+                Switch Workspace
+              </p>
             </div>
-          )}
-        </div>
+            <DropdownMenuSeparator />
+            {availableWorkspaces.map((workspace) => (
+              <DropdownMenuItem
+                key={workspace.partnerId}
+                onClick={() => handleWorkspaceSwitch(workspace)}
+                className="flex items-center gap-3 p-3 cursor-pointer"
+                disabled={isWorkspaceSwitching}
+              >
+                <WorkspaceAvatar workspace={workspace} size="sm" />
+                <div className="flex-1 min-w-0">
+                  <p className="font-medium text-sm truncate">
+                    {workspace.partnerName}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    {workspace.role === 'partner_admin' ? 'Admin' : 'Member'}
+                  </p>
+                </div>
+                {workspace.partnerId === currentWorkspace?.partnerId && (
+                  <div className="w-2 h-2 rounded-full bg-green-500 flex-shrink-0" />
+                )}
+              </DropdownMenuItem>
+            ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
       </SidebarHeader>
-      
-      <SidebarContent className="flex-1">
-        <SidebarMenu>
-          {navigation.map((item) => {
-            const isActive = item.href.includes('?') 
-              ? pathname === item.href.split('?')[0] && searchParams.get('tab') === item.href.split('=')[1]
-              : pathname === item.href || (item.href !== '/partner' && pathname.startsWith(item.href + '/'));
-            const Icon = item.icon;
-            return (
-              <SidebarMenuItem key={item.name}>
-                <Link href={item.href} passHref>
-                  <SidebarMenuButton tooltip={item.name} isActive={isActive}>
-                    <Icon />
-                    {isExpanded && <span>{item.name}</span>}
+
+      {/* Navigation Menu */}
+      <SidebarContent>
+        <ScrollArea className="flex-1">
+          <SidebarMenu className="p-2">
+            {menuItems.map((item) => {
+              const Icon = item.icon;
+              const isActive = pathname === item.href || pathname.startsWith(`${item.href}/`);
+              
+              return (
+                <SidebarMenuItem key={item.href}>
+                  <SidebarMenuButton
+                    asChild
+                    isActive={isActive}
+                    tooltip={item.description || item.label}
+                  >
+                    <Link 
+                      href={item.href}
+                      className="flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors"
+                    >
+                      <Icon className="w-5 h-5 flex-shrink-0" />
+                      <span className="flex-1 font-medium">{item.label}</span>
+                      {item.badge !== null && item.badge > 0 && (
+                        <Badge variant="secondary" className="ml-auto">
+                          {item.badge}
+                        </Badge>
+                      )}
+                    </Link>
                   </SidebarMenuButton>
-                </Link>
-              </SidebarMenuItem>
-            );
-          })}
-        </SidebarMenu>
+                </SidebarMenuItem>
+              );
+            })}
+          </SidebarMenu>
+
+          <Separator className="my-4" />
+
+          {/* Additional Quick Actions */}
+          <div className="px-4 py-2">
+            <p className="text-xs font-medium text-muted-foreground mb-2">
+              Quick Actions
+            </p>
+            <div className="space-y-1">
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                className="w-full justify-start gap-2"
+                onClick={() => router.push('/partner/workflows/builder')}
+              >
+                <Zap className="w-4 h-4" />
+                <span className="text-sm">Create Workflow</span>
+              </Button>
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                className="w-full justify-start gap-2"
+                onClick={() => router.push('/partner/tasks')}
+              >
+                <ListTodo className="w-4 h-4" />
+                <span className="text-sm">Assign Task</span>
+              </Button>
+            </div>
+          </div>
+        </ScrollArea>
       </SidebarContent>
 
-      <SidebarFooter>
-        <SidebarMenu>
-           <SidebarMenuItem>
-             <SidebarMenuButton onClick={() => setOpen(!isExpanded)} tooltip={isExpanded ? 'Collapse' : 'Expand'}>
-              {isExpanded ? <ChevronLeft /> : <ChevronRight />}
-              {isExpanded && <span>Collapse</span>}
-            </SidebarMenuButton>
-          </SidebarMenuItem>
-          <SidebarMenuItem>
-            <SidebarMenuButton onClick={() => {/* Add logout logic */}} tooltip="Logout">
-              <LogOut />
-              {isExpanded && <span>Logout</span>}
-            </SidebarMenuButton>
-          </SidebarMenuItem>
-        </SidebarMenu>
+      {/* Footer */}
+      <SidebarFooter className="border-t p-4">
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button 
+              variant="ghost" 
+              className="w-full justify-start gap-3 h-auto p-3 hover:bg-accent"
+            >
+              <Avatar className="w-9 h-9">
+                <AvatarFallback className="bg-primary/10 text-primary">
+                  {user?.email?.charAt(0).toUpperCase() || 'U'}
+                </AvatarFallback>
+              </Avatar>
+              <div className="flex-1 text-left min-w-0">
+                <p className="font-medium text-sm truncate">
+                  {user?.displayName || user?.email || 'User'}
+                </p>
+                <p className="text-xs text-muted-foreground truncate">
+                  {user?.email || 'No email'}
+                </p>
+              </div>
+              <ChevronDown className="w-4 h-4 flex-shrink-0 opacity-50" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-56">
+            <DropdownMenuItem onClick={() => router.push('/partner/settings/profile')}>
+              <Settings className="w-4 h-4 mr-2" />
+              Account Settings
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => router.push('/partner/settings/notifications')}>
+              <Bell className="w-4 h-4 mr-2" />
+              Notifications
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => router.push('/partner/settings/billing')}>
+              <Building2 className="w-4 h-4 mr-2" />
+              Billing & Plan
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem>
+              <HelpCircle className="w-4 h-4 mr-2" />
+              Help & Support
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={handleSignOut} className="text-red-600">
+              <LogOut className="w-4 h-4 mr-2" />
+              Sign Out
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </SidebarFooter>
     </Sidebar>
   );

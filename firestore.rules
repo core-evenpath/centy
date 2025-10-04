@@ -1,74 +1,79 @@
+
 rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Helper function to check if the user is a member of the workspace
-    function isWorkspaceMember(partnerId) {
-      return request.auth != null && (
-        request.auth.token.partnerId == partnerId || 
-        (request.auth.token.partnerIds != null && partnerId in request.auth.token.partnerIds)
-      );
-    }
-    
-    // Helper function to check if the user is an admin of the workspace
-    function isWorkspaceAdmin(partnerId) {
-      return isWorkspaceMember(partnerId) && request.auth.token.role == 'partner_admin';
-    }
-
-    // Allow public read for user mappings for login flow
-    match /userMappings/{identifier} {
-      allow read: if true;
-      allow write: if false; // Only backend can write
-    }
-
-    // Partners can be read by their members, but only written by backend/admins
+    // Partners: Only authenticated admins can read/write partner data.
+    // Partners can only read their own data.
     match /partners/{partnerId} {
-      allow read: if isWorkspaceMember(partnerId);
-      allow write: if false; // Managed by backend flows
+      allow read: if request.auth != null && 
+                  (request.auth.token.role == 'Admin' || request.auth.token.role == 'Super Admin' || request.auth.uid == partnerId);
+      allow write: if request.auth != null && 
+                   (request.auth.token.role == 'Admin' || request.auth.token.role == 'Super Admin');
     }
 
-    // Team members can be read by others in the same partner, written by admins
+    // Team Members:
+    // Partner admins can manage members of their own team.
+    // Employees can read their own data.
     match /teamMembers/{userId} {
-      allow read: if isWorkspaceMember(resource.data.partnerId);
-      // Allow creation by admins, allow updates by self or admins
-      allow write: if isWorkspaceAdmin(request.resource.data.partnerId) || (request.auth.uid == userId);
+        allow read: if request.auth != null &&
+                    (request.auth.token.partnerId == resource.data.partnerId || request.auth.uid == userId);
+        allow create, update, delete: if request.auth != null &&
+                           (request.auth.token.role == 'partner_admin' && request.auth.token.partnerId == resource.data.partnerId) ||
+                           (request.auth.token.role == 'Admin' || request.auth.token.role == 'Super Admin');
     }
 
-    // Tasks can be read by partner members, written by admins, or updated by the assignee
+    // Tasks:
+    // Partner admins can manage all tasks in their workspace.
+    // Employees can only manage tasks assigned to them.
     match /tasks/{taskId} {
-      allow read: if isWorkspaceMember(resource.data.partnerId);
-      allow create: if isWorkspaceAdmin(request.resource.data.partnerId);
-      allow update: if isWorkspaceAdmin(resource.data.partnerId) || request.auth.uid == resource.data.assignee;
-      allow delete: if isWorkspaceAdmin(resource.data.partnerId);
+        allow read: if request.auth != null &&
+                    (request.auth.token.role == 'partner_admin' && request.auth.token.partnerId == resource.data.partnerId) ||
+                    (request.auth.uid == resource.data.assignee);
+        allow create, update, delete: if request.auth != null &&
+                        (request.auth.token.role == 'partner_admin' && request.auth.token.partnerId == resource.data.partnerId) ||
+                        (request.auth.uid == resource.data.assignee);
     }
     
-    // Employee/user-specific collections
-    match /userWorkspaceLinks/{linkId} {
-      allow read, write: if request.auth.uid == linkId.split('_')[0]; // User can manage their own links
-    }
-    
-    match /userWorkspaceContexts/{userId} {
-      allow read, write: if request.auth.uid == userId;
+    // User Mappings: Used for tenant lookups during login.
+    // Should be readable by any authenticated user attempting to log in.
+    // Writes should be restricted to server-side admin processes.
+    match /userMappings/{identifier} {
+      allow read: if request.auth != null;
+      allow write: if false; // Only server-side admin should write
     }
 
-    // Admin-only collections (for safety)
+    // User Workspace Links: Controls which user has access to which workspace.
+    // Users can read their own links. Writes are server-side.
+    match /userWorkspaceLinks/{linkId} {
+      allow read: if request.auth != null && request.auth.uid == resource.data.userId;
+      allow write: if false; // Only server-side admin should write
+    }
+
+    // User Workspace Context: Stores the user's active workspace.
+    // Users can read and write their own context.
+    match /userWorkspaceContexts/{userId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+
+    // Admin Users collection
     match /adminUsers/{userId} {
-        allow read, write: if request.auth.token.role == 'Super Admin';
+      allow read: if request.auth != null && 
+                     (request.auth.token.role == 'Admin' || request.auth.token.role == 'Super Admin');
+      allow write: if request.auth != null && request.auth.token.role == 'Super Admin';
     }
-    
-    match /invitationCodes/{codeId} {
-        allow read, write: if isWorkspaceAdmin(resource.data.partnerId);
+
+    match /whatsappConversations/{conversationId} {
+      allow read: if request.auth != null && 
+        request.auth.token.partnerId == resource.data.partnerId;
+      allow write: if request.auth != null && 
+        request.auth.token.partnerId == resource.data.partnerId;
     }
-    
-    match /auditLogs/{logId} {
-        allow read: if isWorkspaceMember(resource.data.partnerId);
-        allow write: if false; // Only backend
-    }
-    
-    // Default deny all other collections
-    match /{document=**} {
-      allow read, write: if false;
+
+    match /whatsappMessages/{messageId} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null;
     }
   }
 }
