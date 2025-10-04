@@ -2,7 +2,7 @@
 'use server';
 
 import {ai} from '../genkit';
-import {googleAI} from '@genkit-ai/googleai';
+import {googleAI} from '@genkit-ai/google-genai';
 import {
   SuggestWorkflowStepsInputSchema,
   SuggestWorkflowStepsOutputSchema,
@@ -50,7 +50,7 @@ const prompt = ai.definePrompt({
 2. Identify the workflow pattern that best fits their needs
 3. Design steps that follow professional workflow visualization principles
 4. **Crucially, identify where the process needs to change based on different conditions (e.g., urgency, customer type, cost). Use the 'conditional_branch' step for this.**
-5. For each conditional branch, define the condition clearly (e.g., "IF urgency = HIGH") and list the specific action steps inside that branch
+5. For each conditional branch, define the condition clearly (e.g., "IF risk_level = HIGH") and list the specific action steps inside that branch
 6. Consider which steps can run in parallel vs. sequential
 7. Group related steps logically for visual clarity
 8. Provide a concise 'name' and 'description' for the entire workflow
