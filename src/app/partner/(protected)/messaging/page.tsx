@@ -3,7 +3,8 @@
 // ============================================================================
 "use client";
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useSearchParams } from 'next/navigation';
 import PartnerHeader from '../../../../components/partner/PartnerHeader';
 import MessagingDashboard from '../../../../components/partner/messaging/MessagingDashboard';
 import CampaignsView from '../../../../components/partner/messaging/CampaignsView';
@@ -13,7 +14,16 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '../../../../components
 import { Activity, Target, Users, MessageSquare } from 'lucide-react';
 
 export default function PartnerMessagingPage() {
-  const [activeTab, setActiveTab] = useState('dashboard');
+  const searchParams = useSearchParams();
+  const initialTab = searchParams.get('tab') || 'dashboard';
+  const [activeTab, setActiveTab] = useState(initialTab);
+
+  useEffect(() => {
+    const tab = searchParams.get('tab');
+    if (tab && ['dashboard', 'campaigns', 'contacts', 'templates'].includes(tab)) {
+      setActiveTab(tab);
+    }
+  }, [searchParams]);
 
   return (
     <>

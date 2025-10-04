@@ -4,7 +4,7 @@
 import React from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { CheckSquare, Settings, LogOut, ChevronLeft, ChevronRight, MessageSquare } from 'lucide-react';
+import { CheckSquare, Settings, LogOut, ChevronLeft, ChevronRight, MessageSquare, Target, Users, FileText } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import {
   Sidebar,
@@ -25,9 +25,19 @@ const navigation = [
     icon: CheckSquare,
   },
   {
-    name: 'Messaging',
-    href: '/partner/messaging',
-    icon: MessageSquare,
+    name: 'Campaigns',
+    href: '/partner/messaging?tab=campaigns',
+    icon: Target,
+  },
+  {
+    name: 'Contacts',
+    href: '/partner/messaging?tab=contacts',
+    icon: Users,
+  },
+  {
+    name: 'Templates',
+    href: '/partner/messaging?tab=templates',
+    icon: FileText,
   },
   {
     name: 'Settings',
