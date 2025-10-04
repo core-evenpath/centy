@@ -1,5 +1,6 @@
 import React from 'react';
 import { Sparkles, ArrowRight, Zap, Users, BarChart3, MessageSquare, CheckCircle2, Layers, TrendingUp } from 'lucide-react';
+import Link from 'next/link';
 
 export default function HomePage() {
   return (
@@ -17,18 +18,18 @@ export default function HomePage() {
           </div>
           
           <nav className="flex items-center gap-8">
-            <a href="#features" className="hidden md:block text-sm font-medium text-gray-600 hover:text-gray-900">
+            <Link href="#features" className="hidden md:block text-sm font-medium text-gray-600 hover:text-gray-900">
               Features
-            </a>
-            <a href="#pricing" className="hidden md:block text-sm font-medium text-gray-600 hover:text-gray-900">
+            </Link>
+            <Link href="#pricing" className="hidden md:block text-sm font-medium text-gray-600 hover:text-gray-900">
               Pricing
-            </a>
-            <a 
-              href="/dashboard" 
+            </Link>
+            <Link 
+              href="/partner/login" 
               className="px-6 py-2.5 bg-gradient-to-r from-[#3081D0] to-[#6044A6] text-white rounded-lg font-semibold hover:shadow-lg transition-all"
             >
               Launch App
-            </a>
+            </Link>
           </nav>
         </div>
       </header>
@@ -58,13 +59,13 @@ export default function HomePage() {
           </p>
           
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-16">
-            <a 
-              href="/dashboard"
+            <Link 
+              href="/partner/signup"
               className="group px-8 py-4 bg-gradient-to-r from-[#3081D0] to-[#6044A6] text-white rounded-xl font-semibold text-lg hover:shadow-xl hover:scale-105 transition-all flex items-center gap-2"
             >
               Start Free Trial
               <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
-            </a>
+            </Link>
             <button className="px-8 py-4 border-2 border-gray-300 text-gray-700 rounded-xl font-semibold text-lg hover:border-[#3081D0] hover:bg-gray-50 transition-all">
               Watch Demo
             </button>
@@ -192,13 +193,13 @@ export default function HomePage() {
           <p className="text-xl opacity-90 mb-10">
             Join thousands of marketers seeing real results. Start your free trial today.
           </p>
-          <a 
-            href="/dashboard"
+          <Link 
+            href="/partner/signup"
             className="inline-flex items-center gap-2 px-10 py-5 bg-white text-[#3081D0] rounded-xl font-bold text-lg hover:scale-105 transition-transform shadow-xl"
           >
             Start Free Trial
             <ArrowRight className="w-5 h-5" />
-          </a>
+          </Link>
           <p className="text-sm opacity-75 mt-6">No credit card required • 14-day free trial</p>
         </div>
       </section>
@@ -216,10 +217,10 @@ export default function HomePage() {
           </div>
           
           <div className="flex items-center gap-8 text-sm text-gray-600">
-            <a href="#" className="hover:text-gray-900">Privacy</a>
-            <a href="#" className="hover:text-gray-900">Terms</a>
-            <a href="#" className="hover:text-gray-900">Contact</a>
-            <a href="#" className="hover:text-gray-900">Docs</a>
+            <Link href="/privacy" className="hover:text-gray-900">Privacy</Link>
+            <Link href="/terms" className="hover:text-gray-900">Terms</Link>
+            <Link href="/contact" className="hover:text-gray-900">Contact</Link>
+            <Link href="/docs" className="hover:text-gray-900">Docs</Link>
           </div>
         </div>
       </footer>
