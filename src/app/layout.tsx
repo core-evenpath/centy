@@ -10,13 +10,13 @@ const inter = Inter({
 
 const poppins = Poppins({
   subsets: ['latin'],
-  weight: ['400', '500', '600', '700', '800'],
+  weight: ['400', '500', '600', '700', '800', '900'],
   variable: '--font-poppins',
 });
 
 export const metadata: Metadata = {
-  title: 'flowpod - AI Workflow Automation',
-  description: 'AI-powered agentic workflows by flowpod',
+  title: 'centy.dev - AI-Powered Marketing Platform',
+  description: 'Marketing Made Effortless',
 };
 
 export default function RootLayout({
