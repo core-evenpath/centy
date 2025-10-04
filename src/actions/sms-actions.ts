@@ -21,12 +21,9 @@ export async function sendSMSAction(input: SendSMSInput): Promise<SendSMSResult>
     return { success: false, message: 'Phone number and message are required' };
   }
 
-  // Format phone number to E.164 if not already
-  const phoneNumber = input.to.startsWith('+') ? input.to : `+${input.to}`;
-
-  // Send via Twilio
+  // Send via Twilio first
   const twilioResponse = await sendSMS({
-    to: phoneNumber,
+    to: input.to,
     body: input.message,
   });
 
@@ -34,88 +31,82 @@ export async function sendSMSAction(input: SendSMSInput): Promise<SendSMSResult>
   let conversationId = input.conversationId;
   let conversationRef;
 
-  if (!conversationId) {
-    // Create new conversation
-    conversationRef = db.collection('smsConversations').doc();
-    conversationId = conversationRef.id;
+  try {
+    if (!conversationId) {
+      // Create new conversation
+      conversationRef = db.collection('smsConversations').doc();
+      conversationId = conversationRef.id;
 
-    const newConversation: Partial<SMSConversation> = {
-      id: conversationId,
-      partnerId: input.partnerId,
-      type: 'direct',
+      const newConversation: Partial<SMSConversation> = {
+        id: conversationId,
+        partnerId: input.partnerId,
+        type: 'direct',
+        platform: 'sms',
+        title: `SMS: ${input.to}`,
+        customerPhone: input.to,
+        participants: [],
+        isActive: true,
+        messageCount: 0,
+        createdBy: input.partnerId,
+        createdAt: FieldValue.serverTimestamp(),
+        lastMessageAt: FieldValue.serverTimestamp(),
+      };
+
+      await conversationRef.set(newConversation);
+
+    } else {
+      // Update existing conversation
+      conversationRef = db.collection('smsConversations').doc(conversationId)
+      await conversationRef.update({
+        lastMessageAt: FieldValue.serverTimestamp(),
+        messageCount: FieldValue.increment(1),
+      });
+    }
+
+    // Store message in Firestore
+    const messageRef = db.collection('smsMessages').doc();
+    const messageData: Partial<SMSMessage> = {
+      id: messageRef.id,
+      conversationId,
+      senderId: input.partnerId,
+      type: 'text',
+      content: input.message,
+      direction: 'outbound',
       platform: 'sms',
-      title: `SMS: ${phoneNumber}`,
-      customerPhone: phoneNumber,
-      participants: [],
-      isActive: true,
-      messageCount: 0,
-      createdBy: input.partnerId,
+      smsMetadata: {
+        twilioSid: twilioResponse.sid,
+        twilioStatus: twilioResponse.status as any,
+        to: twilioResponse.to,
+        from: twilioResponse.from,
+        errorCode: twilioResponse.errorCode || null,
+        errorMessage: twilioResponse.errorMessage || null,
+      },
+      isEdited: false,
       createdAt: FieldValue.serverTimestamp(),
-      lastMessageAt: FieldValue.serverTimestamp(),
     };
 
-    conversationRef.set(newConversation).catch(async (serverError) => {
-        errorEmitter.emit('permission-error', new FirestorePermissionError({
-          path: conversationRef.path,
-          operation: 'create',
-          requestResourceData: newConversation,
-          serverError,
-        }));
-    });
-  } else {
-    // Update existing conversation
-    conversationRef = db.collection('smsConversations').doc(conversationId)
-    conversationRef.update({
-      lastMessageAt: FieldValue.serverTimestamp(),
-      messageCount: FieldValue.increment(1),
-    }).catch(async (serverError) => {
-        errorEmitter.emit('permission-error', new FirestorePermissionError({
-          path: conversationRef.path,
-          operation: 'update',
-          requestResourceData: { lastMessageAt: 'SERVER_TIMESTAMP', messageCount: 'INCREMENT' },
-          serverError,
-        }));
-    });
-  }
+    await messageRef.set(messageData);
 
-  // Store message in Firestore
-  const messageRef = db.collection('smsMessages').doc();
-  const messageData: Partial<SMSMessage> = {
-    id: messageRef.id,
-    conversationId,
-    senderId: input.partnerId,
-    type: 'text',
-    content: input.message,
-    direction: 'outbound',
-    platform: 'sms',
-    smsMetadata: {
+    return {
+      success: true,
+      message: 'SMS sent successfully',
+      messageId: messageRef.id,
       twilioSid: twilioResponse.sid,
-      twilioStatus: twilioResponse.status as any,
-      to: twilioResponse.to,
-      from: twilioResponse.from,
-      errorCode: twilioResponse.errorCode || null,
-      errorMessage: twilioResponse.errorMessage || null,
-    },
-    isEdited: false,
-    createdAt: FieldValue.serverTimestamp(),
-  };
-
-  messageRef.set(messageData).catch(async (serverError) => {
-    errorEmitter.emit('permission-error', new FirestorePermissionError({
-      path: messageRef.path,
-      operation: 'create',
-      requestResourceData: messageData,
+      conversationId,
+    };
+  } catch (serverError: any) {
+    console.error("Firestore error in sendSMSAction:", serverError);
+    // Now we create the contextual error and throw it
+    const permissionError = new FirestorePermissionError({
+      path: (serverError.ref?.path || 'unknown path'),
+      operation: 'write',
+      requestResourceData: (serverError.requestData || { info: "data not captured" }),
       serverError,
-    }));
-  });
+    });
 
-  return {
-    success: true,
-    message: 'SMS sent successfully',
-    messageId: messageRef.id,
-    twilioSid: twilioResponse.sid,
-    conversationId,
-  };
+    // Instead of just emitting, we now throw the error so the server action fails informatively
+    throw permissionError;
+  }
 }
 
 /**
