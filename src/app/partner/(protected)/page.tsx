@@ -8,8 +8,8 @@ export default function PartnerRootPage() {
   const router = useRouter();
 
   useEffect(() => {
-    // Redirect to tasks as the main partner page
-    router.replace('/partner/tasks');
+    // Redirect to dashboard as the main partner page
+    router.replace('/partner/dashboard');
   }, [router]);
 
   return null;

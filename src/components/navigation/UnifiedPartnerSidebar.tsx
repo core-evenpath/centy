@@ -4,7 +4,7 @@
 import React from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { CheckSquare, Settings, LogOut, ChevronLeft, ChevronRight, MessageSquare, Target, Users, FileText } from 'lucide-react';
+import { CheckSquare, Settings, LogOut, ChevronLeft, ChevronRight, MessageSquare, Target, Users, FileText, BarChart3 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import {
   Sidebar,
@@ -19,6 +19,11 @@ import {
 import { useAuth } from '../../hooks/use-auth';
 
 const navigation = [
+  {
+    name: 'Dashboard',
+    href: '/partner/dashboard',
+    icon: BarChart3,
+  },
   {
     name: 'Tasks',
     href: '/partner/tasks',
@@ -48,6 +53,7 @@ const navigation = [
 
 export default function UnifiedPartnerSidebar() {
   const pathname = usePathname();
+  const searchParams = typeof window !== "undefined" ? new URLSearchParams(window.location.search) : new URLSearchParams();
   const { user } = useAuth();
   const { state, setOpen } = useSidebar();
   const isExpanded = state === 'expanded';
@@ -73,7 +79,9 @@ export default function UnifiedPartnerSidebar() {
       <SidebarContent className="flex-1">
         <SidebarMenu>
           {navigation.map((item) => {
-            const isActive = pathname === item.href || pathname.startsWith(item.href + '/');
+            const isActive = item.href.includes('?') 
+              ? pathname === item.href.split('?')[0] && searchParams.get('tab') === item.href.split('=')[1]
+              : pathname === item.href || (item.href !== '/partner' && pathname.startsWith(item.href + '/'));
             const Icon = item.icon;
             return (
               <SidebarMenuItem key={item.name}>

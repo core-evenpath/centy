@@ -3,73 +3,57 @@
 // ============================================================================
 "use client";
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import PartnerHeader from '../../../../components/partner/PartnerHeader';
 import MessagingDashboard from '../../../../components/partner/messaging/MessagingDashboard';
 import CampaignsView from '../../../../components/partner/messaging/CampaignsView';
 import ContactsView from '../../../../components/partner/messaging/ContactsView';
 import TemplatesView from '../../../../components/partner/messaging/TemplatesView';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '../../../../components/ui/tabs';
 import { Activity, Target, Users, MessageSquare } from 'lucide-react';
 
-export default function PartnerMessagingPage() {
+function MessagingContent() {
   const searchParams = useSearchParams();
-  const initialTab = searchParams.get('tab') || 'dashboard';
-  const [activeTab, setActiveTab] = useState(initialTab);
+  const tab = searchParams.get('tab') || 'dashboard';
 
-  useEffect(() => {
-    const tab = searchParams.get('tab');
-    if (tab && ['dashboard', 'campaigns', 'contacts', 'templates'].includes(tab)) {
-      setActiveTab(tab);
+  const getPageTitle = () => {
+    switch (tab) {
+      case 'campaigns': return 'Campaigns';
+      case 'contacts': return 'Contacts';
+      case 'templates': return 'Templates';
+      default: return 'Messaging Hub';
     }
-  }, [searchParams]);
+  };
+
+  const getPageSubtitle = () => {
+    switch (tab) {
+        case 'campaigns': return 'Manage and monitor your messaging campaigns';
+        case 'contacts': return 'Organize and segment your subscriber base';
+        case 'templates': return 'Pre-built message templates for quick sending';
+        default: return 'Manage campaigns and subscriber communications';
+      }
+  }
 
   return (
     <>
       <PartnerHeader
-        title="Messaging Hub"
-        subtitle="Manage campaigns and subscriber communications"
+        title={getPageTitle()}
+        subtitle={getPageSubtitle()}
       />
       <main className="flex-1 overflow-auto bg-gray-50">
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="h-full flex flex-col">
-          <div className="bg-white border-b border-gray-200 px-6">
-            <TabsList className="grid w-full max-w-2xl grid-cols-4 h-12">
-              <TabsTrigger value="dashboard" className="flex items-center gap-2">
-                <Activity className="w-4 h-4" />
-                Dashboard
-              </TabsTrigger>
-              <TabsTrigger value="campaigns" className="flex items-center gap-2">
-                <Target className="w-4 h-4" />
-                Campaigns
-              </TabsTrigger>
-              <TabsTrigger value="contacts" className="flex items-center gap-2">
-                <Users className="w-4 h-4" />
-                Contacts
-              </TabsTrigger>
-              <TabsTrigger value="templates" className="flex items-center gap-2">
-                <MessageSquare className="w-4 h-4" />
-                Templates
-              </TabsTrigger>
-            </TabsList>
-          </div>
-
-          <div className="flex-1 overflow-auto">
-            <TabsContent value="dashboard" className="m-0 h-full">
-              <MessagingDashboard />
-            </TabsContent>
-            <TabsContent value="campaigns" className="m-0 h-full">
-              <CampaignsView />
-            </TabsContent>
-            <TabsContent value="contacts" className="m-0 h-full">
-              <ContactsView />
-            </TabsContent>
-            <TabsContent value="templates" className="m-0 h-full">
-              <TemplatesView />
-            </TabsContent>
-          </div>
-        </Tabs>
+        {tab === 'dashboard' && <MessagingDashboard />}
+        {tab === 'campaigns' && <CampaignsView />}
+        {tab === 'contacts' && <ContactsView />}
+        {tab === 'templates' && <TemplatesView />}
       </main>
     </>
   );
+}
+
+export default function PartnerMessagingPage() {
+    return (
+        <Suspense fallback={<div>Loading...</div>}>
+            <MessagingContent />
+        </Suspense>
+    )
 }
