@@ -4,7 +4,7 @@
 import React from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { LayoutDashboard, Users, CheckSquare, Settings, Shield, LogOut, ChevronLeft, ChevronRight } from 'lucide-react';
+import { CheckSquare, Settings, LogOut, ChevronLeft, ChevronRight } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import {
   Sidebar,
@@ -20,24 +20,14 @@ import { useAuth } from '../../hooks/use-auth';
 
 const navigation = [
   {
-    name: 'Dashboard',
-    href: '/partner',
-    icon: LayoutDashboard,
-  },
-  {
-    name: 'Employees',
-    href: '/partner/team',
-    icon: Users,
-  },
-  {
-    name: 'Admins',
-    href: '/partner/users',
-    icon: Shield,
-  },
-  {
     name: 'Tasks',
     href: '/partner/tasks',
     icon: CheckSquare,
+  },
+  {
+    name: 'Settings',
+    href: '/partner/settings',
+    icon: Settings,
   },
 ];
 
@@ -68,7 +58,7 @@ export default function UnifiedPartnerSidebar() {
       <SidebarContent className="flex-1">
         <SidebarMenu>
           {navigation.map((item) => {
-            const isActive = pathname === item.href;
+            const isActive = pathname === item.href || pathname.startsWith(item.href + '/');
             const Icon = item.icon;
             return (
               <SidebarMenuItem key={item.name}>
@@ -86,16 +76,16 @@ export default function UnifiedPartnerSidebar() {
 
       <SidebarFooter>
         <SidebarMenu>
-          <SidebarMenuItem>
-            <SidebarMenuButton tooltip="Settings">
-              <Settings />
-              {isExpanded && <span>Settings</span>}
-            </SidebarMenuButton>
-          </SidebarMenuItem>
            <SidebarMenuItem>
              <SidebarMenuButton onClick={() => setOpen(!isExpanded)} tooltip={isExpanded ? 'Collapse' : 'Expand'}>
               {isExpanded ? <ChevronLeft /> : <ChevronRight />}
               {isExpanded && <span>Collapse</span>}
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+          <SidebarMenuItem>
+            <SidebarMenuButton onClick={() => {/* Add logout logic */}} tooltip="Logout">
+              <LogOut />
+              {isExpanded && <span>Logout</span>}
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>
