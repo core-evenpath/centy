@@ -1,388 +1,351 @@
 
 'use client';
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { ArrowRight, Check, Sparkles, TrendingUp, Users, Zap, MessageSquare, BarChart3, Clock, Target, Rocket, Bot } from 'lucide-react';
+import { ArrowRight, CheckCircle2, Sparkles, Zap, Users, BarChart3, MessageSquare, Clock, Target, Rocket, Heart } from 'lucide-react';
 
 export default function HomePage() {
+  const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
+  const [activeStep, setActiveStep] = useState(0);
+
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      setMousePosition({ x: e.clientX, y: e.clientY });
+    };
+    window.addEventListener('mousemove', handleMouseMove);
+    return () => window.removeEventListener('mousemove', handleMouseMove);
+  }, []);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setActiveStep((prev) => (prev + 1) % 3);
+    }, 3000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const features = [
+    {
+      icon: <Zap className="w-7 h-7" />,
+      title: "AI Campaign Builder",
+      description: "Let AI write your campaigns. You just review and launch.",
+      gradient: "from-yellow-400 to-orange-500"
+    },
+    {
+      icon: <Users className="w-7 h-7" />,
+      title: "Team Workspace",
+      description: "Collaborate in real-time. Comments, tasks, approvals—all here.",
+      gradient: "from-blue-400 to-cyan-500"
+    },
+    {
+      icon: <BarChart3 className="w-7 h-7" />,
+      title: "Smart Analytics",
+      description: "Beautiful dashboards that actually make sense.",
+      gradient: "from-purple-400 to-pink-500"
+    },
+    {
+      icon: <Target className="w-7 h-7" />,
+      title: "Multi-Channel",
+      description: "Email, social, web—manage it all from one place.",
+      gradient: "from-green-400 to-emerald-500"
+    },
+    {
+      icon: <Rocket className="w-7 h-7" />,
+      title: "Quick Templates",
+      description: "Start with templates. Customize in minutes.",
+      color: "from-red-400 to-rose-500"
+    },
+    {
+      icon: <Heart className="w-7 h-7" />,
+      title: "Made with Love",
+      description: "We actually care about making marketing fun again.",
+      color: "from-pink-400 to-purple-500"
+    }
+  ];
+
+  const steps = [
+    {
+      number: "01",
+      title: "Define Your Campaign",
+      description: "Set objectives, target audience, and key messaging through our intuitive interface",
+      color: "bg-blue-500"
+    },
+    {
+      number: "02",
+      title: "Build With AI",
+      description: "Get intelligent suggestions and customize every element to match your brand",
+      color: "bg-purple-500"
+    },
+    {
+      number: "03",
+      title: "Launch & Monitor",
+      description: "Deploy across channels and track performance with real-time analytics",
+      color: "bg-green-500"
+    }
+  ];
+
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen bg-black text-white overflow-hidden">
+      {/* Animated background gradient */}
+      <div 
+        className="fixed inset-0 opacity-30 pointer-events-none"
+        style={{
+          background: `radial-gradient(600px at ${mousePosition.x}px ${mousePosition.y}px, rgba(59, 130, 246, 0.15), transparent 80%)`
+        }}
+      />
+
       {/* Navigation */}
-      <nav className="fixed top-0 w-full bg-white/95 backdrop-blur-sm border-b border-gray-100 z-50">
-        <div className="max-w-6xl mx-auto px-8 py-5 flex items-center justify-between">
+      <nav className="fixed top-0 w-full bg-black/80 backdrop-blur-xl border-b border-white/10 z-50">
+        <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-7 h-7 bg-black rounded-lg flex items-center justify-center">
-              <Sparkles className="w-4 h-4 text-white" />
+            <div className="w-9 h-9 flex items-center justify-center">
+              <Sparkles className="w-7 h-7" />
             </div>
-            <span className="text-lg font-semibold text-gray-900">Centy</span>
+            <span className="text-xl font-bold">Centy</span>
           </div>
-          <div className="hidden md:flex items-center gap-10">
-            <Link href="#product" className="text-[15px] text-gray-600 hover:text-gray-900 transition-colors">
-              Product
+          <div className="hidden md:flex items-center gap-8">
+            <Link href="#features" className="text-sm text-gray-400 hover:text-white transition-colors">
+              Features
             </Link>
-            <Link href="#customers" className="text-[15px] text-gray-600 hover:text-gray-900 transition-colors">
-              Customers
-            </Link>
-            <Link href="#pricing" className="text-[15px] text-gray-600 hover:text-gray-900 transition-colors">
+            <Link href="#pricing" className="text-sm text-gray-400 hover:text-white transition-colors">
               Pricing
+            </Link>
+            <Link href="#workflow" className="text-sm text-gray-400 hover:text-white transition-colors">
+              Workflow
             </Link>
             <Link 
               href="/partner/login"
-              className="px-5 py-2 bg-gray-900 text-white text-[15px] font-medium rounded-md hover:bg-gray-800 transition-colors"
+              className="px-4 py-2 bg-white text-black rounded-lg text-sm font-medium hover:bg-gray-200 transition-colors"
             >
-              Sign in
+              Get Started
             </Link>
           </div>
         </div>
       </nav>
 
-      {/* Hero - The Problem */}
-      <section className="pt-40 pb-24 px-8">
+      {/* Hero Section */}
+      <section className="relative pt-32 pb-20 px-6">
+        <div className="max-w-7xl mx-auto">
+          <div className="grid lg:grid-cols-2 gap-16 items-center">
+            {/* Left: Text Content */}
+            <div className="space-y-8">
+              <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white/10 backdrop-blur-sm border border-white/20">
+                <Sparkles className="w-4 h-4 text-blue-400" />
+                <span className="text-sm font-medium">AI-Powered Marketing Platform</span>
+              </div>
+              
+              <h1 className="text-6xl md:text-7xl font-bold leading-tight">
+                Marketing that
+                <span className="block bg-gradient-to-r from-blue-400 via-purple-400 to-pink-400 bg-clip-text text-transparent">
+                  works smarter
+                </span>
+              </h1>
+              
+              <p className="text-xl text-gray-400 leading-relaxed max-w-xl">
+                Unify your campaigns, automate workflows, and make data-driven decisions. 
+                All in one intelligent platform designed for modern marketing teams.
+              </p>
+              
+              <div className="flex flex-col sm:flex-row gap-4">
+                <Link 
+                  href="/partner/login"
+                  className="group px-8 py-4 bg-white text-black rounded-xl font-semibold hover:bg-gray-100 transition-all inline-flex items-center justify-center gap-2"
+                >
+                  Start Free Trial
+                  <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+                </Link>
+                <button className="px-8 py-4 border border-white/20 rounded-xl font-semibold hover:bg-white/5 transition-all">
+                  View Demo
+                </button>
+              </div>
+
+              <div className="flex items-center gap-6 pt-4">
+                <div className="flex items-center gap-2 text-sm text-gray-400">
+                  <CheckCircle2 className="w-4 h-4 text-green-400" />
+                  Free trial available
+                </div>
+                <div className="flex items-center gap-2 text-sm text-gray-400">
+                  <CheckCircle2 className="w-4 h-4 text-green-400" />
+                  No credit card required
+                </div>
+              </div>
+            </div>
+
+            {/* Right: Robot Mascot with Floating Elements */}
+            <div className="relative">
+              <div className="relative z-10">
+                {/* Main robot container */}
+                <div className="relative bg-gradient-to-br from-yellow-500/20 to-orange-500/20 rounded-3xl p-8 backdrop-blur-sm border border-white/10">
+                  <div className="w-full h-auto animate-float flex items-center justify-center aspect-square">
+                    <Rocket className="w-3/4 h-3/4 text-white/80" />
+                  </div>
+                </div>
+
+                {/* Floating metric cards */}
+                <div className="absolute -top-4 -left-4 bg-gradient-to-br from-blue-500 to-cyan-400 text-white px-4 py-2 rounded-full shadow-lg font-bold text-sm animate-bounce-slow">
+                  🚀 Fast Setup
+                </div>
+                <div className="absolute -bottom-4 -right-4 bg-gradient-to-br from-purple-500 to-pink-400 text-white px-4 py-2 rounded-full shadow-lg font-bold text-sm animate-bounce-slow" style={{ animationDelay: '0.5s' }}>
+                  ✨ AI Powered
+                </div>
+              </div>
+
+              {/* Background glow effects */}
+              <div className="absolute inset-0 bg-gradient-to-r from-blue-600/20 to-purple-600/20 rounded-full blur-3xl -z-10"></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Workflow Section */}
+      <section id="workflow" className="py-32 px-6 relative">
         <div className="max-w-6xl mx-auto">
-          <div className="max-w-3xl">
-            <h1 className="text-[56px] leading-[1.1] font-semibold text-gray-900 mb-8 tracking-tight">
-              Marketing teams spend weeks building campaigns.
-              <br />
-              <span className="text-gray-400">We made it take hours.</span>
-            </h1>
-            <p className="text-[21px] text-gray-600 leading-[1.6] mb-10">
-              Centy brings your marketing workflow into one place. Plan campaigns, collaborate with your team, and track results—without switching between a dozen tools.
+          <div className="text-center mb-20">
+            <h2 className="text-5xl md:text-6xl font-bold mb-6">
+              Simple workflow,
+              <span className="block bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">
+                powerful results
+              </span>
+            </h2>
+            <p className="text-xl text-gray-400">Three steps to launch your next campaign</p>
+          </div>
+
+          <div className="grid md:grid-cols-3 gap-8">
+            {steps.map((step, index) => (
+              <div 
+                key={index}
+                className={`relative p-8 rounded-2xl border transition-all duration-500 ${
+                  activeStep === index 
+                    ? 'border-white/30 bg-white/5 scale-105' 
+                    : 'border-white/10 bg-white/[0.02] hover:border-white/20'
+                }`}
+              >
+                <div className={`text-6xl font-bold ${step.color} bg-clip-text text-transparent mb-4`}>
+                  {step.number}
+                </div>
+                <h3 className="text-2xl font-bold mb-3">{step.title}</h3>
+                <p className="text-gray-400 leading-relaxed">{step.description}</p>
+                
+                {activeStep === index && (
+                  <div className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-blue-500 to-purple-500 rounded-b-2xl"></div>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Features Grid */}
+      <section id="features" className="py-32 px-6 relative">
+        <div className="max-w-7xl mx-auto">
+          <div className="text-center mb-20">
+            <h2 className="text-5xl md:text-6xl font-bold mb-6">
+              Everything you need
+              <span className="block bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent">
+                in one platform
+              </span>
+            </h2>
+            <p className="text-xl text-gray-400">Integrated tools for modern marketing teams</p>
+          </div>
+
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {features.map((feature, index) => (
+              <div 
+                key={index}
+                onMouseEnter={() => setHoveredFeature(index)}
+                onMouseLeave={() => setHoveredFeature(null)}
+                className={`group relative p-8 rounded-2xl bg-white/[0.02] border border-white/10 hover:border-white/30 hover:bg-white/5 transition-all duration-300`}
+              >
+                <div className={`w-14 h-14 rounded-xl bg-gradient-to-br ${feature.gradient} flex items-center justify-center mb-6 group-hover:scale-110 transition-transform`}>
+                  {feature.icon}
+                </div>
+                <h3 className="text-xl font-bold mb-3">{feature.title}</h3>
+                <p className="text-gray-400 leading-relaxed">{feature.description}</p>
+                
+                <div className={`absolute inset-0 bg-gradient-to-br ${feature.gradient} opacity-0 group-hover:opacity-5 rounded-2xl transition-opacity`}></div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* CTA Section */}
+      <section className="py-32 px-6 relative">
+        <div className="max-w-4xl mx-auto text-center">
+          <div className="relative p-12 md:p-16 rounded-3xl bg-gradient-to-br from-blue-600/20 to-purple-600/20 border border-white/10 backdrop-blur-sm">
+            <h2 className="text-5xl md:text-6xl font-bold mb-6">
+              Ready to transform
+              <span className="block bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">
+                your marketing?
+              </span>
+            </h2>
+            <p className="text-xl text-gray-400 mb-12 max-w-2xl mx-auto">
+              Join teams building better campaigns with Centy. Start your free trial today.
             </p>
-            <div className="flex items-center gap-4">
+            <div className="flex flex-col sm:flex-row gap-4 justify-center">
               <Link 
                 href="/partner/login"
-                className="px-6 py-3 bg-gray-900 text-white text-[15px] font-medium rounded-md hover:bg-gray-800 transition-colors inline-flex items-center gap-2"
+                className="group px-8 py-4 bg-white text-black rounded-xl font-semibold hover:bg-gray-100 transition-all inline-flex items-center justify-center gap-2"
               >
-                Get started
-                <ArrowRight className="w-4 h-4" />
+                Start Free Trial
+                <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
               </Link>
-              <Link 
-                href="#product"
-                className="text-[15px] text-gray-600 hover:text-gray-900 transition-colors"
-              >
-                Learn more →
-              </Link>
+              <button className="px-8 py-4 border border-white/20 rounded-xl font-semibold hover:bg-white/5 transition-all">
+                Schedule Demo
+              </button>
             </div>
-          </div>
-        </div>
-      </section>
-
-      {/* The Story Section */}
-      <section className="py-24 px-8 bg-gray-50">
-        <div className="max-w-6xl mx-auto">
-          <div className="grid lg:grid-cols-2 gap-20 items-center">
-            <div>
-              <h2 className="text-[13px] font-semibold text-gray-900 uppercase tracking-wider mb-6">THE PROBLEM</h2>
-              <h3 className="text-[36px] leading-[1.2] font-semibold text-gray-900 mb-6">
-                Most marketing teams work across 8-12 different tools
-              </h3>
-              <p className="text-[17px] text-gray-600 leading-[1.7] mb-6">
-                Campaign briefs in Notion. Project management in Asana. Analytics in Google Analytics. Creative assets in Figma. Approvals over email.
-              </p>
-              <p className="text-[17px] text-gray-600 leading-[1.7]">
-                Context gets lost. Deadlines slip. Teams waste time searching for information that should be at their fingertips.
-              </p>
-            </div>
-            <div className="bg-white rounded-lg border border-gray-200 p-8">
-              <div className="space-y-4">
-                <div className="flex items-start gap-3 text-gray-500">
-                  <span className="text-red-500 mt-1">×</span>
-                  <span className="text-[15px]">Campaign planning scattered across multiple documents</span>
-                </div>
-                <div className="flex items-start gap-3 text-gray-500">
-                  <span className="text-red-500 mt-1">×</span>
-                  <span className="text-[15px]">No single source of truth for campaign status</span>
-                </div>
-                <div className="flex items-start gap-3 text-gray-500">
-                  <span className="text-red-500 mt-1">×</span>
-                  <span className="text-[15px]">Performance data lives in separate analytics tools</span>
-                </div>
-                <div className="flex items-start gap-3 text-gray-500">
-                  <span className="text-red-500 mt-1">×</span>
-                  <span className="text-[15px]">Approval workflows happen over email threads</span>
-                </div>
-                <div className="flex items-start gap-3 text-gray-500">
-                  <span className="text-red-500 mt-1">×</span>
-                  <span className="text-[15px]">Team members lack visibility into others' work</span>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* The Solution with Robot */}
-      <section id="product" className="py-24 px-8">
-        <div className="max-w-6xl mx-auto">
-          <div className="grid lg:grid-cols-2 gap-20 items-center">
-            <div className="order-2 lg:order-1">
-              <div className="bg-gradient-to-br from-orange-50 to-yellow-50 rounded-2xl p-12 border border-orange-100 flex items-center justify-center">
-                 <Bot className="w-64 h-64 text-orange-200" />
-              </div>
-            </div>
-            <div className="order-1 lg:order-2">
-              <h2 className="text-[13px] font-semibold text-gray-900 uppercase tracking-wider mb-6">THE SOLUTION</h2>
-              <h3 className="text-[36px] leading-[1.2] font-semibold text-gray-900 mb-6">
-                One workspace for your entire marketing operation
-              </h3>
-              <p className="text-[17px] text-gray-600 leading-[1.7] mb-8">
-                Centy consolidates your marketing workflow. Create campaign briefs, assign tasks to your team, track progress, and measure results—all in one platform.
-              </p>
-              <div className="space-y-6">
-                <div className="flex gap-4">
-                  <div className="w-10 h-10 rounded-lg bg-gray-100 flex items-center justify-center flex-shrink-0">
-                    <MessageSquare className="w-5 h-5 text-gray-700" />
-                  </div>
-                  <div>
-                    <h4 className="font-medium text-gray-900 mb-1">Campaign Planning</h4>
-                    <p className="text-[15px] text-gray-600">Define objectives, audience, and deliverables in structured campaign briefs</p>
-                  </div>
-                </div>
-                <div className="flex gap-4">
-                  <div className="w-10 h-10 rounded-lg bg-gray-100 flex items-center justify-center flex-shrink-0">
-                    <Users className="w-5 h-5 text-gray-700" />
-                  </div>
-                  <div>
-                    <h4 className="font-medium text-gray-900 mb-1">Team Collaboration</h4>
-                    <p className="text-[15px] text-gray-600">Assign tasks, leave comments, and keep everyone aligned on campaign status</p>
-                  </div>
-                </div>
-                <div className="flex gap-4">
-                  <div className="w-10 h-10 rounded-lg bg-gray-100 flex items-center justify-center flex-shrink-0">
-                    <BarChart3 className="w-5 h-5 text-gray-700" />
-                  </div>
-                  <div>
-                    <h4 className="font-medium text-gray-900 mb-1">Unified Analytics</h4>
-                    <p className="text-[15px] text-gray-600">Connect your marketing channels and see all performance metrics in one dashboard</p>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* How It Works */}
-      <section id="how-it-works" className="py-24 px-8 bg-gray-50">
-        <div className="max-w-6xl mx-auto">
-          <div className="mb-20">
-            <h2 className="text-[13px] font-semibold text-gray-900 uppercase tracking-wider mb-6">HOW IT WORKS</h2>
-            <h3 className="text-[36px] leading-[1.2] font-semibold text-gray-900 max-w-2xl">
-              Built around your existing workflow
-            </h3>
-          </div>
-
-          <div className="space-y-24">
-            {/* Step 1 */}
-            <div className="grid lg:grid-cols-2 gap-16 items-start">
-              <div>
-                <div className="inline-block px-3 py-1 bg-gray-900 text-white text-[13px] font-medium rounded-full mb-6">
-                  Step 1
-                </div>
-                <h4 className="text-[28px] font-semibold text-gray-900 mb-4">
-                  Create your campaign brief
-                </h4>
-                <p className="text-[17px] text-gray-600 leading-[1.7] mb-6">
-                  Start with a structured brief that captures your campaign objectives, target audience, key messages, and success metrics. Share it with your team for input before you begin execution.
-                </p>
-                <p className="text-[15px] text-gray-500 leading-[1.7]">
-                  AI assistance helps you draft clear, comprehensive briefs based on your goals and previous campaigns.
-                </p>
-              </div>
-              <div className="bg-white rounded-lg border border-gray-200 p-8 min-h-[300px] flex items-center justify-center">
-                <MessageSquare className="w-20 h-20 text-gray-300" />
-              </div>
-            </div>
-
-            {/* Step 2 */}
-            <div className="grid lg:grid-cols-2 gap-16 items-start">
-              <div className="order-2 lg:order-1">
-                <div className="bg-white rounded-lg border border-gray-200 p-8 min-h-[300px] flex items-center justify-center">
-                  <Target className="w-20 h-20 text-gray-300" />
-                </div>
-              </div>
-              <div className="order-1 lg:order-2">
-                <div className="inline-block px-3 py-1 bg-gray-900 text-white text-[13px] font-medium rounded-full mb-6">
-                  Step 2
-                </div>
-                <h4 className="text-[28px] font-semibold text-gray-900 mb-4">
-                  Execute with your team
-                </h4>
-                <p className="text-[17px] text-gray-600 leading-[1.7] mb-6">
-                  Break down your campaign into tasks. Assign owners, set deadlines, and track progress. Your team knows what they're working on and what's coming next.
-                </p>
-                <p className="text-[15px] text-gray-500 leading-[1.7]">
-                  Built-in approval workflows ensure stakeholders review deliverables before launch.
-                </p>
-              </div>
-            </div>
-
-            {/* Step 3 */}
-            <div className="grid lg:grid-cols-2 gap-16 items-start">
-              <div>
-                <div className="inline-block px-3 py-1 bg-gray-900 text-white text-[13px] font-medium rounded-full mb-6">
-                  Step 3
-                </div>
-                <h4 className="text-[28px] font-semibold text-gray-900 mb-4">
-                  Measure what matters
-                </h4>
-                <p className="text-[17px] text-gray-600 leading-[1.7] mb-6">
-                  Connect your marketing channels to see performance data alongside your campaign plan. Understand what's working and make informed decisions about where to focus.
-                </p>
-                <p className="text-[15px] text-gray-500 leading-[1.7]">
-                  Track the metrics that matter to your business, from impressions to conversions.
-                </p>
-              </div>
-              <div className="bg-white rounded-lg border border-gray-200 p-8 min-h-[300px] flex items-center justify-center">
-                <BarChart3 className="w-20 h-20 text-gray-300" />
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Features */}
-      <section className="py-24 px-8">
-        <div className="max-w-6xl mx-auto">
-          <div className="mb-20">
-            <h2 className="text-[13px] font-semibold text-gray-900 uppercase tracking-wider mb-6">FEATURES</h2>
-            <h3 className="text-[36px] leading-[1.2] font-semibold text-gray-900 max-w-2xl">
-              Everything you need to run marketing campaigns
-            </h3>
-          </div>
-
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-x-8 gap-y-12">
-            <div>
-              <div className="w-10 h-10 rounded-lg bg-gray-100 flex items-center justify-center mb-4">
-                <Zap className="w-5 h-5 text-gray-700" />
-              </div>
-              <h4 className="font-semibold text-gray-900 mb-2">AI-Assisted Briefs</h4>
-              <p className="text-[15px] text-gray-600 leading-[1.6]">
-                Get help drafting campaign objectives, audience definitions, and key messages
-              </p>
-            </div>
-            
-            <div>
-              <div className="w-10 h-10 rounded-lg bg-gray-100 flex items-center justify-center mb-4">
-                <Users className="w-5 h-5 text-gray-700" />
-              </div>
-              <h4 className="font-semibold text-gray-900 mb-2">Team Workspaces</h4>
-              <p className="text-[15px] text-gray-600 leading-[1.6]">
-                Organize campaigns by team, project, or brand with dedicated workspaces
-              </p>
-            </div>
-            
-            <div>
-              <div className="w-10 h-10 rounded-lg bg-gray-100 flex items-center justify-center mb-4">
-                <Target className="w-5 h-5 text-gray-700" />
-              </div>
-              <h4 className="font-semibold text-gray-900 mb-2">Task Management</h4>
-              <p className="text-[15px] text-gray-600 leading-[1.6]">
-                Break campaigns into tasks, assign owners, and track completion
-              </p>
-            </div>
-            
-            <div>
-              <div className="w-10 h-10 rounded-lg bg-gray-100 flex items-center justify-center mb-4">
-                <MessageSquare className="w-5 h-5 text-gray-700" />
-              </div>
-              <h4 className="font-semibold text-gray-900 mb-2">Comments & Feedback</h4>
-              <p className="text-[15px] text-gray-600 leading-[1.6]">
-                Discuss campaigns directly where the work happens, no more email chains
-              </p>
-            </div>
-            
-            <div>
-              <div className="w-10 h-10 rounded-lg bg-gray-100 flex items-center justify-center mb-4">
-                <BarChart3 className="w-5 h-5 text-gray-700" />
-              </div>
-              <h4 className="font-semibold text-gray-900 mb-2">Analytics Dashboard</h4>
-              <p className="text-[15px] text-gray-600 leading-[1.6]">
-                Connect marketing channels and view performance metrics in one place
-              </p>
-            </div>
-            
-            <div>
-              <div className="w-10 h-10 rounded-lg bg-gray-100 flex items-center justify-center mb-4">
-                <Clock className="w-5 h-5 text-gray-700" />
-              </div>
-              <h4 className="font-semibold text-gray-900 mb-2">Timeline View</h4>
-              <p className="text-[15px] text-gray-600 leading-[1.6]">
-                See all campaigns and deadlines on a visual timeline to prevent conflicts
-              </p>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* CTA */}
-      <section className="py-32 px-8 bg-gray-50">
-        <div className="max-w-3xl mx-auto text-center">
-          <h2 className="text-[42px] leading-[1.2] font-semibold text-gray-900 mb-6">
-            Try Centy with your team
-          </h2>
-          <p className="text-[19px] text-gray-600 mb-10 leading-[1.6]">
-            See how Centy helps marketing teams plan, execute, and measure campaigns in one place.
-          </p>
-          <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
-            <Link 
-              href="/partner/login"
-              className="px-6 py-3 bg-gray-900 text-white text-[15px] font-medium rounded-md hover:bg-gray-800 transition-colors inline-flex items-center gap-2"
-            >
-              Get started free
-              <ArrowRight className="w-4 h-4" />
-            </Link>
-            <p className="text-[15px] text-gray-500">
-              Free trial available • No credit card required
-            </p>
           </div>
         </div>
       </section>
 
       {/* Footer */}
-      <footer className="border-t border-gray-100 py-16 px-8">
+      <footer className="border-t border-white/10 py-12 px-6">
         <div className="max-w-6xl mx-auto">
-          <div className="flex flex-col md:flex-row justify-between gap-8">
+          <div className="flex flex-col md:flex-row justify-between items-center gap-6">
             <div className="flex items-center gap-3">
-              <div className="w-6 h-6 bg-black rounded-lg flex items-center justify-center">
-                <Sparkles className="w-4 h-4 text-white" />
+              <div className="w-6 h-6 flex items-center justify-center">
+                <Sparkles className="w-6 h-6" />
               </div>
-              <span className="font-semibold text-gray-900">Centy</span>
+              <span className="font-bold">Centy</span>
             </div>
-            <div className="flex flex-wrap gap-x-12 gap-y-6 text-[15px]">
-              <div className="space-y-3">
-                <div className="font-medium text-gray-900">Product</div>
-                <div className="space-y-2">
-                  <div><Link href="#" className="text-gray-600 hover:text-gray-900">Features</Link></div>
-                  <div><Link href="#" className="text-gray-600 hover:text-gray-900">Pricing</Link></div>
-                  <div><Link href="#" className="text-gray-600 hover:text-gray-900">Updates</Link></div>
-                </div>
-              </div>
-              <div className="space-y-3">
-                <div className="font-medium text-gray-900">Company</div>
-                <div className="space-y-2">
-                  <div><Link href="#" className="text-gray-600 hover:text-gray-900">About</Link></div>
-                  <div><Link href="#" className="text-gray-600 hover:text-gray-900">Blog</Link></div>
-                  <div><Link href="#" className="text-gray-600 hover:text-gray-900">Contact</Link></div>
-                </div>
-              </div>
-              <div className="space-y-3">
-                <div className="font-medium text-gray-900">Resources</div>
-                <div className="space-y-2">
-                  <div><Link href="#" className="text-gray-600 hover:text-gray-900">Documentation</Link></div>
-                  <div><Link href="#" className="text-gray-600 hover:text-gray-900">Support</Link></div>
-                  <div><Link href="#" className="text-gray-600 hover:text-gray-900">Privacy</Link></div>
-                </div>
-              </div>
+            <div className="flex gap-8 text-sm text-gray-400">
+              <Link href="#product" className="hover:text-white transition-colors">
+                Product
+              </Link>
+              <Link href="#features" className="hover:text-white transition-colors">
+                Features
+              </Link>
+              <Link href="#" className="hover:text-white transition-colors">
+                Documentation
+              </Link>
+              <Link href="#" className="hover:text-white transition-colors">
+                Contact
+              </Link>
             </div>
-          </div>
-          <div className="mt-12 pt-8 border-t border-gray-100 text-[14px] text-gray-500">
-            © 2025 Centy. All rights reserved.
+            <div className="text-sm text-gray-400">
+              © 2025 Centy. All rights reserved.
+            </div>
           </div>
         </div>
       </footer>
+
+      <style jsx>{`
+        @keyframes float {
+          0%, 100% { transform: translateY(0px); }
+          50% { transform: translateY(-20px); }
+        }
+        @keyframes bounce-slow {
+          0%, 100% { transform: translateY(0px); }
+          50% { transform: translateY(-10px); }
+        }
+        .animate-float {
+          animation: float 4s ease-in-out infinite;
+        }
+        .animate-bounce-slow {
+          animation: bounce-slow 2s ease-in-out infinite;
+        }
+      `}</style>
     </div>
   );
 }
