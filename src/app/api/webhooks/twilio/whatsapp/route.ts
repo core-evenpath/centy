@@ -146,7 +146,7 @@ async function handleIncomingMessage(payload: TwilioWebhookPayload) {
       console.log('✅ Conversation updated');
     }
 
-    // Store incoming message
+    // Store incoming message in the correct collection
     console.log('💾 Storing message in twilio_whatsapp_messages...');
     const messageRef = db.collection('twilio_whatsapp_messages').doc();
     
