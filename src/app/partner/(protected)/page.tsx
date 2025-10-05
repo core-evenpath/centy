@@ -8,8 +8,8 @@ export default function PartnerRootPage() {
   const router = useRouter();
 
   useEffect(() => {
-    // Redirect to dashboard as the main partner page
-    router.replace('/partner/dashboard');
+    // Redirect to messaging as the main partner page
+    router.replace('/partner/messaging');
   }, [router]);
 
   return null;
