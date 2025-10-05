@@ -46,7 +46,7 @@ export default function HomePage() {
           </div>
           
           <h1 className="text-6xl md:text-7xl font-black text-gray-900 mb-6 leading-tight">
-            Marketing Made
+            MarComm Made
             <br />
             <span className="bg-gradient-to-r from-[#3081D0] to-[#6044A6] bg-clip-text text-transparent">
               Effortless
