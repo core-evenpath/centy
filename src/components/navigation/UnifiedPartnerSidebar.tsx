@@ -7,17 +7,13 @@ import { usePathname, useRouter } from 'next/navigation';
 import { 
   LayoutDashboard, 
   ListTodo, 
-  Users, 
-  Workflow, 
-  BarChart3, 
   Settings, 
   ChevronDown,
   LogOut,
   Building2,
   MessageSquare,
   Bell,
-  HelpCircle,
-  Zap
+  HelpCircle
 } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
@@ -38,11 +34,8 @@ import {
   SidebarHeader,
   SidebarMenu,
   SidebarMenuItem,
-  SidebarMenuButton,
-  SidebarProvider,
-  SidebarTrigger,
+  SidebarMenuButton
 } from '../ui/sidebar';
-import { useAuth } from '../../hooks/use-auth';
 import { useMultiWorkspaceAuth } from '../../hooks/use-multi-workspace-auth';
 import { useToast } from '../../hooks/use-toast';
 import { getAuth, signOut } from 'firebase/auth';
@@ -59,8 +52,6 @@ interface MenuItem {
 
 interface SidebarStats {
   pendingTasks?: number;
-  activeWorkflows?: number;
-  teamMembers?: number;
   unreadMessages?: number;
 }
 
@@ -80,8 +71,15 @@ export default function UnifiedPartnerSidebar() {
   const [stats, setStats] = useState<SidebarStats>({});
   const [isWorkspaceSwitching, setIsWorkspaceSwitching] = useState(false);
 
-  // Menu items with messaging added
+  // Updated menu items as per your request
   const menuItems: MenuItem[] = [
+    { 
+      icon: MessageSquare, 
+      label: 'Messaging', 
+      href: '/partner/messaging',
+      badge: stats?.unreadMessages || null,
+      description: 'SMS & WhatsApp Messaging'
+    },
     { 
       icon: LayoutDashboard, 
       label: 'Dashboard', 
@@ -95,31 +93,6 @@ export default function UnifiedPartnerSidebar() {
       badge: stats?.pendingTasks || null
     },
     { 
-      icon: Users, 
-      label: 'Team', 
-      href: '/partner/team',
-      badge: stats?.teamMembers || null
-    },
-    { 
-      icon: Workflow, 
-      label: 'Workflows', 
-      href: '/partner/workflows',
-      badge: stats?.activeWorkflows || null
-    },
-    { 
-      icon: MessageSquare, 
-      label: 'Messaging', 
-      href: '/partner/messaging',
-      badge: stats?.unreadMessages || null,
-      description: 'WhatsApp Messages'
-    },
-    { 
-      icon: BarChart3, 
-      label: 'Analytics', 
-      href: '/partner/analytics',
-      badge: null 
-    },
-    { 
       icon: Settings, 
       label: 'Settings', 
       href: '/partner/settings',
@@ -127,14 +100,11 @@ export default function UnifiedPartnerSidebar() {
     },
   ];
 
-  // Load sidebar stats (you can implement this based on your needs)
+  // Load sidebar stats
   useEffect(() => {
-    // TODO: Fetch real stats from Firestore
-    // For now, using placeholder values
+    // Placeholder for fetching real stats
     setStats({
       pendingTasks: 0,
-      activeWorkflows: 0,
-      teamMembers: 0,
       unreadMessages: 0,
     });
   }, [currentWorkspace?.partnerId]);
@@ -151,7 +121,6 @@ export default function UnifiedPartnerSidebar() {
     const success = await switchWorkspace(workspace.partnerId);
     
     if (success) {
-      // Reload to refresh all data
       window.location.reload();
     } else {
       toast({
@@ -197,8 +166,7 @@ export default function UnifiedPartnerSidebar() {
   };
 
   return (
-    <Sidebar className="border-r">
-      {/* Header */}
+    <Sidebar>
       <SidebarHeader className="border-b p-4">
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
@@ -253,7 +221,6 @@ export default function UnifiedPartnerSidebar() {
         </DropdownMenu>
       </SidebarHeader>
 
-      {/* Navigation Menu */}
       <SidebarContent>
         <ScrollArea className="flex-1">
           <SidebarMenu className="p-2">
@@ -285,39 +252,9 @@ export default function UnifiedPartnerSidebar() {
               );
             })}
           </SidebarMenu>
-
-          <Separator className="my-4" />
-
-          {/* Additional Quick Actions */}
-          <div className="px-4 py-2">
-            <p className="text-xs font-medium text-muted-foreground mb-2">
-              Quick Actions
-            </p>
-            <div className="space-y-1">
-              <Button 
-                variant="ghost" 
-                size="sm" 
-                className="w-full justify-start gap-2"
-                onClick={() => router.push('/partner/workflows/builder')}
-              >
-                <Zap className="w-4 h-4" />
-                <span className="text-sm">Create Workflow</span>
-              </Button>
-              <Button 
-                variant="ghost" 
-                size="sm" 
-                className="w-full justify-start gap-2"
-                onClick={() => router.push('/partner/tasks')}
-              >
-                <ListTodo className="w-4 h-4" />
-                <span className="text-sm">Assign Task</span>
-              </Button>
-            </div>
-          </div>
         </ScrollArea>
       </SidebarContent>
 
-      {/* Footer */}
       <SidebarFooter className="border-t p-4">
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
