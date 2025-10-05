@@ -10,6 +10,7 @@ export default function HomePage() {
   const [activeStep, setActiveStep] = useState(0);
   const [hoveredFeature, setHoveredFeature] = useState<number | null>(null);
 
+
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
       setMousePosition({ x: e.clientX, y: e.clientY });
@@ -99,9 +100,7 @@ export default function HomePage() {
       <nav className="fixed top-0 w-full bg-black/80 backdrop-blur-xl border-b border-white/10 z-50">
         <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 flex items-center justify-center">
-              <Sparkles className="w-7 h-7" />
-            </div>
+            <Sparkles className="w-8 h-8 text-white" />
             <span className="text-xl font-bold">Centy</span>
           </div>
           <div className="hidden md:flex items-center gap-8">
@@ -177,9 +176,14 @@ export default function HomePage() {
               <div className="relative z-10">
                 {/* Main robot container */}
                 <div className="relative bg-gradient-to-br from-yellow-500/20 to-orange-500/20 rounded-3xl p-8 backdrop-blur-sm border border-white/10">
-                   <div className="w-full h-auto animate-float flex items-center justify-center aspect-square">
-                    <Rocket className="w-3/4 h-3/4 text-white/80" />
-                  </div>
+                  <Image 
+                    src="/centy_logo.svg" 
+                    alt="Centy Logo" 
+                    width={500}
+                    height={500}
+                    className="w-full h-auto animate-float"
+                    priority
+                  />
                 </div>
 
                 {/* Floating metric cards */}
@@ -321,9 +325,7 @@ export default function HomePage() {
         <div className="max-w-6xl mx-auto">
           <div className="flex flex-col md:flex-row justify-between items-center gap-6">
             <div className="flex items-center gap-3">
-              <div className="w-6 h-6 flex items-center justify-center">
-                <Sparkles className="w-6 h-6" />
-              </div>
+              <Sparkles className="w-6 h-6 text-white" />
               <span className="font-bold">Centy</span>
             </div>
             <div className="flex gap-8 text-sm text-gray-400">
