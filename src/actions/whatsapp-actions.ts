@@ -67,7 +67,7 @@ export async function sendWhatsAppMessageAction(input: SendWhatsAppMessageInput)
     }
 
     // Store message in Firestore
-    const messageRef = db.collection('whatsappMessages').doc();
+    const messageRef = db.collection('twilio_whatsapp_messages').doc();
     const messageData: Partial<WhatsAppMessage> = {
       id: messageRef.id,
       conversationId,
@@ -120,7 +120,6 @@ export async function sendWhatsAppMessageAction(input: SendWhatsAppMessageInput)
         path: serverError.ref?.path || 'unknown path',
         operation: 'write',
         requestResourceData: serverError.requestData || { info: "data not captured" },
-        serverError,
       });
       throw permissionError;
     }
@@ -176,7 +175,7 @@ export async function getWhatsAppMessages(conversationId: string) {
 
   try {
     const snapshot = await db
-      .collection('whatsappMessages')
+      .collection('twilio_whatsapp_messages')
       .where('conversationId', '==', conversationId)
       .orderBy('createdAt', 'asc')
       .limit(100)
@@ -203,7 +202,7 @@ export async function updateWhatsAppMessageStatus(twilioSid: string, status: str
   try {
     // Find message by Twilio SID
     const snapshot = await db
-      .collection('whatsappMessages')
+      .collection('twilio_whatsapp_messages')
       .where('whatsappMetadata.twilioSid', '==', twilioSid)
       .limit(1)
       .get();
@@ -242,7 +241,7 @@ export async function markWhatsAppMessageAsRead(messageId: string): Promise<void
   }
 
   try {
-    await db.collection('whatsappMessages').doc(messageId).update({
+    await db.collection('twilio_whatsapp_messages').doc(messageId).update({
       'whatsappMetadata.twilioStatus': 'read',
       updatedAt: FieldValue.serverTimestamp(),
     });
