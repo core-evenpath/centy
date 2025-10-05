@@ -1,3 +1,4 @@
+
 // src/app/api/webhooks/twilio/whatsapp/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/firebase-admin';
@@ -146,7 +147,7 @@ async function handleIncomingMessage(payload: TwilioWebhookPayload) {
     }
 
     // Store incoming message
-    console.log('💾 Storing message...');
+    console.log('💾 Storing message in twilio_whatsapp_messages...');
     const messageRef = db.collection('twilio_whatsapp_messages').doc();
     
     const messageData = {
