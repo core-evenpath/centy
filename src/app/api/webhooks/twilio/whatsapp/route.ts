@@ -1,8 +1,9 @@
+
 // src/app/api/webhooks/twilio/whatsapp/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/firebase-admin';
 import { FieldValue } from 'firebase-admin/firestore';
-import type { TwilioWebhookPayload, WhatsAppMessage } from '@/lib/types';
+import type { TwilioWebhookPayload, WhatsAppMessage, WhatsAppConversation } from '@/lib/types';
 
 /**
  * Twilio WhatsApp webhook endpoint
@@ -77,7 +78,7 @@ async function handleIncomingMessage(payload: TwilioWebhookPayload) {
 
   // Extract phone number from whatsapp:+1234567890 format
   const fromPhone = payload.From.replace('whatsapp:', '');
-  const toPhone = payload.To; // Keep the whatsapp: prefix for mapping lookup
+  const toPhone = payload.To;
 
   // Get partnerId from phone mapping
   const partnerId = await getPartnerIdFromPhone(toPhone);
@@ -96,7 +97,7 @@ async function handleIncomingMessage(payload: TwilioWebhookPayload) {
     const conversationRef = db.collection('whatsappConversations').doc();
     conversationId = conversationRef.id;
 
-    await conversationRef.set({
+    const newConversation: Partial<WhatsAppConversation> = {
       id: conversationId,
       partnerId: partnerId,
       type: 'direct',
@@ -105,11 +106,14 @@ async function handleIncomingMessage(payload: TwilioWebhookPayload) {
       customerPhone: fromPhone,
       participants: [],
       isActive: true,
-      messageCount: 0,
-      createdBy: 'system',
+      messageCount: 1, // Start with 1 for the first message
+      createdBy: 'system', // Indicates it was created by an incoming message
       createdAt: FieldValue.serverTimestamp(),
       lastMessageAt: FieldValue.serverTimestamp(),
-    });
+    };
+    
+    await conversationRef.set(newConversation);
+
   } else {
     conversationId = conversationsSnapshot.docs[0].id;
     await conversationsSnapshot.docs[0].ref.update({
@@ -123,7 +127,7 @@ async function handleIncomingMessage(payload: TwilioWebhookPayload) {
   const messageData: Partial<WhatsAppMessage> = {
     id: messageRef.id,
     conversationId,
-    senderId: fromPhone,
+    senderId: fromPhone, // The customer is the sender
     type: payload.NumMedia && parseInt(payload.NumMedia) > 0 ? 'image' : 'text',
     content: payload.Body || '',
     direction: 'inbound',
@@ -144,11 +148,11 @@ async function handleIncomingMessage(payload: TwilioWebhookPayload) {
   if (payload.MediaUrl0) {
     messageData.attachments = [{
       id: messageRef.id,
-      type: 'image',
-      name: 'media',
+      type: payload.MediaContentType0?.startsWith('image') ? 'image' : 'file',
+      name: `media_${payload.MessageSid}`,
       url: payload.MediaUrl0,
       size: 0,
-      mimeType: payload.MediaContentType0 || 'image/jpeg',
+      mimeType: payload.MediaContentType0 || 'application/octet-stream',
     }];
   }
 
