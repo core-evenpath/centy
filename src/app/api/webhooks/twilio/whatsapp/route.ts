@@ -1,3 +1,4 @@
+
 // src/app/api/webhooks/twilio/whatsapp/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/firebase-admin';
@@ -147,8 +148,8 @@ async function handleIncomingMessage(payload: TwilioWebhookPayload) {
     }
 
     // Store incoming message in the correct collection
-    console.log('💾 Storing message in twilio_whatsapp_messages...');
-    const messageRef = db.collection('twilio_whatsapp_messages').doc();
+    console.log('💾 Storing message in whatsappMessages...');
+    const messageRef = db.collection('whatsappMessages').doc();
     
     const messageData = {
       id: messageRef.id,
@@ -210,7 +211,7 @@ async function handleStatusUpdate(payload: Partial<TwilioWebhookPayload>) {
     console.log('🔄 Updating message status:', payload.MessageSid, '→', payload.MessageStatus);
 
     const snapshot = await db
-      .collection('twilio_whatsapp_messages')
+      .collection('whatsappMessages')
       .where('whatsappMetadata.twilioSid', '==', payload.MessageSid)
       .limit(1)
       .get();
