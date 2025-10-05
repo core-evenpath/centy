@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { useState, useEffect } from 'react';
@@ -9,6 +8,7 @@ import { ArrowRight, CheckCircle2, Sparkles, Zap, Users, BarChart3, MessageSquar
 export default function HomePage() {
   const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
   const [activeStep, setActiveStep] = useState(0);
+  const [hoveredFeature, setHoveredFeature] = useState<number | null>(null);
 
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
@@ -27,40 +27,40 @@ export default function HomePage() {
 
   const features = [
     {
-      icon: <Zap className="w-7 h-7" />,
-      title: "AI Campaign Builder",
-      description: "Let AI write your campaigns. You just review and launch.",
+      icon: <Zap className="w-6 h-6" />,
+      title: "AI Campaign Assistant",
+      description: "Get intelligent suggestions for campaign copy, targeting, and channel selection",
       gradient: "from-yellow-400 to-orange-500"
     },
     {
-      icon: <Users className="w-7 h-7" />,
-      title: "Team Workspace",
-      description: "Collaborate in real-time. Comments, tasks, approvals—all here.",
+      icon: <Users className="w-6 h-6" />,
+      title: "Team Collaboration",
+      description: "Work together with built-in workflows, comments, and approval processes",
       gradient: "from-blue-400 to-cyan-500"
     },
     {
-      icon: <BarChart3 className="w-7 h-7" />,
-      title: "Smart Analytics",
-      description: "Beautiful dashboards that actually make sense.",
+      icon: <BarChart3 className="w-6 h-6" />,
+      title: "Unified Analytics",
+      description: "View all campaign performance metrics in one centralized dashboard",
       gradient: "from-purple-400 to-pink-500"
     },
     {
-      icon: <Target className="w-7 h-7" />,
-      title: "Multi-Channel",
-      description: "Email, social, web—manage it all from one place.",
+      icon: <Clock className="w-6 h-6" />,
+      title: "Workflow Automation",
+      description: "Automate repetitive tasks and streamline your marketing operations",
       gradient: "from-green-400 to-emerald-500"
     },
     {
-      icon: <Rocket className="w-7 h-7" />,
-      title: "Quick Templates",
-      description: "Start with templates. Customize in minutes.",
-      color: "from-red-400 to-rose-500"
+      icon: <Target className="w-6 h-6" />,
+      title: "Multi-Channel Support",
+      description: "Manage campaigns across email, social media, and other channels",
+      gradient: "from-red-400 to-rose-500"
     },
     {
-      icon: <Heart className="w-7 h-7" />,
-      title: "Made with Love",
-      description: "We actually care about making marketing fun again.",
-      color: "from-pink-400 to-purple-500"
+      icon: <Rocket className="w-6 h-6" />,
+      title: "Smart Templates",
+      description: "Launch faster with customizable templates for every campaign type",
+      gradient: "from-indigo-400 to-violet-500"
     }
   ];
 
@@ -99,17 +99,17 @@ export default function HomePage() {
       <nav className="fixed top-0 w-full bg-black/80 backdrop-blur-xl border-b border-white/10 z-50">
         <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 flex items-center justify-center">
+            <div className="w-8 h-8 flex items-center justify-center">
               <Sparkles className="w-7 h-7" />
             </div>
             <span className="text-xl font-bold">Centy</span>
           </div>
           <div className="hidden md:flex items-center gap-8">
+            <Link href="#product" className="text-sm text-gray-400 hover:text-white transition-colors">
+              Product
+            </Link>
             <Link href="#features" className="text-sm text-gray-400 hover:text-white transition-colors">
               Features
-            </Link>
-            <Link href="#pricing" className="text-sm text-gray-400 hover:text-white transition-colors">
-              Pricing
             </Link>
             <Link href="#workflow" className="text-sm text-gray-400 hover:text-white transition-colors">
               Workflow
@@ -177,17 +177,34 @@ export default function HomePage() {
               <div className="relative z-10">
                 {/* Main robot container */}
                 <div className="relative bg-gradient-to-br from-yellow-500/20 to-orange-500/20 rounded-3xl p-8 backdrop-blur-sm border border-white/10">
-                  <div className="w-full h-auto animate-float flex items-center justify-center aspect-square">
+                   <div className="w-full h-auto animate-float flex items-center justify-center aspect-square">
                     <Rocket className="w-3/4 h-3/4 text-white/80" />
                   </div>
                 </div>
 
                 {/* Floating metric cards */}
-                <div className="absolute -top-4 -left-4 bg-gradient-to-br from-blue-500 to-cyan-400 text-white px-4 py-2 rounded-full shadow-lg font-bold text-sm animate-bounce-slow">
-                  🚀 Fast Setup
+                <div className="absolute -top-4 -left-4 bg-gradient-to-br from-blue-500 to-cyan-500 rounded-2xl p-4 shadow-2xl animate-float-delayed">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 bg-white/20 rounded-lg flex items-center justify-center">
+                      <Zap className="w-5 h-5 text-white" />
+                    </div>
+                    <div>
+                      <div className="text-sm font-semibold text-white">AI Powered</div>
+                      <div className="text-xs text-white/80">Campaign Builder</div>
+                    </div>
+                  </div>
                 </div>
-                <div className="absolute -bottom-4 -right-4 bg-gradient-to-br from-purple-500 to-pink-400 text-white px-4 py-2 rounded-full shadow-lg font-bold text-sm animate-bounce-slow" style={{ animationDelay: '0.5s' }}>
-                  ✨ AI Powered
+
+                <div className="absolute -bottom-4 -right-4 bg-gradient-to-br from-purple-500 to-pink-500 rounded-2xl p-4 shadow-2xl animate-float">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 bg-white/20 rounded-lg flex items-center justify-center">
+                      <BarChart3 className="w-5 h-5 text-white" />
+                    </div>
+                    <div>
+                      <div className="text-sm font-semibold text-white">Real-Time</div>
+                      <div className="text-xs text-white/80">Analytics</div>
+                    </div>
+                  </div>
                 </div>
               </div>
 
@@ -255,7 +272,7 @@ export default function HomePage() {
                 key={index}
                 onMouseEnter={() => setHoveredFeature(index)}
                 onMouseLeave={() => setHoveredFeature(null)}
-                className={`group relative p-8 rounded-2xl bg-white/[0.02] border border-white/10 hover:border-white/30 hover:bg-white/5 transition-all duration-300`}
+                className="group relative p-8 rounded-2xl bg-white/[0.02] border border-white/10 hover:border-white/30 hover:bg-white/5 transition-all duration-300"
               >
                 <div className={`w-14 h-14 rounded-xl bg-gradient-to-br ${feature.gradient} flex items-center justify-center mb-6 group-hover:scale-110 transition-transform`}>
                   {feature.icon}
@@ -273,7 +290,7 @@ export default function HomePage() {
       {/* CTA Section */}
       <section className="py-32 px-6 relative">
         <div className="max-w-4xl mx-auto text-center">
-          <div className="relative p-12 md:p-16 rounded-3xl bg-gradient-to-br from-blue-600/20 to-purple-600/20 border border-white/10 backdrop-blur-sm">
+          <div className="relative p-16 rounded-3xl bg-gradient-to-br from-blue-600/20 to-purple-600/20 border border-white/10 backdrop-blur-sm">
             <h2 className="text-5xl md:text-6xl font-bold mb-6">
               Ready to transform
               <span className="block bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">
@@ -335,15 +352,15 @@ export default function HomePage() {
           0%, 100% { transform: translateY(0px); }
           50% { transform: translateY(-20px); }
         }
-        @keyframes bounce-slow {
+        @keyframes float-delayed {
           0%, 100% { transform: translateY(0px); }
-          50% { transform: translateY(-10px); }
+          50% { transform: translateY(-15px); }
         }
         .animate-float {
           animation: float 4s ease-in-out infinite;
         }
-        .animate-bounce-slow {
-          animation: bounce-slow 2s ease-in-out infinite;
+        .animate-float-delayed {
+          animation: float-delayed 3s ease-in-out infinite;
         }
       `}</style>
     </div>
