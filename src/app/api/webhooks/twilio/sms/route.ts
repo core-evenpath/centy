@@ -53,15 +53,18 @@ async function getPartnerIdFromPhone(toPhone: string): Promise<string> {
   }
 
   try {
-    const mappingDoc = await db.collection('twilioPhoneMappings').doc(toPhone).get();
+    // Standardize lookup by adding 'whatsapp:' prefix if it's missing.
+    // This ensures consistency with how mappings are stored.
+    const lookupId = toPhone.startsWith('whatsapp:') ? toPhone : `whatsapp:${toPhone}`;
+    const mappingDoc = await db.collection('twilioPhoneMappings').doc(lookupId).get();
     
     if (mappingDoc.exists) {
       const data = mappingDoc.data();
-      console.log(`Found mapping for ${toPhone}: partnerId=${data?.partnerId}`);
+      console.log(`Found mapping for ${lookupId}: partnerId=${data?.partnerId}`);
       return data?.partnerId || 'system';
     }
     
-    console.warn(`No SMS mapping found for ${toPhone}, using 'system' as partnerId`);
+    console.warn(`No mapping found for ${lookupId}, using 'system' as partnerId`);
     return 'system';
   } catch (error) {
     console.error('Error fetching phone mapping for SMS:', error);
