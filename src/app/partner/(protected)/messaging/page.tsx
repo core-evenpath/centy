@@ -1,7 +1,8 @@
+
 // src/app/partner/(protected)/messaging/page.tsx
 "use client";
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useMultiWorkspaceAuth } from '@/hooks/use-multi-workspace-auth';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -27,6 +28,8 @@ import {
   AlertCircle,
   MessageCircle,
   Info,
+  Bell,
+  BellOff,
 } from 'lucide-react';
 import { db } from '@/lib/firebase';
 import { collection, query, where, onSnapshot, orderBy, Timestamp } from 'firebase/firestore';
@@ -43,7 +46,7 @@ export default function MessagingPage() {
   const { user, currentWorkspace } = useMultiWorkspaceAuth();
   const { toast } = useToast();
 
-  const [selectedPlatform, setSelectedPlatform] = useState<Platform>('sms');
+  const [selectedPlatform, setSelectedPlatform] = useState<Platform>('whatsapp');
   const [conversations, setConversations] = useState<UnifiedConversation[]>([]);
   const [selectedConversation, setSelectedConversation] = useState<UnifiedConversation | null>(null);
   const [messages, setMessages] = useState<UnifiedMessage[]>([]);
@@ -54,49 +57,107 @@ export default function MessagingPage() {
   const [isLoadingConversations, setIsLoadingConversations] = useState(true);
   const [isLoadingMessages, setIsLoadingMessages] = useState(false);
   const [showNewConversation, setShowNewConversation] = useState(false);
+  const [notificationsEnabled, setNotificationsEnabled] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [previousMessageCount, setPreviousMessageCount] = useState(0);
 
-  const partnerId = currentWorkspace?.partnerId || user?.customClaims?.partnerId;
+  const partnerId = currentWorkspace?.partnerId;
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
 
-  // Load conversations for both platforms
+  // Request notification permission
+  useEffect(() => {
+    if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
+      setNotificationsEnabled(true);
+    }
+  }, []);
+
+  const requestNotificationPermission = async () => {
+    if (typeof window !== 'undefined' && 'Notification' in window) {
+      const permission = await Notification.requestPermission();
+      setNotificationsEnabled(permission === 'granted');
+      
+      if (permission === 'granted') {
+        toast({
+          title: 'Notifications Enabled',
+          description: 'You will now receive desktop notifications for new messages',
+        });
+      }
+    }
+  };
+
+  // Play notification sound
+  const playNotificationSound = () => {
+    if (audioRef.current) {
+      audioRef.current.play().catch(err => console.error('Error playing sound:', err));
+    }
+  };
+
+  // Show desktop notification
+  const showDesktopNotification = (conversation: UnifiedConversation, message: UnifiedMessage) => {
+    if (typeof window === 'undefined' || !notificationsEnabled || document.hasFocus()) return;
+
+    const notification = new Notification('New Message', {
+      body: `${conversation.customerPhone}: ${message.content.substring(0, 50)}${message.content.length > 50 ? '...' : ''}`,
+      icon: '/logo.png',
+      tag: conversation.id,
+      requireInteraction: false,
+    });
+
+    notification.onclick = () => {
+      window.focus();
+      setSelectedConversation(conversation);
+      notification.close();
+    };
+
+    playNotificationSound();
+  };
+
+  // Auto-scroll to bottom
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  };
+
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages]);
+
+  // Load conversations
   useEffect(() => {
     if (!partnerId || !db) {
-      setIsLoadingConversations(false);
+      setConversations([]);
       return;
     }
 
     setIsLoadingConversations(true);
 
-    // Query SMS conversations
     const smsQuery = query(
       collection(db, 'smsConversations'),
       where('partnerId', '==', partnerId),
+      where('isActive', '==', true),
       orderBy('lastMessageAt', 'desc')
     );
 
-    // Query WhatsApp conversations
     const whatsappQuery = query(
       collection(db, 'whatsappConversations'),
       where('partnerId', '==', partnerId),
+      where('isActive', '==', true),
       orderBy('lastMessageAt', 'desc')
     );
 
     const unsubscribeSMS = onSnapshot(
       smsQuery,
       (snapshot) => {
-        const smsConvos = snapshot.docs.map(doc => {
-          const data = doc.data();
-          return {
-            id: doc.id,
-            ...data,
-            platform: 'sms' as Platform,
-            createdAt: data.createdAt,
-            lastMessageAt: data.lastMessageAt,
-          } as UnifiedConversation;
-        });
+        const smsConvs = snapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data(),
+          platform: 'sms' as Platform,
+        })) as UnifiedConversation[];
 
         setConversations(prev => {
-          const whatsappConvos = prev.filter(c => c.platform === 'whatsapp');
-          return [...smsConvos, ...whatsappConvos].sort((a, b) => {
+          const whatsappConvs = prev.filter(c => c.platform === 'whatsapp');
+          const combined = [...smsConvs, ...whatsappConvs];
+          return combined.sort((a, b) => {
             const aTime = a.lastMessageAt?.toMillis?.() || 0;
             const bTime = b.lastMessageAt?.toMillis?.() || 0;
             return bTime - aTime;
@@ -111,27 +172,22 @@ export default function MessagingPage() {
           title: 'Error',
           description: 'Failed to load SMS conversations',
         });
-        setIsLoadingConversations(false);
       }
     );
 
     const unsubscribeWhatsApp = onSnapshot(
       whatsappQuery,
       (snapshot) => {
-        const waConvos = snapshot.docs.map(doc => {
-          const data = doc.data();
-          return {
-            id: doc.id,
-            ...data,
-            platform: 'whatsapp' as Platform,
-            createdAt: data.createdAt,
-            lastMessageAt: data.lastMessageAt,
-          } as UnifiedConversation;
-        });
+        const whatsappConvs = snapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data(),
+          platform: 'whatsapp' as Platform,
+        })) as UnifiedConversation[];
 
         setConversations(prev => {
-          const smsConvos = prev.filter(c => c.platform === 'sms');
-          return [...smsConvos, ...waConvos].sort((a, b) => {
+          const smsConvs = prev.filter(c => c.platform === 'sms');
+          const combined = [...smsConvs, ...whatsappConvs];
+          return combined.sort((a, b) => {
             const aTime = a.lastMessageAt?.toMillis?.() || 0;
             const bTime = b.lastMessageAt?.toMillis?.() || 0;
             return bTime - aTime;
@@ -159,6 +215,7 @@ export default function MessagingPage() {
   useEffect(() => {
     if (!selectedConversation?.id || !db) {
       setMessages([]);
+      setPreviousMessageCount(0);
       return;
     }
 
@@ -174,7 +231,7 @@ export default function MessagingPage() {
     const unsubscribe = onSnapshot(
       messagesQuery,
       (snapshot) => {
-        const msgs = snapshot.docs.map(doc => {
+        const newMessages = snapshot.docs.map(doc => {
           const data = doc.data();
           return {
             id: doc.id,
@@ -183,7 +240,29 @@ export default function MessagingPage() {
             createdAt: data.createdAt,
           } as UnifiedMessage;
         });
-        setMessages(msgs);
+
+        // Check for new inbound messages
+        const inboundMessages = newMessages.filter(m => m.direction === 'inbound');
+        
+        if (inboundMessages.length > previousMessageCount && previousMessageCount > 0) {
+          const latestInbound = inboundMessages[inboundMessages.length - 1];
+          if (latestInbound) {
+            // Show notification
+            showDesktopNotification(selectedConversation, latestInbound);
+            
+            // Show toast if not focused on this conversation
+            if (typeof window !== 'undefined' && !document.hasFocus()) {
+              toast({
+                title: 'New Message',
+                description: `${selectedConversation.customerPhone}: ${latestInbound.content.substring(0, 50)}`,
+                duration: 5000,
+              });
+            }
+          }
+        }
+
+        setPreviousMessageCount(inboundMessages.length);
+        setMessages(newMessages);
         setIsLoadingMessages(false);
       },
       (error) => {
@@ -199,6 +278,17 @@ export default function MessagingPage() {
 
     return () => unsubscribe();
   }, [selectedConversation?.id, selectedConversation?.platform, toast]);
+
+  // Calculate unread count (conversations with recent messages)
+  useEffect(() => {
+    const count = conversations.filter(conv => {
+      if (!conv.lastMessageAt) return false;
+      const lastMessageTime = conv.lastMessageAt.toMillis();
+      const fiveMinutesAgo = Date.now() - (5 * 60 * 1000);
+      return lastMessageTime > fiveMinutesAgo;
+    }).length;
+    setUnreadCount(count);
+  }, [conversations]);
 
   const handleSendMessage = async () => {
     if (!messageInput.trim()) return;
@@ -256,21 +346,19 @@ export default function MessagingPage() {
 
         toast({
           title: 'Success',
-          description: `${selectedPlatform === 'sms' ? 'SMS' : 'WhatsApp message'} sent successfully`,
+          description: `${selectedPlatform === 'sms' ? 'SMS' : 'WhatsApp'} message sent successfully`,
         });
 
-        // Select the conversation if it's new
+        // Auto-select the conversation if it was a new one
         if (result.conversationId && !selectedConversation) {
-          const newConvo = conversations.find(c => c.id === result.conversationId);
-          if (newConvo) {
-            setSelectedConversation(newConvo);
-          }
+          const newConv = conversations.find(c => c.id === result.conversationId);
+          if (newConv) setSelectedConversation(newConv);
         }
       } else {
         toast({
           variant: 'destructive',
           title: 'Error',
-          description: result.message,
+          description: result.message || 'Failed to send message',
         });
       }
     } catch (error: any) {
@@ -278,380 +366,333 @@ export default function MessagingPage() {
       toast({
         variant: 'destructive',
         title: 'Error',
-        description: `Failed to send ${selectedPlatform === 'sms' ? 'SMS' : 'WhatsApp message'}`,
+        description: error.message || 'An error occurred while sending the message',
       });
     } finally {
       setIsSending(false);
     }
   };
 
-  const handleKeyPress = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      handleSendMessage();
-    }
-  };
+  const filteredConversations = conversations.filter(conv => {
+    const platformMatch = conv.platform === selectedPlatform;
+    const searchMatch = searchTerm === '' || 
+      conv.customerPhone.includes(searchTerm) ||
+      conv.title.toLowerCase().includes(searchTerm.toLowerCase());
+    return platformMatch && searchMatch;
+  });
 
-  const filteredConversations = conversations
-    .filter(conv => conv.platform === selectedPlatform)
-    .filter(conv =>
-      conv.title?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      conv.customerPhone?.includes(searchTerm)
-    );
+  const getStatusIcon = (message: UnifiedMessage) => {
+    if (message.direction === 'inbound') return null;
 
-  const getMessageStatusIcon = (status?: string) => {
+    const status = message.platform === 'sms' 
+      ? message.smsMetadata?.twilioStatus 
+      : message.whatsappMetadata?.twilioStatus;
+
     switch (status) {
       case 'delivered':
       case 'read':
-        return <CheckCheck className="w-3 h-3 text-blue-500" />;
+        return <CheckCheck className="h-3 w-3 text-blue-500" />;
       case 'sent':
-        return <Check className="w-3 h-3 text-gray-500" />;
+        return <Check className="h-3 w-3 text-gray-400" />;
       case 'failed':
       case 'undelivered':
-        return <AlertCircle className="w-3 h-3 text-red-500" />;
+        return <AlertCircle className="h-3 w-3 text-red-500" />;
       default:
-        return <Clock className="w-3 h-3 text-gray-400" />;
+        return <Clock className="h-3 w-3 text-gray-400" />;
     }
   };
 
-  const formatTimestamp = (timestamp: any) => {
-    if (!timestamp) return '';
-    
-    let date: Date;
-    if (timestamp instanceof Timestamp) {
-      date = timestamp.toDate();
-    } else if (timestamp.toDate) {
-      date = timestamp.toDate();
-    } else {
-      date = new Date(timestamp);
+  const renderMessageContent = (message: UnifiedMessage) => {
+    if (message.attachments && message.attachments.length > 0) {
+      const attachment = message.attachments[0];
+      if (attachment.type === 'image') {
+        return <img src={attachment.url} alt={attachment.name} className="rounded max-w-full h-auto" />;
+      } else {
+        return (
+          <a
+            href={attachment.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-sm underline"
+          >
+            {attachment.name}
+          </a>
+        );
+      }
     }
-
-    return formatDistanceToNow(date, { addSuffix: true });
-  };
-
-  const getPlatformBadge = (platform: Platform) => {
-    return platform === 'sms' ? (
-      <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
-        <Phone className="w-3 h-3 mr-1" />
-        SMS
-      </Badge>
-    ) : (
-      <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
-        <MessageCircle className="w-3 h-3 mr-1" />
-        WhatsApp
-      </Badge>
-    );
+    return <p className="whitespace-pre-wrap break-words">{message.content}</p>;
   };
 
   return (
-    <div className="flex flex-col h-screen bg-gray-50 dark:bg-gray-900">
-      <header className="bg-white dark:bg-gray-800 border-b px-6 py-4">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <MessageSquare className="w-6 h-6 text-blue-600" />
-            <div>
-              <h1 className="text-2xl font-bold">Messaging</h1>
-              <p className="text-sm text-muted-foreground">
-                SMS & WhatsApp powered by Twilio
-              </p>
-            </div>
-          </div>
-          <Button onClick={() => setShowNewConversation(true)}>
-            <Plus className="w-4 h-4 mr-2" />
-            New Conversation
+    <div className="container mx-auto p-6 max-w-7xl">
+      {/* Notification sound - hidden audio element */}
+      <audio ref={audioRef} src="/notification.mp3" preload="auto" />
+
+      <div className="flex justify-between items-center mb-6">
+        <div>
+          <h1 className="text-3xl font-bold">Messaging</h1>
+          <p className="text-muted-foreground">Communicate with your customers via SMS and WhatsApp</p>
+        </div>
+        <div className="flex gap-2">
+          <Button
+            variant={notificationsEnabled ? "default" : "outline"}
+            size="sm"
+            onClick={requestNotificationPermission}
+          >
+            {notificationsEnabled ? <Bell className="h-4 w-4 mr-2" /> : <BellOff className="h-4 w-4 mr-2" />}
+            {notificationsEnabled ? 'Notifications On' : 'Enable Notifications'}
           </Button>
+          {unreadCount > 0 && (
+            <Badge variant="destructive" className="px-3">
+              {unreadCount} new
+            </Badge>
+          )}
         </div>
-      </header>
+      </div>
 
-      <div className="flex-1 flex overflow-hidden">
-        {/* Conversations List */}
-        <div className="w-80 bg-white dark:bg-gray-800 border-r flex flex-col">
-          <div className="p-4 space-y-3">
-            {/* Platform Selector */}
-            <Tabs value={selectedPlatform} onValueChange={(value) => setSelectedPlatform(value as Platform)}>
-              <TabsList className="grid w-full grid-cols-2">
-                <TabsTrigger value="sms" className="flex items-center gap-2">
-                  <Phone className="w-4 h-4" />
-                  SMS
-                </TabsTrigger>
-                <TabsTrigger value="whatsapp" className="flex items-center gap-2">
-                  <MessageCircle className="w-4 h-4" />
-                  WhatsApp
-                </TabsTrigger>
-              </TabsList>
-            </Tabs>
+      <Card>
+        <CardContent className="p-0">
+          <div className="grid grid-cols-12 h-[calc(100vh-200px)]">
+            {/* Conversations List */}
+            <div className="col-span-4 border-r flex flex-col">
+              <div className="p-4 border-b space-y-4">
+                <Tabs value={selectedPlatform} onValueChange={(v) => setSelectedPlatform(v as Platform)}>
+                  <TabsList className="grid w-full grid-cols-2">
+                    <TabsTrigger value="sms">
+                      <Phone className="h-4 w-4 mr-2" />
+                      SMS
+                    </TabsTrigger>
+                    <TabsTrigger value="whatsapp">
+                      <MessageCircle className="h-4 w-4 mr-2" />
+                      WhatsApp
+                    </TabsTrigger>
+                  </TabsList>
+                </Tabs>
 
-            {/* Search */}
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
-              <Input
-                placeholder="Search conversations..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-9"
-              />
-            </div>
-
-            {/* WhatsApp Info Alert */}
-            {selectedPlatform === 'whatsapp' && (
-              <Alert className="bg-blue-50 border-blue-200">
-                <Info className="h-4 w-4 text-blue-600" />
-                <AlertDescription className="text-xs text-blue-800">
-                  WhatsApp conversations require approved message templates. New conversations must start with an approved template.
-                </AlertDescription>
-              </Alert>
-            )}
-          </div>
-
-          <ScrollArea className="flex-1">
-            {isLoadingConversations ? (
-              <div className="flex items-center justify-center p-8">
-                <Loader2 className="w-6 h-6 animate-spin" />
-              </div>
-            ) : filteredConversations.length === 0 ? (
-              <div className="p-8 text-center text-muted-foreground">
-                <MessageSquare className="w-12 h-12 mx-auto mb-3 opacity-50" />
-                <p>No {selectedPlatform === 'sms' ? 'SMS' : 'WhatsApp'} conversations yet</p>
-                <p className="text-sm">Start a new conversation to begin</p>
-              </div>
-            ) : (
-              <div className="divide-y">
-                {filteredConversations.map((conversation) => (
-                  <div
-                    key={conversation.id}
-                    onClick={() => {
-                      setSelectedConversation(conversation);
-                      setShowNewConversation(false);
-                    }}
-                    className={`p-4 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors ${
-                      selectedConversation?.id === conversation.id
-                        ? 'bg-blue-50 dark:bg-blue-900/20 border-l-4 border-blue-500'
-                        : ''
-                    }`}
-                  >
-                    <div className="flex items-start gap-3">
-                      <Avatar>
-                        <AvatarFallback className={conversation.platform === 'sms' ? 'bg-blue-100 text-blue-700' : 'bg-green-100 text-green-700'}>
-                          {conversation.platform === 'sms' ? <Phone className="w-4 h-4" /> : <MessageCircle className="w-4 h-4" />}
-                        </AvatarFallback>
-                      </Avatar>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center justify-between">
-                          <p className="font-medium truncate">
-                            {conversation.customerName || conversation.customerPhone}
-                          </p>
-                          <span className="text-xs text-muted-foreground">
-                            {formatTimestamp(conversation.lastMessageAt)}
-                          </span>
-                        </div>
-                        <p className="text-sm text-muted-foreground truncate">
-                          {conversation.customerPhone}
-                        </p>
-                        <div className="flex items-center gap-2 mt-1">
-                          {getPlatformBadge(conversation.platform)}
-                          <Badge variant="secondary">
-                            {conversation.messageCount || 0} messages
-                          </Badge>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </ScrollArea>
-        </div>
-
-        {/* Message Area */}
-        <div className="flex-1 flex flex-col bg-gray-50 dark:bg-gray-900">
-          {showNewConversation ? (
-            <Card className="m-6">
-              <CardHeader>
-                <CardTitle>New {selectedPlatform === 'sms' ? 'SMS' : 'WhatsApp'} Conversation</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div>
-                  <label className="text-sm font-medium mb-2 block">Phone Number (E.164 format)</label>
-                  <Input
-                    placeholder="+1234567890"
-                    value={newPhoneNumber}
-                    onChange={(e) => setNewPhoneNumber(e.target.value)}
-                  />
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Include country code (e.g., +1 for US)
-                  </p>
-                </div>
-                
-                {selectedPlatform === 'whatsapp' && (
-                  <Alert className="bg-amber-50 border-amber-200">
-                    <Info className="h-4 w-4 text-amber-600" />
-                    <AlertDescription className="text-xs text-amber-800">
-                      <strong>WhatsApp Business Account ID:</strong> 1103704538583912<br />
-                      <strong>Meta Business Manager ID:</strong> 1949265818947335<br />
-                      <strong>WhatsApp Number:</strong> +19107149473 (Evenpath)<br />
-                      <strong>Note:</strong> First message to a new contact must use an approved template.
-                    </AlertDescription>
-                  </Alert>
-                )}
-
-                <div>
-                  <label className="text-sm font-medium mb-2 block">Message</label>
-                  <Textarea
-                    placeholder="Type your message..."
-                    value={messageInput}
-                    onChange={(e) => setMessageInput(e.target.value)}
-                    rows={4}
-                  />
-                </div>
                 <div className="flex gap-2">
-                  <Button 
-                    variant="outline" 
-                    onClick={() => setShowNewConversation(false)}
-                  >
-                    Cancel
-                  </Button>
-                  <Button 
-                    onClick={handleSendMessage}
-                    disabled={isSending || !newPhoneNumber || !messageInput.trim()}
-                  >
-                    {isSending ? (
-                      <>
-                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                        Sending...
-                      </>
-                    ) : (
-                      <>
-                        <Send className="w-4 h-4 mr-2" />
-                        Send
-                      </>
-                    )}
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          ) : selectedConversation ? (
-            <>
-              {/* Conversation Header */}
-              <div className="bg-white dark:bg-gray-800 border-b p-4">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <Avatar>
-                      <AvatarFallback className={selectedConversation.platform === 'sms' ? 'bg-blue-100 text-blue-700' : 'bg-green-100 text-green-700'}>
-                        {selectedConversation.platform === 'sms' ? <Phone className="w-5 h-5" /> : <MessageCircle className="w-5 h-5" />}
-                      </AvatarFallback>
-                    </Avatar>
-                    <div>
-                      <h3 className="font-semibold">
-                        {selectedConversation.customerName || selectedConversation.customerPhone}
-                      </h3>
-                      <div className="flex items-center gap-2">
-                        <p className="text-sm text-muted-foreground">
-                          {selectedConversation.customerPhone}
-                        </p>
-                        {getPlatformBadge(selectedConversation.platform)}
-                      </div>
-                    </div>
+                  <div className="relative flex-1">
+                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      placeholder="Search conversations..."
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                      className="pl-9"
+                    />
                   </div>
+                  <Button
+                    size="icon"
+                    variant={showNewConversation ? "default" : "outline"}
+                    onClick={() => setShowNewConversation(!showNewConversation)}
+                  >
+                    <Plus className="h-4 w-4" />
+                  </Button>
                 </div>
+
+                {showNewConversation && (
+                  <div className="space-y-2">
+                    <Input
+                      placeholder="Enter phone number..."
+                      value={newPhoneNumber}
+                      onChange={(e) => setNewPhoneNumber(e.target.value)}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Format: +1234567890 (include country code)
+                    </p>
+                  </div>
+                )}
               </div>
 
-              {/* Messages */}
-              <ScrollArea className="flex-1 p-4">
-                {isLoadingMessages ? (
-                  <div className="flex items-center justify-center h-full">
-                    <Loader2 className="w-6 h-6 animate-spin" />
+              <ScrollArea className="flex-1">
+                {isLoadingConversations ? (
+                  <div className="flex items-center justify-center p-8">
+                    <Loader2 className="h-6 w-6 animate-spin" />
                   </div>
-                ) : messages.length === 0 ? (
-                  <div className="flex items-center justify-center h-full text-muted-foreground">
-                    <div className="text-center">
-                      <MessageSquare className="w-12 h-12 mx-auto mb-3 opacity-50" />
-                      <p>No messages yet</p>
-                      <p className="text-sm">Send a message to start the conversation</p>
-                    </div>
+                ) : filteredConversations.length === 0 ? (
+                  <div className="p-8 text-center text-muted-foreground">
+                    <MessageSquare className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                    <p>No conversations yet</p>
+                    <p className="text-sm mt-1">Start a new conversation</p>
                   </div>
                 ) : (
-                  <div className="space-y-4">
-                    {messages.map((message) => (
-                      <div
-                        key={message.id}
-                        className={`flex ${
-                          message.direction === 'outbound' ? 'justify-end' : 'justify-start'
+                  <div className="divide-y">
+                    {filteredConversations.map((conv) => (
+                      <button
+                        key={conv.id}
+                        onClick={() => {
+                          setSelectedConversation(conv);
+                          setShowNewConversation(false);
+                        }}
+                        className={`w-full p-4 text-left hover:bg-muted/50 transition-colors ${
+                          selectedConversation?.id === conv.id ? 'bg-muted' : ''
                         }`}
                       >
-                        <div
-                          className={`max-w-[70%] rounded-lg px-4 py-2 ${
-                            message.direction === 'outbound'
-                              ? 'bg-blue-600 text-white'
-                              : 'bg-white dark:bg-gray-800 border'
-                          }`}
-                        >
-                          <p className="whitespace-pre-wrap break-words">{message.content}</p>
-                          <div
-                            className={`flex items-center gap-1 mt-1 text-xs ${
-                              message.direction === 'outbound'
-                                ? 'text-blue-100'
-                                : 'text-muted-foreground'
-                            }`}
-                          >
-                            <span>{formatTimestamp(message.createdAt)}</span>
-                            {message.direction === 'outbound' && (
-                              <span className="ml-1">
-                                {getMessageStatusIcon(
-                                  message.platform === 'sms' 
-                                    ? (message as SMSMessage).smsMetadata?.twilioStatus 
-                                    : (message as WhatsAppMessage).whatsappMetadata?.twilioStatus
-                                )}
-                              </span>
-                            )}
+                        <div className="flex items-start gap-3">
+                          <Avatar>
+                            <AvatarFallback>
+                              {conv.platform === 'sms' ? <Phone className="h-4 w-4" /> : <MessageCircle className="h-4 w-4" />}
+                            </AvatarFallback>
+                          </Avatar>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center justify-between mb-1">
+                              <p className="font-medium truncate">{conv.customerPhone}</p>
+                              {conv.lastMessageAt && (
+                                <span className="text-xs text-muted-foreground">
+                                  {formatDistanceToNow(conv.lastMessageAt.toDate(), { addSuffix: true })}
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-sm text-muted-foreground capitalize">
+                              {conv.platform} • {conv.messageCount} messages
+                            </p>
                           </div>
                         </div>
-                      </div>
+                      </button>
                     ))}
                   </div>
                 )}
               </ScrollArea>
-
-              {/* Message Input */}
-              <div className="bg-white dark:bg-gray-800 border-t p-4">
-                <div className="flex gap-2">
-                  <Textarea
-                    placeholder="Type a message..."
-                    value={messageInput}
-                    onChange={(e) => setMessageInput(e.target.value)}
-                    onKeyPress={handleKeyPress}
-                    rows={2}
-                    className="resize-none"
-                  />
-                  <Button
-                    onClick={handleSendMessage}
-                    disabled={isSending || !messageInput.trim()}
-                    size="lg"
-                  >
-                    {isSending ? (
-                      <Loader2 className="w-5 h-5 animate-spin" />
-                    ) : (
-                      <Send className="w-5 h-5" />
-                    )}
-                  </Button>
-                </div>
-                <p className="text-xs text-muted-foreground mt-2">
-                  Press Enter to send, Shift+Enter for new line
-                </p>
-              </div>
-            </>
-          ) : (
-            <div className="flex-1 flex items-center justify-center text-muted-foreground">
-              <div className="text-center">
-                <MessageSquare className="w-16 h-16 mx-auto mb-4 opacity-50" />
-                <h3 className="text-lg font-medium mb-2">Select a conversation</h3>
-                <p className="text-sm">
-                  Choose a conversation from the list or start a new one
-                </p>
-              </div>
             </div>
-          )}
-        </div>
-      </div>
+
+            {/* Messages Area */}
+            <div className="col-span-8 flex flex-col">
+              {selectedConversation ? (
+                <>
+                  {/* Conversation Header */}
+                  <div className="p-4 border-b">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h2 className="text-lg font-semibold">{selectedConversation.customerPhone}</h2>
+                        <p className="text-sm text-muted-foreground capitalize">
+                          {selectedConversation.platform} Conversation
+                        </p>
+                      </div>
+                      <Badge variant="outline" className="capitalize">
+                        {selectedConversation.platform}
+                      </Badge>
+                    </div>
+                  </div>
+
+                  {/* Messages */}
+                  <ScrollArea className="flex-1 p-4">
+                    {isLoadingMessages ? (
+                      <div className="flex items-center justify-center h-full">
+                        <Loader2 className="h-6 w-6 animate-spin" />
+                      </div>
+                    ) : messages.length === 0 ? (
+                      <div className="flex flex-col items-center justify-center h-full text-muted-foreground">
+                        <MessageSquare className="h-12 w-12 mb-4 opacity-50" />
+                        <p>No messages yet</p>
+                        <p className="text-sm mt-1">Send a message to start the conversation</p>
+                      </div>
+                    ) : (
+                      <div className="space-y-4">
+                        {messages.map((message) => (
+                          <div
+                            key={message.id}
+                            className={`flex ${message.direction === 'outbound' ? 'justify-end' : 'justify-start'}`}
+                          >
+                            <div
+                              className={`max-w-[70%] rounded-lg p-3 ${
+                                message.direction === 'outbound'
+                                  ? 'bg-primary text-primary-foreground'
+                                  : 'bg-muted'
+                              }`}
+                            >
+                              {renderMessageContent(message)}
+                              <div className="flex items-center gap-2 mt-1">
+                                <span className="text-xs opacity-70">
+                                  {message.createdAt && formatDistanceToNow(message.createdAt.toDate(), { addSuffix: true })}
+                                </span>
+                                {getStatusIcon(message)}
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                        <div ref={messagesEndRef} />
+                      </div>
+                    )}
+                  </ScrollArea>
+
+                  {/* Message Input */}
+                  <div className="p-4 border-t">
+                    <div className="flex gap-2">
+                      <Textarea
+                        placeholder="Type your message..."
+                        value={messageInput}
+                        onChange={(e) => setMessageInput(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' && !e.shiftKey) {
+                            e.preventDefault();
+                            handleSendMessage();
+                          }
+                        }}
+                        className="min-h-[60px] resize-none"
+                      />
+                      <Button
+                        onClick={handleSendMessage}
+                        disabled={isSending || !messageInput.trim()}
+                        size="icon"
+                        className="h-[60px] w-[60px]"
+                      >
+                        {isSending ? (
+                          <Loader2 className="h-5 w-5 animate-spin" />
+                        ) : (
+                          <Send className="h-5 w-5" />
+                        )}
+                      </Button>
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-2">
+                      Press Enter to send, Shift+Enter for new line
+                    </p>
+                  </div>
+                </>
+              ) : showNewConversation && newPhoneNumber ? (
+                <>
+                  <div className="p-4 border-b">
+                    <h2 className="text-lg font-semibold">New {selectedPlatform === 'sms' ? 'SMS' : 'WhatsApp'} Conversation</h2>
+                    <p className="text-sm text-muted-foreground">To: {newPhoneNumber}</p>
+                  </div>
+                  <div className="flex-1" />
+                  <div className="p-4 border-t">
+                    <div className="flex gap-2">
+                      <Textarea
+                        placeholder="Type your message..."
+                        value={messageInput}
+                        onChange={(e) => setMessageInput(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' && !e.shiftKey) {
+                            e.preventDefault();
+                            handleSendMessage();
+                          }
+                        }}
+                        className="min-h-[60px] resize-none"
+                      />
+                      <Button
+                        onClick={handleSendMessage}
+                        disabled={isSending || !messageInput.trim()}
+                        size="icon"
+                        className="h-[60px] w-[60px]"
+                      >
+                        {isSending ? (
+                          <Loader2 className="h-5 w-5 animate-spin" />
+                        ) : (
+                          <Send className="h-5 w-5" />
+                        )}
+                      </Button>
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <div className="flex flex-col items-center justify-center h-full text-muted-foreground">
+                  <MessageSquare className="h-16 w-16 mb-4 opacity-50" />
+                  <p className="text-lg font-medium">Select a conversation</p>
+                  <p className="text-sm mt-1">Choose a conversation from the list or start a new one</p>
+                </div>
+              )}
+            </div>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }
