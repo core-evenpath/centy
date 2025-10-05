@@ -98,7 +98,13 @@ export default function HomePage() {
       <nav className="fixed top-0 w-full bg-black/80 backdrop-blur-xl border-b border-white/10 z-50">
         <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <Sparkles className="w-8 h-8 text-white" />
+            <Image 
+              src="/centy_logo.svg" 
+              alt="Centy Logo" 
+              width={32}
+              height={32}
+              className="w-8 h-8"
+            />
             <span className="text-xl font-bold">Centy</span>
           </div>
           <div className="hidden md:flex items-center gap-8">
@@ -370,4 +376,3 @@ export default function HomePage() {
     </div>
   );
 }
-    
