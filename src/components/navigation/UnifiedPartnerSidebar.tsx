@@ -13,7 +13,8 @@ import {
   Building2,
   MessageSquare,
   Bell,
-  HelpCircle
+  HelpCircle,
+  Layers
 } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
@@ -79,12 +80,6 @@ export default function UnifiedPartnerSidebar() {
       href: '/partner/messaging',
       badge: stats?.unreadMessages || null,
       description: 'SMS & WhatsApp Messaging'
-    },
-    { 
-      icon: LayoutDashboard, 
-      label: 'Dashboard', 
-      href: '/partner/dashboard',
-      badge: null 
     },
     { 
       icon: ListTodo, 
@@ -168,57 +163,16 @@ export default function UnifiedPartnerSidebar() {
   return (
     <Sidebar>
       <SidebarHeader className="border-b p-4">
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button 
-              variant="ghost" 
-              className="w-full justify-between h-auto p-3 hover:bg-accent"
-              disabled={isWorkspaceSwitching}
-            >
-              <div className="flex items-center gap-3 flex-1 min-w-0">
-                <WorkspaceAvatar workspace={currentWorkspace} size="md" />
-                <div className="flex-1 text-left min-w-0">
-                  <p className="font-semibold text-sm truncate">
-                    {currentWorkspace?.partnerName || 'Select Workspace'}
-                  </p>
-                  <p className="text-xs text-muted-foreground truncate">
-                    {currentWorkspace?.role === 'partner_admin' ? 'Admin' : 'Member'}
-                  </p>
-                </div>
-              </div>
-              <ChevronDown className="w-4 h-4 flex-shrink-0 opacity-50" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="start" className="w-64">
-            <div className="px-2 py-1.5">
-              <p className="text-xs font-medium text-muted-foreground mb-2">
-                Switch Workspace
-              </p>
+        <div className="flex items-center gap-3 p-1">
+          <div className="flex items-center justify-center w-10 h-10">
+            <div className="flex items-center justify-center bg-gradient-to-br from-[#3081D0] to-[#6044A6] rounded-lg w-10 h-10">
+              <Layers className="w-6 h-6 text-white" />
             </div>
-            <DropdownMenuSeparator />
-            {availableWorkspaces.map((workspace) => (
-              <DropdownMenuItem
-                key={workspace.partnerId}
-                onClick={() => handleWorkspaceSwitch(workspace)}
-                className="flex items-center gap-3 p-3 cursor-pointer"
-                disabled={isWorkspaceSwitching}
-              >
-                <WorkspaceAvatar workspace={workspace} size="sm" />
-                <div className="flex-1 min-w-0">
-                  <p className="font-medium text-sm truncate">
-                    {workspace.partnerName}
-                  </p>
-                  <p className="text-xs text-muted-foreground">
-                    {workspace.role === 'partner_admin' ? 'Admin' : 'Member'}
-                  </p>
-                </div>
-                {workspace.partnerId === currentWorkspace?.partnerId && (
-                  <div className="w-2 h-2 rounded-full bg-green-500 flex-shrink-0" />
-                )}
-              </DropdownMenuItem>
-            ))}
-          </DropdownMenuContent>
-        </DropdownMenu>
+          </div>
+          <div>
+            <h1 className="font-bold text-lg">Centy Partner Hub</h1>
+          </div>
+        </div>
       </SidebarHeader>
 
       <SidebarContent>
