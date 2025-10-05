@@ -101,9 +101,9 @@ export default function HomePage() {
             <Image 
               src="/centy_logo.svg" 
               alt="Centy Logo" 
-              width={32}
-              height={32}
-              className="w-8 h-8"
+              width={40}
+              height={40}
+              className="w-10 h-10"
             />
             <span className="text-xl font-bold">Centy</span>
           </div>
@@ -330,9 +330,9 @@ export default function HomePage() {
               <Image 
                 src="/centy_logo.svg" 
                 alt="Centy Logo" 
-                width={24}
-                height={24}
-                className="w-6 h-6"
+                width={32}
+                height={32}
+                className="w-8 h-8"
               />
               <span className="font-bold">Centy</span>
             </div>
@@ -370,7 +370,7 @@ export default function HomePage() {
           animation: float 4s ease-in-out infinite;
         }
         .animate-float-delayed {
-          animation: float-delayed 3.5s ease-in-out infinite;
+          animation: float-delayed 3s ease-in-out infinite;
         }
       `}</style>
     </div>
