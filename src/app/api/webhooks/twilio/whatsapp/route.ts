@@ -60,9 +60,10 @@ async function getPartnerIdFromPhone(toPhone: string): Promise<string> {
   }
 
   try {
-    console.log('🔍 Looking up phone mapping for:', toPhone);
+    const lookupId = toPhone.startsWith('whatsapp:') ? toPhone : `whatsapp:${toPhone}`;
+    console.log('🔍 Looking up phone mapping for:', lookupId);
     
-    const mappingDoc = await db.collection('twilioPhoneMappings').doc(toPhone).get();
+    const mappingDoc = await db.collection('twilioPhoneMappings').doc(lookupId).get();
     
     if (mappingDoc.exists) {
       const data = mappingDoc.data();
@@ -70,7 +71,7 @@ async function getPartnerIdFromPhone(toPhone: string): Promise<string> {
       return data?.partnerId || 'system';
     }
     
-    console.warn(`⚠️ No mapping found for ${toPhone}, using 'system'`);
+    console.warn(`⚠️ No mapping found for ${lookupId}, using 'system'`);
     return 'system';
   } catch (error) {
     console.error('❌ Error fetching phone mapping:', error);
@@ -228,3 +229,4 @@ async function handleStatusUpdate(payload: Partial<TwilioWebhookPayload>) {
     console.error('❌ Error updating status:', error);
   }
 }
+
