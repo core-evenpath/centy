@@ -6,7 +6,6 @@ import { sendWhatsAppMessage, getMessageStatus } from '@/lib/twilio-service';
 import { FieldValue } from 'firebase-admin/firestore';
 import type { SendWhatsAppMessageInput, SendWhatsAppMessageResult, WhatsAppMessage, WhatsAppConversation } from '@/lib/types';
 import { FirestorePermissionError } from '@/firebase/errors';
-import { errorEmitter } from '@/firebase/error-emitter';
 
 /**
  * Send a WhatsApp message and store it in Firestore
@@ -21,18 +20,22 @@ export async function sendWhatsAppMessageAction(input: SendWhatsAppMessageInput)
     return { success: false, message: 'Phone number and message are required' };
   }
 
-  // Send via Twilio first
-  const twilioResponse = await sendWhatsAppMessage({
-    to: input.to,
-    body: input.message,
-    mediaUrl: input.mediaUrl,
-  });
+  if (!input.partnerId) {
+    return { success: false, message: 'Partner ID is required' };
+  }
 
-  // Get or create conversation
-  let conversationId = input.conversationId;
-  let conversationRef;
-  
   try {
+    // Send via Twilio WhatsApp first
+    const twilioResponse = await sendWhatsAppMessage({
+      to: input.to,
+      body: input.message,
+      mediaUrl: input.mediaUrl,
+    });
+
+    // Get or create conversation
+    let conversationId = input.conversationId;
+    let conversationRef;
+    
     if (!conversationId) {
       // Create new conversation
       conversationRef = db.collection('whatsappConversations').doc();
@@ -54,10 +57,9 @@ export async function sendWhatsAppMessageAction(input: SendWhatsAppMessageInput)
       };
 
       await conversationRef.set(newConversation);
-
     } else {
       // Update existing conversation
-      conversationRef = db.collection('whatsappConversations').doc(conversationId)
+      conversationRef = db.collection('whatsappConversations').doc(conversationId);
       await conversationRef.update({
         lastMessageAt: FieldValue.serverTimestamp(),
         messageCount: FieldValue.increment(1),
@@ -86,6 +88,7 @@ export async function sendWhatsAppMessageAction(input: SendWhatsAppMessageInput)
       createdAt: FieldValue.serverTimestamp(),
     };
 
+    // Add media attachment if present
     if (input.mediaUrl) {
       messageData.attachments = [{
         id: messageRef.id,
@@ -95,29 +98,45 @@ export async function sendWhatsAppMessageAction(input: SendWhatsAppMessageInput)
         size: 0,
         mimeType: 'image/jpeg',
       }];
+      messageData.whatsappMetadata!.numMedia = 1;
+      messageData.whatsappMetadata!.mediaUrls = [input.mediaUrl];
     }
 
     await messageRef.set(messageData);
 
     return {
       success: true,
-      message: 'Message sent successfully',
+      message: 'WhatsApp message sent successfully',
       messageId: messageRef.id,
       twilioSid: twilioResponse.sid,
       conversationId,
     };
   } catch (serverError: any) {
-    console.error("Firestore error in sendWhatsAppMessageAction:", serverError);
-    // Now we create the contextual error and throw it
-    const permissionError = new FirestorePermissionError({
-      path: (serverError.ref?.path || 'unknown path'),
-      operation: 'write',
-      requestResourceData: (serverError.requestData || { info: "data not captured" }),
-      serverError,
-    });
-
-    // Instead of just emitting, we now throw the error so the server action fails informatively
-    throw permissionError;
+    console.error("Error in sendWhatsAppMessageAction:", serverError);
+    
+    // Handle Firestore permission errors
+    if (serverError.code === 7 || serverError.message?.includes('PERMISSION_DENIED')) {
+      const permissionError = new FirestorePermissionError({
+        path: serverError.ref?.path || 'unknown path',
+        operation: 'write',
+        requestResourceData: serverError.requestData || { info: "data not captured" },
+        serverError,
+      });
+      throw permissionError;
+    }
+    
+    // Handle Twilio errors
+    if (serverError.message?.includes('Twilio') || serverError.message?.includes('WhatsApp')) {
+      return {
+        success: false,
+        message: `Twilio error: ${serverError.message}`,
+      };
+    }
+    
+    return {
+      success: false,
+      message: serverError.message || 'Failed to send WhatsApp message',
+    };
   }
 }
 
@@ -142,7 +161,7 @@ export async function getWhatsAppConversations(partnerId: string) {
       ...doc.data(),
     }));
   } catch (error: any) {
-    console.error('Error fetching conversations:', error);
+    console.error('Error fetching WhatsApp conversations:', error);
     throw error;
   }
 }
@@ -168,15 +187,15 @@ export async function getWhatsAppMessages(conversationId: string) {
       ...doc.data(),
     }));
   } catch (error: any) {
-    console.error('Error fetching messages:', error);
+    console.error('Error fetching WhatsApp messages:', error);
     throw error;
   }
 }
 
 /**
- * Update message status from Twilio webhook
+ * Update WhatsApp message status from Twilio webhook
  */
-export async function updateMessageStatus(twilioSid: string, status: string): Promise<void> {
+export async function updateWhatsAppMessageStatus(twilioSid: string, status: string): Promise<void> {
   if (!db) {
     throw new Error('Server not configured');
   }
@@ -197,7 +216,38 @@ export async function updateMessageStatus(twilioSid: string, status: string): Pr
       });
     }
   } catch (error: any) {
-    console.error('Error updating message status:', error);
+    console.error('Error updating WhatsApp message status:', error);
+    throw error;
+  }
+}
+
+/**
+ * Get WhatsApp message status from Twilio
+ */
+export async function checkWhatsAppMessageStatus(twilioSid: string): Promise<string> {
+  try {
+    return await getMessageStatus(twilioSid);
+  } catch (error: any) {
+    console.error('Error checking WhatsApp message status:', error);
+    throw error;
+  }
+}
+
+/**
+ * Mark WhatsApp message as read
+ */
+export async function markWhatsAppMessageAsRead(messageId: string): Promise<void> {
+  if (!db) {
+    throw new Error('Server not configured');
+  }
+
+  try {
+    await db.collection('whatsappMessages').doc(messageId).update({
+      'whatsappMetadata.twilioStatus': 'read',
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+  } catch (error: any) {
+    console.error('Error marking WhatsApp message as read:', error);
     throw error;
   }
 }

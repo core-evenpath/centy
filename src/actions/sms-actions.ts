@@ -6,7 +6,6 @@ import { sendSMS, getMessageStatus } from '@/lib/twilio-service';
 import { FieldValue } from 'firebase-admin/firestore';
 import type { SendSMSInput, SendSMSResult, SMSMessage, SMSConversation } from '@/lib/types';
 import { FirestorePermissionError } from '@/firebase/errors';
-import { errorEmitter } from '@/firebase/error-emitter';
 
 /**
  * Send an SMS message and store it in Firestore
@@ -21,17 +20,21 @@ export async function sendSMSAction(input: SendSMSInput): Promise<SendSMSResult>
     return { success: false, message: 'Phone number and message are required' };
   }
 
-  // Send via Twilio first
-  const twilioResponse = await sendSMS({
-    to: input.to,
-    body: input.message,
-  });
-
-  // Get or create conversation
-  let conversationId = input.conversationId;
-  let conversationRef;
+  if (!input.partnerId) {
+    return { success: false, message: 'Partner ID is required' };
+  }
 
   try {
+    // Send via Twilio first
+    const twilioResponse = await sendSMS({
+      to: input.to,
+      body: input.message,
+    });
+
+    // Get or create conversation
+    let conversationId = input.conversationId;
+    let conversationRef;
+    
     if (!conversationId) {
       // Create new conversation
       conversationRef = db.collection('smsConversations').doc();
@@ -53,10 +56,9 @@ export async function sendSMSAction(input: SendSMSInput): Promise<SendSMSResult>
       };
 
       await conversationRef.set(newConversation);
-
     } else {
       // Update existing conversation
-      conversationRef = db.collection('smsConversations').doc(conversationId)
+      conversationRef = db.collection('smsConversations').doc(conversationId);
       await conversationRef.update({
         lastMessageAt: FieldValue.serverTimestamp(),
         messageCount: FieldValue.increment(1),
@@ -95,17 +97,31 @@ export async function sendSMSAction(input: SendSMSInput): Promise<SendSMSResult>
       conversationId,
     };
   } catch (serverError: any) {
-    console.error("Firestore error in sendSMSAction:", serverError);
-    // Now we create the contextual error and throw it
-    const permissionError = new FirestorePermissionError({
-      path: (serverError.ref?.path || 'unknown path'),
-      operation: 'write',
-      requestResourceData: (serverError.requestData || { info: "data not captured" }),
-      serverError,
-    });
-
-    // Instead of just emitting, we now throw the error so the server action fails informatively
-    throw permissionError;
+    console.error("Error in sendSMSAction:", serverError);
+    
+    // Handle Firestore permission errors
+    if (serverError.code === 7 || serverError.message?.includes('PERMISSION_DENIED')) {
+      const permissionError = new FirestorePermissionError({
+        path: serverError.ref?.path || 'unknown path',
+        operation: 'write',
+        requestResourceData: serverError.requestData || { info: "data not captured" },
+        serverError,
+      });
+      throw permissionError;
+    }
+    
+    // Handle Twilio errors
+    if (serverError.message?.includes('Twilio')) {
+      return {
+        success: false,
+        message: `Twilio error: ${serverError.message}`,
+      };
+    }
+    
+    return {
+      success: false,
+      message: serverError.message || 'Failed to send SMS',
+    };
   }
 }
 
@@ -130,7 +146,7 @@ export async function getSMSConversations(partnerId: string) {
       ...doc.data(),
     }));
   } catch (error: any) {
-    console.error('Error fetching conversations:', error);
+    console.error('Error fetching SMS conversations:', error);
     throw error;
   }
 }
@@ -156,15 +172,15 @@ export async function getSMSMessages(conversationId: string) {
       ...doc.data(),
     }));
   } catch (error: any) {
-    console.error('Error fetching messages:', error);
+    console.error('Error fetching SMS messages:', error);
     throw error;
   }
 }
 
 /**
- * Update message status from Twilio webhook
+ * Update SMS message status from Twilio webhook
  */
-export async function updateSMSStatus(twilioSid: string, status: string): Promise<void> {
+export async function updateSMSMessageStatus(twilioSid: string, status: string): Promise<void> {
   if (!db) {
     throw new Error('Server not configured');
   }
@@ -185,7 +201,19 @@ export async function updateSMSStatus(twilioSid: string, status: string): Promis
       });
     }
   } catch (error: any) {
-    console.error('Error updating message status:', error);
+    console.error('Error updating SMS message status:', error);
+    throw error;
+  }
+}
+
+/**
+ * Get SMS message status from Twilio
+ */
+export async function checkSMSMessageStatus(twilioSid: string): Promise<string> {
+  try {
+    return await getMessageStatus(twilioSid);
+  } catch (error: any) {
+    console.error('Error checking SMS message status:', error);
     throw error;
   }
 }
