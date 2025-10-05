@@ -98,14 +98,7 @@ export default function HomePage() {
       <nav className="fixed top-0 w-full bg-black/80 backdrop-blur-xl border-b border-white/10 z-50">
         <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <Image 
-              src="/centy_logo.svg" 
-              alt="Centy Logo" 
-              width={56}
-              height={56}
-              className="w-14 h-14"
-            />
-            <span className="text-xl font-bold">Centy</span>
+            <span className="text-2xl font-bold">Centy</span>
           </div>
           <div className="hidden md:flex items-center gap-8">
             <Link href="#product" className="text-sm text-gray-400 hover:text-white transition-colors">
@@ -139,9 +132,9 @@ export default function HomePage() {
               </div>
               
               <h1 className="text-6xl md:text-7xl font-bold leading-tight">
-                Marketing that
+                MarComm Made
                 <span className="block bg-gradient-to-r from-blue-400 via-purple-400 to-pink-400 bg-clip-text text-transparent">
-                  works smarter
+                  Effortless
                 </span>
               </h1>
               
@@ -175,47 +168,20 @@ export default function HomePage() {
               </div>
             </div>
 
-            {/* Right: Robot Mascot with Floating Elements */}
+            {/* Right: Large Logo */}
             <div className="relative">
               <div className="relative z-10">
-                {/* Main robot container */}
-                <div className="relative bg-gradient-to-br from-yellow-500/20 to-orange-500/20 rounded-3xl p-8 backdrop-blur-sm border border-white/10">
+                <div className="relative bg-gradient-to-br from-blue-500/10 to-purple-500/10 rounded-3xl p-8 backdrop-blur-sm border border-white/10 flex items-center justify-center">
                   <Image 
-                    src="/robot-mascot.png" 
-                    alt="Centy AI Assistant" 
-                    width={500}
-                    height={500}
-                    className="w-full h-auto animate-float"
+                    src="/centy_logo.svg" 
+                    alt="Centy.dev Logo" 
+                    width={400}
+                    height={400}
+                    className="w-full h-auto max-w-md animate-float"
                     priority
                   />
                 </div>
-
-                {/* Floating metric cards */}
-                <div className="absolute -top-4 -left-4 bg-gradient-to-br from-blue-500 to-cyan-500 rounded-2xl p-4 shadow-2xl animate-float-delayed">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 bg-white/20 rounded-lg flex items-center justify-center">
-                      <Zap className="w-5 h-5 text-white" />
-                    </div>
-                    <div>
-                      <div className="text-sm font-semibold text-white">AI Powered</div>
-                      <div className="text-xs text-white/80">Campaign Builder</div>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="absolute -bottom-4 -right-4 bg-gradient-to-br from-purple-500 to-pink-500 rounded-2xl p-4 shadow-2xl animate-float">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 bg-white/20 rounded-lg flex items-center justify-center">
-                      <BarChart3 className="w-5 h-5 text-white" />
-                    </div>
-                    <div>
-                      <div className="text-sm font-semibold text-white">Real-Time</div>
-                      <div className="text-xs text-white/80">Analytics</div>
-                    </div>
-                  </div>
-                </div>
               </div>
-
               {/* Background glow effects */}
               <div className="absolute inset-0 bg-gradient-to-r from-blue-600/20 to-purple-600/20 rounded-full blur-3xl -z-10"></div>
             </div>
@@ -327,13 +293,6 @@ export default function HomePage() {
         <div className="max-w-6xl mx-auto">
           <div className="flex flex-col md:flex-row justify-between items-center gap-6">
             <div className="flex items-center gap-3">
-              <Image 
-                src="/centy_logo.svg" 
-                alt="Centy Logo" 
-                width={44}
-                height={44}
-                className="w-11 h-11"
-              />
               <span className="font-bold">Centy</span>
             </div>
             <div className="flex gap-8 text-sm text-gray-400">
