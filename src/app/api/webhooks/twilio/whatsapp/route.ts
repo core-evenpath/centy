@@ -18,33 +18,52 @@ export async function POST(request: NextRequest) {
       payload[key as keyof TwilioWebhookPayload] = value.toString();
     });
 
-    console.log('Received Twilio WhatsApp webhook:', {
-      From: payload.From,
-      To: payload.To,
-      MessageSid: payload.MessageSid,
-      MessageStatus: payload.MessageStatus,
-      Body: payload.Body?.substring(0, 50) + '...',
-    });
+    console.log('Received Twilio webhook:', payload);
 
-    // Handle status callbacks (including read receipts)
+    // Handle status callbacks
     if (payload.MessageStatus) {
       await handleStatusUpdate(payload);
       return NextResponse.json({ success: true, message: 'Status updated' });
     }
 
     // Handle incoming messages
-    if (payload.Body !== undefined && payload.From && payload.To) {
+    if (payload.Body && payload.From && payload.To) {
       await handleIncomingMessage(payload as TwilioWebhookPayload);
       return NextResponse.json({ success: true, message: 'Message received' });
     }
 
     return NextResponse.json({ success: false, message: 'Invalid payload' }, { status: 400 });
   } catch (error: any) {
-    console.error('Error processing Twilio WhatsApp webhook:', error);
+    console.error('Error processing Twilio webhook:', error);
     return NextResponse.json(
       { success: false, message: error.message },
       { status: 500 }
     );
+  }
+}
+
+/**
+ * Get partnerId from Twilio phone number mapping
+ */
+async function getPartnerIdFromPhone(toPhone: string): Promise<string> {
+  if (!db) {
+    console.warn('Database not configured, using default partnerId');
+    return 'system';
+  }
+
+  try {
+    const mappingDoc = await db.collection('twilioPhoneMappings').doc(toPhone).get();
+    
+    if (mappingDoc.exists) {
+      const data = mappingDoc.data();
+      return data?.partnerId || 'system';
+    }
+    
+    console.warn(`No mapping found for ${toPhone}, using 'system' as partnerId`);
+    return 'system';
+  } catch (error) {
+    console.error('Error fetching phone mapping:', error);
+    return 'system';
   }
 }
 
@@ -58,22 +77,17 @@ async function handleIncomingMessage(payload: TwilioWebhookPayload) {
 
   // Extract phone number from whatsapp:+1234567890 format
   const fromPhone = payload.From.replace('whatsapp:', '');
-  const toPhone = payload.To.replace('whatsapp:', '');
+  const toPhone = payload.To; // Keep the whatsapp: prefix for mapping lookup
 
-  console.log('Processing incoming WhatsApp message:', {
-    from: fromPhone,
-    to: toPhone,
-    messageSid: payload.MessageSid,
-  });
+  // Get partnerId from phone mapping
+  const partnerId = await getPartnerIdFromPhone(toPhone);
 
   // Find or create conversation
   let conversationId: string;
-  let partnerId: string;
-
   const conversationsSnapshot = await db
     .collection('whatsappConversations')
     .where('customerPhone', '==', fromPhone)
-    .where('platform', '==', 'whatsapp')
+    .where('partnerId', '==', partnerId)
     .limit(1)
     .get();
 
@@ -81,32 +95,6 @@ async function handleIncomingMessage(payload: TwilioWebhookPayload) {
     // Create new conversation
     const conversationRef = db.collection('whatsappConversations').doc();
     conversationId = conversationRef.id;
-
-    // Map Twilio WhatsApp number to partnerId
-    partnerId = 'system'; // Default fallback
-    
-    const partnerMapping = process.env.TWILIO_WHATSAPP_TO_PARTNER_MAP;
-    if (partnerMapping) {
-      try {
-        const mappings = JSON.parse(partnerMapping);
-        // payload.To includes 'whatsapp:' prefix, so match against that
-        partnerId = mappings[payload.To] || 'system';
-        console.log('Mapped WhatsApp number to partnerId:', {
-          whatsappNumber: payload.To,
-          partnerId: partnerId,
-        });
-      } catch (e) {
-        console.error('Error parsing TWILIO_WHATSAPP_TO_PARTNER_MAP:', e);
-      }
-    } else {
-      console.warn('TWILIO_WHATSAPP_TO_PARTNER_MAP not configured - using "system" as partnerId');
-    }
-
-    console.log('Creating new WhatsApp conversation:', {
-      conversationId,
-      partnerId,
-      customerPhone: fromPhone,
-    });
 
     await conversationRef.set({
       id: conversationId,
@@ -117,43 +105,29 @@ async function handleIncomingMessage(payload: TwilioWebhookPayload) {
       customerPhone: fromPhone,
       participants: [],
       isActive: true,
-      messageCount: 1,
+      messageCount: 0,
       createdBy: 'system',
       createdAt: FieldValue.serverTimestamp(),
       lastMessageAt: FieldValue.serverTimestamp(),
     });
   } else {
-    // Use existing conversation
-    const conversationDoc = conversationsSnapshot.docs[0];
-    conversationId = conversationDoc.id;
-    partnerId = conversationDoc.data().partnerId;
-
-    console.log('Using existing WhatsApp conversation:', {
-      conversationId,
-      partnerId,
-    });
-
-    // Update conversation metadata
-    await conversationDoc.ref.update({
+    conversationId = conversationsSnapshot.docs[0].id;
+    await conversationsSnapshot.docs[0].ref.update({
       lastMessageAt: FieldValue.serverTimestamp(),
       messageCount: FieldValue.increment(1),
-      isActive: true,
     });
   }
 
   // Store incoming message
   const messageRef = db.collection('whatsappMessages').doc();
-  const hasMedia = payload.NumMedia && parseInt(payload.NumMedia) > 0;
-  
   const messageData: Partial<WhatsAppMessage> = {
     id: messageRef.id,
     conversationId,
     senderId: fromPhone,
-    type: hasMedia ? 'image' : 'text',
+    type: payload.NumMedia && parseInt(payload.NumMedia) > 0 ? 'image' : 'text',
     content: payload.Body || '',
     direction: 'inbound',
     platform: 'whatsapp',
-    partnerId: partnerId, // Add partnerId to message for proper access control
     whatsappMetadata: {
       twilioSid: payload.MessageSid,
       twilioStatus: 'received',
@@ -180,25 +154,16 @@ async function handleIncomingMessage(payload: TwilioWebhookPayload) {
 
   await messageRef.set(messageData);
 
-  console.log('Stored incoming WhatsApp message:', {
-    messageId: messageRef.id,
-    conversationId,
-    hasMedia,
-  });
+  console.log('Stored incoming WhatsApp message:', messageRef.id, 'for partnerId:', partnerId);
 }
 
 /**
- * Handle message status updates (including read receipts)
+ * Handle message status updates
  */
 async function handleStatusUpdate(payload: Partial<TwilioWebhookPayload>) {
   if (!db || !payload.MessageSid || !payload.MessageStatus) {
     return;
   }
-
-  console.log('Processing WhatsApp status update:', {
-    messageSid: payload.MessageSid,
-    status: payload.MessageStatus,
-  });
 
   const snapshot = await db
     .collection('whatsappMessages')
@@ -207,43 +172,11 @@ async function handleStatusUpdate(payload: Partial<TwilioWebhookPayload>) {
     .get();
 
   if (!snapshot.empty) {
-    const updateData: any = {
+    await snapshot.docs[0].ref.update({
       'whatsappMetadata.twilioStatus': payload.MessageStatus,
       updatedAt: FieldValue.serverTimestamp(),
-    };
-
-    // Add error information if present
-    if (payload.ErrorCode) {
-      updateData['whatsappMetadata.errorCode'] = payload.ErrorCode;
-      updateData['whatsappMetadata.errorMessage'] = `Error ${payload.ErrorCode}`;
-    }
-
-    await snapshot.docs[0].ref.update(updateData);
-
-    console.log('Updated WhatsApp message status:', {
-      messageSid: payload.MessageSid,
-      newStatus: payload.MessageStatus,
     });
 
-    // Log read receipts specifically
-    if (payload.MessageStatus === 'read') {
-      console.log('WhatsApp message read by recipient:', payload.MessageSid);
-    }
-  } else {
-    console.warn('Message not found for status update:', payload.MessageSid);
+    console.log('Updated message status:', payload.MessageSid, payload.MessageStatus);
   }
-}
-
-/**
- * Verify Twilio webhook signature (implement for production security)
- */
-function verifyTwilioSignature(request: NextRequest): boolean {
-  // TODO: Implement Twilio webhook signature validation
-  // const twilioSignature = request.headers.get('x-twilio-signature');
-  // const url = request.url;
-  // Use Twilio's validateRequest method
-  // import { validateRequest } from 'twilio';
-  // return validateRequest(authToken, twilioSignature, url, params);
-  
-  return true; // For development - implement proper validation in production
 }
