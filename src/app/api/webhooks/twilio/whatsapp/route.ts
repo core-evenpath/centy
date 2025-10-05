@@ -1,4 +1,3 @@
-
 // src/app/api/webhooks/twilio/whatsapp/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/firebase-admin';
@@ -229,4 +228,3 @@ async function handleStatusUpdate(payload: Partial<TwilioWebhookPayload>) {
     console.error('❌ Error updating status:', error);
   }
 }
-

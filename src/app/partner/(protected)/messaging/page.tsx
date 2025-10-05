@@ -164,7 +164,7 @@ export default function MessagingPage() {
 
     setIsLoadingMessages(true);
 
-    const collectionName = selectedConversation.platform === 'sms' ? 'smsMessages' : 'whatsappMessages';
+    const collectionName = selectedConversation.platform === 'sms' ? 'smsMessages' : 'twilio_whatsapp_messages';
     const messagesQuery = query(
       collection(db, collectionName),
       where('conversationId', '==', selectedConversation.id),

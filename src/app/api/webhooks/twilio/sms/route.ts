@@ -52,19 +52,22 @@ async function getPartnerIdFromPhone(toPhone: string): Promise<string> {
   }
 
   try {
-    // SMS numbers come without prefix, lookup as-is
-    const mappingDoc = await db.collection('twilioPhoneMappings').doc(toPhone).get();
+    // Standardize the lookup key to match what's likely used for WhatsApp
+    const lookupId = `whatsapp:${toPhone}`;
+    console.log('🔍 [SMS] Looking up phone mapping for:', lookupId);
+
+    const mappingDoc = await db.collection('twilioPhoneMappings').doc(lookupId).get();
     
     if (mappingDoc.exists) {
       const data = mappingDoc.data();
-      console.log(`Found mapping for ${toPhone}: partnerId=${data?.partnerId}`);
+      console.log(`✅ [SMS] Found mapping for ${toPhone}: partnerId=${data?.partnerId}`);
       return data?.partnerId || 'system';
     }
     
-    console.warn(`No mapping found for ${toPhone}, using 'system' as partnerId`);
+    console.warn(`⚠️ [SMS] No mapping found for ${lookupId}, using 'system' as partnerId`);
     return 'system';
   } catch (error) {
-    console.error('Error fetching phone mapping for SMS:', error);
+    console.error('❌ [SMS] Error fetching phone mapping:', error);
     return 'system';
   }
 }
@@ -127,6 +130,7 @@ async function handleIncomingMessage(payload: TwilioSMSWebhookPayload) {
   const messageData: Partial<SMSMessage> = {
     id: messageRef.id,
     conversationId,
+    partnerId: partnerId, // Ensure partnerId is stored
     senderId: fromPhone,
     type: payload.NumMedia && parseInt(payload.NumMedia) > 0 ? 'image' : 'text',
     content: payload.Body || '',
