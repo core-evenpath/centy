@@ -100,7 +100,7 @@ async function handleIncomingMessage(payload: TwilioWebhookPayload) {
 
     const newConversation: Partial<WhatsAppConversation> = {
       id: conversationId,
-      partnerId: partnerId,
+      partnerId: partnerId, // Use the looked-up partnerId
       type: 'direct',
       platform: 'whatsapp',
       title: `WhatsApp: ${fromPhone}`,
