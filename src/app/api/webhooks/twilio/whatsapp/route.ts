@@ -1,4 +1,3 @@
-
 // src/app/api/webhooks/twilio/whatsapp/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/firebase-admin';
@@ -11,7 +10,7 @@ import type { TwilioWebhookPayload, WhatsAppMessage, WhatsAppConversation } from
  */
 export async function POST(request: NextRequest) {
   console.log('='.repeat(80));
-  console.log('🔔 WEBHOOK CALLED AT:', new Date().toISOString());
+  console.log('🔔 WHATSAPP WEBHOOK CALLED AT:', new Date().toISOString());
 
   try {
     const formData = await request.formData();
@@ -118,7 +117,7 @@ async function handleIncomingMessage(payload: TwilioWebhookPayload) {
 
       const newConversation = {
         id: conversationId,
-        partnerId: partnerId,
+        partnerId: partnerId, // Use the looked-up partnerId
         type: 'direct',
         platform: 'whatsapp',
         title: `WhatsApp: ${fromPhone}`,

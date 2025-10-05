@@ -52,7 +52,7 @@ async function getPartnerIdFromPhone(toPhone: string): Promise<string> {
   }
 
   try {
-    // Standardize the lookup key to match what's likely used for WhatsApp
+    // Standardize the lookup key to match WhatsApp format
     const lookupId = `whatsapp:${toPhone}`;
     console.log('🔍 [SMS] Looking up phone mapping for:', lookupId);
 
@@ -102,7 +102,7 @@ async function handleIncomingMessage(payload: TwilioSMSWebhookPayload) {
 
     const newConversation: Partial<SMSConversation> = {
       id: conversationId,
-      partnerId: partnerId,
+      partnerId: partnerId, // Use the looked-up partnerId
       type: 'direct',
       platform: 'sms',
       title: `SMS: ${fromPhone}`,
