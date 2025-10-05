@@ -48,7 +48,7 @@ export async function POST(request: NextRequest) {
  */
 async function getPartnerIdFromPhone(toPhone: string): Promise<string> {
   if (!db) {
-    console.warn('Database not configured, using default partnerId');
+    console.warn('Database not configured, using default partnerId for WhatsApp');
     return 'system';
   }
 
@@ -57,13 +57,14 @@ async function getPartnerIdFromPhone(toPhone: string): Promise<string> {
     
     if (mappingDoc.exists) {
       const data = mappingDoc.data();
+      console.log(`Found mapping for ${toPhone}: partnerId=${data?.partnerId}`);
       return data?.partnerId || 'system';
     }
     
-    console.warn(`No mapping found for ${toPhone}, using 'system' as partnerId`);
+    console.warn(`No WhatsApp mapping found for ${toPhone}, using 'system' as partnerId`);
     return 'system';
   } catch (error) {
-    console.error('Error fetching phone mapping:', error);
+    console.error('Error fetching phone mapping for WhatsApp:', error);
     return 'system';
   }
 }
@@ -78,7 +79,7 @@ async function handleIncomingMessage(payload: TwilioWebhookPayload) {
 
   // Extract phone number from whatsapp:+1234567890 format
   const fromPhone = payload.From.replace('whatsapp:', '');
-  const toPhone = payload.To;
+  const toPhone = payload.To; // Keep the 'whatsapp:' prefix for lookup
 
   // Get partnerId from phone mapping
   const partnerId = await getPartnerIdFromPhone(toPhone);

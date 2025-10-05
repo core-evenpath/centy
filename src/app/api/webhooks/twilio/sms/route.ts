@@ -1,8 +1,9 @@
+
 // src/app/api/webhooks/twilio/sms/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/firebase-admin';
 import { FieldValue } from 'firebase-admin/firestore';
-import type { TwilioSMSWebhookPayload, SMSMessage } from '@/lib/types';
+import type { TwilioSMSWebhookPayload, SMSMessage, SMSConversation } from '@/lib/types';
 
 /**
  * Twilio SMS webhook endpoint
@@ -43,6 +44,32 @@ export async function POST(request: NextRequest) {
 }
 
 /**
+ * Get partnerId from Twilio phone number mapping
+ */
+async function getPartnerIdFromPhone(toPhone: string): Promise<string> {
+  if (!db) {
+    console.warn('Database not configured, using default partnerId for SMS');
+    return 'system';
+  }
+
+  try {
+    const mappingDoc = await db.collection('twilioPhoneMappings').doc(toPhone).get();
+    
+    if (mappingDoc.exists) {
+      const data = mappingDoc.data();
+      console.log(`Found mapping for ${toPhone}: partnerId=${data?.partnerId}`);
+      return data?.partnerId || 'system';
+    }
+    
+    console.warn(`No SMS mapping found for ${toPhone}, using 'system' as partnerId`);
+    return 'system';
+  } catch (error) {
+    console.error('Error fetching phone mapping for SMS:', error);
+    return 'system';
+  }
+}
+
+/**
  * Handle incoming SMS message
  */
 async function handleIncomingMessage(payload: TwilioSMSWebhookPayload) {
@@ -53,36 +80,24 @@ async function handleIncomingMessage(payload: TwilioSMSWebhookPayload) {
   const fromPhone = payload.From;
   const toPhone = payload.To;
 
+  // Get partnerId from phone mapping
+  const partnerId = await getPartnerIdFromPhone(toPhone);
+
   // Find or create conversation
   let conversationId: string;
   const conversationsSnapshot = await db
     .collection('smsConversations')
     .where('customerPhone', '==', fromPhone)
-    .where('partnerId', '!=', 'system') // Exclude system conversations
+    .where('partnerId', '==', partnerId)
     .limit(1)
     .get();
 
   if (conversationsSnapshot.empty) {
-    // Create new conversation - need to determine partnerId from the receiving number
+    // Create new conversation
     const conversationRef = db.collection('smsConversations').doc();
     conversationId = conversationRef.id;
 
-    // Try to find partner by their Twilio number
-    let partnerId = 'system'; // Default fallback
-    
-    // You can implement logic here to map Twilio numbers to partners
-    // For now, using 'system' as default or extracting from environment
-    const partnerMapping = process.env.TWILIO_PHONE_TO_PARTNER_MAP;
-    if (partnerMapping) {
-      try {
-        const mappings = JSON.parse(partnerMapping);
-        partnerId = mappings[toPhone] || 'system';
-      } catch (e) {
-        console.error('Error parsing partner mapping:', e);
-      }
-    }
-
-    await conversationRef.set({
+    const newConversation: Partial<SMSConversation> = {
       id: conversationId,
       partnerId: partnerId,
       type: 'direct',
@@ -95,7 +110,10 @@ async function handleIncomingMessage(payload: TwilioSMSWebhookPayload) {
       createdBy: 'system',
       createdAt: FieldValue.serverTimestamp(),
       lastMessageAt: FieldValue.serverTimestamp(),
-    });
+    };
+    
+    await conversationRef.set(newConversation);
+
   } else {
     conversationId = conversationsSnapshot.docs[0].id;
     await conversationsSnapshot.docs[0].ref.update({
@@ -138,7 +156,7 @@ async function handleIncomingMessage(payload: TwilioSMSWebhookPayload) {
 
   await messageRef.set(messageData);
 
-  console.log('Stored incoming SMS message:', messageRef.id);
+  console.log('Stored incoming SMS message:', messageRef.id, 'for partnerId:', partnerId);
 }
 
 /**
@@ -176,18 +194,4 @@ async function handleStatusUpdate(payload: Partial<TwilioSMSWebhookPayload>) {
 
     console.log('Updated SMS message status:', payload.MessageSid, status);
   }
-}
-
-/**
- * Verify Twilio webhook signature (optional but recommended for production)
- */
-function verifyTwilioSignature(request: NextRequest): boolean {
-  // Implementation would use Twilio's webhook signature validation
-  // const twilioSignature = request.headers.get('x-twilio-signature');
-  // const url = request.url;
-  // const params = Object.fromEntries(request.formData());
-  // return twilio.validateRequest(authToken, twilioSignature, url, params);
-  
-  // For now, return true - implement proper validation in production
-  return true;
 }
