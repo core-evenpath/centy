@@ -101,9 +101,9 @@ export default function HomePage() {
             <Image 
               src="/centy_logo.svg" 
               alt="Centy Logo" 
-              width={40}
-              height={40}
-              className="w-10 h-10"
+              width={56}
+              height={56}
+              className="w-14 h-14"
             />
             <span className="text-xl font-bold">Centy</span>
           </div>
@@ -330,9 +330,9 @@ export default function HomePage() {
               <Image 
                 src="/centy_logo.svg" 
                 alt="Centy Logo" 
-                width={32}
-                height={32}
-                className="w-8 h-8"
+                width={44}
+                height={44}
+                className="w-11 h-11"
               />
               <span className="font-bold">Centy</span>
             </div>
