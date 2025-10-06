@@ -1,4 +1,3 @@
-
 // src/actions/whatsapp-actions.ts
 'use server';
 
@@ -70,7 +69,6 @@ export async function sendWhatsAppMessageAction(input: SendWhatsAppMessageInput)
     // Store message in Firestore
     const messageRef = db.collection('whatsappMessages').doc();
     const messageData: Partial<WhatsAppMessage> = {
-      id: messageRef.id,
       conversationId,
       senderId: input.partnerId,
       type: 'text',

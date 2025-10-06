@@ -68,7 +68,6 @@ export async function sendSMSAction(input: SendSMSInput): Promise<SendSMSResult>
     // Store message in Firestore
     const messageRef = db.collection('smsMessages').doc();
     const messageData: Partial<SMSMessage> = {
-      id: messageRef.id,
       conversationId,
       senderId: input.partnerId,
       type: 'text',
