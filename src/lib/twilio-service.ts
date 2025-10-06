@@ -6,6 +6,9 @@ import twilio from 'twilio';
 const accountSid = process.env.TWILIO_ACCOUNT_SID;
 const authToken = process.env.TWILIO_AUTH_TOKEN;
 const messagingServiceSid = process.env.TWILIO_MESSAGING_SERVICE_SID;
+const twilioPhoneNumber = process.env.TWILIO_PHONE_NUMBER;
+const twilioWhatsAppNumber = process.env.TWILIO_WHATSAPP_NUMBER;
+
 
 let twilioClient: twilio.Twilio | null = null;
 
@@ -52,6 +55,9 @@ export async function sendSMS(options: SendSMSOptions): Promise<TwilioMessageRes
     if (!messagingServiceSid) {
       throw new Error('TWILIO_MESSAGING_SERVICE_SID not configured');
     }
+    if (!twilioPhoneNumber) {
+        throw new Error('TWILIO_PHONE_NUMBER not configured for SMS');
+    }
 
     const formattedTo = options.to.startsWith('+') 
       ? options.to 
@@ -59,6 +65,7 @@ export async function sendSMS(options: SendSMSOptions): Promise<TwilioMessageRes
     
     const messageParams: any = {
       messagingServiceSid: messagingServiceSid,
+      from: twilioPhoneNumber,
       to: formattedTo,
       body: options.body,
     };
@@ -91,10 +98,15 @@ export async function sendWhatsAppMessage(options: SendWhatsAppMessageOptions): 
       throw new Error('TWILIO_MESSAGING_SERVICE_SID not configured');
     }
 
+    if (!twilioWhatsAppNumber) {
+        throw new Error('TWILIO_WHATSAPP_NUMBER not configured');
+    }
+
     const to = `whatsapp:${options.to.startsWith('+') ? options.to : '+' + options.to}`;
     
     const messageParams: any = {
       messagingServiceSid: messagingServiceSid,
+      from: `whatsapp:${twilioWhatsAppNumber}`,
       to,
       body: options.body,
     };
