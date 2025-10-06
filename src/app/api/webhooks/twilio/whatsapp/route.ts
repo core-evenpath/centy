@@ -3,7 +3,6 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/firebase-admin';
 import { FieldValue } from 'firebase-admin/firestore';
 import type { TwilioWebhookPayload, WhatsAppMessage, WhatsAppConversation } from '@/lib/types';
-import { query, where, limit, getDocs } from 'firebase/firestore';
 
 /**
  * Twilio WhatsApp webhook endpoint
@@ -64,9 +63,8 @@ async function getPartnerIdFromPhone(toPhone: string): Promise<string> {
         console.log('🔍 [WhatsApp] Looking up partner for Twilio number:', twilioWhatsAppNumber);
         
         const partnersRef = db.collection('partners');
-        // This assumes the partner document has a field `twilioWhatsAppNumber` storing their number.
-        const q = query(partnersRef, where("phone", "==", twilioWhatsAppNumber), limit(1));
-        const snapshot = await getDocs(q as any);
+        // CORRECT: Use admin SDK query syntax
+        const snapshot = await partnersRef.where("phone", "==", twilioWhatsAppNumber).limit(1).get();
 
         if (!snapshot.empty) {
             const partnerDoc = snapshot.docs[0];

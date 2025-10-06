@@ -46,32 +46,32 @@ export async function POST(request: NextRequest) {
  * Get partnerId from the Twilio phone number the message was sent TO.
  */
 async function getPartnerIdFromPhone(toPhone: string): Promise<string> {
-    if (!db) {
-        console.warn('Database not configured, using default partnerId for SMS');
-        return 'system';
+  if (!db) {
+    console.warn('Database not configured, using default partnerId for SMS');
+    return 'system';
+  }
+
+  try {
+    console.log('🔍 [SMS] Looking up partner for Twilio number:', toPhone);
+    
+    const partnersRef = db.collection('partners');
+    // CORRECT: Use admin SDK query syntax
+    const snapshot = await partnersRef.where("phone", "==", toPhone).limit(1).get();
+
+    if (!snapshot.empty) {
+      const partnerDoc = snapshot.docs[0];
+      const partnerId = partnerDoc.id;
+      console.log(`✅ [SMS] Found partner '${partnerDoc.data().name}' (ID: ${partnerId}) for number ${toPhone}`);
+      return partnerId;
     }
+    
+    console.warn(`⚠️ [SMS] No partner found with phone number ${toPhone}, using 'system' as partnerId`);
+    return 'system';
 
-    try {
-        console.log('🔍 [SMS] Looking up partner for Twilio number:', toPhone);
-        
-        const partnersRef = db.collection('partners');
-        const q = query(partnersRef, where("phone", "==", toPhone), limit(1));
-        const snapshot = await q.get();
-
-        if (!snapshot.empty) {
-            const partnerDoc = snapshot.docs[0];
-            const partnerId = partnerDoc.id;
-            console.log(`✅ [SMS] Found partner '${partnerDoc.data().name}' (ID: ${partnerId}) for number ${toPhone}`);
-            return partnerId;
-        }
-        
-        console.warn(`⚠️ [SMS] No partner found with phone number ${toPhone}, using 'system' as partnerId`);
-        return 'system';
-
-    } catch (error) {
-        console.error('❌ [SMS] Error fetching partner by phone number:', error);
-        return 'system';
-    }
+  } catch (error) {
+    console.error('❌ [SMS] Error fetching partner by phone number:', error);
+    return 'system';
+  }
 }
 
 
