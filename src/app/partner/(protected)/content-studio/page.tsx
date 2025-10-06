@@ -163,11 +163,11 @@ function MessagingPlatform() {
   };
 
   const saveTemplate = (templateData: any) => {
-    if (editingTemplate.isCustom) {
-      const existingIndex = customTemplates.findIndex(t => t.id === editingTemplate.id);
+    if ((editingTemplate as any).isCustom) {
+      const existingIndex = customTemplates.findIndex(t => t.id === (editingTemplate as any).id);
       if (existingIndex >= 0) {
         setCustomTemplates(customTemplates.map(t => 
-          t.id === editingTemplate.id ? { ...t, ...templateData } : t
+          t.id === (editingTemplate as any).id ? { ...t, ...templateData } : t
         ));
         showToast('Template updated successfully');
       } else {
@@ -381,438 +381,464 @@ function MessagingPlatform() {
 
   if (currentScreen === 'home') {
     return (
-      <div className="flex-1 overflow-y-auto">
-        <Toast />
-        <div className="max-w-7xl mx-auto">
-          <button
-            onClick={() => {
-              resetSendFlow();
-              setCurrentScreen('send');
-            }}
-            className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 rounded-xl p-6 shadow-lg hover:shadow-xl transition-all mb-6 group"
-          >
-            <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-4">
-                <div className="w-12 h-12 bg-white/20 rounded-lg flex items-center justify-center">
-                  <Send className="w-6 h-6 text-white" />
+        <div className="min-h-full bg-gray-50 p-4 sm:p-6 flex flex-col">
+          <Toast />
+          <div className="flex-1 overflow-y-auto">
+            <div className="max-w-7xl mx-auto p-4 space-y-3">
+              <button
+                onClick={() => {
+                  resetSendFlow();
+                  setCurrentScreen('send');
+                }}
+                className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 rounded-xl p-6 shadow-lg hover:shadow-xl transition-all mb-6 group"
+              >
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-4">
+                    <div className="w-12 h-12 bg-white/20 rounded-lg flex items-center justify-center">
+                      <Send className="w-6 h-6 text-white" />
+                    </div>
+                    <div className="text-left">
+                      <h2 className="text-xl font-bold text-white mb-1">Send New Campaign</h2>
+                      <p className="text-blue-100 text-sm">Create and send messages in 4 simple steps</p>
+                    </div>
+                  </div>
+                  <ChevronRight className="w-6 h-6 text-white/70 group-hover:text-white group-hover:translate-x-1 transition-all" />
                 </div>
-                <div className="text-left">
-                  <h2 className="text-xl font-bold text-white mb-1">Send New Campaign</h2>
-                  <p className="text-blue-100 text-sm">Create and send messages in 4 simple steps</p>
-                </div>
+              </button>
+  
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <button
+                  onClick={() => setCurrentScreen('templates')}
+                  className="bg-white rounded-xl p-6 shadow-md hover:shadow-lg transition-all text-left border-2 border-transparent hover:border-purple-200 group"
+                >
+                  <div className="flex items-start justify-between mb-3">
+                    <FileText className="w-10 h-10 text-purple-600" />
+                    <span className="px-3 py-1 bg-purple-100 text-purple-700 rounded-full text-xs font-bold">
+                      {templates.length + customTemplates.length} TOTAL
+                    </span>
+                  </div>
+                  <h3 className="text-lg font-bold text-gray-900 mb-1 group-hover:text-purple-600 transition-colors">
+                    Message Templates
+                  </h3>
+                  <p className="text-gray-600 text-sm">
+                    {customTemplates.length > 0 
+                      ? `${templates.length} default + ${customTemplates.length} custom`
+                      : 'Browse pre-written messages you can customize'
+                    }
+                  </p>
+                </button>
+  
+                <button
+                  onClick={() => setCurrentScreen('groups')}
+                  className="bg-white rounded-xl p-6 shadow-md hover:shadow-lg transition-all text-left border-2 border-transparent hover:border-green-200 group"
+                >
+                  <div className="flex items-start justify-between mb-3">
+                    <Users className="w-10 h-10 text-green-600" />
+                    <span className="px-3 py-1 bg-green-100 text-green-700 rounded-full text-xs font-bold">
+                      {groups.reduce((sum, g) => sum + g.count, 0)} CONTACTS
+                    </span>
+                  </div>
+                  <h3 className="text-lg font-bold text-gray-900 mb-1 group-hover:text-green-600 transition-colors">
+                    Contact Groups
+                  </h3>
+                  <p className="text-gray-600 text-sm">View and manage your contact lists</p>
+                </button>
               </div>
-              <ChevronRight className="w-6 h-6 text-white/70 group-hover:text-white group-hover:translate-x-1 transition-all" />
             </div>
-          </button>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <button
-              onClick={() => setCurrentScreen('templates')}
-              className="bg-white rounded-xl p-6 shadow-md hover:shadow-lg transition-all text-left border-2 border-transparent hover:border-purple-200 group"
-            >
-              <div className="flex items-start justify-between mb-3">
-                <FileText className="w-10 h-10 text-purple-600" />
-                <span className="px-3 py-1 bg-purple-100 text-purple-700 rounded-full text-xs font-bold">
-                  {templates.length + customTemplates.length} TOTAL
-                </span>
-              </div>
-              <h3 className="text-lg font-bold text-gray-900 mb-1 group-hover:text-purple-600 transition-colors">
-                Message Templates
-              </h3>
-              <p className="text-gray-600 text-sm">
-                {customTemplates.length > 0 
-                  ? `${templates.length} default + ${customTemplates.length} custom`
-                  : 'Browse pre-written messages you can customize'
-                }
-              </p>
-            </button>
-
-            <button
-              onClick={() => setCurrentScreen('groups')}
-              className="bg-white rounded-xl p-6 shadow-md hover:shadow-lg transition-all text-left border-2 border-transparent hover:border-green-200 group"
-            >
-              <div className="flex items-start justify-between mb-3">
-                <Users className="w-10 h-10 text-green-600" />
-                <span className="px-3 py-1 bg-green-100 text-green-700 rounded-full text-xs font-bold">
-                  {groups.reduce((sum, g) => sum + g.count, 0)} CONTACTS
-                </span>
-              </div>
-              <h3 className="text-lg font-bold text-gray-900 mb-1 group-hover:text-green-600 transition-colors">
-                Contact Groups
-              </h3>
-              <p className="text-gray-600 text-sm">View and manage your contact lists</p>
-            </button>
           </div>
         </div>
-      </div>
-    );
+      );
   }
 
   if (currentScreen === 'send') {
     return (
-      <div className="flex-1 overflow-y-auto">
+      <div className="min-h-full bg-gray-50 p-4 sm:p-6 flex flex-col">
         <Toast />
-        <div className="max-w-4xl mx-auto">
-          <ProgressStepper />
-          
-          {sendStep === 1 && (
-            <div className="bg-white rounded-2xl shadow-lg border border-gray-200 p-6 sm:p-8">
-              <div className="mb-6">
-                <h2 className="text-2xl font-bold text-gray-900 mb-2">What do you want to send?</h2>
-                <p className="text-gray-600">Describe your message and we'll help you create it</p>
-              </div>
+        <div className="flex-1 overflow-y-auto">
+        <div className="bg-white border-b border-gray-200 px-4 sm:px-6 py-4 shadow-sm">
+          <div className="max-w-4xl mx-auto flex items-center justify-between">
+            <div>
+              <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Send Campaign</h1>
+              <p className="text-sm text-gray-600">Follow the steps below</p>
+            </div>
+            <button
+              onClick={() => {
+                if (confirm('Leave without sending? Your progress will be lost.')) {
+                  resetSendFlow();
+                  setCurrentScreen('home');
+                }
+              }}
+              className="px-4 py-2 text-sm text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
 
-              <div className="mb-8">
-                <label className="block text-sm font-bold text-gray-900 mb-3">
-                  Describe your message
-                </label>
-                <textarea
-                  value={messageType}
-                  onChange={(e) => setMessageType(e.target.value)}
-                  placeholder="Example: I want to share my latest trading pick for Tesla with a buy recommendation valid until end of month..."
-                  rows={4}
-                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:outline-none text-base resize-none"
-                />
-                <button
-                  onClick={() => {
-                    if (messageType.trim()) {
-                      // Use AI approach - for now just move to step 2 with a generic template
-                      const template = templates[0];
-                      setSelectedTemplate(template);
-                      const initialVars: any = {};
-                      template.variables.forEach(v => {
-                        initialVars[v] = '';
-                      });
-                      setTemplateVariables(initialVars);
-                      setSendStep(2);
-                    }
-                  }}
-                  disabled={!messageType.trim()}
-                  className="mt-4 w-full sm:w-auto px-8 py-3 bg-blue-600 text-white rounded-xl font-semibold hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
-                >
-                  Generate Message →
-                </button>
-              </div>
-
-              <div className="border-t border-gray-200 pt-6">
-                <div className="flex items-center justify-between mb-4">
-                  <p className="text-sm font-bold text-gray-600 uppercase tracking-wide">Or start from a template</p>
+        <div className="flex-1 overflow-y-auto p-4 sm:p-8">
+          <div className="max-w-4xl mx-auto p-4 space-y-3">
+            <ProgressStepper />
+            
+            {sendStep === 1 && (
+              <div className="bg-white rounded-2xl shadow-lg border border-gray-200 p-6 sm:p-8">
+                <div className="mb-6">
+                  <h2 className="text-2xl font-bold text-gray-900 mb-2">What do you want to send?</h2>
+                  <p className="text-gray-600">Describe your message and we'll help you create it</p>
                 </div>
-                
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                  {messageTypes.map(type => (
-                    <button
-                      key={type.id}
-                      onClick={() => selectMessageType(type.id)}
-                      className="p-4 border-2 border-gray-200 rounded-xl hover:border-blue-500 hover:bg-blue-50 transition-all text-left group"
-                    >
-                      <type.icon className="w-8 h-8 text-blue-600 mb-2 group-hover:scale-110 transition-transform" />
-                      <h3 className="text-base font-bold text-gray-900 mb-1">{type.label}</h3>
-                      <p className="text-xs text-gray-600">{type.desc}</p>
-                    </button>
-                  ))}
-                </div>
-              </div>
 
-              {customTemplates.length > 0 && (
-                <div className="border-t border-gray-200 pt-6 mt-6">
-                  <h3 className="text-sm font-bold text-gray-600 uppercase tracking-wide mb-4">Your Custom Templates</h3>
+                <div className="mb-8">
+                  <label className="block text-sm font-bold text-gray-900 mb-3">
+                    Describe your message
+                  </label>
+                  <textarea
+                    value={messageType}
+                    onChange={(e) => setMessageType(e.target.value)}
+                    placeholder="Example: I want to share my latest trading pick for Tesla with a buy recommendation valid until end of month..."
+                    rows={4}
+                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:outline-none text-base resize-none"
+                  />
+                  <button
+                    onClick={() => {
+                      if (messageType.trim()) {
+                        // Use AI approach - for now just move to step 2 with a generic template
+                        const template = templates[0];
+                        setSelectedTemplate(template);
+                        const initialVars: any = {};
+                        template.variables.forEach(v => {
+                          initialVars[v] = '';
+                        });
+                        setTemplateVariables(initialVars);
+                        setSendStep(2);
+                      }
+                    }}
+                    disabled={!messageType.trim()}
+                    className="mt-4 w-full sm:w-auto px-8 py-3 bg-blue-600 text-white rounded-xl font-semibold hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                  >
+                    Generate Message →
+                  </button>
+                </div>
+
+                <div className="border-t border-gray-200 pt-6">
+                  <div className="flex items-center justify-between mb-4">
+                    <p className="text-sm font-bold text-gray-600 uppercase tracking-wide">Or start from a template</p>
+                  </div>
+                  
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                    {customTemplates.map((template: any) => (
+                    {messageTypes.map(type => (
                       <button
-                        key={template.id}
-                        onClick={() => {
-                          setSelectedTemplate(template);
-                          const initialVars: any = {};
-                          template.variables.forEach((v: string) => {
-                            initialVars[v] = '';
-                          });
-                          setTemplateVariables(initialVars);
-                          setSendStep(2);
-                        }}
-                        className="p-4 border-2 border-blue-200 bg-blue-50 rounded-xl hover:border-blue-500 hover:bg-blue-100 transition-all text-left"
+                        key={type.id}
+                        onClick={() => selectMessageType(type.id)}
+                        className="p-4 border-2 border-gray-200 rounded-xl hover:border-blue-500 hover:bg-blue-50 transition-all text-left group"
                       >
-                        <div className="flex items-center space-x-3">
-                          <template.icon className="w-8 h-8 text-blue-600" />
-                          <div>
-                            <h4 className="font-bold text-gray-900 text-sm">{template.name}</h4>
-                            <p className="text-xs text-gray-600">{template.category}</p>
-                          </div>
-                        </div>
+                        <type.icon className="w-8 h-8 text-blue-600 mb-2 group-hover:scale-110 transition-transform" />
+                        <h3 className="text-base font-bold text-gray-900 mb-1">{type.label}</h3>
+                        <p className="text-xs text-gray-600">{type.desc}</p>
                       </button>
                     ))}
                   </div>
                 </div>
-              )}
 
-              <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 mt-6">
-                <div className="flex items-start space-x-3">
-                  <HelpCircle className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
-                  <div>
-                    <p className="text-sm font-semibold text-blue-900 mb-1">How it works</p>
-                    <p className="text-sm text-blue-800">
-                      Describe what you want to send, or choose a pre-made template. We'll help you customize it in the next step.
-                    </p>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {sendStep === 2 && selectedTemplate && (
-            <div className="bg-white rounded-2xl shadow-lg border border-gray-200 p-6 sm:p-8">
-              <div className="mb-6">
-                <div className="flex items-center justify-between mb-3">
-                  <h2 className="text-2xl font-bold text-gray-900">Customize Your Message</h2>
-                  <div className="px-3 py-1 bg-purple-100 text-purple-700 rounded-full text-xs font-bold">
-                    {(selectedTemplate as any).name}
-                  </div>
-                </div>
-                <p className="text-gray-600">
-                  Fill in the details below. Contact names will be added automatically from your list.
-                </p>
-              </div>
-
-              <div className="space-y-5 mb-6">
-                {(selectedTemplate as any).variables
-                  .filter((v: string) => v !== 'name')
-                  .map((variable: string) => (
-                    <div key={variable}>
-                      <label className="block text-sm font-bold text-gray-900 mb-2 capitalize flex items-center">
-                        {variable}
-                        {(selectedTemplate as any).variableHelp && (selectedTemplate as any).variableHelp[variable] && (
-                          <span className="ml-2 text-xs font-normal text-gray-500 bg-gray-100 px-2 py-1 rounded">
-                            {(selectedTemplate as any).variableHelp[variable]}
-                          </span>
-                        )}
-                      </label>
-                      <input
-                        type="text"
-                        placeholder={`e.g., ${(selectedTemplate as any).variableHelp?.[variable] || `Enter ${variable}...`}`}
-                        value={(templateVariables as any)[variable] || ''}
-                        onChange={(e) => setTemplateVariables({
-                          ...templateVariables,
-                          [variable]: e.target.value
-                        })}
-                        className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:outline-none text-base"
-                      />
+                {customTemplates.length > 0 && (
+                  <div className="border-t border-gray-200 pt-6 mt-6">
+                    <h3 className="text-sm font-bold text-gray-600 uppercase tracking-wide mb-4">Your Custom Templates</h3>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                      {customTemplates.map((template: any) => (
+                        <button
+                          key={template.id}
+                          onClick={() => {
+                            setSelectedTemplate(template);
+                            const initialVars: any = {};
+                            template.variables.forEach((v: string) => {
+                              initialVars[v] = '';
+                            });
+                            setTemplateVariables(initialVars);
+                            setSendStep(2);
+                          }}
+                          className="p-4 border-2 border-blue-200 bg-blue-50 rounded-xl hover:border-blue-500 hover:bg-blue-100 transition-all text-left"
+                        >
+                          <div className="flex items-center space-x-3">
+                            <template.icon className="w-8 h-8 text-blue-600" />
+                            <div>
+                              <h4 className="font-bold text-gray-900 text-sm">{template.name}</h4>
+                              <p className="text-xs text-gray-600">{template.category}</p>
+                            </div>
+                          </div>
+                        </button>
+                      ))}
                     </div>
-                  ))}
-              </div>
-
-              <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border-2 border-blue-200 rounded-xl p-5 mb-6">
-                <div className="flex items-start space-x-3 mb-3">
-                  <Eye className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
-                  <p className="text-sm font-bold text-blue-900">Live Preview</p>
-                </div>
-                <p className="text-base text-gray-900 leading-relaxed">{previewMessage()}</p>
-              </div>
-
-              <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
-                <button
-                  onClick={() => setSendStep(1)}
-                  className="w-full sm:w-auto px-6 py-3 text-gray-600 hover:bg-gray-100 rounded-lg font-medium transition-colors"
-                >
-                  ← Back
-                </button>
-                <button
-                  onClick={() => setSendStep(3)}
-                  disabled={!allVariablesFilled()}
-                  className="w-full sm:w-auto px-8 py-3 bg-blue-600 text-white rounded-xl font-semibold hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
-                >
-                  Next: Choose Who Receives It →
-                </button>
-              </div>
-            </div>
-          )}
-
-          {sendStep === 3 && (
-            <div className="bg-white rounded-2xl shadow-lg border border-gray-200 p-6 sm:p-8">
-              <div className="mb-6">
-                <h2 className="text-2xl font-bold text-gray-900 mb-2">Who should receive this message?</h2>
-                <p className="text-gray-600">Select one or more contact groups (you can select multiple)</p>
-              </div>
-
-              <div className="space-y-3 mb-6">
-                {groups.map(group => (
-                  <label
-                    key={group.id}
-                    className={`flex items-center p-5 border-2 rounded-xl cursor-pointer transition-all ${
-                      selectedGroups.includes(group.id)
-                        ? 'border-blue-500 bg-blue-50 shadow-md'
-                        : 'border-gray-200 hover:border-gray-300 hover:shadow'
-                    }`}
-                  >
-                    <div className="relative">
-                      <input
-                        type="checkbox"
-                        checked={selectedGroups.includes(group.id)}
-                        onChange={(e) => {
-                          if (e.target.checked) {
-                            setSelectedGroups([...selectedGroups, group.id]);
-                          } else {
-                            setSelectedGroups(selectedGroups.filter(id => id !== group.id));
-                          }
-                        }}
-                        className="w-6 h-6 text-blue-600 rounded border-2 border-gray-300"
-                      />
-                    </div>
-                    <div className="ml-4 flex-1">
-                      <p className="text-lg font-bold text-gray-900">{group.name}</p>
-                      <p className="text-sm text-gray-600">{group.description}</p>
-                    </div>
-                    <div className="text-right bg-white rounded-lg px-4 py-2">
-                      <p className="text-2xl font-bold text-gray-900">{group.count}</p>
-                      <p className="text-xs text-gray-500 uppercase font-medium">contacts</p>
-                    </div>
-                  </label>
-                ))}
-              </div>
-
-              {selectedGroups.length > 0 ? (
-                <div className="bg-green-50 border-2 border-green-300 rounded-xl p-5 mb-6">
-                  <div className="flex items-center space-x-3">
-                    <Check className="w-6 h-6 text-green-600" />
-                    <p className="text-lg font-bold text-green-900">
-                      Ready to send to {getTotalRecipients()} contacts
-                    </p>
                   </div>
-                </div>
-              ) : (
-                <div className="bg-yellow-50 border-2 border-yellow-300 rounded-xl p-5 mb-6">
-                  <div className="flex items-center space-x-3">
-                    <AlertCircle className="w-6 h-6 text-yellow-600" />
-                    <p className="text-sm font-semibold text-yellow-900">
-                      Please select at least one contact group to continue
-                    </p>
-                  </div>
-                </div>
-              )}
+                )}
 
-              <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
-                <button
-                  onClick={() => setSendStep(2)}
-                  className="w-full sm:w-auto px-6 py-3 text-gray-600 hover:bg-gray-100 rounded-lg font-medium transition-colors"
-                >
-                  ← Back
-                </button>
-                <button
-                  onClick={() => setSendStep(4)}
-                  disabled={selectedGroups.length === 0}
-                  className="w-full sm:w-auto px-8 py-3 bg-blue-600 text-white rounded-xl font-semibold hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
-                >
-                  Next: Review & Send →
-                </button>
-              </div>
-            </div>
-          )}
-
-          {sendStep === 4 && (
-            <div className="space-y-6">
-              <div className="bg-white rounded-2xl shadow-lg border border-gray-200 p-6 sm:p-8">
-                <h2 className="text-2xl font-bold text-gray-900 mb-2">Review Before Sending</h2>
-                <p className="text-gray-600 mb-6">Double-check everything looks correct</p>
-
-                <div className="space-y-4 mb-8">
-                  <div className="bg-gradient-to-r from-gray-50 to-gray-100 rounded-xl p-5 border border-gray-200">
-                    <div className="flex items-center justify-between mb-3">
-                      <p className="text-xs font-bold text-gray-600 uppercase tracking-wide">Your Message</p>
-                      <button
-                        onClick={() => setSendStep(2)}
-                        className="text-xs text-blue-600 hover:text-blue-700 font-medium"
-                      >
-                        Edit
-                      </button>
-                    </div>
-                    <p className="text-lg text-gray-900 leading-relaxed">{previewMessage()}</p>
-                  </div>
-
-                  <div className="bg-gradient-to-r from-gray-50 to-gray-100 rounded-xl p-5 border border-gray-200">
-                    <div className="flex items-center justify-between mb-3">
-                      <p className="text-xs font-bold text-gray-600 uppercase tracking-wide">Recipients</p>
-                      <button
-                        onClick={() => setSendStep(3)}
-                        className="text-xs text-blue-600 hover:text-blue-700 font-medium"
-                      >
-                        Edit
-                      </button>
-                    </div>
-                    <p className="text-lg font-bold text-gray-900 mb-1">
-                      {groups.filter(g => selectedGroups.includes(g.id)).map(g => g.name).join(', ')}
-                    </p>
-                    <p className="text-sm text-gray-600">
-                      <span className="font-bold text-gray-900">{getTotalRecipients()}</span> contacts will receive this message
-                    </p>
-                  </div>
-                </div>
-
-                <div className="mb-8">
-                  <p className="text-lg font-bold text-gray-900 mb-4">Choose How to Send</p>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <button
-                      onClick={() => setSelectedChannel('whatsapp')}
-                      className={`p-6 border-2 rounded-xl transition-all ${
-                        selectedChannel === 'whatsapp'
-                          ? 'border-green-500 bg-green-50 shadow-lg'
-                          : 'border-gray-200 hover:border-gray-300'
-                      }`}
-                    >
-                      <MessageCircle className="w-12 h-12 text-green-600 mx-auto mb-2" />
-                      <p className="font-bold text-gray-900 text-lg mb-1">WhatsApp</p>
-                      <p className="text-sm text-gray-600">Higher engagement rates</p>
-                    </button>
-
-                    <button
-                      onClick={() => setSelectedChannel('sms')}
-                      className={`p-6 border-2 rounded-xl transition-all ${
-                        selectedChannel === 'sms'
-                          ? 'border-blue-500 bg-blue-50 shadow-lg'
-                          : 'border-gray-200 hover:border-gray-300'
-                      }`}
-                    >
-                      <Smartphone className="w-12 h-12 text-blue-600 mx-auto mb-2" />
-                      <p className="font-bold text-gray-900 text-lg mb-1">SMS</p>
-                      <p className="text-sm text-gray-600">Universal compatibility</p>
-                    </button>
-                  </div>
-                </div>
-
-                <div className="bg-blue-50 border-2 border-blue-200 rounded-xl p-5 mb-6">
+                <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 mt-6">
                   <div className="flex items-start space-x-3">
-                    <Clock className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
+                    <HelpCircle className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
                     <div>
-                      <p className="text-sm font-bold text-blue-900 mb-1">Messages will be sent immediately</p>
+                      <p className="text-sm font-semibold text-blue-900 mb-1">How it works</p>
                       <p className="text-sm text-blue-800">
-                        Your campaign will start sending to all {getTotalRecipients()} contacts within seconds
+                        Describe what you want to send, or choose a pre-made template. We'll help you customize it in the next step.
                       </p>
                     </div>
                   </div>
                 </div>
+              </div>
+            )}
+
+            {sendStep === 2 && selectedTemplate && (
+              <div className="bg-white rounded-2xl shadow-lg border border-gray-200 p-6 sm:p-8">
+                <div className="mb-6">
+                  <div className="flex items-center justify-between mb-3">
+                    <h2 className="text-2xl font-bold text-gray-900">Customize Your Message</h2>
+                    <div className="px-3 py-1 bg-purple-100 text-purple-700 rounded-full text-xs font-bold">
+                      {(selectedTemplate as any).name}
+                    </div>
+                  </div>
+                  <p className="text-gray-600">
+                    Fill in the details below. Contact names will be added automatically from your list.
+                  </p>
+                </div>
+
+                <div className="space-y-5 mb-6">
+                  {(selectedTemplate as any).variables
+                    .filter((v: string) => v !== 'name')
+                    .map((variable: string) => (
+                      <div key={variable}>
+                        <label className="block text-sm font-bold text-gray-900 mb-2 capitalize flex items-center">
+                          {variable}
+                          {(selectedTemplate as any).variableHelp && (selectedTemplate as any).variableHelp[variable] && (
+                            <span className="ml-2 text-xs font-normal text-gray-500 bg-gray-100 px-2 py-1 rounded">
+                              {(selectedTemplate as any).variableHelp[variable]}
+                            </span>
+                          )}
+                        </label>
+                        <input
+                          type="text"
+                          placeholder={`e.g., ${(selectedTemplate as any).variableHelp?.[variable] || `Enter ${variable}...`}`}
+                          value={(templateVariables as any)[variable] || ''}
+                          onChange={(e) => setTemplateVariables({
+                            ...templateVariables,
+                            [variable]: e.target.value
+                          })}
+                          className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:outline-none text-base"
+                        />
+                      </div>
+                    ))}
+                </div>
+
+                <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border-2 border-blue-200 rounded-xl p-5 mb-6">
+                  <div className="flex items-start space-x-3 mb-3">
+                    <Eye className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
+                    <p className="text-sm font-bold text-blue-900">Live Preview</p>
+                  </div>
+                  <p className="text-base text-gray-900 leading-relaxed">{previewMessage()}</p>
+                </div>
 
                 <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
                   <button
-                    onClick={() => setSendStep(3)}
+                    onClick={() => setSendStep(1)}
                     className="w-full sm:w-auto px-6 py-3 text-gray-600 hover:bg-gray-100 rounded-lg font-medium transition-colors"
                   >
                     ← Back
                   </button>
                   <button
-                    onClick={() => {
-                      if (confirm(`Send to ${getTotalRecipients()} contacts via ${selectedChannel}?`)) {
-                        alert(`Campaign sent successfully to ${getTotalRecipients()} contacts via ${selectedChannel}!`);
-                        resetSendFlow();
-                        setCurrentScreen('home');
-                      }
-                    }}
-                    className="w-full sm:w-auto px-10 py-4 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-xl font-bold text-lg hover:shadow-xl transition-all flex items-center justify-center space-x-3"
+                    onClick={() => setSendStep(3)}
+                    disabled={!allVariablesFilled()}
+                    className="w-full sm:w-auto px-8 py-3 bg-blue-600 text-white rounded-xl font-semibold hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
                   >
-                    <Send className="w-5 h-5" />
-                    <span>Send Campaign Now</span>
+                    Next: Choose Who Receives It →
                   </button>
                 </div>
               </div>
-            </div>
-          )}
+            )}
+
+            {sendStep === 3 && (
+              <div className="bg-white rounded-2xl shadow-lg border border-gray-200 p-6 sm:p-8">
+                <div className="mb-6">
+                  <h2 className="text-2xl font-bold text-gray-900 mb-2">Who should receive this message?</h2>
+                  <p className="text-gray-600">Select one or more contact groups (you can select multiple)</p>
+                </div>
+
+                <div className="space-y-3 mb-6">
+                  {groups.map(group => (
+                    <label
+                      key={group.id}
+                      className={`flex items-center p-5 border-2 rounded-xl cursor-pointer transition-all ${
+                        selectedGroups.includes(group.id)
+                          ? 'border-blue-500 bg-blue-50 shadow-md'
+                          : 'border-gray-200 hover:border-gray-300 hover:shadow'
+                      }`}
+                    >
+                      <div className="relative">
+                        <input
+                          type="checkbox"
+                          checked={selectedGroups.includes(group.id)}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setSelectedGroups([...selectedGroups, group.id]);
+                            } else {
+                              setSelectedGroups(selectedGroups.filter(id => id !== group.id));
+                            }
+                          }}
+                          className="w-6 h-6 text-blue-600 rounded border-2 border-gray-300"
+                        />
+                      </div>
+                      <div className="ml-4 flex-1">
+                        <p className="text-lg font-bold text-gray-900">{group.name}</p>
+                        <p className="text-sm text-gray-600">{group.description}</p>
+                      </div>
+                      <div className="text-right bg-white rounded-lg px-4 py-2">
+                        <p className="text-2xl font-bold text-gray-900">{group.count}</p>
+                        <p className="text-xs text-gray-500 uppercase font-medium">contacts</p>
+                      </div>
+                    </label>
+                  ))}
+                </div>
+
+                {selectedGroups.length > 0 ? (
+                  <div className="bg-green-50 border-2 border-green-300 rounded-xl p-5 mb-6">
+                    <div className="flex items-center space-x-3">
+                      <Check className="w-6 h-6 text-green-600" />
+                      <p className="text-lg font-bold text-green-900">
+                        Ready to send to {getTotalRecipients()} contacts
+                      </p>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="bg-yellow-50 border-2 border-yellow-300 rounded-xl p-5 mb-6">
+                    <div className="flex items-center space-x-3">
+                      <AlertCircle className="w-6 h-6 text-yellow-600" />
+                      <p className="text-sm font-semibold text-yellow-900">
+                        Please select at least one contact group to continue
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
+                  <button
+                    onClick={() => setSendStep(2)}
+                    className="w-full sm:w-auto px-6 py-3 text-gray-600 hover:bg-gray-100 rounded-lg font-medium transition-colors"
+                  >
+                    ← Back
+                  </button>
+                  <button
+                    onClick={() => setSendStep(4)}
+                    disabled={selectedGroups.length === 0}
+                    className="w-full sm:w-auto px-8 py-3 bg-blue-600 text-white rounded-xl font-semibold hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                  >
+                    Next: Review & Send →
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {sendStep === 4 && (
+              <div className="space-y-6">
+                <div className="bg-white rounded-2xl shadow-lg border border-gray-200 p-6 sm:p-8">
+                  <h2 className="text-2xl font-bold text-gray-900 mb-2">Review Before Sending</h2>
+                  <p className="text-gray-600 mb-6">Double-check everything looks correct</p>
+
+                  <div className="space-y-4 mb-8">
+                    <div className="bg-gradient-to-r from-gray-50 to-gray-100 rounded-xl p-5 border border-gray-200">
+                      <div className="flex items-center justify-between mb-3">
+                        <p className="text-xs font-bold text-gray-600 uppercase tracking-wide">Your Message</p>
+                        <button
+                          onClick={() => setSendStep(2)}
+                          className="text-xs text-blue-600 hover:text-blue-700 font-medium"
+                        >
+                          Edit
+                        </button>
+                      </div>
+                      <p className="text-lg text-gray-900 leading-relaxed">{previewMessage()}</p>
+                    </div>
+
+                    <div className="bg-gradient-to-r from-gray-50 to-gray-100 rounded-xl p-5 border border-gray-200">
+                      <div className="flex items-center justify-between mb-3">
+                        <p className="text-xs font-bold text-gray-600 uppercase tracking-wide">Recipients</p>
+                        <button
+                          onClick={() => setSendStep(3)}
+                          className="text-xs text-blue-600 hover:text-blue-700 font-medium"
+                        >
+                          Edit
+                        </button>
+                      </div>
+                      <p className="text-lg font-bold text-gray-900 mb-1">
+                        {groups.filter(g => selectedGroups.includes(g.id)).map(g => g.name).join(', ')}
+                      </p>
+                      <p className="text-sm text-gray-600">
+                        <span className="font-bold text-gray-900">{getTotalRecipients()}</span> contacts will receive this message
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="mb-8">
+                    <p className="text-lg font-bold text-gray-900 mb-4">Choose How to Send</p>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <button
+                        onClick={() => setSelectedChannel('whatsapp')}
+                        className={`p-6 border-2 rounded-xl transition-all ${
+                          selectedChannel === 'whatsapp'
+                            ? 'border-green-500 bg-green-50 shadow-lg'
+                            : 'border-gray-200 hover:border-gray-300'
+                        }`}
+                      >
+                        <MessageCircle className="w-12 h-12 text-green-600 mx-auto mb-2" />
+                        <p className="font-bold text-gray-900 text-lg mb-1">WhatsApp</p>
+                        <p className="text-sm text-gray-600">Higher engagement rates</p>
+                      </button>
+
+                      <button
+                        onClick={() => setSelectedChannel('sms')}
+                        className={`p-6 border-2 rounded-xl transition-all ${
+                          selectedChannel === 'sms'
+                            ? 'border-blue-500 bg-blue-50 shadow-lg'
+                            : 'border-gray-200 hover:border-gray-300'
+                        }`}
+                      >
+                        <Smartphone className="w-12 h-12 text-blue-600 mx-auto mb-2" />
+                        <p className="font-bold text-gray-900 text-lg mb-1">SMS</p>
+                        <p className="text-sm text-gray-600">Universal compatibility</p>
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="bg-blue-50 border-2 border-blue-200 rounded-xl p-5 mb-6">
+                    <div className="flex items-start space-x-3">
+                      <Clock className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
+                      <div>
+                        <p className="text-sm font-bold text-blue-900 mb-1">Messages will be sent immediately</p>
+                        <p className="text-sm text-blue-800">
+                          Your campaign will start sending to all {getTotalRecipients()} contacts within seconds
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
+                    <button
+                      onClick={() => setSendStep(3)}
+                      className="w-full sm:w-auto px-6 py-3 text-gray-600 hover:bg-gray-100 rounded-lg font-medium transition-colors"
+                    >
+                      ← Back
+                    </button>
+                    <button
+                      onClick={() => {
+                        if (confirm(`Send to ${getTotalRecipients()} contacts via ${selectedChannel}?`)) {
+                          alert(`Campaign sent successfully to ${getTotalRecipients()} contacts via ${selectedChannel}!`);
+                          resetSendFlow();
+                          setCurrentScreen('home');
+                        }
+                      }}
+                      className="w-full sm:w-auto px-10 py-4 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-xl font-bold text-lg hover:shadow-xl transition-all flex items-center justify-center space-x-3"
+                    >
+                      <Send className="w-5 h-5" />
+                      <span>Send Campaign Now</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+          </div>
         </div>
       </div>
     );
@@ -824,12 +850,13 @@ function MessagingPlatform() {
     const userTemplates = customTemplates;
 
     return (
-      <div className="flex-1 overflow-y-auto p-4 sm:p-8">
+      <div className="min-h-full bg-gray-50 p-4 sm:p-6 flex flex-col">
         <Toast />
-        <div className="max-w-6xl mx-auto">
-          <div className="flex items-center justify-between mb-4">
+        <div className="flex-1 overflow-y-auto">
+        <div className="bg-white border-b border-gray-200 px-4 sm:px-6 py-4">
+          <div className="max-w-6xl mx-auto p-4 space-y-3 flex items-center justify-between">
             <div>
-              <h2 className="text-2xl font-bold text-gray-900">Message Templates</h2>
+              <h1 className="text-2xl font-bold text-gray-900">Message Templates</h1>
               <p className="text-gray-600">Pre-written messages that save you time</p>
             </div>
             <div className="flex items-center gap-3">
@@ -848,128 +875,132 @@ function MessagingPlatform() {
               </button>
             </div>
           </div>
+        </div>
 
-          {userTemplates.length > 0 ? (
-            <div className="mb-8">
-              <div className="flex items-center justify-between mb-4">
-                <div>
-                  <h2 className="text-xl font-bold text-gray-900">Your Custom Templates</h2>
-                  <p className="text-sm text-gray-600">Templates you've created</p>
+        <div className="flex-1 overflow-y-auto p-4 sm:p-8">
+          <div className="max-w-6xl mx-auto p-4 space-y-3">
+            {userTemplates.length > 0 ? (
+              <div className="mb-8">
+                <div className="flex items-center justify-between mb-4">
+                  <div>
+                    <h2 className="text-xl font-bold text-gray-900">Your Custom Templates</h2>
+                    <p className="text-sm text-gray-600">Templates you've created</p>
+                  </div>
+                  <span className="px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-sm font-bold">
+                    {userTemplates.length} custom
+                  </span>
                 </div>
-                <span className="px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-sm font-bold">
-                  {userTemplates.length} custom
-                </span>
-              </div>
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-                {userTemplates.map((template: any) => (
-                  <div key={template.id} className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl shadow-md border-2 border-blue-200 p-6 hover:shadow-lg transition-all">
-                    <div className="flex items-start justify-between mb-4">
-                      <div className="flex items-center space-x-3 flex-1">
-                        <div className="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center">
-                          <template.icon className="w-5 h-5 text-white" />
-                        </div>
-                        <div className="flex-1">
-                          <h3 className="text-xl font-bold text-gray-900">{template.name}</h3>
-                          <span className="text-xs px-2 py-1 bg-blue-600 text-white rounded-full font-medium">
-                            Custom
-                          </span>
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+                  {userTemplates.map((template: any) => (
+                    <div key={template.id} className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl shadow-md border-2 border-blue-200 p-6 hover:shadow-lg transition-all">
+                      <div className="flex items-start justify-between mb-4">
+                        <div className="flex items-center space-x-3 flex-1">
+                          <div className="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center">
+                            <template.icon className="w-5 h-5 text-white" />
+                          </div>
+                          <div className="flex-1">
+                            <h3 className="text-xl font-bold text-gray-900">{template.name}</h3>
+                            <span className="text-xs px-2 py-1 bg-blue-600 text-white rounded-full font-medium">
+                              Custom
+                            </span>
+                          </div>
                         </div>
                       </div>
-                    </div>
-                    
-                    <p className="text-gray-700 mb-4">{template.description}</p>
+                      
+                      <p className="text-gray-700 mb-4">{template.description}</p>
 
-                    <div className="bg-white border border-blue-200 rounded-xl p-4 mb-4">
-                      <p className="text-xs font-bold text-gray-700 mb-2 uppercase">Example:</p>
-                      <p className="text-sm text-gray-900">{template.example}</p>
-                    </div>
+                      <div className="bg-white border border-blue-200 rounded-xl p-4 mb-4">
+                        <p className="text-xs font-bold text-gray-700 mb-2 uppercase">Example:</p>
+                        <p className="text-sm text-gray-900">{template.example}</p>
+                      </div>
 
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={() => editTemplate(template)}
-                        className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors text-sm flex items-center justify-center space-x-2"
-                      >
-                        <Edit className="w-4 h-4" />
-                        <span>Edit</span>
-                      </button>
-                      <button
-                        onClick={() => deleteTemplate(template.id)}
-                        className="px-4 py-2 bg-red-100 text-red-700 rounded-lg font-medium hover:bg-red-200 transition-colors text-sm"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => editTemplate(template)}
+                          className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors text-sm flex items-center justify-center space-x-2"
+                        >
+                          <Edit className="w-4 h-4" />
+                          <span>Edit</span>
+                        </button>
+                        <button
+                          onClick={() => deleteTemplate(template.id)}
+                          className="px-4 py-2 bg-red-100 text-red-700 rounded-lg font-medium hover:bg-red-200 transition-colors text-sm"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
                     </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          ) : (
-            <div className="bg-gradient-to-br from-blue-50 to-indigo-50 border-2 border-blue-200 rounded-2xl p-8 sm:p-12 mb-8 text-center">
-              <div className="w-16 h-16 bg-blue-600 rounded-2xl flex items-center justify-center mx-auto mb-4">
-                <Sparkles className="w-8 h-8 text-white" />
-              </div>
-              <h3 className="text-2xl font-bold text-gray-900 mb-3">Create Your First Custom Template</h3>
-              <p className="text-gray-600 mb-6 max-w-md mx-auto">
-                Start from scratch or duplicate one of our default templates below and customize it to your needs
-              </p>
-              <button
-                onClick={createNewTemplate}
-                className="px-8 py-3 bg-blue-600 text-white rounded-xl font-semibold hover:bg-blue-700 transition-colors inline-flex items-center space-x-2"
-              >
-                <Plus className="w-5 h-5" />
-                <span>Create Template</span>
-              </button>
-            </div>
-          )}
-
-          <div className="mb-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <h2 className="text-xl font-bold text-gray-900">Default Templates</h2>
-                <p className="text-sm text-gray-600">Ready-to-use templates you can duplicate and customize</p>
-              </div>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {defaultTemplates.map((template: any) => (
-              <div key={template.id} className="bg-white rounded-xl shadow-md border border-gray-200 p-6 hover:shadow-lg transition-all">
-                <div className="flex items-start justify-between mb-4">
-                  <div className="flex items-center space-x-3">
-                    <div className="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center">
-                      <template.icon className="w-5 h-5 text-purple-600" />
-                    </div>
-                    <div>
-                      <h3 className="text-xl font-bold text-gray-900">{template.name}</h3>
-                      <span className="text-xs px-2 py-1 bg-purple-100 text-purple-700 rounded-full font-medium">
-                        {template.category}
-                      </span>
-                    </div>
-                  </div>
+                  ))}
                 </div>
-                
-                <p className="text-gray-600 mb-4">{template.description}</p>
-
-                <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-4">
-                  <p className="text-xs font-bold text-blue-900 mb-2 uppercase">Example:</p>
-                  <p className="text-sm text-gray-900">{template.example}</p>
+              </div>
+            ) : (
+              <div className="bg-gradient-to-br from-blue-50 to-indigo-50 border-2 border-blue-200 rounded-2xl p-8 sm:p-12 mb-8 text-center">
+                <div className="w-16 h-16 bg-blue-600 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                  <Sparkles className="w-8 h-8 text-white" />
                 </div>
-
-                <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 mb-4">
-                  <p className="text-xs text-yellow-900">
-                    <span className="font-bold">When to use:</span> {template.whenToUse}
-                  </p>
-                </div>
-
+                <h3 className="text-2xl font-bold text-gray-900 mb-3">Create Your First Custom Template</h3>
+                <p className="text-gray-600 mb-6 max-w-md mx-auto">
+                  Start from scratch or duplicate one of our default templates below and customize it to your needs
+                </p>
                 <button
-                  onClick={() => duplicateTemplate(template)}
-                  className="w-full px-4 py-3 bg-gradient-to-r from-purple-600 to-indigo-600 text-white rounded-lg font-semibold hover:shadow-lg transition-all flex items-center justify-center space-x-2"
+                  onClick={createNewTemplate}
+                  className="px-8 py-3 bg-blue-600 text-white rounded-xl font-semibold hover:bg-blue-700 transition-colors inline-flex items-center space-x-2"
                 >
-                  <Copy className="w-4 h-4" />
-                  <span>Duplicate & Customize</span>
+                  <Plus className="w-5 h-5" />
+                  <span>Create Template</span>
                 </button>
               </div>
-            ))}
+            )}
+
+            <div className="mb-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2 className="text-xl font-bold text-gray-900">Default Templates</h2>
+                  <p className="text-sm text-gray-600">Ready-to-use templates you can duplicate and customize</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {defaultTemplates.map((template: any) => (
+                <div key={template.id} className="bg-white rounded-xl shadow-md border border-gray-200 p-6 hover:shadow-lg transition-all">
+                  <div className="flex items-start justify-between mb-4">
+                    <div className="flex items-center space-x-3">
+                      <div className="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center">
+                        <template.icon className="w-5 h-5 text-purple-600" />
+                      </div>
+                      <div>
+                        <h3 className="text-xl font-bold text-gray-900">{template.name}</h3>
+                        <span className="text-xs px-2 py-1 bg-purple-100 text-purple-700 rounded-full font-medium">
+                          {template.category}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <p className="text-gray-600 mb-4">{template.description}</p>
+
+                  <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-4">
+                    <p className="text-xs font-bold text-blue-900 mb-2 uppercase">Example:</p>
+                    <p className="text-sm text-gray-900">{template.example}</p>
+                  </div>
+
+                  <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 mb-4">
+                    <p className="text-xs text-yellow-900">
+                      <span className="font-bold">When to use:</span> {template.whenToUse}
+                    </p>
+                  </div>
+
+                  <button
+                    onClick={() => duplicateTemplate(template)}
+                    className="w-full px-4 py-3 bg-gradient-to-r from-purple-600 to-indigo-600 text-white rounded-lg font-semibold hover:shadow-lg transition-all flex items-center justify-center space-x-2"
+                  >
+                    <Copy className="w-4 h-4" />
+                    <span>Duplicate & Customize</span>
+                  </button>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
 
@@ -1171,17 +1202,19 @@ function MessagingPlatform() {
           </div>
         )}
       </div>
+      </div>
     );
   }
 
   if (currentScreen === 'groups') {
     return (
-      <div className="flex-1 overflow-y-auto p-4 sm:p-8">
+      <div className="min-h-full bg-gray-50 p-4 sm:p-6 flex flex-col">
         <Toast />
-        <div className="max-w-6xl mx-auto">
-          <div className="flex items-center justify-between mb-4">
+        <div className="flex-1 overflow-y-auto">
+        <div className="bg-white border-b border-gray-200 px-4 sm:px-6 py-4">
+          <div className="max-w-6xl mx-auto p-4 space-y-3 flex items-center justify-between">
             <div>
-              <h2 className="text-2xl font-bold text-gray-900">Contact Groups</h2>
+              <h1 className="text-2xl font-bold text-gray-900">Contact Groups</h1>
               <p className="text-gray-600">Organized lists of your contacts</p>
             </div>
             <button
@@ -1191,21 +1224,27 @@ function MessagingPlatform() {
               ← Back
             </button>
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-            {groups.map(group => (
-              <div key={group.id} className="bg-white rounded-xl shadow-md border border-gray-200 p-6 hover:shadow-lg transition-all">
-                <div className="w-14 h-14 bg-gradient-to-br from-green-100 to-emerald-100 rounded-xl flex items-center justify-center mb-4">
-                  <Users className="w-7 h-7 text-green-600" />
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-4 sm:p-8">
+          <div className="max-w-6xl mx-auto p-4 space-y-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+              {groups.map(group => (
+                <div key={group.id} className="bg-white rounded-xl shadow-md border border-gray-200 p-6 hover:shadow-lg transition-all">
+                  <div className="w-14 h-14 bg-gradient-to-br from-green-100 to-emerald-100 rounded-xl flex items-center justify-center mb-4">
+                    <Users className="w-7 h-7 text-green-600" />
+                  </div>
+                  <h3 className="text-xl font-bold text-gray-900 mb-2">{group.name}</h3>
+                  <p className="text-sm text-gray-600 mb-4">{group.description}</p>
+                  <div className="bg-gradient-to-br from-gray-50 to-gray-100 rounded-lg p-4 border border-gray-200">
+                    <p className="text-3xl font-bold text-gray-900 mb-1">{group.count}</p>
+                    <p className="text-xs text-gray-600 uppercase font-bold tracking-wide">Total Contacts</p>
+                  </div>
                 </div>
-                <h3 className="text-xl font-bold text-gray-900 mb-2">{group.name}</h3>
-                <p className="text-sm text-gray-600 mb-4">{group.description}</p>
-                <div className="bg-gradient-to-br from-gray-50 to-gray-100 rounded-lg p-4 border border-gray-200">
-                  <p className="text-3xl font-bold text-gray-900 mb-1">{group.count}</p>
-                  <p className="text-xs text-gray-600 uppercase font-bold tracking-wide">Total Contacts</p>
-                </div>
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
+        </div>
         </div>
       </div>
     );
@@ -1213,10 +1252,11 @@ function MessagingPlatform() {
 
   if (currentScreen === 'picks') {
     return (
-      <div className="flex-1 overflow-y-auto p-4 sm:p-8">
+      <div className="min-h-full bg-gray-50 p-4 sm:p-6 flex flex-col">
         <Toast />
-        <div className="max-w-6xl mx-auto">
-          <div className="flex items-center justify-between mb-4">
+        <div className="flex-1 overflow-y-auto">
+        <div className="bg-white border-b border-gray-200 px-4 sm:px-6 py-4">
+          <div className="max-w-6xl mx-auto p-4 space-y-3 flex items-center justify-between">
             <div>
               <h1 className="text-2xl font-bold text-gray-900">Trading Picks</h1>
               <p className="text-gray-600">Create and manage your trading recommendations</p>
@@ -1228,47 +1268,96 @@ function MessagingPlatform() {
               ← Back
             </button>
           </div>
+        </div>
 
-          <div className="bg-white rounded-2xl shadow-lg border border-gray-200 p-6 sm:p-8 mb-8">
-            <h2 className="text-xl font-bold text-gray-900 mb-6">Create New Pick</h2>
-            
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-bold text-gray-900 mb-2">
-                    Pick Name
-                  </label>
-                  <input
-                    type="text"
-                    value={newPick.name}
-                    onChange={(e) => setNewPick({...newPick, name: e.target.value})}
-                    placeholder="e.g., Pick for 24 June"
-                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:outline-none"
-                  />
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
+        <div className="flex-1 overflow-y-auto p-4 sm:p-8">
+          <div className="max-w-6xl mx-auto p-4 space-y-3">
+            <div className="bg-white rounded-2xl shadow-lg border border-gray-200 p-6 sm:p-8 mb-8">
+              <h2 className="text-xl font-bold text-gray-900 mb-6">Create New Pick</h2>
+              
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+                <div className="space-y-4">
                   <div>
                     <label className="block text-sm font-bold text-gray-900 mb-2">
-                      From Date
+                      Pick Name
                     </label>
                     <input
                       type="text"
-                      value={newPick.validFrom}
-                      onChange={(e) => setNewPick({...newPick, validFrom: e.target.value})}
-                      placeholder="June 3rd"
+                      value={newPick.name}
+                      onChange={(e) => setNewPick({...newPick, name: e.target.value})}
+                      placeholder="e.g., Pick for 24 June"
                       className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:outline-none"
                     />
                   </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-bold text-gray-900 mb-2">
+                        From Date
+                      </label>
+                      <input
+                        type="text"
+                        value={newPick.validFrom}
+                        onChange={(e) => setNewPick({...newPick, validFrom: e.target.value})}
+                        placeholder="June 3rd"
+                        className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-bold text-gray-900 mb-2">
+                        To Date
+                      </label>
+                      <input
+                        type="text"
+                        value={newPick.validTo}
+                        onChange={(e) => setNewPick({...newPick, validTo: e.target.value})}
+                        placeholder="21st"
+                        className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:outline-none"
+                      />
+                    </div>
+                  </div>
+
                   <div>
                     <label className="block text-sm font-bold text-gray-900 mb-2">
-                      To Date
+                      Ticker
                     </label>
                     <input
                       type="text"
-                      value={newPick.validTo}
-                      onChange={(e) => setNewPick({...newPick, validTo: e.target.value})}
-                      placeholder="21st"
+                      value={newPick.ticker}
+                      onChange={(e) => setNewPick({...newPick, ticker: e.target.value})}
+                      placeholder="e.g., AAPL, TSLA"
+                      className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:outline-none"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-bold text-gray-900 mb-2">
+                      Category
+                    </label>
+                    <select
+                      value={newPick.category}
+                      onChange={(e) => setNewPick({...newPick, category: e.target.value})}
+                      className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:outline-none"
+                    >
+                      <option value="">Select category</option>
+                      <option value="Tech">Tech</option>
+                      <option value="Finance">Finance</option>
+                      <option value="Healthcare">Healthcare</option>
+                      <option value="Energy">Energy</option>
+                      <option value="Index">Index</option>
+                      <option value="Commodities">Commodities</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-bold text-gray-900 mb-2">
+                      Confidence
+                    </label>
+                    <input
+                      type="text"
+                      value={newPick.confidence}
+                      onChange={(e) => setNewPick({...newPick, confidence: e.target.value})}
+                      placeholder="e.g., 70%"
                       className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:outline-none"
                     />
                   </div>
@@ -1276,176 +1365,132 @@ function MessagingPlatform() {
 
                 <div>
                   <label className="block text-sm font-bold text-gray-900 mb-2">
-                    Ticker
+                    Summary
                   </label>
-                  <input
-                    type="text"
-                    value={newPick.ticker}
-                    onChange={(e) => setNewPick({...newPick, ticker: e.target.value})}
-                    placeholder="e.g., AAPL, TSLA"
-                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:outline-none"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-bold text-gray-900 mb-2">
-                    Category
-                  </label>
-                  <select
-                    value={newPick.category}
-                    onChange={(e) => setNewPick({...newPick, category: e.target.value})}
-                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:outline-none"
-                  >
-                    <option value="">Select category</option>
-                    <option value="Tech">Tech</option>
-                    <option value="Finance">Finance</option>
-                    <option value="Healthcare">Healthcare</option>
-                    <option value="Energy">Energy</option>
-                    <option value="Index">Index</option>
-                    <option value="Commodities">Commodities</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-bold text-gray-900 mb-2">
-                    Confidence
-                  </label>
-                  <input
-                    type="text"
-                    value={newPick.confidence}
-                    onChange={(e) => setNewPick({...newPick, confidence: e.target.value})}
-                    placeholder="e.g., 70%"
-                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:outline-none"
+                  <textarea
+                    value={newPick.summary}
+                    onChange={(e) => setNewPick({...newPick, summary: e.target.value})}
+                    placeholder="Enter pick summary here. Will be processed by AI and generated"
+                    rows={12}
+                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:outline-none resize-none"
                   />
                 </div>
               </div>
 
-              <div>
-                <label className="block text-sm font-bold text-gray-900 mb-2">
-                  Summary
-                </label>
-                <textarea
-                  value={newPick.summary}
-                  onChange={(e) => setNewPick({...newPick, summary: e.target.value})}
-                  placeholder="Enter pick summary here. Will be processed by AI and generated"
-                  rows={12}
-                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:outline-none resize-none"
-                />
-              </div>
+              <button
+                onClick={savePick}
+                className="w-full sm:w-auto px-8 py-3 bg-blue-600 text-white rounded-xl font-semibold hover:bg-blue-700 transition-colors"
+              >
+                Save this pick
+              </button>
             </div>
 
-            <button
-              onClick={savePick}
-              className="w-full sm:w-auto px-8 py-3 bg-blue-600 text-white rounded-xl font-semibold hover:bg-blue-700 transition-colors"
-            >
-              Save this pick
-            </button>
-          </div>
-
-          <div className="bg-white rounded-2xl shadow-lg border border-gray-200 p-6 sm:p-8">
-            <h2 className="text-xl font-bold text-gray-900 mb-6">Active Picks</h2>
-            
-            {picks.length === 0 ? (
-              <div className="text-center py-12">
-                <TrendingUp className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-                <p className="text-gray-600">No active picks yet. Create your first pick above!</p>
-              </div>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead>
-                    <tr className="border-b-2 border-gray-200">
-                      <th className="text-left py-3 px-4">
-                        <input
-                          type="checkbox"
-                          onChange={(e) => {
-                            if (e.target.checked) {
-                              setSelectedPicks(picks.map(p => p.id));
-                            } else {
-                              setSelectedPicks([]);
-                            }
-                          }}
-                          className="w-5 h-5 text-blue-600 rounded"
-                        />
-                      </th>
-                      <th className="text-left py-3 px-4 font-bold text-gray-900">Active Picks</th>
-                      <th className="text-left py-3 px-4 font-bold text-gray-900">Ticker</th>
-                      <th className="text-left py-3 px-4 font-bold text-gray-900">Valid Dates</th>
-                      <th className="text-left py-3 px-4 font-bold text-gray-900">Confidence</th>
-                      <th className="text-right py-3 px-4 font-bold text-gray-900">Action</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {picks.map((pick) => (
-                      <tr key={pick.id} className="border-b border-gray-100 hover:bg-gray-50">
-                        <td className="py-4 px-4">
+            <div className="bg-white rounded-2xl shadow-lg border border-gray-200 p-6 sm:p-8">
+              <h2 className="text-xl font-bold text-gray-900 mb-6">Active Picks</h2>
+              
+              {picks.length === 0 ? (
+                <div className="text-center py-12">
+                  <TrendingUp className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+                  <p className="text-gray-600">No active picks yet. Create your first pick above!</p>
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead>
+                      <tr className="border-b-2 border-gray-200">
+                        <th className="text-left py-3 px-4">
                           <input
                             type="checkbox"
-                            checked={selectedPicks.includes(pick.id)}
                             onChange={(e) => {
                               if (e.target.checked) {
-                                setSelectedPicks([...selectedPicks, pick.id]);
+                                setSelectedPicks(picks.map(p => p.id));
                               } else {
-                                setSelectedPicks(selectedPicks.filter(id => id !== pick.id));
+                                setSelectedPicks([]);
                               }
                             }}
                             className="w-5 h-5 text-blue-600 rounded"
                           />
-                        </td>
-                        <td className="py-4 px-4">
-                          <div>
-                            <p className="font-bold text-gray-900">{pick.name}</p>
-                            <p className="text-sm text-gray-600">{pick.category}</p>
-                          </div>
-                        </td>
-                        <td className="py-4 px-4">
-                          <span className="px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-sm font-bold">
-                            {pick.ticker}
-                          </span>
-                        </td>
-                        <td className="py-4 px-4">
-                          <p className="text-gray-900">{pick.validFrom} - {pick.validTo}</p>
-                        </td>
-                        <td className="py-4 px-4">
-                          <span className="text-gray-900 font-semibold">{pick.confidence}</span>
-                        </td>
-                        <td className="py-4 px-4 text-right">
-                          <button
-                            onClick={() => sendPickMessage(pick)}
-                            className="px-4 py-2 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 transition-colors text-sm inline-flex items-center space-x-2"
-                          >
-                            <MessageCircle className="w-4 h-4" />
-                            <span>Send WhatsApp</span>
-                          </button>
-                        </td>
+                        </th>
+                        <th className="text-left py-3 px-4 font-bold text-gray-900">Active Picks</th>
+                        <th className="text-left py-3 px-4 font-bold text-gray-900">Ticker</th>
+                        <th className="text-left py-3 px-4 font-bold text-gray-900">Valid Dates</th>
+                        <th className="text-left py-3 px-4 font-bold text-gray-900">Confidence</th>
+                        <th className="text-right py-3 px-4 font-bold text-gray-900">Action</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-
-            {selectedPicks.length > 0 && (
-              <div className="mt-6 bg-blue-50 border-2 border-blue-200 rounded-xl p-4">
-                <div className="flex items-center justify-between">
-                  <p className="text-blue-900 font-semibold">
-                    {selectedPicks.length} pick(s) selected
-                  </p>
-                  <button
-                    onClick={() => {
-                      const selectedPicksData = picks.filter(p => selectedPicks.includes(p.id));
-                      if (selectedPicksData.length > 0) {
-                        sendPickMessage(selectedPicksData[0]);
-                      }
-                    }}
-                    className="px-6 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors"
-                  >
-                    Send Selected to WhatsApp
-                  </button>
+                    </thead>
+                    <tbody>
+                      {picks.map((pick) => (
+                        <tr key={pick.id} className="border-b border-gray-100 hover:bg-gray-50">
+                          <td className="py-4 px-4">
+                            <input
+                              type="checkbox"
+                              checked={selectedPicks.includes(pick.id)}
+                              onChange={(e) => {
+                                if (e.target.checked) {
+                                  setSelectedPicks([...selectedPicks, pick.id]);
+                                } else {
+                                  setSelectedPicks(selectedPicks.filter(id => id !== pick.id));
+                                }
+                              }}
+                              className="w-5 h-5 text-blue-600 rounded"
+                            />
+                          </td>
+                          <td className="py-4 px-4">
+                            <div>
+                              <p className="font-bold text-gray-900">{pick.name}</p>
+                              <p className="text-sm text-gray-600">{pick.category}</p>
+                            </div>
+                          </td>
+                          <td className="py-4 px-4">
+                            <span className="px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-sm font-bold">
+                              {pick.ticker}
+                            </span>
+                          </td>
+                          <td className="py-4 px-4">
+                            <p className="text-gray-900">{pick.validFrom} - {pick.validTo}</p>
+                          </td>
+                          <td className="py-4 px-4">
+                            <span className="text-gray-900 font-semibold">{pick.confidence}</span>
+                          </td>
+                          <td className="py-4 px-4 text-right">
+                            <button
+                              onClick={() => sendPickMessage(pick)}
+                              className="px-4 py-2 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 transition-colors text-sm inline-flex items-center space-x-2"
+                            >
+                              <MessageCircle className="w-4 h-4" />
+                              <span>Send WhatsApp</span>
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
-              </div>
-            )}
+              )}
+
+              {selectedPicks.length > 0 && (
+                <div className="mt-6 bg-blue-50 border-2 border-blue-200 rounded-xl p-4">
+                  <div className="flex items-center justify-between">
+                    <p className="text-blue-900 font-semibold">
+                      {selectedPicks.length} pick(s) selected
+                    </p>
+                    <button
+                      onClick={() => {
+                        const selectedPicksData = picks.filter(p => selectedPicks.includes(p.id));
+                        if (selectedPicksData.length > 0) {
+                          sendPickMessage(selectedPicksData[0]);
+                        }
+                      }}
+                      className="px-6 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors"
+                    >
+                      Send Selected to WhatsApp
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
+        </div>
         </div>
       </div>
     );
