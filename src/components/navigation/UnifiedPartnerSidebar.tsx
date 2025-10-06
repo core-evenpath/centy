@@ -88,6 +88,12 @@ export default function UnifiedPartnerSidebar() {
       badge: stats?.pendingTasks || null
     },
     { 
+      icon: MessageSquare, 
+      label: 'Message Studio', 
+      href: '/partner/message-studio',
+      badge: null 
+    },
+    { 
       icon: Settings, 
       label: 'Settings', 
       href: '/partner/settings',
