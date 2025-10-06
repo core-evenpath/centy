@@ -43,34 +43,32 @@ export async function POST(request: NextRequest) {
 }
 
 /**
- * Get partnerId from the Twilio phone number the message was sent TO.
+ * Get partnerId from the Twilio phone number the message was sent TO using the environment map.
  */
 async function getPartnerIdFromPhone(toPhone: string): Promise<string> {
-  if (!db) {
-    console.warn('Database not configured, using default partnerId for SMS');
-    return 'system';
-  }
-
-  try {
     console.log('🔍 [SMS] Looking up partner for Twilio number:', toPhone);
-    
-    const partnersRef = db.collection('partners');
-    const snapshot = await partnersRef.where("phone", "==", toPhone).limit(1).get();
-
-    if (!snapshot.empty) {
-      const partnerDoc = snapshot.docs[0];
-      const partnerId = partnerDoc.id;
-      console.log(`✅ [SMS] Found partner '${partnerDoc.data().name}' (ID: ${partnerId}) for number ${toPhone}`);
-      return partnerId;
+    const mappingStr = process.env.TWILIO_SMS_TO_PARTNER_MAP;
+  
+    if (!mappingStr) {
+      console.error('❌ [SMS] TWILIO_SMS_TO_PARTNER_MAP environment variable is not set.');
+      return 'system';
     }
-    
-    console.warn(`⚠️ [SMS] No partner found with phone number ${toPhone}, using 'system' as partnerId`);
-    return 'system';
-
-  } catch (error) {
-    console.error('❌ [SMS] Error fetching partner by phone number:', error);
-    return 'system';
-  }
+  
+    try {
+      const mapping = JSON.parse(mappingStr);
+      const partnerId = mapping[toPhone];
+  
+      if (partnerId) {
+        console.log(`✅ [SMS] Found partnerId '${partnerId}' for number ${toPhone}`);
+        return partnerId;
+      } else {
+        console.warn(`⚠️ [SMS] No partner found in map for number ${toPhone}. Using 'system'.`);
+        return 'system';
+      }
+    } catch (error) {
+      console.error('❌ [SMS] Failed to parse TWILIO_SMS_TO_PARTNER_MAP. Ensure it is valid JSON.', error);
+      return 'system';
+    }
 }
 
 

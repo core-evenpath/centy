@@ -50,34 +50,31 @@ export async function POST(request: NextRequest) {
 }
 
 /**
- * Get partnerId from the Twilio WhatsApp number the message was sent TO.
+ * Get partnerId from the Twilio WhatsApp number the message was sent TO using the environment map.
  */
 async function getPartnerIdFromPhone(toPhone: string): Promise<string> {
-    if (!db) {
-        console.error('❌ Database not configured');
-        throw new Error('Database not configured');
+    console.log('🔍 [WhatsApp] Looking up partner for Twilio number:', toPhone);
+    const mappingStr = process.env.TWILIO_WHATSAPP_TO_PARTNER_MAP;
+  
+    if (!mappingStr) {
+      console.error('❌ [WhatsApp] TWILIO_WHATSAPP_TO_PARTNER_MAP environment variable is not set.');
+      return 'system';
     }
-
+  
     try {
-        const twilioWhatsAppNumber = toPhone.replace('whatsapp:', '');
-        console.log('🔍 [WhatsApp] Looking up partner for Twilio number:', twilioWhatsAppNumber);
-        
-        const partnersRef = db.collection('partners');
-        const snapshot = await partnersRef.where("phone", "==", twilioWhatsAppNumber).limit(1).get();
-
-        if (!snapshot.empty) {
-            const partnerDoc = snapshot.docs[0];
-            const partnerId = partnerDoc.id;
-            console.log(`✅ [WhatsApp] Found partner '${partnerDoc.data().name}' (ID: ${partnerId}) for number ${twilioWhatsAppNumber}`);
-            return partnerId;
-        }
-        
-        console.warn(`⚠️ [WhatsApp] No partner found with number ${twilioWhatsAppNumber}, using 'system'`);
+      const mapping = JSON.parse(mappingStr);
+      const partnerId = mapping[toPhone];
+  
+      if (partnerId) {
+        console.log(`✅ [WhatsApp] Found partnerId '${partnerId}' for number ${toPhone}`);
+        return partnerId;
+      } else {
+        console.warn(`⚠️ [WhatsApp] No partner found in map for number ${toPhone}. Using 'system'.`);
         return 'system';
-
+      }
     } catch (error) {
-        console.error('❌ [WhatsApp] Error fetching partner by phone number:', error);
-        return 'system';
+      console.error('❌ [WhatsApp] Failed to parse TWILIO_WHATSAPP_TO_PARTNER_MAP. Ensure it is valid JSON.', error);
+      return 'system';
     }
 }
 
@@ -93,12 +90,12 @@ async function handleIncomingMessage(payload: TwilioWebhookPayload) {
   console.log('📨 Starting inbound message processing...');
 
   const fromPhone = payload.From.replace('whatsapp:', '');
-  const toPhone = payload.To; // Keep the 'whatsapp:' prefix for lookup if needed
+  const toPhone = payload.To; // Keep the 'whatsapp:' prefix for lookup
 
   console.log('  From (customer):', fromPhone);
   console.log('  To (business):', toPhone);
 
-  // Get partnerId
+  // Get partnerId from phone mapping
   const partnerId = await getPartnerIdFromPhone(toPhone);
   console.log('  Assigned partnerId:', partnerId);
 
@@ -120,7 +117,6 @@ async function handleIncomingMessage(payload: TwilioWebhookPayload) {
       conversationId = conversationRef.id;
 
       const newConversation = {
-        id: conversationId,
         partnerId: partnerId, // Use the looked-up partnerId
         type: 'direct',
         platform: 'whatsapp',
@@ -154,7 +150,7 @@ async function handleIncomingMessage(payload: TwilioWebhookPayload) {
     console.log('💾 Storing message in whatsappMessages...');
     const messageRef = db.collection('whatsappMessages').doc();
     
-    const messageData = {
+    const messageData: Partial<WhatsAppMessage> = {
       conversationId: conversationId,
       partnerId: partnerId, // CRITICAL: Include partnerId
       senderId: fromPhone,
@@ -176,7 +172,6 @@ async function handleIncomingMessage(payload: TwilioWebhookPayload) {
 
     if (payload.MediaUrl0) {
       (messageData as any).attachments = [{
-        id: messageRef.id,
         type: payload.MediaContentType0?.startsWith('image') ? 'image' : 'file',
         name: `media_${payload.MessageSid}`,
         url: payload.MediaUrl0,
