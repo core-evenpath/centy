@@ -7,6 +7,7 @@ import type { TwilioWebhookPayload, WhatsAppMessage, WhatsAppConversation } from
 
 /**
  * Get partnerId from the Twilio WhatsApp number the message was sent TO.
+ * This version is more robust and handles formatting differences.
  */
 async function getPartnerIdFromPhone(toPhoneWithPrefix: string): Promise<string> {
   console.log('🔍 [WhatsApp] Looking up partner for Twilio number:', toPhoneWithPrefix);
@@ -15,20 +16,35 @@ async function getPartnerIdFromPhone(toPhoneWithPrefix: string): Promise<string>
     return 'system_default';
   }
   
-  const toPhone = toPhoneWithPrefix.replace('whatsapp:', '');
+  // Sanitize the incoming number to digits only, removing the '+'
+  const toPhoneDigits = toPhoneWithPrefix.replace(/\D/g, '');
 
   const partnersRef = collection(db, 'partners');
-  const q = query(partnersRef, where('whatsAppPhone', '==', toPhone), limit(1));
-  const snapshot = await getDocs(q);
+  const snapshot = await getDocs(partnersRef);
 
-  if (!snapshot.empty) {
-    const partnerId = snapshot.docs[0].id;
-    console.log(`✅ [WhatsApp] Found partnerId '${partnerId}' for number ${toPhone}`);
-    return partnerId;
-  } else {
-    console.warn(`⚠️ [WhatsApp] No partner found for number ${toPhone}. Message will not be associated with a partner.`);
+  if (snapshot.empty) {
+    console.warn('⚠️ [WhatsApp] No partners found in the database.');
     return 'system_default';
   }
+
+  for (const partnerDoc of snapshot.docs) {
+    const partnerData = partnerDoc.data();
+    const storedPhone = partnerData.whatsAppPhone || partnerData.phone;
+
+    if (storedPhone) {
+      // Sanitize the stored number to digits only
+      const storedPhoneDigits = storedPhone.replace(/\D/g, '');
+      
+      if (storedPhoneDigits === toPhoneDigits) {
+        const partnerId = partnerDoc.id;
+        console.log(`✅ [WhatsApp] Found partnerId '${partnerId}' for number ${toPhoneWithPrefix}`);
+        return partnerId;
+      }
+    }
+  }
+
+  console.warn(`⚠️ [WhatsApp] No partner found for number ${toPhoneWithPrefix}. (Sanitized: ${toPhoneDigits})`);
+  return 'system_default';
 }
 
 

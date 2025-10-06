@@ -6,26 +6,44 @@ import type { TwilioSMSWebhookPayload, SMSMessage, SMSConversation } from '@/lib
 
 /**
  * Get partnerId from the Twilio phone number the message was sent TO.
+ * This version is more robust and handles formatting differences.
  */
 async function getPartnerIdFromPhone(toPhone: string): Promise<string> {
   console.log('🔍 [SMS] Looking up partner for Twilio number:', toPhone);
   if (!db) {
     console.error('❌ [SMS] Firestore is not initialized.');
-    return 'system_default'; // A default that won't match any partner
-  }
-
-  const partnersRef = collection(db, 'partners');
-  const q = query(partnersRef, where('phone', '==', toPhone), limit(1));
-  const snapshot = await getDocs(q);
-
-  if (!snapshot.empty) {
-    const partnerId = snapshot.docs[0].id;
-    console.log(`✅ [SMS] Found partnerId '${partnerId}' for number ${toPhone}`);
-    return partnerId;
-  } else {
-    console.warn(`⚠️ [SMS] No partner found for number ${toPhone}. Message will not be associated with a partner.`);
     return 'system_default';
   }
+
+  // Sanitize the incoming number to digits only, removing the '+'
+  const toPhoneDigits = toPhone.replace(/\D/g, '');
+
+  const partnersRef = collection(db, 'partners');
+  const snapshot = await getDocs(partnersRef);
+
+  if (snapshot.empty) {
+    console.warn('⚠️ [SMS] No partners found in the database.');
+    return 'system_default';
+  }
+
+  for (const partnerDoc of snapshot.docs) {
+    const partnerData = partnerDoc.data();
+    const storedPhone = partnerData.phone || partnerData.whatsAppPhone; // Check both fields as a fallback
+
+    if (storedPhone) {
+      // Sanitize the stored number to digits only
+      const storedPhoneDigits = storedPhone.replace(/\D/g, '');
+      
+      if (storedPhoneDigits === toPhoneDigits) {
+        const partnerId = partnerDoc.id;
+        console.log(`✅ [SMS] Found partnerId '${partnerId}' for number ${toPhone}`);
+        return partnerId;
+      }
+    }
+  }
+
+  console.warn(`⚠️ [SMS] No partner found for number ${toPhone}. (Sanitized: ${toPhoneDigits})`);
+  return 'system_default';
 }
 
 /**
