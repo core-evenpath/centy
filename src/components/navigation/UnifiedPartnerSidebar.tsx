@@ -82,16 +82,16 @@ export default function UnifiedPartnerSidebar() {
       description: 'SMS & WhatsApp Messaging'
     },
     { 
-      icon: ListTodo, 
-      label: 'Tasks', 
-      href: '/partner/tasks',
-      badge: stats?.pendingTasks || null
-    },
-    { 
       icon: Layers, 
       label: 'Content Studio', 
       href: '/partner/content-studio',
       badge: null 
+    },
+    { 
+      icon: ListTodo, 
+      label: 'Tasks', 
+      href: '/partner/tasks',
+      badge: stats?.pendingTasks || null
     },
     { 
       icon: Settings, 
