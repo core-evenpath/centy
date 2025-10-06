@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/firebase-admin';
 import { FieldValue } from 'firebase-admin/firestore';
 import type { TwilioWebhookPayload, WhatsAppMessage, WhatsAppConversation } from '@/lib/types';
+import { query, where, limit, getDocs } from 'firebase/firestore';
 
 /**
  * Twilio WhatsApp webhook endpoint
@@ -50,33 +51,39 @@ export async function POST(request: NextRequest) {
 }
 
 /**
- * Get partnerId from Twilio phone number mapping
+ * Get partnerId from the Twilio WhatsApp number the message was sent TO.
  */
 async function getPartnerIdFromPhone(toPhone: string): Promise<string> {
-  if (!db) {
-    console.error('❌ Database not configured');
-    throw new Error('Database not configured');
-  }
-
-  try {
-    const lookupId = toPhone.startsWith('whatsapp:') ? toPhone : `whatsapp:${toPhone}`;
-    console.log('🔍 Looking up phone mapping for:', lookupId);
-    
-    const mappingDoc = await db.collection('twilioPhoneMappings').doc(lookupId).get();
-    
-    if (mappingDoc.exists) {
-      const data = mappingDoc.data();
-      console.log(`✅ Found mapping: partnerId=${data?.partnerId}`);
-      return data?.partnerId || 'system';
+    if (!db) {
+        console.error('❌ Database not configured');
+        throw new Error('Database not configured');
     }
-    
-    console.warn(`⚠️ No mapping found for ${lookupId}, using 'system'`);
-    return 'system';
-  } catch (error) {
-    console.error('❌ Error fetching phone mapping:', error);
-    return 'system';
-  }
+
+    try {
+        const twilioWhatsAppNumber = toPhone.replace('whatsapp:', '');
+        console.log('🔍 [WhatsApp] Looking up partner for Twilio number:', twilioWhatsAppNumber);
+        
+        const partnersRef = db.collection('partners');
+        // This assumes the partner document has a field `twilioWhatsAppNumber` storing their number.
+        const q = query(partnersRef, where("phone", "==", twilioWhatsAppNumber), limit(1));
+        const snapshot = await getDocs(q as any);
+
+        if (!snapshot.empty) {
+            const partnerDoc = snapshot.docs[0];
+            const partnerId = partnerDoc.id;
+            console.log(`✅ [WhatsApp] Found partner '${partnerDoc.data().name}' (ID: ${partnerId}) for number ${twilioWhatsAppNumber}`);
+            return partnerId;
+        }
+        
+        console.warn(`⚠️ [WhatsApp] No partner found with number ${twilioWhatsAppNumber}, using 'system'`);
+        return 'system';
+
+    } catch (error) {
+        console.error('❌ [WhatsApp] Error fetching partner by phone number:', error);
+        return 'system';
+    }
 }
+
 
 /**
  * Handle incoming WhatsApp message
@@ -89,7 +96,7 @@ async function handleIncomingMessage(payload: TwilioWebhookPayload) {
   console.log('📨 Starting inbound message processing...');
 
   const fromPhone = payload.From.replace('whatsapp:', '');
-  const toPhone = payload.To;
+  const toPhone = payload.To; // Keep the 'whatsapp:' prefix for lookup if needed
 
   console.log('  From (customer):', fromPhone);
   console.log('  To (business):', toPhone);

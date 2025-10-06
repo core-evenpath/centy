@@ -43,34 +43,37 @@ export async function POST(request: NextRequest) {
 }
 
 /**
- * Get partnerId from Twilio phone number mapping
+ * Get partnerId from the Twilio phone number the message was sent TO.
  */
 async function getPartnerIdFromPhone(toPhone: string): Promise<string> {
-  if (!db) {
-    console.warn('Database not configured, using default partnerId for SMS');
-    return 'system';
-  }
-
-  try {
-    // Standardize the lookup key to match WhatsApp format
-    const lookupId = `whatsapp:${toPhone}`;
-    console.log('🔍 [SMS] Looking up phone mapping for:', lookupId);
-
-    const mappingDoc = await db.collection('twilioPhoneMappings').doc(lookupId).get();
-    
-    if (mappingDoc.exists) {
-      const data = mappingDoc.data();
-      console.log(`✅ [SMS] Found mapping for ${toPhone}: partnerId=${data?.partnerId}`);
-      return data?.partnerId || 'system';
+    if (!db) {
+        console.warn('Database not configured, using default partnerId for SMS');
+        return 'system';
     }
-    
-    console.warn(`⚠️ [SMS] No mapping found for ${lookupId}, using 'system' as partnerId`);
-    return 'system';
-  } catch (error) {
-    console.error('❌ [SMS] Error fetching phone mapping:', error);
-    return 'system';
-  }
+
+    try {
+        console.log('🔍 [SMS] Looking up partner for Twilio number:', toPhone);
+        
+        const partnersRef = db.collection('partners');
+        const q = query(partnersRef, where("phone", "==", toPhone), limit(1));
+        const snapshot = await q.get();
+
+        if (!snapshot.empty) {
+            const partnerDoc = snapshot.docs[0];
+            const partnerId = partnerDoc.id;
+            console.log(`✅ [SMS] Found partner '${partnerDoc.data().name}' (ID: ${partnerId}) for number ${toPhone}`);
+            return partnerId;
+        }
+        
+        console.warn(`⚠️ [SMS] No partner found with phone number ${toPhone}, using 'system' as partnerId`);
+        return 'system';
+
+    } catch (error) {
+        console.error('❌ [SMS] Error fetching partner by phone number:', error);
+        return 'system';
+    }
 }
+
 
 /**
  * Handle incoming SMS message
