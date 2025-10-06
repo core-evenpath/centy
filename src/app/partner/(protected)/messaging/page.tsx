@@ -13,7 +13,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Separator } from '@/components/ui/separator';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { useToast } from '@/hooks/use-toast';
 import { 
   MessageSquare, 
@@ -26,11 +26,15 @@ import {
   Check,
   Clock,
   AlertCircle,
-  MessageCircle,
+  MessageCircle as WhatsAppIcon,
   Info,
   Image as ImageIcon,
   FileText,
-  Download
+  Download,
+  Copy,
+  Wrench,
+  XCircle,
+  CheckCircle as CheckCircleIcon,
 } from 'lucide-react';
 import { db } from '@/lib/firebase';
 import { collection, query, where, onSnapshot, orderBy, Timestamp } from 'firebase/firestore';
@@ -42,6 +46,15 @@ import { formatDistanceToNow } from 'date-fns';
 type Platform = 'sms' | 'whatsapp';
 type UnifiedConversation = (SMSConversation | WhatsAppConversation) & { platform: Platform };
 type UnifiedMessage = (SMSMessage | WhatsAppMessage) & { platform: Platform };
+
+interface MessagingDiagnostics {
+  configOk: boolean;
+  accountSid: boolean;
+  authToken: boolean;
+  smsNumber: boolean;
+  whatsAppNumber: boolean;
+  baseUrl: string;
+}
 
 export default function MessagingPage() {
   const { user, currentWorkspace } = useMultiWorkspaceAuth();
@@ -59,8 +72,25 @@ export default function MessagingPage() {
   const [isLoadingConversations, setIsLoadingConversations] = useState(true);
   const [isLoadingMessages, setIsLoadingMessages] = useState(false);
   const [showNewConversation, setShowNewConversation] = useState(false);
+  const [diagnostics, setDiagnostics] = useState<MessagingDiagnostics | null>(null);
 
   const partnerId = currentWorkspace?.partnerId || user?.customClaims?.partnerId;
+
+  // Fetch diagnostics info
+  useEffect(() => {
+    async function fetchDiagnostics() {
+      try {
+        const response = await fetch('/api/diagnostics/messaging');
+        if (response.ok) {
+          const data = await response.json();
+          setDiagnostics(data);
+        }
+      } catch (error) {
+        console.error("Failed to fetch messaging diagnostics", error);
+      }
+    }
+    fetchDiagnostics();
+  }, []);
 
   // Load conversations for both platforms
   useEffect(() => {
@@ -251,9 +281,102 @@ export default function MessagingPage() {
       </Badge>
     ) : (
       <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
-        <MessageCircle className="w-3 h-3 mr-1" />
+        <WhatsAppIcon className="w-3 h-3 mr-1" />
         WhatsApp
       </Badge>
+    );
+  };
+  
+  const copyToClipboard = (text: string) => {
+    navigator.clipboard.writeText(text);
+    toast({ title: 'Copied!', description: 'Webhook URL copied to clipboard.' });
+  };
+
+
+  const DiagnosticsView = () => {
+    if (!diagnostics) {
+      return (
+        <Card className="m-6">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2"><Wrench />Messaging Diagnostics</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-center justify-center p-4">
+              <Loader2 className="w-6 h-6 animate-spin" />
+              <p className="ml-2">Loading diagnostics...</p>
+            </div>
+          </CardContent>
+        </Card>
+      );
+    }
+  
+    const smsWebhookUrl = `${diagnostics.baseUrl}/api/webhooks/twilio/sms`;
+    const whatsappWebhookUrl = `${diagnostics.baseUrl}/api/webhooks/twilio/whatsapp`;
+  
+    const CheckItem = ({ label, isOk }: { label: string; isOk: boolean }) => (
+      <li className="flex items-center gap-2 text-sm">
+        {isOk ? <CheckCircleIcon className="w-4 h-4 text-green-500" /> : <XCircle className="w-4 h-4 text-red-500" />}
+        <span className={isOk ? 'text-foreground' : 'text-red-500'}>{label}</span>
+      </li>
+    );
+  
+    return (
+      <Card className="m-6">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2"><Wrench />Messaging Diagnostics</CardTitle>
+          <p className="text-sm text-muted-foreground">
+            Use this information to ensure your Twilio account is configured correctly for inbound messages.
+          </p>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <Alert variant={diagnostics.configOk ? "default" : "destructive"}>
+            <AlertTitle className="flex items-center gap-2">
+              {diagnostics.configOk ? (
+                <><CheckCircleIcon />Configuration Status: OK</>
+              ) : (
+                <><XCircle />Configuration Status: Incomplete</>
+              )}
+            </AlertTitle>
+            <AlertDescription>
+              {diagnostics.configOk ? "All required environment variables are set." : "One or more required Twilio environment variables are missing."}
+            </AlertDescription>
+          </Alert>
+  
+          <div>
+            <h4 className="font-medium mb-2">Twilio Variables Check</h4>
+            <ul className="space-y-1">
+              <CheckItem label="TWILIO_ACCOUNT_SID" isOk={diagnostics.accountSid} />
+              <CheckItem label="TWILIO_AUTH_TOKEN" isOk={diagnostics.authToken} />
+              <CheckItem label="TWILIO_PHONE_NUMBER (for SMS)" isOk={diagnostics.smsNumber} />
+              <CheckItem label="TWILIO_WHATSAPP_NUMBER" isOk={diagnostics.whatsAppNumber} />
+            </ul>
+          </div>
+  
+          <Separator />
+  
+          <div className="space-y-3">
+            <h4 className="font-medium">SMS Webhook URL</h4>
+            <div className="flex items-center gap-2">
+              <Input readOnly value={smsWebhookUrl} className="font-mono text-xs" />
+              <Button variant="outline" size="sm" onClick={() => copyToClipboard(smsWebhookUrl)}><Copy className="w-3 h-3 mr-1" />Copy</Button>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              In your Twilio Console, set the webhook for your SMS number to this URL with the `HTTP POST` method.
+            </p>
+          </div>
+  
+          <div className="space-y-3">
+            <h4 className="font-medium">WhatsApp Webhook URL</h4>
+            <div className="flex items-center gap-2">
+              <Input readOnly value={whatsappWebhookUrl} className="font-mono text-xs" />
+              <Button variant="outline" size="sm" onClick={() => copyToClipboard(whatsappWebhookUrl)}><Copy className="w-3 h-3 mr-1" />Copy</Button>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              In your Twilio Console, set the webhook for your WhatsApp sender to this URL with the `HTTP POST` method.
+            </p>
+          </div>
+        </CardContent>
+      </Card>
     );
   };
 
@@ -287,7 +410,7 @@ export default function MessagingPage() {
             <Tabs value={selectedPlatform} onValueChange={(value) => setSelectedPlatform(value as Platform)}>
               <TabsList className="grid w-full grid-cols-2">
                 <TabsTrigger value="sms" className="flex items-center gap-2"><Phone className="w-4 h-4" />SMS</TabsTrigger>
-                <TabsTrigger value="whatsapp" className="flex items-center gap-2"><MessageCircle className="w-4 h-4" />WhatsApp</TabsTrigger>
+                <TabsTrigger value="whatsapp" className="flex items-center gap-2"><WhatsAppIcon className="w-4 h-4" />WhatsApp</TabsTrigger>
               </TabsList>
             </Tabs>
             <div className="relative">
@@ -310,7 +433,7 @@ export default function MessagingPage() {
                   <div key={conversation.id} onClick={() => { setSelectedConversation(conversation); setShowNewConversation(false); }}
                     className={`p-4 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors ${selectedConversation?.id === conversation.id ? 'bg-blue-50 dark:bg-blue-900/20 border-l-4 border-blue-500' : ''}`}>
                     <div className="flex items-start gap-3">
-                      <Avatar><AvatarFallback className={conversation.platform === 'sms' ? 'bg-blue-100 text-blue-700' : 'bg-green-100 text-green-700'}>{conversation.platform === 'sms' ? <Phone className="w-4 h-4" /> : <MessageCircle className="w-4 h-4" />}</AvatarFallback></Avatar>
+                      <Avatar><AvatarFallback className={conversation.platform === 'sms' ? 'bg-blue-100 text-blue-700' : 'bg-green-100 text-green-700'}>{conversation.platform === 'sms' ? <Phone className="w-4 h-4" /> : <WhatsAppIcon className="w-4 h-4" />}</AvatarFallback></Avatar>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center justify-between"><p className="font-medium truncate">{conversation.customerName || conversation.customerPhone}</p><span className="text-xs text-muted-foreground">{formatTimestamp(conversation.lastMessageAt)}</span></div>
                         <p className="text-sm text-muted-foreground truncate">{conversation.customerPhone}</p>
@@ -339,7 +462,7 @@ export default function MessagingPage() {
           ) : selectedConversation ? (
             <>
               <div className="bg-white dark:bg-gray-800 border-b p-4">
-                <div className="flex items-center justify-between"><div className="flex items-center gap-3"><Avatar><AvatarFallback className={selectedConversation.platform === 'sms' ? 'bg-blue-100 text-blue-700' : 'bg-green-100 text-green-700'}>{selectedConversation.platform === 'sms' ? <Phone className="w-5 h-5" /> : <MessageCircle className="w-5 h-5" />}</AvatarFallback></Avatar><div><h3 className="font-semibold">{selectedConversation.customerName || selectedConversation.customerPhone}</h3><div className="flex items-center gap-2"><p className="text-sm text-muted-foreground">{selectedConversation.customerPhone}</p>{getPlatformBadge(selectedConversation.platform)}</div></div></div></div>
+                <div className="flex items-center justify-between"><div className="flex items-center gap-3"><Avatar><AvatarFallback className={selectedConversation.platform === 'sms' ? 'bg-blue-100 text-blue-700' : 'bg-green-100 text-green-700'}>{selectedConversation.platform === 'sms' ? <Phone className="w-5 h-5" /> : <WhatsAppIcon className="w-5 h-5" />}</AvatarFallback></Avatar><div><h3 className="font-semibold">{selectedConversation.customerName || selectedConversation.customerPhone}</h3><div className="flex items-center gap-2"><p className="text-sm text-muted-foreground">{selectedConversation.customerPhone}</p>{getPlatformBadge(selectedConversation.platform)}</div></div></div></div>
               </div>
               <ScrollArea className="flex-1 p-4">
                 {isLoadingMessages ? <div className="flex items-center justify-center h-full"><Loader2 className="w-6 h-6 animate-spin" /></div>
@@ -359,7 +482,7 @@ export default function MessagingPage() {
               </div>
             </>
           ) : (
-            <div className="flex-1 flex items-center justify-center text-muted-foreground"><div className="text-center"><MessageSquare className="w-16 h-16 mx-auto mb-4 opacity-50" /><h3 className="text-lg font-medium mb-2">Select a conversation</h3><p className="text-sm">Choose a conversation from the list or start a new one</p></div></div>
+             <DiagnosticsView />
           )}
         </div>
       </div>
