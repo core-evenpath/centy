@@ -77,14 +77,11 @@ export default function HomePage() {
             <Link href="#features" className="text-sm font-medium text-gray-600 hover:text-gray-900">
               Features
             </Link>
-            <Link href="#pricing" className="text-sm font-medium text-gray-600 hover:text-gray-900">
-              Pricing
-            </Link>
             <Link 
               href="/partner/login"
               className="px-5 py-2.5 bg-gradient-to-r from-orange-500 to-pink-500 text-white font-semibold rounded-full hover:shadow-lg hover:scale-105 transition-all"
             >
-              Get Started →
+              Partner Login
             </Link>
           </div>
         </div>
@@ -113,7 +110,7 @@ export default function HomePage() {
               
               <div className="flex flex-col sm:flex-row gap-4">
                 <Link 
-                  href="/partner/login"
+                  href="/partner/signup"
                   className="group px-8 py-4 bg-gradient-to-r from-orange-500 to-pink-500 text-white font-bold rounded-full hover:shadow-xl hover:scale-105 transition-all inline-flex items-center justify-center gap-2"
                 >
                   Start Free Trial
@@ -225,7 +222,7 @@ export default function HomePage() {
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
               <Link 
-                href="/partner/login"
+                href="/partner/signup"
                 className="px-10 py-4 bg-white text-gray-900 font-bold rounded-full hover:scale-105 transition-transform shadow-xl inline-flex items-center gap-2"
               >
                 Start Free Trial
@@ -249,7 +246,6 @@ export default function HomePage() {
             </div>
             <div className="flex gap-8 text-sm text-gray-600">
               <Link href="#features" className="hover:text-gray-900">Features</Link>
-              <Link href="#pricing" className="hover:text-gray-900">Pricing</Link>
               <Link href="#" className="hover:text-gray-900">Blog</Link>
               <Link href="#" className="hover:text-gray-900">Contact</Link>
             </div>
