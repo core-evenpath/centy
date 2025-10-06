@@ -6,20 +6,21 @@ import {
   Smartphone, Check, Plus, ArrowRight, AlertCircle, Eye, Info, TrendingUp,
   Zap, Clock, HelpCircle, Copy, Edit, Trash2
 } from 'lucide-react';
+import PartnerHeader from '../../../../components/partner/PartnerHeader';
 
-export default function MessagingPlatform() {
+function MessagingPlatform() {
   const [currentScreen, setCurrentScreen] = useState('home');
   const [sendStep, setSendStep] = useState(1);
   const [messageType, setMessageType] = useState('');
-  const [selectedTemplate, setSelectedTemplate] = useState(null);
-  const [templateVariables, setTemplateVariables] = useState({});
-  const [selectedGroups, setSelectedGroups] = useState([]);
+  const [selectedTemplate, setSelectedTemplate] = useState<any>(null);
+  const [templateVariables, setTemplateVariables] = useState<any>({});
+  const [selectedGroups, setSelectedGroups] = useState<number[]>([]);
   const [selectedChannel, setSelectedChannel] = useState('whatsapp');
   const [showHelp, setShowHelp] = useState(false);
-  const [customTemplates, setCustomTemplates] = useState([]);
-  const [editingTemplate, setEditingTemplate] = useState(null);
+  const [customTemplates, setCustomTemplates] = useState<any[]>([]);
+  const [editingTemplate, setEditingTemplate] = useState<any>(null);
   const [showTemplateEditor, setShowTemplateEditor] = useState(false);
-  const [toast, setToast] = useState(null);
+  const [toast, setToast] = useState<string | null>(null);
   const [templateDescription, setTemplateDescription] = useState('');
   const [showManualForm, setShowManualForm] = useState(false);
   const [picks, setPicks] = useState([
@@ -36,7 +37,7 @@ export default function MessagingPlatform() {
     validTo: '',
     summary: ''
   });
-  const [selectedPicks, setSelectedPicks] = useState([]);
+  const [selectedPicks, setSelectedPicks] = useState<number[]>([]);
 
   const templates = [
     { 
@@ -144,7 +145,7 @@ export default function MessagingPlatform() {
     return [...templates, ...customTemplates];
   };
 
-  const duplicateTemplate = (template) => {
+  const duplicateTemplate = (template: any) => {
     const newTemplate = {
       ...template,
       id: Date.now(),
@@ -160,7 +161,7 @@ export default function MessagingPlatform() {
     showToast('Template duplicated - customize it now!');
   };
 
-  const saveTemplate = (templateData) => {
+  const saveTemplate = (templateData: any) => {
     if (editingTemplate.isCustom) {
       const existingIndex = customTemplates.findIndex(t => t.id === editingTemplate.id);
       if (existingIndex >= 0) {
@@ -177,14 +178,14 @@ export default function MessagingPlatform() {
     setEditingTemplate(null);
   };
 
-  const deleteTemplate = (templateId) => {
+  const deleteTemplate = (templateId: number) => {
     if (confirm('Delete this custom template? This cannot be undone.')) {
       setCustomTemplates(customTemplates.filter(t => t.id !== templateId));
       showToast('Template deleted');
     }
   };
 
-  const editTemplate = (template) => {
+  const editTemplate = (template: any) => {
     setEditingTemplate(template);
     setShowTemplateEditor(true);
     setShowManualForm(true); // Show form directly when editing existing templates
@@ -227,12 +228,12 @@ export default function MessagingPlatform() {
       whenToUse: 'For: ' + templateDescription
     };
     
-    setEditingTemplate(generatedTemplate);
+    setEditingTemplate(generatedTemplate as any);
     setShowManualForm(true);
     showToast('Template generated! Review and customize below');
   };
 
-  const showToast = (message) => {
+  const showToast = (message: string) => {
     setToast(message);
     setTimeout(() => setToast(null), 3000);
   };
@@ -259,9 +260,9 @@ export default function MessagingPlatform() {
     showToast('Pick saved successfully');
   };
 
-  const sendPickMessage = (pick) => {
+  const sendPickMessage = (pick: any) => {
     const tradingPickTemplate = templates.find(t => t.id === 5);
-    setSelectedTemplate(tradingPickTemplate);
+    setSelectedTemplate(tradingPickTemplate as any);
     
     const initialVars = {
       name: '',
@@ -277,7 +278,7 @@ export default function MessagingPlatform() {
     setCurrentScreen('send');
   };
 
-  const extractVariables = (content) => {
+  const extractVariables = (content: string) => {
     const regex = /\{\{(\w+)\}\}/g;
     const variables = [];
     let match;
@@ -289,17 +290,17 @@ export default function MessagingPlatform() {
     return variables;
   };
 
-  const selectMessageType = (type) => {
+  const selectMessageType = (type: string) => {
     setMessageType(type);
     const allTemplates = getAllTemplates();
-    const template = allTemplates.find(t => 
+    const template: any = allTemplates.find(t => 
       t.name.toLowerCase().includes(type) || 
       t.category.toLowerCase().includes(type)
     ) || allTemplates[0];
     
     setSelectedTemplate(template);
-    const initialVars = {};
-    template.variables.forEach(v => {
+    const initialVars: any = {};
+    template.variables.forEach((v: string) => {
       initialVars[v] = '';
     });
     setTemplateVariables(initialVars);
@@ -308,9 +309,9 @@ export default function MessagingPlatform() {
 
   const previewMessage = () => {
     if (!selectedTemplate) return '';
-    let message = selectedTemplate.content;
+    let message = (selectedTemplate as any).content;
     Object.keys(templateVariables).forEach(key => {
-      const value = templateVariables[key] || `[${key}]`;
+      const value = (templateVariables as any)[key] || `[${key}]`;
       message = message.replace(new RegExp(`{{${key}}}`, 'g'), value);
     });
     return message;
@@ -318,9 +319,9 @@ export default function MessagingPlatform() {
 
   const allVariablesFilled = () => {
     if (!selectedTemplate) return false;
-    return selectedTemplate.variables
-      .filter(v => v !== 'name')
-      .every(v => templateVariables[v] && templateVariables[v].toString().trim() !== '');
+    return (selectedTemplate as any).variables
+      .filter((v: string) => v !== 'name')
+      .every((v: string) => (templateVariables as any)[v] && (templateVariables as any)[v].toString().trim() !== '');
   };
 
   const getTotalRecipients = () => {
@@ -500,9 +501,9 @@ export default function MessagingPlatform() {
                         if (messageType.trim()) {
                           // Use AI approach - for now just move to step 2 with a generic template
                           const template = templates[0];
-                          setSelectedTemplate(template);
-                          const initialVars = {};
-                          template.variables.forEach(v => {
+                          setSelectedTemplate(template as any);
+                          const initialVars: any = {};
+                          template.variables.forEach((v: string) => {
                             initialVars[v] = '';
                           });
                           setTemplateVariables(initialVars);
@@ -540,13 +541,13 @@ export default function MessagingPlatform() {
                     <div className="border-t border-gray-200 pt-6 mt-6">
                       <h3 className="text-sm font-bold text-gray-600 uppercase tracking-wide mb-4">Your Custom Templates</h3>
                       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                        {customTemplates.map(template => (
+                        {customTemplates.map((template: any) => (
                           <button
                             key={template.id}
                             onClick={() => {
                               setSelectedTemplate(template);
-                              const initialVars = {};
-                              template.variables.forEach(v => {
+                              const initialVars: any = {};
+                              template.variables.forEach((v: string) => {
                                 initialVars[v] = '';
                               });
                               setTemplateVariables(initialVars);
@@ -587,7 +588,7 @@ export default function MessagingPlatform() {
                     <div className="flex items-center justify-between mb-3">
                       <h2 className="text-2xl font-bold text-gray-900">Customize Your Message</h2>
                       <div className="px-3 py-1 bg-purple-100 text-purple-700 rounded-full text-xs font-bold">
-                        {selectedTemplate.name}
+                        {(selectedTemplate as any).name}
                       </div>
                     </div>
                     <p className="text-gray-600">
@@ -596,22 +597,22 @@ export default function MessagingPlatform() {
                   </div>
 
                   <div className="space-y-5 mb-6">
-                    {selectedTemplate.variables
-                      .filter(v => v !== 'name')
-                      .map(variable => (
+                    {(selectedTemplate as any).variables
+                      .filter((v: string) => v !== 'name')
+                      .map((variable: string) => (
                         <div key={variable}>
                           <label className="block text-sm font-bold text-gray-900 mb-2 capitalize flex items-center">
                             {variable}
-                            {selectedTemplate.variableHelp && selectedTemplate.variableHelp[variable] && (
+                            {(selectedTemplate as any).variableHelp && (selectedTemplate as any).variableHelp[variable] && (
                               <span className="ml-2 text-xs font-normal text-gray-500 bg-gray-100 px-2 py-1 rounded">
-                                {selectedTemplate.variableHelp[variable]}
+                                {(selectedTemplate as any).variableHelp[variable]}
                               </span>
                             )}
                           </label>
                           <input
                             type="text"
-                            placeholder={`e.g., ${selectedTemplate.variableHelp?.[variable] || `Enter ${variable}...`}`}
-                            value={templateVariables[variable] || ''}
+                            placeholder={`e.g., ${(selectedTemplate as any).variableHelp?.[variable] || `Enter ${variable}...`}`}
+                            value={(templateVariables as any)[variable] || ''}
                             onChange={(e) => setTemplateVariables({
                               ...templateVariables,
                               [variable]: e.target.value
@@ -889,7 +890,7 @@ export default function MessagingPlatform() {
                     </span>
                   </div>
                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-                    {userTemplates.map(template => (
+                    {userTemplates.map((template: any) => (
                       <div key={template.id} className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl shadow-md border-2 border-blue-200 p-6 hover:shadow-lg transition-all">
                         <div className="flex items-start justify-between mb-4">
                           <div className="flex items-center space-x-3 flex-1">
@@ -960,7 +961,7 @@ export default function MessagingPlatform() {
               </div>
 
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                {defaultTemplates.map(template => (
+                {defaultTemplates.map((template: any) => (
                   <div key={template.id} className="bg-white rounded-xl shadow-md border border-gray-200 p-6 hover:shadow-lg transition-all">
                     <div className="flex items-start justify-between mb-4">
                       <div className="flex items-center space-x-3">
@@ -1076,7 +1077,7 @@ export default function MessagingPlatform() {
                         </label>
                         <input
                           type="text"
-                          value={editingTemplate.name}
+                          value={(editingTemplate as any).name}
                           onChange={(e) => setEditingTemplate({...editingTemplate, name: e.target.value})}
                           className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:outline-none"
                           placeholder="e.g., My Custom Alert"
@@ -1089,7 +1090,7 @@ export default function MessagingPlatform() {
                         </label>
                         <input
                           type="text"
-                          value={editingTemplate.description}
+                          value={(editingTemplate as any).description}
                           onChange={(e) => setEditingTemplate({...editingTemplate, description: e.target.value})}
                           className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:outline-none"
                           placeholder="What is this template for?"
@@ -1106,7 +1107,7 @@ export default function MessagingPlatform() {
                           </p>
                         </div>
                         <textarea
-                          value={editingTemplate.content}
+                          value={(editingTemplate as any).content}
                           onChange={(e) => {
                             const newContent = e.target.value;
                             const variables = extractVariables(newContent);
@@ -1120,10 +1121,10 @@ export default function MessagingPlatform() {
                           className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:outline-none"
                           placeholder="Your message template..."
                         />
-                        {editingTemplate.variables && editingTemplate.variables.length > 0 && (
+                        {(editingTemplate as any).variables && (editingTemplate as any).variables.length > 0 && (
                           <div className="mt-2 flex flex-wrap gap-2">
                             <span className="text-xs font-semibold text-gray-700">Variables detected:</span>
-                            {editingTemplate.variables.map(v => (
+                            {(editingTemplate as any).variables.map((v: string) => (
                               <span key={v} className="px-2 py-1 bg-blue-100 text-blue-700 rounded text-xs font-medium">
                                 {v}
                               </span>
@@ -1137,7 +1138,7 @@ export default function MessagingPlatform() {
                           Example Message
                         </label>
                         <textarea
-                          value={editingTemplate.example}
+                          value={(editingTemplate as any).example}
                           onChange={(e) => setEditingTemplate({...editingTemplate, example: e.target.value})}
                           rows={3}
                           className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:outline-none"
@@ -1151,7 +1152,7 @@ export default function MessagingPlatform() {
                         </label>
                         <input
                           type="text"
-                          value={editingTemplate.whenToUse}
+                          value={(editingTemplate as any).whenToUse}
                           onChange={(e) => setEditingTemplate({...editingTemplate, whenToUse: e.target.value})}
                           className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:outline-none"
                           placeholder="Describe when to use this template..."
@@ -1163,7 +1164,7 @@ export default function MessagingPlatform() {
                           Category
                         </label>
                         <select
-                          value={editingTemplate.category}
+                          value={(editingTemplate as any).category}
                           onChange={(e) => setEditingTemplate({...editingTemplate, category: e.target.value})}
                           className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:outline-none"
                         >
@@ -1213,7 +1214,7 @@ export default function MessagingPlatform() {
             <div className="max-w-6xl mx-auto flex items-center justify-between">
               <div>
                 <h1 className="text-2xl font-bold text-gray-900">Contact Groups</h1>
-                <p className="text-gray-600">Your lists of people who will receive messages</p>
+                <p className="text-gray-600">Organized lists of your contacts</p>
               </div>
               <button
                 onClick={() => setCurrentScreen('home')}
@@ -1495,4 +1496,18 @@ export default function MessagingPlatform() {
   }
 
   return null;
+}
+
+export default function ContentStudioPage() {
+  return (
+    <div className="flex-1 flex flex-col">
+        <PartnerHeader
+            title="Content Studio"
+            subtitle="Create, manage, and send your content campaigns"
+        />
+        <main className="flex-1 overflow-y-auto">
+            <MessagingPlatform />
+        </main>
+    </div>
+  )
 }
