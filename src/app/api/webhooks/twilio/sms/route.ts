@@ -148,7 +148,7 @@ async function handleIncomingMessage(payload: TwilioSMSWebhookPayload) {
 
   // Add media attachments if present
   if (payload.MediaUrl0) {
-    messageData.attachments = [{
+    (messageData as any).attachments = [{
       id: messageRef.id,
       type: 'image',
       name: 'media',
