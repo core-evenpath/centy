@@ -36,6 +36,105 @@ export const industries: Industry[] = [
       successMetrics: [],
       createdAt: new Date(),
       updatedAt: new Date()
+    },
+    { 
+      id: 'd8f8f8f8-f8f8-f8f8-f8f8-f8f8f8f8f811',
+      name: 'E-commerce',
+      slug: 'ecommerce',
+      icon: '🛒',
+      description: 'Online retail and digital storefronts',
+      workflowPatterns: [],
+      successMetrics: [],
+      createdAt: new Date(),
+      updatedAt: new Date()
+    },
+    {
+      id: 'd8f8f8f8-f8f8-f8f8-f8f8-f8f8f8f8f812',
+      name: 'Healthcare Clinics',
+      slug: 'healthcare-clinics',
+      icon: '⚕️',
+      description: 'Private medical, dental, and wellness clinics',
+      workflowPatterns: [],
+      successMetrics: [],
+      createdAt: new Date(),
+      updatedAt: new Date()
+    },
+    {
+      id: 'd8f8f8f8-f8f8-f8f8-f8f8-f8f8f8f8f813',
+      name: 'Financial Services',
+      slug: 'financial-services',
+      icon: '💼',
+      description: 'Banking, investment, and insurance services',
+      workflowPatterns: [],
+      successMetrics: [],
+      createdAt: new Date(),
+      updatedAt: new Date()
+    },
+    {
+      id: 'd8f8f8f8-f8f8-f8f8-f8f8-f8f8f8f8f814',
+      name: 'Real Estate Agencies',
+      slug: 'real-estate-agencies',
+      icon: '🏘️',
+      description: 'Agencies for buying, selling, and renting properties',
+      workflowPatterns: [],
+      successMetrics: [],
+      createdAt: new Date(),
+      updatedAt: new Date()
+    },
+    {
+      id: 'd8f8f8f8-f8f8-f8f8-f8f8-f8f8f8f8f815',
+      name: 'Software as a Service (SaaS)',
+      slug: 'saas',
+      icon: '💻',
+      description: 'Subscription-based software businesses',
+      workflowPatterns: [],
+      successMetrics: [],
+      createdAt: new Date(),
+      updatedAt: new Date()
+    },
+    {
+      id: 'd8f8f8f8-f8f8-f8f8-f8f8-f8f8f8f8f816',
+      name: 'Restaurants & Cafes',
+      slug: 'restaurants-cafes',
+      icon: '🍔',
+      description: 'Food and beverage service businesses',
+      workflowPatterns: [],
+      successMetrics: [],
+      createdAt: new Date(),
+      updatedAt: new Date()
+    },
+    {
+      id: 'd8f8f8f8-f8f8-f8f8-f8f8-f8f8f8f8f817',
+      name: 'Marketing Agencies',
+      slug: 'marketing-agencies',
+      icon: '📢',
+      description: 'Digital marketing, advertising, and creative agencies',
+      workflowPatterns: [],
+      successMetrics: [],
+      createdAt: new Date(),
+      updatedAt: new Date()
+    },
+    {
+      id: 'd8f8f8f8-f8f8-f8f8-f8f8-f8f8f8f8f818',
+      name: 'Education & Tutoring',
+      slug: 'education-tutoring',
+      icon: '🎓',
+      description: 'Online courses, tutoring centers, and educational institutions',
+      workflowPatterns: [],
+      successMetrics: [],
+      createdAt: new Date(),
+      updatedAt: new Date()
+    },
+    {
+      id: 'd8f8f8f8-f8f8-f8f8-f8f8-f8f8f8f8f819',
+      name: 'Logistics & Transportation',
+      slug: 'logistics-transportation',
+      icon: '🚚',
+      description: 'Supply chain, freight, and transportation services',
+      workflowPatterns: [],
+      successMetrics: [],
+      createdAt: new Date(),
+      updatedAt: new Date()
     }
 ];
 
