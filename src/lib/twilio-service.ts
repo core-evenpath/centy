@@ -46,29 +46,30 @@ export interface TwilioMessageResponse {
 }
 
 /**
- * Send an SMS message via Twilio using a Messaging Service
+ * Send an SMS message via Twilio.
+ * Uses Messaging Service if configured, otherwise falls back to a 'from' number.
  */
 export async function sendSMS(options: SendSMSOptions): Promise<TwilioMessageResponse> {
   try {
     const client = getTwilioClient();
     
-    if (!messagingServiceSid) {
-      throw new Error('TWILIO_MESSAGING_SERVICE_SID not configured');
-    }
-    if (!twilioPhoneNumber) {
-        throw new Error('TWILIO_PHONE_NUMBER not configured for SMS');
-    }
-
     const formattedTo = options.to.startsWith('+') 
       ? options.to 
       : `+${options.to}`;
     
     const messageParams: any = {
-      messagingServiceSid: messagingServiceSid,
-      from: twilioPhoneNumber,
       to: formattedTo,
       body: options.body,
     };
+
+    // Use Messaging Service if available, otherwise use 'from' number
+    if (messagingServiceSid) {
+      messageParams.messagingServiceSid = messagingServiceSid;
+    } else if (twilioPhoneNumber) {
+      messageParams.from = twilioPhoneNumber;
+    } else {
+      throw new Error('Neither TWILIO_MESSAGING_SERVICE_SID nor TWILIO_PHONE_NUMBER is configured for SMS.');
+    }
 
     const message = await client.messages.create(messageParams);
 
@@ -88,28 +89,28 @@ export async function sendSMS(options: SendSMSOptions): Promise<TwilioMessageRes
 }
 
 /**
- * Send a WhatsApp message via Twilio using a Messaging Service
+ * Send a WhatsApp message via Twilio.
+ * Uses Messaging Service if configured, otherwise falls back to a 'from' number.
  */
 export async function sendWhatsAppMessage(options: SendWhatsAppMessageOptions): Promise<TwilioMessageResponse> {
   try {
     const client = getTwilioClient();
     
-    if (!messagingServiceSid) {
-      throw new Error('TWILIO_MESSAGING_SERVICE_SID not configured');
-    }
-
-    if (!twilioWhatsAppNumber) {
-        throw new Error('TWILIO_WHATSAPP_NUMBER not configured');
-    }
-
     const to = `whatsapp:${options.to.startsWith('+') ? options.to : '+' + options.to}`;
     
     const messageParams: any = {
-      messagingServiceSid: messagingServiceSid,
-      from: `whatsapp:${twilioWhatsAppNumber}`,
       to,
       body: options.body,
     };
+
+    // Use Messaging Service if available, otherwise use 'from' number for WhatsApp
+    if (messagingServiceSid) {
+      messageParams.messagingServiceSid = messagingServiceSid;
+    } else if (twilioWhatsAppNumber) {
+      messageParams.from = `whatsapp:${twilioWhatsAppNumber}`;
+    } else {
+      throw new Error('Neither TWILIO_MESSAGING_SERVICE_SID nor TWILIO_WHATSAPP_NUMBER is configured for WhatsApp.');
+    }
     
     if (options.mediaUrl) {
       messageParams.mediaUrl = [options.mediaUrl];
@@ -131,6 +132,7 @@ export async function sendWhatsAppMessage(options: SendWhatsAppMessageOptions): 
     throw new Error(error.message || 'Failed to send WhatsApp message');
   }
 }
+
 
 /**
  * Get message status from Twilio
