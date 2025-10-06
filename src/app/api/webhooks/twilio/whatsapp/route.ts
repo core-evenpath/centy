@@ -12,7 +12,7 @@ async function getPartnerIdFromPhone(toPhoneWithPrefix: string): Promise<string>
   console.log('🔍 [WhatsApp] Looking up partner for Twilio number:', toPhoneWithPrefix);
   if (!db) {
     console.error('❌ [WhatsApp] Firestore is not initialized.');
-    return 'system';
+    return 'system_default';
   }
   
   const toPhone = toPhoneWithPrefix.replace('whatsapp:', '');
@@ -26,8 +26,8 @@ async function getPartnerIdFromPhone(toPhoneWithPrefix: string): Promise<string>
     console.log(`✅ [WhatsApp] Found partnerId '${partnerId}' for number ${toPhone}`);
     return partnerId;
   } else {
-    console.warn(`⚠️ [WhatsApp] No partner found for number ${toPhone}. Using 'system'.`);
-    return 'system';
+    console.warn(`⚠️ [WhatsApp] No partner found for number ${toPhone}. Message will not be associated with a partner.`);
+    return 'system_default';
   }
 }
 
@@ -95,6 +95,10 @@ async function handleIncomingMessage(payload: TwilioWebhookPayload) {
 
   // Get partnerId from phone mapping
   const partnerId = await getPartnerIdFromPhone(toPhone);
+  if (partnerId === 'system_default') {
+      console.error(`Could not find partner for inbound message to ${toPhone}. Aborting.`);
+      return;
+  }
   console.log('  Assigned partnerId:', partnerId);
 
   // Find or create conversation
@@ -116,7 +120,7 @@ async function handleIncomingMessage(payload: TwilioWebhookPayload) {
       const conversationRef = doc(collection(db, 'whatsappConversations'));
       conversationId = conversationRef.id;
 
-      const newConversation = {
+      const newConversation: Partial<WhatsAppConversation> = {
         partnerId: partnerId,
         type: 'direct',
         platform: 'whatsapp',
@@ -125,12 +129,11 @@ async function handleIncomingMessage(payload: TwilioWebhookPayload) {
         participants: [],
         isActive: true,
         messageCount: 1,
-        createdBy: 'system',
+        createdBy: 'customer',
         createdAt: FieldValue.serverTimestamp(),
         lastMessageAt: FieldValue.serverTimestamp(),
       };
       
-      console.log('  Conversation data:', JSON.stringify(newConversation, null, 2));
       await setDoc(conversationRef, newConversation);
       console.log('✅ Conversation created:', conversationId);
 
@@ -180,7 +183,6 @@ async function handleIncomingMessage(payload: TwilioWebhookPayload) {
       }];
     }
 
-    console.log('  Message data:', JSON.stringify(messageData, null, 2));
     const messageRef = await addDoc(collection(db, 'whatsappMessages'), messageData);
     
     console.log('✅ SUCCESS - Message saved:', messageRef.id);
@@ -221,7 +223,7 @@ async function handleStatusUpdate(payload: Partial<TwilioWebhookPayload>) {
       });
       console.log('✅ Status updated');
     } else {
-      console.warn('⚠️ Message not found:', payload.MessageSid);
+      console.warn('⚠️ Message not found for status update:', payload.MessageSid);
     }
   } catch (error) {
     console.error('❌ Error updating status:', error);

@@ -1,4 +1,3 @@
-
 // src/app/partner/(protected)/messaging/page.tsx
 "use client";
 
@@ -150,14 +149,19 @@ export default function MessagingPage() {
     );
 
     const unsubscribe = onSnapshot(messagesQuery, (snapshot) => {
-      const msgs = snapshot.docs.map(doc => ({
+      const newMessages = snapshot.docs.map(doc => ({
         id: doc.id, ...doc.data(), platform: selectedConversation.platform
       } as UnifiedMessage));
-      setMessages(msgs);
-      setIsLoadingMessages(false);
-      if (msgs.length > messages.length && audioRef.current) {
-        audioRef.current.play().catch(e => console.log("Audio play failed:", e));
+      
+      // Play sound only if new messages have arrived
+      if (newMessages.length > messages.length && messages.length > 0) {
+        const lastNewMessage = newMessages[newMessages.length - 1];
+        if (lastNewMessage.direction === 'inbound') {
+            audioRef.current?.play().catch(e => console.log("Audio play failed:", e));
+        }
       }
+      setMessages(newMessages);
+      setIsLoadingMessages(false);
     });
 
     return () => unsubscribe();
@@ -489,4 +493,3 @@ export default function MessagingPage() {
     </div>
   );
 }
-

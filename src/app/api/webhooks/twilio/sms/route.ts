@@ -1,7 +1,7 @@
 // src/app/api/webhooks/twilio/sms/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/firebase-admin';
-import { FieldValue } from 'firebase-admin/firestore';
+import { FieldValue, query, where, getDocs, limit, collection, doc, setDoc, updateDoc, addDoc } from 'firebase-admin/firestore';
 import type { TwilioSMSWebhookPayload, SMSMessage, SMSConversation } from '@/lib/types';
 
 /**
@@ -11,10 +11,10 @@ async function getPartnerIdFromPhone(toPhone: string): Promise<string> {
   console.log('🔍 [SMS] Looking up partner for Twilio number:', toPhone);
   if (!db) {
     console.error('❌ [SMS] Firestore is not initialized.');
-    return 'system';
+    return 'system_default'; // A default that won't match any partner
   }
 
-  const partnersRef = db.collection('partners');
+  const partnersRef = collection(db, 'partners');
   const q = query(partnersRef, where('phone', '==', toPhone), limit(1));
   const snapshot = await getDocs(q);
 
@@ -23,8 +23,8 @@ async function getPartnerIdFromPhone(toPhone: string): Promise<string> {
     console.log(`✅ [SMS] Found partnerId '${partnerId}' for number ${toPhone}`);
     return partnerId;
   } else {
-    console.warn(`⚠️ [SMS] No partner found for number ${toPhone}. Using 'system'.`);
-    return 'system';
+    console.warn(`⚠️ [SMS] No partner found for number ${toPhone}. Message will not be associated with a partner.`);
+    return 'system_default';
   }
 }
 
@@ -85,17 +85,21 @@ async function handleIncomingMessage(payload: TwilioSMSWebhookPayload) {
 
   // Get partnerId from phone mapping
   const partnerId = await getPartnerIdFromPhone(toPhone);
+  if (partnerId === 'system_default') {
+      console.error(`Could not find partner for inbound message to ${toPhone}. Aborting.`);
+      return;
+  }
 
   // Find or create conversation
   let conversationId: string;
-  const conversationsSnapshot = await getDocs(
-    query(
-      collection(db, 'smsConversations'),
+  const conversationsRef = collection(db, 'smsConversations');
+  const q = query(
+      conversationsRef,
       where('customerPhone', '==', fromPhone),
       where('partnerId', '==', partnerId),
       limit(1)
-    )
   );
+  const conversationsSnapshot = await getDocs(q);
 
   if (conversationsSnapshot.empty) {
     // Create new conversation
@@ -111,7 +115,7 @@ async function handleIncomingMessage(payload: TwilioSMSWebhookPayload) {
       participants: [],
       isActive: true,
       messageCount: 1,
-      createdBy: 'system',
+      createdBy: 'customer',
       createdAt: FieldValue.serverTimestamp(),
       lastMessageAt: FieldValue.serverTimestamp(),
     };
@@ -137,7 +141,7 @@ async function handleIncomingMessage(payload: TwilioSMSWebhookPayload) {
     platform: 'sms',
     smsMetadata: {
       twilioSid: payload.MessageSid,
-      twilioStatus: 'delivered',
+      twilioStatus: 'received',
       to: payload.To,
       from: payload.From,
     },
@@ -172,16 +176,18 @@ async function handleStatusUpdate(payload: Partial<TwilioSMSWebhookPayload>) {
   if (!status) {
     return;
   }
-
-  const snapshot = await getDocs(
-    query(
-      collection(db, 'smsMessages'),
+  
+  const messagesRef = collection(db, 'smsMessages');
+  const q = query(
+      messagesRef,
       where('smsMetadata.twilioSid', '==', payload.MessageSid),
       limit(1)
-    )
   );
 
+  const snapshot = await getDocs(q);
+
   if (!snapshot.empty) {
+    const messageDoc = snapshot.docs[0];
     const updateData: any = {
       'smsMetadata.twilioStatus': status,
       updatedAt: FieldValue.serverTimestamp(),
@@ -193,7 +199,7 @@ async function handleStatusUpdate(payload: Partial<TwilioSMSWebhookPayload>) {
       updateData['smsMetadata.errorMessage'] = `Error ${payload.ErrorCode}`;
     }
 
-    await updateDoc(snapshot.docs[0].ref, updateData);
+    await updateDoc(messageDoc.ref, updateData);
     console.log('✅ SMS: Updated message status:', payload.MessageSid, status);
   } else {
     console.warn('⚠️ SMS: Message SID not found for status update:', payload.MessageSid);
