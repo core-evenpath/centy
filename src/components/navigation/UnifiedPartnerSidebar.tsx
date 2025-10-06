@@ -88,9 +88,9 @@ export default function UnifiedPartnerSidebar() {
       badge: stats?.pendingTasks || null
     },
     { 
-      icon: MessageSquare, 
-      label: 'Message Studio', 
-      href: '/partner/message-studio',
+      icon: Layers, 
+      label: 'Content Studio', 
+      href: '/partner/content-studio',
       badge: null 
     },
     { 
