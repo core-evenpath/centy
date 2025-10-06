@@ -50,12 +50,11 @@ export async function POST(request: NextRequest) {
 }
 
 /**
- * Get partnerId from Twilio phone number mapping or use default
+ * Get partnerId from Twilio phone number or Messaging Service mapping
  */
-async function getPartnerIdFromPhone(toPhone: string): Promise<string> {
+async function getPartnerIdFromPhone(toPhone: string, messagingServiceSid?: string): Promise<string> {
   if (!db) {
     console.error('❌ Database not configured');
-    // Use environment variable or return a default
     const defaultPartnerId = process.env.DEFAULT_PARTNER_ID || process.env.NEXT_PUBLIC_DEFAULT_PARTNER_ID;
     if (defaultPartnerId) {
       console.log(`✅ Using DEFAULT_PARTNER_ID from environment: ${defaultPartnerId}`);
@@ -65,6 +64,20 @@ async function getPartnerIdFromPhone(toPhone: string): Promise<string> {
   }
 
   try {
+    // First, try to find mapping by Messaging Service SID if provided
+    if (messagingServiceSid) {
+      console.log('🔍 Looking up Messaging Service mapping for:', messagingServiceSid);
+      const serviceMappingDoc = await db.collection('twilioPhoneMappings').doc(messagingServiceSid).get();
+      
+      if (serviceMappingDoc.exists) {
+        const data = serviceMappingDoc.data();
+        console.log(`✅ Found Messaging Service mapping: partnerId=${data?.partnerId}`);
+        return data?.partnerId || await getDefaultPartnerId();
+      }
+      console.log('⚠️ No Messaging Service mapping found, trying phone number...');
+    }
+
+    // Fall back to phone number lookup
     const lookupId = toPhone.startsWith('whatsapp:') ? toPhone : `whatsapp:${toPhone}`;
     console.log('🔍 Looking up phone mapping for:', lookupId);
     
@@ -72,14 +85,14 @@ async function getPartnerIdFromPhone(toPhone: string): Promise<string> {
     
     if (mappingDoc.exists) {
       const data = mappingDoc.data();
-      console.log(`✅ Found mapping: partnerId=${data?.partnerId}`);
+      console.log(`✅ Found phone mapping: partnerId=${data?.partnerId}`);
       return data?.partnerId || await getDefaultPartnerId();
     }
     
     console.warn(`⚠️ No mapping found for ${lookupId}, using default partnerId`);
     return await getDefaultPartnerId();
   } catch (error) {
-    console.error('❌ Error fetching phone mapping:', error);
+    console.error('❌ Error fetching mapping:', error);
     return await getDefaultPartnerId();
   }
 }
@@ -133,12 +146,14 @@ async function handleIncomingMessage(payload: TwilioWebhookPayload) {
 
   const fromPhone = payload.From.replace('whatsapp:', '');
   const toPhone = payload.To;
+  const messagingServiceSid = payload.MessagingServiceSid;
 
   console.log('  From (customer):', fromPhone);
   console.log('  To (business):', toPhone);
+  console.log('  Messaging Service SID:', messagingServiceSid || 'N/A');
 
-  // Get partnerId
-  const partnerId = await getPartnerIdFromPhone(toPhone);
+  // Get partnerId (checks both Messaging Service SID and phone number)
+  const partnerId = await getPartnerIdFromPhone(toPhone, messagingServiceSid);
   console.log('  Assigned partnerId:', partnerId);
 
   // Find or create conversation
