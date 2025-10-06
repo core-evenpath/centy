@@ -5,8 +5,7 @@ import twilio from 'twilio';
 
 const accountSid = process.env.TWILIO_ACCOUNT_SID;
 const authToken = process.env.TWILIO_AUTH_TOKEN;
-const twilioPhoneNumber = process.env.TWILIO_PHONE_NUMBER;
-const twilioWhatsAppNumber = process.env.TWILIO_WHATSAPP_NUMBER;
+const messagingServiceSid = process.env.TWILIO_MESSAGING_SERVICE_SID;
 
 let twilioClient: twilio.Twilio | null = null;
 
@@ -37,30 +36,29 @@ export interface TwilioMessageResponse {
   sid: string;
   status: string;
   to: string;
-  from: string;
+  from: string | null;
   body: string;
   errorCode?: string | null;
   errorMessage?: string | null;
 }
 
 /**
- * Send an SMS message via Twilio
+ * Send an SMS message via Twilio using a Messaging Service
  */
 export async function sendSMS(options: SendSMSOptions): Promise<TwilioMessageResponse> {
   try {
     const client = getTwilioClient();
     
-    if (!twilioPhoneNumber) {
-      throw new Error('TWILIO_PHONE_NUMBER not configured');
+    if (!messagingServiceSid) {
+      throw new Error('TWILIO_MESSAGING_SERVICE_SID not configured');
     }
 
-    // Format phone number for SMS (E.164 format)
     const formattedTo = options.to.startsWith('+') 
       ? options.to 
       : `+${options.to}`;
     
     const messageParams: any = {
-      from: twilioPhoneNumber,
+      messagingServiceSid: messagingServiceSid,
       to: formattedTo,
       body: options.body,
     };
@@ -83,22 +81,20 @@ export async function sendSMS(options: SendSMSOptions): Promise<TwilioMessageRes
 }
 
 /**
- * Send a WhatsApp message via Twilio
+ * Send a WhatsApp message via Twilio using a Messaging Service
  */
 export async function sendWhatsAppMessage(options: SendWhatsAppMessageOptions): Promise<TwilioMessageResponse> {
   try {
     const client = getTwilioClient();
     
-    if (!twilioWhatsAppNumber) {
-      throw new Error('TWILIO_WHATSAPP_NUMBER not configured');
+    if (!messagingServiceSid) {
+      throw new Error('TWILIO_MESSAGING_SERVICE_SID not configured');
     }
 
-    // Format phone numbers for WhatsApp
     const to = `whatsapp:${options.to.startsWith('+') ? options.to : '+' + options.to}`;
-    const from = `whatsapp:${twilioWhatsAppNumber}`;
     
     const messageParams: any = {
-      from,
+      messagingServiceSid: messagingServiceSid,
       to,
       body: options.body,
     };
