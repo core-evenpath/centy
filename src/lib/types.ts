@@ -124,6 +124,7 @@ export interface Partner {
   contactPerson: string;
   email: string;
   phone: string;
+  whatsAppPhone?: string;
   status: 'active' | 'pending' | 'suspended';
   isActivePlanUser?: boolean;
   plan: 'Starter' | 'Professional' | 'Enterprise';

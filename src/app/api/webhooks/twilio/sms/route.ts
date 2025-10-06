@@ -5,10 +5,36 @@ import { FieldValue } from 'firebase-admin/firestore';
 import type { TwilioSMSWebhookPayload, SMSMessage, SMSConversation } from '@/lib/types';
 
 /**
+ * Get partnerId from the Twilio phone number the message was sent TO.
+ */
+async function getPartnerIdFromPhone(toPhone: string): Promise<string> {
+  console.log('🔍 [SMS] Looking up partner for Twilio number:', toPhone);
+  if (!db) {
+    console.error('❌ [SMS] Firestore is not initialized.');
+    return 'system';
+  }
+
+  const partnersRef = db.collection('partners');
+  const q = query(partnersRef, where('phone', '==', toPhone), limit(1));
+  const snapshot = await getDocs(q);
+
+  if (!snapshot.empty) {
+    const partnerId = snapshot.docs[0].id;
+    console.log(`✅ [SMS] Found partnerId '${partnerId}' for number ${toPhone}`);
+    return partnerId;
+  } else {
+    console.warn(`⚠️ [SMS] No partner found for number ${toPhone}. Using 'system'.`);
+    return 'system';
+  }
+}
+
+/**
  * Twilio SMS webhook endpoint
  * Receives incoming SMS messages and status updates
  */
 export async function POST(request: NextRequest) {
+  console.log('='.repeat(80));
+  console.log('🔔 SMS WEBHOOK CALLED AT:', new Date().toISOString());
   try {
     const formData = await request.formData();
     const payload: Partial<TwilioSMSWebhookPayload> = {};
@@ -18,57 +44,31 @@ export async function POST(request: NextRequest) {
       payload[key as keyof TwilioSMSWebhookPayload] = value.toString();
     });
 
-    console.log('Received Twilio SMS webhook:', payload);
+    console.log('📦 SMS PAYLOAD:', JSON.stringify(payload, null, 2));
 
     // Handle status callbacks
     if (payload.MessageStatus || payload.SmsStatus) {
+      console.log('🔄 SMS: Processing status update');
       await handleStatusUpdate(payload);
       return NextResponse.json({ success: true, message: 'Status updated' });
     }
 
     // Handle incoming messages
     if (payload.Body && payload.From && payload.To) {
+      console.log('📨 SMS: Processing incoming message');
       await handleIncomingMessage(payload as TwilioSMSWebhookPayload);
       return NextResponse.json({ success: true, message: 'Message received' });
     }
 
+    console.warn('⚠️ SMS: Invalid payload structure');
     return NextResponse.json({ success: false, message: 'Invalid payload' }, { status: 400 });
   } catch (error: any) {
-    console.error('Error processing Twilio SMS webhook:', error);
+    console.error('❌ SMS: CRITICAL ERROR:', error);
     return NextResponse.json(
       { success: false, message: error.message },
       { status: 500 }
     );
   }
-}
-
-/**
- * Get partnerId from the Twilio phone number the message was sent TO using the environment map.
- */
-async function getPartnerIdFromPhone(toPhone: string): Promise<string> {
-    console.log('🔍 [SMS] Looking up partner for Twilio number:', toPhone);
-    const mappingStr = process.env.TWILIO_SMS_TO_PARTNER_MAP;
-  
-    if (!mappingStr) {
-      console.error('❌ [SMS] TWILIO_SMS_TO_PARTNER_MAP environment variable is not set.');
-      return 'system';
-    }
-  
-    try {
-      const mapping = JSON.parse(mappingStr);
-      const partnerId = mapping[toPhone];
-  
-      if (partnerId) {
-        console.log(`✅ [SMS] Found partnerId '${partnerId}' for number ${toPhone}`);
-        return partnerId;
-      } else {
-        console.warn(`⚠️ [SMS] No partner found in map for number ${toPhone}. Using 'system'.`);
-        return 'system';
-      }
-    } catch (error) {
-      console.error('❌ [SMS] Failed to parse TWILIO_SMS_TO_PARTNER_MAP. Ensure it is valid JSON.', error);
-      return 'system';
-    }
 }
 
 
@@ -88,21 +88,22 @@ async function handleIncomingMessage(payload: TwilioSMSWebhookPayload) {
 
   // Find or create conversation
   let conversationId: string;
-  const conversationsSnapshot = await db
-    .collection('smsConversations')
-    .where('customerPhone', '==', fromPhone)
-    .where('partnerId', '==', partnerId)
-    .limit(1)
-    .get();
+  const conversationsSnapshot = await getDocs(
+    query(
+      collection(db, 'smsConversations'),
+      where('customerPhone', '==', fromPhone),
+      where('partnerId', '==', partnerId),
+      limit(1)
+    )
+  );
 
   if (conversationsSnapshot.empty) {
     // Create new conversation
-    const conversationRef = db.collection('smsConversations').doc();
+    const conversationRef = doc(collection(db, 'smsConversations'));
     conversationId = conversationRef.id;
 
     const newConversation: Partial<SMSConversation> = {
-      id: conversationId,
-      partnerId: partnerId, // Use the looked-up partnerId
+      partnerId: partnerId,
       type: 'direct',
       platform: 'sms',
       title: `SMS: ${fromPhone}`,
@@ -115,18 +116,17 @@ async function handleIncomingMessage(payload: TwilioSMSWebhookPayload) {
       lastMessageAt: FieldValue.serverTimestamp(),
     };
     
-    await conversationRef.set(newConversation);
-
+    await setDoc(conversationRef, newConversation);
   } else {
-    conversationId = conversationsSnapshot.docs[0].id;
-    await conversationsSnapshot.docs[0].ref.update({
+    const conversationDoc = conversationsSnapshot.docs[0];
+    conversationId = conversationDoc.id;
+    await updateDoc(conversationDoc.ref, {
       lastMessageAt: FieldValue.serverTimestamp(),
       messageCount: FieldValue.increment(1),
     });
   }
 
   // Store incoming message
-  const messageRef = db.collection('smsMessages').doc();
   const messageData: Partial<SMSMessage> = {
     conversationId,
     partnerId: partnerId, // Ensure partnerId is stored
@@ -148,7 +148,6 @@ async function handleIncomingMessage(payload: TwilioSMSWebhookPayload) {
   // Add media attachments if present
   if (payload.MediaUrl0) {
     (messageData as any).attachments = [{
-      id: messageRef.id,
       type: 'image',
       name: 'media',
       url: payload.MediaUrl0,
@@ -157,9 +156,8 @@ async function handleIncomingMessage(payload: TwilioSMSWebhookPayload) {
     }];
   }
 
-  await messageRef.set(messageData);
-
-  console.log('Stored incoming SMS message:', messageRef.id, 'for partnerId:', partnerId);
+  await addDoc(collection(db, 'smsMessages'), messageData);
+  console.log('✅ SMS: Stored incoming message for partnerId:', partnerId);
 }
 
 /**
@@ -175,11 +173,13 @@ async function handleStatusUpdate(payload: Partial<TwilioSMSWebhookPayload>) {
     return;
   }
 
-  const snapshot = await db
-    .collection('smsMessages')
-    .where('smsMetadata.twilioSid', '==', payload.MessageSid)
-    .limit(1)
-    .get();
+  const snapshot = await getDocs(
+    query(
+      collection(db, 'smsMessages'),
+      where('smsMetadata.twilioSid', '==', payload.MessageSid),
+      limit(1)
+    )
+  );
 
   if (!snapshot.empty) {
     const updateData: any = {
@@ -193,8 +193,9 @@ async function handleStatusUpdate(payload: Partial<TwilioSMSWebhookPayload>) {
       updateData['smsMetadata.errorMessage'] = `Error ${payload.ErrorCode}`;
     }
 
-    await snapshot.docs[0].ref.update(updateData);
-
-    console.log('Updated SMS message status:', payload.MessageSid, status);
+    await updateDoc(snapshot.docs[0].ref, updateData);
+    console.log('✅ SMS: Updated message status:', payload.MessageSid, status);
+  } else {
+    console.warn('⚠️ SMS: Message SID not found for status update:', payload.MessageSid);
   }
 }

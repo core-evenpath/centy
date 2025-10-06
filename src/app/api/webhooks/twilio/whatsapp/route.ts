@@ -1,8 +1,36 @@
 // src/app/api/webhooks/twilio/whatsapp/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/firebase-admin';
-import { FieldValue } from 'firebase-admin/firestore';
+import { FieldValue, query, where, getDocs, limit, collection, doc, setDoc, updateDoc, addDoc } from 'firebase-admin/firestore';
 import type { TwilioWebhookPayload, WhatsAppMessage, WhatsAppConversation } from '@/lib/types';
+
+
+/**
+ * Get partnerId from the Twilio WhatsApp number the message was sent TO.
+ */
+async function getPartnerIdFromPhone(toPhoneWithPrefix: string): Promise<string> {
+  console.log('🔍 [WhatsApp] Looking up partner for Twilio number:', toPhoneWithPrefix);
+  if (!db) {
+    console.error('❌ [WhatsApp] Firestore is not initialized.');
+    return 'system';
+  }
+  
+  const toPhone = toPhoneWithPrefix.replace('whatsapp:', '');
+
+  const partnersRef = collection(db, 'partners');
+  const q = query(partnersRef, where('whatsAppPhone', '==', toPhone), limit(1));
+  const snapshot = await getDocs(q);
+
+  if (!snapshot.empty) {
+    const partnerId = snapshot.docs[0].id;
+    console.log(`✅ [WhatsApp] Found partnerId '${partnerId}' for number ${toPhone}`);
+    return partnerId;
+  } else {
+    console.warn(`⚠️ [WhatsApp] No partner found for number ${toPhone}. Using 'system'.`);
+    return 'system';
+  }
+}
+
 
 /**
  * Twilio WhatsApp webhook endpoint
@@ -20,26 +48,26 @@ export async function POST(request: NextRequest) {
       payload[key as keyof TwilioWebhookPayload] = value.toString();
     });
 
-    console.log('📦 FULL PAYLOAD:', JSON.stringify(payload, null, 2));
+    console.log('📦 WHATSAPP PAYLOAD:', JSON.stringify(payload, null, 2));
 
     // Handle status callbacks
     if (payload.MessageStatus) {
-      console.log('🔄 Processing status update');
+      console.log('🔄 WhatsApp: Processing status update');
       await handleStatusUpdate(payload);
       return NextResponse.json({ success: true, message: 'Status updated' });
     }
 
     // Handle incoming messages
     if (payload.Body && payload.From && payload.To) {
-      console.log('📨 Processing incoming message');
+      console.log('📨 WhatsApp: Processing incoming message');
       await handleIncomingMessage(payload as TwilioWebhookPayload);
       return NextResponse.json({ success: true, message: 'Message received' });
     }
 
-    console.warn('⚠️ Invalid payload structure');
+    console.warn('⚠️ WhatsApp: Invalid payload structure');
     return NextResponse.json({ success: false, message: 'Invalid payload' }, { status: 400 });
   } catch (error: any) {
-    console.error('❌ CRITICAL ERROR:', error);
+    console.error('❌ WhatsApp: CRITICAL ERROR:', error);
     console.error('Error stack:', error.stack);
     console.error('Error message:', error.message);
     return NextResponse.json(
@@ -48,36 +76,6 @@ export async function POST(request: NextRequest) {
     );
   }
 }
-
-/**
- * Get partnerId from the Twilio WhatsApp number the message was sent TO using the environment map.
- */
-async function getPartnerIdFromPhone(toPhone: string): Promise<string> {
-    console.log('🔍 [WhatsApp] Looking up partner for Twilio number:', toPhone);
-    const mappingStr = process.env.TWILIO_WHATSAPP_TO_PARTNER_MAP;
-  
-    if (!mappingStr) {
-      console.error('❌ [WhatsApp] TWILIO_WHATSAPP_TO_PARTNER_MAP environment variable is not set.');
-      return 'system';
-    }
-  
-    try {
-      const mapping = JSON.parse(mappingStr);
-      const partnerId = mapping[toPhone];
-  
-      if (partnerId) {
-        console.log(`✅ [WhatsApp] Found partnerId '${partnerId}' for number ${toPhone}`);
-        return partnerId;
-      } else {
-        console.warn(`⚠️ [WhatsApp] No partner found in map for number ${toPhone}. Using 'system'.`);
-        return 'system';
-      }
-    } catch (error) {
-      console.error('❌ [WhatsApp] Failed to parse TWILIO_WHATSAPP_TO_PARTNER_MAP. Ensure it is valid JSON.', error);
-      return 'system';
-    }
-}
-
 
 /**
  * Handle incoming WhatsApp message
@@ -103,21 +101,23 @@ async function handleIncomingMessage(payload: TwilioWebhookPayload) {
   let conversationId: string;
   
   try {
-    const conversationsSnapshot = await db
-      .collection('whatsappConversations')
-      .where('customerPhone', '==', fromPhone)
-      .where('partnerId', '==', partnerId)
-      .limit(1)
-      .get();
+    const conversationsRef = collection(db, 'whatsappConversations');
+    const q = query(
+      conversationsRef,
+      where('customerPhone', '==', fromPhone),
+      where('partnerId', '==', partnerId),
+      limit(1)
+    );
+    const conversationsSnapshot = await getDocs(q);
 
     if (conversationsSnapshot.empty) {
       console.log('📝 Creating new conversation...');
       
-      const conversationRef = db.collection('whatsappConversations').doc();
+      const conversationRef = doc(collection(db, 'whatsappConversations'));
       conversationId = conversationRef.id;
 
       const newConversation = {
-        partnerId: partnerId, // Use the looked-up partnerId
+        partnerId: partnerId,
         type: 'direct',
         platform: 'whatsapp',
         title: `WhatsApp: ${fromPhone}`,
@@ -131,14 +131,15 @@ async function handleIncomingMessage(payload: TwilioWebhookPayload) {
       };
       
       console.log('  Conversation data:', JSON.stringify(newConversation, null, 2));
-      await conversationRef.set(newConversation);
+      await setDoc(conversationRef, newConversation);
       console.log('✅ Conversation created:', conversationId);
 
     } else {
-      conversationId = conversationsSnapshot.docs[0].id;
+      const conversationDoc = conversationsSnapshot.docs[0];
+      conversationId = conversationDoc.id;
       console.log('📌 Using existing conversation:', conversationId);
       
-      await conversationsSnapshot.docs[0].ref.update({
+      await updateDoc(conversationDoc.ref, {
         lastMessageAt: FieldValue.serverTimestamp(),
         messageCount: FieldValue.increment(1),
         isActive: true,
@@ -148,7 +149,6 @@ async function handleIncomingMessage(payload: TwilioWebhookPayload) {
 
     // Store incoming message in the correct collection
     console.log('💾 Storing message in whatsappMessages...');
-    const messageRef = db.collection('whatsappMessages').doc();
     
     const messageData: Partial<WhatsAppMessage> = {
       conversationId: conversationId,
@@ -181,7 +181,7 @@ async function handleIncomingMessage(payload: TwilioWebhookPayload) {
     }
 
     console.log('  Message data:', JSON.stringify(messageData, null, 2));
-    await messageRef.set(messageData);
+    const messageRef = await addDoc(collection(db, 'whatsappMessages'), messageData);
     
     console.log('✅ SUCCESS - Message saved:', messageRef.id);
     console.log('='.repeat(80));
@@ -207,14 +207,15 @@ async function handleStatusUpdate(payload: Partial<TwilioWebhookPayload>) {
   try {
     console.log('🔄 Updating message status:', payload.MessageSid, '→', payload.MessageStatus);
 
-    const snapshot = await db
-      .collection('whatsappMessages')
-      .where('whatsappMetadata.twilioSid', '==', payload.MessageSid)
-      .limit(1)
-      .get();
+    const q = query(
+      collection(db, 'whatsappMessages'),
+      where('whatsappMetadata.twilioSid', '==', payload.MessageSid),
+      limit(1)
+    );
+    const snapshot = await getDocs(q);
 
     if (!snapshot.empty) {
-      await snapshot.docs[0].ref.update({
+      await updateDoc(snapshot.docs[0].ref, {
         'whatsappMetadata.twilioStatus': payload.MessageStatus,
         updatedAt: FieldValue.serverTimestamp(),
       });
