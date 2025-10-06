@@ -63,7 +63,6 @@ async function getPartnerIdFromPhone(toPhone: string): Promise<string> {
         console.log('🔍 [WhatsApp] Looking up partner for Twilio number:', twilioWhatsAppNumber);
         
         const partnersRef = db.collection('partners');
-        // CORRECT: Use admin SDK query syntax
         const snapshot = await partnersRef.where("phone", "==", twilioWhatsAppNumber).limit(1).get();
 
         if (!snapshot.empty) {
@@ -156,7 +155,6 @@ async function handleIncomingMessage(payload: TwilioWebhookPayload) {
     const messageRef = db.collection('whatsappMessages').doc();
     
     const messageData = {
-      id: messageRef.id,
       conversationId: conversationId,
       partnerId: partnerId, // CRITICAL: Include partnerId
       senderId: fromPhone,

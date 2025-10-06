@@ -55,7 +55,6 @@ async function getPartnerIdFromPhone(toPhone: string): Promise<string> {
     console.log('🔍 [SMS] Looking up partner for Twilio number:', toPhone);
     
     const partnersRef = db.collection('partners');
-    // CORRECT: Use admin SDK query syntax
     const snapshot = await partnersRef.where("phone", "==", toPhone).limit(1).get();
 
     if (!snapshot.empty) {
@@ -131,7 +130,6 @@ async function handleIncomingMessage(payload: TwilioSMSWebhookPayload) {
   // Store incoming message
   const messageRef = db.collection('smsMessages').doc();
   const messageData: Partial<SMSMessage> = {
-    id: messageRef.id,
     conversationId,
     partnerId: partnerId, // Ensure partnerId is stored
     senderId: fromPhone,
