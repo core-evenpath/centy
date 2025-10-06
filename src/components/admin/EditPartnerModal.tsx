@@ -24,6 +24,7 @@ import {
 } from "../ui/alert-dialog"
 import { Input } from "../ui/input";
 import { Label } from "../ui/label";
+import { Switch } from '../ui/switch';
 import {
   Select,
   SelectContent,
@@ -55,6 +56,10 @@ export default function EditPartnerModal({ isOpen, onClose, partner, onSave, onD
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
+  };
+  
+  const handleSwitchChange = (name: string, checked: boolean) => {
+    setFormData(prev => ({ ...prev, [name]: checked }));
   };
 
   const handleSelectChange = (name: string, value: string) => {
@@ -173,7 +178,7 @@ export default function EditPartnerModal({ isOpen, onClose, partner, onSave, onD
                     <Input id="state" name="state" value={formData.location.state} onChange={(e) => handleNestedInputChange('location', 'state', e.target.value)} />
                 </div>
             </div>
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-3 gap-4 items-center">
                 <div>
                     <Label htmlFor="plan">Plan</Label>
                     <Select name="plan" value={formData.plan} onValueChange={(value) => handleSelectChange('plan', value)}>
@@ -221,6 +226,14 @@ export default function EditPartnerModal({ isOpen, onClose, partner, onSave, onD
                 <Label htmlFor="aiProfileCompleteness">AI Profile %</Label>
                 <Input id="aiProfileCompleteness" name="aiProfileCompleteness" type="number" value={formData.aiProfileCompleteness} onChange={handleInputChange} />
               </div>
+            </div>
+            <div className="flex items-center space-x-2">
+                <Switch 
+                    id="isActivePlanUser" 
+                    checked={formData.isActivePlanUser}
+                    onCheckedChange={(checked) => handleSwitchChange('isActivePlanUser', checked)}
+                />
+                <Label htmlFor="isActivePlanUser">Active Plan User</Label>
             </div>
           </div>
 

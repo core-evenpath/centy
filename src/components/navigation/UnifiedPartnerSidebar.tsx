@@ -41,7 +41,8 @@ import { useMultiWorkspaceAuth } from '../../hooks/use-multi-workspace-auth';
 import { useToast } from '../../hooks/use-toast';
 import { getAuth, signOut } from 'firebase/auth';
 import { app } from '../../lib/firebase';
-import type { WorkspaceAccess } from '../../lib/types';
+import type { WorkspaceAccess, Partner } from '../../lib/types';
+import { getPartnerProfileAction } from '@/actions/get-partner-profile';
 
 interface MenuItem {
   icon: any;
@@ -71,9 +72,29 @@ export default function UnifiedPartnerSidebar() {
 
   const [stats, setStats] = useState<SidebarStats>({});
   const [isWorkspaceSwitching, setIsWorkspaceSwitching] = useState(false);
+  const [partner, setPartner] = useState<Partner | null>(null);
 
-  // Updated menu items as per your request
-  const menuItems: MenuItem[] = [
+  useEffect(() => {
+    async function fetchPartnerProfile() {
+        if (!currentWorkspace?.partnerId) return;
+
+        try {
+            const result = await getPartnerProfileAction(currentWorkspace.partnerId);
+            
+            if (result.success && result.partner) {
+                setPartner(result.partner);
+            } else {
+                console.error("Could not fetch partner profile for sidebar:", result.message)
+            }
+        } catch (err: any) {
+            console.error('Error fetching partner profile for sidebar:', err);
+        }
+    }
+
+    fetchPartnerProfile();
+  }, [currentWorkspace?.partnerId]);
+
+  const allMenuItems: MenuItem[] = [
     { 
       icon: MessageSquare, 
       label: 'Messaging', 
@@ -100,6 +121,10 @@ export default function UnifiedPartnerSidebar() {
       badge: null 
     },
   ];
+
+  const menuItems = partner?.isActivePlanUser 
+    ? allMenuItems 
+    : allMenuItems.filter(item => item.label === 'Tasks' || item.label === 'Settings');
 
   // Load sidebar stats
   useEffect(() => {

@@ -125,6 +125,7 @@ export interface Partner {
   email: string;
   phone: string;
   status: 'active' | 'pending' | 'suspended';
+  isActivePlanUser?: boolean;
   plan: 'Starter' | 'Professional' | 'Enterprise';
   joinedDate: string;
   industry: Industry | null;
