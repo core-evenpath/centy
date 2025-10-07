@@ -1,3 +1,4 @@
+
 // ============================================================================
 // FIREBASE BACKEND VARIABLES
 // ============================================================================
@@ -887,11 +888,15 @@ export interface Task {
   workflow: string;
   priority: 'high' | 'medium' | 'low';
   status: 'assigned' | 'in_progress' | 'awaiting_approval' | 'completed';
-  dueDate?: string;
+  dueDate?: Date | null;
   assignee?: string;
   partnerId: string;
   createdAt?: any;
   updatedAt?: any;
+  assigneeName?: string;
+  assigneeEmail?: string;
+  tenantId?: string;
+  completedAt?: Date | null;
 }
 
 export interface TeamMember {
@@ -1173,7 +1178,7 @@ export interface ChatMessage {
 
 export interface MessageAttachment {
   id: string;
-  type: 'file' | 'image' | 'document';
+  type: 'image' | 'file' | 'document' | 'video' | 'audio';
   name: string;
   url: string;
   size: number;
@@ -1186,151 +1191,50 @@ export interface MessageReaction {
   count: number;
 }
 
-export interface TeamMember {
+// ============================================================================
+// 12. CAMPAIGN & CONTACTS VARIABLES
+// ============================================================================
+export interface Campaign {
   id: string;
-  partnerId: string;
-  userId: string;
   name: string;
-  email: string;
-  role: string;
-  status: 'active' | 'inactive' | 'pending' | 'suspended';
-  phoneNumber?: string;
-  avatar?: string;
-  joinedAt: any; // Firebase Timestamp
-  lastActiveAt?: any; // Firebase Timestamp
-  permissions?: string[];
-}
-
-// Ensure UserProfile exists
-export interface UserProfile {
-  uid: string;
-  email: string;
-  displayName?: string;
-  name?: string;
-  phoneNumber?: string;
-  avatar?: string;
-  role?: string;
-  status?: 'active' | 'inactive';
-  partnerId?: string;
-  workspaces?: WorkspaceAccess[];
-}
-
-
-// ============================================================================
-// WHATSAPP MESSAGING TYPES
-// ============================================================================
-
-export interface WhatsAppMessage extends ChatMessage {
-  whatsappMetadata: {
-    twilioSid?: string;
-    twilioStatus?: 'queued' | 'sent' | 'delivered' | 'read' | 'failed' | 'undelivered';
-    to: string; // WhatsApp number in format: whatsapp:+1234567890
-    from: string; // Twilio WhatsApp number
-    errorCode?: string;
-    errorMessage?: string;
-    numMedia?: number;
-    mediaUrls?: string[];
-  };
-  direction: 'outbound' | 'inbound';
-  platform: 'whatsapp';
-}
-
-export interface WhatsAppConversation extends Conversation {
-  platform: 'whatsapp';
-  customerPhone: string; // WhatsApp number
-  customerName?: string;
-  lastWhatsAppStatus?: 'active' | 'opt_out' | 'blocked';
-}
-
-export interface TwilioWebhookPayload {
-  MessageSid: string;
-  AccountSid: string;
-  MessagingServiceSid?: string;
-  From: string; // whatsapp:+1234567890
-  To: string; // whatsapp:+1234567890
-  Body: string;
-  NumMedia?: string;
-  MediaUrl0?: string;
-  MediaContentType0?: string;
-  SmsStatus?: string;
-  MessageStatus?: string;
-  ApiVersion?: string;
-  SmsSid?: string;
-}
-
-export interface SendWhatsAppMessageInput {
   partnerId: string;
-  to: string; // Phone number without whatsapp: prefix
+  status: 'draft' | 'scheduled' | 'sent' | 'archived';
   message: string;
-  conversationId?: string;
-  mediaUrl?: string;
-}
-
-export interface SendWhatsAppMessageResult {
-  success: boolean;
-  message: string;
-  messageId?: string;
-  twilioSid?: string;
-  conversationId?: string;
-}
-
-// ============================================================================
-// SMS MESSAGING TYPES
-// ============================================================================
-
-export interface SMSMessage extends ChatMessage {
-  smsMetadata: {
-    twilioSid?: string;
-    twilioStatus?: 'queued' | 'sent' | 'delivered' | 'failed' | 'undelivered';
-    to: string; // Phone number in E.164 format: +1234567890
-    from: string; // Twilio phone number
-    errorCode?: string;
-    errorMessage?: string;
+  recipients: {
+    contacts: string[];
+    groups: string[];
   };
-  direction: 'outbound' | 'inbound';
-  platform: 'sms';
+  sentCount: number;
+  engagementRate: number;
+  revenueGenerated: number;
+  createdAt: any; // Firebase Timestamp
+  sentAt?: any; // Firebase Timestamp
 }
 
-export interface SMSConversation extends Conversation {
-  platform: 'sms';
-  customerPhone: string; // Phone number
-  customerName?: string;
-  lastSMSStatus?: 'active' | 'opt_out' | 'blocked';
-}
-
-export interface TwilioSMSWebhookPayload {
-  MessageSid: string;
-  AccountSid: string;
-  MessagingServiceSid?: string;
-  From: string; // +1234567890
-  To: string; // +1234567890
-  Body: string;
-  NumMedia?: string;
-  MediaUrl0?: string;
-  MediaContentType0?: string;
-  SmsStatus?: string;
-  MessageStatus?: string;
-  ApiVersion?: string;
-  SmsSid?: string;
-}
-
-export interface SendSMSInput {
+export interface Contact {
+  id: string;
+  name: string;
   partnerId: string;
-  to: string; // Phone number in E.164 format
-  message: string;
-  conversationId?: string;
+  email?: string;
+  phone: string;
+  status: 'active' | 'inactive';
+  groups?: string[];
+  createdAt?: any;
+  updatedAt?: any;
 }
 
-export interface SendSMSResult {
-  success: boolean;
-  message: string;
-  messageId?: string;
-  twilioSid?: string;
-  conversationId?: string;
+export interface ContactGroup {
+  id: string;
+  name: string;
+  partnerId: string;
+  description?: string;
+  contactCount: number;
+  createdAt?: any;
 }
+
 
 // ============================================================================
-// 12. SYSTEM CONFIGURATION VARIABLES
+// SYSTEM CONFIGURATION VARIABLES
 // ============================================================================
 
 export interface SystemConfig {
@@ -1385,7 +1289,7 @@ export interface AuditLog {
 }
 
 // ============================================================================
-// 13. FILE MANAGEMENT VARIABLES
+// FILE MANAGEMENT VARIABLES
 // ============================================================================
 
 export interface FileUpload {
@@ -1419,7 +1323,7 @@ export interface StorageQuota {
 }
 
 // ============================================================================
-// 14. BILLING & SUBSCRIPTION VARIABLES
+// BILLING & SUBSCRIPTION VARIABLES
 // ============================================================================
 
 export interface Invoice {
@@ -1494,7 +1398,7 @@ export interface PlanLimit {
 }
 
 // ============================================================================
-// 15. WEBHOOK & EVENT VARIABLES
+// WEBHOOK & EVENT VARIABLES
 // ============================================================================
 
 export interface WebhookEndpoint {
@@ -1537,7 +1441,7 @@ export interface SystemEvent {
 }
 
 // ============================================================================
-// 16. UTILITY & HELPER TYPES
+// UTILITY & HELPER TYPES
 // ============================================================================
 
 export interface FirebaseTimestamp {
@@ -1594,65 +1498,7 @@ export interface EscalationRule {
 }
 
 // ============================================================================
-// 17. COLLECTION REFERENCES (FOR FIRESTORE)
-// ============================================================================
-
-export interface FirestoreCollections {
-  // Core Collections
-  users: 'users';
-  partners: 'partners';
-  industries: 'industries';
-  businessProfiles: 'businessProfiles';
-  admins: 'admins';
-  
-  // Workflow Collections
-  workflowTemplates: 'workflowTemplates';
-  workflowInstances: 'workflowInstances';
-  workflowExecutions: 'workflowExecutions';
-  
-  // AI Collections
-  problemDescriptions: 'problemDescriptions';
-  aiGenerationLogs: 'aiGenerationLogs';
-  aiTrainingData: 'aiTrainingData';
-  
-  // Integration Collections
-  apiIntegrations: 'apiIntegrations';
-  partnerAPIConfigurations: 'partnerAPIConfigurations';
-  
-  // Team Collections
-  teamMembers: 'teamMembers';
-  
-  // Analytics Collections
-  analyticsData: 'analyticsData';
-  dashboardWidgets: 'dashboardWidgets';
-  
-  // Communication Collections
-  notifications: 'notifications';
-  conversations: 'conversations';
-  chatMessages: 'chatMessages';
-  
-  // System Collections
-  systemConfig: 'systemConfig';
-  featureFlags: 'featureFlags';
-  auditLogs: 'auditLogs';
-  
-  // File Collections
-  fileUploads: 'fileUploads';
-  storageQuotas: 'storageQuotas';
-  
-  // Billing Collections
-  invoices: 'invoices';
-  usageRecords: 'usageRecords';
-  pricingPlans: 'pricingPlans';
-  
-  // Event Collections
-  webhookEndpoints: 'webhookEndpoints';
-  webhookDeliveries: 'webhookDeliveries';
-  systemEvents: 'systemEvents';
-}
-
-// ============================================================================
-// 18. SECURITY RULES VARIABLES
+// SECURITY RULES VARIABLES
 // ============================================================================
 
 export interface ResourceAccess {
@@ -1691,8 +1537,6 @@ export interface MultiWorkspaceFirebaseAuthUser extends Omit<FirebaseAuthUser, '
   customClaims?: MultiWorkspaceCustomClaims;
 }
 
-// User Workspace Link document structure
-// User Workspace Link document structure
 export interface WorkspaceInvitation {
   id?: string;
   email?: string;
@@ -1735,95 +1579,6 @@ export type PhoneAuthResult = {
     workspaces?: WorkspaceAccess[];
     hasMultipleWorkspaces?: boolean;
 };
-// Add these types to src/lib/types.ts if they don't exist or are incomplete
-
-// Chat-related interfaces (only add if missing from existing types.ts)
-
-export interface ChatMessage {
-  id: string;
-  conversationId: string;
-  senderId: string;
-  sender?: UserProfile;
-  type: 'text' | 'file' | 'image' | 'system' | 'workflow_update';
-  content: string;
-  attachments?: MessageAttachment[];
-  metadata?: any;
-  isEdited: boolean;
-  editedAt?: Date;
-  reactions?: MessageReaction[];
-  replyToId?: string;
-  mentions?: string[];
-  createdAt: any; // Firebase Timestamp
-}
-
-export interface Conversation {
-  id: string;
-  partnerId: string;
-  type: 'general' | 'workflow_specific' | 'support' | 'direct_message' | 'direct' | 'group';
-  title: string;
-  description?: string;
-  participants: ConversationParticipant[] | string[]; // Allow both formats
-  workflowId?: string;
-  isActive: boolean;
-  lastMessageAt?: any; // Firebase Timestamp
-  messageCount: number;
-  createdBy: string;
-  createdAt: any; // Firebase Timestamp
-}
-
-export interface ConversationParticipant {
-  userId: string;
-  user?: UserProfile;
-  role: 'admin' | 'member' | 'observer';
-  joinedAt: Date;
-  lastReadAt?: Date;
-  isActive: boolean;
-}
-
-export interface MessageAttachment {
-  id: string;
-  type: 'file' | 'image' | 'document';
-  name: string;
-  url: string;
-  size: number;
-  mimeType: string;
-}
-
-export interface MessageReaction {
-  emoji: string;
-  users: string[];
-  count: number;
-}
-
-export interface TeamMember {
-  id: string;
-  partnerId: string;
-  userId: string;
-  name: string;
-  email: string;
-  role: string;
-  status: 'active' | 'inactive' | 'pending' | 'suspended';
-  phoneNumber?: string;
-  avatar?: string;
-  joinedAt: any; // Firebase Timestamp
-  lastActiveAt?: any; // Firebase Timestamp
-  permissions?: string[];
-}
-
-// Ensure UserProfile exists
-export interface UserProfile {
-  uid: string;
-  email: string;
-  displayName?: string;
-  name?: string;
-  phoneNumber?: string;
-  avatar?: string;
-  role?: string;
-  status?: 'active' | 'inactive';
-  partnerId?: string;
-  workspaces?: WorkspaceAccess[];
-}
-
 
 // ============================================================================
 // WHATSAPP MESSAGING TYPES

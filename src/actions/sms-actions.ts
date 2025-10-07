@@ -1,3 +1,4 @@
+
 // src/actions/sms-actions.ts
 'use server';
 
@@ -101,10 +102,9 @@ export async function sendSMSAction(input: SendSMSInput): Promise<SendSMSResult>
     // Handle Firestore permission errors
     if (serverError.code === 7 || serverError.message?.includes('PERMISSION_DENIED')) {
       const permissionError = new FirestorePermissionError({
-        path: serverError.ref?.path || 'unknown path',
+        path: 'smsMessages or smsConversations',
         operation: 'write',
-        requestResourceData: serverError.requestData || { info: "data not captured" },
-        // serverError, // This causes serialization issues
+        requestResourceData: { info: "data not captured" },
       });
       throw permissionError;
     }
@@ -153,7 +153,7 @@ export async function sendSmsCampaignAction(input: SendSmsCampaignInput): Promis
         if (!contactIds.has(recipient.id)) {
           const contactDoc = await db.collection(`partners/${input.partnerId}/contacts`).doc(recipient.id).get();
           if (contactDoc.exists) {
-            uniqueContacts.push({ id: contactDoc.id, ...contactDoc.data() } as Contact);
+            uniqueContacts.push({ id: doc.id, ...contactDoc.data() } as Contact);
             contactIds.add(recipient.id);
           }
         }
@@ -193,6 +193,7 @@ export async function sendSmsCampaignAction(input: SendSmsCampaignInput): Promis
     };
   }
 }
+
 
 /**
  * Get SMS conversations for a partner

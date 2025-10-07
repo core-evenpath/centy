@@ -1,41 +1,28 @@
 // src/components/partner/messaging/SecondLevelModals.tsx
 "use client";
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState } from 'react';
 import { Button } from '../../ui/button';
-import { Badge } from '../../ui/badge';
 import { Textarea } from '../../ui/textarea';
-import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import {
-  Plus,
-  Send,
-  X,
-  Upload,
-  Lightbulb,
-  Trash2,
-  Users,
-  User,
   Loader2,
-  Check
+  Send,
 } from 'lucide-react';
 import { useMultiWorkspaceAuth } from '@/hooks/use-multi-workspace-auth';
-import { db } from '@/lib/firebase';
-import { collection, query, onSnapshot } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
-import type { Contact, ContactGroup } from '@/lib/types';
-import { sendSmsCampaignAction } from '@/actions/sms-actions';
-import { cn } from '@/lib/utils';
+import { sendSMSAction } from '@/actions/sms-actions';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '../../ui/dialog';
 import { Input } from '../../ui/input';
 
-// V1 Modal: Replaced with a simple new conversation starter
-export const NewCampaignModal = ({ 
-  isOpen, 
+// This file is simplified to only contain the essential components.
+// The complex modals for templates and groups are removed as per the new focus.
+
+export const NewCampaignModal = ({
+  isOpen,
   onClose,
   onConversationStarted
-}: { 
-  isOpen: boolean; 
+}: {
+  isOpen: boolean;
   onClose: () => void;
   onConversationStarted: (conversationId: string) => void;
 }) => {
@@ -57,7 +44,6 @@ export const NewCampaignModal = ({
 
     setIsSending(true);
     try {
-      // We'll use the SMS action as the primary for this simplified flow
       const result = await sendSMSAction({
         partnerId: currentWorkspace.partnerId,
         to: phoneNumber,
@@ -66,8 +52,8 @@ export const NewCampaignModal = ({
 
       if (result.success && result.conversationId) {
         toast({ title: 'Conversation Started', description: 'Your message has been sent.' });
-        onConversationStarted(result.conversationId); // Pass the ID back
-        onClose(); // Close the modal
+        onConversationStarted(result.conversationId);
+        onClose();
       } else {
         throw new Error(result.message || 'Failed to send message.');
       }
@@ -118,14 +104,4 @@ export const NewCampaignModal = ({
       </DialogContent>
     </Dialog>
   );
-};
-
-
-// These are no longer used for the simple V1 but are kept for potential future use.
-export const NewTemplateModal = ({ setShowNewTemplate }: { setShowNewTemplate: (show: boolean) => void }) => {
-    return <div></div>;
-};
-
-export const NewGroupModal = ({ setShowNewGroup }: { setShowNewGroup: (show: boolean) => void }) => {
-    return <div></div>;
 };
