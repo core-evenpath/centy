@@ -1,4 +1,3 @@
-
 // src/app/partner/(protected)/contacts/page.tsx
 "use client";
 
@@ -45,8 +44,7 @@ export default function ContactsPage() {
 
     const unsubscribe = onSnapshot(q, async (snapshot) => {
       // If the collection is empty on the initial load, seed it.
-      // The onSnapshot listener will then be triggered again with the new data.
-      if (snapshot.empty && contacts.length === 0) {
+      if (snapshot.empty) {
         console.log(`Contacts collection is empty for partner ${partnerId}. Seeding...`);
         try {
           const batch = writeBatch(db);
@@ -57,23 +55,24 @@ export default function ContactsPage() {
           });
           await batch.commit();
           console.log('Sample contacts seeded successfully.');
-          // We don't set state here; we let the listener pick up the new data.
+          // We don't set state here; we let the listener pick up the new data in the next snapshot.
         } catch (seedError) {
           console.error("Error seeding contacts:", seedError);
           setFirestoreError("Failed to initialize sample contacts.");
           setIsLoading(false);
         }
-        return; // Exit early and wait for the listener to fire with new data
+        return; 
       }
 
-      // Always process the data from the snapshot.
+      // Always process the data from the snapshot. This is the source of truth.
       const contactsData = snapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data()
       } as Contact));
-      setContacts(contactsData);
       
+      setContacts(contactsData);
       setIsLoading(false);
+
     }, (error) => {
       console.error("Firestore onSnapshot error:", error);
       setFirestoreError('You do not have permission to view contacts. Please check your security rules.');
@@ -82,6 +81,7 @@ export default function ContactsPage() {
 
     return () => unsubscribe();
   }, [partnerId]);
+
 
   const filteredContacts = useMemo(() => {
     return contacts.filter(contact => {
@@ -211,4 +211,3 @@ export default function ContactsPage() {
     </>
   );
 }
-
