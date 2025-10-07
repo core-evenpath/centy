@@ -44,35 +44,31 @@ export default function ContactsPage() {
     const q = query(collection(db, collectionPath));
 
     const unsubscribe = onSnapshot(q, async (snapshot) => {
-      if (snapshot.empty) {
-        console.log(`Contacts collection is empty for partner ${partnerId}. Seeding...`);
-        try {
-          const batch = writeBatch(db);
-          const seededContacts: Contact[] = [];
-          sampleContacts.forEach(contact => {
-            const docRef = doc(collection(db, collectionPath));
-            const newContact = { ...contact, id: docRef.id, partnerId };
-            batch.set(docRef, newContact);
-            seededContacts.push(newContact as Contact);
-          });
-          await batch.commit();
-          setContacts(seededContacts); // Immediately update state with seeded data
-          console.log('Sample contacts seeded and local state updated.');
-        } catch (seedError) {
-          console.error("Error seeding contacts:", seedError);
-          setFirestoreError("Failed to initialize sample contacts.");
-        } finally {
-          setIsLoading(false);
-        }
-        return;
-      }
-
+      // Always process the snapshot from Firestore.
       const contactsData = snapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data()
       } as Contact));
-      
       setContacts(contactsData);
+
+      // If the collection is empty after the initial read, perform a one-time seed.
+      // The onSnapshot listener will automatically pick up the newly seeded data.
+      if (snapshot.empty) {
+        console.log(`Contacts collection is empty for partner ${partnerId}. Seeding...`);
+        try {
+          const batch = writeBatch(db);
+          sampleContacts.forEach(contact => {
+            const docRef = doc(collection(db, collectionPath));
+            const newContact = { ...contact, id: docRef.id, partnerId };
+            batch.set(docRef, newContact);
+          });
+          await batch.commit();
+          console.log('Sample contacts seeded.');
+        } catch (seedError) {
+          console.error("Error seeding contacts:", seedError);
+          setFirestoreError("Failed to initialize sample contacts.");
+        }
+      }
       setIsLoading(false);
     }, (error) => {
       console.error("Firestore onSnapshot error:", error);
@@ -141,6 +137,7 @@ export default function ContactsPage() {
             {isLoading && (
               <div className="flex items-center justify-center p-8">
                 <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
+                 <span className="ml-2">Loading Contacts...</span>
               </div>
             )}
             
@@ -165,42 +162,44 @@ export default function ContactsPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredContacts.map((contact) => (
-                    <TableRow key={contact.id}>
-                      <TableCell className="font-medium">{contact.name}</TableCell>
-                      <TableCell>{contact.phone}</TableCell>
-                      <TableCell>{contact.email || 'N/A'}</TableCell>
-                      <TableCell>{getStatusBadge(contact.status)}</TableCell>
-                      <TableCell>
-                        <div className="flex flex-wrap gap-1">
-                          {contact.groups?.map(group => <Badge key={group} variant="outline">{group}</Badge>)}
-                        </div>
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon">
-                              <MoreVertical className="w-4 h-4" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent>
-                            <DropdownMenuItem><Edit className="w-4 h-4 mr-2" />Edit</DropdownMenuItem>
-                            <DropdownMenuItem className="text-red-600"><Trash2 className="w-4 h-4 mr-2" />Delete</DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
+                  {filteredContacts.length > 0 ? (
+                    filteredContacts.map((contact) => (
+                      <TableRow key={contact.id}>
+                        <TableCell className="font-medium">{contact.name}</TableCell>
+                        <TableCell>{contact.phone}</TableCell>
+                        <TableCell>{contact.email || 'N/A'}</TableCell>
+                        <TableCell>{getStatusBadge(contact.status)}</TableCell>
+                        <TableCell>
+                          <div className="flex flex-wrap gap-1">
+                            {contact.groups?.map(group => <Badge key={group} variant="outline">{group}</Badge>)}
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="icon">
+                                <MoreVertical className="w-4 h-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent>
+                              <DropdownMenuItem><Edit className="w-4 h-4 mr-2" />Edit</DropdownMenuItem>
+                              <DropdownMenuItem className="text-red-600"><Trash2 className="w-4 h-4 mr-2" />Delete</DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  ) : (
+                    <TableRow>
+                      <TableCell colSpan={6} className="text-center p-8">
+                        <Users className="w-12 h-12 mx-auto text-muted-foreground mb-4"/>
+                        <h3 className="font-semibold">No contacts found</h3>
+                        <p className="text-sm text-muted-foreground">Add your first contact to get started.</p>
                       </TableCell>
                     </TableRow>
-                  ))}
+                  )}
                 </TableBody>
               </Table>
-            )}
-
-            {!isLoading && !firestoreError && filteredContacts.length === 0 && (
-              <div className="text-center p-8">
-                <Users className="w-12 h-12 mx-auto text-muted-foreground mb-4"/>
-                <h3 className="font-semibold">No contacts found</h3>
-                <p className="text-sm text-muted-foreground">Add your first contact to get started.</p>
-              </div>
             )}
           </CardContent>
         </Card>
@@ -208,3 +207,4 @@ export default function ContactsPage() {
     </>
   );
 }
+
