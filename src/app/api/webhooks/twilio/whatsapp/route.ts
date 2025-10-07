@@ -5,6 +5,22 @@ import { FieldValue } from 'firebase-admin/firestore';
 import type { TwilioWebhookPayload, WhatsAppMessage, WhatsAppConversation } from '@/lib/types';
 
 /**
+ * Handle GET requests for webhook validation
+ * Twilio may send GET requests to verify the webhook URL is accessible
+ */
+export async function GET(request: NextRequest) {
+  console.log('✅ Webhook GET request received - URL validation');
+  return NextResponse.json(
+    { 
+      status: 'ok', 
+      message: 'WhatsApp webhook endpoint is active',
+      timestamp: new Date().toISOString()
+    },
+    { status: 200 }
+  );
+}
+
+/**
  * Twilio WhatsApp webhook endpoint
  * Receives incoming WhatsApp messages and status updates
  * 
