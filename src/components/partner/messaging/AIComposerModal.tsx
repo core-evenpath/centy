@@ -6,7 +6,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../../ui/dialo
 import { Button } from '../../ui/button';
 import { Textarea } from '../../ui/textarea';
 import { useToast } from '@/hooks/use-toast';
-import { Sparkles, Wand2, Image as ImageIcon, Loader2 } from 'lucide-react';
+import { Sparkles, Wand2, Image as ImageIcon, Loader2, X } from 'lucide-react';
 import { generateCampaignContent } from '@/ai/flows/generate-campaign-content-flow';
 import { generateCampaignImage } from '@/ai/flows/generate-campaign-image-flow';
 

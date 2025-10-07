@@ -97,8 +97,8 @@ export const CreateCampaignModal = ({
   }, [partnerId, isOpen]);
 
   const handleSend = async () => {
-    if (!campaignName.trim() || selectedRecipients.length === 0 || !message.trim()) {
-      toast({ variant: 'destructive', title: 'Error', description: 'Campaign name, recipients, and message are required.' });
+    if (!campaignName.trim() || selectedRecipients.length === 0 || (!message.trim() && !mediaUrl)) {
+      toast({ variant: 'destructive', title: 'Error', description: 'Campaign name, recipients, and a message or image are required.' });
       return;
     }
 
@@ -378,7 +378,7 @@ export const CreateCampaignModal = ({
 
           <DialogFooter className="flex-shrink-0 pt-4 border-t">
             <Button variant="outline" onClick={onClose} disabled={isSending}>Cancel</Button>
-            <Button onClick={handleSend} disabled={isSending || selectedRecipients.length === 0 || !message.trim()}>
+            <Button onClick={handleSend} disabled={isSending || selectedRecipients.length === 0 || (!message.trim() && !mediaUrl)}>
               {isSending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4 mr-2" />}
               {isSending ? 'Sending...' : 'Send Campaign'}
             </Button>
