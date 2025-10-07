@@ -8,6 +8,7 @@ import { Input } from '../../ui/input';
 import { Textarea } from '../../ui/textarea';
 import { Badge } from '../../ui/badge';
 import { Label } from '../../ui/label';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
   Dialog,
   DialogContent,
@@ -23,8 +24,9 @@ import { db } from '@/lib/firebase';
 import { collection, query, onSnapshot, addDoc, serverTimestamp } from 'firebase/firestore';
 import type { Contact, ContactGroup, Campaign } from '@/lib/types';
 import { sendSmsCampaignAction } from '@/actions/sms-actions';
+import { sendWhatsAppCampaignAction } from '@/actions/whatsapp-actions';
 import { cn } from '@/lib/utils';
-import { Loader2, Send, Users, User, X, Check } from 'lucide-react';
+import { Loader2, Send, Users, User, X, Check, MessageSquare, Phone } from 'lucide-react';
 
 const messageTemplates = [
     {
@@ -49,6 +51,7 @@ export const CreateCampaignModal = ({
   partnerId: string;
 }) => {
   const { toast } = useToast();
+  const [platform, setPlatform] = useState<'whatsapp' | 'sms'>('whatsapp');
 
   // Data fetching state
   const [contacts, setContacts] = useState<Contact[]>([]);
@@ -56,7 +59,7 @@ export const CreateCampaignModal = ({
   const [isLoadingRecipients, setIsLoadingRecipients] = useState(true);
 
   // Form state
-  const [campaignName, setCampaignName] = useState('');
+  const [campaignName, setCampaignName] = useState(`Campaign - ${new Date().toLocaleDateString()}`);
   const [selectedRecipients, setSelectedRecipients] = useState<any[]>([]);
   const [message, setMessage] = useState('');
   const [isSending, setIsSending] = useState(false);
@@ -106,8 +109,9 @@ export const CreateCampaignModal = ({
       };
       await addDoc(collection(db, `partners/${partnerId}/campaigns`), campaignData);
 
-      // 2. Call the action to send the campaign
-      const result = await sendSmsCampaignAction({
+      // 2. Call the correct action based on platform
+      let result;
+      const campaignPayload = {
         partnerId: partnerId,
         message,
         recipients: selectedRecipients.map(r => ({
@@ -115,7 +119,13 @@ export const CreateCampaignModal = ({
           name: r.name,
           type: r.contactCount !== undefined ? 'group' : 'contact'
         })),
-      });
+      };
+
+      if (platform === 'whatsapp') {
+        result = await sendWhatsAppCampaignAction(campaignPayload);
+      } else {
+        result = await sendSmsCampaignAction(campaignPayload);
+      }
 
       if (result.success) {
         toast({ title: 'Campaign Sent', description: result.message });
@@ -155,6 +165,18 @@ export const CreateCampaignModal = ({
         </DialogHeader>
 
         <div className="space-y-4 py-4">
+          
+           {/* Platform Selector */}
+           <div>
+            <Label htmlFor="platform" className="text-sm font-medium mb-2 block">Platform</Label>
+            <Tabs defaultValue="whatsapp" onValueChange={(value) => setPlatform(value as any)} className="w-full">
+                <TabsList className="grid w-full grid-cols-2">
+                    <TabsTrigger value="whatsapp" className="flex items-center gap-2"><MessageSquare /> WhatsApp</TabsTrigger>
+                    <TabsTrigger value="sms" className="flex items-center gap-2"><Phone /> SMS</TabsTrigger>
+                </TabsList>
+            </Tabs>
+           </div>
+
           {/* Campaign Name */}
           <div>
             <Label htmlFor="campaign-name" className="text-sm font-medium">Campaign Name</Label>

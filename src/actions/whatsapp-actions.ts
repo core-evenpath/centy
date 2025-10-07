@@ -1,10 +1,11 @@
+
 // src/actions/whatsapp-actions.ts
 'use server';
 
 import { db } from '@/lib/firebase-admin';
 import { sendWhatsAppMessage, getMessageStatus } from '@/lib/twilio-service';
 import { FieldValue } from 'firebase-admin/firestore';
-import type { SendWhatsAppMessageInput, SendWhatsAppMessageResult, WhatsAppMessage, WhatsAppConversation } from '@/lib/types';
+import type { SendWhatsAppMessageInput, SendWhatsAppMessageResult, WhatsAppMessage, WhatsAppConversation, Contact } from '@/lib/types';
 import { FirestorePermissionError } from '@/firebase/errors';
 
 /**
@@ -137,6 +138,90 @@ export async function sendWhatsAppMessageAction(input: SendWhatsAppMessageInput)
     };
   }
 }
+
+interface CampaignRecipient {
+  id: string;
+  name: string;
+  type: 'contact' | 'group';
+}
+
+interface SendWhatsAppCampaignInput {
+  partnerId: string;
+  message: string;
+  recipients: CampaignRecipient[];
+}
+
+export async function sendWhatsAppCampaignAction(input: SendWhatsAppCampaignInput): Promise<{
+  success: boolean;
+  message: string;
+}> {
+  if (!db) {
+    return { success: false, message: 'Server not configured' };
+  }
+
+  try {
+    let uniqueContacts: Contact[] = [];
+    const contactIds = new Set<string>();
+
+    for (const recipient of input.recipients) {
+      if (recipient.type === 'contact') {
+        if (!contactIds.has(recipient.id)) {
+          const contactDoc = await db.collection(`partners/${input.partnerId}/contacts`).doc(recipient.id).get();
+          if (contactDoc.exists) {
+            uniqueContacts.push({ id: contactDoc.id, ...contactDoc.data() } as Contact);
+            contactIds.add(recipient.id);
+          }
+        }
+      } else if (recipient.type === 'group') {
+        const contactsSnapshot = await db.collection(`partners/${input.partnerId}/contacts`).where('groups', 'array-contains', recipient.name).get();
+        contactsSnapshot.forEach(contactDoc => {
+          if (!contactIds.has(contactDoc.id)) {
+            uniqueContacts.push({ id: contactDoc.id, ...contactDoc.data() } as Contact);
+            contactIds.add(contactDoc.id);
+          }
+        });
+      }
+    }
+    
+    // Actually send the WhatsApp messages
+    const sendPromises = uniqueContacts.map(contact => {
+      if (contact.phone) {
+        return sendWhatsAppMessageAction({
+          partnerId: input.partnerId,
+          to: contact.phone,
+          message: input.message
+        }).catch(err => {
+          console.error(`Failed to send WhatsApp message to ${contact.phone}:`, err);
+          return { success: false, message: `Failed to send to ${contact.name}` };
+        });
+      }
+      return Promise.resolve({ success: false, message: `No phone for ${contact.name}`});
+    });
+
+    const results = await Promise.all(sendPromises);
+    const successCount = results.filter(r => r.success).length;
+
+    if (successCount === 0 && uniqueContacts.length > 0) {
+      return {
+        success: false,
+        message: `Campaign failed to send to any of the ${uniqueContacts.length} recipients.`,
+      };
+    }
+
+    return {
+      success: true,
+      message: `Campaign successfully sent to ${successCount} of ${uniqueContacts.length} recipient(s).`,
+    };
+
+  } catch (error: any) {
+    console.error('Error sending WhatsApp campaign:', error);
+    return {
+      success: false,
+      message: `Failed to send campaign: ${error.message}`,
+    };
+  }
+}
+
 
 /**
  * Get WhatsApp conversations for a partner
