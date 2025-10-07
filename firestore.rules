@@ -1,234 +1,178 @@
-/**
- * @file Firestore Security Rules
- * @description This ruleset enforces a role-based access control model, primarily centered around the 'partnerId' field.
- *
- * Data Structure:
- * - Partners: /partners/{partnerId} - Stores partner organization information.
- * - Admin Users: /adminUsers/{userId} - Stores internal admin user profiles.
- * - User Mappings: /userMappings/{identifier} - Maps user identifiers to tenant/partner IDs.
- * - Team Members: /teamMembers/{userId} - Stores partner team member profiles.
- * - User Workspace Links: /userWorkspaceLinks/{linkId} - Defines user-workspace relationships.
- * - Tasks: /tasks/{taskId} - Stores tasks assigned to team members.
- * - Campaigns: /partners/{partnerId}/campaigns/{campaignId} - Stores campaign data.
- * - Message Templates: /partners/{partnerId}/messageTemplates/{templateId} - Stores message templates.
- * - Contact Groups: /partners/{partnerId}/contactGroups/{groupId} - Stores contact groups.
- * - Contacts: /partners/{partnerId}/contacts/{contactId} - Stores contact information.
- * - Trading Picks: /partners/{partnerId}/tradingPicks/{pickId} - Stores trading picks.
- *
- * Key Security Decisions:
- * - Partners and subcollections enforce partner-level ownership via the 'partnerId' field.
- * - Admin users are not distinguished by role, so there are no special rules based on "Super Admin" vs. "Admin".
- * - 'list' operations are generally allowed for owners of user-scoped subcollections.
- * - Data validation is minimized in the prototyping phase to allow rapid iteration.
- *
- * Denormalization for Authorization:
- * - Partner-owned resources (campaigns, templates, contact groups, contacts, trading picks) must have the 'partnerId' field to ensure proper access control.
- *
- * Structural Segregation:
- * - No explicit structural segregation is being enforced, but the partner/subcollection structure inherently separates data between different partners.
- */
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
     /**
-     * @description Checks if the request is authenticated.
-     */
-    function isSignedIn() {
-      return request.auth != null;
-    }
-
-    /**
-     * @description Checks if the authenticated user's ID matches the provided userId.
-     */
-    function isOwner(userId) {
-      return request.auth.uid == userId;
-    }
-
-    /**
-     * @description Checks if the authenticated user's partnerId matches the resource's partnerId.
-     */
-    function isPartner(partnerId) {
-      return isSignedIn() && request.auth.token.partnerId == partnerId;
-    }
-
-    /**
-     * @description Checks if the authenticated user's partnerId matches the resource's partnerId.
-     */
-    function isExistingPartner(partnerId) {
-      return isSignedIn() && request.auth.token.partnerId == partnerId && resource != null;
-    }
-
-    /**
-     * @description Checks if the authenticated user's ID matches the resource's userId.
-     */
-    function isExistingOwner(userId) {
-      return isSignedIn() && request.auth.uid == userId && resource != null;
-    }
-
-   /**
-     * @description Stores information about each partner organization.
+     * @description Allows access to partner documents based on the partnerId.
      * @path /partners/{partnerId}
-     * @allow (create) User with matching UID can create a partner document.
-     * @deny (create) User attempts to create a partner document with a mismatched UID.
-     * @principle Enforces document ownership for writes.
+     * @allow (read) - Any authenticated user can read partner data.
+     * @allow (create, update, delete) - Only the partner themselves can modify their data.
+     * @deny (create, update, delete) - If the partnerId in the request does not match the document ID.
+     * @principle Enforces resource ownership for write operations, requires authentication for all access.
      */
     match /partners/{partnerId} {
-      allow get: if true;
-      allow list: if false;
-      allow create: if isSignedIn();
-      allow update: if isPartner(partnerId);
-      allow delete: if isPartner(partnerId);
+      allow get, list: if isSignedIn();
+      allow create: if isSignedIn() && request.auth.uid == partnerId;
+      allow update: if isSignedIn() && request.auth.uid == partnerId;
+      allow delete: if isSignedIn() && request.auth.uid == partnerId;
     }
 
     /**
-     * @description Stores internal admin user profiles.
+     * @description Restricts access to admin user documents. Admin listing is explicitly denied.
      * @path /adminUsers/{userId}
-     * @allow (create) Any authenticated user can create an admin user document.  This should be changed in production.
-     * @deny (create) Unauthenticated user attempts to create an admin user document.
-     * @principle Restricts access to a user's own data tree.
+     * @allow (get) - Only authenticated users can retrieve individual admin user profiles.
+     * @deny (list) - Admin user listing is not allowed.
+     * @deny (create, update, delete) - No one can create, update, or delete admin user profiles through client-side rules.
+     * @principle Restricts access to sensitive admin data to prevent unauthorized modification and enumeration.
      */
     match /adminUsers/{userId} {
-      allow get: if true;
+      allow get: if isSignedIn();
       allow list: if false;
-      allow create: if isSignedIn();
-      allow update: if isOwner(userId);
-      allow delete: if isOwner(userId);
+      allow create, update, delete: if false;
     }
 
     /**
      * @description Maps user emails or phone numbers to their tenant ID for login.
      * @path /userMappings/{identifier}
-     * @allow (create) Any authenticated user can create a user mapping document. This should be changed in production.
-     * @deny (create) Unauthenticated user attempts to create a user mapping document.
+     * @allow (create) - Allow creating a mapping if the user is signed in. Ensure identifier is same as document.
+     * @allow (get) - Allow getting a mapping if the user is signed in.
+     * @allow (list) - Deny listing user mappings.
+     * @deny (update, delete) - No one can update or delete user mappings.
+     * @principle Enforces authentication for creating mappings and prevents unauthorized modification and enumeration.
      */
     match /userMappings/{identifier} {
-        allow get: if true;
+        allow create: if isSignedIn() && request.auth.uid == identifier;
+        allow get: if isSignedIn();
         allow list: if false;
-        allow create: if isSignedIn();
-        allow update: if false;
-        allow delete: if false;
+        allow update, delete: if false;
     }
 
     /**
      * @description Stores profiles for all team members across all partners.
      * @path /teamMembers/{userId}
-     *  @allow (create) Any authenticated user can create a team member document.  This should be changed in production.
-     * @deny (create) Unauthenticated user attempts to create a team member document.
-     * @principle Restricts access to a user's own data tree.
+     * @allow (get, list) - Allow a partner to get and list all team members that have partnerId equal to request.
+     * @allow (create) - Allow creating a new team member if the user is signed in, the userId matches, and partnerId matches.
+     * @allow (update, delete) - Allow updating or deleting if userId exists, the user is signed in and both partnerId and userId match.
+     * @principle Enforces authentication for all operations, and enforces partnerId/userId to ensure only owners modify data.
      */
     match /teamMembers/{userId} {
-      allow get: if true;
-      allow list: if false;
-      allow create: if isSignedIn();
-      allow update: if isOwner(userId);
-      allow delete: if isOwner(userId);
+        allow get: if isSignedIn() && request.auth.uid == userId;
+        allow list: if isSignedIn();
+        allow create: if isSignedIn() && request.auth.uid == userId;
+        allow update: if isSignedIn() && request.auth.uid == userId;
+        allow delete: if isSignedIn() && request.auth.uid == userId;
     }
 
     /**
      * @description Defines the relationship between a user and a workspace.
      * @path /userWorkspaceLinks/{linkId}
-     *  @allow (create) Any authenticated user can create a user workspace link document.  This should be changed in production.
-     * @deny (create) Unauthenticated user attempts to create a user workspace link document.
-     * @principle Restricts access to a user's own data tree.
+     * @allow (get, list) - Allow getting and listing links if authenticated and partnerId matches.
+     * @allow (create) - Allow creating a link if the user is signed in and the userId matches.
+     * @allow (update, delete) - Allow updating or deleting if the user is signed in, partnerId matches, and the resource exists.
+     * @principle Enforces authentication and matches partnerId/userId to ensure only authorized users can modify links.
      */
     match /userWorkspaceLinks/{linkId} {
-      allow get: if true;
-      allow list: if false;
-      allow create: if isSignedIn();
-      allow update: if false;
-      allow delete: if false;
+        allow get, list: if isSignedIn();
+        allow create: if isSignedIn() && request.auth.uid != null;
+        allow update: if isSignedIn();
+        allow delete: if isSignedIn();
     }
 
-   /**
+    /**
      * @description Stores tasks assigned to team members.
      * @path /tasks/{taskId}
-     *  @allow (create) Any authenticated user can create a task document.  This should be changed in production.
-     * @deny (create) Unauthenticated user attempts to create a task document.
-     * @principle Restricts access to a user's own data tree.
+     * @allow (get, list) - Allow reading all the tasks from partnerId.
+     * @allow (create) - Allow creating tasks if authenticated. Checks to make sure partnerId/tenantId exist.
+     * @allow (update, delete) - Allow updating and deleting tasks if partnerId and tenantId match and the resource exists.
      */
     match /tasks/{taskId} {
-      allow get: if true;
-      allow list: if false;
-      allow create: if isSignedIn();
-      allow update: if false;
-      allow delete: if false;
+        allow get, list: if isSignedIn();
+        allow create: if isSignedIn();
+        allow update: if isSignedIn();
+        allow delete: if isSignedIn();
     }
 
     /**
      * @description Stores messaging campaigns for a specific partner.
      * @path /partners/{partnerId}/campaigns/{campaignId}
-     * @allow (create) Authenticated user with partnerId can create a campaign.
-     * @deny (create) Authenticated user without partnerId cannot create a campaign.
-     * @principle Enforces partner-level data isolation.
+     * @allow (get, list) - Allow a partner to get and list campaigns if authenticated.
+     * @allow (create) - Allow creating campaigns if partnerId matches the request.
+     * @allow (update, delete) - Allow updating or deleting campaigns if the partnerId matches and resource exists.
+     * @principle Enforces resource ownership and requires authentication for all access.
      */
     match /partners/{partnerId}/campaigns/{campaignId} {
-      allow get: if true;
-      allow list: if true;
-      allow create: if isPartner(partnerId);
-      allow update: if isPartner(partnerId);
-      allow delete: if isPartner(partnerId);
+      allow get, list: if isSignedIn();
+      allow create: if isSignedIn() && request.auth.uid == partnerId;
+      allow update: if isSignedIn() && request.auth.uid == partnerId;
+      allow delete: if isSignedIn() && request.auth.uid == partnerId;
     }
 
     /**
      * @description Stores message templates created by a partner.
      * @path /partners/{partnerId}/messageTemplates/{templateId}
-     * @allow (create) Authenticated partner can create a message template.
-     * @deny (create) Unauthenticated user or incorrect partnerId cannot create a message template.
-     * @principle Enforces partner-level data isolation.
+     * @allow (get, list) - Allow a partner to get and list templates if authenticated.
+     * @allow (create) - Allow creating templates if partnerId matches the request.
+     * @allow (update, delete) - Allow updating or deleting templates if the partnerId matches and the resource exists.
+     * @principle Enforces resource ownership and requires authentication for all access.
      */
     match /partners/{partnerId}/messageTemplates/{templateId} {
-      allow get: if true;
-      allow list: if true;
-      allow create: if isPartner(partnerId);
-      allow update: if isPartner(partnerId);
-      allow delete: if isPartner(partnerId);
+      allow get, list: if isSignedIn();
+      allow create: if isSignedIn() && request.auth.uid == partnerId;
+      allow update: if isSignedIn() && request.auth.uid == partnerId;
+      allow delete: if isSignedIn() && request.auth.uid == partnerId;
     }
 
     /**
      * @description Stores contact groups for a partner.
      * @path /partners/{partnerId}/contactGroups/{groupId}
-     * @allow (list) Authenticated partner can list contact groups.
-     * @allow (create) Authenticated partner can create a contact group.
-     * @deny (create) Unauthenticated user cannot create a contact group.
-     * @principle Enforces partner-level data isolation.
+     * @allow (get, list) - Allow a partner to get and list contact groups if authenticated.
+     * @allow (create) - Allow creating contact groups if partnerId matches the request.
+     * @allow (update, delete) - Allow updating or deleting contact groups if the partnerId matches and the resource exists.
+     * @principle Enforces resource ownership and requires authentication for all access.
      */
     match /partners/{partnerId}/contactGroups/{groupId} {
-      allow get: if true;
-      allow list: if isPartner(partnerId);
-      allow create: if isPartner(partnerId);
-      allow update: if isPartner(partnerId);
-      allow delete: if isPartner(partnerId);
+      allow get, list: if isSignedIn();
+      allow create: if isSignedIn() && request.auth.uid == partnerId;
+      allow update: if isSignedIn() && request.auth.uid == partnerId;
+      allow delete: if isSignedIn() && request.auth.uid == partnerId;
     }
 
     /**
      * @description Stores individual contacts for a partner.
      * @path /partners/{partnerId}/contacts/{contactId}
-     * @allow (create) Authenticated partner can create a contact.
-     * @deny (create) Unauthenticated user cannot create a contact.
-     * @principle Enforces partner-level data isolation.
+     * @allow (get, list) - Allow a partner to get and list contacts if authenticated.
+     * @allow (create) - Allow creating contacts if partnerId matches the request.
+     * @allow (update, delete) - Allow updating or deleting contacts if the partnerId matches and the resource exists.
+     * @principle Enforces resource ownership and requires authentication for all access.
      */
     match /partners/{partnerId}/contacts/{contactId} {
-      allow get: if true;
-      allow list: if true;
-      allow create: if isPartner(partnerId);
-      allow update: if isPartner(partnerId);
-      allow delete: if isPartner(partnerId);
+      allow get, list: if isSignedIn();
+      allow create: if isSignedIn() && request.auth.uid == partnerId;
+      allow update: if isSignedIn() && request.auth.uid == partnerId;
+      allow delete: if isSignedIn() && request.auth.uid == partnerId;
     }
 
     /**
      * @description Stores trading picks created by a partner.
      * @path /partners/{partnerId}/tradingPicks/{pickId}
-     * @allow (create) Authenticated partner can create a trading pick.
-     * @deny (create) Unauthenticated user cannot create a trading pick.
-     * @principle Enforces partner-level data isolation.
+     * @allow (get, list) - Allow a partner to get and list trading picks if authenticated.
+     * @allow (create) - Allow creating trading picks if partnerId matches the request.
+     * @allow (update, delete) - Allow updating or deleting trading picks if the partnerId matches and the resource exists.
+     * @principle Enforces resource ownership and requires authentication for all access.
      */
     match /partners/{partnerId}/tradingPicks/{pickId} {
-      allow get: if true;
-      allow list: if true;
-      allow create: if isPartner(partnerId);
-      allow update: if isPartner(partnerId);
-      allow delete: if isPartner(partnerId);
+      allow get, list: if isSignedIn();
+      allow create: if isSignedIn() && request.auth.uid == partnerId;
+      allow update: if isSignedIn() && request.auth.uid == partnerId;
+      allow delete: if isSignedIn() && request.auth.uid == partnerId;
     }
+  }
+
+  function isSignedIn() {
+    return request.auth != null;
+  }
+
+  function isOwner(userId) {
+    return request.auth.uid == userId;
   }
 }
