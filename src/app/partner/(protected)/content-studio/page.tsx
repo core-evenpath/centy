@@ -2,29 +2,122 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Button } from '../../../../components/ui/button';
 import { Card, CardContent } from '../../../../components/ui/card';
 import { useMultiWorkspaceAuth } from '@/hooks/use-multi-workspace-auth';
 import { db } from '@/lib/firebase';
-import { collection, query, onSnapshot, writeBatch, doc } from 'firebase/firestore';
+import { collection, query, onSnapshot } from 'firebase/firestore';
 import type { ContactGroup } from '@/lib/types';
 import PartnerHeader from '../../../../components/partner/PartnerHeader';
-import { Send, Users, FileText, Loader2, AlertCircle } from 'lucide-react';
-import contactGroupsData from '@/lib/contact-groups.json';
-import { NewCampaignModal } from '../../../../components/partner/messaging/SecondLevelModals';
+import { Send, Users, FileText, Loader2, AlertCircle, X } from 'lucide-react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '../../../../components/ui/dialog';
+import { Input } from '../../../../components/ui/input';
+import { Textarea } from '../../../../components/ui/textarea';
+import { useToast } from '@/hooks/use-toast';
+import { sendSMSAction } from '@/actions/sms-actions';
+
+// Simple Modal for V1 - New Conversation
+const NewConversationModal = ({ 
+  isOpen, 
+  onClose,
+  onConversationStarted
+}: { 
+  isOpen: boolean; 
+  onClose: () => void;
+  onConversationStarted: (conversationId: string) => void;
+}) => {
+  const { currentWorkspace } = useMultiWorkspaceAuth();
+  const { toast } = useToast();
+  const [phoneNumber, setPhoneNumber] = useState('');
+  const [message, setMessage] = useState('');
+  const [isSending, setIsSending] = useState(false);
+
+  const handleSend = async () => {
+    if (!phoneNumber.trim() || !message.trim()) {
+      toast({ variant: 'destructive', title: 'Error', description: 'Phone number and message are required.' });
+      return;
+    }
+    if (!currentWorkspace?.partnerId) {
+      toast({ variant: 'destructive', title: 'Error', description: 'No active workspace found.' });
+      return;
+    }
+
+    setIsSending(true);
+    try {
+      const result = await sendSMSAction({
+        partnerId: currentWorkspace.partnerId,
+        to: phoneNumber,
+        message: message,
+      });
+
+      if (result.success && result.conversationId) {
+        toast({ title: 'Conversation Started', description: 'Your message has been sent.' });
+        onConversationStarted(result.conversationId);
+        onClose();
+      } else {
+        throw new Error(result.message || 'Failed to send message.');
+      }
+    } catch (error: any) {
+      toast({ variant: 'destructive', title: 'Error', description: error.message });
+    } finally {
+      setIsSending(false);
+    }
+  };
+
+  return (
+    <Dialog open={isOpen} onOpenChange={onClose}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Start a New Conversation</DialogTitle>
+          <DialogDescription>Send an initial SMS to a new contact.</DialogDescription>
+        </DialogHeader>
+        <div className="space-y-4 py-4">
+          <div>
+            <label htmlFor="phone-number" className="text-sm font-medium">Phone Number</label>
+            <Input
+              id="phone-number"
+              placeholder="+1234567890 (E.164 format)"
+              value={phoneNumber}
+              onChange={(e) => setPhoneNumber(e.target.value)}
+              disabled={isSending}
+            />
+          </div>
+          <div>
+            <label htmlFor="message" className="text-sm font-medium">Message</label>
+            <Textarea
+              id="message"
+              placeholder="Type your message..."
+              value={message}
+              onChange={(e) => setMessage(e.target.value)}
+              rows={5}
+              disabled={isSending}
+            />
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose} disabled={isSending}>Cancel</Button>
+          <Button onClick={handleSend} disabled={isSending}>
+            {isSending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4 mr-2" />}
+            {isSending ? 'Sending...' : 'Send Message'}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+};
 
 function MessagingPlatform() {
   const { currentWorkspace } = useMultiWorkspaceAuth();
+  const router = useRouter();
   const [contactGroups, setContactGroups] = useState<ContactGroup[]>([]);
   const [isLoadingGroups, setIsLoadingGroups] = useState(true);
   const [firestoreError, setFirestoreError] = useState<string | null>(null);
-  const [showNewCampaign, setShowNewCampaign] = useState(false);
+  const [showNewConversationModal, setShowNewConversationModal] = useState(false);
 
-  // Fetch Contact Groups from Firestore in real-time
   useEffect(() => {
     if (!currentWorkspace?.partnerId) {
-      console.log('No current workspace, skipping Firestore listener for contact groups.');
       setIsLoadingGroups(false);
       setContactGroups([]);
       return;
@@ -35,51 +128,22 @@ function MessagingPlatform() {
     const collectionPath = `partners/${currentWorkspace.partnerId}/contactGroups`;
     const q = query(collection(db, collectionPath));
     
-    console.log(`Setting up Firestore listener for: ${collectionPath}`);
-
-    const unsubscribe = onSnapshot(q, async (snapshot) => {
-      // Seed data if collection is empty
-      if (snapshot.empty) {
-        console.log(`Contact groups collection is empty. Seeding initial data...`);
-        try {
-          const batch = writeBatch(db);
-          contactGroupsData.forEach(group => {
-            const docRef = doc(collection(db, collectionPath)); // Auto-generate ID
-            batch.set(docRef, {
-              ...group,
-              partnerId: currentWorkspace.partnerId // Ensure partnerId is set
-            });
-          });
-          await batch.commit();
-          console.log('Contact groups seeded successfully.');
-          return;
-        } catch (seedError) {
-           console.error("Error seeding contact groups:", seedError);
-           setFirestoreError("Failed to initialize contact groups data.");
-           setIsLoadingGroups(false);
-           return;
-        }
-      }
-
-      const groupsData = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      } as ContactGroup));
-      
-      console.log(`Fetched ${groupsData.length} contact groups.`);
-      setContactGroups(groupsData);
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      setContactGroups(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ContactGroup)));
       setIsLoadingGroups(false);
     }, (error) => {
       console.error("Firestore onSnapshot error:", error);
-      setFirestoreError(`Permission denied. Cannot fetch contact groups.`);
+      setFirestoreError("Permission denied. Cannot fetch contact groups.");
       setIsLoadingGroups(false);
     });
 
-    return () => {
-      console.log(`Cleaning up Firestore listener for: ${collectionPath}`);
-      unsubscribe();
-    }
+    return () => unsubscribe();
   }, [currentWorkspace?.partnerId]);
+
+  const handleConversationStarted = (conversationId: string) => {
+    // Redirect to the messaging page with the new conversation selected
+    router.push(`/partner/messaging?conversation=${conversationId}`);
+  };
   
   const totalContacts = contactGroups.reduce((sum, g) => sum + (g.contactCount || 0), 0);
   
@@ -88,7 +152,7 @@ function MessagingPlatform() {
       <div className="flex-1 overflow-y-auto">
         <div className="max-w-7xl mx-auto p-4 space-y-6">
           <button
-            onClick={() => setShowNewCampaign(true)}
+            onClick={() => setShowNewConversationModal(true)}
             className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 rounded-xl p-6 shadow-lg hover:shadow-xl transition-all mb-6 group"
           >
             <div className="flex items-center justify-between">
@@ -97,8 +161,8 @@ function MessagingPlatform() {
                   <Send className="w-6 h-6 text-white" />
                 </div>
                 <div className="text-left">
-                  <h2 className="text-xl font-bold text-white mb-1">Send New Campaign</h2>
-                  <p className="text-blue-100 text-sm">Create and send messages in 4 simple steps</p>
+                  <h2 className="text-xl font-bold text-white mb-1">Send New Message</h2>
+                  <p className="text-blue-100 text-sm">Start a new SMS or WhatsApp conversation</p>
                 </div>
               </div>
             </div>
@@ -150,7 +214,13 @@ function MessagingPlatform() {
 
         </div>
       </div>
-      {showNewCampaign && <NewCampaignModal setShowNewCampaign={setShowNewCampaign} />}
+      {showNewConversationModal && (
+        <NewConversationModal 
+          isOpen={showNewConversationModal}
+          onClose={() => setShowNewConversationModal(false)} 
+          onConversationStarted={handleConversationStarted}
+        />
+      )}
     </div>
   );
 }

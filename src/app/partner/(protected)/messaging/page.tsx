@@ -2,6 +2,7 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from 'react';
+import { useSearchParams, useRouter } from 'next/navigation';
 import { useMultiWorkspaceAuth } from '@/hooks/use-multi-workspace-auth';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -58,6 +59,8 @@ interface MessagingDiagnostics {
 export default function MessagingPage() {
   const { user, currentWorkspace } = useMultiWorkspaceAuth();
   const { toast } = useToast();
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const audioRef = useRef<HTMLAudioElement>(null);
 
   const [selectedPlatform, setSelectedPlatform] = useState<Platform>('sms');
@@ -74,6 +77,7 @@ export default function MessagingPage() {
   const [diagnostics, setDiagnostics] = useState<MessagingDiagnostics | null>(null);
 
   const partnerId = currentWorkspace?.partnerId || user?.customClaims?.partnerId;
+  const conversationIdFromUrl = searchParams.get('conversation');
 
   // Fetch diagnostics info
   useEffect(() => {
@@ -132,6 +136,20 @@ export default function MessagingPage() {
       unsubscribeWhatsApp();
     };
   }, [partnerId]);
+  
+  // Select conversation from URL parameter
+  useEffect(() => {
+    if (conversationIdFromUrl && conversations.length > 0) {
+      const convoToSelect = conversations.find(c => c.id === conversationIdFromUrl);
+      if (convoToSelect) {
+        setSelectedConversation(convoToSelect);
+        setSelectedPlatform(convoToSelect.platform);
+        // Clean the URL
+        router.replace('/partner/messaging');
+      }
+    }
+  }, [conversationIdFromUrl, conversations, router]);
+
 
   // Load messages for selected conversation
   useEffect(() => {
@@ -153,7 +171,6 @@ export default function MessagingPage() {
         id: doc.id, ...doc.data(), platform: selectedConversation.platform
       } as UnifiedMessage));
       
-      // Play sound only if new messages have arrived
       if (newMessages.length > messages.length && messages.length > 0) {
         const lastNewMessage = newMessages[newMessages.length - 1];
         if (lastNewMessage.direction === 'inbound') {
@@ -386,7 +403,6 @@ export default function MessagingPage() {
 
   return (
     <div className="flex flex-col h-screen bg-gray-50 dark:bg-gray-900">
-      {/* Notification sound - hidden audio element */}
       <audio ref={audioRef} src="/notification.mp3" preload="auto" />
       
       <header className="bg-white dark:bg-gray-800 border-b px-6 py-4">
@@ -408,7 +424,6 @@ export default function MessagingPage() {
       </header>
 
       <div className="flex-1 flex overflow-hidden">
-        {/* Conversations List */}
         <div className="w-80 bg-white dark:bg-gray-800 border-r flex flex-col">
           <div className="p-4 space-y-3">
             <Tabs value={selectedPlatform} onValueChange={(value) => setSelectedPlatform(value as Platform)}>
@@ -449,7 +464,6 @@ export default function MessagingPage() {
           </ScrollArea>
         </div>
 
-        {/* Message Area */}
         <div className="flex-1 flex flex-col bg-gray-50 dark:bg-gray-900">
           {showNewConversation ? (
             <Card className="m-6">
