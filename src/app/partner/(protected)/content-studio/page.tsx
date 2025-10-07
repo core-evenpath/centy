@@ -13,13 +13,14 @@ import { FirestorePermissionError } from '@/firebase/errors';
 import PartnerHeader from '../../../../components/partner/PartnerHeader';
 import { Send, Users, FileText, Loader2, AlertCircle } from 'lucide-react';
 import contactGroupsData from '@/lib/contact-groups.json';
+import { NewCampaignModal } from '../../../../components/partner/messaging/SecondLevelModals';
 
 function MessagingPlatform() {
   const [currentScreen, setCurrentScreen] = useState('home');
   const { currentWorkspace } = useMultiWorkspaceAuth();
   const [contactGroups, setContactGroups] = useState<ContactGroup[]>([]);
   const [isLoadingGroups, setIsLoadingGroups] = useState(true);
-  const [firestoreError, setFirestoreError] = useState<string | null>(null);
+  const [showNewCampaign, setShowNewCampaign] = useState(false);
 
   // Seed initial contact groups if the collection is empty
   useEffect(() => {
@@ -70,7 +71,6 @@ function MessagingPlatform() {
       } as ContactGroup));
       setContactGroups(groupsData);
       setIsLoadingGroups(false);
-      setFirestoreError(null);
     }, (serverError) => {
       // Create and emit a contextual permission error
       const permissionError = new FirestorePermissionError({
@@ -92,9 +92,7 @@ function MessagingPlatform() {
         <div className="flex-1 overflow-y-auto">
           <div className="max-w-7xl mx-auto p-4 space-y-6">
             <button
-              onClick={() => {
-                alert("This feature is under development.");
-              }}
+              onClick={() => setShowNewCampaign(true)}
               className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 rounded-xl p-6 shadow-lg hover:shadow-xl transition-all mb-6 group"
             >
               <div className="flex items-center justify-between">
@@ -144,6 +142,7 @@ function MessagingPlatform() {
             </div>
           </div>
         </div>
+        {showNewCampaign && <NewCampaignModal setShowNewCampaign={setShowNewCampaign} />}
       </div>
     );
   }
@@ -175,13 +174,8 @@ function MessagingPlatform() {
                  <p className="mt-4 text-sm text-gray-600">Loading contact groups...</p>
               </div>
             )}
-            {firestoreError && (
-               <div className="text-center py-10 text-red-600">
-                 <AlertCircle className="mx-auto h-12 w-12" />
-                 <p className="mt-4 text-sm">{firestoreError}</p>
-               </div>
-            )}
-            {!isLoadingGroups && !firestoreError && (
+            
+            {!isLoadingGroups && (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
                 {contactGroups.map(group => (
                   <Card key={group.id} className="hover:shadow-lg transition-shadow">
