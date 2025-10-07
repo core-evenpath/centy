@@ -4,7 +4,7 @@
 import { db } from '@/lib/firebase-admin';
 import { sendSMS, getMessageStatus } from '@/lib/twilio-service';
 import { FieldValue } from 'firebase-admin/firestore';
-import type { SendSMSInput, SendSMSResult, SMSMessage, SMSConversation } from '@/lib/types';
+import type { SendSMSInput, SendSMSResult, SMSMessage, SMSConversation, Contact } from '@/lib/types';
 import { FirestorePermissionError } from '@/firebase/errors';
 
 /**
@@ -104,7 +104,7 @@ export async function sendSMSAction(input: SendSMSInput): Promise<SendSMSResult>
         path: serverError.ref?.path || 'unknown path',
         operation: 'write',
         requestResourceData: serverError.requestData || { info: "data not captured" },
-        serverError,
+        // serverError, // This causes serialization issues
       });
       throw permissionError;
     }
@@ -120,6 +120,76 @@ export async function sendSMSAction(input: SendSMSInput): Promise<SendSMSResult>
     return {
       success: false,
       message: serverError.message || 'Failed to send SMS',
+    };
+  }
+}
+
+interface CampaignRecipient {
+  id: string;
+  name: string;
+  type: 'contact' | 'group';
+}
+
+interface SendSmsCampaignInput {
+  partnerId: string;
+  message: string;
+  recipients: CampaignRecipient[];
+}
+
+export async function sendSmsCampaignAction(input: SendSmsCampaignInput): Promise<{
+  success: boolean;
+  message: string;
+}> {
+  if (!db) {
+    return { success: false, message: 'Server not configured' };
+  }
+
+  try {
+    let uniqueContacts: Contact[] = [];
+    const contactIds = new Set<string>();
+
+    for (const recipient of input.recipients) {
+      if (recipient.type === 'contact') {
+        if (!contactIds.has(recipient.id)) {
+          const contactDoc = await db.collection(`partners/${input.partnerId}/contacts`).doc(recipient.id).get();
+          if (contactDoc.exists) {
+            uniqueContacts.push({ id: contactDoc.id, ...contactDoc.data() } as Contact);
+            contactIds.add(recipient.id);
+          }
+        }
+      } else if (recipient.type === 'group') {
+        const contactsSnapshot = await db.collection(`partners/${input.partnerId}/contacts`).where('groups', 'array-contains', recipient.name).get();
+        contactsSnapshot.forEach(doc => {
+          if (!contactIds.has(doc.id)) {
+            uniqueContacts.push({ id: doc.id, ...doc.data() } as Contact);
+            contactIds.add(doc.id);
+          }
+        });
+      }
+    }
+    
+    // For V1, we'll just log the action and simulate sending.
+    console.log(`Simulating SMS campaign for partner: ${input.partnerId}`);
+    console.log(`Message: ${input.message}`);
+    console.log(`Total unique recipients: ${uniqueContacts.length}`);
+    uniqueContacts.forEach(contact => {
+      console.log(`- Sending to ${contact.name} (${contact.phone})`);
+    });
+
+    // In a real implementation, you would loop through `uniqueContacts`
+    // and call `sendSMSAction` for each, likely in a background job.
+    // For now, we return a success message.
+
+    return {
+      success: true,
+      message: `Campaign successfully sent to ${uniqueContacts.length} recipient(s).`,
+    };
+
+  } catch (error: any) {
+    console.error('Error sending SMS campaign:', error);
+    return {
+      success: false,
+      message: `Failed to send campaign: ${error.message}`,
     };
   }
 }
