@@ -1,9 +1,9 @@
+
 'use server';
 
 import { ai } from '../genkit';
 import { googleAI } from '@genkit-ai/google-genai';
-import { z } from 'genkit';
-import { 
+import {
   GenerateCampaignContentInputSchema,
   GenerateCampaignContentOutputSchema,
   type GenerateCampaignContentInput,
@@ -21,7 +21,6 @@ const generateCampaignContentFlow = ai.defineFlow(
     outputSchema: GenerateCampaignContentOutputSchema,
   },
   async (input) => {
-    // Using gemini-1.0-pro for stability with the v1beta API
     const llm = googleAI.model('gemini-1.0-pro'); 
 
     const result = await ai.generate({
@@ -38,7 +37,7 @@ User Request: "${input.prompt}"`,
         temperature: 0.7,
       },
     });
-
+    
     const output = result.output();
     if (!output) {
       throw new Error('AI failed to generate content.');

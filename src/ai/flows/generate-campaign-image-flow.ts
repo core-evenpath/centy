@@ -1,15 +1,14 @@
 
 'use server';
 
-/**
- * @fileOverview A Genkit flow for generating images for marketing campaigns.
- */
-
 import { ai } from '../genkit';
 import { googleAI } from '@genkit-ai/google-genai';
-import { z } from 'genkit';
-import type { GenerateCampaignImageInput, GenerateCampaignImageOutput } from '../../lib/types';
-import { GenerateCampaignImageInputSchema, GenerateCampaignImageOutputSchema } from '../../lib/types';
+import {
+  GenerateCampaignImageInputSchema,
+  GenerateCampaignImageOutputSchema,
+  type GenerateCampaignImageInput,
+  type GenerateCampaignImageOutput,
+} from '../../lib/types';
 
 export async function generateCampaignImage(input: GenerateCampaignImageInput): Promise<GenerateCampaignImageOutput> {
   return generateCampaignImageFlow(input);

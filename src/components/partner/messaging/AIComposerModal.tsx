@@ -7,9 +7,6 @@ import { Button } from '../../ui/button';
 import { Textarea } from '../../ui/textarea';
 import { useToast } from '@/hooks/use-toast';
 import { Sparkles, Wand2, Image as ImageIcon, Loader2 } from 'lucide-react';
-import { generateCampaignContent } from '@/ai/flows/generate-campaign-content-flow';
-import { generateCampaignImage } from '@/ai/flows/generate-campaign-image-flow';
-import type { GenerateCampaignContentInput, GenerateCampaignImageInput } from '@/lib/types';
 
 interface AIComposerModalProps {
   isOpen: boolean;
@@ -36,9 +33,16 @@ export default function AIComposerModal({
     setGeneratedText('');
     setGeneratedImage('');
     try {
-      const input: GenerateCampaignContentInput = { prompt };
-      const result = await generateCampaignContent(input);
-      setGeneratedText(result.content);
+      const response = await fetch('/api/generate-text', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prompt }),
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to generate text');
+      }
+      setGeneratedText(data.content);
     } catch (error: any) {
       toast({ variant: 'destructive', title: 'Error Generating Text', description: error.message });
     } finally {
@@ -52,9 +56,16 @@ export default function AIComposerModal({
     setGeneratedText('');
     setGeneratedImage('');
     try {
-      const input: GenerateCampaignImageInput = { prompt };
-      const result = await generateCampaignImage(input);
-      setGeneratedImage(result.imageUrl);
+      const response = await fetch('/api/generate-image', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prompt }),
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to generate image');
+      }
+      setGeneratedImage(data.imageUrl);
     } catch (error: any) {
       toast({ variant: 'destructive', title: 'Error Generating Image', description: error.message });
     } finally {
