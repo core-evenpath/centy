@@ -138,9 +138,11 @@
         "name": { "type": "string" },
         "partnerId": { "type": "string" },
         "email": { "type": "string", "format": "email" },
-        "phone": { "type": "string" }
+        "phone": { "type": "string" },
+        "status": { "type": "string", "enum": ["active", "inactive"] },
+        "groups": { "type": "array", "items": { "type": "string" } }
       },
-      "required": ["name", "partnerId"]
+      "required": ["name", "partnerId", "phone", "status"]
     },
     "TradingPick": {
       "title": "Trading Pick",

@@ -1,0 +1,31 @@
+
+[
+  {
+    "name": "John Doe",
+    "email": "john.doe@example.com",
+    "phone": "+15551234567",
+    "status": "active",
+    "groups": ["Premium Members", "VIP Clients"]
+  },
+  {
+    "name": "Jane Smith",
+    "email": "jane.smith@example.com",
+    "phone": "+15559876543",
+    "status": "active",
+    "groups": ["Premium Members"]
+  },
+  {
+    "name": "Peter Jones",
+    "email": "peter.jones@example.com",
+    "phone": "+15555551212",
+    "status": "inactive",
+    "groups": ["General List"]
+  },
+  {
+    "name": "Mary Johnson",
+    "email": "mary.j@example.com",
+    "phone": "+15558887777",
+    "status": "active",
+    "groups": ["All Subscribers", "Leads Q3"]
+  }
+]
