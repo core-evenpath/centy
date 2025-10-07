@@ -72,7 +72,7 @@ export async function sendWhatsAppMessageAction(input: SendWhatsAppMessageInput)
     const messageData: Partial<WhatsAppMessage> = {
       conversationId,
       senderId: input.partnerId,
-      type: 'text',
+      type: input.mediaUrl ? 'image' : 'text',
       content: input.message,
       direction: 'outbound',
       platform: 'whatsapp',
@@ -92,14 +92,16 @@ export async function sendWhatsAppMessageAction(input: SendWhatsAppMessageInput)
     if (input.mediaUrl) {
       messageData.attachments = [{
         id: messageRef.id,
-        type: 'image',
-        name: 'media',
+        type: 'image', // Assuming image for now
+        name: 'media_attachment',
         url: input.mediaUrl,
-        size: 0,
-        mimeType: 'image/jpeg',
+        size: 0, // Size is not available from URL
+        mimeType: 'image/png', // Assuming png for AI generated
       }];
-      messageData.whatsappMetadata!.numMedia = 1;
-      messageData.whatsappMetadata!.mediaUrls = [input.mediaUrl];
+      if (messageData.whatsappMetadata) {
+        messageData.whatsappMetadata.numMedia = 1;
+        messageData.whatsappMetadata.mediaUrls = [input.mediaUrl];
+      }
     }
 
     await messageRef.set(messageData);
