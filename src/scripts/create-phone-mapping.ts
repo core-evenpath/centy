@@ -1,100 +1,171 @@
-// src/scripts/create-phone-mapping.ts
+// src/scripts/create-twilio-phone-mapping.ts
 /**
  * Script to create Twilio phone number to partner mappings
+ * Run this to map your Twilio WhatsApp numbers to your partner organizations
  * 
  * Usage:
- * 1. Set your Firebase credentials
- * 2. Run: npx ts-node src/scripts/create-phone-mapping.ts
- * 3. Follow the prompts
+ * npx ts-node src/scripts/create-twilio-phone-mapping.ts
  */
 
-import * as admin from 'firebase-admin';
-import * as readline from 'readline';
+import { initializeApp, cert, getApps } from 'firebase-admin/app';
+import { getFirestore } from 'firebase-admin/firestore';
 
-// Initialize Firebase Admin (you may need to adjust the path to your service account key)
-if (!admin.apps.length) {
-  admin.initializeApp({
-    credential: admin.credential.cert(require('../../serviceAccountKey.json'))
+// Initialize Firebase Admin
+if (getApps().length === 0) {
+  initializeApp({
+    credential: cert({
+      projectId: process.env.FIREBASE_PROJECT_ID,
+      clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
+      privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
+    }),
   });
 }
 
-const db = admin.firestore();
+const db = getFirestore();
 
-const rl = readline.createInterface({
-  input: process.stdin,
-  output: process.stdout
-});
-
-function question(query: string): Promise<string> {
-  return new Promise(resolve => {
-    rl.question(query, resolve);
-  });
+interface PhoneMapping {
+  phoneNumber: string; // e.g., "whatsapp:+14155238886"
+  partnerId: string;   // Your partner/organization ID
+  partnerName?: string; // Optional: Name for reference
+  createdAt: Date;
+  updatedAt: Date;
 }
 
-async function createPhoneMapping() {
+/**
+ * Create a phone number mapping
+ */
+async function createPhoneMapping(
+  twilioWhatsAppNumber: string,
+  partnerId: string,
+  partnerName?: string
+): Promise<void> {
   try {
-    console.log('\n=== Create Twilio Phone Mapping ===\n');
+    // Ensure the phone number has the whatsapp: prefix
+    const phoneNumber = twilioWhatsAppNumber.startsWith('whatsapp:')
+      ? twilioWhatsAppNumber
+      : `whatsapp:${twilioWhatsAppNumber}`;
 
-    // Get phone number
-    const phoneNumber = await question('Enter Twilio WhatsApp phone number (e.g., +19107149473): ');
-    if (!phoneNumber) {
-      console.error('❌ Phone number is required');
-      process.exit(1);
-    }
-
-    // Format phone number
-    const formattedPhone = phoneNumber.startsWith('whatsapp:') 
-      ? phoneNumber 
-      : `whatsapp:${phoneNumber}`;
-
-    // Get partner ID
-    const partnerId = await question('Enter Partner ID: ');
-    if (!partnerId) {
-      console.error('❌ Partner ID is required');
-      process.exit(1);
-    }
+    console.log('\n=== Creating Phone Mapping ===');
+    console.log('Phone Number:', phoneNumber);
+    console.log('Partner ID:', partnerId);
+    console.log('Partner Name:', partnerName || 'Not provided');
 
     // Verify partner exists
     const partnerDoc = await db.collection('partners').doc(partnerId).get();
     if (!partnerDoc.exists) {
-      console.error(`❌ Partner with ID "${partnerId}" not found!`);
-      
-      // List available partners
-      console.log('\nAvailable partners:');
-      const partnersSnapshot = await db.collection('partners').limit(10).get();
-      partnersSnapshot.docs.forEach(doc => {
-        const data = doc.data();
-        console.log(`  - ID: ${doc.id}, Name: ${data.name}`);
-      });
-      
-      process.exit(1);
+      throw new Error(`Partner ${partnerId} does not exist!`);
     }
 
-    const partnerName = partnerDoc.data()?.name || 'Unknown Partner';
+    const partnerData = partnerDoc.data();
+    const actualPartnerName = partnerName || partnerData?.name || partnerData?.businessName || 'Unknown';
 
-    // Create mapping
-    const mappingData = {
-      phoneNumber: formattedPhone,
+    const mappingData: PhoneMapping = {
+      phoneNumber,
       partnerId,
-      partnerName,
-      platform: 'whatsapp',
-      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      partnerName: actualPartnerName,
+      createdAt: new Date(),
+      updatedAt: new Date(),
     };
 
-    await db.collection('twilioPhoneMappings').doc(formattedPhone).set(mappingData);
+    // Create the mapping document
+    // Document ID is the phone number itself (with whatsapp: prefix)
+    await db.collection('twilioPhoneMappings').doc(phoneNumber).set(mappingData);
 
-    console.log('\n✅ Phone mapping created successfully!');
-    console.log(`   Phone: ${formattedPhone}`);
-    console.log(`   Partner: ${partnerName} (${partnerId})`);
-    console.log('\nYou can now receive WhatsApp messages on this number.');
+    console.log('✅ Phone mapping created successfully!');
+    console.log('\nMapping Details:');
+    console.log(JSON.stringify(mappingData, null, 2));
+    console.log('\n📱 Test by sending a WhatsApp message to:', phoneNumber);
+  } catch (error: any) {
+    console.error('❌ Error creating phone mapping:', error.message);
+    throw error;
+  }
+}
 
-  } catch (error) {
-    console.error('\n❌ Error:', error);
-  } finally {
-    rl.close();
-    process.exit(0);
+/**
+ * List all existing phone mappings
+ */
+async function listPhoneMappings(): Promise<void> {
+  try {
+    console.log('\n=== Existing Phone Mappings ===');
+    const snapshot = await db.collection('twilioPhoneMappings').get();
+
+    if (snapshot.empty) {
+      console.log('No phone mappings found.');
+      return;
+    }
+
+    snapshot.forEach((doc) => {
+      const data = doc.data();
+      console.log('\n---');
+      console.log('Document ID:', doc.id);
+      console.log('Phone Number:', data.phoneNumber);
+      console.log('Partner ID:', data.partnerId);
+      console.log('Partner Name:', data.partnerName);
+      console.log('Created At:', data.createdAt?.toDate?.() || data.createdAt);
+    });
+  } catch (error: any) {
+    console.error('❌ Error listing phone mappings:', error.message);
+    throw error;
+  }
+}
+
+/**
+ * Main execution
+ */
+async function main() {
+  try {
+    console.log('🚀 Twilio Phone Mapping Setup Tool\n');
+
+    // CONFIGURE YOUR MAPPINGS HERE
+    // Replace with your actual Twilio WhatsApp numbers and partner IDs
+    const mappings = [
+      {
+        twilioWhatsAppNumber: 'whatsapp:+19107149473', // Your Twilio WhatsApp number
+        partnerId: 'qYLfafYYCvDt2xXskVfy',              // Your partner ID from Firestore
+        partnerName: 'PropMint',               // Optional: for reference
+      },
+      // Add more mappings as needed for multiple partners
+      // {
+      //   twilioWhatsAppNumber: 'whatsapp:+14155238887',
+      //   partnerId: 'another-partner-id',
+      //   partnerName: 'Another Company',
+      // },
+    ];
+
+    // List existing mappings first
+    await listPhoneMappings();
+
+    // Create new mappings
+    console.log('\n\n=== Creating New Mappings ===');
+    for (const mapping of mappings) {
+      if (mapping.partnerId === 'your-partner-id-here') {
+        console.log('\n⚠️  Skipping example mapping. Please configure with your actual values.');
+        console.log('Edit this file and replace "your-partner-id-here" with your actual partner ID.');
+        continue;
+      }
+
+      await createPhoneMapping(
+        mapping.twilioWhatsAppNumber,
+        mapping.partnerId,
+        mapping.partnerName
+      );
+    }
+
+    // List all mappings after creation
+    await listPhoneMappings();
+
+    console.log('\n✅ Setup complete!');
+    console.log('\n📋 Next steps:');
+    console.log('1. Verify the mappings above are correct');
+    console.log('2. Send a test WhatsApp message to your Twilio number');
+    console.log('3. Check your application logs for webhook activity');
+    console.log('4. The message should now appear in the UI for the correct partner');
+
+  } catch (error: any) {
+    console.error('\n❌ Script failed:', error.message);
+    process.exit(1);
   }
 }
 
 // Run the script
-createPhoneMapping();
+main();
