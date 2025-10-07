@@ -149,6 +149,7 @@ interface SendWhatsAppCampaignInput {
   partnerId: string;
   message: string;
   recipients: CampaignRecipient[];
+  mediaUrl?: string;
 }
 
 export async function sendWhatsAppCampaignAction(input: SendWhatsAppCampaignInput): Promise<{
@@ -189,7 +190,8 @@ export async function sendWhatsAppCampaignAction(input: SendWhatsAppCampaignInpu
         return sendWhatsAppMessageAction({
           partnerId: input.partnerId,
           to: contact.phone,
-          message: input.message
+          message: input.message,
+          mediaUrl: input.mediaUrl,
         }).catch(err => {
           console.error(`Failed to send WhatsApp message to ${contact.phone}:`, err);
           return { success: false, message: `Failed to send to ${contact.name}` };

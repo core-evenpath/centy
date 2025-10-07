@@ -10,3 +10,5 @@ import '@/ai/flows/user-management-flow.ts';
 import '@/ai/flows/delete-partner-flow.ts';
 import '@/ai/flows/set-user-claims-flow.ts';
 import '@/ai/flows/suggest-industry-templates.ts';
+import '@/ai/flows/generate-campaign-content-flow.ts';
+import '@/ai/flows/generate-campaign-image-flow.ts';
