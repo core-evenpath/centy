@@ -3,6 +3,8 @@
 
 import React, { useState } from 'react';
 import PartnerHeader from '../../../../components/partner/PartnerHeader';
+import { Button } from '../../../../components/ui/button';
+import { Card, CardHeader, CardContent } from '../../../../components/ui/card';
 import { 
   MessageCircle, Users, FileText, Send, X, Sparkles, ChevronRight, 
   Smartphone, Check, Plus, ArrowRight, AlertCircle, Eye, Info, TrendingUp,
@@ -943,13 +945,13 @@ function MessagingPlatform() {
                       <p className="text-gray-600 mb-6 max-w-md mx-auto">
                         Start from scratch or duplicate one of our default templates below and customize it to your needs
                       </p>
-                      <button
+                      <Button
                         onClick={createNewTemplate}
                         className="px-8 py-3 bg-blue-600 text-white rounded-xl font-semibold hover:bg-blue-700 transition-colors inline-flex items-center space-x-2"
                       >
                         <Plus className="w-5 h-5" />
                         <span>Create Template</span>
-                      </button>
+                      </Button>
                     </div>
                   )}
 
