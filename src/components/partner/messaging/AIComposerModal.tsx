@@ -7,6 +7,8 @@ import { Button } from '../../ui/button';
 import { Textarea } from '../../ui/textarea';
 import { useToast } from '@/hooks/use-toast';
 import { Sparkles, Wand2, Image as ImageIcon, Loader2 } from 'lucide-react';
+import { generateCampaignContent } from '@/ai/flows/generate-campaign-content-flow';
+import { generateCampaignImage } from '@/ai/flows/generate-campaign-image-flow';
 
 interface AIComposerModalProps {
   isOpen: boolean;
@@ -25,11 +27,13 @@ export default function AIComposerModal({
   const [generatedText, setGeneratedText] = useState('');
   const [generatedImage, setGeneratedImage] = useState('');
   const [isLoading, setIsLoading] = useState<'text' | 'image' | false>(false);
+  const [loadingMessage, setLoadingMessage] = useState('');
   const { toast } = useToast();
 
   const handleGenerateText = async () => {
     if (!prompt.trim()) return;
     setIsLoading('text');
+    setLoadingMessage('Sending prompt to AI...');
     setGeneratedText('');
     setGeneratedImage('');
     try {
@@ -38,21 +42,29 @@ export default function AIComposerModal({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ prompt }),
       });
+      
+      setLoadingMessage('Processing response...');
       const data = await response.json();
-      if (!response.ok) {
+      console.log('Text generation response:', data);
+
+      if (!response.ok || data.error) {
         throw new Error(data.error || 'Failed to generate text');
       }
       setGeneratedText(data.content);
+      toast({ title: 'Success', description: 'Text generated successfully!' });
     } catch (error: any) {
+      console.error('Error generating text:', error);
       toast({ variant: 'destructive', title: 'Error Generating Text', description: error.message });
     } finally {
       setIsLoading(false);
+      setLoadingMessage('');
     }
   };
 
   const handleGenerateImage = async () => {
     if (!prompt.trim()) return;
     setIsLoading('image');
+    setLoadingMessage('Sending prompt to DALL-E 3...');
     setGeneratedText('');
     setGeneratedImage('');
     try {
@@ -61,15 +73,27 @@ export default function AIComposerModal({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ prompt }),
       });
+
+      setLoadingMessage('Receiving image data...');
       const data = await response.json();
-      if (!response.ok) {
+      console.log('Image generation API response:', data);
+
+      if (!response.ok || data.error) {
         throw new Error(data.error || 'Failed to generate image');
       }
+
+      if (!data.imageUrl) {
+        throw new Error('API response did not contain a valid image URL.');
+      }
+      
       setGeneratedImage(data.imageUrl);
+      toast({ title: 'Success', description: 'Image generated successfully!' });
     } catch (error: any) {
+      console.error('Error generating image:', error);
       toast({ variant: 'destructive', title: 'Error Generating Image', description: error.message });
     } finally {
       setIsLoading(false);
+      setLoadingMessage('');
     }
   };
 
@@ -132,7 +156,7 @@ export default function AIComposerModal({
             {isLoading && (
               <div className="text-center text-gray-500">
                 <Loader2 className="w-8 h-8 mx-auto mb-2 animate-spin" />
-                <p>Generating {isLoading}...</p>
+                <p>{loadingMessage}</p>
               </div>
             )}
             
