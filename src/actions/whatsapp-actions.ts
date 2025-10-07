@@ -6,6 +6,7 @@ import { sendWhatsAppMessage, getMessageStatus } from '@/lib/twilio-service';
 import { FieldValue } from 'firebase-admin/firestore';
 import type { SendWhatsAppMessageInput, SendWhatsAppMessageResult, WhatsAppMessage, WhatsAppConversation, Contact } from '@/lib/types';
 import { FirestorePermissionError } from '@/firebase/errors';
+import { normalizePhoneNumber } from '@/utils/phone-utils';
 
 /**
  * Send a WhatsApp message and store it in Firestore
@@ -16,8 +17,8 @@ export async function sendWhatsAppMessageAction(input: SendWhatsAppMessageInput)
   }
 
   // Validate input
-  if (!input.to || !input.message) {
-    return { success: false, message: 'Phone number and message are required' };
+  if (!input.to || (!input.message && !input.mediaUrl)) {
+    return { success: false, message: 'Phone number and a message or image are required' };
   }
 
   if (!input.partnerId) {
@@ -25,9 +26,11 @@ export async function sendWhatsAppMessageAction(input: SendWhatsAppMessageInput)
   }
 
   try {
+    const normalizedPhoneNumber = normalizePhoneNumber(input.to);
+
     // Send via Twilio WhatsApp first
     const twilioResponse = await sendWhatsAppMessage({
-      to: input.to,
+      to: normalizedPhoneNumber,
       body: input.message,
       mediaUrl: input.mediaUrl,
     });
@@ -46,8 +49,8 @@ export async function sendWhatsAppMessageAction(input: SendWhatsAppMessageInput)
         partnerId: input.partnerId,
         type: 'direct',
         platform: 'whatsapp',
-        title: `WhatsApp: ${input.to}`,
-        customerPhone: input.to,
+        title: `WhatsApp: ${normalizedPhoneNumber}`,
+        customerPhone: normalizedPhoneNumber,
         participants: [],
         isActive: true,
         messageCount: 0,
@@ -161,6 +164,8 @@ export async function sendWhatsAppCampaignAction(input: SendWhatsAppCampaignInpu
     return { success: false, message: 'Server not configured' };
   }
 
+  console.log("Starting WhatsApp Campaign:", input);
+
   try {
     let uniqueContacts: Contact[] = [];
     const contactIds = new Set<string>();
@@ -185,35 +190,48 @@ export async function sendWhatsAppCampaignAction(input: SendWhatsAppCampaignInpu
       }
     }
     
-    // Actually send the WhatsApp messages
-    const sendPromises = uniqueContacts.map(contact => {
-      if (contact.phone) {
-        return sendWhatsAppMessageAction({
-          partnerId: input.partnerId,
-          to: contact.phone,
-          message: input.message,
-          mediaUrl: input.mediaUrl,
-        }).catch(err => {
-          console.error(`Failed to send WhatsApp message to ${contact.phone}:`, err);
-          return { success: false, message: `Failed to send to ${contact.name}` };
-        });
-      }
-      return Promise.resolve({ success: false, message: `No phone for ${contact.name}`});
-    });
+    console.log(`Found ${uniqueContacts.length} unique contacts to message.`);
+    
+    const results = [];
+    for (const contact of uniqueContacts) {
+        if (contact.phone) {
+            console.log(`Sending to ${contact.name} at ${contact.phone}`);
+            try {
+                const result = await sendWhatsAppMessageAction({
+                    partnerId: input.partnerId,
+                    to: contact.phone,
+                    message: input.message,
+                    mediaUrl: input.mediaUrl,
+                });
+                results.push(result);
+                if (!result.success) {
+                    console.error(`Failed to send to ${contact.name}: ${result.message}`);
+                }
+            } catch (err: any) {
+                console.error(`Caught exception sending to ${contact.name}:`, err);
+                results.push({ success: false, message: err.message || 'Unknown error' });
+            }
+        } else {
+            results.push({ success: false, message: `No phone for ${contact.name}` });
+        }
+    }
 
-    const results = await Promise.all(sendPromises);
     const successCount = results.filter(r => r.success).length;
+    const failureCount = results.length - successCount;
 
-    if (successCount === 0 && uniqueContacts.length > 0) {
-      return {
-        success: false,
-        message: `Campaign failed to send to any of the ${uniqueContacts.length} recipients.`,
-      };
+    if (failureCount > 0) {
+        const firstError = results.find(r => !r.success)?.message;
+        const errorMessage = `Campaign sent with errors. ${successCount} sent, ${failureCount} failed. First error: ${firstError}`;
+        console.error("Campaign finished with errors:", errorMessage);
+        return {
+            success: false,
+            message: errorMessage,
+        };
     }
 
     return {
       success: true,
-      message: `Campaign successfully sent to ${successCount} of ${uniqueContacts.length} recipient(s).`,
+      message: `Campaign successfully sent to ${successCount} recipient(s).`,
     };
 
   } catch (error: any) {

@@ -31,7 +31,7 @@ export interface SendSMSOptions {
 
 export interface SendWhatsAppMessageOptions {
   to: string; // Phone number in E.164 format (e.g., +1234567890)
-  body: string;
+  body?: string;
   mediaUrl?: string;
 }
 
@@ -40,7 +40,7 @@ export interface TwilioMessageResponse {
   status: string;
   to: string;
   from: string | null;
-  body: string;
+  body: string | null;
   errorCode?: string | null;
   errorMessage?: string | null;
 }
@@ -98,10 +98,7 @@ export async function sendWhatsAppMessage(options: SendWhatsAppMessageOptions): 
     
     const to = `whatsapp:${options.to.startsWith('+') ? options.to : '+' + options.to}`;
     
-    const messageParams: any = {
-      to,
-      body: options.body,
-    };
+    const messageParams: any = { to };
 
     // Use Messaging Service if available, otherwise use 'from' number for WhatsApp
     if (messagingServiceSid) {
@@ -112,8 +109,16 @@ export async function sendWhatsAppMessage(options: SendWhatsAppMessageOptions): 
       throw new Error('Neither TWILIO_MESSAGING_SERVICE_SID nor TWILIO_WHATSAPP_NUMBER is configured for WhatsApp.');
     }
     
+    if (options.body) {
+      messageParams.body = options.body;
+    }
+    
     if (options.mediaUrl) {
       messageParams.mediaUrl = [options.mediaUrl];
+    }
+    
+    if (!messageParams.body && !messageParams.mediaUrl) {
+        throw new Error('WhatsApp message must have either a body or mediaUrl.');
     }
 
     const message = await client.messages.create(messageParams);

@@ -1,23 +1,30 @@
 // src/utils/phone-utils.ts
 
 /**
- * Format phone number for display
+ * Format phone number to E.164 format.
+ * If it doesn't start with +, assume it's a US number.
  */
-export function formatPhoneNumber(phoneNumber: string): string {
-    // Remove all non-digit characters except +
-    const cleaned = phoneNumber.replace(/[^\d+]/g, '');
+export function normalizePhoneNumber(phoneNumber: string): string {
+    // Remove all non-digit characters
+    let cleaned = phoneNumber.replace(/\D/g, '');
     
-    // If it doesn't start with +, assume it's a US number
-    if (!cleaned.startsWith('+')) {
-      if (cleaned.length === 10) {
-        return `+1${cleaned}`;
-      }
-      if (cleaned.length === 11 && cleaned.startsWith('1')) {
+    // If it's a 10 digit US number, add +1
+    if (cleaned.length === 10) {
+      return `+1${cleaned}`;
+    }
+
+    // If it's an 11 digit US number (e.g. 15551234567), add +
+    if (cleaned.length === 11 && cleaned.startsWith('1')) {
         return `+${cleaned}`;
-      }
     }
     
-    return cleaned;
+    // If it already starts with +, assume it's correct
+    if (phoneNumber.startsWith('+')) {
+      return phoneNumber;
+    }
+
+    // Fallback for numbers that might be missing the +
+    return `+${cleaned}`;
   }
   
   /**
@@ -138,13 +145,6 @@ export function formatPhoneNumber(phoneNumber: string): string {
     }
   }
   
-  /**
-   * Normalize phone number for storage/comparison
-   */
-  export function normalizePhoneNumber(phoneNumber: string): string {
-    const formatted = formatPhoneNumber(phoneNumber);
-    return formatted.toLowerCase().trim();
-  }
   
   /**
    * Extract digits only from phone number
