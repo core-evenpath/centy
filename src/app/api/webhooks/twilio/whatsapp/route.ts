@@ -28,7 +28,7 @@ export async function POST(request: NextRequest) {
       payload[key] = value.toString();
     });
     
-    console.log('📦 Payload:', JSON.stringify(payload, null, 2));
+    console.log('📦 Full Payload:', JSON.stringify(payload, null, 2));
     
     // Handle status updates
     if (payload.MessageStatus) {
@@ -70,10 +70,14 @@ async function getPartnerIdFromPhone(toPhone: string): Promise<string> {
   
   if (!doc.exists) {
     console.error('❌ No phone mapping found for:', lookupId);
-    throw new Error(`No phone mapping found for ${lookupId}`);
+    throw new Error(`No phone mapping found for ${lookupId}. Create document in twilioPhoneMappings collection.`);
   }
   
   const partnerId = doc.data()?.partnerId;
+  if (!partnerId) {
+    throw new Error(`Phone mapping exists but partnerId is missing for ${lookupId}`);
+  }
+  
   console.log('✅ Found partnerId:', partnerId);
   return partnerId;
 }
@@ -81,17 +85,24 @@ async function getPartnerIdFromPhone(toPhone: string): Promise<string> {
 async function handleIncomingMessage(payload: Record<string, string>) {
   if (!db) throw new Error('Database not configured');
   
-  const fromPhone = payload.From.replace('whatsapp:', '');
-  const toPhone = payload.To;
+  console.log('');
+  console.log('📨 Processing inbound message...');
   
-  console.log('From:', fromPhone);
-  console.log('To:', toPhone);
+  // CRITICAL: Extract phone numbers correctly
+  // From: whatsapp:+918008968303 (customer sending TO you)
+  // To: whatsapp:+19107149473 (your business number)
+  const customerPhone = payload.From.replace('whatsapp:', ''); // Customer's phone
+  const businessPhone = payload.To; // Keep whatsapp: prefix for lookup
   
-  const partnerId = await getPartnerIdFromPhone(toPhone);
+  console.log('👤 Customer phone:', customerPhone);
+  console.log('🏢 Business phone:', businessPhone);
+  
+  const partnerId = await getPartnerIdFromPhone(businessPhone);
+  console.log('🏢 Partner ID:', partnerId);
   
   // Find or create conversation
   const convQuery = await db.collection('whatsappConversations')
-    .where('customerPhone', '==', fromPhone)
+    .where('customerPhone', '==', customerPhone)
     .where('partnerId', '==', partnerId)
     .limit(1)
     .get();
@@ -108,8 +119,8 @@ async function handleIncomingMessage(payload: Record<string, string>) {
       partnerId,
       type: 'direct',
       platform: 'whatsapp',
-      title: `WhatsApp: ${fromPhone}`,
-      customerPhone: fromPhone,
+      title: `WhatsApp: ${customerPhone}`,
+      customerPhone: customerPhone, // Customer's phone number
       participants: [],
       isActive: true,
       messageCount: 1,
@@ -130,34 +141,47 @@ async function handleIncomingMessage(payload: Record<string, string>) {
   }
   
   // Store message
+  console.log('💾 Saving message to whatsappMessages...');
   const msgRef = db.collection('whatsappMessages').doc();
+  
   const messageData = {
     id: msgRef.id,
     conversationId,
-    partnerId,
-    senderId: fromPhone,
+    partnerId, // CRITICAL: Must match user's workspace partnerId
+    senderId: customerPhone, // CRITICAL: Customer's phone, NOT partnerId!
     type: 'text',
     content: payload.Body || '',
-    direction: 'inbound',
+    direction: 'inbound', // CRITICAL: This is an INBOUND message from customer
     platform: 'whatsapp',
     whatsappMetadata: {
       twilioSid: payload.MessageSid,
       twilioStatus: 'received',
-      to: payload.To,
-      from: payload.From,
+      to: payload.To, // Business number
+      from: payload.From, // Customer number
       numMedia: parseInt(payload.NumMedia || '0'),
     },
     isEdited: false,
     createdAt: FieldValue.serverTimestamp(),
   };
   
+  console.log('📝 Message data:', JSON.stringify(messageData, null, 2));
+  
   await msgRef.set(messageData);
-  console.log('✅ Message stored:', msgRef.id);
-  console.log('🎯 Message should now appear in UI for partner:', partnerId);
+  
+  console.log('');
+  console.log('✅ Message saved successfully!');
+  console.log('   Message ID:', msgRef.id);
+  console.log('   Direction: inbound ✅');
+  console.log('   Sender ID:', customerPhone, '✅');
+  console.log('   Partner ID:', partnerId, '✅');
+  console.log('   Conversation ID:', conversationId);
+  console.log('');
 }
 
 async function handleStatusUpdate(payload: Record<string, string>) {
   if (!db) return;
+  
+  console.log('🔄 Updating message status...');
   
   const snapshot = await db.collection('whatsappMessages')
     .where('whatsappMetadata.twilioSid', '==', payload.MessageSid)
@@ -169,6 +193,8 @@ async function handleStatusUpdate(payload: Record<string, string>) {
       'whatsappMetadata.twilioStatus': payload.MessageStatus,
       updatedAt: FieldValue.serverTimestamp(),
     });
-    console.log('✅ Status updated:', payload.MessageStatus);
+    console.log('✅ Status updated to:', payload.MessageStatus);
+  } else {
+    console.warn('⚠️ Message not found for status update');
   }
 }
