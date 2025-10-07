@@ -3,7 +3,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { Button } from '../../../../components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '../../../../components/ui/card';
+import { Card, CardHeader, CardTitle, CardContent } from '../../../../components/ui/card';
 import {
   MessageCircle, Users, FileText, Send, X, Sparkles, ChevronRight,
   Smartphone, Check, Plus, ArrowRight, AlertCircle, Eye, Info, TrendingUp,
@@ -15,6 +15,7 @@ import { collection, query, where, onSnapshot } from 'firebase/firestore';
 import type { ContactGroup } from '@/lib/types';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
+import PartnerHeader from '../../../../components/partner/PartnerHeader';
 
 
 function MessagingPlatform() {
