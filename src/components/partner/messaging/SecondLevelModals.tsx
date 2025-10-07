@@ -147,15 +147,23 @@ export const NewCampaignModal = ({ setShowNewCampaign }: { setShowNewCampaign: (
                           {recipient.type === 'group' && <Users className="w-3 h-3 mr-1"/>}
                           {recipient.type === 'contact' && <User className="w-3 h-3 mr-1"/>}
                           {recipient.name}
-                          <button
+                          <div
+                            role="button"
+                            tabIndex={0}
                             className="ml-1 rounded-full outline-none ring-offset-background focus:ring-2 focus:ring-ring focus:ring-offset-2"
                             onClick={(e) => {
                               e.stopPropagation();
                               handleSelectRecipient(recipient);
                             }}
+                            onKeyDown={(e) => {
+                                if (e.key === 'Enter' || e.key === ' ') {
+                                    e.stopPropagation();
+                                    handleSelectRecipient(recipient);
+                                }
+                            }}
                           >
                             <X className="h-3 w-3 text-muted-foreground hover:text-foreground" />
-                          </button>
+                          </div>
                         </Badge>
                       ))
                     ) : (
