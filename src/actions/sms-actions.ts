@@ -4,7 +4,7 @@
 
 import { db } from '@/lib/firebase-admin';
 import { sendSMS, getMessageStatus } from '@/lib/twilio-service';
-import { FieldValue } from 'firebase-admin/firestore';
+import { FieldValue, doc } from 'firebase-admin/firestore'; // Corrected: Added doc import
 import type { SendSMSInput, SendSMSResult, SMSMessage, SMSConversation, Contact } from '@/lib/types';
 import { FirestorePermissionError } from '@/firebase/errors';
 
@@ -153,16 +153,16 @@ export async function sendSmsCampaignAction(input: SendSmsCampaignInput): Promis
         if (!contactIds.has(recipient.id)) {
           const contactDoc = await db.collection(`partners/${input.partnerId}/contacts`).doc(recipient.id).get();
           if (contactDoc.exists) {
-            uniqueContacts.push({ id: doc.id, ...contactDoc.data() } as Contact);
+            uniqueContacts.push({ id: contactDoc.id, ...contactDoc.data() } as Contact); // Corrected: was doc.id
             contactIds.add(recipient.id);
           }
         }
       } else if (recipient.type === 'group') {
         const contactsSnapshot = await db.collection(`partners/${input.partnerId}/contacts`).where('groups', 'array-contains', recipient.name).get();
-        contactsSnapshot.forEach(doc => {
-          if (!contactIds.has(doc.id)) {
-            uniqueContacts.push({ id: doc.id, ...doc.data() } as Contact);
-            contactIds.add(doc.id);
+        contactsSnapshot.forEach(contactDoc => { // Corrected: was doc
+          if (!contactIds.has(contactDoc.id)) {
+            uniqueContacts.push({ id: contactDoc.id, ...contactDoc.data() } as Contact);
+            contactIds.add(contactDoc.id);
           }
         });
       }
