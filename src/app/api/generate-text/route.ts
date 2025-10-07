@@ -1,7 +1,5 @@
 
 import { NextResponse } from 'next/server';
-import { generateCampaignContent } from '@/ai/flows/generate-campaign-content-flow';
-import type { GenerateCampaignContentInput } from '@/lib/types';
 
 export async function POST(request: Request) {
   try {
@@ -13,18 +11,50 @@ export async function POST(request: Request) {
         { status: 400 }
       );
     }
+    
+    if (!process.env.OPENAI_API_KEY) {
+      return NextResponse.json(
+        { error: 'OpenAI API key is not configured.' },
+        { status: 500 }
+      );
+    }
 
-    const input: GenerateCampaignContentInput = { prompt };
-    const result = await generateCampaignContent(input);
+    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`
+      },
+      body: JSON.stringify({
+        model: 'gpt-4',
+        messages: [
+          {
+            role: 'user',
+            content: prompt
+          }
+        ],
+        max_tokens: 1000
+      })
+    });
+
+    const data = await response.json();
+
+    if (data.error) {
+      console.error("OpenAI API Error:", data.error);
+      return NextResponse.json(
+        { error: data.error.message },
+        { status: 500 }
+      );
+    }
 
     return NextResponse.json({
-      content: result.content
+      content: data.choices[0].message.content
     });
 
   } catch (error: any) {
     console.error("Error in /api/generate-text:", error);
     return NextResponse.json(
-      { error: error.message || 'Failed to generate text' },
+      { error: 'Failed to generate text' },
       { status: 500 }
     );
   }
