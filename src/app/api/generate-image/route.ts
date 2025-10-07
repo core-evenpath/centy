@@ -1,7 +1,22 @@
 
 import { NextResponse } from 'next/server';
+import { adminAuth, db } from '@/lib/firebase-admin';
+import * as admin from 'firebase-admin';
+import { v4 as uuidv4 } from 'uuid';
+
+// Ensure storage is initialized with the app
+let storage: admin.storage.Storage;
+try {
+    storage = admin.storage();
+} catch (e: any) {
+    console.error("Failed to initialize Firebase Storage:", e.message);
+}
 
 export async function POST(request: Request) {
+    if (!storage) {
+        return NextResponse.json({ error: 'Firebase Storage is not configured on the server.' }, { status: 500 });
+    }
+  
   try {
     const { prompt } = await request.json();
 
@@ -44,18 +59,41 @@ export async function POST(request: Request) {
       );
     }
 
-    // Create a data URI from the base64 string
-    const imageUrl = `data:image/png;base64,${data.data[0].b64_json}`;
+    // Decode the Base64 string and upload to Firebase Storage
+    const base64Data = data.data[0].b64_json;
+    const buffer = Buffer.from(base64Data, 'base64');
+    const mimeType = 'image/png'; // DALL-E 3 with b64_json returns PNG
+    const fileExtension = 'png';
+    const fileName = `ai-generated/${uuidv4()}.${fileExtension}`;
+    
+    const bucket = storage.bucket(process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET);
+    const file = bucket.file(fileName);
 
-    // Ensure the response is a JSON object with the imageUrl key
+    await file.save(buffer, {
+        metadata: {
+            contentType: mimeType,
+            cacheControl: 'public, max-age=31536000',
+        },
+        public: true,
+    });
+
+    // Get the public URL for the uploaded file
+    const [publicUrl] = await file.getSignedUrl({
+        action: 'read',
+        expires: '03-09-2491', // A far-future date
+    });
+
+    console.log(`AI Image uploaded to Storage. Public URL: ${publicUrl}`);
+
+    // Return the public URL in the correct JSON format
     return NextResponse.json({
-      imageUrl: imageUrl
+      imageUrl: publicUrl
     });
 
   } catch (error: any) {
     console.error("Error in /api/generate-image:", error);
     return NextResponse.json(
-      { error: 'Failed to generate image' },
+      { error: 'Failed to generate and store image' },
       { status: 500 }
     );
   }
