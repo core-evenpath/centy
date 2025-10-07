@@ -44,21 +44,24 @@ const messageTemplates = [
     }
   ];
 
+interface CreateCampaignModalProps {
+    isOpen: boolean;
+    onClose: () => void;
+    partnerId: string;
+    onConversationStarted?: (conversationId: string) => void;
+    initialContent?: { message?: string; mediaUrl?: string };
+}
 export const CreateCampaignModal = ({
   isOpen,
   onClose,
   partnerId,
   onConversationStarted,
-}: {
-  isOpen: boolean;
-  onClose: () => void;
-  partnerId: string;
-  onConversationStarted?: (conversationId: string) => void;
-}) => {
+  initialContent,
+}: CreateCampaignModalProps) => {
   const { toast } = useToast();
   const [platform, setPlatform] = useState<'whatsapp' | 'sms'>('whatsapp');
   const [showAiComposer, setShowAiComposer] = useState(false);
-  const [mediaUrl, setMediaUrl] = useState<string | null>(null);
+  const [mediaUrl, setMediaUrl] = useState<string | null>(initialContent?.mediaUrl || null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isUploading, setIsUploading] = useState(false);
 
@@ -70,7 +73,7 @@ export const CreateCampaignModal = ({
   // Form state
   const [campaignName, setCampaignName] = useState(`Campaign - ${new Date().toLocaleDateString()}`);
   const [selectedRecipients, setSelectedRecipients] = useState<any[]>([]);
-  const [message, setMessage] = useState('');
+  const [message, setMessage] = useState(initialContent?.message || '');
   const [isSending, setIsSending] = useState(false);
   const [isRecipientPopoverOpen, setIsRecipientPopoverOpen] = useState(false);
 
