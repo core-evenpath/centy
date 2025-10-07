@@ -1,45 +1,43 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
+import type { NextRequest } from 'next/server';
 
-/**
- * TEST: Simple GET handler
- */
+export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
+
 export async function GET(request: NextRequest) {
-  console.log('✅ GET request received at:', new Date().toISOString());
+  console.log('GET /api/webhooks/twilio/whatsapp');
   return NextResponse.json({ 
-    status: 'ok',
-    method: 'GET',
-    message: 'WhatsApp webhook endpoint is active' 
-  }, { status: 200 });
+    success: true,
+    message: 'WhatsApp webhook is active',
+    timestamp: new Date().toISOString()
+  });
 }
 
-/**
- * TEST: Simple POST handler
- */
 export async function POST(request: NextRequest) {
-  console.log('✅ POST request received at:', new Date().toISOString());
+  console.log('POST /api/webhooks/twilio/whatsapp');
+  console.log('Webhook called at:', new Date().toISOString());
   
   try {
     const formData = await request.formData();
-    const payload: any = {};
+    const data: Record<string, string> = {};
     
     formData.forEach((value, key) => {
-      payload[key] = value.toString();
+      data[key] = value.toString();
     });
     
-    console.log('Payload:', JSON.stringify(payload, null, 2));
+    console.log('Received data:', JSON.stringify(data, null, 2));
     
     return NextResponse.json({ 
-      status: 'ok',
-      method: 'POST',
-      message: 'Message received',
-      receivedData: payload
-    }, { status: 200 });
+      success: true,
+      message: 'Webhook received',
+      data: data
+    });
     
   } catch (error: any) {
-    console.error('Error:', error.message);
+    console.error('Error:', error);
     return NextResponse.json({ 
-      status: 'error',
-      message: error.message 
+      success: false,
+      error: error.message 
     }, { status: 500 });
   }
 }
