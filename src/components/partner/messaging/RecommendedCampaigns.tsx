@@ -3,7 +3,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { Button } from '../../ui/button';
-import { Card, CardContent } from '../../ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '../../ui/card';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2, RefreshCcw, Send, Sparkles } from 'lucide-react';
 import { CreateCampaignModal } from './CreateCampaignModal';
@@ -95,7 +95,7 @@ export default function RecommendedCampaigns({ partnerId }: RecommendedCampaigns
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-2">
               <Sparkles className="w-5 h-5 text-purple-600" />
-              <h3 className="text-lg font-semibold">AI Recommended Campaigns</h3>
+              <h3 className="text-lg font-semibold">Recommended Campaigns</h3>
             </div>
             <Button variant="outline" size="sm" onClick={generateRecommendations} disabled={isLoading}>
               <RefreshCcw className={`w-4 h-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />

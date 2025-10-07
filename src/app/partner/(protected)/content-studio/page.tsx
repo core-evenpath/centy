@@ -11,12 +11,10 @@ import {
   Send, 
   Users, 
   FileText, 
-  Loader2, 
   AlertCircle
 } from 'lucide-react';
 import { CreateCampaignModal } from '@/components/partner/messaging/CreateCampaignModal';
-import WeeklySocialCalendar from '@/components/partner/messaging/WeeklySocialCalendar';
-import RecommendedCampaigns from '@/components/partner/messaging/RecommendedCampaigns'; // Import the new component
+import RecommendedCampaigns from '@/components/partner/messaging/RecommendedCampaigns';
 
 function ContentStudioDashboard() {
   const { currentWorkspace } = useMultiWorkspaceAuth();
@@ -57,8 +55,6 @@ function ContentStudioDashboard() {
           
           <RecommendedCampaigns partnerId={partnerId} />
           
-          <WeeklySocialCalendar onIdeaClick={handleCreateCampaign} />
-
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
              <button
               onClick={() => handleCreateCampaign()}
