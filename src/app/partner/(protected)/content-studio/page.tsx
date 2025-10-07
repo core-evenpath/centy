@@ -20,23 +20,33 @@ function MessagingPlatform() {
   const { currentWorkspace } = useMultiWorkspaceAuth();
   const [contactGroups, setContactGroups] = useState<ContactGroup[]>([]);
   const [isLoadingGroups, setIsLoadingGroups] = useState(true);
+  const [firestoreError, setFirestoreError] = useState<string | null>(null);
   const [showNewCampaign, setShowNewCampaign] = useState(false);
 
-  // Seed initial contact groups if the collection is empty
+  // Fetch Contact Groups from Firestore in real-time
   useEffect(() => {
-    const seedContactGroups = async () => {
-      if (!currentWorkspace?.partnerId) return;
-      
-      const collectionPath = `partners/${currentWorkspace.partnerId}/contactGroups`;
-      const groupsCollection = collection(db, collectionPath);
-      
-      try {
-        const snapshot = await getDocs(groupsCollection);
-        if (snapshot.empty) {
-          console.log(`Seeding initial contact groups for partner ${currentWorkspace.partnerId}...`);
+    if (!currentWorkspace?.partnerId) {
+      console.log('No current workspace, skipping Firestore listener for contact groups.');
+      setIsLoadingGroups(false);
+      setContactGroups([]);
+      return;
+    }
+
+    setIsLoadingGroups(true);
+    setFirestoreError(null);
+    const collectionPath = `partners/${currentWorkspace.partnerId}/contactGroups`;
+    const q = query(collection(db, collectionPath));
+    
+    console.log(`Setting up Firestore listener for: ${collectionPath}`);
+
+    const unsubscribe = onSnapshot(q, async (snapshot) => {
+      // Seed data if collection is empty
+      if (snapshot.empty) {
+        console.log(`Contact groups collection is empty. Seeding initial data...`);
+        try {
           const batch = writeBatch(db);
           contactGroupsData.forEach(group => {
-            const docRef = doc(groupsCollection); // Auto-generate ID
+            const docRef = doc(collection(db, collectionPath)); // Auto-generate ID
             batch.set(docRef, {
               ...group,
               partnerId: currentWorkspace.partnerId // Ensure partnerId is set
@@ -44,45 +54,40 @@ function MessagingPlatform() {
           });
           await batch.commit();
           console.log('Contact groups seeded successfully.');
+          // The listener will re-fire with the new data, so we don't set state here.
+          return;
+        } catch (seedError) {
+           console.error("Error seeding contact groups:", seedError);
+           setFirestoreError("Failed to initialize contact groups data.");
+           setIsLoadingGroups(false);
+           return;
         }
-      } catch (error) {
-        console.error("Error seeding contact groups:", error);
       }
-    };
-    
-    seedContactGroups();
-  }, [currentWorkspace?.partnerId]);
-  
-  // Fetch Contact Groups from Firestore in real-time
-  useEffect(() => {
-    if (!currentWorkspace?.partnerId) {
-      setIsLoadingGroups(false);
-      return;
-    }
-    
-    setIsLoadingGroups(true);
-    const collectionPath = `partners/${currentWorkspace.partnerId}/contactGroups`;
-    const q = query(collection(db, collectionPath));
 
-    const unsubscribe = onSnapshot(q, (snapshot) => {
       const groupsData = snapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data()
       } as ContactGroup));
+      
+      console.log(`Fetched ${groupsData.length} contact groups.`);
       setContactGroups(groupsData);
       setIsLoadingGroups(false);
-    }, (serverError) => {
-      // Create and emit a contextual permission error
+    }, (error) => {
+      console.error("Firestore onSnapshot error:", error);
       const permissionError = new FirestorePermissionError({
         path: collectionPath,
         operation: 'list',
-        serverError,
+        serverError: error,
       });
       errorEmitter.emit('permission-error', permissionError);
+      setFirestoreError(`Permission denied. Cannot fetch contact groups from ${collectionPath}.`);
       setIsLoadingGroups(false);
     });
 
-    return () => unsubscribe();
+    return () => {
+      console.log(`Cleaning up Firestore listener for: ${collectionPath}`);
+      unsubscribe();
+    }
   }, [currentWorkspace?.partnerId]);
   
   if (currentScreen === 'home') {
@@ -175,7 +180,17 @@ function MessagingPlatform() {
               </div>
             )}
             
-            {!isLoadingGroups && (
+            {firestoreError && (
+                 <Card className="sm:col-span-2 lg:col-span-3 bg-red-50 border-red-200">
+                    <CardContent className="p-6 text-center">
+                        <AlertCircle className="w-12 h-12 mx-auto text-red-400 mb-4"/>
+                        <h3 className="text-xl font-semibold text-red-800">Permission Error</h3>
+                        <p className="text-red-700 mt-2 text-sm whitespace-pre-wrap">{firestoreError}</p>
+                    </CardContent>
+                </Card>
+            )}
+
+            {!isLoadingGroups && !firestoreError && (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
                 {contactGroups.map(group => (
                   <Card key={group.id} className="hover:shadow-lg transition-shadow">
