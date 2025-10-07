@@ -1,3 +1,4 @@
+
 'use server';
 
 /**
@@ -7,16 +8,9 @@
 import { ai } from '../genkit';
 import { googleAI } from '@genkit-ai/google-genai';
 import { z } from 'genkit';
+import type { GenerateCampaignImageInput, GenerateCampaignImageOutput } from '../../lib/types';
+import { GenerateCampaignImageInputSchema, GenerateCampaignImageOutputSchema } from '../../lib/types';
 
-export const GenerateCampaignImageInputSchema = z.object({
-  prompt: z.string().describe("The user's text prompt to generate an image from."),
-});
-export type GenerateCampaignImageInput = z.infer<typeof GenerateCampaignImageInputSchema>;
-
-export const GenerateCampaignImageOutputSchema = z.object({
-  imageUrl: z.string().describe('The data URI of the generated image.'),
-});
-export type GenerateCampaignImageOutput = z.infer<typeof GenerateCampaignImageOutputSchema>;
 
 export async function generateCampaignImage(input: GenerateCampaignImageInput): Promise<GenerateCampaignImageOutput> {
   return generateCampaignImageFlow(input);
@@ -30,11 +24,8 @@ const generateCampaignImageFlow = ai.defineFlow(
   },
   async (input) => {
     const { media } = await ai.generate({
-      model: googleAI.model('gemini-2.5-flash-image-preview'),
+      model: googleAI.model('imagen-4.0-fast-generate-001'),
       prompt: input.prompt,
-      config: {
-        responseModalities: ['TEXT', 'IMAGE'],
-      },
     });
 
     if (!media?.url) {

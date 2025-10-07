@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { useState } from 'react';
@@ -8,6 +9,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Sparkles, Wand2, Image as ImageIcon, Loader2 } from 'lucide-react';
 import { generateCampaignContent } from '@/ai/flows/generate-campaign-content-flow';
 import { generateCampaignImage } from '@/ai/flows/generate-campaign-image-flow';
+import type { GenerateCampaignContentInput, GenerateCampaignImageInput } from '@/lib/types';
 
 interface AIComposerModalProps {
   isOpen: boolean;
@@ -31,12 +33,14 @@ export default function AIComposerModal({
   const handleGenerateText = async () => {
     if (!prompt.trim()) return;
     setIsLoading('text');
+    setGeneratedText('');
+    setGeneratedImage('');
     try {
-      const result = await generateCampaignContent({ prompt });
+      const input: GenerateCampaignContentInput = { prompt };
+      const result = await generateCampaignContent(input);
       setGeneratedText(result.content);
-      setGeneratedImage('');
     } catch (error: any) {
-      toast({ variant: 'destructive', title: 'Error', description: error.message });
+      toast({ variant: 'destructive', title: 'Error Generating Text', description: error.message });
     } finally {
       setIsLoading(false);
     }
@@ -45,12 +49,14 @@ export default function AIComposerModal({
   const handleGenerateImage = async () => {
     if (!prompt.trim()) return;
     setIsLoading('image');
+    setGeneratedText('');
+    setGeneratedImage('');
     try {
-      const result = await generateCampaignImage({ prompt });
+      const input: GenerateCampaignImageInput = { prompt };
+      const result = await generateCampaignImage(input);
       setGeneratedImage(result.imageUrl);
-      setGeneratedText('');
     } catch (error: any) {
-      toast({ variant: 'destructive', title: 'Error', description: error.message });
+      toast({ variant: 'destructive', title: 'Error Generating Image', description: error.message });
     } finally {
       setIsLoading(false);
     }
@@ -122,14 +128,14 @@ export default function AIComposerModal({
             {generatedText && (
               <div className="space-y-4">
                 <Textarea value={generatedText} readOnly rows={8} />
-                <Button onClick={handleUseText} className="w-full">Use This Text</Button>
+                <Button onClick={handleUseText} className="w-full" disabled={!generatedText}>Use This Text</Button>
               </div>
             )}
 
             {generatedImage && (
               <div className="space-y-4">
                 <img src={generatedImage} alt="Generated content" className="rounded-lg w-full h-auto object-contain" />
-                <Button onClick={handleUseImage} className="w-full">Use This Image</Button>
+                <Button onClick={handleUseImage} className="w-full" disabled={!generatedImage}>Use This Image</Button>
               </div>
             )}
           </div>

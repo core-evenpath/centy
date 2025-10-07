@@ -1,3 +1,4 @@
+
 'use server';
 
 /**
@@ -6,16 +7,12 @@
 
 import { ai } from '../genkit';
 import { z } from 'genkit';
-
-export const GenerateCampaignContentInputSchema = z.object({
-  prompt: z.string().describe('The user\'s request for the campaign content.'),
-});
-export type GenerateCampaignContentInput = z.infer<typeof GenerateCampaignContentInputSchema>;
-
-export const GenerateCampaignContentOutputSchema = z.object({
-  content: z.string().describe('The generated marketing content.'),
-});
-export type GenerateCampaignContentOutput = z.infer<typeof GenerateCampaignContentOutputSchema>;
+import { 
+  GenerateCampaignContentInputSchema,
+  GenerateCampaignContentOutputSchema,
+  type GenerateCampaignContentInput,
+  type GenerateCampaignContentOutput,
+} from '../../lib/types';
 
 export async function generateCampaignContent(input: GenerateCampaignContentInput): Promise<GenerateCampaignContentOutput> {
   return generateCampaignContentFlow(input);
@@ -42,6 +39,9 @@ const generateCampaignContentFlow = ai.defineFlow(
   },
   async (input) => {
     const { output } = await campaignPrompt(input);
-    return output!;
+    if (!output) {
+      throw new Error('AI failed to generate content.');
+    }
+    return output;
   }
 );

@@ -340,6 +340,27 @@ export const SuggestWorkflowStepsOutputSchema = z.object({
 });
 export type SuggestWorkflowStepsOutput = z.infer<typeof SuggestWorkflowStepsOutputSchema>;
 
+// AI Composer Schemas
+export const GenerateCampaignContentInputSchema = z.object({
+  prompt: z.string().describe('The user\'s request for the campaign content.'),
+});
+export type GenerateCampaignContentInput = z.infer<typeof GenerateCampaignContentInputSchema>;
+
+export const GenerateCampaignContentOutputSchema = z.object({
+  content: z.string().describe('The generated marketing content.'),
+});
+export type GenerateCampaignContentOutput = z.infer<typeof GenerateCampaignContentOutputSchema>;
+
+export const GenerateCampaignImageInputSchema = z.object({
+  prompt: z.string().describe("The user's text prompt to generate an image from."),
+});
+export type GenerateCampaignImageInput = z.infer<typeof GenerateCampaignImageInputSchema>;
+
+export const GenerateCampaignImageOutputSchema = z.object({
+  imageUrl: z.string().url().describe('The data URI of the generated image.'),
+});
+export type GenerateCampaignImageOutput = z.infer<typeof GenerateCampaignImageOutputSchema>;
+
 
 export interface WorkflowTemplate {
   id: string;
@@ -1178,7 +1199,7 @@ export interface ChatMessage {
 
 export interface MessageAttachment {
   id: string;
-  type: 'image' | 'file' | 'document' | 'video' | 'audio';
+  type: string;
   name: string;
   url: string;
   size: number;
