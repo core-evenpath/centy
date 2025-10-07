@@ -1,4 +1,3 @@
-
 // src/lib/twilio-service.ts
 'use server';
 
@@ -101,7 +100,7 @@ export async function sendWhatsAppMessage(options: SendWhatsAppMessageOptions): 
     
     const messageParams: any = {
       to,
-      body: options.message,
+      body: options.body,
     };
 
     // Use Messaging Service if available, otherwise use 'from' number for WhatsApp
