@@ -1,3 +1,4 @@
+
 import '@/ai/genkit'; // This will now handle the admin initialization
 // The .env.local file will be loaded automatically by Next.js
 
@@ -12,3 +13,4 @@ import '@/ai/flows/set-user-claims-flow.ts';
 import '@/ai/flows/suggest-industry-templates.ts';
 import '@/ai/flows/generate-campaign-content-flow.ts';
 import '@/ai/flows/generate-campaign-image-flow.ts';
+import '@/ai/flows/generate-image-caption-flow.ts';

@@ -25,6 +25,7 @@ import { collection, query, onSnapshot, addDoc, serverTimestamp } from 'firebase
 import type { Contact, ContactGroup, Campaign } from '@/lib/types';
 import { sendSmsCampaignAction } from '@/actions/sms-actions';
 import { sendWhatsAppCampaignAction } from '@/actions/whatsapp-actions';
+import { generateImageCaption } from '@/ai/flows/generate-image-caption-flow';
 import { cn } from '@/lib/utils';
 import { Loader2, Send, Users, User, X, Check, MessageSquare, Phone, Sparkles, Upload } from 'lucide-react';
 import AIComposerModal from './AIComposerModal';
@@ -102,9 +103,24 @@ export const CreateCampaignModal = ({
       toast({ variant: 'destructive', title: 'Error', description: 'Campaign name, recipients, and a message or image are required.' });
       return;
     }
-
+  
     setIsSending(true);
     try {
+      let finalMessage = message.trim();
+  
+      // If there's an image but no message, generate a caption
+      if (mediaUrl && !finalMessage) {
+        toast({ title: 'Generating Caption', description: 'AI is creating a caption for your image...' });
+        const captionResult = await generateImageCaption({ imageUrl: mediaUrl });
+        if (captionResult.caption) {
+          finalMessage = captionResult.caption;
+          setMessage(finalMessage); // Update UI to show the generated caption
+        } else {
+          // Proceed without a caption if AI fails
+          console.warn("AI caption generation failed, sending image without text.");
+        }
+      }
+  
       // 1. Create the Campaign document in Firestore
       const campaignData: Partial<Campaign> = {
         name: campaignName,
@@ -116,12 +132,12 @@ export const CreateCampaignModal = ({
         createdAt: serverTimestamp(),
       };
       await addDoc(collection(db, `partners/${partnerId}/campaigns`), campaignData);
-
+  
       // 2. Call the correct action based on platform
       let result;
       const campaignPayload = {
         partnerId: partnerId,
-        message,
+        message: finalMessage,
         recipients: selectedRecipients.map(r => ({
           id: r.id,
           name: r.name,
@@ -129,13 +145,13 @@ export const CreateCampaignModal = ({
         })),
         ...(mediaUrl && { mediaUrl }),
       };
-
+  
       if (platform === 'whatsapp') {
-        result = await sendWhatsAppCampaignAction(campaignPayload as any); // Cast needed if action is not updated yet
+        result = await sendWhatsAppCampaignAction(campaignPayload as any);
       } else {
         result = await sendSmsCampaignAction(campaignPayload);
       }
-
+  
       if (result.success) {
         toast({ title: 'Campaign Sent', description: result.message });
         onClose();
@@ -217,6 +233,8 @@ export const CreateCampaignModal = ({
       ...contacts.map(c => ({ ...c, type: 'contact' }))
     ];
   }, [contacts, contactGroups]);
+  
+  const canSend = !isSending && selectedRecipients.length > 0 && (!!message.trim() || !!mediaUrl);
 
   return (
     <>
@@ -401,7 +419,7 @@ export const CreateCampaignModal = ({
 
           <DialogFooter className="flex-shrink-0 pt-4 border-t">
             <Button variant="outline" onClick={onClose} disabled={isSending}>Cancel</Button>
-            <Button onClick={handleSend} disabled={isSending || selectedRecipients.length === 0 || (!message.trim() && !mediaUrl)}>
+            <Button onClick={handleSend} disabled={!canSend}>
               {isSending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4 mr-2" />}
               {isSending ? 'Sending...' : 'Send Campaign'}
             </Button>
