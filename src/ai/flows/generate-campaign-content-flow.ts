@@ -6,6 +6,7 @@
  */
 
 import { ai } from '../genkit';
+import { googleAI } from '@genkit-ai/google-genai';
 import { z } from 'genkit';
 import { 
   GenerateCampaignContentInputSchema,
@@ -20,6 +21,7 @@ export async function generateCampaignContent(input: GenerateCampaignContentInpu
 
 const campaignPrompt = ai.definePrompt({
   name: 'generateCampaignContentPrompt',
+  model: googleAI.model('gemini-1.5-flash-latest'), // Explicitly define the model to use
   input: { schema: GenerateCampaignContentInputSchema },
   output: { schema: GenerateCampaignContentOutputSchema },
   prompt: `You are an expert marketing copywriter. A user wants to create content for a new campaign.
