@@ -59,6 +59,7 @@ export const CreateCampaignModal = ({
   const [showAiComposer, setShowAiComposer] = useState(false);
   const [mediaUrl, setMediaUrl] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [isUploading, setIsUploading] = useState(false);
 
   // Data fetching state
   const [contacts, setContacts] = useState<Contact[]>([]);
@@ -157,7 +158,7 @@ export const CreateCampaignModal = ({
     });
   };
 
-  const handleImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
 
@@ -170,23 +171,45 @@ export const CreateCampaignModal = ({
         return;
     }
 
-    const reader = new FileReader();
-    reader.onload = () => {
-        setMediaUrl(reader.result as string);
+    setIsUploading(true);
+    toast({ title: 'Uploading Image...', description: 'Please wait.' });
+
+    try {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = async () => {
+        const base64Data = reader.result as string;
+        
+        const response = await fetch('/api/upload-image', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ image: base64Data, partnerId }),
+        });
+
+        const result = await response.json();
+
+        if (!response.ok || result.error) {
+          throw new Error(result.error || 'Failed to upload image.');
+        }
+        
+        setMediaUrl(result.url);
         toast({
             title: 'Image Uploaded',
             description: 'Your image is attached and ready to send.'
         });
-    };
-    reader.onerror = () => {
+      };
+    } catch (error: any) {
+        console.error("Error uploading image:", error);
         toast({
             variant: 'destructive',
             title: 'Upload Failed',
-            description: 'There was an error reading the image file.'
+            description: error.message
         });
-    };
-    reader.readAsDataURL(file);
+    } finally {
+      setIsUploading(false);
+    }
   };
+
 
   const availableRecipients = useMemo(() => {
     return [
@@ -317,8 +340,8 @@ export const CreateCampaignModal = ({
                 <div className="flex justify-between items-center mb-1">
                   <Label htmlFor="message" className="text-sm font-medium">Message</Label>
                   <div className="flex items-center gap-2">
-                    <Button variant="ghost" size="sm" onClick={() => fileInputRef.current?.click()}>
-                        <Upload className="w-4 h-4 mr-2 text-gray-500" />
+                    <Button variant="ghost" size="sm" onClick={() => fileInputRef.current?.click()} disabled={isUploading}>
+                        {isUploading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Upload className="w-4 h-4 mr-2 text-gray-500" />}
                         Upload
                     </Button>
                     <input
@@ -360,7 +383,7 @@ export const CreateCampaignModal = ({
                   <div className="mt-4">
                     <Label>Image Attachment</Label>
                     <div className="mt-2 relative w-48 h-48">
-                      <img src={mediaUrl} alt="Generated attachment" className="rounded-lg object-cover w-full h-full" />
+                      <img src={mediaUrl} alt="Attachment preview" className="rounded-lg object-cover w-full h-full" />
                       <Button
                         variant="destructive"
                         size="sm"
