@@ -8,6 +8,7 @@ import {
   Smartphone, Check, Plus, ArrowRight, AlertCircle, Eye, Info, TrendingUp,
   Zap, Clock, HelpCircle, Copy, Edit, Trash2
 } from 'lucide-react';
+import contactGroupsData from '@/lib/contact-groups.json';
 
 function MessagingPlatform() {
   const [currentScreen, setCurrentScreen] = useState('home');
@@ -15,7 +16,7 @@ function MessagingPlatform() {
   const [messageType, setMessageType] = useState('');
   const [selectedTemplate, setSelectedTemplate] = useState<any>(null);
   const [templateVariables, setTemplateVariables] = useState<any>({});
-  const [selectedGroups, setSelectedGroups] = useState<number[]>([]);
+  const [selectedGroups, setSelectedGroups] = useState<string[]>([]);
   const [selectedChannel, setSelectedChannel] = useState('whatsapp');
   const [showHelp, setShowHelp] = useState(false);
   const [customTemplates, setCustomTemplates] = useState<any[]>([]);
@@ -119,11 +120,7 @@ function MessagingPlatform() {
     }
   ];
 
-  const groups = [
-    { id: 1, name: 'Premium Members', count: 245, description: 'Paid subscribers with premium access' },
-    { id: 2, name: 'VIP Clients', count: 180, description: 'High-value individual clients' },
-    { id: 3, name: 'All Subscribers', count: 859, description: 'Complete subscriber database' }
-  ];
+  const groups = contactGroupsData;
 
   const messageTypes = [
     { id: 'pick', label: 'Trading Pick', icon: TrendingUp, desc: 'Share trading recommendations' },

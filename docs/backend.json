@@ -1,0 +1,207 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "User Profile",
+      "description": "Represents a user in the system, either an admin or a partner user.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "email": { "type": "string", "format": "email" },
+        "displayName": { "type": "string" },
+        "role": { "type": "string", "enum": ["Super Admin", "Admin", "partner_admin", "employee"] },
+        "partnerId": { "type": "string" },
+        "tenantId": { "type": "string" }
+      },
+      "required": ["uid", "email", "role"]
+    },
+    "AdminUser": {
+      "title": "Admin User",
+      "description": "Represents an internal administrator with elevated privileges.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "email": { "type": "string", "format": "email" },
+        "role": { "type": "string", "enum": ["Super Admin", "Admin"] },
+        "status": { "type": "string", "enum": ["active", "invited", "suspended"] }
+      },
+      "required": ["name", "email", "role", "status"]
+    },
+    "Partner": {
+      "title": "Partner",
+      "description": "Represents a partner organization using the platform.",
+      "type": "object",
+      "properties": {
+        "tenantId": { "type": "string" },
+        "name": { "type": "string" },
+        "email": { "type": "string", "format": "email" },
+        "status": { "type": "string", "enum": ["active", "pending", "suspended"] },
+        "plan": { "type": "string", "enum": ["Starter", "Professional", "Enterprise"] }
+      },
+      "required": ["name", "email", "status", "plan", "tenantId"]
+    },
+    "UserMapping": {
+        "title": "User Mapping",
+        "description": "Maps a user's email to their tenant for quick login lookup.",
+        "type": "object",
+        "properties": {
+            "identifier": { "type": "string" },
+            "tenantId": { "type": "string" },
+            "partnerId": { "type": "string" }
+        },
+        "required": ["identifier", "tenantId", "partnerId"]
+    },
+    "TeamMember": {
+        "title": "Team Member",
+        "description": "Represents a user who is part of a partner's team.",
+        "type": "object",
+        "properties": {
+            "userId": { "type": "string" },
+            "partnerId": { "type": "string" },
+            "tenantId": { "type": "string" },
+            "name": { "type": "string" },
+            "email": { "type": "string", "format": "email" },
+            "role": { "type": "string", "enum": ["partner_admin", "employee"] },
+            "status": { "type": "string", "enum": ["active", "invited", "suspended"] }
+        },
+        "required": ["userId", "partnerId", "tenantId", "name", "email", "role", "status"]
+    },
+    "UserWorkspaceLink": {
+        "title": "User Workspace Link",
+        "description": "Links a user to a specific partner workspace with a defined role and status.",
+        "type": "object",
+        "properties": {
+            "userId": { "type": "string" },
+            "partnerId": { "type": "string" },
+            "tenantId": { "type": "string" },
+            "role": { "type": "string", "enum": ["partner_admin", "employee"] },
+            "status": { "type": "string", "enum": ["active", "invited", "suspended"] }
+        },
+        "required": ["userId", "partnerId", "tenantId", "role", "status"]
+    },
+    "Task": {
+        "title": "Task",
+        "description": "A task assigned to a team member within a partner's workspace.",
+        "type": "object",
+        "properties": {
+            "title": { "type": "string" },
+            "assignee": { "type": "string" },
+            "partnerId": { "type": "string" },
+            "tenantId": { "type": "string" },
+            "status": { "type": "string" }
+        },
+        "required": ["title", "assignee", "partnerId", "tenantId", "status"]
+    },
+    "Campaign": {
+      "title": "Campaign",
+      "description": "A messaging campaign with a specific goal and audience.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "partnerId": { "type": "string" },
+        "status": { "type": "string", "enum": ["draft", "scheduled", "live", "paused", "completed"] },
+        "sentCount": { "type": "number" },
+        "engagementRate": { "type": "number" },
+        "revenueGenerated": { "type": "number" }
+      },
+      "required": ["name", "partnerId", "status"]
+    },
+    "MessageTemplate": {
+      "title": "Message Template",
+      "description": "A reusable message template for campaigns.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "partnerId": { "type": "string" },
+        "category": { "type": "string" },
+        "content": { "type": "string" },
+        "variables": { "type": "array", "items": { "type": "string" } }
+      },
+      "required": ["name", "partnerId", "content"]
+    },
+    "ContactGroup": {
+      "title": "Contact Group",
+      "description": "A segmented list of contacts.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "partnerId": { "type": "string" },
+        "description": { "type": "string" },
+        "contactCount": { "type": "number" }
+      },
+      "required": ["name", "partnerId", "contactCount"]
+    },
+    "Contact": {
+      "title": "Contact",
+      "description": "An individual contact within a contact group.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "partnerId": { "type": "string" },
+        "email": { "type": "string", "format": "email" },
+        "phone": { "type": "string" }
+      },
+      "required": ["name", "partnerId"]
+    },
+    "TradingPick": {
+      "title": "Trading Pick",
+      "description": "A trading recommendation or pick.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "partnerId": { "type": "string" },
+        "ticker": { "type": "string" },
+        "summary": { "type": "string" }
+      },
+      "required": ["name", "partnerId", "ticker"]
+    }
+  },
+  "auth": {
+    "providers": ["password", "phone"]
+  },
+  "firestore": {
+    "/partners/{partnerId}": {
+      "schema": { "$ref": "#/entities/Partner" },
+      "description": "Stores information about each partner organization."
+    },
+    "/adminUsers/{userId}": {
+      "schema": { "$ref": "#/entities/AdminUser" },
+      "description": "Stores internal admin user profiles."
+    },
+    "/userMappings/{identifier}": {
+        "schema": { "$ref": "#/entities/UserMapping" },
+        "description": "Maps user emails or phone numbers to their tenant ID for login."
+    },
+    "/teamMembers/{userId}": {
+      "schema": { "$ref": "#/entities/TeamMember" },
+      "description": "Stores profiles for all team members across all partners."
+    },
+    "/userWorkspaceLinks/{linkId}": {
+      "schema": { "$ref": "#/entities/UserWorkspaceLink" },
+      "description": "Defines the relationship between a user and a workspace."
+    },
+    "/tasks/{taskId}": {
+      "schema": { "$ref": "#/entities/Task" },
+      "description": "Stores tasks assigned to team members."
+    },
+    "/partners/{partnerId}/campaigns/{campaignId}": {
+      "schema": { "$ref": "#/entities/Campaign" },
+      "description": "Stores messaging campaigns for a specific partner."
+    },
+    "/partners/{partnerId}/messageTemplates/{templateId}": {
+      "schema": { "$ref": "#/entities/MessageTemplate" },
+      "description": "Stores message templates created by a partner."
+    },
+    "/partners/{partnerId}/contactGroups/{groupId}": {
+      "schema": { "$ref": "#/entities/ContactGroup" },
+      "description": "Stores contact groups for a partner."
+    },
+    "/partners/{partnerId}/contacts/{contactId}": {
+      "schema": { "$ref": "#/entities/Contact" },
+      "description": "Stores individual contacts for a partner."
+    },
+    "/partners/{partnerId}/tradingPicks/{pickId}": {
+      "schema": { "$ref": "#/entities/TradingPick" },
+      "description": "Stores trading picks created by a partner."
+    }
+  }
+}

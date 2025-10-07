@@ -2,75 +2,82 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Admin users can read/write all data
+
+    // Helper functions
+    function isSuperAdmin() {
+      return request.auth != null && request.auth.token.role == 'Super Admin';
+    }
+
     function isAdmin() {
-      return request.auth.token.role == 'Admin' || request.auth.token.role == 'Super Admin';
+      return request.auth != null && (request.auth.token.role == 'Admin' || isSuperAdmin());
     }
 
-    // Partner admins can manage resources within their own partner organization
     function isPartnerAdmin(partnerId) {
-      return request.auth.token.partnerId == partnerId && request.auth.token.role == 'partner_admin';
+      return request.auth != null && request.auth.token.role == 'partner_admin' && request.auth.token.partnerId == partnerId;
     }
-    
-    // Employees can only manage resources assigned to them within their partner organization
+
     function isEmployee(partnerId) {
-      return request.auth.token.partnerId == partnerId && request.auth.token.role == 'employee';
+      return request.auth != null && request.auth.token.role == 'employee' && request.auth.token.partnerId == partnerId;
     }
 
-    // The user is the owner of the document
-    function isOwner(userId) {
-      return request.auth.uid == userId;
-    }
-
-    // Partners collection
-    match /partners/{partnerId} {
-      allow read: if isAdmin() || isPartnerAdmin(partnerId) || isEmployee(partnerId);
-      allow write: if isAdmin() || isPartnerAdmin(partnerId);
-    }
-
-    // userMappings collection
-    match /userMappings/{email} {
-      allow read, write: if true; // Publicly writable for signup, readable for login
-    }
-
-    // teamMembers collection
-    match /teamMembers/{userId} {
-      allow read: if isAdmin() || isPartnerAdmin(resource.data.partnerId);
-      allow write: if isAdmin() || isPartnerAdmin(resource.data.partnerId);
-    }
-
-    // tasks collection
-    match /tasks/{taskId} {
-      allow read: if isAdmin() || isPartnerAdmin(resource.data.partnerId) || isOwner(resource.data.assignee);
-      allow write: if isAdmin() || isPartnerAdmin(resource.data.partnerId) || isOwner(resource.data.assignee);
-    }
-
-    // whatsappConversations collection
-    match /whatsappConversations/{conversationId} {
-      allow read: if request.auth != null && 
-        (isAdmin() || isPartnerAdmin(resource.data.partnerId));
-      allow write: if request.auth != null && 
-        (isAdmin() || isPartnerAdmin(resource.data.partnerId));
-    }
-
-    // whatsappMessages collection
-    match /whatsappMessages/{messageId} {
-      allow read: if request.auth != null;
-      allow write: if request.auth != null;
+    function belongsToPartner(partnerId) {
+        return request.auth != null && request.auth.token.partnerIds.hasAny([partnerId]);
     }
     
-    // smsConversations collection
-    match /smsConversations/{conversationId} {
-      allow read: if request.auth != null && 
-        (isAdmin() || isPartnerAdmin(resource.data.partnerId));
-      allow write: if request.auth != null && 
-        (isAdmin() || isPartnerAdmin(resource.data.partnerId));
+    function isOwner(userId) {
+        return request.auth != null && request.auth.uid == userId;
     }
 
-    // smsMessages collection
-    match /smsMessages/{messageId} {
-      allow read: if request.auth != null;
-      allow write: if request.auth != null;
+    // Matches any document in the 'partners' collection
+    match /partners/{partnerId} {
+      allow read: if isSuperAdmin() || isAdmin() || belongsToPartner(partnerId);
+      allow write: if isSuperAdmin() || isAdmin() || isPartnerAdmin(partnerId);
+    }
+    
+    match /adminUsers/{userId} {
+        allow read, write: if isSuperAdmin();
+    }
+    
+    match /userMappings/{identifier} {
+        allow read, write: if true; // Publicly readable for login, writable by server-side flows
+    }
+    
+    match /teamMembers/{userId} {
+        allow read: if isSuperAdmin() || isAdmin() || belongsToPartner(resource.data.partnerId);
+        allow write: if isSuperAdmin() || isAdmin() || isPartnerAdmin(resource.data.partnerId);
+    }
+
+    match /userWorkspaceLinks/{linkId} {
+        // A user can read their own workspace links
+        allow read: if isOwner(linkId.split('_')[0]) || isAdmin();
+        // Only server-side flows can create/update links
+        allow write: if false; 
+    }
+    
+    match /tasks/{taskId} {
+        allow read: if isSuperAdmin() || isAdmin() || belongsToPartner(resource.data.partnerId);
+        allow write: if isSuperAdmin() || isAdmin() || isPartnerAdmin(resource.data.partnerId) || (isEmployee(resource.data.partnerId) && request.auth.uid == resource.data.assignee);
+    }
+
+    // Rules for Content Studio
+    match /partners/{partnerId}/campaigns/{campaignId} {
+        allow read, write, delete: if isPartnerAdmin(partnerId) || isEmployee(partnerId);
+    }
+
+    match /partners/{partnerId}/messageTemplates/{templateId} {
+        allow read, write, delete: if isPartnerAdmin(partnerId) || isEmployee(partnerId);
+    }
+
+    match /partners/{partnerId}/contactGroups/{groupId} {
+        allow read, write, delete: if isPartnerAdmin(partnerId) || isEmployee(partnerId);
+    }
+    
+    match /partners/{partnerId}/contacts/{contactId} {
+        allow read, write, delete: if isPartnerAdmin(partnerId) || isEmployee(partnerId);
+    }
+    
+    match /partners/{partnerId}/tradingPicks/{pickId} {
+        allow read, write, delete: if isPartnerAdmin(partnerId) || isEmployee(partnerId);
     }
   }
 }

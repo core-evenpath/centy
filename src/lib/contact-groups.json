@@ -1,0 +1,32 @@
+[
+  { 
+    "id": "1", 
+    "name": "Premium Members", 
+    "count": 245, 
+    "description": "Paid subscribers with premium access" 
+  },
+  { 
+    "id": "2", 
+    "name": "VIP Clients", 
+    "count": 180, 
+    "description": "High-value individual clients" 
+  },
+  { 
+    "id": "3", 
+    "name": "All Subscribers", 
+    "count": 859, 
+    "description": "Complete subscriber database" 
+  },
+  {
+    "id": "4",
+    "name": "Leads Q3",
+    "count": 1200,
+    "description": "New leads generated in the third quarter"
+  },
+  {
+    "id": "5",
+    "name": "Inactive Users",
+    "count": 350,
+    "description": "Users who have not logged in for 90 days"
+  }
+]
