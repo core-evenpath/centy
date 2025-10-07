@@ -1,3 +1,4 @@
+
 // src/app/partner/(protected)/contacts/page.tsx
 "use client";
 
@@ -43,22 +44,26 @@ export default function ContactsPage() {
     const q = query(collection(db, collectionPath));
 
     const unsubscribe = onSnapshot(q, async (snapshot) => {
-      // Seed data if collection is empty
       if (snapshot.empty) {
         console.log(`Contacts collection is empty for partner ${partnerId}. Seeding...`);
         try {
           const batch = writeBatch(db);
+          const seededContacts: Contact[] = [];
           sampleContacts.forEach(contact => {
             const docRef = doc(collection(db, collectionPath));
-            batch.set(docRef, { ...contact, partnerId });
+            const newContact = { ...contact, id: docRef.id, partnerId };
+            batch.set(docRef, newContact);
+            seededContacts.push(newContact as Contact);
           });
           await batch.commit();
-          console.log('Sample contacts seeded successfully.');
+          setContacts(seededContacts); // Immediately update state with seeded data
+          console.log('Sample contacts seeded and local state updated.');
         } catch (seedError) {
           console.error("Error seeding contacts:", seedError);
           setFirestoreError("Failed to initialize sample contacts.");
+        } finally {
+          setIsLoading(false);
         }
-        setIsLoading(false);
         return;
       }
 
@@ -80,9 +85,11 @@ export default function ContactsPage() {
 
   const filteredContacts = useMemo(() => {
     return contacts.filter(contact => {
-      const matchesSearch = contact.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                          contact.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                          contact.phone.includes(searchTerm);
+      const searchLower = searchTerm.toLowerCase();
+      const matchesSearch = 
+        contact.name?.toLowerCase().includes(searchLower) ||
+        contact.email?.toLowerCase().includes(searchLower) ||
+        contact.phone?.includes(searchLower);
       const matchesStatus = statusFilter === 'all' || contact.status === statusFilter;
       return matchesSearch && matchesStatus;
     });
