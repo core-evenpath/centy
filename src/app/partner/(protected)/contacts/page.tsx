@@ -1,7 +1,8 @@
+
 // src/app/partner/(protected)/contacts/page.tsx
 "use client";
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Button } from '../../../../components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../../../../components/ui/card';
 import { Input } from '../../../../components/ui/input';
@@ -15,7 +16,7 @@ import {
 } from '../../../../components/ui/dropdown-menu';
 import { useMultiWorkspaceAuth } from '@/hooks/use-multi-workspace-auth';
 import { db } from '@/lib/firebase';
-import { collection, query, where, onSnapshot, writeBatch, doc } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, writeBatch, doc, getDocs, limit } from 'firebase/firestore';
 import type { Contact } from '@/lib/types';
 import PartnerHeader from '../../../../components/partner/PartnerHeader';
 import { Users, Search, Plus, MoreVertical, Edit, Trash2, Loader2, AlertCircle } from 'lucide-react';
@@ -28,6 +29,7 @@ export default function ContactsPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [firestoreError, setFirestoreError] = useState<string | null>(null);
+  const seedHasBeenAttempted = useRef(false);
 
   const partnerId = currentWorkspace?.partnerId;
 
@@ -43,39 +45,44 @@ export default function ContactsPage() {
     const q = query(collection(db, collectionPath));
 
     const unsubscribe = onSnapshot(q, async (snapshot) => {
-      // If the collection is empty on the initial load, seed it.
-      if (snapshot.empty) {
-        console.log(`Contacts collection is empty for partner ${partnerId}. Seeding...`);
+      if (snapshot.empty && !seedHasBeenAttempted.current) {
+        seedHasBeenAttempted.current = true; // Mark that we're attempting to seed
+        console.log(`Contacts collection is empty for partner ${partnerId}. Attempting to seed...`);
         try {
           const batch = writeBatch(db);
           sampleContacts.forEach(contact => {
             const docRef = doc(collection(db, collectionPath));
-            const newContact = { ...contact, id: docRef.id, partnerId };
+            const newContact: Partial<Contact> = { 
+              ...contact, 
+              partnerId,
+            };
             batch.set(docRef, newContact);
           });
           await batch.commit();
-          console.log('Sample contacts seeded successfully.');
-          // We don't set state here; we let the listener pick up the new data in the next snapshot.
+          console.log('Sample contacts seeded successfully. The listener will now pick up the new data.');
+          // We don't set state here; we let the listener receive the newly created docs,
+          // which will trigger another snapshot update.
         } catch (seedError) {
           console.error("Error seeding contacts:", seedError);
-          setFirestoreError("Failed to initialize sample contacts.");
+          setFirestoreError("Failed to initialize sample contacts. Please check Firestore permissions.");
           setIsLoading(false);
         }
-        return; 
+      } else {
+        const contactsData = snapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        } as Contact));
+        
+        setContacts(contactsData);
+        setIsLoading(false);
       }
-
-      // Always process the data from the snapshot. This is the source of truth.
-      const contactsData = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      } as Contact));
-      
-      setContacts(contactsData);
-      setIsLoading(false);
-
     }, (error) => {
       console.error("Firestore onSnapshot error:", error);
-      setFirestoreError('You do not have permission to view contacts. Please check your security rules.');
+      if (error.code === 'permission-denied') {
+        setFirestoreError('Permission Denied: Your security rules are preventing access to the contacts collection. Please check your Firestore rules to allow reads for authenticated users of this workspace.');
+      } else {
+        setFirestoreError(`An error occurred while fetching contacts: ${error.message}`);
+      }
       setIsLoading(false);
     });
 
@@ -119,16 +126,19 @@ export default function ContactsPage() {
                 </CardDescription>
               </div>
               <div className="flex items-center gap-2">
-                <Input
-                  placeholder="Search contacts..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-64"
-                />
+                <div className="relative">
+                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                    <Input
+                    placeholder="Search contacts..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="w-64 pl-10"
+                    />
+                </div>
                 <select
                   value={statusFilter}
                   onChange={(e) => setStatusFilter(e.target.value)}
-                  className="px-3 py-2 border rounded-md text-sm bg-background"
+                  className="px-3 py-2 h-10 border rounded-md text-sm bg-background"
                 >
                   <option value="all">All Status</option>
                   <option value="active">Active</option>
@@ -149,7 +159,7 @@ export default function ContactsPage() {
               <div className="text-center p-8 bg-red-50 border border-red-200 rounded-lg">
                 <AlertCircle className="w-12 h-12 mx-auto text-red-400 mb-4"/>
                 <h3 className="text-xl font-semibold text-red-800">Permission Error</h3>
-                <p className="text-red-700 mt-2 text-sm">{firestoreError}</p>
+                <p className="text-red-700 mt-2 text-sm whitespace-pre-wrap">{firestoreError}</p>
               </div>
             )}
             
@@ -198,7 +208,9 @@ export default function ContactsPage() {
                       <TableCell colSpan={6} className="text-center p-8">
                         <Users className="w-12 h-12 mx-auto text-muted-foreground mb-4"/>
                         <h3 className="font-semibold">No contacts found</h3>
-                        <p className="text-sm text-muted-foreground">Add your first contact to get started.</p>
+                        <p className="text-sm text-muted-foreground">
+                            {contacts.length === 0 ? "Your contact list is empty. Add your first contact." : "No contacts match your current filters."}
+                        </p>
                       </TableCell>
                     </TableRow>
                   )}
