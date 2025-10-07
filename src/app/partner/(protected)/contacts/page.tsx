@@ -90,8 +90,8 @@ export default function ContactsPage() {
 
   const getStatusBadge = (status: string) => {
     return status === 'active'
-      ? <Badge variant="success">Active</Badge>
-      : <Badge variant="secondary">Inactive</Badge>;
+      ? <Badge variant="success" className="bg-green-100 text-green-800">Active</Badge>
+      : <Badge variant="secondary" className="bg-gray-100 text-gray-700">Inactive</Badge>;
   };
 
   return (
