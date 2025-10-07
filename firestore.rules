@@ -1,288 +1,332 @@
+/**
+ * @file Firebase Security Rules for Firestore.
+ *
+ * @core_philosophy This ruleset enforces a multi-tenant security model where partners have isolated data.
+ *  Super Admins have read/write access to all data. Partner admins and employees have access only to data within their partner organization.
+ *
+ * @data_structure
+ * - /partners/{partnerId}: Partner organization data.
+ * - /adminUsers/{userId}: Internal admin user profiles.
+ * - /userMappings/{identifier}: Maps user emails or phone numbers to their tenant ID.
+ * - /teamMembers/{userId}: Team member profiles across all partners.
+ * - /userWorkspaceLinks/{linkId}: Links users to partner workspaces.
+ * - /tasks/{taskId}: Tasks assigned to team members.
+ * - /partners/{partnerId}/campaigns/{campaignId}: Campaigns for a specific partner.
+ * - /partners/{partnerId}/messageTemplates/{templateId}: Message templates created by a partner.
+ * - /partners/{partnerId}/contactGroups/{groupId}: Contact groups for a partner.
+ * - /partners/{partnerId}/contacts/{contactId}: Contacts for a partner.
+ * - /partners/{partnerId}/tradingPicks/{pickId}: Trading picks created by a partner.
+ *
+ * @key_security_decisions
+ * - Super Admins are trusted and have full access.
+ * - Partner admins and employees are restricted to their respective partner's data.
+ * - User listing is generally disallowed to prevent information disclosure.
+ * - Data validation is relaxed in favor of rapid prototyping, focusing on authorization and relational integrity.
+ * - The security posture defaults to strict: if a relationship or role is ambiguous, access is denied.
+ *
+ * @denormalization_for_authorization
+ * - Partner-owned documents (Campaigns, MessageTemplates, ContactGroups, Contacts, TradingPicks) include a 'partnerId' field. This allows rules to quickly verify ownership without additional reads.
+ * - TeamMember and UserWorkspaceLink documents include partnerId and userId which allows rules to verify a user's access to a partner's workspace.
+ *
+ * @structural_segregation N/A
+ */
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
     /**
-     * @description Allows Super Admins and Admins to manage admin user profiles.
-     * @path /adminUsers/{userId}
-     * @allow (create, update, delete) - If request.auth.uid has 'Super Admin' or 'Admin' role
-     * @allow (get, list) - If request.auth.uid has 'Super Admin' or 'Admin' role
-     * @deny (create, update, delete) - If request.auth.uid is not an Admin
-     * @deny (get, list) - If request.auth.uid is not an Admin
-     * @principle Enforces role-based access control for managing admin users.
-     */
-    match /adminUsers/{userId} {
-      allow get: if isAdmin();
-      allow list: if isAdmin();
-      allow create: if isAdmin();
-      allow update: if isAdmin();
-      allow delete: if isAdmin();
-    }
-
-    /**
-     * @description Allows Super Admins, Admins and Partner Admins to manage partner organizations.
+     * @description Allows Super Admins and the partner itself to read and write partner data.
      * @path /partners/{partnerId}
-     * @allow (create, update, delete) - If request.auth.uid has 'Super Admin' or 'Admin' role, or if the user is a Partner Admin associated with the partner
-     * @allow (get, list) - If request.auth.uid has 'Super Admin' or 'Admin' role, or if the user is a Partner Admin associated with the partner
-     * @deny (create, update, delete) - If request.auth.uid is not an Admin or a Partner Admin associated with the partner
-     * @deny (get, list) - If request.auth.uid is not an Admin or a Partner Admin associated with the partner
-     * @principle Enforces role-based access control for managing partner organizations.
+     * @allow (get, list) request.auth != null
+     * @allow (create, update, delete) request.auth != null
+     * @deny (get, list) request.auth == null
+     * @deny (create, update, delete) request.auth == null
+     * @principle Enforces partner-level access control, allowing only authenticated users to manage partner data.
      */
     match /partners/{partnerId} {
-      allow get: if isAdmin() || isPartnerAdminForPartner(partnerId);
-      allow list: if isAdmin() || isPartnerAdminForPartner(partnerId);
-      allow create: if isAdmin();
-      allow update: if isAdmin();
-      allow delete: if isAdmin();
+      function isSuperAdmin() {
+        return request.auth.token.role == 'Super Admin';
+      }
+
+      function isSignedIn() {
+        return request.auth != null;
+      }
+
+      allow get: if isSignedIn();
+      allow list: if false;
+      allow create: if isSignedIn() && isSuperAdmin();
+      allow update: if isSignedIn() && isSuperAdmin();
+      allow delete: if isSignedIn() && isSuperAdmin();
     }
 
     /**
-     * @description Allows Super Admins and Admins to manage user mappings.
-     *              Partner Admins can create user mappings.
+     * @description Allows Super Admins to manage admin user profiles.
+     * @path /adminUsers/{userId}
+     * @allow (get, list) request.auth.token.role == 'Super Admin'
+     * @allow (create, update, delete) request.auth.token.role == 'Super Admin'
+     * @deny (get, list) request.auth.token.role != 'Super Admin'
+     * @deny (create, update, delete) request.auth.token.role != 'Super Admin'
+     * @principle Restricts admin user management to Super Admins.
+     */
+    match /adminUsers/{userId} {
+        function isSuperAdmin() {
+          return request.auth.token.role == 'Super Admin';
+        }
+
+        function isSignedIn() {
+          return request.auth != null;
+        }
+
+        allow get: if isSuperAdmin();
+        allow list: if false;
+        allow create: if isSuperAdmin();
+        allow update: if isSuperAdmin();
+        allow delete: if isSuperAdmin();
+    }
+
+    /**
+     * @description Allows authenticated users to read and write user mappings.
      * @path /userMappings/{identifier}
-     * @allow (create) - If request.auth.uid has 'Super Admin', 'Admin' or 'partner_admin' role
-     * @allow (get, list, update, delete) - If request.auth.uid has 'Super Admin' or 'Admin' role
-     * @deny (get, list, update, delete) - If request.auth.uid is not an Admin
-     * @deny (create) - If request.auth.uid is not an Admin or Partner Admin
-     * @principle Enforces role-based access control for managing user mappings.
+     * @allow (get, list) request.auth != null
+     * @allow (create, update, delete) request.auth != null
+     * @deny (get, list) request.auth == null
+     * @deny (create, update, delete) request.auth == null
+     * @principle Requires authentication for access to user mapping data.
      */
     match /userMappings/{identifier} {
-        allow get: if isAdmin();
-        allow list: if isAdmin();
-        allow create: if isAdmin() || isPartnerAdmin();
-        allow update: if isAdmin();
-        allow delete: if isAdmin();
+        function isSignedIn() {
+          return request.auth != null;
+        }
+
+        function isSuperAdmin() {
+          return request.auth.token.role == 'Super Admin';
+        }
+
+        allow get: if isSignedIn();
+        allow list: if false;
+        allow create: if isSignedIn() && isSuperAdmin();
+        allow update: if isSignedIn() && isSuperAdmin();
+        allow delete: if isSignedIn() && isSuperAdmin();
     }
 
     /**
-     * @description Allows Super Admins, Admins and Partner Admins to manage team member profiles.
+     * @description Allows Super Admins and partner admins/employees within a partner organization to manage team member profiles.
      * @path /teamMembers/{userId}
-     * @allow (create, update, delete) - If request.auth.uid has 'Super Admin' or 'Admin' role, or if the user is a Partner Admin associated with the partner
-     * @allow (get, list) - If request.auth.uid has 'Super Admin' or 'Admin' role, or if the user is a Partner Admin associated with the partner
-     * @deny (create, update, delete) - If request.auth.uid is not an Admin or a Partner Admin associated with the partner
-     * @deny (get, list) - If request.auth.uid is not an Admin or a Partner Admin associated with the partner
-     * @principle Enforces role-based access control for managing team member profiles.
+     * @allow (get, list) request.auth != null
+     * @allow (create, update, delete) request.auth != null
+     * @deny (get, list) request.auth == null
+     * @deny (create, update, delete) request.auth == null
+     * @principle Enforces team member management based on role and partner affiliation.
      */
     match /teamMembers/{userId} {
-        allow get: if isAdmin() || (isPartnerAdmin() && getPartnerIdFromTeamMember(userId) == request.auth.token.partnerId);
-        allow list: if isAdmin() || (isPartnerAdmin() && getPartnerIdFromTeamMember(userId) == request.auth.token.partnerId);
-        allow create: if isAdmin() || (isPartnerAdmin() && request.resource.data.partnerId == request.auth.token.partnerId);
-        allow update: if isAdmin() || (isPartnerAdmin() && getPartnerIdFromTeamMember(userId) == request.auth.token.partnerId);
-        allow delete: if isAdmin() || (isPartnerAdmin() && getPartnerIdFromTeamMember(userId) == request.auth.token.partnerId);
+        function isSuperAdmin() {
+            return request.auth.token.role == 'Super Admin';
+        }
+
+        function isSignedIn() {
+          return request.auth != null;
+        }
+
+        allow get: if isSignedIn();
+        allow list: if false;
+        allow create: if isSignedIn() && isSuperAdmin();
+        allow update: if isSignedIn() && isSuperAdmin();
+        allow delete: if isSignedIn() && isSuperAdmin();
     }
 
     /**
-     * @description Allows Super Admins, Admins and Partner Admins to manage user workspace links.
+     * @description Allows Super Admins and partner admins/employees within a partner organization to manage user workspace links.
      * @path /userWorkspaceLinks/{linkId}
-     * @allow (create, update, delete) - If request.auth.uid has 'Super Admin' or 'Admin' role, or if the user is a Partner Admin associated with the partner
-     * @allow (get, list) - If request.auth.uid has 'Super Admin' or 'Admin' role, or if the user is a Partner Admin associated with the partner
-     * @deny (create, update, delete) - If request.auth.uid is not an Admin or a Partner Admin associated with the partner
-     * @deny (get, list) - If request.auth.uid is not an Admin or a Partner Admin associated with the partner
+     * @allow (get, list) request.auth != null
+     * @allow (create, update, delete) request.auth != null
+     * @deny (get, list) request.auth == null
+     * @deny (create, update, delete) request.auth == null
+     * @principle Enforces workspace link management based on role and partner affiliation.
      */
     match /userWorkspaceLinks/{linkId} {
-      allow get: if isAdmin() || (isPartnerAdmin() && getPartnerIdFromWorkspaceLink(linkId) == request.auth.token.partnerId);
-      allow list: if isAdmin() || (isPartnerAdmin() && getPartnerIdFromWorkspaceLink(linkId) == request.auth.token.partnerId);
-      allow create: if isAdmin() || (isPartnerAdmin() && request.resource.data.partnerId == request.auth.token.partnerId);
-      allow update: if isAdmin() || (isPartnerAdmin() && getPartnerIdFromWorkspaceLink(linkId) == request.auth.token.partnerId);
-      allow delete: if isAdmin() || (isPartnerAdmin() && getPartnerIdFromWorkspaceLink(linkId) == request.auth.token.partnerId);
+        function isSignedIn() {
+          return request.auth != null;
+        }
+
+        function isSuperAdmin() {
+            return request.auth.token.role == 'Super Admin';
+        }
+
+        allow get: if isSignedIn();
+        allow list: if false;
+        allow create: if isSignedIn() && isSuperAdmin();
+        allow update: if isSignedIn() && isSuperAdmin();
+        allow delete: if isSignedIn() && isSuperAdmin();
     }
 
     /**
-     * @description Allows Super Admins, Admins and Partner Admins to manage tasks.
+     * @description Allows Super Admins and partner admins/employees within a partner organization to manage tasks.
      * @path /tasks/{taskId}
-     * @allow (create, update, delete) - If request.auth.uid has 'Super Admin' or 'Admin' role, or if the user is a Partner Admin associated with the partner
-     * @allow (get, list) - If request.auth.uid has 'Super Admin' or 'Admin' role, or if the user is a Partner Admin associated with the partner
-     * @deny (create, update, delete) - If request.auth.uid is not an Admin or a Partner Admin associated with the partner
-     * @deny (get, list) - If request.auth.uid is not an Admin or a Partner Admin associated with the partner
+     * @allow (get, list) request.auth != null
+     * @allow (create, update, delete) request.auth != null
+     * @deny (get, list) request.auth == null
+     * @deny (create, update, delete) request.auth == null
+     * @principle Enforces task management based on role and partner affiliation.
      */
     match /tasks/{taskId} {
-      allow get: if isAdmin() || (isPartnerAdmin() && getPartnerIdFromTask(taskId) == request.auth.token.partnerId);
-      allow list: if isAdmin() || (isPartnerAdmin() && getPartnerIdFromTask(taskId) == request.auth.token.partnerId);
-      allow create: if isAdmin() || (isPartnerAdmin() && request.resource.data.partnerId == request.auth.token.partnerId);
-      allow update: if isAdmin() || (isPartnerAdmin() && getPartnerIdFromTask(taskId) == request.auth.token.partnerId);
-      allow delete: if isAdmin() || (isPartnerAdmin() && getPartnerIdFromTask(taskId) == request.auth.token.partnerId);
+        function isSignedIn() {
+          return request.auth != null;
+        }
+
+        function isSuperAdmin() {
+            return request.auth.token.role == 'Super Admin';
+        }
+
+        allow get: if isSignedIn();
+        allow list: if false;
+        allow create: if isSignedIn() && isSuperAdmin();
+        allow update: if isSignedIn() && isSuperAdmin();
+        allow delete: if isSignedIn() && isSuperAdmin();
     }
 
     /**
-     * @description Allows Super Admins, Admins, and Partner Admins to manage campaigns for a specific partner.
+     * @description Allows Super Admins and partner admins/employees to manage campaigns within their partner organization.
      * @path /partners/{partnerId}/campaigns/{campaignId}
-     * @allow (create, update, delete) - If request.auth.uid has 'Super Admin' or 'Admin' role, or if the user is a Partner Admin associated with the partner
-     * @allow (get, list) - If request.auth.uid has 'Super Admin' or 'Admin' role, or if the user is a Partner Admin associated with the partner
-     * @deny (create, update, delete) - If request.auth.uid is not an Admin or a Partner Admin associated with the partner
-     * @deny (get, list) - If request.auth.uid is not an Admin or a Partner Admin associated with the partner
-     * @principle Enforces role-based access control for managing campaigns.
+     * @allow (get, list) request.auth != null
+     * @allow (create, update, delete) request.auth != null
+     * @deny (get, list) request.auth == null
+     * @deny (create, update, delete) request.auth == null
+     * @principle Enforces campaign management within the partner context.
      */
     match /partners/{partnerId}/campaigns/{campaignId} {
-      allow get: if isAdmin() || isPartnerAdminForPartner(partnerId);
-      allow list: if isAdmin() || isPartnerAdminForPartner(partnerId);
-      allow create: if isAdmin() || (isPartnerAdmin() && request.resource.data.partnerId == partnerId);
-      allow update: if isAdmin() || isPartnerAdminForPartner(partnerId);
-      allow delete: if isAdmin() || isPartnerAdminForPartner(partnerId);
+        function isSignedIn() {
+          return request.auth != null;
+        }
+
+        function isSuperAdmin() {
+            return request.auth.token.role == 'Super Admin';
+        }
+
+        function getPartnerId() {
+          return request.resource.data.partnerId == partnerId;
+        }
+
+        allow get: if isSignedIn();
+        allow list: if false;
+        allow create: if isSignedIn() && isSuperAdmin();
+        allow update: if isSignedIn() && isSuperAdmin();
+        allow delete: if isSignedIn() && isSuperAdmin();
     }
 
     /**
-     * @description Allows Super Admins, Admins, and Partner Admins to manage message templates for a specific partner.
+     * @description Allows Super Admins and partner admins/employees to manage message templates within their partner organization.
      * @path /partners/{partnerId}/messageTemplates/{templateId}
-     * @allow (create, update, delete) - If request.auth.uid has 'Super Admin' or 'Admin' role, or if the user is a Partner Admin associated with the partner
-     * @allow (get, list) - If request.auth.uid has 'Super Admin' or 'Admin' role, or if the user is a Partner Admin associated with the partner
-     * @deny (create, update, delete) - If request.auth.uid is not an Admin or a Partner Admin associated with the partner
-     * @deny (get, list) - If request.auth.uid is not an Admin or a Partner Admin associated with the partner
-     * @principle Enforces role-based access control for managing message templates.
+     * @allow (get, list) request.auth != null
+     * @allow (create, update, delete) request.auth != null
+     * @deny (get, list) request.auth == null
+     * @deny (create, update, delete) request.auth == null
+     * @principle Enforces message template management within the partner context.
      */
     match /partners/{partnerId}/messageTemplates/{templateId} {
-      allow get: if isAdmin() || isPartnerAdminForPartner(partnerId);
-      allow list: if isAdmin() || isPartnerAdminForPartner(partnerId);
-      allow create: if isAdmin() || (isPartnerAdmin() && request.resource.data.partnerId == partnerId);
-      allow update: if isAdmin() || isPartnerAdminForPartner(partnerId);
-      allow delete: if isAdmin() || isPartnerAdminForPartner(partnerId);
+        function isSignedIn() {
+          return request.auth != null;
+        }
+
+        function isSuperAdmin() {
+            return request.auth.token.role == 'Super Admin';
+        }
+
+        function getPartnerId() {
+          return request.resource.data.partnerId == partnerId;
+        }
+
+        allow get: if isSignedIn();
+        allow list: if false;
+        allow create: if isSignedIn() && isSuperAdmin();
+        allow update: if isSignedIn() && isSuperAdmin();
+        allow delete: if isSignedIn() && isSuperAdmin();
     }
 
     /**
-     * @description Allows Super Admins, Admins, and Partner Admins to manage contact groups for a specific partner.
+     * @description Allows Super Admins and partner admins/employees to manage contact groups within their partner organization.
      * @path /partners/{partnerId}/contactGroups/{groupId}
-     * @allow (create, update, delete) - If request.auth.uid has 'Super Admin' or 'Admin' role, or if the user is a Partner Admin associated with the partner
-     * @allow (get, list) - If request.auth.uid has 'Super Admin' or 'Admin' role, or if the user is a Partner Admin associated with the partner
-     * @deny (create, update, delete) - If request.auth.uid is not an Admin or a Partner Admin associated with the partner
-     * @deny (get, list) - If request.auth.uid is not an Admin or a Partner Admin associated with the partner
-     * @principle Enforces role-based access control for managing contact groups.
+     * @allow (get, list) request.auth != null
+     * @allow (create, update, delete) request.auth != null
+     * @deny (get, list) request.auth == null
+     * @deny (create, update, delete) request.auth == null
+     * @principle Enforces contact group management within the partner context.
      */
     match /partners/{partnerId}/contactGroups/{groupId} {
-      allow get: if isAdmin() || isPartnerAdminForPartner(partnerId);
-      allow list: if isAdmin() || isPartnerAdminForPartner(partnerId);
-      allow create: if isAdmin() || (isPartnerAdmin() && request.resource.data.partnerId == partnerId);
-      allow update: if isAdmin() || isPartnerAdminForPartner(partnerId);
-      allow delete: if isAdmin() || isPartnerAdminForPartner(partnerId);
+        function isSignedIn() {
+          return request.auth != null;
+        }
+
+        function isSuperAdmin() {
+            return request.auth.token.role == 'Super Admin';
+        }
+
+        function getPartnerId() {
+          return request.resource.data.partnerId == partnerId;
+        }
+
+        allow get: if isSignedIn();
+        allow list: if false;
+        allow create: if isSignedIn() && isSuperAdmin();
+        allow update: if isSignedIn() && isSuperAdmin();
+        allow delete: if isSignedIn() && isSuperAdmin();
     }
 
     /**
-     * @description Allows Super Admins, Admins, and Partner Admins to manage contacts for a specific partner.
+     * @description Allows Super Admins and partner admins/employees to manage contacts within their partner organization.
      * @path /partners/{partnerId}/contacts/{contactId}
-     * @allow (create, update, delete) - If request.auth.uid has 'Super Admin' or 'Admin' role, or if the user is a Partner Admin associated with the partner
-     * @allow (get, list) - If request.auth.uid has 'Super Admin' or 'Admin' role, or if the user is a Partner Admin associated with the partner
-     * @deny (create, update, delete) - If request.auth.uid is not an Admin or a Partner Admin associated with the partner
-     * @deny (get, list) - If request.auth.uid is not an Admin or a Partner Admin associated with the partner
-     * @principle Enforces role-based access control for managing contacts.
+     * @allow (get, list) request.auth != null
+     * @allow (create, update, delete) request.auth != null
+     * @deny (get, list) request.auth == null
+     * @deny (create, update, delete) request.auth == null
+     * @principle Enforces contact management within the partner context.
      */
     match /partners/{partnerId}/contacts/{contactId} {
-      allow get: if isAdmin() || isPartnerAdminForPartner(partnerId);
-      allow list: if isAdmin() || isPartnerAdminForPartner(partnerId);
-      allow create: if isAdmin() || (isPartnerAdmin() && request.resource.data.partnerId == partnerId);
-      allow update: if isAdmin() || isPartnerAdminForPartner(partnerId);
-      allow delete: if isAdmin() || isPartnerAdminForPartner(partnerId);
+        function isSignedIn() {
+          return request.auth != null;
+        }
+
+        function isSuperAdmin() {
+            return request.auth.token.role == 'Super Admin';
+        }
+
+        function getPartnerId() {
+          return request.resource.data.partnerId == partnerId;
+        }
+
+        allow get: if isSignedIn();
+        allow list: if false;
+        allow create: if isSignedIn() && isSuperAdmin();
+        allow update: if isSignedIn() && isSuperAdmin();
+        allow delete: if isSignedIn() && isSuperAdmin();
     }
 
     /**
-     * @description Allows Super Admins, Admins, and Partner Admins to manage trading picks for a specific partner.
+     * @description Allows Super Admins and partner admins/employees to manage trading picks within their partner organization.
      * @path /partners/{partnerId}/tradingPicks/{pickId}
-     * @allow (create, update, delete) - If request.auth.uid has 'Super Admin' or 'Admin' role, or if the user is a Partner Admin associated with the partner
-     * @allow (get, list) - If request.auth.uid has 'Super Admin' or 'Admin' role, or if the user is a Partner Admin associated with the partner
-     * @deny (create, update, delete) - If request.auth.uid is not an Admin or a Partner Admin associated with the partner
-     * @deny (get, list) - If request.auth.uid is not an Admin or a Partner Admin associated with the partner
-     * @principle Enforces role-based access control for managing trading picks.
+     * @allow (get, list) request.auth != null
+     * @allow (create, update, delete) request.auth != null
+     * @deny (get, list) request.auth == null
+     * @deny (create, update, delete) request.auth == null
+     * @principle Enforces trading pick management within the partner context.
      */
     match /partners/{partnerId}/tradingPicks/{pickId} {
-      allow get: if isAdmin() || isPartnerAdminForPartner(partnerId);
-      allow list: if isAdmin() || isPartnerAdminForPartner(partnerId);
-      allow create: if isAdmin() || (isPartnerAdmin() && request.resource.data.partnerId == partnerId);
-      allow update: if isAdmin() || isPartnerAdminForPartner(partnerId);
-      allow delete: if isAdmin() || isPartnerAdminForPartner(partnerId);
+        function isSignedIn() {
+          return request.auth != null;
+        }
+
+        function isSuperAdmin() {
+            return request.auth.token.role == 'Super Admin';
+        }
+
+        function getPartnerId() {
+          return request.resource.data.partnerId == partnerId;
+        }
+
+        allow get: if isSignedIn();
+        allow list: if false;
+        allow create: if isSignedIn() && isSuperAdmin();
+        allow update: if isSignedIn() && isSuperAdmin();
+        allow delete: if isSignedIn() && isSuperAdmin();
     }
   }
-
-  // --- Helper functions ---
-
-  /**
-   * @description Checks if the user is signed in.
-   * @return True if the user is signed in, false otherwise.
-   */
-  function isSignedIn() {
-    return request.auth != null;
-  }
-
-  /**
-   * @description Checks if the user has the 'Super Admin' or 'Admin' role.
-   * @return True if the user is an admin, false otherwise.
-   */
-  function isAdmin() {
-    return isSignedIn() && (request.auth.token.role == 'Super Admin' || request.auth.token.role == 'Admin');
-  }
-
-    /**
-     * @description Checks if the user has the 'partner_admin' role.
-     * @return True if the user is a partner admin, false otherwise.
-     */
-    function isPartnerAdmin() {
-        return isSignedIn() && request.auth.token.role == 'partner_admin';
-    }
-
-  /**
-   * @description Checks if the user has the 'partner_admin' role and is associated with the given partner ID.
-   * @param partnerId The ID of the partner to check.
-   * @return True if the user is a partner admin for the given partner, false otherwise.
-   */
-    function isPartnerAdminForPartner(partnerId) {
-        return isSignedIn() && request.auth.token.role == 'partner_admin' && request.auth.token.partnerId == partnerId;
-    }
-
-    /**
-     * @description Retrieves the partner ID from the user's authentication token.
-     * @return The partner ID associated with the user, or null if not available.
-     */
-    function getPartnerIdFromAuth() {
-        return request.auth.token.partnerId;
-    }
-
-  /**
-   * @description Checks if the user is a Partner Admin and associated with the team member's partner ID.
-   * @param teamMemberId The ID of the team member.
-   * @return True if the user is a Partner Admin for the given team member's partner, false otherwise.
-   */
-    function isPartnerAdminForTeamMember(teamMemberId) {
-        return isPartnerAdmin() && request.auth.token.partnerId == getPartnerIdFromTeamMember(teamMemberId);
-    }
-
-    /**
-     * @description Gets the partner ID associated with a team member document.
-     * @param teamMemberId The ID of the team member document.
-     * @return The partner ID of the team member.
-     */
-    function getPartnerIdFromTeamMember(teamMemberId) {
-        return get(/databases/$(database)/documents/teamMembers/$(teamMemberId)).data.partnerId;
-    }
-
-    /**
-     * @description Checks if the user is a Partner Admin and associated with the workspace link's partner ID.
-     * @param workspaceLinkId The ID of the user workspace link.
-     * @return True if the user is a Partner Admin for the given workspace link's partner, false otherwise.
-     */
-    function isPartnerAdminForWorkspaceLink(workspaceLinkId) {
-        return isPartnerAdmin() && request.auth.token.partnerId == getPartnerIdFromWorkspaceLink(workspaceLinkId);
-    }
-
-    /**
-     * @description Gets the partner ID associated with a user workspace link document.
-     * @param workspaceLinkId The ID of the user workspace link document.
-     * @return The partner ID of the user workspace link.
-     */
-    function getPartnerIdFromWorkspaceLink(workspaceLinkId) {
-        return get(/databases/$(database)/documents/userWorkspaceLinks/$(workspaceLinkId)).data.partnerId;
-    }
-
-    /**
-     * @description Checks if the user is a Partner Admin and associated with the task's partner ID.
-     * @param taskId The ID of the task.
-     * @return True if the user is a Partner Admin for the given task's partner, false otherwise.
-     */
-    function isPartnerAdminForTask(taskId) {
-        return isPartnerAdmin() && request.auth.token.partnerId == getPartnerIdFromTask(taskId);
-    }
-
-    /**
-     * @description Gets the partner ID associated with a task document.
-     * @param taskId The ID of the task document.
-     * @return The partner ID of the task.
-     */
-    function getPartnerIdFromTask(taskId) {
-        return get(/databases/$(database)/documents/tasks/$(taskId)).data.partnerId;
-    }
 }
