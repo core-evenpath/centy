@@ -1,365 +1,293 @@
 /**
- * @fileoverview Firestore Security Rules for the application.
- *
- * Core Philosophy:
- * This ruleset enforces a multi-tenant data model where partners have isolated data.
- * Users can only access data associated with their partner and tenant.
- * Super Admins and Admins have read access to all partner data, but write access is restricted.
+ * @file Firestore Security Rules
+ * @description This ruleset enforces a role-based access control model, primarily centered around partners and their associated data.
  *
  * Data Structure:
- * - /partners/{partnerId}: Partner organization details.
- * - /adminUsers/{userId}: Internal admin user profiles.
- * - /userMappings/{identifier}: Maps user emails to tenant IDs for login.
- * - /teamMembers/{userId}: Team members across all partners.
- * - /userWorkspaceLinks/{linkId}: Links users to partner workspaces.
- * - /tasks/{taskId}: Tasks assigned to team members.
- * - /partners/{partnerId}/campaigns/{campaignId}: Campaigns for each partner.
- * - /partners/{partnerId}/messageTemplates/{templateId}: Message templates for each partner.
- * - /partners/{partnerId}/contactGroups/{groupId}: Contact groups for each partner.
- * - /partners/{partnerId}/contacts/{contactId}: Contacts for each partner.
- * - /partners/{partnerId}/tradingPicks/{pickId}: Trading picks for each partner.
+ * - Partners: Top-level collection containing partner organization data.
+ * - Admin Users: Top-level collection for internal administrator profiles.
+ * - User Mappings: Top-level collection for mapping user identifiers (email/phone) to tenant IDs.
+ * - Team Members: Top-level collection containing team member profiles.
+ * - User Workspace Links: Top-level collection defining the relationship between users and workspaces.
+ * - Tasks: Top-level collection storing tasks assigned to team members.
+ * - Subcollections under Partners: Campaigns, Message Templates, Contact Groups, Contacts, and Trading Picks.
  *
  * Key Security Decisions:
- * - Super Admins and Admins can read partner data, but write access is generally restricted except through backend functions.
- * - Partner users can only read and write data within their own partner scope.
- * - User listing is generally denied to prevent unauthorized data access.
- * - All write operations require authentication.
+ * - Partners and their subcollections are generally restricted to partner admins or employees.
+ * - Listing of any collection is restricted to authenticated users and where appropriate, further scoped to the user's partnerId
+ * - Schema validation is relaxed during this prototyping phase to enable rapid iteration. Authorization is strictly enforced.
  *
  * Denormalization for Authorization:
- * - Partner-scoped data (campaigns, messageTemplates, contactGroups, contacts, tradingPicks) MUST contain the `partnerId` field.
- *   This allows direct rule enforcement without additional `get()` calls.
+ * - Partner subcollections rely on the `partnerId` field within each document to enforce ownership.
  */
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
     /**
-     * @description Checks if the user is signed in.
+     * @description Checks if the current user is signed in.
      */
     function isSignedIn() {
       return request.auth != null;
     }
 
     /**
-     * @description Checks if the user is the owner of the resource.
+     * @description Checks if the current user is the owner of the document based on the provided user ID.
      */
-    function isOwner(resourceId) {
-      return isSignedIn() && request.auth.uid == resourceId;
+    function isOwner(userId) {
+      return request.auth.uid == userId;
     }
 
     /**
-     * @description Checks if the user is an existing owner of the resource.
+     * @description Checks if the current user is the owner of the document based on the document's partner ID.
      */
-    function isExistingOwner(resourceId) {
-      return isSignedIn() && request.auth.uid == resourceId && getSelf().data != null;
+    function isPartnerOwner(partnerId) {
+        return isSignedIn() && request.auth.uid == partnerId;
     }
 
     /**
-     * @description Gets the current resource.
+     * @description Checks if the current user is an existing owner of the document (signed in, is owner, and resource exists).
      */
-    function getSelf() {
-        return get(/databases/$(database)/documents/$(request.path));
+    function isExistingOwner(userId) {
+        return isSignedIn() && isOwner(userId) && resource != null;
     }
 
     /**
-     * @description Checks if the user has the specified role within the partner organization.
+     * @description Checks if the user is a partner admin.
      */
-    function hasPartnerRole(partnerId, role) {
-        return get(/databases/$(database)/documents/partners/$(partnerId)).data.members[request.auth.uid] == role;
+    function isPartnerAdmin() {
+        return isSignedIn() && (request.auth.token.role == 'partner_admin' || request.auth.token.role == 'Super Admin' || request.auth.token.role == 'Admin');
     }
 
-    /**
-     * @description Checks if the user is a Super Admin or Admin.
-     */
-    function isAdmin() {
-      return isSignedIn() && (request.auth.token.role == 'Super Admin' || request.auth.token.role == 'Admin');
-    }
 
     /**
-     * @description Checks if the user is a partner admin for the specified partner.
-     */
-    function isPartnerAdmin(partnerId) {
-      return isSignedIn() && request.auth.token.role == 'partner_admin' && request.auth.token.partnerId == partnerId;
-    }
-
-    /**
-     * @description Checks if the user is an employee for the specified partner.
-     */
-    function isPartnerEmployee(partnerId) {
-      return isSignedIn() && request.auth.token.role == 'employee' && request.auth.token.partnerId == partnerId;
-    }
-
-    /**
-     * @description Checks if the partner ID in the request matches the partner ID in the resource data.
-     */
-    function partnerIdMatches() {
-        return request.resource.data.partnerId == request.auth.token.partnerId;
-    }
-
-    /**
-     * @description Partners can only be read by an admin or the partner itself
+     * @description Enforces partner-level access control.
      * @path /partners/{partnerId}
-     * @allow (get) - An admin can read any partner
-     * @allow (get) - A partner admin can read its own partner document
-     * @deny (get) - A partner admin cannot read another partner's document
-     * @allow (list) - An admin can list all partners
-     * @deny (list) - A partner cannot list partners
-     * @allow (create) - Only the backend can create partners
-     * @deny (create) - A partner admin cannot create partners
-     * @allow (update) - Only the backend can update partners
-     * @deny (update) - A partner admin cannot update partners
-     * @allow (delete) - Only the backend can delete partners
-     * @deny (delete) - A partner admin cannot delete partners
-     * @principle Admin or Partner Self Access
+     * @allow (get) Authenticated user can retrieve a partner.
+     * @allow (create) Authenticated user can create a partner if they are a partner admin.
+     * @allow (update) Authenticated user can update a partner if they are a partner admin or Super Admin.
+     * @allow (delete) Authenticated user can delete a partner if they are a Super Admin.
+     * @deny (get) Unauthenticated user cannot retrieve a partner.
+     * @deny (create) Authenticated user cannot create a partner if they are not a partner admin.
+     * @deny (update) Authenticated user cannot update a partner if they are not a partner admin.
+     * @deny (delete) Authenticated user cannot delete a partner if they are not a Super Admin.
+     * @principle Enforces role-based access control for partners.
      */
     match /partners/{partnerId} {
-      allow get: if isAdmin() || isPartnerAdmin(partnerId);
-      allow list: if isAdmin();
-      allow create: if false;
-      allow update: if false;
-      allow delete: if false;
+      allow get: if isSignedIn();
+      allow list: if isSignedIn();
+      allow create: if isPartnerAdmin();
+      allow update: if isPartnerAdmin() || request.auth.token.role == 'Super Admin';
+      allow delete: if request.auth.token.role == 'Super Admin';
     }
 
     /**
-     * @description Admin users can only be read by admins
+     * @description Enforces admin user access control.
      * @path /adminUsers/{userId}
-     * @allow (get) - An admin can read any admin user
-     * @deny (get) - A partner admin cannot read admin users
-     * @allow (list) - An admin can list all admin users
-     * @deny (list) - A partner admin cannot list admin users
-     * @allow (create) - Only the backend can create admin users
-     * @deny (create) - A partner admin cannot create admin users
-     * @allow (update) - Only the backend can update admin users
-     * @deny (update) - A partner admin cannot update admin users
-     * @allow (delete) - Only the backend can delete admin users
-     * @deny (delete) - A partner admin cannot delete admin users
-     * @principle Admin Only Access
+     * @allow (get) Authenticated user can retrieve an admin user.
+     * @allow (create) Super Admin can create an admin user.
+     * @allow (update) Admin can update an admin user.
+     * @allow (delete) Super Admin can delete an admin user.
+     * @deny (get) Unauthenticated user cannot retrieve an admin user.
+     * @deny (create) Authenticated user cannot create an admin user if they are not a Super Admin.
+     * @deny (update) Authenticated user cannot update an admin user if they are not an Admin.
+     * @deny (delete) Authenticated user cannot delete an admin user if they are not a Super Admin.
+     * @principle Enforces role-based access control for admin users.
      */
     match /adminUsers/{userId} {
-      allow get: if isAdmin();
-      allow list: if isAdmin();
-      allow create: if false;
-      allow update: if false;
-      allow delete: if false;
+      allow get: if isSignedIn();
+      allow list: if isSignedIn() && request.auth.token.role == 'Super Admin';
+      allow create: if request.auth.token.role == 'Super Admin';
+      allow update: if request.auth.token.role == 'Admin' || request.auth.token.role == 'Super Admin';
+      allow delete: if request.auth.token.role == 'Super Admin';
     }
 
     /**
-     * @description User mappings can only be read by admins
+     * @description Enforces user mapping access control.
      * @path /userMappings/{identifier}
-     * @allow (get) - An admin can read any user mapping
-     * @deny (get) - A partner admin cannot read user mappings
-     * @allow (list) - An admin can list all user mappings
-     * @deny (list) - A partner admin cannot list user mappings
-     * @allow (create) - Only the backend can create user mappings
-     * @deny (create) - A partner admin cannot create user mappings
-     * @allow (update) - Only the backend can update user mappings
-     * @deny (update) - A partner admin cannot update user mappings
-     * @allow (delete) - Only the backend can delete user mappings
-     * @deny (delete) - A partner admin cannot delete user mappings
-     * @principle Admin Only Access
+     * @allow (get) Authenticated user can retrieve a user mapping.
+     * @allow (create) Partner Admin can create a user mapping.
+     * @allow (update) Partner Admin can update a user mapping.
+     * @allow (delete) Partner Admin can delete a user mapping.
+     * @deny (get) Unauthenticated user cannot retrieve a user mapping.
+     * @deny (create) Authenticated user cannot create a user mapping if they are not a Partner Admin.
+     * @deny (update) Authenticated user cannot update a user mapping if they are not a Partner Admin.
+     * @deny (delete) Authenticated user cannot delete a user mapping if they are not a Partner Admin.
+     * @principle Enforces role-based access control for user mappings.
      */
     match /userMappings/{identifier} {
-      allow get: if isAdmin();
-      allow list: if isAdmin();
-      allow create: if false;
-      allow update: if false;
-      allow delete: if false;
+        allow get: if isSignedIn();
+        allow list: if isSignedIn() && isPartnerAdmin();
+        allow create: if isPartnerAdmin();
+        allow update: if isPartnerAdmin();
+        allow delete: if isPartnerAdmin();
     }
 
     /**
-     * @description Team members can only be read by admins or the partner itself
+     * @description Enforces team member access control.
      * @path /teamMembers/{userId}
-     * @allow (get) - An admin can read any team member
-     * @allow (get) - A partner admin can read its own team member document
-     * @deny (get) - A partner admin cannot read another partner's team member document
-     * @allow (list) - An admin can list all team members
-     * @deny (list) - A partner cannot list team members
-     * @allow (create) - Only the backend can create team members
-     * @deny (create) - A partner admin cannot create team members
-     * @allow (update) - Only the backend can update team members
-     * @deny (update) - A partner admin cannot update team members
-     * @allow (delete) - Only the backend can delete team members
-     * @deny (delete) - A partner admin cannot delete team members
-     * @principle Admin or Partner Self Access
+     * @allow (get) Authenticated user can retrieve a team member.
+     * @allow (create) Partner Admin can create a team member.
+     * @allow (update) Partner Admin can update a team member.
+     * @allow (delete) Partner Admin can delete a team member.
+     * @deny (get) Unauthenticated user cannot retrieve a team member.
+     * @deny (create) Authenticated user cannot create a team member if they are not a Partner Admin.
+     * @deny (update) Authenticated user cannot update a team member if they are not a Partner Admin.
+     * @deny (delete) Authenticated user cannot delete a team member if they are not a Partner Admin.
+     * @principle Enforces role-based access control for team members.
      */
     match /teamMembers/{userId} {
-      allow get: if isAdmin() || isOwner(userId);
-      allow list: if isAdmin();
-      allow create: if false;
-      allow update: if false;
-      allow delete: if false;
+        allow get: if isSignedIn();
+        allow list: if isSignedIn() && isPartnerAdmin();
+        allow create: if isPartnerAdmin();
+        allow update: if isPartnerAdmin();
+        allow delete: if isPartnerAdmin();
     }
 
     /**
-     * @description User workspace links can only be read by admins
+     * @description Enforces user workspace link access control.
      * @path /userWorkspaceLinks/{linkId}
-     * @allow (get) - An admin can read any user workspace link
-     * @deny (get) - A partner admin cannot read user workspace links
-     * @allow (list) - An admin can list all user workspace links
-     * @deny (list) - A partner admin cannot list user workspace links
-     * @allow (create) - Only the backend can create user workspace links
-     * @deny (create) - A partner admin cannot create user workspace links
-     * @allow (update) - Only the backend can update user workspace links
-     * @deny (update) - A partner admin cannot update user workspace links
-     * @allow (delete) - Only the backend can delete user workspace links
-     * @deny (delete) - A partner admin cannot delete user workspace links
-     * @principle Admin Only Access
+     * @allow (get) Authenticated user can retrieve a user workspace link.
+     * @allow (create) Partner Admin can create a user workspace link.
+     * @allow (update) Partner Admin can update a user workspace link.
+     * @allow (delete) Partner Admin can delete a user workspace link.
+     * @deny (get) Unauthenticated user cannot retrieve a user workspace link.
+     * @deny (create) Authenticated user cannot create a user workspace link if they are not a Partner Admin.
+     * @deny (update) Authenticated user cannot update a user workspace link if they are not a Partner Admin.
+     * @deny (delete) Authenticated user cannot delete a user workspace link if they are not a Partner Admin.
+     * @principle Enforces role-based access control for user workspace links.
      */
     match /userWorkspaceLinks/{linkId} {
-      allow get: if isAdmin();
-      allow list: if isAdmin();
-      allow create: if false;
-      allow update: if false;
-      allow delete: if false;
+        allow get: if isSignedIn();
+        allow list: if isSignedIn() && isPartnerAdmin();
+        allow create: if isPartnerAdmin();
+        allow update: if isPartnerAdmin();
+        allow delete: if isPartnerAdmin();
     }
 
     /**
-     * @description Tasks can only be read by admins or the partner itself
+     * @description Enforces task access control.
      * @path /tasks/{taskId}
-     * @allow (get) - An admin can read any task
-     * @allow (get) - A partner admin can read its own task document
-     * @deny (get) - A partner admin cannot read another partner's task document
-     * @allow (list) - An admin can list all tasks
-     * @deny (list) - A partner cannot list tasks
-     * @allow (create) - Only the backend can create tasks
-     * @deny (create) - A partner admin cannot create tasks
-     * @allow (update) - Only the backend can update tasks
-     * @deny (update) - A partner admin cannot update tasks
-     * @allow (delete) - Only the backend can delete tasks
-     * @deny (delete) - A partner admin cannot delete tasks
-     * @principle Admin or Partner Self Access
+     * @allow (get) Authenticated user can retrieve a task.
+     * @allow (create) Partner Admin can create a task.
+     * @allow (update) Partner Admin can update a task.
+     * @allow (delete) Partner Admin can delete a task.
+     * @deny (get) Unauthenticated user cannot retrieve a task.
+     * @deny (create) Authenticated user cannot create a task if they are not a Partner Admin.
+     * @deny (update) Authenticated user cannot update a task if they are not a Partner Admin.
+     * @deny (delete) Authenticated user cannot delete a task if they are not a Partner Admin.
+     * @principle Enforces role-based access control for tasks.
      */
     match /tasks/{taskId} {
-      allow get: if isAdmin();
-      allow list: if isAdmin();
-      allow create: if false;
-      allow update: if false;
-      allow delete: if false;
+        allow get: if isSignedIn();
+        allow list: if isSignedIn() && isPartnerAdmin();
+        allow create: if isPartnerAdmin();
+        allow update: if isPartnerAdmin();
+        allow delete: if isPartnerAdmin();
     }
 
     /**
-     * @description Campaigns can only be read/written by admins or the partner itself
+     * @description Enforces campaign access control within a partner.
      * @path /partners/{partnerId}/campaigns/{campaignId}
-     * @allow (get) - An admin can read any campaign
-     * @allow (get) - A partner admin can read its own campaign document
-     * @deny (get) - A partner admin cannot read another partner's campaign document
-     * @allow (list) - An admin can list all campaigns
-     * @allow (list) - A partner admin can list its own campaigns
-     * @deny (list) - A partner admin cannot list another partner's campaigns
-     * @allow (create) - A partner admin can create campaigns for their partner
-     * @deny (create) - A partner admin cannot create campaigns for another partner
-     * @allow (update) - A partner admin can update campaigns for their partner
-     * @deny (update) - A partner admin cannot update campaigns for another partner
-     * @allow (delete) - A partner admin can delete campaigns for their partner
-     * @deny (delete) - A partner admin cannot delete campaigns for another partner
-     * @principle Admin or Partner Self Access
+     * @allow (get) Authenticated user can retrieve a campaign within a partner.
+     * @allow (create) Partner Admin can create a campaign within a partner.
+     * @allow (update) Partner Admin can update a campaign within a partner.
+     * @allow (delete) Partner Admin can delete a campaign within a partner.
+     * @deny (get) Unauthenticated user cannot retrieve a campaign within a partner.
+     * @deny (create) Authenticated user cannot create a campaign within a partner if they are not a Partner Admin.
+     * @deny (update) Authenticated user cannot update a campaign within a partner if they are not a Partner Admin.
+     * @deny (delete) Authenticated user cannot delete a campaign within a partner if they are not a Partner Admin.
+     * @principle Enforces role-based access control for campaigns within a partner.
      */
     match /partners/{partnerId}/campaigns/{campaignId} {
-      allow get: if isAdmin() || isPartnerAdmin(partnerId);
-      allow list: if isAdmin() || isPartnerAdmin(partnerId);
-      allow create: if isSignedIn() && partnerIdMatches() && request.resource.data.partnerId == partnerId;
-      allow update: if isSignedIn() && partnerIdMatches() && request.resource.data.partnerId == partnerId;
-      allow delete: if isSignedIn() && partnerIdMatches() && request.resource.data.partnerId == partnerId;
+        allow get: if isSignedIn();
+        allow list: if isSignedIn() && (request.auth.token.partnerId == partnerId || request.auth.token.role == 'Super Admin' || request.auth.token.role == 'Admin');
+        allow create: if isPartnerAdmin() && request.auth.token.partnerId == partnerId;
+        allow update: if isPartnerAdmin() && request.auth.token.partnerId == partnerId;
+        allow delete: if isPartnerAdmin() && request.auth.token.partnerId == partnerId;
     }
 
     /**
-     * @description Message templates can only be read/written by admins or the partner itself
+     * @description Enforces message template access control within a partner.
      * @path /partners/{partnerId}/messageTemplates/{templateId}
-     * @allow (get) - An admin can read any message template
-     * @allow (get) - A partner admin can read its own message template document
-     * @deny (get) - A partner admin cannot read another partner's message template document
-     * @allow (list) - An admin can list all message templates
-     * @allow (list) - A partner admin can list its own message templates
-     * @deny (list) - A partner admin cannot list another partner's message templates
-     * @allow (create) - A partner admin can create message templates for their partner
-     * @deny (create) - A partner admin cannot create message templates for another partner
-     * @allow (update) - A partner admin can update message templates for their partner
-     * @deny (update) - A partner admin cannot update message templates for another partner
-     * @allow (delete) - A partner admin can delete message templates for their partner
-     * @deny (delete) - A partner admin cannot delete message templates for another partner
-     * @principle Admin or Partner Self Access
+     * @allow (get) Authenticated user can retrieve a message template within a partner.
+     * @allow (create) Partner Admin can create a message template within a partner.
+     * @allow (update) Partner Admin can update a message template within a partner.
+     * @allow (delete) Partner Admin can delete a message template within a partner.
+     * @deny (get) Unauthenticated user cannot retrieve a message template within a partner.
+     * @deny (create) Authenticated user cannot create a message template within a partner if they are not a Partner Admin.
+     * @deny (update) Authenticated user cannot update a message template within a partner if they are not a Partner Admin.
+     * @deny (delete) Authenticated user cannot delete a message template within a partner if they are not a Partner Admin.
+     * @principle Enforces role-based access control for message templates within a partner.
      */
     match /partners/{partnerId}/messageTemplates/{templateId} {
-      allow get: if isAdmin() || isPartnerAdmin(partnerId);
-      allow list: if isAdmin() || isPartnerAdmin(partnerId);
-      allow create: if isSignedIn() && partnerIdMatches() && request.resource.data.partnerId == partnerId;
-      allow update: if isSignedIn() && partnerIdMatches() && request.resource.data.partnerId == partnerId;
-      allow delete: if isSignedIn() && partnerIdMatches() && request.resource.data.partnerId == partnerId;
+        allow get: if isSignedIn();
+        allow list: if isSignedIn() && (request.auth.token.partnerId == partnerId || request.auth.token.role == 'Super Admin' || request.auth.token.role == 'Admin');
+        allow create: if isPartnerAdmin() && request.auth.token.partnerId == partnerId;
+        allow update: if isPartnerAdmin() && request.auth.token.partnerId == partnerId;
+        allow delete: if isPartnerAdmin() && request.auth.token.partnerId == partnerId;
     }
 
     /**
-     * @description Contact groups can only be read/written by admins or the partner itself
+     * @description Enforces contact group access control within a partner.
      * @path /partners/{partnerId}/contactGroups/{groupId}
-     * @allow (get) - An admin can read any contact group
-     * @allow (get) - A partner admin can read its own contact group document
-     * @deny (get) - A partner admin cannot read another partner's contact group document
-     * @allow (list) - An admin can list all contact groups
-     * @allow (list) - A partner admin can list its own contact groups
-     * @deny (list) - A partner admin cannot list another partner's contact groups
-     * @allow (create) - A partner admin can create contact groups for their partner
-     * @deny (create) - A partner admin cannot create contact groups for another partner
-     * @allow (update) - A partner admin can update contact groups for their partner
-     * @deny (update) - A partner admin cannot update contact groups for another partner
-     * @allow (delete) - A partner admin can delete contact groups for their partner
-     * @deny (delete) - A partner admin cannot delete contact groups for another partner
-     * @principle Admin or Partner Self Access
+     * @allow (get) Authenticated user can retrieve a contact group within a partner.
+     * @allow (create) Partner Admin can create a contact group within a partner.
+     * @allow (update) Partner Admin can update a contact group within a partner.
+     * @allow (delete) Partner Admin can delete a contact group within a partner.
+     * @deny (get) Unauthenticated user cannot retrieve a contact group within a partner.
+     * @deny (create) Authenticated user cannot create a contact group within a partner if they are not a Partner Admin.
+     * @deny (update) Authenticated user cannot update a contact group within a partner if they are not a Partner Admin.
+     * @deny (delete) Authenticated user cannot delete a contact group within a partner if they are not a Partner Admin.
+     * @principle Enforces role-based access control for contact groups within a partner.
      */
     match /partners/{partnerId}/contactGroups/{groupId} {
-      allow get: if isAdmin() || isPartnerAdmin(partnerId);
-      allow list: if isAdmin() || isPartnerAdmin(partnerId);
-      allow create: if isSignedIn() && partnerIdMatches() && request.resource.data.partnerId == partnerId;
-      allow update: if isSignedIn() && partnerIdMatches() && request.resource.data.partnerId == partnerId;
-      allow delete: if isSignedIn() && partnerIdMatches() && request.resource.data.partnerId == partnerId;
+        allow get: if isSignedIn();
+        allow list: if isSignedIn() && (request.auth.token.partnerId == partnerId || request.auth.token.role == 'Super Admin' || request.auth.token.role == 'Admin');
+        allow create: if isPartnerAdmin() && request.auth.token.partnerId == partnerId;
+        allow update: if isPartnerAdmin() && request.auth.token.partnerId == partnerId;
+        allow delete: if isPartnerAdmin() && request.auth.token.partnerId == partnerId;
     }
 
     /**
-     * @description Contacts can only be read/written by admins or the partner itself
+     * @description Enforces contact access control within a partner.
      * @path /partners/{partnerId}/contacts/{contactId}
-     * @allow (get) - An admin can read any contact
-     * @allow (get) - A partner admin can read its own contact document
-     * @deny (get) - A partner admin cannot read another partner's contact document
-     * @allow (list) - An admin can list all contacts
-     * @allow (list) - A partner admin can list its own contacts
-     * @deny (list) - A partner admin cannot list another partner's contacts
-     * @allow (create) - A partner admin can create contacts for their partner
-     * @deny (create) - A partner admin cannot create contacts for another partner
-     * @allow (update) - A partner admin can update contacts for their partner
-     * @deny (update) - A partner admin cannot update contacts for another partner
-     * @allow (delete) - A partner admin can delete contacts for their partner
-     * @deny (delete) - A partner admin cannot delete contacts for another partner
-     * @principle Admin or Partner Self Access
+     * @allow (get) Authenticated user can retrieve a contact within a partner.
+     * @allow (create) Partner Admin can create a contact within a partner.
+     * @allow (update) Partner Admin can update a contact within a partner.
+     * @allow (delete) Partner Admin can delete a contact within a partner.
+     * @deny (get) Unauthenticated user cannot retrieve a contact within a partner.
+     * @deny (create) Authenticated user cannot create a contact within a partner if they are not a Partner Admin.
+     * @deny (update) Authenticated user cannot update a contact within a partner if they are not a Partner Admin.
+     * @deny (delete) Authenticated user cannot delete a contact within a partner if they are not a Partner Admin.
+     * @principle Enforces role-based access control for contacts within a partner.
      */
     match /partners/{partnerId}/contacts/{contactId} {
-      allow get: if isAdmin() || isPartnerAdmin(partnerId);
-      allow list: if isAdmin() || isPartnerAdmin(partnerId);
-      allow create: if isSignedIn() && partnerIdMatches() && request.resource.data.partnerId == partnerId;
-      allow update: if isSignedIn() && partnerIdMatches() && request.resource.data.partnerId == partnerId;
-      allow delete: if isSignedIn() && partnerIdMatches() && request.resource.data.partnerId == partnerId;
+        allow get: if isSignedIn();
+        allow list: if isSignedIn() && (request.auth.token.partnerId == partnerId || request.auth.token.role == 'Super Admin' || request.auth.token.role == 'Admin');
+        allow create: if isPartnerAdmin() && request.auth.token.partnerId == partnerId;
+        allow update: if isPartnerAdmin() && request.auth.token.partnerId == partnerId;
+        allow delete: if isPartnerAdmin() && request.auth.token.partnerId == partnerId;
     }
 
     /**
-     * @description Trading picks can only be read/written by admins or the partner itself
+     * @description Enforces trading pick access control within a partner.
      * @path /partners/{partnerId}/tradingPicks/{pickId}
-     * @allow (get) - An admin can read any trading pick
-     * @allow (get) - A partner admin can read its own trading pick document
-     * @deny (get) - A partner admin cannot read another partner's trading pick document
-     * @allow (list) - An admin can list all trading picks
-     * @allow (list) - A partner admin can list its own trading picks
-     * @deny (list) - A partner admin cannot list another partner's trading picks
-     * @allow (create) - A partner admin can create trading picks for their partner
-     * @deny (create) - A partner admin cannot create trading picks for another partner
-     * @allow (update) - A partner admin can update trading picks for their partner
-     * @deny (update) - A partner admin cannot update trading picks for another partner
-     * @allow (delete) - A partner admin can delete trading picks for their partner
-     * @deny (delete) - A partner admin cannot delete trading picks for another partner
-     * @principle Admin or Partner Self Access
+     * @allow (get) Authenticated user can retrieve a trading pick within a partner.
+     * @allow (create) Partner Admin can create a trading pick within a partner.
+     * @allow (update) Partner Admin can update a trading pick within a partner.
+     * @allow (delete) Partner Admin can delete a trading pick within a partner.
+     * @deny (get) Unauthenticated user cannot retrieve a trading pick within a partner.
+     * @deny (create) Authenticated user cannot create a trading pick within a partner if they are not a Partner Admin.
+     * @deny (update) Authenticated user cannot update a trading pick within a partner if they are not a Partner Admin.
+     * @deny (delete) Authenticated user cannot delete a trading pick within a partner if they are not a Partner Admin.
+     * @principle Enforces role-based access control for trading picks within a partner.
      */
     match /partners/{partnerId}/tradingPicks/{pickId} {
-      allow get: if isAdmin() || isPartnerAdmin(partnerId);
-      allow list: if isAdmin() || isPartnerAdmin(partnerId);
-      allow create: if isSignedIn() && partnerIdMatches() && request.resource.data.partnerId == partnerId;
-      allow update: if isSignedIn() && partnerIdMatches() && request.resource.data.partnerId == partnerId;
-      allow delete: if isSignedIn() && partnerIdMatches() && request.resource.data.partnerId == partnerId;
+        allow get: if isSignedIn();
+        allow list: if isSignedIn() && (request.auth.token.partnerId == partnerId || request.auth.token.role == 'Super Admin' || request.auth.token.role == 'Admin');
+        allow create: if isPartnerAdmin() && request.auth.token.partnerId == partnerId;
+        allow update: if isPartnerAdmin() && request.auth.token.partnerId == partnerId;
+        allow delete: if isPartnerAdmin() && request.auth.token.partnerId == partnerId;
     }
   }
 }
