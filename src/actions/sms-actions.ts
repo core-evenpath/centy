@@ -1,10 +1,9 @@
-
 // src/actions/sms-actions.ts
 'use server';
 
 import { db } from '@/lib/firebase-admin';
 import { sendSMS, getMessageStatus } from '@/lib/twilio-service';
-import { FieldValue, doc } from 'firebase-admin/firestore'; // Corrected: Added doc import
+import { FieldValue } from 'firebase-admin/firestore';
 import type { SendSMSInput, SendSMSResult, SMSMessage, SMSConversation, Contact } from '@/lib/types';
 import { FirestorePermissionError } from '@/firebase/errors';
 
@@ -153,13 +152,13 @@ export async function sendSmsCampaignAction(input: SendSmsCampaignInput): Promis
         if (!contactIds.has(recipient.id)) {
           const contactDoc = await db.collection(`partners/${input.partnerId}/contacts`).doc(recipient.id).get();
           if (contactDoc.exists) {
-            uniqueContacts.push({ id: contactDoc.id, ...contactDoc.data() } as Contact); // Corrected: was doc.id
+            uniqueContacts.push({ id: contactDoc.id, ...contactDoc.data() } as Contact);
             contactIds.add(recipient.id);
           }
         }
       } else if (recipient.type === 'group') {
         const contactsSnapshot = await db.collection(`partners/${input.partnerId}/contacts`).where('groups', 'array-contains', recipient.name).get();
-        contactsSnapshot.forEach(contactDoc => { // Corrected: was doc
+        contactsSnapshot.forEach(contactDoc => {
           if (!contactIds.has(contactDoc.id)) {
             uniqueContacts.push({ id: contactDoc.id, ...contactDoc.data() } as Contact);
             contactIds.add(contactDoc.id);
@@ -168,21 +167,34 @@ export async function sendSmsCampaignAction(input: SendSmsCampaignInput): Promis
       }
     }
     
-    // For V1, we'll just log the action and simulate sending.
-    console.log(`Simulating SMS campaign for partner: ${input.partnerId}`);
-    console.log(`Message: ${input.message}`);
-    console.log(`Total unique recipients: ${uniqueContacts.length}`);
-    uniqueContacts.forEach(contact => {
-      console.log(`- Sending to ${contact.name} (${contact.phone})`);
+    // Actually send the SMS messages
+    const sendPromises = uniqueContacts.map(contact => {
+      if (contact.phone) {
+        return sendSMSAction({
+          partnerId: input.partnerId,
+          to: contact.phone,
+          message: input.message
+        }).catch(err => {
+          console.error(`Failed to send SMS to ${contact.phone}:`, err);
+          return { success: false, message: `Failed to send to ${contact.name}` };
+        });
+      }
+      return Promise.resolve({ success: false, message: `No phone for ${contact.name}`});
     });
 
-    // In a real implementation, you would loop through `uniqueContacts`
-    // and call `sendSMSAction` for each, likely in a background job.
-    // For now, we return a success message.
+    const results = await Promise.all(sendPromises);
+    const successCount = results.filter(r => r.success).length;
+
+    if (successCount === 0 && uniqueContacts.length > 0) {
+      return {
+        success: false,
+        message: `Campaign failed to send to any of the ${uniqueContacts.length} recipients.`,
+      };
+    }
 
     return {
       success: true,
-      message: `Campaign successfully sent to ${uniqueContacts.length} recipient(s).`,
+      message: `Campaign successfully sent to ${successCount} of ${uniqueContacts.length} recipient(s).`,
     };
 
   } catch (error: any) {
