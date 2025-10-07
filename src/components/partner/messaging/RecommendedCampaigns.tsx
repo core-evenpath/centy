@@ -28,7 +28,7 @@ export default function RecommendedCampaigns({ partnerId }: RecommendedCampaigns
   const [recommendations, setRecommendations] = useState<Recommendation[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [modalContent, setModalContent] = useState<{ text: string, image: string } | null>(null);
+  const [modalContent, setModalContent] = useState<{ message: string, mediaUrl: string } | null>(null);
   const { toast } = useToast();
 
   const generateRecommendations = async () => {
@@ -79,7 +79,7 @@ export default function RecommendedCampaigns({ partnerId }: RecommendedCampaigns
   }, []);
 
   const handleSendClick = (recommendation: Recommendation) => {
-    setModalContent({ text: recommendation.text, image: recommendation.imageUrl });
+    setModalContent({ message: recommendation.text, mediaUrl: recommendation.imageUrl });
     setIsModalOpen(true);
   };
   
@@ -95,7 +95,7 @@ export default function RecommendedCampaigns({ partnerId }: RecommendedCampaigns
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-2">
               <Sparkles className="w-5 h-5 text-purple-600" />
-              <h3 className="text-lg font-semibold">Recommended Campaigns</h3>
+              <h3 className="text-lg font-semibold">Make it interesting</h3>
             </div>
             <Button variant="outline" size="sm" onClick={generateRecommendations} disabled={isLoading}>
               <RefreshCcw className={`w-4 h-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
@@ -137,7 +137,7 @@ export default function RecommendedCampaigns({ partnerId }: RecommendedCampaigns
             isOpen={isModalOpen}
             onClose={handleModalClose}
             partnerId={partnerId}
-            initialContent={{ message: modalContent.text, mediaUrl: modalContent.image }}
+            initialContent={modalContent}
         />
       )}
     </>
