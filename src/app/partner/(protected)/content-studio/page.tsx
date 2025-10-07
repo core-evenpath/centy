@@ -75,6 +75,7 @@ function MessagingPlatform() {
       } as ContactGroup));
       setContactGroups(groupsData);
       setIsLoadingGroups(false);
+      setFirestoreError(null);
     }, (serverError) => {
       // Create and emit a contextual permission error
       const permissionError = new FirestorePermissionError({
@@ -83,9 +84,6 @@ function MessagingPlatform() {
         serverError,
       });
       errorEmitter.emit('permission-error', permissionError);
-
-      // Also update local UI state to show a friendly error
-      setFirestoreError("You don't have permission to view contact groups. Please contact your administrator.");
       setIsLoadingGroups(false);
     });
 
@@ -1195,3 +1193,5 @@ export default function ContentStudioPage() {
     </>
   );
 }
+
+    
