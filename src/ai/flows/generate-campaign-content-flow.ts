@@ -19,20 +19,6 @@ export async function generateCampaignContent(input: GenerateCampaignContentInpu
   return generateCampaignContentFlow(input);
 }
 
-const campaignPrompt = ai.definePrompt({
-  name: 'generateCampaignContentPrompt',
-  model: googleAI.model('gemini-pro'), // Explicitly define the model to use
-  input: { schema: GenerateCampaignContentInputSchema },
-  output: { schema: GenerateCampaignContentOutputSchema },
-  prompt: `You are an expert marketing copywriter. A user wants to create content for a new campaign.
-Based on their request, write a concise, compelling, and effective message.
-
-User Request: "{{prompt}}"
-
-Generated Content:
-`,
-});
-
 const generateCampaignContentFlow = ai.defineFlow(
   {
     name: 'generateCampaignContentFlow',
@@ -40,7 +26,24 @@ const generateCampaignContentFlow = ai.defineFlow(
     outputSchema: GenerateCampaignContentOutputSchema,
   },
   async (input) => {
-    const { output } = await campaignPrompt(input);
+    const llm = googleAI.model('gemini-pro');
+
+    const result = await ai.generate({
+      model: llm,
+      prompt: `You are an expert marketing copywriter. A user wants to create content for a new campaign.
+Based on their request, write a concise, compelling, and effective message.
+
+User Request: "${input.prompt}"`,
+      output: {
+        format: 'json',
+        schema: GenerateCampaignContentOutputSchema,
+      },
+      config: {
+        temperature: 0.7,
+      },
+    });
+
+    const output = result.output();
     if (!output) {
       throw new Error('AI failed to generate content.');
     }

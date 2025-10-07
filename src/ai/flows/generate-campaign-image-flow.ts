@@ -22,8 +22,6 @@ const generateCampaignImageFlow = ai.defineFlow(
     outputSchema: GenerateCampaignImageOutputSchema,
   },
   async (input) => {
-    // Use gemini-2.5-flash-image-preview for fast image generation.
-    // It requires both TEXT and IMAGE in responseModalities.
     const { media } = await ai.generate({
       model: googleAI.model('gemini-2.5-flash-image-preview'),
       prompt: input.prompt,
