@@ -63,7 +63,7 @@ export default function MessagingPage() {
   const searchParams = useSearchParams();
   const audioRef = useRef<HTMLAudioElement>(null);
 
-  const [selectedPlatform, setSelectedPlatform] = useState<Platform>('sms');
+  const [selectedPlatform, setSelectedPlatform] = useState<Platform>(searchParams.get('platform') as Platform || 'whatsapp');
   const [conversations, setConversations] = useState<UnifiedConversation[]>([]);
   const [selectedConversation, setSelectedConversation] = useState<UnifiedConversation | null>(null);
   const [messages, setMessages] = useState<UnifiedMessage[]>([]);
@@ -428,8 +428,8 @@ export default function MessagingPage() {
           <div className="p-4 space-y-3">
             <Tabs value={selectedPlatform} onValueChange={(value) => setSelectedPlatform(value as Platform)}>
               <TabsList className="grid w-full grid-cols-2">
-                <TabsTrigger value="sms" className="flex items-center gap-2"><Phone className="w-4 h-4" />SMS</TabsTrigger>
                 <TabsTrigger value="whatsapp" className="flex items-center gap-2"><WhatsAppIcon className="w-4 h-4" />WhatsApp</TabsTrigger>
+                <TabsTrigger value="sms" className="flex items-center gap-2"><Phone className="w-4 h-4" />SMS</TabsTrigger>
               </TabsList>
             </Tabs>
             <div className="relative">

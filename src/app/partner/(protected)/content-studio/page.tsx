@@ -11,12 +11,23 @@ import { db } from '@/lib/firebase';
 import { collection, query, onSnapshot } from 'firebase/firestore';
 import type { ContactGroup } from '@/lib/types';
 import PartnerHeader from '../../../../components/partner/PartnerHeader';
-import { Send, Users, FileText, Loader2, AlertCircle, X } from 'lucide-react';
+import { 
+  Send, 
+  Users, 
+  FileText, 
+  Loader2, 
+  AlertCircle, 
+  X,
+  MessageCircle as WhatsAppIcon,
+  Phone as SmsIcon,
+} from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '../../../../components/ui/dialog';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Input } from '../../../../components/ui/input';
 import { Textarea } from '../../../../components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
 import { sendSMSAction } from '@/actions/sms-actions';
+import { sendWhatsAppMessageAction } from '@/actions/whatsapp-actions';
 
 // Simple Modal for V1 - New Conversation
 const NewConversationModal = ({ 
@@ -26,13 +37,14 @@ const NewConversationModal = ({
 }: { 
   isOpen: boolean; 
   onClose: () => void;
-  onConversationStarted: (conversationId: string) => void;
+  onConversationStarted: (conversationId: string, platform: 'sms' | 'whatsapp') => void;
 }) => {
   const { currentWorkspace } = useMultiWorkspaceAuth();
   const { toast } = useToast();
   const [phoneNumber, setPhoneNumber] = useState('');
   const [message, setMessage] = useState('');
   const [isSending, setIsSending] = useState(false);
+  const [platform, setPlatform] = useState<'whatsapp' | 'sms'>('whatsapp');
 
   const handleSend = async () => {
     if (!phoneNumber.trim() || !message.trim()) {
@@ -46,18 +58,27 @@ const NewConversationModal = ({
 
     setIsSending(true);
     try {
-      const result = await sendSMSAction({
-        partnerId: currentWorkspace.partnerId,
-        to: phoneNumber,
-        message: message,
-      });
+      let result;
+      if (platform === 'whatsapp') {
+        result = await sendWhatsAppMessageAction({
+          partnerId: currentWorkspace.partnerId,
+          to: phoneNumber,
+          message: message,
+        });
+      } else {
+        result = await sendSMSAction({
+          partnerId: currentWorkspace.partnerId,
+          to: phoneNumber,
+          message: message,
+        });
+      }
 
       if (result.success && result.conversationId) {
-        toast({ title: 'Conversation Started', description: 'Your message has been sent.' });
-        onConversationStarted(result.conversationId);
+        toast({ title: 'Conversation Started', description: `Your ${platform.toUpperCase()} message has been sent.` });
+        onConversationStarted(result.conversationId, platform);
         onClose();
       } else {
-        throw new Error(result.message || 'Failed to send message.');
+        throw new Error(result.message || `Failed to send ${platform.toUpperCase()} message.`);
       }
     } catch (error: any) {
       toast({ variant: 'destructive', title: 'Error', description: error.message });
@@ -71,8 +92,22 @@ const NewConversationModal = ({
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Start a New Conversation</DialogTitle>
-          <DialogDescription>Send an initial SMS to a new contact.</DialogDescription>
+          <DialogDescription>Send an initial message to a new contact via WhatsApp or SMS.</DialogDescription>
         </DialogHeader>
+        
+        <Tabs value={platform} onValueChange={(value) => setPlatform(value as any)} className="w-full mt-4">
+          <TabsList className="grid w-full grid-cols-2">
+            <TabsTrigger value="whatsapp" className="flex items-center gap-2">
+              <WhatsAppIcon className="w-4 h-4" />
+              WhatsApp
+            </TabsTrigger>
+            <TabsTrigger value="sms" className="flex items-center gap-2">
+              <SmsIcon className="w-4 h-4" />
+              SMS
+            </TabsTrigger>
+          </TabsList>
+        </Tabs>
+
         <div className="space-y-4 py-4">
           <div>
             <label htmlFor="phone-number" className="text-sm font-medium">Phone Number</label>
@@ -100,7 +135,7 @@ const NewConversationModal = ({
           <Button variant="outline" onClick={onClose} disabled={isSending}>Cancel</Button>
           <Button onClick={handleSend} disabled={isSending}>
             {isSending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4 mr-2" />}
-            {isSending ? 'Sending...' : 'Send Message'}
+            {isSending ? 'Sending...' : `Send ${platform.toUpperCase()}`}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -140,9 +175,9 @@ function MessagingPlatform() {
     return () => unsubscribe();
   }, [currentWorkspace?.partnerId]);
 
-  const handleConversationStarted = (conversationId: string) => {
+  const handleConversationStarted = (conversationId: string, platform: 'sms' | 'whatsapp') => {
     // Redirect to the messaging page with the new conversation selected
-    router.push(`/partner/messaging?conversation=${conversationId}`);
+    router.push(`/partner/messaging?conversation=${conversationId}&platform=${platform}`);
   };
   
   const totalContacts = contactGroups.reduce((sum, g) => sum + (g.contactCount || 0), 0);
