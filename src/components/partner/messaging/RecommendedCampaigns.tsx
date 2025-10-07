@@ -6,8 +6,6 @@ import { Button } from '../../ui/button';
 import { Card, CardContent } from '../../ui/card';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2, RefreshCcw, Send, Sparkles } from 'lucide-react';
-import { generateCampaignContent } from '@/ai/flows/generate-campaign-content-flow';
-import { generateCampaignImage } from '@/ai/flows/generate-campaign-image-flow';
 import { CreateCampaignModal } from './CreateCampaignModal';
 
 interface Recommendation {
@@ -41,9 +39,22 @@ export default function RecommendedCampaigns({ partnerId }: RecommendedCampaigns
       const generatedRecommendations: Recommendation[] = await Promise.all(
         recommendationPrompts.map(async (prompt, index) => {
           const [textResponse, imageResponse] = await Promise.all([
-            generateCampaignContent({ prompt: prompt.text }),
-            generateCampaignImage({ prompt: prompt.image })
+            fetch('/api/generate-text', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ prompt: prompt.text })
+            }).then(res => res.json()),
+            fetch('/api/generate-image', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ prompt: prompt.image })
+            }).then(res => res.json())
           ]);
+
+          if (textResponse.error || imageResponse.error) {
+            throw new Error(textResponse.error || imageResponse.error || 'Failed to generate content');
+          }
+
           return {
             id: `rec-${index}`,
             text: textResponse.content,

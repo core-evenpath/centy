@@ -7,8 +7,6 @@ import { Button } from '../../ui/button';
 import { Textarea } from '../../ui/textarea';
 import { useToast } from '@/hooks/use-toast';
 import { Sparkles, Wand2, Image as ImageIcon, Loader2, X } from 'lucide-react';
-import { generateCampaignContent } from '@/ai/flows/generate-campaign-content-flow';
-import { generateCampaignImage } from '@/ai/flows/generate-campaign-image-flow';
 
 interface AIComposerModalProps {
   isOpen: boolean;
