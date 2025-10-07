@@ -1,7 +1,7 @@
 // src/app/partner/(protected)/content-studio/page.tsx
 "use client";
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Button } from '../../../../components/ui/button';
@@ -9,7 +9,7 @@ import { Card, CardContent } from '../../../../components/ui/card';
 import { useMultiWorkspaceAuth } from '@/hooks/use-multi-workspace-auth';
 import { db } from '@/lib/firebase';
 import { collection, query, onSnapshot } from 'firebase/firestore';
-import type { ContactGroup } from '@/lib/types';
+import type { Contact, ContactGroup } from '@/lib/types';
 import PartnerHeader from '../../../../components/partner/PartnerHeader';
 import { 
   Send, 
@@ -20,16 +20,22 @@ import {
   X,
   MessageCircle as WhatsAppIcon,
   Phone as SmsIcon,
+  User,
+  Check
 } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '../../../../components/ui/dialog';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Input } from '../../../../components/ui/input';
 import { Textarea } from '../../../../components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
-import { sendSMSAction } from '@/actions/sms-actions';
+import { sendSMSAction, sendSmsCampaignAction } from '@/actions/sms-actions';
 import { sendWhatsAppMessageAction } from '@/actions/whatsapp-actions';
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Badge } from '@/components/ui/badge';
+import { cn } from '@/lib/utils';
 
-// Simple Modal for V1 - New Conversation
+// V1 Modal: New Conversation with recipient selection
 const NewConversationModal = ({ 
   isOpen, 
   onClose,
@@ -41,14 +47,46 @@ const NewConversationModal = ({
 }) => {
   const { currentWorkspace } = useMultiWorkspaceAuth();
   const { toast } = useToast();
-  const [phoneNumber, setPhoneNumber] = useState('');
+  
+  const [contacts, setContacts] = useState<Contact[]>([]);
+  const [contactGroups, setContactGroups] = useState<ContactGroup[]>([]);
+  const [isLoadingRecipients, setIsLoadingRecipients] = useState(true);
+
+  const [selectedRecipients, setSelectedRecipients] = useState<any[]>([]);
   const [message, setMessage] = useState('');
   const [isSending, setIsSending] = useState(false);
   const [platform, setPlatform] = useState<'whatsapp' | 'sms'>('whatsapp');
+  const [isRecipientPopoverOpen, setIsRecipientPopoverOpen] = useState(false);
+
+  const partnerId = currentWorkspace?.partnerId;
+
+  // Fetch contacts and groups
+  useEffect(() => {
+    if (!partnerId || !isOpen) return;
+
+    setIsLoadingRecipients(true);
+    const contactsQuery = query(collection(db, `partners/${partnerId}/contacts`));
+    const groupsQuery = query(collection(db, `partners/${partnerId}/contactGroups`));
+
+    const unsubContacts = onSnapshot(contactsQuery, snapshot => {
+      setContacts(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Contact)));
+    });
+    
+    const unsubGroups = onSnapshot(groupsQuery, snapshot => {
+      setContactGroups(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ContactGroup)));
+    });
+
+    Promise.all([new Promise(res => setTimeout(res, 500))]).then(() => setIsLoadingRecipients(false));
+
+    return () => {
+      unsubContacts();
+      unsubGroups();
+    };
+  }, [partnerId, isOpen]);
 
   const handleSend = async () => {
-    if (!phoneNumber.trim() || !message.trim()) {
-      toast({ variant: 'destructive', title: 'Error', description: 'Phone number and message are required.' });
+    if (selectedRecipients.length === 0 || !message.trim()) {
+      toast({ variant: 'destructive', title: 'Error', description: 'Recipients and message are required.' });
       return;
     }
     if (!currentWorkspace?.partnerId) {
@@ -58,27 +96,21 @@ const NewConversationModal = ({
 
     setIsSending(true);
     try {
-      let result;
-      if (platform === 'whatsapp') {
-        result = await sendWhatsAppMessageAction({
-          partnerId: currentWorkspace.partnerId,
-          to: phoneNumber,
-          message: message,
-        });
-      } else {
-        result = await sendSMSAction({
-          partnerId: currentWorkspace.partnerId,
-          to: phoneNumber,
-          message: message,
-        });
-      }
-
-      if (result.success && result.conversationId) {
-        toast({ title: 'Conversation Started', description: `Your ${platform.toUpperCase()} message has been sent.` });
-        onConversationStarted(result.conversationId, platform);
+      const result = await sendSmsCampaignAction({
+        partnerId: currentWorkspace.partnerId,
+        message,
+        recipients: selectedRecipients.map(r => ({
+          id: r.id,
+          name: r.name,
+          type: r.contactCount !== undefined ? 'group' : 'contact'
+        })),
+      });
+      
+      if (result.success) {
+        toast({ title: 'Campaign Sent', description: result.message });
         onClose();
       } else {
-        throw new Error(result.message || `Failed to send ${platform.toUpperCase()} message.`);
+        throw new Error(result.message || 'Failed to send campaign.');
       }
     } catch (error: any) {
       toast({ variant: 'destructive', title: 'Error', description: error.message });
@@ -87,40 +119,114 @@ const NewConversationModal = ({
     }
   };
 
+  const handleRecipientSelect = (recipient: any) => {
+    setSelectedRecipients(prev => {
+      if (prev.some(r => r.id === recipient.id)) {
+        return prev.filter(r => r.id !== recipient.id);
+      }
+      return [...prev, recipient];
+    });
+  };
+
+  const availableRecipients = useMemo(() => {
+    return [
+      ...contactGroups.map(g => ({ ...g, type: 'group' })),
+      ...contacts.map(c => ({ ...c, type: 'contact' }))
+    ];
+  }, [contacts, contactGroups]);
+
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent>
+      <DialogContent className="max-w-2xl">
         <DialogHeader>
-          <DialogTitle>Start a New Conversation</DialogTitle>
-          <DialogDescription>Send an initial message to a new contact via WhatsApp or SMS.</DialogDescription>
+          <DialogTitle>Send New Campaign</DialogTitle>
+          <DialogDescription>Send a message to selected contacts or groups.</DialogDescription>
         </DialogHeader>
         
-        <Tabs value={platform} onValueChange={(value) => setPlatform(value as any)} className="w-full mt-4">
-          <TabsList className="grid w-full grid-cols-2">
-            <TabsTrigger value="whatsapp" className="flex items-center gap-2">
-              <WhatsAppIcon className="w-4 h-4" />
-              WhatsApp
-            </TabsTrigger>
-            <TabsTrigger value="sms" className="flex items-center gap-2">
-              <SmsIcon className="w-4 h-4" />
-              SMS
-            </TabsTrigger>
-          </TabsList>
-        </Tabs>
-
         <div className="space-y-4 py-4">
+          {/* Recipient Selector */}
           <div>
-            <label htmlFor="phone-number" className="text-sm font-medium">Phone Number</label>
-            <Input
-              id="phone-number"
-              placeholder="+1234567890 (E.164 format)"
-              value={phoneNumber}
-              onChange={(e) => setPhoneNumber(e.target.value)}
-              disabled={isSending}
-            />
+            <Label htmlFor="recipients" className="text-sm font-medium">Recipients</Label>
+            <Popover open={isRecipientPopoverOpen} onOpenChange={setIsRecipientPopoverOpen}>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  role="combobox"
+                  aria-expanded={isRecipientPopoverOpen}
+                  className="w-full justify-between h-auto min-h-10"
+                >
+                  <div className="flex gap-1 flex-wrap items-center">
+                    {selectedRecipients.length > 0 ? (
+                      selectedRecipients.map(r => (
+                        <Badge key={r.id} variant="secondary" className="mr-1">
+                          <div className="flex items-center">
+                            {r.type === 'group' ? <Users className="w-3 h-3 mr-1" /> : <User className="w-3 h-3 mr-1" />}
+                            {r.name}
+                            <div
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleRecipientSelect(r);
+                              }}
+                              className="ml-1 rounded-full outline-none ring-offset-background focus:ring-2 focus:ring-ring focus:ring-offset-2"
+                            >
+                              <X className="h-3 w-3 text-muted-foreground hover:text-foreground" />
+                            </div>
+                          </div>
+                        </Badge>
+                      ))
+                    ) : (
+                      <span className="text-muted-foreground">Select contacts or groups...</span>
+                    )}
+                  </div>
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
+                <Command>
+                  <CommandInput placeholder="Search recipients..." />
+                  <CommandList>
+                    {isLoadingRecipients ? (
+                      <div className="p-4 text-center text-sm">Loading recipients...</div>
+                    ) : (
+                      <>
+                        <CommandEmpty>No recipients found.</CommandEmpty>
+                        <CommandGroup heading="Groups">
+                          {contactGroups.map(group => (
+                            <CommandItem
+                              key={group.id}
+                              onSelect={() => handleRecipientSelect({ ...group, type: 'group' })}
+                              className="cursor-pointer"
+                            >
+                              <Check className={cn("mr-2 h-4 w-4", selectedRecipients.some(r => r.id === group.id) ? "opacity-100" : "opacity-0")} />
+                              <Users className="mr-2 h-4 w-4 text-muted-foreground" />
+                              <div className="flex-1">{group.name}</div>
+                              <div className="text-xs text-muted-foreground">{group.contactCount} contacts</div>
+                            </CommandItem>
+                          ))}
+                        </CommandGroup>
+                        <CommandGroup heading="Contacts">
+                          {contacts.map(contact => (
+                            <CommandItem
+                              key={contact.id}
+                              onSelect={() => handleRecipientSelect({ ...contact, type: 'contact' })}
+                              className="cursor-pointer"
+                            >
+                              <Check className={cn("mr-2 h-4 w-4", selectedRecipients.some(r => r.id === contact.id) ? "opacity-100" : "opacity-0")} />
+                              <User className="mr-2 h-4 w-4 text-muted-foreground" />
+                              <div className="flex-1">{contact.name}</div>
+                              <div className="text-xs text-muted-foreground">{contact.phone}</div>
+                            </CommandItem>
+                          ))}
+                        </CommandGroup>
+                      </>
+                    )}
+                  </CommandList>
+                </Command>
+              </PopoverContent>
+            </Popover>
           </div>
+
           <div>
-            <label htmlFor="message" className="text-sm font-medium">Message</label>
+            <Label htmlFor="message" className="text-sm font-medium">Message</Label>
             <Textarea
               id="message"
               placeholder="Type your message..."
@@ -133,15 +239,16 @@ const NewConversationModal = ({
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={onClose} disabled={isSending}>Cancel</Button>
-          <Button onClick={handleSend} disabled={isSending}>
+          <Button onClick={handleSend} disabled={isSending || selectedRecipients.length === 0 || !message.trim()}>
             {isSending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4 mr-2" />}
-            {isSending ? 'Sending...' : `Send ${platform.toUpperCase()}`}
+            {isSending ? 'Sending...' : 'Send Message'}
           </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
   );
 };
+
 
 function MessagingPlatform() {
   const { currentWorkspace } = useMultiWorkspaceAuth();
@@ -196,8 +303,8 @@ function MessagingPlatform() {
                   <Send className="w-6 h-6 text-white" />
                 </div>
                 <div className="text-left">
-                  <h2 className="text-xl font-bold text-white mb-1">Send New Message</h2>
-                  <p className="text-blue-100 text-sm">Start a new SMS or WhatsApp conversation</p>
+                  <h2 className="text-xl font-bold text-white mb-1">Send New Campaign</h2>
+                  <p className="text-blue-100 text-sm">Start a new SMS or WhatsApp campaign</p>
                 </div>
               </div>
             </div>
@@ -253,7 +360,7 @@ function MessagingPlatform() {
         <NewConversationModal 
           isOpen={showNewConversationModal}
           onClose={() => setShowNewConversationModal(false)} 
-          onConversationStarted={handleConversationStarted}
+          onConversationStarted={(conversationId, platform) => handleConversationStarted(conversationId, platform)}
         />
       )}
     </div>
