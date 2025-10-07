@@ -44,16 +44,9 @@ export default function ContactsPage() {
     const q = query(collection(db, collectionPath));
 
     const unsubscribe = onSnapshot(q, async (snapshot) => {
-      // Always process the snapshot from Firestore.
-      const contactsData = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      } as Contact));
-      setContacts(contactsData);
-
-      // If the collection is empty after the initial read, perform a one-time seed.
-      // The onSnapshot listener will automatically pick up the newly seeded data.
-      if (snapshot.empty) {
+      // If the collection is empty on the initial load, seed it.
+      // The onSnapshot listener will then be triggered again with the new data.
+      if (snapshot.empty && contacts.length === 0) {
         console.log(`Contacts collection is empty for partner ${partnerId}. Seeding...`);
         try {
           const batch = writeBatch(db);
@@ -63,12 +56,23 @@ export default function ContactsPage() {
             batch.set(docRef, newContact);
           });
           await batch.commit();
-          console.log('Sample contacts seeded.');
+          console.log('Sample contacts seeded successfully.');
+          // We don't set state here; we let the listener pick up the new data.
         } catch (seedError) {
           console.error("Error seeding contacts:", seedError);
           setFirestoreError("Failed to initialize sample contacts.");
+          setIsLoading(false);
         }
+        return; // Exit early and wait for the listener to fire with new data
       }
+
+      // Always process the data from the snapshot.
+      const contactsData = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      } as Contact));
+      setContacts(contactsData);
+      
       setIsLoading(false);
     }, (error) => {
       console.error("Firestore onSnapshot error:", error);
