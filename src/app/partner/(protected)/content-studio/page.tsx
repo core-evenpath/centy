@@ -2,7 +2,6 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
-import PartnerHeader from '../../../../components/partner/PartnerHeader';
 import { Button } from '../../../../components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '../../../../components/ui/card';
 import {
@@ -14,6 +13,8 @@ import { useMultiWorkspaceAuth } from '@/hooks/use-multi-workspace-auth';
 import { db } from '@/lib/firebase';
 import { collection, query, where, onSnapshot } from 'firebase/firestore';
 import type { ContactGroup } from '@/lib/types';
+import { errorEmitter } from '@/firebase/error-emitter';
+import { FirestorePermissionError } from '@/firebase/errors';
 
 
 function MessagingPlatform() {
@@ -61,8 +62,9 @@ function MessagingPlatform() {
     }
     
     setIsLoadingGroups(true);
+    const collectionPath = `partners/${currentWorkspace.partnerId}/contactGroups`;
     const q = query(
-      collection(db, `partners/${currentWorkspace.partnerId}/contactGroups`)
+      collection(db, collectionPath)
     );
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
@@ -72,9 +74,17 @@ function MessagingPlatform() {
       } as ContactGroup));
       setContactGroups(groupsData);
       setIsLoadingGroups(false);
-    }, (error) => {
-      console.error("Error fetching contact groups: ", error);
-      setFirestoreError("Failed to load contact groups. Please check your connection and permissions.");
+    }, (serverError) => {
+      // Create and emit a contextual permission error
+      const permissionError = new FirestorePermissionError({
+        path: collectionPath,
+        operation: 'list',
+        serverError,
+      });
+      errorEmitter.emit('permission-error', permissionError);
+
+      // Also update local UI state to show a friendly error
+      setFirestoreError("You don't have permission to view contact groups. Please contact your administrator.");
       setIsLoadingGroups(false);
     });
 
