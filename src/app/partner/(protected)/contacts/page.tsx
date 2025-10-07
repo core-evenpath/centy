@@ -1,4 +1,3 @@
-
 // src/app/partner/(protected)/contacts/page.tsx
 "use client";
 
@@ -16,7 +15,7 @@ import {
 } from '../../../../components/ui/dropdown-menu';
 import { useMultiWorkspaceAuth } from '@/hooks/use-multi-workspace-auth';
 import { db } from '@/lib/firebase';
-import { collection, query, where, onSnapshot, writeBatch, doc, getDocs, limit } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, writeBatch, doc } from 'firebase/firestore';
 import type { Contact } from '@/lib/types';
 import PartnerHeader from '../../../../components/partner/PartnerHeader';
 import { Users, Search, Plus, MoreVertical, Edit, Trash2, Loader2, AlertCircle } from 'lucide-react';
@@ -44,11 +43,13 @@ export default function ContactsPage() {
     const collectionPath = `partners/${partnerId}/contacts`;
     const q = query(collection(db, collectionPath));
 
-    const unsubscribe = onSnapshot(q, async (snapshot) => {
-      if (snapshot.empty && !seedHasBeenAttempted.current) {
-        seedHasBeenAttempted.current = true; // Mark that we're attempting to seed
-        console.log(`Contacts collection is empty for partner ${partnerId}. Attempting to seed...`);
-        try {
+    const unsubscribe = onSnapshot(q, 
+      (snapshot) => {
+        // Correctly handle the initial empty state and seeding
+        if (snapshot.empty && !seedHasBeenAttempted.current) {
+          seedHasBeenAttempted.current = true; // Mark that we are attempting to seed
+          console.log(`Contacts collection empty for partner ${partnerId}. Seeding data...`);
+          
           const batch = writeBatch(db);
           sampleContacts.forEach(contact => {
             const docRef = doc(collection(db, collectionPath));
@@ -58,33 +59,35 @@ export default function ContactsPage() {
             };
             batch.set(docRef, newContact);
           });
-          await batch.commit();
-          console.log('Sample contacts seeded successfully. The listener will now pick up the new data.');
-          // We don't set state here; we let the listener receive the newly created docs,
-          // which will trigger another snapshot update.
-        } catch (seedError) {
-          console.error("Error seeding contacts:", seedError);
-          setFirestoreError("Failed to initialize sample contacts. Please check Firestore permissions.");
+
+          batch.commit().catch(seedError => {
+            console.error("Error seeding contacts:", seedError);
+            setFirestoreError("Failed to initialize sample contacts. Please check Firestore permissions.");
+            setIsLoading(false);
+          });
+          // Do not set state here. Let the listener receive the new docs which will trigger a re-render.
+          
+        } else {
+          // This block now correctly handles both the initial load and updates after seeding
+          const contactsData = snapshot.docs.map(doc => ({
+            id: doc.id,
+            ...doc.data()
+          } as Contact));
+          
+          setContacts(contactsData);
           setIsLoading(false);
         }
-      } else {
-        const contactsData = snapshot.docs.map(doc => ({
-          id: doc.id,
-          ...doc.data()
-        } as Contact));
-        
-        setContacts(contactsData);
+      }, 
+      (error) => {
+        console.error("Firestore onSnapshot error:", error);
+        if (error.code === 'permission-denied') {
+          setFirestoreError('Permission Denied: Your security rules are preventing access to the contacts collection. Please check your Firestore rules to allow reads for authenticated users of this workspace.');
+        } else {
+          setFirestoreError(`An error occurred while fetching contacts: ${error.message}`);
+        }
         setIsLoading(false);
       }
-    }, (error) => {
-      console.error("Firestore onSnapshot error:", error);
-      if (error.code === 'permission-denied') {
-        setFirestoreError('Permission Denied: Your security rules are preventing access to the contacts collection. Please check your Firestore rules to allow reads for authenticated users of this workspace.');
-      } else {
-        setFirestoreError(`An error occurred while fetching contacts: ${error.message}`);
-      }
-      setIsLoading(false);
-    });
+    );
 
     return () => unsubscribe();
   }, [partnerId]);
