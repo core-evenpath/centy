@@ -1,3 +1,4 @@
+
 // src/app/partner/(protected)/content-studio/page.tsx
 "use client";
 
@@ -28,12 +29,12 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Input } from '../../../../components/ui/input';
 import { Textarea } from '../../../../components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
-import { sendSMSAction, sendSmsCampaignAction } from '@/actions/sms-actions';
-import { sendWhatsAppMessageAction } from '@/actions/whatsapp-actions';
+import { sendSmsCampaignAction } from '@/actions/sms-actions';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
+import { Label } from '@/components/ui/label';
 
 // V1 Modal: New Conversation with recipient selection
 const NewConversationModal = ({ 
@@ -55,7 +56,6 @@ const NewConversationModal = ({
   const [selectedRecipients, setSelectedRecipients] = useState<any[]>([]);
   const [message, setMessage] = useState('');
   const [isSending, setIsSending] = useState(false);
-  const [platform, setPlatform] = useState<'whatsapp' | 'sms'>('whatsapp');
   const [isRecipientPopoverOpen, setIsRecipientPopoverOpen] = useState(false);
 
   const partnerId = currentWorkspace?.partnerId;
@@ -153,7 +153,7 @@ const NewConversationModal = ({
                   variant="outline"
                   role="combobox"
                   aria-expanded={isRecipientPopoverOpen}
-                  className="w-full justify-between h-auto min-h-10"
+                  className="w-full justify-between h-auto min-h-10 mt-1"
                 >
                   <div className="flex gap-1 flex-wrap items-center">
                     {selectedRecipients.length > 0 ? (
@@ -234,6 +234,7 @@ const NewConversationModal = ({
               onChange={(e) => setMessage(e.target.value)}
               rows={5}
               disabled={isSending}
+              className="mt-1"
             />
           </div>
         </div>
