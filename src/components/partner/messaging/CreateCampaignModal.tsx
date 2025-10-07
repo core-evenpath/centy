@@ -26,7 +26,8 @@ import { sendSmsCampaignAction } from '@/actions/sms-actions';
 import { sendWhatsAppCampaignAction } from '@/actions/whatsapp-actions';
 import { cn } from '@/lib/utils';
 import { Loader2, Send, Users, User, X, Check, MessageSquare, Phone, Sparkles } from 'lucide-react';
-import AIComposerModal from './AIComposerModal'; // Import the new component
+import AIComposerModal from './AIComposerModal';
+import { ScrollArea } from '@/components/ui/scroll-area';
 
 const messageTemplates = [
     {
@@ -164,170 +165,172 @@ export const CreateCampaignModal = ({
   return (
     <>
       <Dialog open={isOpen} onOpenChange={onClose}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="max-w-2xl max-h-[90vh] flex flex-col">
           <DialogHeader>
             <DialogTitle>Create New Campaign</DialogTitle>
             <DialogDescription>Design, target, and send a new marketing campaign.</DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-4 py-4">
-            
-            {/* Platform Selector */}
-            <div>
-              <Label htmlFor="platform" className="text-sm font-medium mb-2 block">Platform</Label>
-              <Tabs defaultValue="whatsapp" onValueChange={(value) => setPlatform(value as any)} className="w-full">
-                  <TabsList className="grid w-full grid-cols-2">
-                      <TabsTrigger value="whatsapp" className="flex items-center gap-2"><MessageSquare /> WhatsApp</TabsTrigger>
-                      <TabsTrigger value="sms" className="flex items-center gap-2"><Phone /> SMS</TabsTrigger>
-                  </TabsList>
-              </Tabs>
-            </div>
-
-            {/* Campaign Name */}
-            <div>
-              <Label htmlFor="campaign-name" className="text-sm font-medium">Campaign Name</Label>
-              <Input
-                id="campaign-name"
-                placeholder="e.g., Q4 Promotion"
-                value={campaignName}
-                onChange={(e) => setCampaignName(e.target.value)}
-                disabled={isSending}
-                className="mt-1"
-              />
-            </div>
-
-            {/* Recipient Selector */}
-            <div>
-              <Label htmlFor="recipients" className="text-sm font-medium">Recipients</Label>
-              <Popover open={isRecipientPopoverOpen} onOpenChange={setIsRecipientPopoverOpen}>
-                <PopoverTrigger asChild>
-                  <Button
-                    variant="outline"
-                    role="combobox"
-                    aria-expanded={isRecipientPopoverOpen}
-                    className="w-full justify-between h-auto min-h-10 mt-1"
-                  >
-                    <div className="flex gap-1 flex-wrap items-center">
-                      {selectedRecipients.length > 0 ? (
-                        selectedRecipients.map(r => (
-                          <Badge key={r.id} variant="secondary" className="mr-1">
-                            <div className="flex items-center">
-                              {r.type === 'group' ? <Users className="w-3 h-3 mr-1" /> : <User className="w-3 h-3 mr-1" />}
-                              {r.name}
-                              <div
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleRecipientSelect(r);
-                                }}
-                                className="ml-1 rounded-full outline-none ring-offset-background focus:ring-2 focus:ring-ring focus:ring-offset-2"
-                              >
-                                <X className="h-3 w-3 text-muted-foreground hover:text-foreground" />
-                              </div>
-                            </div>
-                          </Badge>
-                        ))
-                      ) : (
-                        <span className="text-muted-foreground">Select contacts or groups...</span>
-                      )}
-                    </div>
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
-                  <Command>
-                    <CommandInput placeholder="Search recipients..." />
-                    <CommandList>
-                      {isLoadingRecipients ? (
-                        <div className="p-4 text-center text-sm">Loading recipients...</div>
-                      ) : (
-                        <>
-                          <CommandEmpty>No recipients found.</CommandEmpty>
-                          <CommandGroup heading="Groups">
-                            {contactGroups.map(group => (
-                              <CommandItem
-                                key={group.id}
-                                onSelect={() => handleRecipientSelect({ ...group, type: 'group' })}
-                                className="cursor-pointer"
-                              >
-                                <Check className={cn("mr-2 h-4 w-4", selectedRecipients.some(r => r.id === group.id) ? "opacity-100" : "opacity-0")} />
-                                <Users className="mr-2 h-4 w-4 text-muted-foreground" />
-                                <div className="flex-1">{group.name}</div>
-                                <div className="text-xs text-muted-foreground">{group.contactCount} contacts</div>
-                              </CommandItem>
-                            ))}
-                          </CommandGroup>
-                          <CommandGroup heading="Contacts">
-                            {contacts.map(contact => (
-                              <CommandItem
-                                key={contact.id}
-                                onSelect={() => handleRecipientSelect({ ...contact, type: 'contact' })}
-                                className="cursor-pointer"
-                              >
-                                <Check className={cn("mr-2 h-4 w-4", selectedRecipients.some(r => r.id === contact.id) ? "opacity-100" : "opacity-0")} />
-                                <User className="mr-2 h-4 w-4 text-muted-foreground" />
-                                <div className="flex-1">{contact.name}</div>
-                                <div className="text-xs text-muted-foreground">{contact.phone}</div>
-                              </CommandItem>
-                            ))}
-                          </CommandGroup>
-                        </>
-                      )}
-                    </CommandList>
-                  </Command>
-                </PopoverContent>
-              </Popover>
-            </div>
-
-            {/* Message and Templates */}
-            <div>
-              <div className="flex justify-between items-center mb-1">
-                <Label htmlFor="message" className="text-sm font-medium">Message</Label>
-                <Button variant="ghost" size="sm" onClick={() => setShowAiComposer(true)}>
-                  <Sparkles className="w-4 h-4 mr-2 text-purple-500" />
-                  Compose with AI
-                </Button>
+          <ScrollArea className="flex-1 pr-6 -mr-6">
+            <div className="space-y-4 py-4">
+              
+              {/* Platform Selector */}
+              <div>
+                <Label htmlFor="platform" className="text-sm font-medium mb-2 block">Platform</Label>
+                <Tabs defaultValue="whatsapp" onValueChange={(value) => setPlatform(value as any)} className="w-full">
+                    <TabsList className="grid w-full grid-cols-2">
+                        <TabsTrigger value="whatsapp" className="flex items-center gap-2"><MessageSquare /> WhatsApp</TabsTrigger>
+                        <TabsTrigger value="sms" className="flex items-center gap-2"><Phone /> SMS</TabsTrigger>
+                    </TabsList>
+                </Tabs>
               </div>
-              <Textarea
-                id="message"
-                placeholder="Type your message or select a template..."
-                value={message}
-                onChange={(e) => setMessage(e.target.value)}
-                rows={8}
-                disabled={isSending}
-              />
-              <div className="mt-2 flex items-center gap-2">
-                <span className="text-xs text-muted-foreground">Use a template:</span>
-                {messageTemplates.map(template => (
-                  <Button 
-                    key={template.id}
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setMessage(template.content)}
-                    disabled={isSending}
-                  >
-                    {template.name}
-                  </Button>
-                ))}
+
+              {/* Campaign Name */}
+              <div>
+                <Label htmlFor="campaign-name" className="text-sm font-medium">Campaign Name</Label>
+                <Input
+                  id="campaign-name"
+                  placeholder="e.g., Q4 Promotion"
+                  value={campaignName}
+                  onChange={(e) => setCampaignName(e.target.value)}
+                  disabled={isSending}
+                  className="mt-1"
+                />
               </div>
-               {mediaUrl && (
-                <div className="mt-4">
-                  <Label>Image Attachment</Label>
-                  <div className="mt-2 relative w-48 h-48">
-                    <img src={mediaUrl} alt="Generated attachment" className="rounded-lg object-cover w-full h-full" />
+
+              {/* Recipient Selector */}
+              <div>
+                <Label htmlFor="recipients" className="text-sm font-medium">Recipients</Label>
+                <Popover open={isRecipientPopoverOpen} onOpenChange={setIsRecipientPopoverOpen}>
+                  <PopoverTrigger asChild>
                     <Button
-                      variant="destructive"
-                      size="sm"
-                      className="absolute -top-2 -right-2 w-6 h-6 rounded-full p-0"
-                      onClick={() => setMediaUrl(null)}
+                      variant="outline"
+                      role="combobox"
+                      aria-expanded={isRecipientPopoverOpen}
+                      className="w-full justify-between h-auto min-h-10 mt-1"
                     >
-                      <X className="w-3 h-3" />
+                      <div className="flex gap-1 flex-wrap items-center">
+                        {selectedRecipients.length > 0 ? (
+                          selectedRecipients.map(r => (
+                            <Badge key={r.id} variant="secondary" className="mr-1">
+                              <div className="flex items-center">
+                                {r.type === 'group' ? <Users className="w-3 h-3 mr-1" /> : <User className="w-3 h-3 mr-1" />}
+                                {r.name}
+                                <div
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleRecipientSelect(r);
+                                  }}
+                                  className="ml-1 rounded-full outline-none ring-offset-background focus:ring-2 focus:ring-ring focus:ring-offset-2"
+                                >
+                                  <X className="h-3 w-3 text-muted-foreground hover:text-foreground" />
+                                </div>
+                              </div>
+                            </Badge>
+                          ))
+                        ) : (
+                          <span className="text-muted-foreground">Select contacts or groups...</span>
+                        )}
+                      </div>
                     </Button>
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
+                    <Command>
+                      <CommandInput placeholder="Search recipients..." />
+                      <CommandList>
+                        {isLoadingRecipients ? (
+                          <div className="p-4 text-center text-sm">Loading recipients...</div>
+                        ) : (
+                          <>
+                            <CommandEmpty>No recipients found.</CommandEmpty>
+                            <CommandGroup heading="Groups">
+                              {contactGroups.map(group => (
+                                <CommandItem
+                                  key={group.id}
+                                  onSelect={() => handleRecipientSelect({ ...group, type: 'group' })}
+                                  className="cursor-pointer"
+                                >
+                                  <Check className={cn("mr-2 h-4 w-4", selectedRecipients.some(r => r.id === group.id) ? "opacity-100" : "opacity-0")} />
+                                  <Users className="mr-2 h-4 w-4 text-muted-foreground" />
+                                  <div className="flex-1">{group.name}</div>
+                                  <div className="text-xs text-muted-foreground">{group.contactCount} contacts</div>
+                                </CommandItem>
+                              ))}
+                            </CommandGroup>
+                            <CommandGroup heading="Contacts">
+                              {contacts.map(contact => (
+                                <CommandItem
+                                  key={contact.id}
+                                  onSelect={() => handleRecipientSelect({ ...contact, type: 'contact' })}
+                                  className="cursor-pointer"
+                                >
+                                  <Check className={cn("mr-2 h-4 w-4", selectedRecipients.some(r => r.id === contact.id) ? "opacity-100" : "opacity-0")} />
+                                  <User className="mr-2 h-4 w-4 text-muted-foreground" />
+                                  <div className="flex-1">{contact.name}</div>
+                                  <div className="text-xs text-muted-foreground">{contact.phone}</div>
+                                </CommandItem>
+                              ))}
+                            </CommandGroup>
+                          </>
+                        )}
+                      </CommandList>
+                    </Command>
+                  </PopoverContent>
+                </Popover>
+              </div>
 
-          <DialogFooter>
+              {/* Message and Templates */}
+              <div>
+                <div className="flex justify-between items-center mb-1">
+                  <Label htmlFor="message" className="text-sm font-medium">Message</Label>
+                  <Button variant="ghost" size="sm" onClick={() => setShowAiComposer(true)}>
+                    <Sparkles className="w-4 h-4 mr-2 text-purple-500" />
+                    Compose with AI
+                  </Button>
+                </div>
+                <Textarea
+                  id="message"
+                  placeholder="Type your message or select a template..."
+                  value={message}
+                  onChange={(e) => setMessage(e.target.value)}
+                  rows={8}
+                  disabled={isSending}
+                />
+                <div className="mt-2 flex items-center gap-2">
+                  <span className="text-xs text-muted-foreground">Use a template:</span>
+                  {messageTemplates.map(template => (
+                    <Button 
+                      key={template.id}
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setMessage(template.content)}
+                      disabled={isSending}
+                    >
+                      {template.name}
+                    </Button>
+                  ))}
+                </div>
+                 {mediaUrl && (
+                  <div className="mt-4">
+                    <Label>Image Attachment</Label>
+                    <div className="mt-2 relative w-48 h-48">
+                      <img src={mediaUrl} alt="Generated attachment" className="rounded-lg object-cover w-full h-full" />
+                      <Button
+                        variant="destructive"
+                        size="sm"
+                        className="absolute -top-2 -right-2 w-6 h-6 rounded-full p-0"
+                        onClick={() => setMediaUrl(null)}
+                      >
+                        <X className="w-3 h-3" />
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </ScrollArea>
+
+          <DialogFooter className="flex-shrink-0 pt-4 border-t">
             <Button variant="outline" onClick={onClose} disabled={isSending}>Cancel</Button>
             <Button onClick={handleSend} disabled={isSending || selectedRecipients.length === 0 || !message.trim()}>
               {isSending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4 mr-2" />}
