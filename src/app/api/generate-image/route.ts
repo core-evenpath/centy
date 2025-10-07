@@ -30,7 +30,7 @@ export async function POST(request: Request) {
         prompt: prompt,
         n: 1,
         size: '1024x1024',
-        response_format: 'url' // dall-e-3 only supports url or b64_json
+        response_format: 'b64_json' // Use Base64 JSON format
       })
     });
 
@@ -44,8 +44,11 @@ export async function POST(request: Request) {
       );
     }
 
+    // Create a data URI from the base64 string
+    const imageUrl = `data:image/png;base64,${data.data[0].b64_json}`;
+
     return NextResponse.json({
-      imageUrl: data.data[0].url
+      imageUrl: imageUrl
     });
 
   } catch (error: any) {
