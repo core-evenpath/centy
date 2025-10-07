@@ -86,11 +86,12 @@ export default function AIComposerModal({
         throw new Error('API response did not contain a valid image URL.');
       }
       
+      setLoadingMessage('Image received. Displaying preview...');
       setGeneratedImage(data.imageUrl);
-      toast({ title: 'Success', description: 'Image generated successfully!' });
+      toast({ title: 'Success', description: 'Image generated and stored successfully!' });
     } catch (error: any) {
       console.error('Error generating image:', error);
-      toast({ variant: 'destructive', title: 'Error Generating Image', description: error.message });
+      toast({ variant: 'destructive', title: 'Error Generating Image', description: error.message, duration: 8000 });
     } finally {
       setIsLoading(false);
       setLoadingMessage('');
