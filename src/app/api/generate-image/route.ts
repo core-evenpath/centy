@@ -8,12 +8,14 @@ import { v4 as uuidv4 } from 'uuid';
 let storage: admin.storage.Storage;
 try {
     storage = admin.storage();
-} catch (e: any) {
+} catch (e: any)
+{
     console.error("Failed to initialize Firebase Storage:", e.message);
 }
 
 export async function POST(request: Request) {
     if (!storage) {
+        console.error("Firebase Storage is not configured on the server. Check firebase-admin.ts initialization.");
         return NextResponse.json({ error: 'Firebase Storage is not configured on the server.' }, { status: 500 });
     }
   
@@ -66,7 +68,12 @@ export async function POST(request: Request) {
     const fileExtension = 'png';
     const fileName = `ai-generated/${uuidv4()}.${fileExtension}`;
     
-    const bucket = storage.bucket(process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET);
+    const bucketName = process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET;
+    if (!bucketName) {
+      throw new Error("Firebase Storage bucket name is not configured.");
+    }
+    
+    const bucket = storage.bucket(bucketName);
     const file = bucket.file(fileName);
 
     await file.save(buffer, {
@@ -77,12 +84,8 @@ export async function POST(request: Request) {
         public: true,
     });
 
-    // Get the public URL for the uploaded file
-    const [publicUrl] = await file.getSignedUrl({
-        action: 'read',
-        expires: '03-09-2491', // A far-future date
-    });
-
+    const publicUrl = `https://storage.googleapis.com/${bucketName}/${fileName}`;
+    
     console.log(`AI Image uploaded to Storage. Public URL: ${publicUrl}`);
 
     // Return the public URL in the correct JSON format
