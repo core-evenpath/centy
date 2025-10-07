@@ -1,9 +1,4 @@
-
 'use server';
-
-/**
- * @fileOverview A Genkit flow for generating marketing campaign content.
- */
 
 import { ai } from '../genkit';
 import { googleAI } from '@genkit-ai/google-genai';
@@ -26,7 +21,8 @@ const generateCampaignContentFlow = ai.defineFlow(
     outputSchema: GenerateCampaignContentOutputSchema,
   },
   async (input) => {
-    const llm = googleAI.model('gemini-pro');
+    // Using gemini-1.0-pro for stability with the v1beta API
+    const llm = googleAI.model('gemini-1.0-pro'); 
 
     const result = await ai.generate({
       model: llm,
