@@ -3,10 +3,10 @@
 
 import React, { useState, useEffect } from 'react';
 import { Button } from '../../../../components/ui/button';
-import { Card, CardContent } from '../../../../components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '../../../../components/ui/card';
 import { useMultiWorkspaceAuth } from '@/hooks/use-multi-workspace-auth';
 import { db } from '@/lib/firebase';
-import { collection, query, onSnapshot, getDocs, writeBatch } from 'firebase/firestore';
+import { collection, query, onSnapshot, getDocs, writeBatch, doc } from 'firebase/firestore';
 import type { ContactGroup } from '@/lib/types';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
@@ -71,7 +71,8 @@ function MessagingPlatform() {
       setContactGroups(groupsData);
       setIsLoadingGroups(false);
       setFirestoreError(null);
-    }, (serverError: any) => {
+    }, (serverError) => {
+      // Create and emit a contextual permission error
       const permissionError = new FirestorePermissionError({
         path: collectionPath,
         operation: 'list',
