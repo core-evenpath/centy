@@ -47,6 +47,7 @@ export async function POST(request: Request) {
     // Create a data URI from the base64 string
     const imageUrl = `data:image/png;base64,${data.data[0].b64_json}`;
 
+    // Ensure the response is a JSON object with the imageUrl key
     return NextResponse.json({
       imageUrl: imageUrl
     });
