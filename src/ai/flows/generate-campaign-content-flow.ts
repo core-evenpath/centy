@@ -21,7 +21,7 @@ export async function generateCampaignContent(input: GenerateCampaignContentInpu
 
 const campaignPrompt = ai.definePrompt({
   name: 'generateCampaignContentPrompt',
-  model: googleAI.model('gemini-1.5-flash-latest'), // Explicitly define the model to use
+  model: googleAI.model('gemini-pro'), // Explicitly define the model to use
   input: { schema: GenerateCampaignContentInputSchema },
   output: { schema: GenerateCampaignContentOutputSchema },
   prompt: `You are an expert marketing copywriter. A user wants to create content for a new campaign.
