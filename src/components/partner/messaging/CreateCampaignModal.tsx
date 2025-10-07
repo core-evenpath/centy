@@ -2,7 +2,7 @@
 // src/components/partner/messaging/CreateCampaignModal.tsx
 "use client";
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Button } from '../../ui/button';
 import { Input } from '../../ui/input';
 import { Textarea } from '../../ui/textarea';
@@ -26,7 +26,7 @@ import type { Contact, ContactGroup, Campaign } from '@/lib/types';
 import { sendSmsCampaignAction } from '@/actions/sms-actions';
 import { sendWhatsAppCampaignAction } from '@/actions/whatsapp-actions';
 import { cn } from '@/lib/utils';
-import { Loader2, Send, Users, User, X, Check, MessageSquare, Phone, Sparkles } from 'lucide-react';
+import { Loader2, Send, Users, User, X, Check, MessageSquare, Phone, Sparkles, Upload } from 'lucide-react';
 import AIComposerModal from './AIComposerModal';
 import { ScrollArea } from '@/components/ui/scroll-area';
 
@@ -58,6 +58,7 @@ export const CreateCampaignModal = ({
   const [platform, setPlatform] = useState<'whatsapp' | 'sms'>('whatsapp');
   const [showAiComposer, setShowAiComposer] = useState(false);
   const [mediaUrl, setMediaUrl] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Data fetching state
   const [contacts, setContacts] = useState<Contact[]>([]);
@@ -154,6 +155,37 @@ export const CreateCampaignModal = ({
       }
       return [...prev, recipient];
     });
+  };
+
+  const handleImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+        toast({
+            variant: 'destructive',
+            title: 'Invalid File Type',
+            description: 'Please select an image file.'
+        });
+        return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => {
+        setMediaUrl(reader.result as string);
+        toast({
+            title: 'Image Uploaded',
+            description: 'Your image is attached and ready to send.'
+        });
+    };
+    reader.onerror = () => {
+        toast({
+            variant: 'destructive',
+            title: 'Upload Failed',
+            description: 'There was an error reading the image file.'
+        });
+    };
+    reader.readAsDataURL(file);
   };
 
   const availableRecipients = useMemo(() => {
@@ -284,10 +316,23 @@ export const CreateCampaignModal = ({
               <div>
                 <div className="flex justify-between items-center mb-1">
                   <Label htmlFor="message" className="text-sm font-medium">Message</Label>
-                  <Button variant="ghost" size="sm" onClick={() => setShowAiComposer(true)}>
-                    <Sparkles className="w-4 h-4 mr-2 text-purple-500" />
-                    Compose with AI
-                  </Button>
+                  <div className="flex items-center gap-2">
+                    <Button variant="ghost" size="sm" onClick={() => fileInputRef.current?.click()}>
+                        <Upload className="w-4 h-4 mr-2 text-gray-500" />
+                        Upload
+                    </Button>
+                    <input
+                      type="file"
+                      ref={fileInputRef}
+                      onChange={handleImageUpload}
+                      className="hidden"
+                      accept="image/*"
+                    />
+                    <Button variant="ghost" size="sm" onClick={() => setShowAiComposer(true)}>
+                      <Sparkles className="w-4 h-4 mr-2 text-purple-500" />
+                      AI Compose
+                    </Button>
+                  </div>
                 </div>
                 <Textarea
                   id="message"
