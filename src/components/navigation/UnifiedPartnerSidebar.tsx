@@ -212,8 +212,9 @@ export default function UnifiedPartnerSidebar() {
           <SidebarMenu className="p-2">
             {menuItems.map((item) => {
               const Icon = item.icon;
-              const isActive = item.href === '/partner'
-                ? pathname === item.href
+              // Corrected isActive logic
+              const isActive = item.href === '/partner' 
+                ? pathname === item.href 
                 : pathname.startsWith(item.href);
               
               return (
