@@ -14,7 +14,6 @@ import {
   AlertCircle
 } from 'lucide-react';
 import { CreateCampaignModal } from '@/components/partner/messaging/CreateCampaignModal';
-import RecommendedCampaigns from '@/components/partner/messaging/RecommendedCampaigns';
 
 function ContentStudioDashboard() {
   const { currentWorkspace } = useMultiWorkspaceAuth();
@@ -52,8 +51,6 @@ function ContentStudioDashboard() {
     <div className="min-h-full bg-gray-50 p-4 sm:p-6 flex flex-col">
       <div className="flex-1 overflow-y-auto">
         <div className="max-w-7xl mx-auto space-y-6">
-          
-          <RecommendedCampaigns partnerId={partnerId} />
           
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
              <button
