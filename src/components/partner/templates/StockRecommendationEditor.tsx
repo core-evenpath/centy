@@ -1,3 +1,4 @@
+
 // src/components/partner/templates/StockRecommendationEditor.tsx
 "use client";
 
@@ -9,7 +10,6 @@ import { saveTradingPickAction } from '@/actions/trading-pick-actions';
 import { Button } from '@/components/ui/button';
 import { sendSmsCampaignAction } from '@/actions/sms-actions';
 import { sendWhatsAppCampaignAction } from '@/actions/whatsapp-actions';
-import { generateStockPickImage } from '@/ai/flows/generate-stock-pick-image-flow';
 import type { Contact, ContactGroup } from '@/lib/types';
 import { db } from '@/lib/firebase';
 import { collection, query, onSnapshot } from 'firebase/firestore';
@@ -363,31 +363,41 @@ export default function StockRecommendationEditor({ initialData }: { initialData
     setIsSending(true);
     try {
       toast({ title: 'Generating Broadcast Image', description: 'Please wait, this may take a moment...' });
-      
-      // 1. Generate the image
-      const imageResult = await generateStockPickImage({
-        ticker: formData.ticker,
-        companyName: formData.companyName,
-        sector: formData.sector,
-        action: formData.action,
-        priceTarget: formData.priceTarget,
-        timeframe: formData.timeframe,
-        riskLevel: formData.riskLevel,
-        thesis: formData.thesis.split('\n').filter(line => line.trim() !== '').map(line => line.replace('•','').trim()).slice(0,2),
+
+      // Generate the prompt for the image
+      const imagePrompt = `Generate a clean, modern UI card for a stock recommendation. The card should have a light blue border and a white background.
+    - At the top left, show the stock ticker '${formData.ticker}' inside a solid blue rectangle with rounded corners.
+    - To the right of the ticker, display the company name '${formData.companyName}' in a large, bold font, and underneath it, the sector '${formData.sector}' in a smaller, lighter font.
+    - Below this, create two columns of key-value pairs.
+      - Left column: "Action: ${formData.action}" and "Timeframe: ${formData.timeframe}". The action value should be in a colored badge: green for 'buy', red for 'sell', and yellow for 'hold'.
+      - Right column: "Target: ${formData.priceTarget}" and "Risk: ${formData.riskLevel}".
+    - Below the columns, add a horizontal separator line.
+    - Below the line, list the following investment thesis points as bullet points:
+      ${formData.thesis.split('\n').filter(line => line.trim() !== '').map(line => line.replace('•','').trim()).slice(0,2).map(t => `- ${t}`).join('\n')}
+    - The design should be clean, professional, and minimalist, with good typography and spacing, suitable for a financial services company. Do not include any extra text, logos (except for the ticker symbol styling), or embellishments not described here.`;
+
+      // 1. Generate the image via the API route
+      const imageGenResponse = await fetch('/api/generate-image', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ prompt: imagePrompt }),
       });
 
-      if (!imageResult.imageUrl) {
-        throw new Error('Failed to generate broadcast image.');
-      }
+      const imageGenData = await imageGenResponse.json();
 
+      if (!imageGenResponse.ok || imageGenData.error) {
+        throw new Error(imageGenData.error || 'Failed to generate broadcast image.');
+      }
+      
+      const imageUrl = imageGenData.imageUrl;
+      if (!imageUrl) {
+        throw new Error('Image URL was not returned from the generation service.');
+      }
+  
       toast({ title: 'Image Generated', description: 'Sending broadcast...' });
   
-      // 2. Format a simple text message as a fallback/summary
-      const textMessage = `${formData.ticker} Alert: ${formData.action.toUpperCase()}
-Target: ${formData.priceTarget}, Risk: ${formData.riskLevel.toUpperCase()}
-Read our full thesis in the app.`;
+      const textMessage = `${formData.ticker} Alert: ${formData.action.toUpperCase()} | Target: ${formData.priceTarget} | Risk: ${formData.riskLevel.toUpperCase()}`;
   
-      // 3. Prepare payload for the campaign action
       const campaignPayload = {
         partnerId,
         message: textMessage,
@@ -396,15 +406,14 @@ Read our full thesis in the app.`;
           name: r.name,
           type: r.contactCount !== undefined ? 'group' : 'contact'
         })),
-        mediaUrl: imageResult.imageUrl, // Include the generated image URL
+        mediaUrl: imageUrl,
       };
   
-      // 4. Call the appropriate sending action based on platform
       let result;
       if (platform === 'whatsapp') {
         result = await sendWhatsAppCampaignAction(campaignPayload);
       } else {
-        result = await sendSmsCampaignAction(campaignPayload as any); // Assuming similar structure
+        result = await sendSmsCampaignAction(campaignPayload as any);
       }
   
       if (result.success) {
@@ -417,12 +426,12 @@ Read our full thesis in the app.`;
         variant: 'destructive',
         title: 'Broadcast Failed',
         description: error.message || 'An unexpected error occurred.',
+        duration: 8000
       });
     } finally {
       setIsSending(false);
     }
   };
-
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 p-8">
