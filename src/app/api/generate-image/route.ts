@@ -28,7 +28,7 @@ export async function POST(request: Request) {
         { status: 400 }
       );
     }
-
+    
     if (!process.env.OPENAI_API_KEY) {
       return NextResponse.json(
         { error: 'OpenAI API key is not configured.' },
@@ -81,8 +81,10 @@ export async function POST(request: Request) {
             contentType: mimeType,
             cacheControl: 'public, max-age=31536000',
         },
-        public: true,
     });
+
+    // Make the file publicly readable to get a consistent URL
+    await file.makePublic();
 
     const publicUrl = `https://storage.googleapis.com/${bucketName}/${fileName}`;
     

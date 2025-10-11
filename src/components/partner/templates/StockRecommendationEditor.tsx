@@ -18,6 +18,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from '@/lib/utils';
+import Image from 'next/image';
 
 // Stock database for auto-fill
 const STOCK_DATABASE: Record<string, any> = {
@@ -117,6 +118,8 @@ export default function StockRecommendationEditor({ initialData }: { initialData
   const [expandedTraining, setExpandedTraining] = useState<Record<string, boolean>>({});
   const [autoFilled, setAutoFilled] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [generatedImageUrl, setGeneratedImageUrl] = useState<string | null>(null);
+  const [isGeneratingImage, setIsGeneratingImage] = useState(false);
   const [aiSuggestions, setAiSuggestions] = useState<{
     thesis: string[];
     risks: string[];
@@ -350,52 +353,57 @@ export default function StockRecommendationEditor({ initialData }: { initialData
     ];
   }, [contacts, contactGroups]);
 
+  const handleGenerateImage = async () => {
+    if (!formData.ticker) return;
+    
+    setIsGeneratingImage(true);
+    setGeneratedImageUrl(null);
+    toast({ title: 'Generating Broadcast Image', description: 'Please wait, this may take a moment...' });
+
+    const imagePrompt = `Generate a clean, modern UI card for a stock recommendation. The card should have a light blue border and a white background.
+- At the top left, show the stock ticker '${formData.ticker}' inside a solid blue rectangle with rounded corners.
+- To the right of the ticker, display the company name '${formData.companyName}' in a large, bold font, and underneath it, the sector '${formData.sector}' in a smaller, lighter font.
+- Below this, create two columns of key-value pairs.
+  - Left column: "Action: ${formData.action}" and "Timeframe: ${formData.timeframe}". The action value should be in a colored badge: green for 'buy', red for 'sell', and yellow for 'hold'.
+  - Right column: "Target: ${formData.priceTarget}" and "Risk: ${formData.riskLevel}".
+- Below the columns, add a horizontal separator line.
+- Below the line, list the following investment thesis points as bullet points:
+  ${formData.thesis.split('\n').filter(line => line.trim() !== '').map(line => line.replace('•','').trim()).slice(0,2).map(t => `- ${t}`).join('\n')}
+- The design should be clean, professional, and minimalist, with good typography and spacing, suitable for a financial services company. Do not include any extra text, logos (except for the ticker symbol styling), or embellishments not described here.`;
+
+    try {
+      const response = await fetch('/api/generate-image', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prompt: imagePrompt }),
+      });
+
+      const data = await response.json();
+      if (!response.ok || data.error) {
+        throw new Error(data.error || 'Failed to generate image.');
+      }
+
+      setGeneratedImageUrl(data.imageUrl);
+      toast({ title: 'Image Generated!', description: 'You can now send your broadcast.' });
+    } catch (error: any) {
+      toast({ variant: 'destructive', title: 'Image Generation Failed', description: error.message });
+    } finally {
+      setIsGeneratingImage(false);
+    }
+  };
+
   const handleSendBroadcast = async () => {
-    if (!partnerId || selectedRecipients.length === 0) {
+    if (!partnerId || selectedRecipients.length === 0 || !generatedImageUrl) {
       toast({
         variant: 'destructive',
         title: 'Missing Information',
-        description: 'Please select recipients before sending.',
+        description: 'Please generate an image and select recipients before sending.',
       });
       return;
     }
   
     setIsSending(true);
     try {
-      toast({ title: 'Generating Broadcast Image', description: 'Please wait, this may take a moment...' });
-
-      // Generate the prompt for the image
-      const imagePrompt = `Generate a clean, modern UI card for a stock recommendation. The card should have a light blue border and a white background.
-    - At the top left, show the stock ticker '${formData.ticker}' inside a solid blue rectangle with rounded corners.
-    - To the right of the ticker, display the company name '${formData.companyName}' in a large, bold font, and underneath it, the sector '${formData.sector}' in a smaller, lighter font.
-    - Below this, create two columns of key-value pairs.
-      - Left column: "Action: ${formData.action}" and "Timeframe: ${formData.timeframe}". The action value should be in a colored badge: green for 'buy', red for 'sell', and yellow for 'hold'.
-      - Right column: "Target: ${formData.priceTarget}" and "Risk: ${formData.riskLevel}".
-    - Below the columns, add a horizontal separator line.
-    - Below the line, list the following investment thesis points as bullet points:
-      ${formData.thesis.split('\n').filter(line => line.trim() !== '').map(line => line.replace('•','').trim()).slice(0,2).map(t => `- ${t}`).join('\n')}
-    - The design should be clean, professional, and minimalist, with good typography and spacing, suitable for a financial services company. Do not include any extra text, logos (except for the ticker symbol styling), or embellishments not described here.`;
-
-      // 1. Generate the image via the API route
-      const imageGenResponse = await fetch('/api/generate-image', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ prompt: imagePrompt }),
-      });
-
-      const imageGenData = await imageGenResponse.json();
-
-      if (!imageGenResponse.ok || imageGenData.error) {
-        throw new Error(imageGenData.error || 'Failed to generate broadcast image.');
-      }
-      
-      const imageUrl = imageGenData.url; // Use `url` instead of `imageUrl`
-      if (!imageUrl) {
-        throw new Error('Image URL was not returned from the generation service.');
-      }
-  
-      toast({ title: 'Image Generated', description: 'Sending broadcast...' });
-  
       const textMessage = `${formData.ticker} Alert: ${formData.action.toUpperCase()} | Target: ${formData.priceTarget} | Risk: ${formData.riskLevel.toUpperCase()}`;
   
       const campaignPayload = {
@@ -406,7 +414,7 @@ export default function StockRecommendationEditor({ initialData }: { initialData
           name: r.name,
           type: r.contactCount !== undefined ? 'group' : 'contact'
         })),
-        mediaUrl: imageUrl,
+        mediaUrl: generatedImageUrl,
       };
   
       let result;
@@ -1171,50 +1179,28 @@ export default function StockRecommendationEditor({ initialData }: { initialData
                   </div>
                 </div>
 
-                {/* Preview */}
-                <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl p-6 border-2 border-blue-200 mb-6">
-                  <div className="bg-white rounded-xl p-6 shadow-sm">
-                    <div className="flex items-center gap-4 mb-4">
-                      <div className="bg-blue-600 text-white font-bold text-2xl px-6 py-3 rounded-xl">
-                        {formData.ticker}
-                      </div>
-                      <div>
-                        <div className="font-bold text-xl text-gray-900">{formData.companyName}</div>
-                        <div className="text-sm text-gray-600">{formData.sector}</div>
-                      </div>
+                {/* Broadcast Preview */}
+                <div className="mb-6">
+                    <label className="block text-sm font-semibold text-gray-900 mb-2">
+                        Broadcast Preview
+                    </label>
+                    <div className="p-4 border-2 border-dashed border-gray-300 rounded-xl text-center">
+                        {isGeneratingImage ? (
+                            <div className="p-8">
+                                <Loader2 className="w-8 h-8 animate-spin text-gray-500 mx-auto" />
+                                <p className="text-sm text-gray-600 mt-2">Generating image...</p>
+                            </div>
+                        ) : generatedImageUrl ? (
+                            <Image src={generatedImageUrl} alt="Generated stock pick" width={512} height={512} className="rounded-lg mx-auto" />
+                        ) : (
+                            <div className="p-8">
+                                <Sparkles className="w-8 h-8 text-gray-400 mx-auto mb-2" />
+                                <p className="text-sm text-gray-600">
+                                    Click "Generate Image" to create a visual for your broadcast.
+                                </p>
+                            </div>
+                        )}
                     </div>
-
-                    <div className="grid grid-cols-2 gap-3 mb-4">
-                      <div>
-                        <span className="text-xs text-gray-600">Action:</span>
-                        <span className={`ml-2 px-3 py-1 rounded-full font-bold capitalize text-sm ${
-                          formData.action === 'buy' ? 'bg-green-100 text-green-700' :
-                          formData.action === 'sell' ? 'bg-red-100 text-red-700' :
-                          'bg-yellow-100 text-yellow-700'
-                        }`}>
-                          {formData.action}
-                        </span>
-                      </div>
-                      <div className="text-sm">
-                        <span className="text-gray-600">Target:</span>
-                        <span className="ml-2 font-bold text-gray-900">{formData.priceTarget}</span>
-                      </div>
-                      <div className="text-sm">
-                        <span className="text-gray-600">Timeframe:</span>
-                        <span className="ml-2 font-bold text-gray-900">{formData.timeframe}</span>
-                      </div>
-                      <div className="text-sm">
-                        <span className="text-gray-600">Risk:</span>
-                        <span className="ml-2 font-bold text-gray-900 capitalize">{formData.riskLevel}</span>
-                      </div>
-                    </div>
-
-                    <div className="pt-4 border-t border-gray-200">
-                      <p className="text-sm text-gray-800 whitespace-pre-line line-clamp-3">
-                        {formData.thesis}
-                      </p>
-                    </div>
-                  </div>
                 </div>
 
                 {/* AI Agent Status */}
@@ -1386,19 +1372,21 @@ export default function StockRecommendationEditor({ initialData }: { initialData
                         </Popover>
                     </div>
 
-                    {/* Send Button */}
+                    {/* Action Buttons */}
                     <div className="flex gap-4">
                       <Button
-                        onClick={handleSaveRecommendation}
+                        onClick={handleGenerateImage}
                         variant="outline"
-                        disabled={isSending || isSaving}
+                        disabled={isGeneratingImage || isSending}
+                        className="flex-1"
                       >
-                        {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
-                        {isSaving ? 'Saving...' : 'Save as Idea'}
+                        {isGeneratingImage ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4 mr-2" />}
+                        {isGeneratingImage ? 'Generating...' : 'Generate Image'}
                       </Button>
+
                       <Button
                         onClick={handleSendBroadcast}
-                        disabled={isSending || selectedRecipients.length === 0}
+                        disabled={isSending || !generatedImageUrl || selectedRecipients.length === 0}
                         className="w-full flex-1"
                       >
                         {isSending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4 mr-2" />}
@@ -1407,6 +1395,16 @@ export default function StockRecommendationEditor({ initialData }: { initialData
                     </div>
                 </div>
 
+                <div className="flex justify-end mt-6">
+                  <Button
+                    onClick={handleSaveRecommendation}
+                    variant="outline"
+                    disabled={isSending || isSaving}
+                  >
+                    {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
+                    {isSaving ? 'Saving...' : 'Save as Idea'}
+                  </Button>
+                </div>
               </div>
             </div>
           )}
