@@ -95,7 +95,7 @@ export default function HomePage() {
             <div>
               <div className="inline-flex items-center gap-2 px-4 py-2 bg-white rounded-full shadow-sm border border-orange-200 mb-6">
                 <Sparkles className="w-4 h-4 text-orange-500" />
-                <span className="text-sm font-medium text-gray-700">AI-Powered Marketing</span>
+                <span className="text-sm font-medium text-gray-700">Obviosly AI Powered</span>
               </div>
               
               <h1 className="text-6xl md:text-7xl font-extrabold text-gray-900 mb-6 leading-tight">
