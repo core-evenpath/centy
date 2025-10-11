@@ -10,8 +10,8 @@ export async function GET(request: NextRequest) {
         const companyName = searchParams.get('companyName') || 'Company Name';
         const action = searchParams.get('action') || 'ACTION';
 
-        // Add emojis to each line for better visual separation
-        const text = `📈 ${ticker.toUpperCase()}\\n🏢 ${companyName}\\n⚡️ Action: ${action.toUpperCase()}`;
+        // Construct text without emojis for better compatibility
+        const text = `${ticker.toUpperCase()}\\n${companyName}\\nAction: ${action.toUpperCase()}`;
         
         // Use placehold.co with a clean, dark theme
         const imageUrl = `https://placehold.co/1200x675/1F2937/FFFFFF/png?text=${encodeURIComponent(text)}&font=poppins`;
