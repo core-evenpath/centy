@@ -4,13 +4,14 @@
 import React, { useState, useEffect } from 'react';
 import { Button } from '../../../../components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../../../../components/ui/card';
-import { Plus, FileText, ArrowLeft, Radio } from 'lucide-react';
+import { Plus, FileText, ArrowLeft, Radio, Sparkles } from 'lucide-react';
 import PartnerHeader from '../../../../components/partner/PartnerHeader';
 import StockRecommendationEditor from '@/components/partner/templates/StockRecommendationEditor';
 import type { TradingPick } from '@/lib/types';
 import { useMultiWorkspaceAuth } from '@/hooks/use-multi-workspace-auth';
 import { db } from '@/lib/firebase';
 import { collection, query, where, onSnapshot } from 'firebase/firestore';
+import AIComposerModal from '@/components/partner/messaging/AIComposerModal';
 
 const mockTemplates = [
     { id: '1', name: 'Stock Pick Alert', category: 'Trading', content: '💰 GS Foundation - {{Date}} Selected Quality Stock...'},
@@ -23,6 +24,7 @@ export default function BroadcastPage() {
   const [selectedTemplate, setSelectedTemplate] = useState<any | null>(null);
   const [templates, setTemplates] = useState<TradingPick[]>([]);
   const { currentWorkspace } = useMultiWorkspaceAuth();
+  const [showAiComposer, setShowAiComposer] = useState(false);
 
   useEffect(() => {
     if (!currentWorkspace?.partnerId) return;
@@ -58,8 +60,18 @@ export default function BroadcastPage() {
   };
   
   const handleCreateNew = () => {
-    setSelectedTemplate(null); // Ensure we're creating a new one
+    setSelectedTemplate(null); 
     setView('editor');
+  };
+
+  const handleAiCompose = () => {
+    setShowAiComposer(true);
+  };
+  
+  const handleAiTextGenerated = (text: string) => {
+    setSelectedTemplate({ thesis: text }); // Pre-fill the editor with AI content
+    setView('editor');
+    setShowAiComposer(false);
   };
 
   if (view === 'editor') {
@@ -83,7 +95,15 @@ export default function BroadcastPage() {
       <PartnerHeader
         title="Broadcast from an Idea"
         subtitle="Select a template to start creating your broadcast."
-        actions={<Button onClick={handleCreateNew}><Plus className="w-4 h-4 mr-2" />New Idea</Button>}
+        actions={
+          <div className="flex gap-2">
+            <Button onClick={handleAiCompose}>
+              <Sparkles className="w-4 h-4 mr-2" />
+              AI Composer
+            </Button>
+            <Button onClick={handleCreateNew}><Plus className="w-4 h-4 mr-2" />New Idea</Button>
+          </div>
+        }
       />
       <main className="flex-1 overflow-y-auto p-6 space-y-6">
         <Card>
@@ -151,6 +171,16 @@ export default function BroadcastPage() {
             </CardContent>
         </Card>
       </main>
+
+      <AIComposerModal
+        isOpen={showAiComposer}
+        onClose={() => setShowAiComposer(false)}
+        onTextGenerated={handleAiTextGenerated}
+        onImageGenerated={(imageUrl) => {
+            // Handle image if needed, e.g., open editor with image pre-filled
+            console.log("Image generated:", imageUrl);
+        }}
+      />
     </>
   );
 }
