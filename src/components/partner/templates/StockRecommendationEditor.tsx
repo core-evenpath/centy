@@ -2,7 +2,7 @@
 "use client";
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { ArrowRight, Send, Sparkles, Upload, FileText, MessageSquare, Brain, Plus, Check, ChevronDown, ChevronUp, AlertCircle, Info, Users, Lock, Database, TrendingUp, Calendar, Save, Loader2, Phone } from 'lucide-react';
+import { ArrowRight, Send, Sparkles, Upload, FileText, MessageSquare, Brain, Plus, Check, ChevronDown, ChevronUp, AlertCircle, Info, Users, Lock, Database, TrendingUp, Calendar, Save, Loader2, Phone, User, X } from 'lucide-react';
 import { useMultiWorkspaceAuth } from '@/hooks/use-multi-workspace-auth';
 import { useToast } from '@/hooks/use-toast';
 import { saveTradingPickAction } from '@/actions/trading-pick-actions';
@@ -94,7 +94,7 @@ const STOCK_DATABASE: Record<string, any> = {
   }
 };
 
-export default function StockRecommendationEditor() {
+export default function StockRecommendationEditor({ initialData }: { initialData?: any }) {
   const [formData, setFormData] = useState({
     ticker: '',
     companyName: '',
@@ -147,6 +147,15 @@ export default function StockRecommendationEditor() {
   const { toast } = useToast();
 
   const partnerId = currentWorkspace?.partnerId;
+
+  useEffect(() => {
+    if (initialData) {
+      setFormData(prev => ({ ...prev, ...initialData }));
+      if(initialData.ticker) {
+        handleTickerChange(initialData.ticker);
+      }
+    }
+  }, [initialData]);
 
   // Fetch contacts and groups
   useEffect(() => {
@@ -299,7 +308,7 @@ export default function StockRecommendationEditor() {
 
     setIsSaving(true);
     try {
-      const { researchDocs, qaExamples, ...pickData } = formData;
+      const { ...pickData } = formData;
       const result = await saveTradingPickAction({
         partnerId: currentWorkspace.partnerId,
         pickData: pickData as any,
