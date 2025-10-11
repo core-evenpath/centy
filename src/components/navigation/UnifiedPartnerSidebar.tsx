@@ -115,10 +115,10 @@ export default function UnifiedPartnerSidebar() {
     },
     { 
       icon: FileText, 
-      label: 'Templates', 
+      label: 'IdeaBox', 
       href: '/partner/templates',
       badge: null,
-      description: 'Message Templates'
+      description: 'Create and manage ideas'
     },
     { 
       icon: Users, 
