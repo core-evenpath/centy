@@ -1202,101 +1202,90 @@ export default function StockRecommendationEditor({ initialData }: { initialData
                         )}
                     </div>
                 </div>
-
-                {/* Recipients */}
-                <div className="bg-gray-50 rounded-xl p-6 border border-gray-200 mb-6">
+                
+                {/* Recipients and Actions */}
+                <div className="bg-gray-50 rounded-xl p-6 border border-gray-200">
                     <h4 className="font-semibold text-gray-900 mb-3 flex items-center gap-2">
                         <Send className="w-5 h-5 text-blue-600" />
                         Send as Broadcast
                     </h4>
 
-                    {/* Platform Selector */}
-                    <div className="mb-4">
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Platform</label>
-                      <Tabs defaultValue="whatsapp" onValueChange={(value) => setPlatform(value as any)} className="w-full">
-                          <TabsList className="grid w-full grid-cols-2">
-                              <TabsTrigger value="whatsapp" className="flex items-center gap-2"><MessageSquare /> WhatsApp</TabsTrigger>
-                              <TabsTrigger value="sms" className="flex items-center gap-2"><Phone /> SMS</TabsTrigger>
-                          </TabsList>
-                      </Tabs>
-                    </div>
-
-                    {/* Recipient Selector */}
-                    <div className="mb-4">
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Recipients</label>
-                        <Popover open={isRecipientPopoverOpen} onOpenChange={setIsRecipientPopoverOpen}>
-                          <PopoverTrigger asChild>
-                            <Button
-                              variant="outline"
-                              role="combobox"
-                              aria-expanded={isRecipientPopoverOpen}
-                              className="w-full justify-between h-auto min-h-10"
-                            >
-                              <div className="flex gap-1 flex-wrap items-center">
-                                {selectedRecipients.length > 0 ? (
-                                  selectedRecipients.map(r => (
-                                    <Badge key={r.id} variant="secondary" className="mr-1">
-                                      <div className="flex items-center">
-                                        {r.type === 'group' ? <Users className="w-3 h-3 mr-1" /> : <User className="w-3 h-3 mr-1" />}
-                                        {r.name}
-                                        <div
-                                          onClick={(e) => {
-                                            e.stopPropagation();
-                                            handleRecipientSelect(r);
-                                          }}
-                                          className="ml-1 rounded-full outline-none ring-offset-background focus:ring-2 focus:ring-ring focus:ring-offset-2"
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-2">Platform</label>
+                          <Tabs defaultValue="whatsapp" onValueChange={(value) => setPlatform(value as any)} className="w-full">
+                              <TabsList className="grid w-full grid-cols-2">
+                                  <TabsTrigger value="whatsapp" className="flex items-center gap-2"><MessageSquare /> WhatsApp</TabsTrigger>
+                                  <TabsTrigger value="sms" className="flex items-center gap-2"><Phone /> SMS</TabsTrigger>
+                              </TabsList>
+                          </Tabs>
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-2">Recipients</label>
+                            <Popover open={isRecipientPopoverOpen} onOpenChange={setIsRecipientPopoverOpen}>
+                              <PopoverTrigger asChild>
+                                <Button
+                                  variant="outline"
+                                  role="combobox"
+                                  aria-expanded={isRecipientPopoverOpen}
+                                  className="w-full justify-between h-10"
+                                >
+                                  <div className="flex gap-1 flex-wrap items-center truncate">
+                                    {selectedRecipients.length > 0 ? (
+                                      selectedRecipients.map(r => (
+                                        <Badge key={r.id} variant="secondary" className="mr-1">
+                                          <div className="flex items-center">
+                                            {r.type === 'group' ? <Users className="w-3 h-3 mr-1" /> : <User className="w-3 h-3 mr-1" />}
+                                            {r.name}
+                                          </div>
+                                        </Badge>
+                                      ))
+                                    ) : (
+                                      <span className="text-muted-foreground">Select...</span>
+                                    )}
+                                  </div>
+                                </Button>
+                              </PopoverTrigger>
+                              <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
+                                <Command>
+                                  <CommandInput placeholder="Search recipients..." />
+                                  <CommandList>
+                                    <CommandEmpty>No recipients found.</CommandEmpty>
+                                    <CommandGroup heading="Groups">
+                                      {contactGroups.map(group => (
+                                        <CommandItem
+                                          key={group.id}
+                                          onSelect={() => handleRecipientSelect({ ...group, type: 'group' })}
+                                          className="cursor-pointer"
                                         >
-                                          <X className="h-3 w-3 text-muted-foreground hover:text-foreground" />
-                                        </div>
-                                      </div>
-                                    </Badge>
-                                  ))
-                                ) : (
-                                  <span className="text-muted-foreground">Select contacts or groups...</span>
-                                )}
-                              </div>
-                            </Button>
-                          </PopoverTrigger>
-                          <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
-                            <Command>
-                              <CommandInput placeholder="Search recipients..." />
-                              <CommandList>
-                                <CommandEmpty>No recipients found.</CommandEmpty>
-                                <CommandGroup heading="Groups">
-                                  {contactGroups.map(group => (
-                                    <CommandItem
-                                      key={group.id}
-                                      onSelect={() => handleRecipientSelect({ ...group, type: 'group' })}
-                                      className="cursor-pointer"
-                                    >
-                                      <Check className={cn("mr-2 h-4 w-4", selectedRecipients.some(r => r.id === group.id) ? "opacity-100" : "opacity-0")} />
-                                      <Users className="mr-2 h-4 w-4 text-muted-foreground" />
-                                      <div className="flex-1">{group.name}</div>
-                                      <div className="text-xs text-muted-foreground">{group.contactCount} contacts</div>
-                                    </CommandItem>
-                                  ))}
-                                </CommandGroup>
-                                <CommandGroup heading="Contacts">
-                                  {contacts.map(contact => (
-                                    <CommandItem
-                                      key={contact.id}
-                                      onSelect={() => handleRecipientSelect({ ...contact, type: 'contact' })}
-                                      className="cursor-pointer"
-                                    >
-                                      <Check className={cn("mr-2 h-4 w-4", selectedRecipients.some(r => r.id === contact.id) ? "opacity-100" : "opacity-0")} />
-                                      <User className="mr-2 h-4 w-4 text-muted-foreground" />
-                                      <div className="flex-1">{contact.name}</div>
-                                      <div className="text-xs text-muted-foreground">{contact.phone}</div>
-                                    </CommandItem>
-                                  ))}
-                                </CommandGroup>
-                              </CommandList>
-                            </Command>
-                          </PopoverContent>
-                        </Popover>
+                                          <Check className={cn("mr-2 h-4 w-4", selectedRecipients.some(r => r.id === group.id) ? "opacity-100" : "opacity-0")} />
+                                          <Users className="mr-2 h-4 w-4 text-muted-foreground" />
+                                          <div className="flex-1">{group.name}</div>
+                                          <div className="text-xs text-muted-foreground">{group.contactCount}</div>
+                                        </CommandItem>
+                                      ))}
+                                    </CommandGroup>
+                                    <CommandGroup heading="Contacts">
+                                      {contacts.map(contact => (
+                                        <CommandItem
+                                          key={contact.id}
+                                          onSelect={() => handleRecipientSelect({ ...contact, type: 'contact' })}
+                                          className="cursor-pointer"
+                                        >
+                                          <Check className={cn("mr-2 h-4 w-4", selectedRecipients.some(r => r.id === contact.id) ? "opacity-100" : "opacity-0")} />
+                                          <User className="mr-2 h-4 w-4 text-muted-foreground" />
+                                          <div className="flex-1">{contact.name}</div>
+                                          <div className="text-xs text-muted-foreground">{contact.phone}</div>
+                                        </CommandItem>
+                                      ))}
+                                    </CommandGroup>
+                                  </CommandList>
+                                </Command>
+                              </PopoverContent>
+                            </Popover>
+                        </div>
                     </div>
 
-                    {/* Action Buttons */}
                     <div className="flex gap-4">
                       <Button
                         onClick={handleGenerateImage}
@@ -1307,7 +1296,6 @@ export default function StockRecommendationEditor({ initialData }: { initialData
                         {isGeneratingImage ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4 mr-2" />}
                         {isGeneratingImage ? 'Generating...' : 'Generate Image'}
                       </Button>
-
                       <Button
                         onClick={handleSendBroadcast}
                         disabled={isSending || !generatedImageUrl || selectedRecipients.length === 0}
