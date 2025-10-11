@@ -1,11 +1,22 @@
 // src/components/partner/templates/StockRecommendationEditor.tsx
 "use client";
 
-import React, { useState } from 'react';
-import { ArrowRight, Send, Sparkles, Upload, FileText, MessageSquare, Brain, Plus, Check, ChevronDown, ChevronUp, AlertCircle, Info, Users, Lock, Database, TrendingUp, Calendar, Save, Loader2 } from 'lucide-react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { ArrowRight, Send, Sparkles, Upload, FileText, MessageSquare, Brain, Plus, Check, ChevronDown, ChevronUp, AlertCircle, Info, Users, Lock, Database, TrendingUp, Calendar, Save, Loader2, Phone } from 'lucide-react';
 import { useMultiWorkspaceAuth } from '@/hooks/use-multi-workspace-auth';
 import { useToast } from '@/hooks/use-toast';
 import { saveTradingPickAction } from '@/actions/trading-pick-actions';
+import { Button } from '@/components/ui/button';
+import { sendSmsCampaignAction } from '@/actions/sms-actions';
+import { sendWhatsAppCampaignAction } from '@/actions/whatsapp-actions';
+import type { Contact, ContactGroup } from '@/lib/types';
+import { db } from '@/lib/firebase';
+import { collection, query, onSnapshot } from 'firebase/firestore';
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Badge } from '@/components/ui/badge';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { cn } from '@/lib/utils';
 
 // Stock database for auto-fill
 const STOCK_DATABASE: Record<string, any> = {
@@ -123,8 +134,41 @@ export default function StockRecommendationEditor() {
     risks: [],
     catalysts: []
   });
+
+  // New state for campaign sending
+  const [platform, setPlatform] = useState<'whatsapp' | 'sms'>('whatsapp');
+  const [contacts, setContacts] = useState<Contact[]>([]);
+  const [contactGroups, setContactGroups] = useState<ContactGroup[]>([]);
+  const [selectedRecipients, setSelectedRecipients] = useState<any[]>([]);
+  const [isSending, setIsSending] = useState(false);
+  const [isRecipientPopoverOpen, setIsRecipientPopoverOpen] = useState(false);
+
   const { currentWorkspace } = useMultiWorkspaceAuth();
   const { toast } = useToast();
+
+  const partnerId = currentWorkspace?.partnerId;
+
+  // Fetch contacts and groups
+  useEffect(() => {
+    if (!partnerId) return;
+
+    const contactsQuery = query(collection(db, `partners/${partnerId}/contacts`));
+    const groupsQuery = query(collection(db, `partners/${partnerId}/contactGroups`));
+
+    const unsubContacts = onSnapshot(contactsQuery, snapshot => {
+      setContacts(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Contact)));
+    });
+    
+    const unsubGroups = onSnapshot(groupsQuery, snapshot => {
+      setContactGroups(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ContactGroup)));
+    });
+
+    return () => {
+      unsubContacts();
+      unsubGroups();
+    };
+  }, [partnerId]);
+
 
   const updateField = (field: keyof typeof formData, value: any) => {
     setFormData({ ...formData, [field]: value });
@@ -258,7 +302,7 @@ export default function StockRecommendationEditor() {
       const { researchDocs, qaExamples, ...pickData } = formData;
       const result = await saveTradingPickAction({
         partnerId: currentWorkspace.partnerId,
-        pickData: pickData as any, // The type will match the backend after schema update
+        pickData: pickData as any,
       });
       
       if (result.success) {
@@ -277,6 +321,83 @@ export default function StockRecommendationEditor() {
       });
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  const handleRecipientSelect = (recipient: any) => {
+    setSelectedRecipients(prev => {
+      if (prev.some(r => r.id === recipient.id)) {
+        return prev.filter(r => r.id !== recipient.id);
+      }
+      return [...prev, recipient];
+    });
+  };
+
+  const availableRecipients = useMemo(() => {
+    return [
+      ...contactGroups.map(g => ({ ...g, type: 'group' })),
+      ...contacts.map(c => ({ ...c, type: 'contact' }))
+    ];
+  }, [contacts, contactGroups]);
+
+  const formatMessageForBroadcast = () => {
+    return `**${formData.action.toUpperCase()} Alert: ${formData.ticker}**
+    
+    **Company:** ${formData.companyName}
+    **Sector:** ${formData.sector}
+    
+    **Thesis:**
+    ${formData.thesis}
+    
+    **Price Target:** ${formData.priceTarget}
+    **Timeframe:** ${formData.timeframe}
+    
+    *Disclaimer: This is not financial advice. Do your own research.*
+    `;
+  }
+
+  const handleSendBroadcast = async () => {
+    if (!partnerId || selectedRecipients.length === 0) {
+      toast({
+        variant: 'destructive',
+        title: 'Missing Information',
+        description: 'Please select recipients before sending.',
+      });
+      return;
+    }
+    setIsSending(true);
+    try {
+      const message = formatMessageForBroadcast();
+      const campaignPayload = {
+        partnerId,
+        message,
+        recipients: selectedRecipients.map(r => ({
+          id: r.id,
+          name: r.name,
+          type: r.contactCount !== undefined ? 'group' : 'contact'
+        })),
+      };
+
+      let result;
+      if (platform === 'whatsapp') {
+        result = await sendWhatsAppCampaignAction(campaignPayload);
+      } else {
+        result = await sendSmsCampaignAction(campaignPayload);
+      }
+
+      if (result.success) {
+        toast({ title: 'Broadcast Sent', description: result.message });
+      } else {
+        throw new Error(result.message);
+      }
+    } catch (error: any) {
+      toast({
+        variant: 'destructive',
+        title: 'Broadcast Failed',
+        description: error.message || 'An unexpected error occurred.',
+      });
+    } finally {
+      setIsSending(false);
     }
   };
 
@@ -808,7 +929,7 @@ export default function StockRecommendationEditor() {
             )}
           </div>
 
-          {/* Section 4: Risks & Catalysts - CONTINUES IN NEXT MESSAGE DUE TO LENGTH */}
+          {/* Section 4: Risks & Catalysts */}
           <div className={`bg-white rounded-2xl shadow-sm border-2 transition-all ${
             !canAccessSection(4)
               ? 'border-gray-200 opacity-60'
@@ -1004,7 +1125,7 @@ export default function StockRecommendationEditor() {
             )}
           </div>
 
-          {/* Step 5: Review & Send - shown when all complete */}
+          {/* Step 5: Review & Send */}
           {allStepsComplete && (
             <div className="space-y-4">
               <div className="bg-white rounded-2xl shadow-lg border-2 border-green-500 p-8">
@@ -1064,111 +1185,120 @@ export default function StockRecommendationEditor() {
                   </div>
                 </div>
 
-                {/* AI Agent Status */}
-                <div className="bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl p-6 border-2 border-green-200 mb-6">
-                  <div className="flex items-start gap-4">
-                    <div className="bg-green-600 text-white p-3 rounded-xl">
-                      <Check className="w-6 h-6" />
-                    </div>
-                    <div className="flex-1">
-                      <h4 className="font-bold text-gray-900 mb-2">✅ Your AI Agent is Trained & Ready!</h4>
-                      <p className="text-sm text-gray-700 mb-3">
-                        When clients receive this recommendation and start asking questions, your AI agent will automatically respond using:
-                      </p>
-                      <div className="grid grid-cols-2 gap-2 text-xs text-gray-700">
-                        <div>✓ Your investment thesis</div>
-                        <div>✓ Risk factors you identified</div>
-                        <div>✓ Catalysts & timing</div>
-                        <div>✓ Company knowledge base (284 documents)</div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
+                {/* Send Campaign Section */}
+                <div className="bg-gray-50 rounded-xl p-6 border border-gray-200">
+                    <h4 className="font-semibold text-gray-900 mb-3 flex items-center gap-2">
+                        <Send className="w-5 h-5 text-blue-600" />
+                        Send as Broadcast
+                    </h4>
 
-                {/* Training Options */}
-                <div className="mb-6">
-                  <div className="flex items-center gap-3 mb-4">
-                    <Sparkles className="w-5 h-5 text-purple-600" />
-                    <h4 className="font-semibold text-gray-900">Optional: Make Your AI Even Smarter</h4>
-                  </div>
-                  <p className="text-sm text-gray-600 mb-4">
-                    Your AI already has access to your company knowledge base. Want to add more?
-                  </p>
+                    {/* Platform Selector */}
+                    <div className="mb-4">
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Platform</label>
+                      <Tabs defaultValue="whatsapp" onValueChange={(value) => setPlatform(value as any)} className="w-full">
+                          <TabsList className="grid w-full grid-cols-2">
+                              <TabsTrigger value="whatsapp" className="flex items-center gap-2"><MessageSquare /> WhatsApp</TabsTrigger>
+                              <TabsTrigger value="sms" className="flex items-center gap-2"><Phone /> SMS</TabsTrigger>
+                          </TabsList>
+                      </Tabs>
+                    </div>
 
-                  <div className="space-y-3">
-                    {/* Company Knowledge */}
-                    <div className="border-2 border-green-200 rounded-xl overflow-hidden bg-green-50">
-                      <button
-                        onClick={() => toggleTraining('companyKnowledge')}
-                        className="w-full flex items-center justify-between p-4 hover:bg-green-100 transition-colors"
+                    {/* Recipient Selector */}
+                    <div className="mb-4">
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Recipients</label>
+                        <Popover open={isRecipientPopoverOpen} onOpenChange={setIsRecipientPopoverOpen}>
+                          <PopoverTrigger asChild>
+                            <Button
+                              variant="outline"
+                              role="combobox"
+                              aria-expanded={isRecipientPopoverOpen}
+                              className="w-full justify-between h-auto min-h-10"
+                            >
+                              <div className="flex gap-1 flex-wrap items-center">
+                                {selectedRecipients.length > 0 ? (
+                                  selectedRecipients.map(r => (
+                                    <Badge key={r.id} variant="secondary" className="mr-1">
+                                      <div className="flex items-center">
+                                        {r.type === 'group' ? <Users className="w-3 h-3 mr-1" /> : <User className="w-3 h-3 mr-1" />}
+                                        {r.name}
+                                        <div
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            handleRecipientSelect(r);
+                                          }}
+                                          className="ml-1 rounded-full outline-none ring-offset-background focus:ring-2 focus:ring-ring focus:ring-offset-2"
+                                        >
+                                          <X className="h-3 w-3 text-muted-foreground hover:text-foreground" />
+                                        </div>
+                                      </div>
+                                    </Badge>
+                                  ))
+                                ) : (
+                                  <span className="text-muted-foreground">Select contacts or groups...</span>
+                                )}
+                              </div>
+                            </Button>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
+                            <Command>
+                              <CommandInput placeholder="Search recipients..." />
+                              <CommandList>
+                                <CommandEmpty>No recipients found.</CommandEmpty>
+                                <CommandGroup heading="Groups">
+                                  {contactGroups.map(group => (
+                                    <CommandItem
+                                      key={group.id}
+                                      onSelect={() => handleRecipientSelect({ ...group, type: 'group' })}
+                                      className="cursor-pointer"
+                                    >
+                                      <Check className={cn("mr-2 h-4 w-4", selectedRecipients.some(r => r.id === group.id) ? "opacity-100" : "opacity-0")} />
+                                      <Users className="mr-2 h-4 w-4 text-muted-foreground" />
+                                      <div className="flex-1">{group.name}</div>
+                                      <div className="text-xs text-muted-foreground">{group.contactCount} contacts</div>
+                                    </CommandItem>
+                                  ))}
+                                </CommandGroup>
+                                <CommandGroup heading="Contacts">
+                                  {contacts.map(contact => (
+                                    <CommandItem
+                                      key={contact.id}
+                                      onSelect={() => handleRecipientSelect({ ...contact, type: 'contact' })}
+                                      className="cursor-pointer"
+                                    >
+                                      <Check className={cn("mr-2 h-4 w-4", selectedRecipients.some(r => r.id === contact.id) ? "opacity-100" : "opacity-0")} />
+                                      <User className="mr-2 h-4 w-4 text-muted-foreground" />
+                                      <div className="flex-1">{contact.name}</div>
+                                      <div className="text-xs text-muted-foreground">{contact.phone}</div>
+                                    </CommandItem>
+                                  ))}
+                                </CommandGroup>
+                              </CommandList>
+                            </Command>
+                          </PopoverContent>
+                        </Popover>
+                    </div>
+
+                    {/* Send Button */}
+                    <div className="flex gap-4">
+                      <Button
+                        onClick={handleSaveRecommendation}
+                        variant="outline"
+                        disabled={isSending || isSaving}
                       >
-                        <div className="flex items-center gap-3">
-                          <Database className="w-5 h-5 text-green-600" />
-                          <div className="text-left">
-                            <div className="flex items-center gap-2">
-                              <span className="font-medium text-gray-900">Company Knowledge Base</span>
-                              <span className="px-2 py-0.5 bg-green-600 text-white text-xs font-bold rounded">ACTIVE</span>
-                            </div>
-                            <p className="text-xs text-gray-600">284 research reports connected</p>
-                          </div>
-                        </div>
-                        {expandedTraining.companyKnowledge ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
-                      </button>
-                      {expandedTraining.companyKnowledge && (
-                        <div className="p-4 border-t border-green-200 bg-white">
-                          <p className="text-sm text-gray-700 mb-3">Your AI automatically references your company's research library when answering client questions.</p>
-                          <button className="text-sm text-blue-600 hover:text-blue-700 font-medium">
-                            Manage Knowledge Base →
-                          </button>
-                        </div>
-                      )}
+                        {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
+                        {isSaving ? 'Saving...' : 'Save as Idea'}
+                      </Button>
+                      <Button
+                        onClick={handleSendBroadcast}
+                        disabled={isSending || selectedRecipients.length === 0}
+                        className="w-full flex-1"
+                      >
+                        {isSending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4 mr-2" />}
+                        {isSending ? 'Sending...' : `Send to ${selectedRecipients.reduce((acc, r) => acc + (r.contactCount || 1), 0)} recipients`}
+                      </Button>
                     </div>
-
-                    {/* Additional Options */}
-                    <details className="border-2 border-gray-200 rounded-xl">
-                      <summary className="p-4 cursor-pointer hover:bg-gray-50 flex items-center gap-3">
-                        <FileText className="w-5 h-5 text-blue-600" />
-                        <span className="font-medium">Upload Research for This Pick</span>
-                      </summary>
-                      <div className="p-4 border-t">
-                        <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
-                          <Upload className="w-8 h-8 text-gray-400 mx-auto mb-2" />
-                          <p className="text-sm text-gray-600">Drop PDFs here</p>
-                        </div>
-                      </div>
-                    </details>
-                  </div>
                 </div>
 
-                {/* Recipients */}
-                <div className="bg-gray-50 rounded-xl p-6 border border-gray-200 mb-6">
-                  <h4 className="font-semibold text-gray-900 mb-3 flex items-center gap-2">
-                    <Users className="w-5 h-5 text-blue-600" />
-                    AI-Suggested Recipients
-                  </h4>
-                  <p className="text-sm text-gray-600 mb-4">
-                    Based on your recommendation about {formData.sector}, we'll send to:
-                  </p>
-                  <div className="space-y-2 mb-4">
-                    <div className="flex items-center justify-between p-3 bg-white rounded-lg">
-                      <span className="text-sm text-gray-900">Premium Clients ({formData.sector})</span>
-                      <span className="font-bold text-blue-600">89</span>
-                    </div>
-                    <div className="flex items-center justify-between p-3 bg-white rounded-lg">
-                      <span className="text-sm text-gray-900">High Engagement Followers</span>
-                      <span className="font-bold text-blue-600">56</span>
-                    </div>
-                  </div>
-                  <div className="text-sm text-gray-600 p-3 bg-blue-50 rounded-lg">
-                    <strong className="text-gray-900">Total: 145 recipients</strong> • Expected 94% open rate
-                  </div>
-                </div>
-
-                {/* Send Button */}
-                <button className="w-full py-4 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-xl font-bold text-lg hover:shadow-xl transition-all flex items-center justify-center gap-3">
-                  <Send className="w-6 h-6" />
-                  Send Recommendation to 145 Clients
-                </button>
               </div>
             </div>
           )}
