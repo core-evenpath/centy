@@ -13,4 +13,4 @@ import '@/ai/flows/set-user-claims-flow.ts';
 import '@/ai/flows/suggest-industry-templates.ts';
 import '@/ai/flows/generate-campaign-content-flow.ts';
 import '@/ai/flows/generate-campaign-image-flow.ts';
-
+import '@/ai/flows/generate-stock-pick-image-flow.ts';

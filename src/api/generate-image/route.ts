@@ -22,8 +22,10 @@ export async function POST(request: Request) {
   try {
     const body = await request.json();
     
-    // Check for stock pick image generation
+    // Use the stock pick image generation flow
     if (body.ticker && body.companyName) {
+      console.log("Generating stock pick image for:", body.ticker);
+      
       const result = await generateStockPickImage(body);
       
       const base64Data = result.imageUrl.split(';base64,').pop();
@@ -52,66 +54,18 @@ export async function POST(request: Request) {
         public: true,
       });
 
-      const publicUrl = `https://storage.googleapis.com/${bucketName}/${fileName}`;
-      return NextResponse.json({ url: publicUrl });
+      const publicUrl = file.publicUrl();
+      console.log("Stock pick image uploaded successfully:", publicUrl);
+      
+      return NextResponse.json({ imageUrl: publicUrl });
     }
     
-    // Fallback to DALL-E for generic prompts
-    const { prompt } = body;
-
-    if (!prompt) {
-      return NextResponse.json({ error: 'Prompt is required' }, { status: 400 });
-    }
-    
-    if (!process.env.OPENAI_API_KEY) {
-      return NextResponse.json({ error: 'OpenAI API key is not configured.' }, { status: 500 });
-    }
-
-    const response = await fetch('https://api.openai.com/v1/images/generations', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`
-      },
-      body: JSON.stringify({
-        model: 'dall-e-3',
-        prompt: prompt,
-        n: 1,
-        size: '1024x1024',
-        response_format: 'b64_json'
-      })
-    });
-
-    const data = await response.json();
-
-    if (data.error) {
-      throw new Error(data.error.message);
-    }
-
-    const base64Data = data.data[0].b64_json;
-    const buffer = Buffer.from(base64Data, 'base64');
-    const mimeType = 'image/png';
-    const fileExtension = 'png';
-    const fileName = `ai-generated/${uuidv4()}.${fileExtension}`;
-    
-    const bucketName = process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET;
-    if (!bucketName) {
-      throw new Error("Firebase Storage bucket name is not configured.");
-    }
-    
-    const bucket = storage.bucket(bucketName);
-    const file = bucket.file(fileName);
-
-    await file.save(buffer, {
-        metadata: { contentType: mimeType, cacheControl: 'public, max-age=31536000' },
-        public: true,
-    });
-
-    const publicUrl = `https://storage.googleapis.com/${bucketName}/${fileName}`;
-    return NextResponse.json({ url: publicUrl });
+    // Fallback to a generic error if the request is not for a stock pick
+    return NextResponse.json({ error: 'Invalid request. Ticker and company name are required.' }, { status: 400 });
 
   } catch (error: any) {
     console.error("Error in /api/generate-image:", error);
+    // Return a more descriptive error message
     return NextResponse.json(
       { error: error.message || 'Failed to generate and store image' },
       { status: 500 }

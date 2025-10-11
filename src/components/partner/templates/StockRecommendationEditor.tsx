@@ -1,3 +1,4 @@
+
 // src/components/partner/templates/StockRecommendationEditor.tsx
 "use client";
 
@@ -353,26 +354,26 @@ export default function StockRecommendationEditor({ initialData }: { initialData
   }, [contacts, contactGroups]);
 
   const handleGenerateImage = async () => {
-    if (!formData.sector) return;
+    if (!formData.ticker || !formData.companyName) return;
 
     setIsGeneratingImage(true);
     setGeneratedImageUrl(null);
-    toast({ title: 'Generating Background Image', description: 'Please wait, this may take a moment...' });
+    toast({ title: 'Generating Image...', description: 'Please wait, this may take a moment...' });
 
     try {
       const response = await fetch('/api/generate-image', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prompt: `A professional, abstract background image for a stock market report about the ${formData.sector} sector.` }),
+        body: JSON.stringify({ ...formData }),
       });
       
       const data = await response.json();
 
-      if (!response.ok || !data.url) {
-        throw new Error(data.error || 'Image generation failed');
+      if (!response.ok || !data.imageUrl) {
+        throw new Error(data.error || 'Image generation failed to return a URL.');
       }
 
-      setGeneratedImageUrl(data.url);
+      setGeneratedImageUrl(data.imageUrl);
       toast({ title: 'Image Generated!', description: 'You can now send your broadcast.' });
 
     } catch (error: any) {
@@ -397,7 +398,6 @@ export default function StockRecommendationEditor({ initialData }: { initialData
     try {
       const textMessage = `${formData.ticker} Alert: ${formData.action.toUpperCase()} | Target: ${formData.priceTarget} | Risk: ${formData.riskLevel.toUpperCase()}`;
   
-      // NOTE: We are now sending the generated image URL, not generating a new one.
       const campaignPayload = {
         partnerId,
         message: textMessage,
@@ -1179,7 +1179,7 @@ export default function StockRecommendationEditor({ initialData }: { initialData
                     </label>
                     <div className="p-4 border-2 border-dashed border-gray-300 rounded-xl text-center relative">
                         {isGeneratingImage && (
-                            <div className="absolute inset-0 bg-white/80 flex flex-col items-center justify-center z-10">
+                            <div className="absolute inset-0 bg-white/80 flex flex-col items-center justify-center z-10 rounded-xl">
                                 <Loader2 className="w-8 h-8 animate-spin text-gray-500" />
                                 <p className="text-sm text-gray-600 mt-2">Generating background...</p>
                             </div>
@@ -1193,7 +1193,7 @@ export default function StockRecommendationEditor({ initialData }: { initialData
                                 </div>
                                 <div className="relative z-10 text-left">
                                     <p className="text-lg font-semibold">{formData.action.toUpperCase()} | Target: {formData.priceTarget}</p>
-                                    <p className="opacity-80">{formData.thesis.split('\n')[0]}</p>
+                                    <p className="opacity-80 line-clamp-2">{formData.thesis.split('\n')[0]}</p>
                                 </div>
                             </div>
                         ) : (
