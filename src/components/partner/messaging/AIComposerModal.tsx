@@ -1,7 +1,7 @@
 
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../../ui/dialog';
 import { Button } from '../../ui/button';
 import { Textarea } from '../../ui/textarea';
@@ -13,6 +13,7 @@ interface AIComposerModalProps {
   onClose: () => void;
   onTextGenerated: (text: string) => void;
   onImageGenerated: (imageUrl: string) => void;
+  initialPrompt?: string;
 }
 
 export default function AIComposerModal({
@@ -20,13 +21,18 @@ export default function AIComposerModal({
   onClose,
   onTextGenerated,
   onImageGenerated,
+  initialPrompt = '',
 }: AIComposerModalProps) {
-  const [prompt, setPrompt] = useState('');
+  const [prompt, setPrompt] = useState(initialPrompt);
   const [generatedText, setGeneratedText] = useState('');
   const [generatedImage, setGeneratedImage] = useState('');
   const [isLoading, setIsLoading] = useState<'text' | 'image' | false>(false);
   const [loadingMessage, setLoadingMessage] = useState('');
   const { toast } = useToast();
+
+  useEffect(() => {
+    setPrompt(initialPrompt);
+  }, [initialPrompt, isOpen]);
 
   const handleGenerateText = async () => {
     if (!prompt.trim()) return;
@@ -97,7 +103,7 @@ export default function AIComposerModal({
   };
 
   const handleUseText = () => {
-    onTextGenerated(generatedText);
+    onTextGenerated(generatedText || prompt); // Use generated text, or fallback to prompt if nothing was generated
     onClose();
   };
 
@@ -171,6 +177,14 @@ export default function AIComposerModal({
                 <img src={generatedImage} alt="Generated content" className="rounded-lg w-full h-auto object-contain" />
                 <Button onClick={handleUseImage} className="w-full" disabled={!generatedImage}>Use This Image</Button>
               </div>
+            )}
+
+            {/* If there's an initial prompt but no generated content yet */}
+            {!isLoading && !generatedText && !generatedImage && initialPrompt && (
+                 <div className="space-y-4">
+                    <Textarea value={prompt} readOnly rows={8} />
+                    <Button onClick={handleUseText} className="w-full">Use This Text</Button>
+                 </div>
             )}
           </div>
         </div>

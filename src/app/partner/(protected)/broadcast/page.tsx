@@ -25,6 +25,7 @@ export default function BroadcastPage() {
   const [templates, setTemplates] = useState<TradingPick[]>([]);
   const { currentWorkspace } = useMultiWorkspaceAuth();
   const [showAiComposer, setShowAiComposer] = useState(false);
+  const [aiComposerPrompt, setAiComposerPrompt] = useState('');
 
   useEffect(() => {
     if (!currentWorkspace?.partnerId) return;
@@ -46,7 +47,8 @@ export default function BroadcastPage() {
 
   const handleSelectTemplate = (template: any) => {
     setSelectedTemplate(template);
-    setView('editor');
+    setAiComposerPrompt(template.thesis || '');
+    setShowAiComposer(true);
   };
   
   const handleSelectMessageTemplate = (template: any) => {
@@ -60,16 +62,20 @@ export default function BroadcastPage() {
   };
   
   const handleCreateNew = () => {
-    setSelectedTemplate(null); 
-    setView('editor');
+    setSelectedTemplate(null);
+    setAiComposerPrompt('');
+    setShowAiComposer(true);
   };
 
   const handleAiCompose = () => {
+    setAiComposerPrompt('');
     setShowAiComposer(true);
   };
   
   const handleAiTextGenerated = (text: string) => {
-    setSelectedTemplate({ thesis: text }); // Pre-fill the editor with AI content
+    // If we started from a template, keep its data but update the thesis
+    const newTemplateData = selectedTemplate ? { ...selectedTemplate, thesis: text } : { thesis: text };
+    setSelectedTemplate(newTemplateData);
     setView('editor');
     setShowAiComposer(false);
   };
@@ -110,7 +116,7 @@ export default function BroadcastPage() {
           <CardHeader>
             <CardTitle>My Ideas</CardTitle>
             <CardDescription>
-              A list of your saved stock recommendations and market updates. Click one to create a new broadcast from it.
+              Click one to create a new broadcast from it. This will open an AI composer.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -175,6 +181,7 @@ export default function BroadcastPage() {
       <AIComposerModal
         isOpen={showAiComposer}
         onClose={() => setShowAiComposer(false)}
+        initialPrompt={aiComposerPrompt}
         onTextGenerated={handleAiTextGenerated}
         onImageGenerated={(imageUrl) => {
             // Handle image if needed, e.g., open editor with image pre-filled
