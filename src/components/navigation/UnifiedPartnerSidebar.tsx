@@ -1,4 +1,3 @@
-
 // src/components/navigation/UnifiedPartnerSidebar.tsx
 "use client";
 
@@ -15,7 +14,10 @@ import {
   MessageSquare,
   Bell,
   HelpCircle,
-  Layers
+  Layers,
+  Send,
+  Users,
+  FileText
 } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
@@ -98,16 +100,31 @@ export default function UnifiedPartnerSidebar() {
   const allMenuItems: MenuItem[] = [
     { 
       icon: MessageSquare, 
-      label: 'Messaging', 
+      label: 'Conversations', 
       href: '/partner/messaging',
       badge: stats?.unreadMessages || null,
-      description: 'SMS & WhatsApp Messaging'
+      description: 'Direct & Group Chat'
     },
     { 
-      icon: Layers, 
-      label: 'Content Studio', 
-      href: '/partner/content-studio',
-      badge: null 
+      icon: Send, 
+      label: 'Campaigns', 
+      href: '/partner/campaigns',
+      badge: null,
+      description: 'SMS & WhatsApp Campaigns'
+    },
+    { 
+      icon: FileText, 
+      label: 'Templates', 
+      href: '/partner/templates',
+      badge: null,
+      description: 'Message Templates'
+    },
+    { 
+      icon: Users, 
+      label: 'Contacts', 
+      href: '/partner/contacts',
+      badge: null,
+      description: 'Contact Management'
     },
     { 
       icon: ListTodo, 
@@ -122,7 +139,7 @@ export default function UnifiedPartnerSidebar() {
       badge: null 
     },
   ];
-
+  
   const menuItems = partner?.isActivePlanUser 
     ? allMenuItems 
     : allMenuItems.filter(item => item.label === 'Tasks' || item.label === 'Settings');
@@ -202,7 +219,7 @@ export default function UnifiedPartnerSidebar() {
             </div>
           </div>
           <div>
-            <h1 className="font-bold text-lg">Centy Partner Hub</h1>
+            <h1 className="font-bold text-lg">Partner Hub</h1>
           </div>
         </div>
       </SidebarHeader>
@@ -212,10 +229,7 @@ export default function UnifiedPartnerSidebar() {
           <SidebarMenu className="p-2">
             {menuItems.map((item) => {
               const Icon = item.icon;
-              // Corrected isActive logic
-              const isActive = item.href === '/partner' 
-                ? pathname === item.href 
-                : pathname.startsWith(item.href);
+              const isActive = pathname.startsWith(item.href);
               
               return (
                 <SidebarMenuItem key={item.href}>

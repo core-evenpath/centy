@@ -15,7 +15,7 @@ import {
 } from '../../../../components/ui/dropdown-menu';
 import { useMultiWorkspaceAuth } from '@/hooks/use-multi-workspace-auth';
 import { db } from '@/lib/firebase';
-import { collection, query, where, onSnapshot, writeBatch, doc } from 'firebase/firestore';
+import { collection, query, onSnapshot, writeBatch, doc } from 'firebase/firestore';
 import type { Contact } from '@/lib/types';
 import PartnerHeader from '../../../../components/partner/PartnerHeader';
 import { Users, Search, Plus, MoreVertical, Edit, Trash2, Loader2, AlertCircle } from 'lucide-react';
@@ -45,9 +45,8 @@ export default function ContactsPage() {
 
     const unsubscribe = onSnapshot(q, 
       (snapshot) => {
-        // Correctly handle the initial empty state and seeding
         if (snapshot.empty && !seedHasBeenAttempted.current) {
-          seedHasBeenAttempted.current = true; // Mark that we are attempting to seed
+          seedHasBeenAttempted.current = true;
           console.log(`Contacts collection empty for partner ${partnerId}. Seeding data...`);
           
           const batch = writeBatch(db);
@@ -65,10 +64,8 @@ export default function ContactsPage() {
             setFirestoreError("Failed to initialize sample contacts. Please check Firestore permissions.");
             setIsLoading(false);
           });
-          // Do not set state here. Let the listener receive the new docs which will trigger a re-render.
           
         } else {
-          // This block now correctly handles both the initial load and updates after seeding
           const contactsData = snapshot.docs.map(doc => ({
             id: doc.id,
             ...doc.data()
