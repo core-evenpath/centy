@@ -99,9 +99,7 @@ export default function HomePage() {
               </div>
               
               <h1 className="text-6xl md:text-7xl font-extrabold text-gray-900 mb-6 leading-tight">
-                Marketing,
-                <br />
-                but <span className="text-transparent bg-clip-text bg-gradient-to-r from-orange-500 to-pink-500">way easier</span>
+                Clone yourself.
               </h1>
               
               <p className="text-xl text-gray-600 mb-8 leading-relaxed">
