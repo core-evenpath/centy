@@ -12,6 +12,12 @@ import { useMultiWorkspaceAuth } from '@/hooks/use-multi-workspace-auth';
 import { db } from '@/lib/firebase';
 import { collection, query, where, onSnapshot } from 'firebase/firestore';
 
+const mockTemplates = [
+    { id: '1', name: 'Stock Pick Alert', category: 'Trading', content: '💰 GS Foundation - {{Date}} Selected Quality Stock...'},
+    { id: '2', name: 'Quick Update', category: 'General', content: 'Quick update: {{Stock}} has performed really well...'},
+    { id: '3', name: 'Market Analysis', category: 'Analysis', content: 'This week in the markets: {{Summary}}'},
+];
+
 export default function BroadcastPage() {
   const [view, setView] = useState('list'); // 'list' or 'editor'
   const [selectedTemplate, setSelectedTemplate] = useState<any | null>(null);
@@ -38,6 +44,11 @@ export default function BroadcastPage() {
 
   const handleSelectTemplate = (template: any) => {
     setSelectedTemplate(template);
+    setView('editor');
+  };
+  
+  const handleSelectMessageTemplate = (template: any) => {
+    setSelectedTemplate({ thesis: template.content });
     setView('editor');
   };
 
@@ -74,12 +85,12 @@ export default function BroadcastPage() {
         subtitle="Select a template to start creating your broadcast."
         actions={<Button onClick={handleCreateNew}><Plus className="w-4 h-4 mr-2" />New Idea</Button>}
       />
-      <main className="flex-1 overflow-y-auto p-6">
+      <main className="flex-1 overflow-y-auto p-6 space-y-6">
         <Card>
           <CardHeader>
             <CardTitle>My Ideas</CardTitle>
             <CardDescription>
-              A list of your saved stock recommendations and market updates.
+              A list of your saved stock recommendations and market updates. Click one to create a new broadcast from it.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -109,6 +120,35 @@ export default function BroadcastPage() {
               </div>
             </div>
           </CardContent>
+        </Card>
+        
+        <Card>
+            <CardHeader>
+                <CardTitle>My Templates</CardTitle>
+                <CardDescription>
+                    Quick-start a new broadcast from a pre-defined message template.
+                </CardDescription>
+            </CardHeader>
+            <CardContent>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {mockTemplates.map(template => (
+                    <div 
+                    key={template.id} 
+                    className="p-4 border rounded-lg hover:shadow-md transition-shadow cursor-pointer"
+                    onClick={() => handleSelectMessageTemplate(template)}
+                    >
+                        <div className="flex items-center gap-3 mb-2">
+                            <div className="p-2 bg-purple-100 rounded">
+                            <FileText className="w-4 h-4 text-purple-600" />
+                            </div>
+                            <h3 className="font-semibold flex-1 truncate">{template.name}</h3>
+                        </div>
+                    <p className="text-sm text-muted-foreground line-clamp-2">{template.content}</p>
+                    <p className="text-xs text-muted-foreground mt-2">{template.category}</p>
+                    </div>
+                ))}
+                </div>
+            </CardContent>
         </Card>
       </main>
     </>
