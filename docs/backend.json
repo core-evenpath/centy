@@ -146,15 +146,38 @@
     },
     "TradingPick": {
       "title": "Trading Pick",
-      "description": "A trading recommendation or pick.",
+      "description": "A trading recommendation or pick, including all details for AI training.",
       "type": "object",
       "properties": {
-        "name": { "type": "string" },
         "partnerId": { "type": "string" },
         "ticker": { "type": "string" },
-        "summary": { "type": "string" }
+        "companyName": { "type": "string" },
+        "sector": { "type": "string" },
+        "action": { "type": "string", "enum": ["buy", "sell", "hold"] },
+        "thesis": { "type": "string" },
+        "priceTarget": { "type": "string" },
+        "currentPrice": { "type": "string" },
+        "timeframe": { "type": "string" },
+        "timeframeType": { "type": "string", "enum": ["short", "medium", "long"] },
+        "riskLevel": { "type": "string", "enum": ["low", "medium", "high"] },
+        "keyRisks": { "type": "string" },
+        "catalysts": { "type": "string" },
+        "marketContext": { "type": "string" },
+        "sectorTrends": { "type": "string" }
       },
-      "required": ["name", "partnerId", "ticker"]
+      "required": [
+        "partnerId",
+        "ticker",
+        "companyName",
+        "sector",
+        "action",
+        "thesis",
+        "priceTarget",
+        "timeframe",
+        "riskLevel",
+        "keyRisks",
+        "catalysts"
+      ]
     }
   },
   "auth": {
@@ -202,8 +225,4 @@
       "description": "Stores individual contacts for a partner."
     },
     "/partners/{partnerId}/tradingPicks/{pickId}": {
-      "schema": { "$ref": "#/entities/TradingPick" },
-      "description": "Stores trading picks created by a partner."
-    }
-  }
-}
+      "schema": {

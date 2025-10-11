@@ -2,7 +2,10 @@
 "use client";
 
 import React, { useState } from 'react';
-import { ArrowRight, Send, Sparkles, Upload, FileText, MessageSquare, Brain, Plus, Check, ChevronDown, ChevronUp, AlertCircle, Info, Users, Lock, Database, TrendingUp, Calendar } from 'lucide-react';
+import { ArrowRight, Send, Sparkles, Upload, FileText, MessageSquare, Brain, Plus, Check, ChevronDown, ChevronUp, AlertCircle, Info, Users, Lock, Database, TrendingUp, Calendar, Save, Loader2 } from 'lucide-react';
+import { useMultiWorkspaceAuth } from '@/hooks/use-multi-workspace-auth';
+import { useToast } from '@/hooks/use-toast';
+import { saveTradingPickAction } from '@/actions/trading-pick-actions';
 
 // Stock database for auto-fill
 const STOCK_DATABASE: Record<string, any> = {
@@ -94,8 +97,6 @@ export default function StockRecommendationEditor() {
     riskLevel: 'medium',
     keyRisks: '',
     catalysts: '',
-    researchDocs: [],
-    qaExamples: [],
     marketContext: '',
     sectorTrends: ''
   });
@@ -103,6 +104,7 @@ export default function StockRecommendationEditor() {
   const [expandedSection, setExpandedSection] = useState(1);
   const [expandedTraining, setExpandedTraining] = useState<Record<string, boolean>>({});
   const [autoFilled, setAutoFilled] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
   const [aiSuggestions, setAiSuggestions] = useState<{
     thesis: string[];
     risks: string[];
@@ -121,6 +123,8 @@ export default function StockRecommendationEditor() {
     risks: [],
     catalysts: []
   });
+  const { currentWorkspace } = useMultiWorkspaceAuth();
+  const { toast } = useToast();
 
   const updateField = (field: keyof typeof formData, value: any) => {
     setFormData({ ...formData, [field]: value });
@@ -230,6 +234,52 @@ export default function StockRecommendationEditor() {
     { value: 'long', label: 'Long-term', example: '6-24 months', icon: '🎯' }
   ];
 
+  const handleSaveRecommendation = async () => {
+    if (!currentWorkspace?.partnerId) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "No active workspace selected.",
+      });
+      return;
+    }
+
+    if (!allStepsComplete) {
+      toast({
+        variant: "destructive",
+        title: "Incomplete Form",
+        description: "Please complete all steps before saving.",
+      });
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      const { researchDocs, qaExamples, ...pickData } = formData;
+      const result = await saveTradingPickAction({
+        partnerId: currentWorkspace.partnerId,
+        pickData: pickData as any, // The type will match the backend after schema update
+      });
+      
+      if (result.success) {
+        toast({
+          title: "Recommendation Saved",
+          description: "Your stock pick has been saved successfully.",
+        });
+      } else {
+        throw new Error(result.message);
+      }
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Save Failed",
+        description: error.message || "An unexpected error occurred.",
+      });
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 p-8">
       <style>{`
@@ -243,6 +293,12 @@ export default function StockRecommendationEditor() {
       `}</style>
       <div className="max-w-4xl mx-auto">
         
+        {/* Header */}
+        <div className="mb-8">
+          <h1 className="text-3xl font-bold text-gray-900 mb-2">Create Stock Recommendation</h1>
+          <p className="text-gray-600">Fill in each section. AI will help you along the way with smart suggestions.</p>
+        </div>
+
         {/* Accordion Sections */}
         <div className="space-y-4">
           
