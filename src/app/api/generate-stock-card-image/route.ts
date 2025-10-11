@@ -18,30 +18,25 @@ export async function GET(request: NextRequest) {
         const ticker = searchParams.get('ticker') || 'TICK';
         const companyName = searchParams.get('companyName') || 'Company Name';
         const action = searchParams.get('action') || 'N/A';
-        const priceTarget = searchParams.get('priceTarget') || 'N/A';
         const currentPrice = searchParams.get('currentPrice') || 'N/A';
         const riskLevel = searchParams.get('riskLevel') || 'N/A';
         const timeframe = searchParams.get('timeframe') || 'N/A';
 
         const actionColor = getActionColor(action);
 
-        // Construct a more structured text string for the image
+        // Construct text parts with color information
         const textParts = [
-            `|${ticker}`, // Extra pipe for larger font size
-            `${companyName}`,
-            `|Action: ${action.toUpperCase()}`,
-            `|Price Target: ${priceTarget} | Current: ${currentPrice}`,
-            `|Risk: ${riskLevel.toUpperCase()} | Timeframe: ${timeframe}`
+            `color:FFFFFF;size:60;text:${ticker}`,
+            `color:CCCCCC;size:24;text:${companyName}`,
+            `color:${actionColor};size:36;text:${action.toUpperCase()}`,
+            `color:A0A0A0;size:20;text:Current Price: ${currentPrice}`,
+            `color:A0A0A0;size:20;text:Risk: ${riskLevel.toUpperCase()} | Timeframe: ${timeframe}`
         ];
         
-        const textString = textParts.join('\\n');
+        const textString = textParts.join('|');
 
-        // Use placehold.co with text formatting options
+        // Use placehold.co with advanced text formatting options
         const imageUrl = `https://placehold.co/1200x675/1F2937/FFFFFF/png?text=${encodeURIComponent(textString)}&font=poppins`;
-        
-        // Note: placehold.co has limited support for multi-color text. 
-        // The action color isn't directly applied to the text here. 
-        // For more advanced designs, a different image service would be needed.
 
         return NextResponse.json({ imageUrl });
 
