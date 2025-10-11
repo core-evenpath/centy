@@ -25,20 +25,23 @@ export async function GET(request: NextRequest) {
 
         const actionColor = getActionColor(action);
 
-        // Construct the URL for placehold.co
+        // Construct a more structured text string for the image
         const textParts = [
-            `${ticker}`,
+            `|${ticker}`, // Extra pipe for larger font size
             `${companyName}`,
-            `Action: ${action.toUpperCase()}`,
-            `Price Target: ${priceTarget}`,
-            `Current Price: ${currentPrice}`,
-            `Risk: ${riskLevel.toUpperCase()}`,
-            `Timeframe: ${timeframe}`
+            `|Action: ${action.toUpperCase()}`,
+            `|Price Target: ${priceTarget} | Current: ${currentPrice}`,
+            `|Risk: ${riskLevel.toUpperCase()} | Timeframe: ${timeframe}`
         ];
         
         const textString = textParts.join('\\n');
 
-        const imageUrl = `https://placehold.co/1200x675/1F2937/FFFFFF/png?text=${encodeURIComponent(textString)}&font=poppins&color=${actionColor}`;
+        // Use placehold.co with text formatting options
+        const imageUrl = `https://placehold.co/1200x675/1F2937/FFFFFF/png?text=${encodeURIComponent(textString)}&font=poppins`;
+        
+        // Note: placehold.co has limited support for multi-color text. 
+        // The action color isn't directly applied to the text here. 
+        // For more advanced designs, a different image service would be needed.
 
         return NextResponse.json({ imageUrl });
 
