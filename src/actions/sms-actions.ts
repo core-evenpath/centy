@@ -31,9 +31,22 @@ export async function sendSMSAction(input: SendSMSInput): Promise<SendSMSResult>
       body: input.message,
     });
 
-    // Get or create conversation
     let conversationId = input.conversationId;
     let conversationRef;
+
+    // If no conversationId is provided, try to find an existing one for this phone number
+    if (!conversationId) {
+        const q = await db.collection('smsConversations')
+            .where('partnerId', '==', input.partnerId)
+            .where('customerPhone', '==', input.to)
+            .limit(1)
+            .get();
+
+        if (!q.empty) {
+            conversationId = q.docs[0].id;
+            conversationRef = q.docs[0].ref;
+        }
+    }
     
     if (!conversationId) {
       // Create new conversation
@@ -58,10 +71,13 @@ export async function sendSMSAction(input: SendSMSInput): Promise<SendSMSResult>
       await conversationRef.set(newConversation);
     } else {
       // Update existing conversation
-      conversationRef = db.collection('smsConversations').doc(conversationId);
+      if (!conversationRef) {
+          conversationRef = db.collection('smsConversations').doc(conversationId);
+      }
       await conversationRef.update({
         lastMessageAt: FieldValue.serverTimestamp(),
         messageCount: FieldValue.increment(1),
+        isActive: true,
       });
     }
 

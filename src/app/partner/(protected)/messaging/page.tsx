@@ -63,7 +63,6 @@ export default function MessagingPage() {
   const searchParams = useSearchParams();
   const audioRef = useRef<HTMLAudioElement>(null);
 
-  const [selectedPlatform, setSelectedPlatform] = useState<Platform>(searchParams.get('platform') as Platform || 'whatsapp');
   const [conversations, setConversations] = useState<UnifiedConversation[]>([]);
   const [selectedConversation, setSelectedConversation] = useState<UnifiedConversation | null>(null);
   const [messages, setMessages] = useState<UnifiedMessage[]>([]);
@@ -95,47 +94,83 @@ export default function MessagingPage() {
     fetchDiagnostics();
   }, []);
 
-  // Load conversations for both platforms
-  useEffect(() => {
-    if (!partnerId || !db) {
-      setIsLoadingConversations(false);
-      return;
-    }
+    // Load and consolidate conversations for both platforms
+    useEffect(() => {
+        if (!partnerId || !db) {
+        setIsLoadingConversations(false);
+        return;
+        }
+    
+        setIsLoadingConversations(true);
+    
+        const smsQuery = query(
+        collection(db, 'smsConversations'),
+        where('partnerId', '==', partnerId),
+        orderBy('lastMessageAt', 'desc')
+        );
+    
+        const whatsappQuery = query(
+        collection(db, 'whatsappConversations'),
+        where('partnerId', '==', partnerId),
+        orderBy('lastMessageAt', 'desc')
+        );
+    
+        const unsubSMS = onSnapshot(smsQuery, (snapshot) => {
+        const smsConvos = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id, platform: 'sms' as Platform } as UnifiedConversation));
+        updateConversations(smsConvos, 'sms');
+        });
+    
+        const unsubWhatsApp = onSnapshot(whatsappQuery, (snapshot) => {
+        const waConvos = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id, platform: 'whatsapp' as Platform } as UnifiedConversation));
+        updateConversations(waConvos, 'whatsapp');
+        });
+    
+        // Helper to merge conversations
+        const updateConversations = (newConvos: UnifiedConversation[], platform: Platform) => {
+        setConversations(prev => {
+            const otherPlatformConvos = prev.filter(c => c.platform !== platform);
+            const allConvos = [...otherPlatformConvos, ...newConvos];
 
-    setIsLoadingConversations(true);
+            // Group by customer phone number
+            const groupedByPhone = allConvos.reduce((acc, convo) => {
+            const phone = convo.customerPhone;
+            if (!acc[phone]) {
+                acc[phone] = [];
+            }
+            acc[phone].push(convo);
+            return acc;
+            }, {} as Record<string, UnifiedConversation[]>);
 
-    const smsQuery = query(
-      collection(db, 'smsConversations'),
-      where('partnerId', '==', partnerId),
-      orderBy('lastMessageAt', 'desc')
-    );
+            // Consolidate groups
+            const consolidated = Object.values(groupedByPhone).map(group => {
+            if (group.length === 1) {
+                return group[0];
+            } else {
+                // Prioritize WhatsApp if available, or the most recent one
+                const mainConvo = group.find(c => c.platform === 'whatsapp') || group.sort((a,b) => (b.lastMessageAt?.toMillis() || 0) - (a.lastMessageAt?.toMillis() || 0))[0];
+                
+                // Aggregate message counts, etc. if needed
+                const totalMessages = group.reduce((sum, c) => sum + (c.messageCount || 0), 0);
+                
+                return {
+                ...mainConvo,
+                messageCount: totalMessages,
+                // Add a field to indicate it's a consolidated conversation
+                consolidatedFrom: group.map(c => ({ id: c.id, platform: c.platform })),
+                };
+            }
+            });
 
-    const whatsappQuery = query(
-      collection(db, 'whatsappConversations'),
-      where('partnerId', '==', partnerId),
-      orderBy('lastMessageAt', 'desc')
-    );
-
-    const unsubscribeSMS = onSnapshot(smsQuery, (snapshot) => {
-      const smsConvos = snapshot.docs.map(doc => ({
-        id: doc.id, ...doc.data(), platform: 'sms' as Platform
-      } as UnifiedConversation));
-      setConversations(prev => [...smsConvos, ...prev.filter(c => c.platform !== 'sms')].sort((a, b) => (b.lastMessageAt?.toMillis() || 0) - (a.lastMessageAt?.toMillis() || 0)));
-      setIsLoadingConversations(false);
-    });
-
-    const unsubscribeWhatsApp = onSnapshot(whatsappQuery, (snapshot) => {
-      const waConvos = snapshot.docs.map(doc => ({
-        id: doc.id, ...doc.data(), platform: 'whatsapp' as Platform
-      } as UnifiedConversation));
-      setConversations(prev => [...waConvos, ...prev.filter(c => c.platform !== 'whatsapp')].sort((a, b) => (b.lastMessageAt?.toMillis() || 0) - (a.lastMessageAt?.toMillis() || 0)));
-    });
-
-    return () => {
-      unsubscribeSMS();
-      unsubscribeWhatsApp();
-    };
-  }, [partnerId]);
+            return consolidated.sort((a, b) => (b.lastMessageAt?.toMillis() || 0) - (a.lastMessageAt?.toMillis() || 0));
+        });
+        setIsLoadingConversations(false);
+        };
+    
+        return () => {
+        unsubSMS();
+        unsubWhatsApp();
+        };
+    }, [partnerId]);
   
   // Select conversation from URL parameter
   useEffect(() => {
@@ -143,7 +178,6 @@ export default function MessagingPage() {
       const convoToSelect = conversations.find(c => c.id === conversationIdFromUrl);
       if (convoToSelect) {
         setSelectedConversation(convoToSelect);
-        setSelectedPlatform(convoToSelect.platform);
         // Clean the URL
         router.replace('/partner/messaging');
       }
@@ -193,10 +227,12 @@ export default function MessagingPage() {
 
     let phoneNumber = '';
     let conversationId = '';
+    let platform = selectedConversation?.platform || 'whatsapp';
 
     if (selectedConversation) {
       phoneNumber = selectedConversation.customerPhone;
       conversationId = selectedConversation.id;
+      platform = selectedConversation.platform;
     } else if (showNewConversation && newPhoneNumber) {
       phoneNumber = newPhoneNumber;
     } else {
@@ -211,7 +247,7 @@ export default function MessagingPage() {
     try {
       let result;
       
-      if (selectedPlatform === 'sms') {
+      if (platform === 'sms') {
         result = await sendSMSAction({ partnerId, to: phoneNumber, message: currentMessage.trim(), conversationId });
       } else {
         result = await sendWhatsAppMessageAction({ partnerId, to: phoneNumber, message: currentMessage.trim(), conversationId });
@@ -230,7 +266,7 @@ export default function MessagingPage() {
       }
     } catch (error: any) {
       console.error('Error sending message:', error);
-      toast({ variant: 'destructive', title: 'Error', description: `Failed to send ${selectedPlatform === 'sms' ? 'SMS' : 'WhatsApp message'}` });
+      toast({ variant: 'destructive', title: 'Error', description: `Failed to send ${platform === 'sms' ? 'SMS' : 'WhatsApp message'}` });
       setMessageInput(currentMessage);
     } finally {
       setIsSending(false);
@@ -245,7 +281,6 @@ export default function MessagingPage() {
   };
 
   const filteredConversations = conversations
-    .filter(conv => conv.platform === selectedPlatform)
     .filter(conv =>
       conv.title?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       conv.customerPhone?.includes(searchTerm)
@@ -426,28 +461,14 @@ export default function MessagingPage() {
       <div className="flex-1 flex overflow-hidden">
         <div className="w-80 bg-white dark:bg-gray-800 border-r flex flex-col">
           <div className="p-4 space-y-3">
-            <Tabs value={selectedPlatform} onValueChange={(value) => setSelectedPlatform(value as Platform)}>
-              <TabsList className="grid w-full grid-cols-2">
-                <TabsTrigger value="whatsapp" className="flex items-center gap-2"><WhatsAppIcon className="w-4 h-4" />WhatsApp</TabsTrigger>
-                <TabsTrigger value="sms" className="flex items-center gap-2"><Phone className="w-4 h-4" />SMS</TabsTrigger>
-              </TabsList>
-            </Tabs>
             <div className="relative">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
               <Input placeholder="Search conversations..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="pl-9" />
             </div>
-            {selectedPlatform === 'whatsapp' && (
-              <Alert className="bg-blue-50 border-blue-200">
-                <Info className="h-4 w-4 text-blue-600" />
-                <AlertDescription className="text-xs text-blue-800">
-                  New conversations must start with an approved WhatsApp template.
-                </AlertDescription>
-              </Alert>
-            )}
           </div>
           <ScrollArea className="flex-1">
             {isLoadingConversations ? <div className="flex items-center justify-center p-8"><Loader2 className="w-6 h-6 animate-spin" /></div>
-              : filteredConversations.length === 0 ? <div className="p-8 text-center text-muted-foreground"><MessageSquare className="w-12 h-12 mx-auto mb-3 opacity-50" /><p>No {selectedPlatform} conversations</p></div>
+              : filteredConversations.length === 0 ? <div className="p-8 text-center text-muted-foreground"><MessageSquare className="w-12 h-12 mx-auto mb-3 opacity-50" /><p>No conversations</p></div>
               : <div className="divide-y">{filteredConversations.map((conversation) => (
                   <div key={conversation.id} onClick={() => { setSelectedConversation(conversation); setShowNewConversation(false); }}
                     className={`p-4 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors ${selectedConversation?.id === conversation.id ? 'bg-blue-50 dark:bg-blue-900/20 border-l-4 border-blue-500' : ''}`}>
@@ -467,12 +488,9 @@ export default function MessagingPage() {
         <div className="flex-1 flex flex-col bg-gray-50 dark:bg-gray-900">
           {showNewConversation ? (
             <Card className="m-6">
-              <CardHeader><CardTitle>New {selectedPlatform === 'sms' ? 'SMS' : 'WhatsApp'} Conversation</CardTitle></CardHeader>
+              <CardHeader><CardTitle>New Conversation</CardTitle></CardHeader>
               <CardContent className="space-y-4">
                 <div><label className="text-sm font-medium mb-2 block">Phone Number (E.164 format)</label><Input placeholder="+1234567890" value={newPhoneNumber} onChange={(e) => setNewPhoneNumber(e.target.value)} /><p className="text-xs text-muted-foreground mt-1">Include country code (e.g., +1 for US)</p></div>
-                {selectedPlatform === 'whatsapp' && (
-                  <Alert className="bg-amber-50 border-amber-200"><Info className="h-4 w-4 text-amber-600" /><AlertDescription className="text-xs text-amber-800">First message must use an approved template.</AlertDescription></Alert>
-                )}
                 <div><label className="text-sm font-medium mb-2 block">Message</label><Textarea placeholder="Type your message..." value={messageInput} onChange={(e) => setMessageInput(e.target.value)} rows={4} /></div>
                 <div className="flex gap-2"><Button variant="outline" onClick={() => setShowNewConversation(false)}>Cancel</Button><Button onClick={handleSendMessage} disabled={isSending || !newPhoneNumber || !messageInput.trim()}>{isSending ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Sending...</> : <><Send className="w-4 h-4 mr-2" />Send</>}</Button></div>
               </CardContent>
