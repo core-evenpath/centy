@@ -9,6 +9,7 @@ import { saveTradingPickAction } from '@/actions/trading-pick-actions';
 import { Button } from '@/components/ui/button';
 import { sendSmsCampaignAction } from '@/actions/sms-actions';
 import { sendWhatsAppCampaignAction } from '@/actions/whatsapp-actions';
+import { generateStockPickImage } from '@/ai/flows/generate-stock-pick-image-flow';
 import type { Contact, ContactGroup } from '@/lib/types';
 import { db } from '@/lib/firebase';
 import { collection, query, onSnapshot } from 'firebase/firestore';
@@ -349,22 +350,6 @@ export default function StockRecommendationEditor({ initialData }: { initialData
     ];
   }, [contacts, contactGroups]);
 
-  const formatMessageForBroadcast = () => {
-    return `**${formData.action.toUpperCase()} Alert: ${formData.ticker}**
-    
-    **Company:** ${formData.companyName}
-    **Sector:** ${formData.sector}
-    
-    **Thesis:**
-    ${formData.thesis}
-    
-    **Price Target:** ${formData.priceTarget}
-    **Timeframe:** ${formData.timeframe}
-    
-    *Disclaimer: This is not financial advice. Do your own research.*
-    `;
-  }
-
   const handleSendBroadcast = async () => {
     if (!partnerId || selectedRecipients.length === 0) {
       toast({
@@ -374,30 +359,58 @@ export default function StockRecommendationEditor({ initialData }: { initialData
       });
       return;
     }
+  
     setIsSending(true);
     try {
-      const message = formatMessageForBroadcast();
+      toast({ title: 'Generating Broadcast Image', description: 'Please wait, this may take a moment...' });
+      
+      // 1. Generate the image
+      const imageResult = await generateStockPickImage({
+        ticker: formData.ticker,
+        companyName: formData.companyName,
+        sector: formData.sector,
+        action: formData.action,
+        priceTarget: formData.priceTarget,
+        timeframe: formData.timeframe,
+        riskLevel: formData.riskLevel,
+        thesis: formData.thesis.split('\n').filter(line => line.trim() !== '').map(line => line.replace('•','').trim()).slice(0,2),
+      });
+
+      if (!imageResult.imageUrl) {
+        throw new Error('Failed to generate broadcast image.');
+      }
+
+      toast({ title: 'Image Generated', description: 'Sending broadcast...' });
+  
+      // 2. Format a simple text message as a fallback/summary
+      const textMessage = `${formData.ticker} Alert: ${formData.action.toUpperCase()}
+Target: ${formData.priceTarget}, Risk: ${formData.riskLevel.toUpperCase()}
+Read our full thesis in the app.`;
+  
+      // 3. Prepare payload for the campaign action
       const campaignPayload = {
         partnerId,
-        message,
+        message: textMessage,
         recipients: selectedRecipients.map(r => ({
           id: r.id,
           name: r.name,
           type: r.contactCount !== undefined ? 'group' : 'contact'
         })),
+        mediaUrl: imageResult.imageUrl, // Include the generated image URL
       };
-
+  
+      // 4. Call the appropriate sending action based on platform
       let result;
       if (platform === 'whatsapp') {
         result = await sendWhatsAppCampaignAction(campaignPayload);
       } else {
-        result = await sendSmsCampaignAction(campaignPayload);
+        result = await sendSmsCampaignAction(campaignPayload as any); // Assuming similar structure
       }
-
+  
       if (result.success) {
-        toast({ title: 'Broadcast Sent', description: result.message });
+        toast({ title: 'Broadcast Sent Successfully', description: result.message });
       } else {
-        throw new Error(result.message);
+        throw new Error(result.message || `Failed to send ${platform} broadcast.`);
       }
     } catch (error: any) {
       toast({
@@ -409,6 +422,7 @@ export default function StockRecommendationEditor({ initialData }: { initialData
       setIsSending(false);
     }
   };
+
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 p-8">

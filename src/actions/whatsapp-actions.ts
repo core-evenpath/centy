@@ -72,6 +72,7 @@ export async function sendWhatsAppMessageAction(input: SendWhatsAppMessageInput)
     // Store message in Firestore
     const messageRef = db.collection('whatsappMessages').doc();
     const messageData: Partial<WhatsAppMessage> = {
+      id: messageRef.id,
       conversationId,
       senderId: input.partnerId,
       type: input.mediaUrl ? 'image' : 'text',
@@ -85,6 +86,7 @@ export async function sendWhatsAppMessageAction(input: SendWhatsAppMessageInput)
         from: twilioResponse.from,
         errorCode: twilioResponse.errorCode || null,
         errorMessage: twilioResponse.errorMessage || null,
+        numMedia: input.mediaUrl ? 1 : 0,
       },
       isEdited: false,
       createdAt: FieldValue.serverTimestamp(),
@@ -101,7 +103,6 @@ export async function sendWhatsAppMessageAction(input: SendWhatsAppMessageInput)
         mimeType: 'image/png', // Assuming png for AI generated
       }];
       if (messageData.whatsappMetadata) {
-        messageData.whatsappMetadata.numMedia = 1;
         messageData.whatsappMetadata.mediaUrls = [input.mediaUrl];
       }
     }

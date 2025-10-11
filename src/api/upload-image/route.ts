@@ -1,0 +1,79 @@
+// src/api/upload-image/route.ts
+import { NextRequest, NextResponse } from 'next/server';
+import { adminAuth, db } from '@/lib/firebase-admin';
+import * as admin from 'firebase-admin';
+import { v4 as uuidv4 } from 'uuid';
+
+// Ensure storage is initialized with the app
+let storage: admin.storage.Storage;
+try {
+    storage = admin.storage();
+} catch (e: any) {
+    console.error("Failed to initialize Firebase Storage:", e.message);
+}
+
+export async function POST(request: NextRequest) {
+    if (!storage) {
+        console.error("Firebase Storage is not configured on the server. Check firebase-admin.ts initialization.");
+        return NextResponse.json({ error: 'Firebase Storage is not configured on the server.' }, { status: 500 });
+    }
+  
+    try {
+        const { image, partnerId } = await request.json();
+
+        if (!image || !image.startsWith('data:image')) {
+            return NextResponse.json({ error: 'Valid image data URI is required.' }, { status: 400 });
+        }
+        if (!partnerId) {
+            return NextResponse.json({ error: 'Partner ID is required for upload.' }, { status: 400 });
+        }
+
+        const mimeTypeMatch = image.match(/data:(image\/[^;]+);/);
+        if (!mimeTypeMatch || !mimeTypeMatch[1]) {
+            return NextResponse.json({ error: 'Could not determine image MIME type.' }, { status: 400 });
+        }
+        const mimeType = mimeTypeMatch[1];
+        
+        const base64Data = image.split(';base64,').pop();
+        if (!base64Data) {
+            return NextResponse.json({ error: 'Invalid base64 image data.' }, { status: 400 });
+        }
+
+        const buffer = Buffer.from(base64Data, 'base64');
+        const fileExtension = mimeType.split('/')[1] || 'png';
+        const fileName = `partner-uploads/${partnerId}/broadcasts/${uuidv4()}.${fileExtension}`;
+        
+        const bucketName = process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET;
+        if (!bucketName) {
+            throw new Error("Firebase Storage bucket name is not configured.");
+        }
+    
+        const bucket = storage.bucket(bucketName);
+        const file = bucket.file(fileName);
+
+        await file.save(buffer, {
+            metadata: {
+                contentType: mimeType,
+                cacheControl: 'public, max-age=31536000', // Cache for 1 year
+            },
+        });
+        
+        // Make the file publicly accessible
+        await file.makePublic();
+
+        const publicUrl = file.publicUrl();
+    
+        console.log(`AI Image uploaded to Storage. Public URL: ${publicUrl}`);
+
+        return NextResponse.json({
+            imageUrl: publicUrl
+        });
+
+    } catch (error: any) {
+        console.error("Error in /api/upload-image:", error);
+        return NextResponse.json(
+            { error: error.message || 'Failed to generate and store image' },
+            { status: 500 }
+        );
+    }
+}
