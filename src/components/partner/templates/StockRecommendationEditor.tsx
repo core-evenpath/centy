@@ -354,28 +354,32 @@ export default function StockRecommendationEditor({ initialData }: { initialData
   }, [contacts, contactGroups]);
 
   const handleGenerateImage = async () => {
-    if (!formData.ticker || !formData.companyName) return;
-
+    if (!formData.ticker) return;
+  
     setIsGeneratingImage(true);
     setGeneratedImageUrl(null);
-    toast({ title: 'Generating Image...', description: 'Please wait, this may take a moment...' });
-
+    toast({ title: 'Generating Image...', description: 'Please wait...' });
+  
     try {
-      const response = await fetch('/api/generate-image', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...formData }),
-      });
+      const response = await fetch(`/api/generate-stock-card-image?${new URLSearchParams({
+        ticker: formData.ticker,
+        companyName: formData.companyName,
+        action: formData.action,
+        priceTarget: formData.priceTarget,
+        currentPrice: formData.currentPrice,
+        riskLevel: formData.riskLevel,
+        timeframe: formData.timeframe,
+      })}`);
       
-      const data = await response.json();
-
-      if (!response.ok || !data.imageUrl) {
-        throw new Error(data.error || 'Image generation failed to return a URL.');
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to generate image from API.');
       }
-
+  
+      const data = await response.json();
       setGeneratedImageUrl(data.imageUrl);
       toast({ title: 'Image Generated!', description: 'You can now send your broadcast.' });
-
+  
     } catch (error: any) {
       toast({ variant: 'destructive', title: 'Image Generation Failed', description: error.message, duration: 8000 });
     } finally {
@@ -396,7 +400,7 @@ export default function StockRecommendationEditor({ initialData }: { initialData
   
     setIsSending(true);
     try {
-      const textMessage = `${formData.ticker} Alert: ${formData.action.toUpperCase()} | Target: ${formData.priceTarget} | Risk: ${formData.riskLevel.toUpperCase()}`;
+      const textMessage = `📈 New Stock Pick: ${formData.ticker.toUpperCase()} (${formData.action.toUpperCase()})\nTarget: ${formData.priceTarget}\nRisk: ${formData.riskLevel.toUpperCase()}`;
   
       const campaignPayload = {
         partnerId,
@@ -1171,30 +1175,21 @@ export default function StockRecommendationEditor({ initialData }: { initialData
                     <p className="text-gray-600">Review your recommendation before sending to clients</p>
                   </div>
                 </div>
-
-                {/* Broadcast Preview */}
+                
                 <div className="mb-6">
                     <label className="block text-sm font-semibold text-gray-900 mb-2">
-                        Broadcast Preview
+                        Generated Image Preview
                     </label>
                     <div className="p-4 border-2 border-dashed border-gray-300 rounded-xl text-center relative">
                         {isGeneratingImage && (
                             <div className="absolute inset-0 bg-white/80 flex flex-col items-center justify-center z-10 rounded-xl">
                                 <Loader2 className="w-8 h-8 animate-spin text-gray-500" />
-                                <p className="text-sm text-gray-600 mt-2">Generating background...</p>
+                                <p className="text-sm text-gray-600 mt-2">Generating image...</p>
                             </div>
                         )}
                         {generatedImageUrl ? (
-                            <div className="relative w-full aspect-video bg-gray-800 rounded-lg overflow-hidden text-white p-8 flex flex-col justify-between">
-                                <Image src={generatedImageUrl} alt="Generated background" layout="fill" objectFit="cover" className="opacity-30" />
-                                <div className="relative z-10 text-left">
-                                    <h2 className="text-4xl font-bold">{formData.ticker}</h2>
-                                    <p className="text-lg opacity-80">{formData.companyName}</p>
-                                </div>
-                                <div className="relative z-10 text-left">
-                                    <p className="text-lg font-semibold">{formData.action.toUpperCase()} | Target: {formData.priceTarget}</p>
-                                    <p className="opacity-80 line-clamp-2">{formData.thesis.split('\n')[0]}</p>
-                                </div>
+                            <div className="relative w-full aspect-[16/9] bg-gray-100 rounded-lg overflow-hidden">
+                                <Image src={generatedImageUrl} alt="Generated stock recommendation card" layout="fill" objectFit="contain" />
                             </div>
                         ) : (
                             <div className="p-8">
@@ -1206,8 +1201,7 @@ export default function StockRecommendationEditor({ initialData }: { initialData
                         )}
                     </div>
                 </div>
-                
-                {/* Recipients and Actions */}
+
                 <div className="bg-gray-50 rounded-xl p-6 border border-gray-200">
                     <h4 className="font-semibold text-gray-900 mb-3 flex items-center gap-2">
                         <Send className="w-5 h-5 text-blue-600" />
