@@ -1,0 +1,116 @@
+// src/app/partner/(protected)/broadcast/page.tsx
+"use client";
+
+import React, { useState, useEffect } from 'react';
+import { Button } from '../../../../components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../../../../components/ui/card';
+import { Plus, FileText, ArrowLeft, Radio } from 'lucide-react';
+import PartnerHeader from '../../../../components/partner/PartnerHeader';
+import StockRecommendationEditor from '@/components/partner/templates/StockRecommendationEditor';
+import type { TradingPick } from '@/lib/types';
+import { useMultiWorkspaceAuth } from '@/hooks/use-multi-workspace-auth';
+import { db } from '@/lib/firebase';
+import { collection, query, where, onSnapshot } from 'firebase/firestore';
+
+export default function BroadcastPage() {
+  const [view, setView] = useState('list'); // 'list' or 'editor'
+  const [selectedTemplate, setSelectedTemplate] = useState<any | null>(null);
+  const [templates, setTemplates] = useState<TradingPick[]>([]);
+  const { currentWorkspace } = useMultiWorkspaceAuth();
+
+  useEffect(() => {
+    if (!currentWorkspace?.partnerId) return;
+
+    const templatesRef = collection(db, `partners/${currentWorkspace.partnerId}/tradingPicks`);
+    const q = query(templatesRef);
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const fetchedTemplates = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      })) as TradingPick[];
+      setTemplates(fetchedTemplates);
+    });
+
+    return () => unsubscribe();
+  }, [currentWorkspace?.partnerId]);
+
+
+  const handleSelectTemplate = (template: any) => {
+    setSelectedTemplate(template);
+    setView('editor');
+  };
+
+  const handleBackToList = () => {
+    setView('list');
+    setSelectedTemplate(null);
+  };
+  
+  const handleCreateNew = () => {
+    setSelectedTemplate(null); // Ensure we're creating a new one
+    setView('editor');
+  };
+
+  if (view === 'editor') {
+    return (
+      <div className="flex-1 flex flex-col h-full">
+        <header className="bg-card border-b p-4">
+          <Button variant="outline" onClick={handleBackToList}>
+            <ArrowLeft className="w-4 h-4 mr-2" />
+            Back to Ideas
+          </Button>
+        </header>
+        <div className="flex-1 overflow-y-auto">
+          <StockRecommendationEditor initialData={selectedTemplate} />
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <>
+      <PartnerHeader
+        title="Broadcast from an Idea"
+        subtitle="Select a template to start creating your broadcast."
+        actions={<Button onClick={handleCreateNew}><Plus className="w-4 h-4 mr-2" />New Idea</Button>}
+      />
+      <main className="flex-1 overflow-y-auto p-6">
+        <Card>
+          <CardHeader>
+            <CardTitle>My Ideas</CardTitle>
+            <CardDescription>
+              A list of your saved stock recommendations and market updates.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {templates.map(template => (
+                <div 
+                  key={template.id} 
+                  className="p-4 border rounded-lg hover:shadow-md transition-shadow cursor-pointer"
+                  onClick={() => handleSelectTemplate(template)}
+                >
+                    <div className="flex items-center gap-3 mb-2">
+                        <div className="p-2 bg-blue-100 rounded">
+                           <FileText className="w-4 h-4 text-blue-600" />
+                        </div>
+                        <h3 className="font-semibold flex-1 truncate">{template.ticker}: {template.companyName}</h3>
+                    </div>
+                  <p className="text-sm text-muted-foreground line-clamp-2">{template.thesis}</p>
+                  <p className="text-xs text-muted-foreground mt-2">{template.sector}</p>
+                </div>
+              ))}
+              <div 
+                className="p-4 border-2 border-dashed rounded-lg flex flex-col items-center justify-center hover:border-primary hover:bg-secondary/50 cursor-pointer transition-colors"
+                onClick={handleCreateNew}
+              >
+                  <Plus className="w-8 h-8 text-muted-foreground mb-2" />
+                  <p className="text-sm font-medium">Create New Idea</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </main>
+    </>
+  );
+}

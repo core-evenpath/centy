@@ -10,6 +10,7 @@ import { CreateCampaignModal } from '@/components/partner/messaging/CreateCampai
 import { useMultiWorkspaceAuth } from '@/hooks/use-multi-workspace-auth';
 import type { Campaign } from '@/lib/types';
 import { Badge } from '@/components/ui/badge';
+import Link from 'next/link';
 
 const mockCampaigns: Partial<Campaign>[] = [
   { id: '1', name: 'Q3 Stock Pick: NVDA', status: 'sent', sentCount: 142, engagementRate: 89.3, revenueGenerated: 12450, sentAt: new Date('2024-07-28T10:00:00Z') },
@@ -47,10 +48,18 @@ export default function CampaignsPage() {
         subtitle="Manage and monitor your messaging campaigns."
         actions={
           currentWorkspace && (
-            <Button onClick={() => setShowCreateModal(true)}>
-              <Plus className="w-4 h-4 mr-2" />
-              New Campaign
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button asChild variant="outline">
+                <Link href="/partner/broadcast">
+                  <Radio className="w-4 h-4 mr-2" />
+                  Broadcast
+                </Link>
+              </Button>
+              <Button onClick={() => setShowCreateModal(true)}>
+                <Plus className="w-4 h-4 mr-2" />
+                New Campaign
+              </Button>
+            </div>
           )
         }
       />

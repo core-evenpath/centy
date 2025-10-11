@@ -17,7 +17,8 @@ import {
   Layers,
   Send,
   Users,
-  FileText
+  FileText,
+  Radio,
 } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
@@ -111,6 +112,13 @@ export default function UnifiedPartnerSidebar() {
       href: '/partner/campaigns',
       badge: null,
       description: 'SMS & WhatsApp Campaigns'
+    },
+    { 
+      icon: Radio, 
+      label: 'Broadcast', 
+      href: '/partner/broadcast',
+      badge: null,
+      description: 'Send out ideas'
     },
     { 
       icon: FileText, 
