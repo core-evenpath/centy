@@ -99,7 +99,7 @@ export default function HomePage() {
               </div>
               
               <h1 className="text-6xl md:text-7xl font-extrabold text-gray-900 mb-6 leading-tight">
-                Clone yourself.
+                Stop app-hopping. Start connecting.
               </h1>
               
               <p className="text-xl text-gray-600 mb-8 leading-relaxed">
