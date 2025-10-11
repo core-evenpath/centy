@@ -1,13 +1,11 @@
-
 // src/components/partner/templates/StockRecommendationEditor.tsx
 "use client";
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { ArrowRight, Send, Sparkles, Upload, FileText, MessageSquare, Brain, Plus, Check, ChevronDown, ChevronUp, AlertCircle, Info, Users, Lock, Database, TrendingUp, Calendar, Save, Loader2, Phone, User, X } from 'lucide-react';
 import { useMultiWorkspaceAuth } from '@/hooks/use-multi-workspace-auth';
 import { useToast } from '@/hooks/use-toast';
 import { saveTradingPickAction } from '@/actions/trading-pick-actions';
-import { generateStockPickImage } from '@/ai/flows/generate-stock-pick-image-flow';
 import { Button } from '@/components/ui/button';
 import { sendSmsCampaignAction } from '@/actions/sms-actions';
 import { sendWhatsAppCampaignAction } from '@/actions/whatsapp-actions';
@@ -355,36 +353,35 @@ export default function StockRecommendationEditor({ initialData }: { initialData
   }, [contacts, contactGroups]);
 
   const handleGenerateImage = async () => {
-    if (!formData.ticker) return;
+    if (!formData.sector) return;
 
     setIsGeneratingImage(true);
     setGeneratedImageUrl(null);
-    toast({ title: 'Generating Broadcast Image', description: 'Please wait, this may take a moment...' });
+    toast({ title: 'Generating Background Image', description: 'Please wait, this may take a moment...' });
 
     try {
-        const result = await generateStockPickImage({
-            ticker: formData.ticker,
-            companyName: formData.companyName,
-            sector: formData.sector,
-            action: formData.action as 'buy' | 'sell' | 'hold',
-            priceTarget: formData.priceTarget,
-            timeframe: formData.timeframe,
-            riskLevel: formData.riskLevel,
-            thesis: formData.thesis.split('\n').filter(line => line.trim() !== '').map(line => line.replace('•', '').trim()).slice(0, 2),
-        });
+      const response = await fetch('/api/generate-image', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prompt: `A professional, abstract background image for a stock market report about the ${formData.sector} sector.` }),
+      });
+      
+      const data = await response.json();
 
-        if (result.imageUrl) {
-            setGeneratedImageUrl(result.imageUrl);
-            toast({ title: 'Image Generated!', description: 'You can now send your broadcast.' });
-        } else {
-            throw new Error('Image generation failed to return a URL.');
-        }
+      if (!response.ok || !data.url) {
+        throw new Error(data.error || 'Image generation failed');
+      }
+
+      setGeneratedImageUrl(data.url);
+      toast({ title: 'Image Generated!', description: 'You can now send your broadcast.' });
+
     } catch (error: any) {
-        toast({ variant: 'destructive', title: 'Image Generation Failed', description: error.message, duration: 8000 });
+      toast({ variant: 'destructive', title: 'Image Generation Failed', description: error.message, duration: 8000 });
     } finally {
-        setIsGeneratingImage(false);
+      setIsGeneratingImage(false);
     }
   };
+
 
   const handleSendBroadcast = async () => {
     if (!partnerId || selectedRecipients.length === 0 || !generatedImageUrl) {
@@ -400,6 +397,7 @@ export default function StockRecommendationEditor({ initialData }: { initialData
     try {
       const textMessage = `${formData.ticker} Alert: ${formData.action.toUpperCase()} | Target: ${formData.priceTarget} | Risk: ${formData.riskLevel.toUpperCase()}`;
   
+      // NOTE: We are now sending the generated image URL, not generating a new one.
       const campaignPayload = {
         partnerId,
         message: textMessage,
@@ -413,7 +411,7 @@ export default function StockRecommendationEditor({ initialData }: { initialData
   
       let result;
       if (platform === 'whatsapp') {
-        result = await sendWhatsAppCampaignAction(campaignPayload);
+        result = await sendWhatsAppCampaignAction(campaignPayload as any);
       } else {
         result = await sendSmsCampaignAction(campaignPayload as any);
       }
@@ -434,6 +432,7 @@ export default function StockRecommendationEditor({ initialData }: { initialData
       setIsSending(false);
     }
   };
+
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 p-8">
@@ -1178,14 +1177,25 @@ export default function StockRecommendationEditor({ initialData }: { initialData
                     <label className="block text-sm font-semibold text-gray-900 mb-2">
                         Broadcast Preview
                     </label>
-                    <div className="p-4 border-2 border-dashed border-gray-300 rounded-xl text-center">
-                        {isGeneratingImage ? (
-                            <div className="p-8">
-                                <Loader2 className="w-8 h-8 animate-spin text-gray-500 mx-auto" />
-                                <p className="text-sm text-gray-600 mt-2">Generating image...</p>
+                    <div className="p-4 border-2 border-dashed border-gray-300 rounded-xl text-center relative">
+                        {isGeneratingImage && (
+                            <div className="absolute inset-0 bg-white/80 flex flex-col items-center justify-center z-10">
+                                <Loader2 className="w-8 h-8 animate-spin text-gray-500" />
+                                <p className="text-sm text-gray-600 mt-2">Generating background...</p>
                             </div>
-                        ) : generatedImageUrl ? (
-                            <Image src={generatedImageUrl} alt="Generated stock pick" width={512} height={512} className="rounded-lg mx-auto" />
+                        )}
+                        {generatedImageUrl ? (
+                            <div className="relative w-full aspect-video bg-gray-800 rounded-lg overflow-hidden text-white p-8 flex flex-col justify-between">
+                                <Image src={generatedImageUrl} alt="Generated background" layout="fill" objectFit="cover" className="opacity-30" />
+                                <div className="relative z-10 text-left">
+                                    <h2 className="text-4xl font-bold">{formData.ticker}</h2>
+                                    <p className="text-lg opacity-80">{formData.companyName}</p>
+                                </div>
+                                <div className="relative z-10 text-left">
+                                    <p className="text-lg font-semibold">{formData.action.toUpperCase()} | Target: {formData.priceTarget}</p>
+                                    <p className="opacity-80">{formData.thesis.split('\n')[0]}</p>
+                                </div>
+                            </div>
                         ) : (
                             <div className="p-8">
                                 <Sparkles className="w-8 h-8 text-gray-400 mx-auto mb-2" />
