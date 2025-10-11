@@ -205,12 +205,14 @@ export default function MessagingPage() {
         id: doc.id, ...doc.data(), platform: selectedConversation.platform
       } as UnifiedMessage));
       
-      if (newMessages.length > messages.length && messages.length > 0) {
+      // Only play sound for new incoming messages
+      if (newMessages.length > messages.length) {
         const lastNewMessage = newMessages[newMessages.length - 1];
         if (lastNewMessage.direction === 'inbound') {
             audioRef.current?.play().catch(e => console.log("Audio play failed:", e));
         }
       }
+      
       setMessages(newMessages);
       setIsLoadingMessages(false);
     });
