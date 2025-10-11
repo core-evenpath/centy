@@ -107,13 +107,6 @@ export default function UnifiedPartnerSidebar() {
       description: 'Direct & Group Chat'
     },
     { 
-      icon: Send, 
-      label: 'Campaigns', 
-      href: '/partner/campaigns',
-      badge: null,
-      description: 'SMS & WhatsApp Campaigns'
-    },
-    { 
       icon: Radio, 
       label: 'Broadcast', 
       href: '/partner/broadcast',
