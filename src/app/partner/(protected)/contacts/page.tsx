@@ -20,6 +20,7 @@ import type { Contact } from '@/lib/types';
 import PartnerHeader from '../../../../components/partner/PartnerHeader';
 import { Users, Search, Plus, MoreVertical, Edit, Trash2, Loader2, AlertCircle } from 'lucide-react';
 import sampleContacts from '@/lib/contacts.json';
+import AddContactModal from '@/components/partner/contacts/AddContactModal';
 
 export default function ContactsPage() {
   const { currentWorkspace } = useMultiWorkspaceAuth();
@@ -28,6 +29,7 @@ export default function ContactsPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [firestoreError, setFirestoreError] = useState<string | null>(null);
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const seedHasBeenAttempted = useRef(false);
 
   const partnerId = currentWorkspace?.partnerId;
@@ -113,7 +115,7 @@ export default function ContactsPage() {
       <PartnerHeader
         title="Contacts"
         subtitle="Manage your contact list and groups."
-        actions={<Button><Plus className="w-4 h-4 mr-2" />Add Contact</Button>}
+        actions={<Button onClick={() => setIsAddModalOpen(true)}><Plus className="w-4 h-4 mr-2" />Add Contact</Button>}
       />
       <main className="flex-1 overflow-y-auto p-6">
         <Card>
@@ -220,6 +222,14 @@ export default function ContactsPage() {
           </CardContent>
         </Card>
       </main>
+
+      {partnerId && (
+        <AddContactModal
+          isOpen={isAddModalOpen}
+          onClose={() => setIsAddModalOpen(false)}
+          partnerId={partnerId}
+        />
+      )}
     </>
   );
 }
