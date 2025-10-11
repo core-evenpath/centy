@@ -365,10 +365,6 @@ export default function StockRecommendationEditor({ initialData }: { initialData
         ticker: formData.ticker,
         companyName: formData.companyName,
         action: formData.action,
-        priceTarget: formData.priceTarget,
-        currentPrice: formData.currentPrice,
-        riskLevel: formData.riskLevel,
-        timeframe: formData.timeframe,
       })}`);
       
       if (!response.ok) {
@@ -386,6 +382,13 @@ export default function StockRecommendationEditor({ initialData }: { initialData
       setIsGeneratingImage(false);
     }
   };
+  
+  useEffect(() => {
+    if (allStepsComplete && !generatedImageUrl && !isGeneratingImage) {
+      handleGenerateImage();
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [allStepsComplete]);
 
 
   const handleSendBroadcast = async () => {
@@ -400,7 +403,7 @@ export default function StockRecommendationEditor({ initialData }: { initialData
   
     setIsSending(true);
     try {
-      const textMessage = `📈 New Stock Pick: ${formData.ticker.toUpperCase()} (${formData.action.toUpperCase()})\nTarget: ${formData.priceTarget}\nRisk: ${formData.riskLevel.toUpperCase()}`;
+      const textMessage = `📈 New Stock Pick: ${formData.ticker.toUpperCase()} (${formData.action.toUpperCase()})\n\nThesis: ${formData.thesis}\n\nTarget: ${formData.priceTarget}\nRisk: ${formData.riskLevel.toUpperCase()}`;
   
       const campaignPayload = {
         partnerId,
@@ -417,7 +420,7 @@ export default function StockRecommendationEditor({ initialData }: { initialData
       if (platform === 'whatsapp') {
         result = await sendWhatsAppCampaignAction(campaignPayload as any);
       } else {
-        result = await sendSmsCampaignAction(campaignPayload as any);
+        result = await sendSmsCampaignAction(campaignPayload);
       }
   
       if (result.success) {
@@ -1188,14 +1191,14 @@ export default function StockRecommendationEditor({ initialData }: { initialData
                             </div>
                         )}
                         {generatedImageUrl ? (
-                            <div className="relative w-full aspect-[16/9] bg-gray-100 rounded-lg overflow-hidden">
+                            <div className="relative w-full aspect-video bg-gray-100 rounded-lg overflow-hidden">
                                 <Image src={generatedImageUrl} alt="Generated stock recommendation card" layout="fill" objectFit="contain" />
                             </div>
                         ) : (
                             <div className="p-8">
                                 <Sparkles className="w-8 h-8 text-gray-400 mx-auto mb-2" />
                                 <p className="text-sm text-gray-600">
-                                    Click "Generate Image" to create a visual for your broadcast.
+                                    Generating image automatically...
                                 </p>
                             </div>
                         )}
@@ -1285,15 +1288,6 @@ export default function StockRecommendationEditor({ initialData }: { initialData
                     </div>
 
                     <div className="flex gap-4">
-                      <Button
-                        onClick={handleGenerateImage}
-                        variant="outline"
-                        disabled={isGeneratingImage || isSending}
-                        className="flex-1"
-                      >
-                        {isGeneratingImage ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4 mr-2" />}
-                        {isGeneratingImage ? 'Generating...' : 'Generate Image'}
-                      </Button>
                       <Button
                         onClick={handleSendBroadcast}
                         disabled={isSending || !generatedImageUrl || selectedRecipients.length === 0}
