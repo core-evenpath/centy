@@ -1,3 +1,4 @@
+
 // src/app/partner/(protected)/templates/page.tsx
 "use client";
 
@@ -90,4 +91,6 @@ export default function TemplatesPage() {
           </CardContent>
         </Card>
       </main>
-    
+    </>
+  );
+}
