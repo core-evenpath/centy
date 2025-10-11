@@ -7,6 +7,7 @@ import { ArrowRight, Send, Sparkles, Upload, FileText, MessageSquare, Brain, Plu
 import { useMultiWorkspaceAuth } from '@/hooks/use-multi-workspace-auth';
 import { useToast } from '@/hooks/use-toast';
 import { saveTradingPickAction } from '@/actions/trading-pick-actions';
+import { generateStockPickImage } from '@/ai/flows/generate-stock-pick-image-flow';
 import { Button } from '@/components/ui/button';
 import { sendSmsCampaignAction } from '@/actions/sms-actions';
 import { sendWhatsAppCampaignAction } from '@/actions/whatsapp-actions';
@@ -355,40 +356,33 @@ export default function StockRecommendationEditor({ initialData }: { initialData
 
   const handleGenerateImage = async () => {
     if (!formData.ticker) return;
-    
+
     setIsGeneratingImage(true);
     setGeneratedImageUrl(null);
     toast({ title: 'Generating Broadcast Image', description: 'Please wait, this may take a moment...' });
 
-    const imagePrompt = `Generate a clean, modern UI card for a stock recommendation. The card should have a light blue border and a white background.
-- At the top left, show the stock ticker '${formData.ticker}' inside a solid blue rectangle with rounded corners.
-- To the right of the ticker, display the company name '${formData.companyName}' in a large, bold font, and underneath it, the sector '${formData.sector}' in a smaller, lighter font.
-- Below this, create two columns of key-value pairs.
-  - Left column: "Action: ${formData.action}" and "Timeframe: ${formData.timeframe}". The action value should be in a colored badge: green for 'buy', red for 'sell', and yellow for 'hold'.
-  - Right column: "Target: ${formData.priceTarget}" and "Risk: ${formData.riskLevel}".
-- Below the columns, add a horizontal separator line.
-- Below the line, list the following investment thesis points as bullet points:
-  ${formData.thesis.split('\n').filter(line => line.trim() !== '').map(line => line.replace('•','').trim()).slice(0,2).map(t => `- ${t}`).join('\n')}
-- The design should be clean, professional, and minimalist, with good typography and spacing, suitable for a financial services company. Do not include any extra text, logos (except for the ticker symbol styling), or embellishments not described here.`;
-
     try {
-      const response = await fetch('/api/generate-image', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prompt: imagePrompt }),
-      });
+        const result = await generateStockPickImage({
+            ticker: formData.ticker,
+            companyName: formData.companyName,
+            sector: formData.sector,
+            action: formData.action as 'buy' | 'sell' | 'hold',
+            priceTarget: formData.priceTarget,
+            timeframe: formData.timeframe,
+            riskLevel: formData.riskLevel,
+            thesis: formData.thesis.split('\n').filter(line => line.trim() !== '').map(line => line.replace('•', '').trim()).slice(0, 2),
+        });
 
-      const data = await response.json();
-      if (!response.ok || data.error) {
-        throw new Error(data.error || 'Failed to generate image.');
-      }
-
-      setGeneratedImageUrl(data.imageUrl);
-      toast({ title: 'Image Generated!', description: 'You can now send your broadcast.' });
+        if (result.imageUrl) {
+            setGeneratedImageUrl(result.imageUrl);
+            toast({ title: 'Image Generated!', description: 'You can now send your broadcast.' });
+        } else {
+            throw new Error('Image generation failed to return a URL.');
+        }
     } catch (error: any) {
-      toast({ variant: 'destructive', title: 'Image Generation Failed', description: error.message });
+        toast({ variant: 'destructive', title: 'Image Generation Failed', description: error.message, duration: 8000 });
     } finally {
-      setIsGeneratingImage(false);
+        setIsGeneratingImage(false);
     }
   };
 

@@ -4,7 +4,6 @@
 import { ai } from '@/ai/genkit';
 import { googleAI } from '@genkit-ai/google-genai';
 import { z } from 'genkit';
-import { generateImage } from 'genkit/tools';
 
 const StockPickImageInputSchema = z.object({
   ticker: z.string().describe('The stock ticker symbol, e.g., NVDA'),
