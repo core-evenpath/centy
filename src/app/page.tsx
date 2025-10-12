@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { useState, useEffect } from 'react';
@@ -106,17 +107,19 @@ export default function HomePage() {
                 Stop juggling 10 tools. Centy brings campaigns, team, and analytics into one happy place.
               </p>
               
-              <div className="flex flex-col sm:flex-row gap-4">
-                <Link 
-                  href="/partner/signup"
-                  className="group px-8 py-4 bg-gradient-to-r from-orange-500 to-pink-500 text-white font-bold rounded-full hover:shadow-xl hover:scale-105 transition-all inline-flex items-center justify-center gap-2"
-                >
-                  Start Free Trial
-                  <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
-                </Link>
-                <button className="px-8 py-4 bg-white border-2 border-gray-200 text-gray-900 font-bold rounded-full hover:border-orange-300 hover:shadow-lg transition-all">
-                  See How It Works
-                </button>
+              <div className="flex flex-col sm:flex-row gap-4 items-center">
+                <div className="flex flex-col items-start">
+                  <Link 
+                    href="/partner/login"
+                    className="group px-8 py-4 bg-gradient-to-r from-orange-500 to-pink-500 text-white font-bold rounded-full hover:shadow-xl hover:scale-105 transition-all inline-flex items-center justify-center gap-2"
+                  >
+                    🎯 Access Your Invite
+                    <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+                  </Link>
+                  <p className="text-sm text-gray-600 mt-3 ml-2">
+                    ✨ Currently available to invited partners only.
+                  </p>
+                </div>
               </div>
             </div>
 
