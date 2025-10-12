@@ -4,7 +4,7 @@
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { ArrowRight, Rocket, Zap, Users, BarChart3, Target, Heart } from 'lucide-react';
+import { ArrowRight, Rocket, Zap, Users, BarChart3, Target, Heart, Check } from 'lucide-react';
 
 export default function HomePage() {
   const [hoveredFeature, setHoveredFeature] = useState<number | null>(null);
@@ -95,8 +95,7 @@ export default function HomePage() {
             {/* Left side */}
             <div>
               <div className="inline-flex items-center gap-2 px-4 py-2 bg-white rounded-full shadow-sm border border-orange-200 mb-6">
-                <Rocket className="w-4 h-4 text-orange-500" />
-                <span className="text-sm font-medium text-gray-700">Obviosly AI Powered</span>
+                <span className="text-sm font-medium text-gray-700">✨ Currently available to invited partners only.</span>
               </div>
               
               <h1 className="text-6xl md:text-7xl font-extrabold text-gray-900 mb-6 leading-tight">
@@ -112,11 +111,11 @@ export default function HomePage() {
                   href="/early-access"
                   className="group px-8 py-4 bg-gradient-to-r from-orange-500 to-pink-500 text-white font-bold rounded-full hover:shadow-xl hover:scale-105 transition-all inline-flex items-center justify-center gap-2"
                 >
-                  🎯 Get Early Access
+                  🎯 Learn More
                 </Link>
                  <div className="pt-2">
                   <p className="text-sm text-muted-foreground">
-                   ✨ Have an invite code? <Link href="/partner/login" className="text-primary hover:underline">Login here</Link>
+                   ⚡ Have an invite code? <Link href="/partner/login" className="text-primary hover:underline">Login here</Link>
                   </p>
                 </div>
               </div>
@@ -136,14 +135,6 @@ export default function HomePage() {
                     className="w-full h-auto rounded-2xl shadow-2xl"
                   />
                 </div>
-              </div>
-              
-              {/* Floating badges */}
-              <div className="absolute -top-4 -left-4 bg-gradient-to-br from-blue-500 to-cyan-400 text-white px-4 py-2 rounded-full shadow-lg font-bold text-sm animate-bounce-slow">
-                🚀 Fast Setup
-              </div>
-              <div className="absolute -bottom-4 -right-4 bg-gradient-to-br from-purple-500 to-pink-400 text-white px-4 py-2 rounded-full shadow-lg font-bold text-sm animate-bounce-slow" style={{ animationDelay: '0.5s' }}>
-                ✨ AI Powered
               </div>
             </div>
           </div>
@@ -210,7 +201,7 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* New "Join Our Select Partners" section */}
+      {/* "Join Our Select Partners" section */}
       <section className="py-24 px-6">
         <div className="max-w-4xl mx-auto text-center">
           <div className="bg-gradient-to-br from-blue-500 to-indigo-600 rounded-3xl p-12 md:p-16 text-white shadow-2xl">
@@ -246,6 +237,53 @@ export default function HomePage() {
                   Request Invite
                 </button>
               </form>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Added Old Hero Section */}
+      <section className="bg-white py-20 px-6">
+        <div className="max-w-7xl mx-auto">
+          <div className="grid md:grid-cols-2 gap-16 items-center">
+            <div className="order-2 md:order-1">
+              <Image
+                src="/char-1.png"
+                alt="AI Powered Mascot"
+                width={600}
+                height={600}
+                className="w-full h-auto"
+                data-ai-hint="mascot character"
+              />
+            </div>
+            <div className="order-1 md:order-2">
+              <h2 className="text-4xl lg:text-5xl font-extrabold text-gray-900 mb-6">
+                Meet your new AI sidekick
+              </h2>
+              <p className="text-lg text-gray-600 mb-8">
+                Centy's AI doesn't just write copy. It learns your brand, understands your audience, and helps you make smarter marketing decisions, faster.
+              </p>
+              <ul className="space-y-4 text-gray-700 mb-8">
+                <li className="flex items-center gap-3">
+                  <Check className="w-5 h-5 text-green-500 flex-shrink-0" />
+                  <span>Generate entire campaigns from a single prompt.</span>
+                </li>
+                <li className="flex items-center gap-3">
+                  <Check className="w-5 h-5 text-green-500 flex-shrink-0" />
+                  <span>Get data-driven suggestions on what to do next.</span>
+                </li>
+                <li className="flex items-center gap-3">
+                  <Check className="w-5 h-5 text-green-500 flex-shrink-0" />
+                  <span>Automate routine tasks and focus on strategy.</span>
+                </li>
+              </ul>
+              <Link
+                href="/early-access"
+                className="text-blue-600 font-semibold hover:text-blue-700 inline-flex items-center gap-2"
+              >
+                Learn more about our AI
+                <ArrowRight className="w-4 h-4" />
+              </Link>
             </div>
           </div>
         </div>
