@@ -107,18 +107,21 @@ export default function HomePage() {
                 Stop juggling 10 tools. Centy brings campaigns, team, and analytics into one happy place.
               </p>
               
-              <div className="flex flex-col sm:flex-row gap-4 items-center">
-                <div className="flex flex-col items-start">
+              <div className="flex flex-col sm:flex-row gap-4 items-start">
+                <Link 
+                  href="#features"
+                  className="group px-8 py-4 bg-gradient-to-r from-orange-500 to-pink-500 text-white font-bold rounded-full hover:shadow-xl hover:scale-105 transition-all inline-flex items-center justify-center gap-2"
+                >
+                  🎯 Get Early Access
+                  <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+                </Link>
+                <div className="pt-2">
                   <Link 
                     href="/partner/login"
-                    className="group px-8 py-4 bg-gradient-to-r from-orange-500 to-pink-500 text-white font-bold rounded-full hover:shadow-xl hover:scale-105 transition-all inline-flex items-center justify-center gap-2"
+                    className="text-sm font-medium text-gray-600 hover:text-gray-900 transition-colors inline-flex items-center gap-2"
                   >
-                    🎯 Access Your Invite
-                    <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+                    ⚡ Have an invite code? <span className="underline">Login here</span>
                   </Link>
-                  <p className="text-sm text-gray-600 mt-3 ml-2">
-                    ✨ Currently available to invited partners only.
-                  </p>
                 </div>
               </div>
             </div>
@@ -218,18 +221,35 @@ export default function HomePage() {
             <h2 className="text-5xl font-extrabold mb-6">
               Join Our Select Partners
             </h2>
-            <p className="text-xl mb-10 opacity-90">
-              We're currently working with a select group of invited partners to perfect the Centy experience. 
-              Have an invitation code? Access your dashboard now.
+            <p className="text-xl mb-6 opacity-90">
+              We're currently working with a select group of invited partners to perfect the Centy experience. Have an invitation code? Access your dashboard now.
             </p>
-            <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
+            <div className="flex justify-center items-center mb-10">
               <Link
                 href="/partner/login"
                 className="group px-10 py-4 bg-white text-gray-900 font-bold rounded-full hover:scale-105 transition-transform shadow-xl inline-flex items-center gap-2"
               >
-                Partner Login
+                Login Now
                 <ArrowRight className="w-5 h-5" />
               </Link>
+            </div>
+            
+            <div className="w-full max-w-lg mx-auto bg-white/10 p-6 rounded-2xl">
+              <p className="font-bold mb-3">✨ Want Early Access?</p>
+              <p className="text-sm opacity-80 mb-4">Join the waitlist and we'll send you an invite soon.</p>
+              <form className="flex flex-col sm:flex-row gap-3">
+                <input 
+                  type="email" 
+                  placeholder="Enter your email" 
+                  className="flex-1 px-4 py-3 rounded-lg text-gray-900 placeholder-gray-500"
+                />
+                <button 
+                  type="submit"
+                  className="px-6 py-3 bg-white text-gray-900 font-bold rounded-lg hover:scale-105 transition-transform"
+                >
+                  Request Invite
+                </button>
+              </form>
             </div>
           </div>
         </div>
