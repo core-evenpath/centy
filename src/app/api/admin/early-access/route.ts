@@ -1,3 +1,4 @@
+
 // src/app/api/admin/early-access/route.ts
 import { NextResponse } from 'next/server';
 import { db, adminAuth } from '@/lib/firebase-admin';
@@ -31,12 +32,14 @@ export async function GET(request: Request) {
       }, { status: 401 });
     }
 
-    // Check user role
+    // Check user role OR primary admin email for authorization
     const userRole = decodedToken.role;
+    const userEmail = decodedToken.email;
     const allowedRoles = ['Admin', 'Super Admin'];
+    const isAuthorized = allowedRoles.includes(userRole) || userEmail === 'core@suupe.com';
     
-    if (!allowedRoles.includes(userRole)) {
-      console.error(`Forbidden: User role "${userRole}" does not have permission`);
+    if (!isAuthorized) {
+      console.error(`Forbidden: User role "${userRole}" and email "${userEmail}" do not have permission`);
       return NextResponse.json({ 
         error: 'Forbidden: Insufficient permissions',
         details: `Your role (${userRole}) does not have access to this resource`
