@@ -4,9 +4,8 @@
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import { Building, TrendingUp, CheckCircle, Activity, Zap, Mail, Calendar, User } from "lucide-react";
-import { Badge } from "../ui/badge";
-import { db } from '../../lib/firebase';
-import { collection, query, orderBy, limit, onSnapshot } from 'firebase/firestore';
+import { Skeleton } from '../ui/skeleton';
+import { AlertCircle } from 'lucide-react';
 
 const mockSystemStats = {
   totalPartners: 15,
@@ -32,19 +31,25 @@ interface EarlyAccessSignup {
 export default function SystemOverview() {
   const [earlyAccessSignups, setEarlyAccessSignups] = useState<EarlyAccessSignup[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const q = query(collection(db, "earlyAccessSignups"), orderBy("createdAt", "desc"), limit(5));
-    const unsubscribe = onSnapshot(q, (querySnapshot) => {
-      const signups: EarlyAccessSignup[] = [];
-      querySnapshot.forEach((doc) => {
-        signups.push({ id: doc.id, ...doc.data() } as EarlyAccessSignup);
-      });
-      setEarlyAccessSignups(signups);
-      setLoading(false);
-    });
-
-    return () => unsubscribe();
+    async function fetchSignups() {
+      try {
+        const response = await fetch('/api/admin/early-access');
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || 'Failed to fetch signups');
+        }
+        const data = await response.json();
+        setEarlyAccessSignups(data.signups);
+      } catch (err: any) {
+        setError(err.message);
+      } finally {
+        setLoading(false);
+      }
+    }
+    fetchSignups();
   }, []);
     
   const statCards = [
@@ -151,7 +156,22 @@ export default function SystemOverview() {
           </CardHeader>
           <CardContent className="space-y-4">
             {loading ? (
-                <p>Loading signups...</p>
+                <div className="space-y-4">
+                    {[...Array(3)].map((_, i) => (
+                        <div key={i} className="flex items-center gap-4 p-3 rounded-lg">
+                            <Skeleton className="w-10 h-10 rounded-full" />
+                            <div className="flex-1 space-y-2">
+                                <Skeleton className="h-4 w-3/4" />
+                                <Skeleton className="h-3 w-1/2" />
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            ) : error ? (
+                <div className="p-4 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4" />
+                  {error}
+                </div>
             ) : earlyAccessSignups.length === 0 ? (
                 <p className="text-muted-foreground">No signups yet.</p>
             ) : (
