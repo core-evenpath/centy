@@ -39,7 +39,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               photoURL: user.photoURL,
               emailVerified: user.emailVerified,
               phoneNumber: user.phoneNumber,
-              customClaims: claims,
+              customClaims: {
+                ...claims,
+                token: tokenResult.token // Add the token to the claims
+              },
             } as FirebaseAuthUser,
             loading: false, // Auth check is complete.
             error: null,

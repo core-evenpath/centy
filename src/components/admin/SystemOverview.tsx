@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import { Building, TrendingUp, CheckCircle, Activity, Zap, Mail, Calendar, User } from "lucide-react";
 import { Skeleton } from '../ui/skeleton';
 import { AlertCircle } from 'lucide-react';
+import { useAuth } from '../../hooks/use-auth';
 
 const mockSystemStats = {
   totalPartners: 15,
@@ -32,11 +33,25 @@ export default function SystemOverview() {
   const [earlyAccessSignups, setEarlyAccessSignups] = useState<EarlyAccessSignup[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const { user } = useAuth(); // Use the auth hook
 
   useEffect(() => {
     async function fetchSignups() {
+      if (!user) {
+        setLoading(false);
+        setError("You must be logged in to view this data.");
+        return;
+      }
+
       try {
-        const response = await fetch('/api/admin/early-access');
+        const token = await user.customClaims?.token;
+
+        const response = await fetch('/api/admin/early-access', {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        });
+        
         if (!response.ok) {
           const errorData = await response.json();
           throw new Error(errorData.error || 'Failed to fetch signups');
@@ -50,7 +65,7 @@ export default function SystemOverview() {
       }
     }
     fetchSignups();
-  }, []);
+  }, [user]);
     
   const statCards = [
     {
