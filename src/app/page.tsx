@@ -211,27 +211,25 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* Simple CTA */}
+      {/* New "Join Our Select Partners" section */}
       <section className="py-24 px-6">
         <div className="max-w-4xl mx-auto text-center">
-          <div className="bg-gradient-to-br from-orange-500 to-pink-500 rounded-3xl p-12 md:p-16 text-white shadow-2xl">
+          <div className="bg-gradient-to-br from-blue-500 to-indigo-600 rounded-3xl p-12 md:p-16 text-white shadow-2xl">
             <h2 className="text-5xl font-extrabold mb-6">
-              Ready to have fun with marketing?
+              Join Our Select Partners
             </h2>
             <p className="text-xl mb-10 opacity-90">
-              Join teams who actually enjoy their marketing workflow
+              We're currently working with a select group of invited partners to perfect the Centy experience. 
+              Have an invitation code? Access your dashboard now.
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
-              <Link 
-                href="/partner/signup"
-                className="px-10 py-4 bg-white text-gray-900 font-bold rounded-full hover:scale-105 transition-transform shadow-xl inline-flex items-center gap-2"
+              <Link
+                href="/partner/login"
+                className="group px-10 py-4 bg-white text-gray-900 font-bold rounded-full hover:scale-105 transition-transform shadow-xl inline-flex items-center gap-2"
               >
-                Start Free Trial
+                Partner Login
                 <ArrowRight className="w-5 h-5" />
               </Link>
-              <span className="text-white/80 text-sm">
-                ✨ Free forever • No credit card • 2 min setup
-              </span>
             </div>
           </div>
         </div>
