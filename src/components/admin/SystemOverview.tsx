@@ -7,6 +7,7 @@ import { Building, TrendingUp, CheckCircle, Activity, Zap, Mail, Calendar, User 
 import { Skeleton } from '../ui/skeleton';
 import { AlertCircle } from 'lucide-react';
 import { useAuth } from '../../hooks/use-auth';
+import type { FirebaseAuthUser } from '../../lib/types';
 
 const mockSystemStats = {
   totalPartners: 15,
@@ -29,6 +30,21 @@ interface EarlyAccessSignup {
     };
 }
 
+// Helper to get the token from our custom user type
+async function getToken(user: FirebaseAuthUser): Promise<string> {
+    if (user.customClaims?.token) {
+        return user.customClaims.token;
+    }
+    // Fallback if needed, though useAuth should provide it
+    const { getAuth, getIdToken } = await import('firebase/auth');
+    const auth = getAuth();
+    if (auth.currentUser) {
+        return await getIdToken(auth.currentUser);
+    }
+    return '';
+}
+
+
 export default function SystemOverview() {
   const [earlyAccessSignups, setEarlyAccessSignups] = useState<EarlyAccessSignup[]>([]);
   const [loading, setLoading] = useState(true);
@@ -44,7 +60,10 @@ export default function SystemOverview() {
       }
 
       try {
-        const token = await user.customClaims?.token;
+        const token = await getToken(user);
+        if (!token) {
+            throw new Error("Authentication token not available.");
+        }
 
         const response = await fetch('/api/admin/early-access', {
           headers: {
