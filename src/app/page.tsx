@@ -1,15 +1,17 @@
 
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { ArrowRight, Rocket, Zap, Users, BarChart3, Target, Check } from 'lucide-react';
+import { ArrowRight, Rocket, Zap, Users, BarChart3, Target, Check, Volume2, VolumeX } from 'lucide-react';
 
 export default function HomePage() {
   const [hoveredFeature, setHoveredFeature] = useState<number | null>(null);
   const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
   const [activeStep, setActiveStep] = useState(0);
+  const [isMuted, setIsMuted] = useState(true);
+  const videoRef = useRef<HTMLVideoElement>(null);
 
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
@@ -25,6 +27,14 @@ export default function HomePage() {
     }, 3000);
     return () => clearInterval(interval);
   }, []);
+
+  const toggleMute = () => {
+    if (videoRef.current) {
+      const newMutedState = !videoRef.current.muted;
+      videoRef.current.muted = newMutedState;
+      setIsMuted(newMutedState);
+    }
+  };
 
   const features = [
     {
@@ -125,8 +135,9 @@ export default function HomePage() {
             <div className="relative flex items-center justify-center">
               <div className="relative animate-float max-w-xs w-full">
                 <div className="absolute inset-0 bg-gradient-to-r from-orange-400 to-pink-400 rounded-full blur-3xl opacity-20 animate-pulse"></div>
-                <div className="relative p-2">
+                <div className="relative p-2 group">
                   <video 
+                    ref={videoRef}
                     src="/centypop.mp4" 
                     autoPlay 
                     loop 
@@ -134,6 +145,13 @@ export default function HomePage() {
                     playsInline
                     className="w-full h-auto rounded-2xl shadow-2xl"
                   />
+                   <button 
+                    onClick={toggleMute}
+                    className="absolute bottom-4 right-4 bg-black/50 text-white p-2 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                    aria-label={isMuted ? 'Unmute video' : 'Mute video'}
+                  >
+                    {isMuted ? <VolumeX className="w-5 h-5" /> : <Volume2 className="w-5 h-5" />}
+                  </button>
                 </div>
               </div>
             </div>
