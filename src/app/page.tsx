@@ -145,9 +145,13 @@ export default function HomePage() {
                     playsInline
                     className="w-full h-auto rounded-2xl shadow-2xl"
                   />
-                   <button 
+                   <button
                     onClick={toggleMute}
-                    className={`absolute bottom-4 right-4 bg-black/50 text-white p-2 rounded-full transition-all duration-300 hover:bg-gradient-to-r hover:from-purple-500 hover:to-pink-500 hover:scale-110 ${isMuted ? 'animate-pulse' : ''}`}
+                    className={`absolute bottom-4 right-4 text-white p-2 rounded-full transition-all duration-300 hover:scale-110 ${
+                      isMuted
+                        ? 'bg-gradient-to-r from-purple-500 to-pink-500 animate-pulse'
+                        : 'bg-black/50 hover:bg-gradient-to-r hover:from-purple-500 hover:to-pink-500'
+                    }`}
                     aria-label={isMuted ? 'Unmute video' : 'Mute video'}
                   >
                     {isMuted ? <VolumeX className="w-5 h-5" /> : <Volume2 className="w-5 h-5" />}
