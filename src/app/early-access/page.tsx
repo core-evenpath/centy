@@ -2,6 +2,8 @@
 'use client';
 
 import { useState } from 'react';
+import { saveEarlyAccessSignupAction } from '../../actions/early-access-actions';
+import { useToast } from '../../hooks/use-toast';
 
 export default function EarlyAccessPage() {
   const [formData, setFormData] = useState({
@@ -10,6 +12,7 @@ export default function EarlyAccessPage() {
   });
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const { toast } = useToast();
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setFormData({
@@ -22,20 +25,27 @@ export default function EarlyAccessPage() {
     e.preventDefault();
     setIsLoading(true);
 
-    // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 1000));
-
-    // Here you would normally send data to your API
-    // Example:
-    // const response = await fetch('/api/early-access', {
-    //   method: 'POST',
-    //   headers: { 'Content-Type': 'application/json' },
-    //   body: JSON.stringify(formData)
-    // });
-
-    console.log('Form submitted:', formData);
-    setIsLoading(false);
-    setIsSubmitted(true);
+    try {
+        const result = await saveEarlyAccessSignupAction(formData);
+        
+        if (result.success) {
+            setIsSubmitted(true);
+            toast({
+                title: 'Success!',
+                description: "You're on the list. We'll be in touch soon.",
+            });
+        } else {
+            throw new Error(result.message);
+        }
+    } catch (error: any) {
+        toast({
+            variant: 'destructive',
+            title: 'Signup Failed',
+            description: error.message || 'An unknown error occurred.',
+        });
+    } finally {
+        setIsLoading(false);
+    }
   };
 
   return (
