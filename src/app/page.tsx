@@ -5,6 +5,8 @@ import React, { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { ArrowRight, Rocket, Zap, Users, BarChart3, Target, Check, Volume2, VolumeX } from 'lucide-react';
+import { saveEarlyAccessSignupAction } from '@/actions/early-access-actions';
+import { useToast } from '@/hooks/use-toast';
 
 export default function HomePage() {
   const [hoveredFeature, setHoveredFeature] = useState<number | null>(null);
@@ -12,6 +14,11 @@ export default function HomePage() {
   const [activeStep, setActiveStep] = useState(0);
   const [isMuted, setIsMuted] = useState(true);
   const videoRef = useRef<HTMLVideoElement>(null);
+  const { toast } = useToast();
+
+  const [earlyAccessForm, setEarlyAccessForm] = useState({ name: '', email: '' });
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isSubmitted, setIsSubmitted] = useState(false);
 
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
@@ -35,6 +42,47 @@ export default function HomePage() {
       setIsMuted(newMutedState);
     }
   };
+
+  const handleEarlyAccessChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setEarlyAccessForm({
+      ...earlyAccessForm,
+      [e.target.name]: e.target.value
+    });
+  };
+
+  const handleEarlyAccessSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!earlyAccessForm.name || !earlyAccessForm.email) {
+      toast({
+        variant: 'destructive',
+        title: 'Please fill out both name and email.'
+      });
+      return;
+    }
+    setIsSubmitting(true);
+    try {
+      const result = await saveEarlyAccessSignupAction(earlyAccessForm);
+      if (result.success) {
+        toast({
+          title: 'Success!',
+          description: "You're on the list. We'll be in touch soon.",
+        });
+        setIsSubmitted(true);
+        setEarlyAccessForm({ name: '', email: '' });
+      } else {
+        throw new Error(result.message);
+      }
+    } catch (error: any) {
+      toast({
+        variant: 'destructive',
+        title: 'Signup Failed',
+        description: error.message || 'An unknown error occurred.',
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
 
   const features = [
     {
@@ -246,19 +294,41 @@ export default function HomePage() {
             <div className="w-full max-w-lg mx-auto bg-white/10 p-6 rounded-2xl">
               <p className="font-bold mb-3">✨ Want Early Access?</p>
               <p className="text-sm opacity-80 mb-4">Join the waitlist and we'll send you an invite soon.</p>
-              <form className="flex flex-col sm:flex-row gap-3">
-                <input 
-                  type="email" 
-                  placeholder="Enter your email" 
-                  className="flex-1 px-4 py-3 rounded-lg text-gray-900 placeholder-gray-500"
-                />
-                <button 
-                  type="submit"
-                  className="px-6 py-3 bg-white text-gray-900 font-bold rounded-lg hover:scale-105 transition-transform"
-                >
-                  Request Invite
-                </button>
-              </form>
+              {isSubmitted ? (
+                 <div className="bg-green-100 border border-green-300 text-green-900 px-4 py-3 rounded-xl text-center">
+                  ✓ You're on the list! We'll be in touch soon.
+                </div>
+              ) : (
+                <form onSubmit={handleEarlyAccessSubmit} className="flex flex-col gap-3">
+                  <input
+                    name="name"
+                    type="text"
+                    placeholder="Your name"
+                    value={earlyAccessForm.name}
+                    onChange={handleEarlyAccessChange}
+                    className="flex-1 px-4 py-3 rounded-lg text-gray-900 placeholder-gray-500"
+                    disabled={isSubmitting}
+                  />
+                  <div className="flex flex-col sm:flex-row gap-3">
+                    <input
+                      name="email"
+                      type="email"
+                      placeholder="Enter your email"
+                      value={earlyAccessForm.email}
+                      onChange={handleEarlyAccessChange}
+                      className="flex-1 px-4 py-3 rounded-lg text-gray-900 placeholder-gray-500"
+                      disabled={isSubmitting}
+                    />
+                    <button
+                      type="submit"
+                      className="px-6 py-3 bg-white text-gray-900 font-bold rounded-lg hover:scale-105 transition-transform disabled:opacity-50"
+                      disabled={isSubmitting}
+                    >
+                      {isSubmitting ? 'Joining...' : 'Request Invite'}
+                    </button>
+                  </div>
+                </form>
+              )}
             </div>
           </div>
         </div>
