@@ -123,7 +123,7 @@ export default function PartnerLoginPage() {
           <Button type="submit" className="w-full" disabled={isLoading}>
             {isLoading ? 'Signing In...' : 'Sign In'}
           </Button>
-          <div className="text-center text-sm text-muted-foreground">
+          <div className="hidden text-center text-sm text-muted-foreground">
             Don't have an organization?{" "}
             <Link href="/partner/signup" className="underline">Create one</Link>
           </div>
