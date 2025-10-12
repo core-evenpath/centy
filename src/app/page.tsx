@@ -4,7 +4,7 @@
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { ArrowRight, Sparkles, Zap, Users, BarChart3, Target, Rocket, Heart } from 'lucide-react';
+import { ArrowRight, Rocket, Zap, Users, BarChart3, Target, Heart } from 'lucide-react';
 
 export default function HomePage() {
   const [hoveredFeature, setHoveredFeature] = useState<number | null>(null);
@@ -71,7 +71,7 @@ export default function HomePage() {
       <nav className="fixed top-0 w-full bg-white/80 backdrop-blur-lg border-b border-gray-200 z-50">
         <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <Sparkles className="w-9 h-9 text-orange-500" />
+            <Rocket className="w-9 h-9 text-orange-500" />
             <span className="text-xl font-bold text-gray-900">Centy</span>
           </div>
           <div className="hidden md:flex items-center gap-8">
@@ -95,7 +95,7 @@ export default function HomePage() {
             {/* Left side */}
             <div>
               <div className="inline-flex items-center gap-2 px-4 py-2 bg-white rounded-full shadow-sm border border-orange-200 mb-6">
-                <Sparkles className="w-4 h-4 text-orange-500" />
+                <Rocket className="w-4 h-4 text-orange-500" />
                 <span className="text-sm font-medium text-gray-700">Obviosly AI Powered</span>
               </div>
               
@@ -113,11 +113,10 @@ export default function HomePage() {
                   className="group px-8 py-4 bg-gradient-to-r from-orange-500 to-pink-500 text-white font-bold rounded-full hover:shadow-xl hover:scale-105 transition-all inline-flex items-center justify-center gap-2"
                 >
                   🎯 Get Early Access
-                  <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
                 </Link>
-                <div className="pt-2">
+                 <div className="pt-2">
                   <p className="text-sm text-muted-foreground">
-                    ✨ Currently available to invited partners only.
+                   ✨ Have an invite code? <Link href="/partner/login" className="text-primary hover:underline">Login here</Link>
                   </p>
                 </div>
               </div>
@@ -125,7 +124,7 @@ export default function HomePage() {
 
             {/* Right side - Video */}
             <div className="relative">
-              <div className="relative animate-float">
+              <div className="relative animate-float max-w-lg mx-auto">
                 <div className="absolute inset-0 bg-gradient-to-r from-orange-400 to-pink-400 rounded-full blur-3xl opacity-20 animate-pulse"></div>
                 <div className="relative p-8">
                   <video 
@@ -257,7 +256,7 @@ export default function HomePage() {
         <div className="max-w-6xl mx-auto">
           <div className="flex flex-col md:flex-row justify-between items-center gap-6">
             <div className="flex items-center gap-3">
-              <Sparkles className="w-7 h-7 text-orange-500" />
+              <Rocket className="w-7 h-7 text-orange-500" />
               <span className="font-bold text-gray-900">Centy</span>
             </div>
             <div className="flex gap-8 text-sm text-gray-600">
