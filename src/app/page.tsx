@@ -109,19 +109,16 @@ export default function HomePage() {
               
               <div className="flex flex-col sm:flex-row gap-4 items-start">
                 <Link 
-                  href="#features"
+                  href="/early-access"
                   className="group px-8 py-4 bg-gradient-to-r from-orange-500 to-pink-500 text-white font-bold rounded-full hover:shadow-xl hover:scale-105 transition-all inline-flex items-center justify-center gap-2"
                 >
                   🎯 Get Early Access
                   <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
                 </Link>
                 <div className="pt-2">
-                  <Link 
-                    href="/partner/login"
-                    className="text-sm font-medium text-gray-600 hover:text-gray-900 transition-colors inline-flex items-center gap-2"
-                  >
-                    ⚡ Have an invite code? <span className="underline">Login here</span>
-                  </Link>
+                  <p className="text-sm text-muted-foreground">
+                    ✨ Currently available to invited partners only.
+                  </p>
                 </div>
               </div>
             </div>
