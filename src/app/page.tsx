@@ -123,18 +123,18 @@ export default function HomePage() {
               </div>
             </div>
 
-            {/* Right side - Logo */}
+            {/* Right side - Video */}
             <div className="relative">
               <div className="relative animate-float">
                 <div className="absolute inset-0 bg-gradient-to-r from-orange-400 to-pink-400 rounded-full blur-3xl opacity-20 animate-pulse"></div>
                 <div className="relative p-8">
-                  <Image 
-                    src="/centy_logo.svg" 
-                    alt="Centy AI Assistant" 
-                    width={500}
-                    height={500}
-                    className="w-full h-auto"
-                    priority
+                  <video 
+                    src="/centypop.mp4" 
+                    autoPlay 
+                    loop 
+                    muted 
+                    playsInline
+                    className="w-full h-auto rounded-2xl shadow-2xl"
                   />
                 </div>
               </div>
