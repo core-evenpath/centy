@@ -123,7 +123,7 @@ export default function HomePage() {
 
             {/* Right side - Video */}
             <div className="relative flex items-center justify-center">
-              <div className="relative animate-float max-w-md w-full">
+              <div className="relative animate-float max-w-xs w-full">
                 <div className="absolute inset-0 bg-gradient-to-r from-orange-400 to-pink-400 rounded-full blur-3xl opacity-20 animate-pulse"></div>
                 <div className="relative p-2">
                   <video 
