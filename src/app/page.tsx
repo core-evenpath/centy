@@ -106,7 +106,7 @@ export default function HomePage() {
                 Stop juggling 10 tools. Centy brings campaigns, team, and analytics into one happy place.
               </p>
               
-              <div className="flex flex-col sm:flex-row gap-4 items-start">
+              <div className="flex flex-col sm:flex-row gap-4 items-center">
                 <Link 
                   href="/early-access"
                   className="group px-8 py-4 bg-gradient-to-r from-orange-500 to-pink-500 text-white font-bold rounded-full hover:shadow-xl hover:scale-105 transition-all inline-flex items-center justify-center gap-2"
@@ -125,7 +125,7 @@ export default function HomePage() {
             <div className="relative h-[500px] flex items-center justify-center">
               <div className="relative animate-float max-w-lg w-full">
                 <div className="absolute inset-0 bg-gradient-to-r from-orange-400 to-pink-400 rounded-full blur-3xl opacity-20 animate-pulse"></div>
-                <div className="relative p-8">
+                <div className="relative p-2">
                   <video 
                     src="/centypop.mp4" 
                     autoPlay 
