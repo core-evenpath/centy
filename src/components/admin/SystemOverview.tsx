@@ -1,11 +1,52 @@
+
 "use client";
 
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
-import { Building, TrendingUp, CheckCircle, Activity, Zap } from "lucide-react";
-import { mockSystemStats, mockPartners } from "../../lib/mockData";
+import { Building, TrendingUp, CheckCircle, Activity, Zap, Mail, Calendar, User } from "lucide-react";
 import { Badge } from "../ui/badge";
+import { db } from '../../lib/firebase';
+import { collection, query, orderBy, limit, onSnapshot } from 'firebase/firestore';
+
+const mockSystemStats = {
+  totalPartners: 15,
+  activeWorkflows: 42,
+  totalTasks: 12456,
+  systemUptime: "99.9%",
+  avgResponseTime: "245ms",
+  dailyActiveUsers: 342,
+  monthlyGrowth: "+23%",
+  storageUsed: "2.4TB"
+};
+
+interface EarlyAccessSignup {
+    id: string;
+    name: string;
+    email: string;
+    createdAt: {
+        seconds: number;
+        nanoseconds: number;
+    };
+}
 
 export default function SystemOverview() {
+  const [earlyAccessSignups, setEarlyAccessSignups] = useState<EarlyAccessSignup[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const q = query(collection(db, "earlyAccessSignups"), orderBy("createdAt", "desc"), limit(5));
+    const unsubscribe = onSnapshot(q, (querySnapshot) => {
+      const signups: EarlyAccessSignup[] = [];
+      querySnapshot.forEach((doc) => {
+        signups.push({ id: doc.id, ...doc.data() } as EarlyAccessSignup);
+      });
+      setEarlyAccessSignups(signups);
+      setLoading(false);
+    });
+
+    return () => unsubscribe();
+  }, []);
+    
   const statCards = [
     {
       label: "Total Partners",
@@ -106,21 +147,35 @@ export default function SystemOverview() {
 
         <Card>
           <CardHeader>
-            <CardTitle className="font-headline">Recent Partner Activity</CardTitle>
+            <CardTitle className="font-headline">Recent Early Access Signups</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            {mockPartners.slice(0, 3).map((partner) => (
-              <div key={partner.id} className="flex items-center gap-4 p-3 rounded-lg hover:bg-secondary">
-                <div className="w-10 h-10 bg-gradient-to-br from-blue-100 to-purple-100 rounded-lg flex items-center justify-center">
-                  <Building className="w-5 h-5 text-blue-600" />
+            {loading ? (
+                <p>Loading signups...</p>
+            ) : earlyAccessSignups.length === 0 ? (
+                <p className="text-muted-foreground">No signups yet.</p>
+            ) : (
+              earlyAccessSignups.map((signup) => (
+                <div key={signup.id} className="flex items-center gap-4 p-3 rounded-lg hover:bg-secondary">
+                    <div className="w-10 h-10 bg-gradient-to-br from-purple-100 to-pink-100 rounded-lg flex items-center justify-center">
+                        <User className="w-5 h-5 text-purple-600" />
+                    </div>
+                    <div className="flex-1">
+                        <p className="font-medium text-foreground">{signup.name}</p>
+                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                            <Mail className="w-3 h-3" />
+                            <span>{signup.email}</span>
+                        </div>
+                    </div>
+                    <div className="text-right text-xs text-muted-foreground">
+                        <div className="flex items-center gap-1">
+                            <Calendar className="w-3 h-3" />
+                            {new Date(signup.createdAt.seconds * 1000).toLocaleDateString()}
+                        </div>
+                    </div>
                 </div>
-                <div className="flex-1">
-                  <p className="font-medium text-foreground">{partner.name}</p>
-                  <p className="text-sm text-muted-foreground">{partner.tasksCompleted} tasks completed</p>
-                </div>
-                <Badge variant={partner.status === "active" ? "default" : "destructive"} className={partner.status === "active" ? "bg-green-100 text-green-800" : "bg-yellow-100 text-yellow-800"}>{partner.status}</Badge>
-              </div>
-            ))}
+              ))
+            )}
           </CardContent>
         </Card>
       </div>
