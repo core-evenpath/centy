@@ -147,7 +147,7 @@ export default function HomePage() {
                   />
                    <button 
                     onClick={toggleMute}
-                    className="absolute bottom-4 right-4 bg-black/50 text-white p-2 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                    className="absolute bottom-4 right-4 bg-black/50 text-white p-2 rounded-full transition-opacity"
                     aria-label={isMuted ? 'Unmute video' : 'Mute video'}
                   >
                     {isMuted ? <VolumeX className="w-5 h-5" /> : <Volume2 className="w-5 h-5" />}
