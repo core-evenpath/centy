@@ -4,7 +4,7 @@
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { ArrowRight, Rocket, Zap, Users, BarChart3, Target, Heart, Check } from 'lucide-react';
+import { ArrowRight, Rocket, Zap, Users, BarChart3, Target, Check } from 'lucide-react';
 
 export default function HomePage() {
   const [hoveredFeature, setHoveredFeature] = useState<number | null>(null);
@@ -58,8 +58,8 @@ export default function HomePage() {
       color: "from-red-400 to-rose-500"
     },
     {
-      icon: <Heart className="w-7 h-7" />,
-      title: "Made with Love",
+      icon: <Users className="w-7 h-7" />,
+      title: "Made for Teams",
       description: "We actually care about making marketing fun again.",
       color: "from-pink-400 to-purple-500"
     }
@@ -122,8 +122,8 @@ export default function HomePage() {
             </div>
 
             {/* Right side - Video */}
-            <div className="relative">
-              <div className="relative animate-float max-w-lg mx-auto">
+            <div className="relative h-[500px] flex items-center justify-center">
+              <div className="relative animate-float max-w-lg w-full">
                 <div className="absolute inset-0 bg-gradient-to-r from-orange-400 to-pink-400 rounded-full blur-3xl opacity-20 animate-pulse"></div>
                 <div className="relative p-8">
                   <video 
@@ -248,7 +248,7 @@ export default function HomePage() {
           <div className="grid md:grid-cols-2 gap-16 items-center">
             <div className="order-2 md:order-1">
               <Image
-                src="/char-1.png"
+                src="/robot-mascot.png"
                 alt="AI Powered Mascot"
                 width={600}
                 height={600}
