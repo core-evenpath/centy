@@ -181,8 +181,6 @@ export async function sendWhatsAppCampaignAction(input: SendWhatsAppCampaignInpu
     return { success: false, message: 'Server not configured' };
   }
 
-  console.log("Starting WhatsApp Campaign:", input);
-
   try {
     let uniqueContacts: Contact[] = [];
     const contactIds = new Set<string>();
@@ -190,17 +188,13 @@ export async function sendWhatsAppCampaignAction(input: SendWhatsAppCampaignInpu
     for (const recipient of input.recipients) {
       if (recipient.type === 'contact') {
         if (!contactIds.has(recipient.id)) {
-          console.log(`Fetching individual contact: ${recipient.id}`);
           const contactDoc = await db.collection(`partners/${input.partnerId}/contacts`).doc(recipient.id).get();
           if (contactDoc.exists) {
             uniqueContacts.push({ id: contactDoc.id, ...contactDoc.data() } as Contact);
             contactIds.add(recipient.id);
-          } else {
-            console.warn(`Contact with ID ${recipient.id} not found.`);
           }
         }
       } else if (recipient.type === 'group') {
-        console.log(`Fetching contacts from group: ${recipient.name}`);
         const contactsSnapshot = await db.collection(`partners/${input.partnerId}/contacts`).where('groups', 'array-contains', recipient.name).get();
         contactsSnapshot.forEach(contactDoc => {
           if (!contactIds.has(contactDoc.id)) {
@@ -211,61 +205,31 @@ export async function sendWhatsAppCampaignAction(input: SendWhatsAppCampaignInpu
       }
     }
     
-    console.log(`Found ${uniqueContacts.length} unique contacts to message.`);
-    
-    const results = [];
-    for (const contact of uniqueContacts) {
-        if (contact.phone) {
-            console.log(`Sending to ${contact.name} at ${contact.phone}`);
-            try {
-                const result = await sendWhatsAppMessageAction({
-                    partnerId: input.partnerId,
-                    to: contact.phone,
-                    message: input.message,
-                    mediaUrl: input.mediaUrl,
-                });
-                results.push(result);
-                if (!result.success) {
-                    console.error(`Failed to send to ${contact.name}: ${result.message}`);
-                }
-            } catch (err: any) {
-                console.error(`Caught exception sending to ${contact.name}:`, err);
-                results.push({ success: false, message: err.message || 'Unknown error' });
-            }
-        } else {
-            console.warn(`Skipping contact without phone number: ${contact.name}`);
-            results.push({ success: false, message: `No phone for ${contact.name}` });
-        }
-    }
+    const sendPromises = uniqueContacts.map(contact => {
+      if (contact.phone) {
+        return sendWhatsAppMessageAction({
+          partnerId: input.partnerId,
+          to: contact.phone,
+          message: input.message,
+          mediaUrl: input.mediaUrl,
+        }).catch(err => {
+          console.error(`Failed to send WhatsApp to ${contact.phone}:`, err);
+          return { success: false, message: `Failed to send to ${contact.name}` };
+        });
+      }
+      return Promise.resolve({ success: false, message: `No phone for ${contact.name}`});
+    });
 
+    const results = await Promise.all(sendPromises);
     const successCount = results.filter(r => r.success).length;
-    const failureCount = results.length - successCount;
-
-    if (failureCount > 0 && successCount === 0 && uniqueContacts.length > 0) {
-      const firstError = results.find(r => !r.success)?.message;
-      const errorMessage = `Campaign failed to send to any recipients. First error: ${firstError}`;
-      console.error("Campaign failed completely:", errorMessage);
-      return {
-        success: false,
-        message: errorMessage,
-      };
-    } else if (failureCount > 0) {
-        const firstError = results.find(r => !r.success)?.message;
-        const errorMessage = `Campaign sent with errors. ${successCount} sent, ${failureCount} failed. First error: ${firstError}`;
-        console.warn("Campaign finished with errors:", errorMessage);
-        return {
-            success: true, // Partial success
-            message: errorMessage,
-        };
-    }
 
     return {
       success: true,
-      message: `Campaign successfully sent to ${successCount} recipient(s).`,
+      message: `Campaign successfully sent to ${successCount} of ${uniqueContacts.length} recipient(s).`,
     };
 
   } catch (error: any) {
-    console.error('Critical error in sendWhatsAppCampaignAction:', error);
+    console.error('Error in sendWhatsAppCampaignAction:', error);
     return {
       success: false,
       message: `Failed to send campaign: ${error.message}`,

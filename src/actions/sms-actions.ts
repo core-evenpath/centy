@@ -159,8 +159,6 @@ export async function sendSmsCampaignAction(input: SendSmsCampaignInput): Promis
   if (!db) {
     return { success: false, message: 'Server not configured' };
   }
-  
-  console.log('Starting SMS campaign:', { partnerId: input.partnerId, recipientCount: input.recipients.length });
 
   try {
     let uniqueContacts: Contact[] = [];
@@ -186,11 +184,8 @@ export async function sendSmsCampaignAction(input: SendSmsCampaignInput): Promis
       }
     }
     
-    console.log(`Resolved ${uniqueContacts.length} unique contacts for the campaign.`);
-
     const sendPromises = uniqueContacts.map(contact => {
       if (contact.phone) {
-        console.log(`Queueing SMS to: ${contact.name} at ${contact.phone}`);
         return sendSMSAction({
           partnerId: input.partnerId,
           to: contact.phone,
@@ -201,29 +196,19 @@ export async function sendSmsCampaignAction(input: SendSmsCampaignInput): Promis
           return { success: false, message: `Failed to send to ${contact.name}` };
         });
       }
-      console.warn(`Skipping contact without phone number: ${contact.name}`);
       return Promise.resolve({ success: false, message: `No phone for ${contact.name}`});
     });
 
     const results = await Promise.all(sendPromises);
     const successCount = results.filter(r => r.success).length;
 
-    if (successCount === 0 && uniqueContacts.length > 0) {
-      console.error(`Campaign failed. 0 of ${uniqueContacts.length} messages sent.`);
-      return {
-        success: false,
-        message: `Campaign failed to send to any of the ${uniqueContacts.length} recipients.`,
-      };
-    }
-    
-    console.log(`Campaign finished. Success: ${successCount}, Failures: ${uniqueContacts.length - successCount}`);
     return {
       success: true,
-      message: `Campaign successfully sent to ${successCount} of ${uniqueContacts.length} recipient(s).`,
+      message: `Campaign successfully sent to ${successCount} of ${uniqueContacts.length} recipients.`,
     };
 
   } catch (error: any) {
-    console.error('Critical error in sendSmsCampaignAction:', error);
+    console.error('Error in sendSmsCampaignAction:', error);
     return {
       success: false,
       message: `Failed to send campaign: ${error.message}`,
