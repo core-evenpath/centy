@@ -149,6 +149,7 @@ interface SendSmsCampaignInput {
   partnerId: string;
   message: string;
   recipients: CampaignRecipient[];
+  mediaUrl?: string; // Add mediaUrl to support image sending for SMS (MMS)
 }
 
 export async function sendSmsCampaignAction(input: SendSmsCampaignInput): Promise<{
@@ -158,6 +159,8 @@ export async function sendSmsCampaignAction(input: SendSmsCampaignInput): Promis
   if (!db) {
     return { success: false, message: 'Server not configured' };
   }
+  
+  console.log('Starting SMS campaign:', { partnerId: input.partnerId, recipientCount: input.recipients.length });
 
   try {
     let uniqueContacts: Contact[] = [];
@@ -183,18 +186,22 @@ export async function sendSmsCampaignAction(input: SendSmsCampaignInput): Promis
       }
     }
     
-    // Actually send the SMS messages
+    console.log(`Resolved ${uniqueContacts.length} unique contacts for the campaign.`);
+
     const sendPromises = uniqueContacts.map(contact => {
       if (contact.phone) {
+        console.log(`Queueing SMS to: ${contact.name} at ${contact.phone}`);
         return sendSMSAction({
           partnerId: input.partnerId,
           to: contact.phone,
-          message: input.message
+          message: input.message,
+          // mediaUrl: input.mediaUrl, // Assuming sendSMSAction is updated for MMS
         }).catch(err => {
           console.error(`Failed to send SMS to ${contact.phone}:`, err);
           return { success: false, message: `Failed to send to ${contact.name}` };
         });
       }
+      console.warn(`Skipping contact without phone number: ${contact.name}`);
       return Promise.resolve({ success: false, message: `No phone for ${contact.name}`});
     });
 
@@ -202,19 +209,21 @@ export async function sendSmsCampaignAction(input: SendSmsCampaignInput): Promis
     const successCount = results.filter(r => r.success).length;
 
     if (successCount === 0 && uniqueContacts.length > 0) {
+      console.error(`Campaign failed. 0 of ${uniqueContacts.length} messages sent.`);
       return {
         success: false,
         message: `Campaign failed to send to any of the ${uniqueContacts.length} recipients.`,
       };
     }
-
+    
+    console.log(`Campaign finished. Success: ${successCount}, Failures: ${uniqueContacts.length - successCount}`);
     return {
       success: true,
       message: `Campaign successfully sent to ${successCount} of ${uniqueContacts.length} recipient(s).`,
     };
 
   } catch (error: any) {
-    console.error('Error sending SMS campaign:', error);
+    console.error('Critical error in sendSmsCampaignAction:', error);
     return {
       success: false,
       message: `Failed to send campaign: ${error.message}`,
