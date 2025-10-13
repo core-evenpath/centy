@@ -190,13 +190,17 @@ export async function sendWhatsAppCampaignAction(input: SendWhatsAppCampaignInpu
     for (const recipient of input.recipients) {
       if (recipient.type === 'contact') {
         if (!contactIds.has(recipient.id)) {
+          console.log(`Fetching individual contact: ${recipient.id}`);
           const contactDoc = await db.collection(`partners/${input.partnerId}/contacts`).doc(recipient.id).get();
           if (contactDoc.exists) {
             uniqueContacts.push({ id: contactDoc.id, ...contactDoc.data() } as Contact);
             contactIds.add(recipient.id);
+          } else {
+            console.warn(`Contact with ID ${recipient.id} not found.`);
           }
         }
       } else if (recipient.type === 'group') {
+        console.log(`Fetching contacts from group: ${recipient.name}`);
         const contactsSnapshot = await db.collection(`partners/${input.partnerId}/contacts`).where('groups', 'array-contains', recipient.name).get();
         contactsSnapshot.forEach(contactDoc => {
           if (!contactIds.has(contactDoc.id)) {
@@ -229,6 +233,7 @@ export async function sendWhatsAppCampaignAction(input: SendWhatsAppCampaignInpu
                 results.push({ success: false, message: err.message || 'Unknown error' });
             }
         } else {
+            console.warn(`Skipping contact without phone number: ${contact.name}`);
             results.push({ success: false, message: `No phone for ${contact.name}` });
         }
     }
@@ -236,12 +241,20 @@ export async function sendWhatsAppCampaignAction(input: SendWhatsAppCampaignInpu
     const successCount = results.filter(r => r.success).length;
     const failureCount = results.length - successCount;
 
-    if (failureCount > 0) {
+    if (failureCount > 0 && successCount === 0 && uniqueContacts.length > 0) {
+      const firstError = results.find(r => !r.success)?.message;
+      const errorMessage = `Campaign failed to send to any recipients. First error: ${firstError}`;
+      console.error("Campaign failed completely:", errorMessage);
+      return {
+        success: false,
+        message: errorMessage,
+      };
+    } else if (failureCount > 0) {
         const firstError = results.find(r => !r.success)?.message;
         const errorMessage = `Campaign sent with errors. ${successCount} sent, ${failureCount} failed. First error: ${firstError}`;
-        console.error("Campaign finished with errors:", errorMessage);
+        console.warn("Campaign finished with errors:", errorMessage);
         return {
-            success: false,
+            success: true, // Partial success
             message: errorMessage,
         };
     }
@@ -252,7 +265,7 @@ export async function sendWhatsAppCampaignAction(input: SendWhatsAppCampaignInpu
     };
 
   } catch (error: any) {
-    console.error('Error sending WhatsApp campaign:', error);
+    console.error('Critical error in sendWhatsAppCampaignAction:', error);
     return {
       success: false,
       message: `Failed to send campaign: ${error.message}`,
