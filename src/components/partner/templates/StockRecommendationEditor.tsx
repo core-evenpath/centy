@@ -1167,7 +1167,7 @@ export default function StockRecommendationEditor({ initialData }: { initialData
 
           {/* Step 5: Review & Send */}
           {allStepsComplete && (
-            <div className="space-y-4">
+            <div className="space-y-6">
               <div className="bg-white rounded-2xl shadow-lg border-2 border-green-500 p-8">
                 <div className="flex items-center gap-3 mb-6">
                   <div className="w-12 h-12 bg-green-600 rounded-full flex items-center justify-center">
@@ -1175,37 +1175,12 @@ export default function StockRecommendationEditor({ initialData }: { initialData
                   </div>
                   <div>
                     <h3 className="text-2xl font-bold text-gray-900">Ready to Send!</h3>
-                    <p className="text-gray-600">Review your recommendation before sending to clients</p>
+                    <p className="text-gray-600">Review your recommendation and send it to your clients.</p>
                   </div>
                 </div>
                 
-                <div className="mb-6">
-                    <label className="block text-sm font-semibold text-gray-900 mb-2">
-                        Generated Image Preview
-                    </label>
-                    <div className="p-4 border-2 border-dashed border-gray-300 rounded-xl text-center relative">
-                        {isGeneratingImage && (
-                            <div className="absolute inset-0 bg-white/80 flex flex-col items-center justify-center z-10 rounded-xl">
-                                <Loader2 className="w-8 h-8 animate-spin text-gray-500" />
-                                <p className="text-sm text-gray-600 mt-2">Generating image...</p>
-                            </div>
-                        )}
-                        {generatedImageUrl ? (
-                            <div className="relative w-full aspect-video bg-gray-100 rounded-lg overflow-hidden">
-                                <Image src={generatedImageUrl} alt="Generated stock recommendation card" layout="fill" objectFit="contain" />
-                            </div>
-                        ) : (
-                            <div className="p-8">
-                                <Sparkles className="w-8 h-8 text-gray-400 mx-auto mb-2" />
-                                <p className="text-sm text-gray-600">
-                                    Generating image automatically...
-                                </p>
-                            </div>
-                        )}
-                    </div>
-                </div>
-
-                <div className="bg-gray-50 rounded-xl p-6 border border-gray-200">
+                {/* Send Controls - MOVED UP */}
+                <div className="bg-gray-50 rounded-xl p-6 border border-gray-200 mb-6">
                     <h4 className="font-semibold text-gray-900 mb-3 flex items-center gap-2">
                         <Send className="w-5 h-5 text-blue-600" />
                         Send as Broadcast
@@ -1299,6 +1274,35 @@ export default function StockRecommendationEditor({ initialData }: { initialData
                     </div>
                 </div>
 
+                {/* Mobile Preview */}
+                <div className="mb-6">
+                    <label className="block text-sm font-semibold text-gray-900 mb-2">
+                        Mobile Preview
+                    </label>
+                    <div className="relative mx-auto border-gray-800 dark:border-gray-800 bg-gray-800 border-[14px] rounded-[2.5rem] h-[600px] w-[300px] shadow-xl">
+                        <div className="w-[148px] h-[18px] bg-gray-800 top-0 rounded-b-[1rem] left-1/2 -translate-x-1/2 absolute"></div>
+                        <div className="h-[46px] w-[3px] bg-gray-800 absolute -start-[17px] top-[124px] rounded-s-lg"></div>
+                        <div className="h-[46px] w-[3px] bg-gray-800 absolute -start-[17px] top-[178px] rounded-s-lg"></div>
+                        <div className="h-[64px] w-[3px] bg-gray-800 absolute -end-[17px] top-[142px] rounded-e-lg"></div>
+                        <div className="rounded-[2rem] overflow-hidden w-full h-full bg-white dark:bg-gray-800">
+                            <div className="p-4 space-y-4">
+                                {isGeneratingImage ? (
+                                    <div className="flex items-center justify-center h-48 bg-gray-100 rounded-lg">
+                                        <Loader2 className="w-8 h-8 animate-spin text-gray-400"/>
+                                    </div>
+                                ) : generatedImageUrl ? (
+                                    <img src={generatedImageUrl} alt="Generated stock pick" className="w-full rounded-lg" />
+                                ) : (
+                                    <div className="flex items-center justify-center h-48 bg-gray-100 rounded-lg">
+                                        <Sparkles className="w-8 h-8 text-gray-400" />
+                                    </div>
+                                )}
+                                <p className="text-sm whitespace-pre-wrap">📈 New Stock Pick: {formData.ticker.toUpperCase()} ({formData.action.toUpperCase()})\n\nThesis: {formData.thesis}\n\nTarget: {formData.priceTarget}\nRisk: {formData.riskLevel.toUpperCase()}</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
                 <div className="flex justify-end mt-6">
                   <Button
                     onClick={handleSaveRecommendation}
