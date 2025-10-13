@@ -141,9 +141,10 @@ export default function UnifiedPartnerSidebar() {
     },
   ];
   
-  const menuItems = partner?.isActivePlanUser 
-    ? allMenuItems 
-    : allMenuItems.filter(item => item.label === 'Tasks' || item.label === 'Settings');
+  const menuItems = partner?.isActivePlanUser === false
+    ? allMenuItems.filter(item => item.label === 'Tasks' || item.label === 'Settings')
+    : allMenuItems;
+
 
   // Load sidebar stats
   useEffect(() => {
