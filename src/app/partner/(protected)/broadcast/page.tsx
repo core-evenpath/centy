@@ -4,15 +4,16 @@
 import React, { useState, useEffect } from 'react';
 import { Button } from '../../../../components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../../../../components/ui/card';
-import { Plus, FileText, ArrowLeft, Radio, Sparkles, History, Send } from 'lucide-react';
+import { Plus, FileText, ArrowLeft, Radio, Sparkles, History, Send, CheckCircle, Clock, Percent, Users, Eye } from 'lucide-react';
 import PartnerHeader from '../../../../components/partner/PartnerHeader';
 import StockRecommendationEditor from '@/components/partner/templates/StockRecommendationEditor';
-import type { TradingPick, Campaign } from '@/lib/types';
+import type { TradingPick, Campaign, Contact, ContactGroup } from '@/lib/types';
 import { useMultiWorkspaceAuth } from '@/hooks/use-multi-workspace-auth';
 import { db } from '@/lib/firebase';
 import { collection, query, onSnapshot, orderBy } from 'firebase/firestore';
 import AIComposerModal from '@/components/partner/messaging/AIComposerModal';
 import { Badge } from '@/components/ui/badge';
+import Image from 'next/image';
 
 const mockTemplates = [
     { id: '1', name: 'Stock Pick Alert', category: 'Trading', content: '💰 GS Foundation - {{Date}} Selected Quality Stock...'},
@@ -20,9 +21,105 @@ const mockTemplates = [
     { id: '3', name: 'Market Analysis', category: 'Analysis', content: 'This week in the markets: {{Summary}}'},
 ];
 
+interface CampaignDetailsViewProps {
+    campaign: Campaign;
+    onBack: () => void;
+  }
+  
+  function CampaignDetailsView({ campaign, onBack }: CampaignDetailsViewProps) {
+    // Mock data for details view
+    const stats = {
+      deliveryRate: 99.8,
+      openRate: 85.3,
+      engagement: 23.1,
+      revenue: 12450
+    };
+  
+    return (
+      <>
+        <PartnerHeader
+          title={campaign.name}
+          subtitle={`Details for campaign sent on ${new Date(campaign.createdAt).toLocaleDateString()}`}
+          actions={
+            <Button variant="outline" onClick={onBack}>
+              <ArrowLeft className="w-4 h-4 mr-2" />
+              Back to Broadcasts
+            </Button>
+          }
+        />
+        <main className="flex-1 overflow-y-auto p-6 space-y-6">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            {/* Left Column - Preview */}
+            <div className="lg:col-span-1 space-y-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Message Preview</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="relative mx-auto border-gray-800 bg-gray-800 border-[8px] rounded-[1.5rem] h-[500px] w-[250px]">
+                    <div className="rounded-[1rem] overflow-hidden w-full h-full bg-white">
+                      <div className="p-2 space-y-2">
+                        {campaign.mediaUrl && (
+                          <Image src={campaign.mediaUrl} alt="Campaign Media" width={234} height={132} className="w-full rounded-lg" />
+                        )}
+                        <p className="text-xs whitespace-pre-wrap p-2">{campaign.message}</p>
+                      </div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+  
+            {/* Right Column - Stats & Recipients */}
+            <div className="lg:col-span-2 space-y-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Performance</CardTitle>
+                </CardHeader>
+                <CardContent className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <div className="p-4 bg-blue-50 rounded-lg">
+                    <CheckCircle className="w-6 h-6 text-blue-600 mb-2" />
+                    <p className="text-2xl font-bold">{stats.deliveryRate}%</p>
+                    <p className="text-sm text-muted-foreground">Delivery Rate</p>
+                  </div>
+                  <div className="p-4 bg-green-50 rounded-lg">
+                    <Eye className="w-6 h-6 text-green-600 mb-2" />
+                    <p className="text-2xl font-bold">{stats.openRate}%</p>
+                    <p className="text-sm text-muted-foreground">Open Rate</p>
+                  </div>
+                  <div className="p-4 bg-purple-50 rounded-lg">
+                    <Percent className="w-6 h-6 text-purple-600 mb-2" />
+                    <p className="text-2xl font-bold">{stats.engagement}%</p>
+                    <p className="text-sm text-muted-foreground">Engagement</p>
+                  </div>
+                  <div className="p-4 bg-yellow-50 rounded-lg">
+                    <Users className="w-6 h-6 text-yellow-600 mb-2" />
+                    <p className="text-2xl font-bold">{campaign.sentCount}</p>
+                    <p className="text-sm text-muted-foreground">Recipients</p>
+                  </div>
+                </CardContent>
+              </Card>
+  
+              <Card>
+                <CardHeader>
+                  <CardTitle>Recipients</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-muted-foreground">This broadcast was sent to the following contacts and groups.</p>
+                  {/* Here you would fetch and display the actual contacts/groups */}
+                </CardContent>
+              </Card>
+            </div>
+          </div>
+        </main>
+      </>
+    );
+  }
+
 export default function BroadcastPage() {
-  const [view, setView] = useState('list'); // 'list' or 'editor'
+  const [view, setView] = useState('list'); // 'list', 'editor', or 'details'
   const [selectedTemplate, setSelectedTemplate] = useState<any | null>(null);
+  const [selectedCampaign, setSelectedCampaign] = useState<Campaign | null>(null);
   const [templates, setTemplates] = useState<TradingPick[]>([]);
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const { currentWorkspace } = useMultiWorkspaceAuth();
@@ -77,6 +174,7 @@ export default function BroadcastPage() {
   const handleBackToList = () => {
     setView('list');
     setSelectedTemplate(null);
+    setSelectedCampaign(null);
   };
   
   const handleCreateNew = () => {
@@ -97,6 +195,11 @@ export default function BroadcastPage() {
     setView('editor');
     setShowAiComposer(false);
   };
+  
+  const handleViewDetails = (campaign: Campaign) => {
+    setSelectedCampaign(campaign);
+    setView('details');
+  };
 
   if (view === 'editor') {
     return (
@@ -112,6 +215,10 @@ export default function BroadcastPage() {
         </div>
       </div>
     );
+  }
+
+  if (view === 'details' && selectedCampaign) {
+    return <CampaignDetailsView campaign={selectedCampaign} onBack={handleBackToList} />;
   }
 
   return (
@@ -225,7 +332,9 @@ export default function BroadcastPage() {
                                 <Badge variant={campaign.status === 'sent' ? 'success' : 'outline'}>
                                   {campaign.status}
                                 </Badge>
-                                <Button variant="ghost" size="sm">View Details</Button>
+                                <Button variant="ghost" size="sm" onClick={() => handleViewDetails(campaign)}>
+                                  View Details
+                                </Button>
                             </div>
                         </div>
                     )) : (
