@@ -35,11 +35,13 @@ interface CampaignDetailsViewProps {
       revenue: 12450
     };
   
+    const sentDate = campaign.createdAt ? new Date(campaign.createdAt).toLocaleDateString() : 'a few moments ago';
+
     return (
       <>
         <PartnerHeader
           title={campaign.name}
-          subtitle={`Details for campaign sent on ${new Date(campaign.createdAt).toLocaleDateString()}`}
+          subtitle={`Details for campaign sent on ${sentDate}`}
           actions={
             <Button variant="outline" onClick={onBack}>
               <ArrowLeft className="w-4 h-4 mr-2" />
