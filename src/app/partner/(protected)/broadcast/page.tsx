@@ -58,13 +58,13 @@ interface CampaignDetailsViewProps {
                   <CardTitle>Message Preview</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="relative mx-auto border-gray-800 bg-gray-800 border-[8px] rounded-[1.5rem] h-[500px] w-[250px]">
-                    <div className="rounded-[1rem] overflow-hidden w-full h-full bg-white">
-                      <div className="p-2 space-y-2">
+                  <div className="relative mx-auto border-gray-800 dark:border-gray-800 bg-gray-800 border-[10px] rounded-[2.5rem] h-[600px] w-[300px] shadow-xl">
+                    <div className="rounded-[2rem] overflow-hidden w-full h-full bg-white dark:bg-black">
+                      <div className="p-4 space-y-4">
                         {campaign.mediaUrl && (
-                          <Image src={campaign.mediaUrl} alt="Campaign Media" width={234} height={132} className="w-full rounded-lg" />
+                          <Image src={campaign.mediaUrl} alt="Campaign Media" width={260} height={146} className="w-full rounded-lg object-cover" />
                         )}
-                        <p className="text-xs whitespace-pre-wrap p-2">{campaign.message}</p>
+                        <p className="text-sm whitespace-pre-wrap">{campaign.message}</p>
                       </div>
                     </div>
                   </div>
