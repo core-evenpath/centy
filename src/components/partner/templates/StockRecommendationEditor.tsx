@@ -9,9 +9,9 @@ import { saveTradingPickAction } from '@/actions/trading-pick-actions';
 import { Button } from '@/components/ui/button';
 import { sendSmsCampaignAction } from '@/actions/sms-actions';
 import { sendWhatsAppCampaignAction } from '@/actions/whatsapp-actions';
-import type { Contact, ContactGroup } from '@/lib/types';
+import type { Contact, ContactGroup, Campaign } from '@/lib/types';
 import { db } from '@/lib/firebase';
-import { collection, query, onSnapshot } from 'firebase/firestore';
+import { collection, query, onSnapshot, addDoc, serverTimestamp } from 'firebase/firestore';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Badge } from '@/components/ui/badge';
@@ -403,7 +403,26 @@ export default function StockRecommendationEditor({ initialData }: { initialData
     setIsSending(true);
     try {
       const textMessage = `📈 New Stock Pick: ${formData.ticker.toUpperCase()} (${formData.action.toUpperCase()})\n\nThesis: ${formData.thesis}\n\nTarget: ${formData.priceTarget}\nRisk: ${formData.riskLevel.toUpperCase()}`;
-  
+      
+      // Create campaign document
+      const campaignRef = await addDoc(collection(db, `partners/${partnerId}/campaigns`), {
+        name: `Stock Pick: ${formData.ticker}`,
+        partnerId: partnerId,
+        message: textMessage,
+        mediaUrl: generatedImageUrl,
+        status: 'sent',
+        sentCount: selectedRecipients.reduce((acc, r) => acc + (r.contactCount || 1), 0),
+        engagementRate: 0,
+        revenueGenerated: 0,
+        createdAt: serverTimestamp(),
+        recipients: selectedRecipients.map(r => ({
+          id: r.id,
+          name: r.name,
+          type: r.contactCount !== undefined ? 'group' : 'contact'
+        })),
+      });
+      console.log('Campaign document created with ID:', campaignRef.id);
+
       const campaignPayload = {
         partnerId,
         message: textMessage,
@@ -1178,36 +1197,8 @@ export default function StockRecommendationEditor({ initialData }: { initialData
                   </div>
                 </div>
                 
-                {/* Mobile Preview */}
-                <div className="mb-6">
-                    <label className="block text-sm font-semibold text-gray-900 mb-2">
-                        Mobile Preview
-                    </label>
-                    <div className="relative mx-auto border-gray-900 bg-gray-800 border-[10px] rounded-[2.5rem] h-[600px] w-[300px] shadow-xl">
-                      <div className="h-[46px] w-[3px] bg-gray-800 absolute -left-[13px] top-[124px] rounded-l-lg"></div>
-                      <div className="h-[46px] w-[3px] bg-gray-800 absolute -left-[13px] top-[178px] rounded-l-lg"></div>
-                      <div className="h-[64px] w-[3px] bg-gray-800 absolute -right-[13px] top-[142px] rounded-r-lg"></div>
-                      <div className="rounded-[2rem] overflow-hidden w-full h-full bg-white">
-                        <div className="p-4 space-y-4">
-                          {isGeneratingImage ? (
-                            <div className="flex items-center justify-center h-48 bg-gray-100 rounded-lg">
-                              <Loader2 className="w-8 h-8 animate-spin text-gray-400" />
-                            </div>
-                          ) : generatedImageUrl ? (
-                            <Image src={generatedImageUrl} alt="Generated stock pick" width={1200} height={675} className="w-full rounded-lg" />
-                          ) : (
-                            <div className="flex items-center justify-center h-48 bg-gray-100 rounded-lg">
-                              <Sparkles className="w-8 h-8 text-gray-400" />
-                            </div>
-                          )}
-                          <p className="text-sm whitespace-pre-wrap">📈 New Stock Pick: {formData.ticker.toUpperCase()} ({formData.action.toUpperCase()})\n\nThesis: {formData.thesis}\n\nTarget: ${formData.priceTarget}\nRisk: ${formData.riskLevel.toUpperCase()}</p>
-                        </div>
-                      </div>
-                    </div>
-                </div>
-                
                 {/* Send Controls */}
-                <div className="bg-gray-50 rounded-xl p-6 border border-gray-200">
+                <div className="bg-gray-50 rounded-xl p-6 border border-gray-200 mb-6">
                     <h4 className="font-semibold text-gray-900 mb-3 flex items-center gap-2">
                         <Send className="w-5 h-5 text-blue-600" />
                         Send as Broadcast
@@ -1287,6 +1278,35 @@ export default function StockRecommendationEditor({ initialData }: { initialData
                               </PopoverContent>
                             </Popover>
                         </div>
+                    </div>
+                </div>
+
+                {/* Mobile Preview */}
+                <div className="mb-6">
+                    <label className="block text-sm font-semibold text-gray-900 mb-2">
+                        Mobile Preview
+                    </label>
+                    <div className="relative mx-auto border-gray-900 bg-gray-800 border-[14px] rounded-[2.5rem] h-[600px] w-[300px] shadow-xl">
+                      <div className="h-[32px] w-[3px] bg-gray-800 absolute -left-[17px] top-[72px] rounded-l-lg"></div>
+                      <div className="h-[46px] w-[3px] bg-gray-800 absolute -left-[17px] top-[124px] rounded-l-lg"></div>
+                      <div className="h-[46px] w-[3px] bg-gray-800 absolute -left-[17px] top-[178px] rounded-l-lg"></div>
+                      <div className="h-[64px] w-[3px] bg-gray-800 absolute -right-[17px] top-[142px] rounded-r-lg"></div>
+                      <div className="rounded-[2rem] overflow-hidden w-full h-full bg-white">
+                        <div className="p-4 space-y-4">
+                          {isGeneratingImage ? (
+                            <div className="flex items-center justify-center h-48 bg-gray-100 rounded-lg">
+                              <Loader2 className="w-8 h-8 animate-spin text-gray-400" />
+                            </div>
+                          ) : generatedImageUrl ? (
+                            <Image src={generatedImageUrl} alt="Generated stock pick" width={1200} height={675} className="w-full rounded-lg" />
+                          ) : (
+                            <div className="flex items-center justify-center h-48 bg-gray-100 rounded-lg">
+                              <Sparkles className="w-8 h-8 text-gray-400" />
+                            </div>
+                          )}
+                          <p className="text-sm whitespace-pre-wrap">📈 New Stock Pick: {formData.ticker.toUpperCase()} ({formData.action.toUpperCase()})\n\nThesis: {formData.thesis}\n\nTarget: {formData.priceTarget}\nRisk: {formData.riskLevel.toUpperCase()}</p>
+                        </div>
+                      </div>
                     </div>
                 </div>
                 
