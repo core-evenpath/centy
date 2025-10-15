@@ -4,14 +4,15 @@
 import React, { useState, useEffect } from 'react';
 import { Button } from '../../../../components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../../../../components/ui/card';
-import { Plus, FileText, ArrowLeft, Radio, Sparkles } from 'lucide-react';
+import { Plus, FileText, ArrowLeft, Radio, Sparkles, History, Send } from 'lucide-react';
 import PartnerHeader from '../../../../components/partner/PartnerHeader';
 import StockRecommendationEditor from '@/components/partner/templates/StockRecommendationEditor';
-import type { TradingPick } from '@/lib/types';
+import type { TradingPick, Campaign } from '@/lib/types';
 import { useMultiWorkspaceAuth } from '@/hooks/use-multi-workspace-auth';
 import { db } from '@/lib/firebase';
-import { collection, query, where, onSnapshot } from 'firebase/firestore';
+import { collection, query, onSnapshot, orderBy } from 'firebase/firestore';
 import AIComposerModal from '@/components/partner/messaging/AIComposerModal';
+import { Badge } from '@/components/ui/badge';
 
 const mockTemplates = [
     { id: '1', name: 'Stock Pick Alert', category: 'Trading', content: '💰 GS Foundation - {{Date}} Selected Quality Stock...'},
@@ -23,6 +24,7 @@ export default function BroadcastPage() {
   const [view, setView] = useState('list'); // 'list' or 'editor'
   const [selectedTemplate, setSelectedTemplate] = useState<any | null>(null);
   const [templates, setTemplates] = useState<TradingPick[]>([]);
+  const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const { currentWorkspace } = useMultiWorkspaceAuth();
   const [showAiComposer, setShowAiComposer] = useState(false);
   const [aiComposerPrompt, setAiComposerPrompt] = useState('');
@@ -30,10 +32,10 @@ export default function BroadcastPage() {
   useEffect(() => {
     if (!currentWorkspace?.partnerId) return;
 
+    // Fetch TradingPicks (Ideas)
     const templatesRef = collection(db, `partners/${currentWorkspace.partnerId}/tradingPicks`);
-    const q = query(templatesRef);
-
-    const unsubscribe = onSnapshot(q, (snapshot) => {
+    const qTemplates = query(templatesRef);
+    const unsubTemplates = onSnapshot(qTemplates, (snapshot) => {
       const fetchedTemplates = snapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data()
@@ -41,7 +43,23 @@ export default function BroadcastPage() {
       setTemplates(fetchedTemplates);
     });
 
-    return () => unsubscribe();
+    // Fetch Campaigns (Broadcast History)
+    const campaignsRef = collection(db, `partners/${currentWorkspace.partnerId}/campaigns`);
+    const qCampaigns = query(campaignsRef, orderBy('createdAt', 'desc'));
+    const unsubCampaigns = onSnapshot(qCampaigns, (snapshot) => {
+      const fetchedCampaigns = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data(),
+        createdAt: doc.data().createdAt?.toDate() || new Date(),
+      })) as Campaign[];
+      setCampaigns(fetchedCampaigns);
+    });
+
+
+    return () => {
+      unsubTemplates();
+      unsubCampaigns();
+    };
   }, [currentWorkspace?.partnerId]);
 
 
@@ -147,7 +165,7 @@ export default function BroadcastPage() {
             </div>
           </CardContent>
         </Card>
-        
+
         <Card>
             <CardHeader>
                 <CardTitle>My Templates</CardTitle>
@@ -173,6 +191,48 @@ export default function BroadcastPage() {
                     <p className="text-xs text-muted-foreground mt-2">{template.category}</p>
                     </div>
                 ))}
+                </div>
+            </CardContent>
+        </Card>
+
+        <Card>
+            <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <History className="w-5 h-5 text-gray-500"/>
+                  Broadcast History
+                </CardTitle>
+                <CardDescription>
+                    A log of all previously sent campaigns.
+                </CardDescription>
+            </CardHeader>
+            <CardContent>
+                <div className="space-y-3">
+                    {campaigns.length > 0 ? campaigns.map(campaign => (
+                        <div key={campaign.id} className="p-4 border rounded-lg flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                                <div className="p-2 bg-gray-100 rounded">
+                                    <Send className="w-4 h-4 text-gray-600" />
+                                </div>
+                                <div>
+                                    <h4 className="font-semibold">{campaign.name}</h4>
+                                    <p className="text-sm text-muted-foreground">
+                                        Sent on {new Date(campaign.createdAt).toLocaleDateString()}
+                                    </p>
+                                </div>
+                            </div>
+                            <div className="flex items-center gap-4">
+                                <Badge variant="secondary">{campaign.sentCount} recipients</Badge>
+                                <Badge variant={campaign.status === 'sent' ? 'success' : 'outline'}>
+                                  {campaign.status}
+                                </Badge>
+                                <Button variant="ghost" size="sm">View Details</Button>
+                            </div>
+                        </div>
+                    )) : (
+                      <div className="text-center py-8 text-muted-foreground">
+                        No campaigns have been sent yet.
+                      </div>
+                    )}
                 </div>
             </CardContent>
         </Card>
