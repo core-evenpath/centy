@@ -115,8 +115,8 @@ export default function UnifiedPartnerSidebar() {
     },
     { 
       icon: FileText, 
-      label: 'IdeaBox', 
-      href: '/partner/templates',
+      label: 'Ideabox', 
+      href: '/partner/ideabox',
       badge: null,
       description: 'Create and manage ideas'
     },
@@ -312,3 +312,5 @@ export default function UnifiedPartnerSidebar() {
     </Sidebar>
   );
 }
+
+    
