@@ -88,6 +88,8 @@ interface FormData {
   riskLevel: 'low' | 'medium' | 'high' | '';
   keyRisks: string;
   catalysts: string;
+  marketContext: string;
+  sectorTrends: string;
 }
 
 interface AIsuggestions {
@@ -127,6 +129,8 @@ export default function StockRecommendationEditor({
     riskLevel: initialData?.riskLevel || '',
     keyRisks: initialData?.keyRisks || '',
     catalysts: initialData?.catalysts || '',
+    marketContext: initialData?.marketContext || '',
+    sectorTrends: initialData?.sectorTrends || '',
   });
 
   const [aiSuggestions, setAiSuggestions] = useState<AIsuggestions>({ thesis: [], risks: [] });
@@ -278,8 +282,8 @@ export default function StockRecommendationEditor({
         riskLevel: formData.riskLevel as 'low' | 'medium' | 'high',
         keyRisks: [formData.keyRisks, ...selectedRiskTexts].filter(Boolean).join('\n'),
         catalysts: formData.catalysts,
-        marketContext: '',
-        sectorTrends: '',
+        marketContext: formData.marketContext,
+        sectorTrends: formData.sectorTrends,
         ideaType: 'stock-recommendation',
         partnerId: currentWorkspace.partnerId,
         imageUrl: generatedImageUrl || undefined,
@@ -473,7 +477,7 @@ export default function StockRecommendationEditor({
                       onClick={() => setExpandedSection(2)}
                       className="px-6 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-xl font-semibold hover:shadow-lg transition-all flex items-center gap-2"
                     >
-                      Next: Data Source
+                      Next: Investment Thesis
                       <ArrowRight className="w-5 h-5" />
                     </button>
                   </div>
@@ -727,6 +731,14 @@ export default function StockRecommendationEditor({
                   <div>
                     <label className="block text-sm font-semibold text-gray-900 mb-2">Potential Catalysts / Upside Drivers</label>
                     <textarea value={formData.catalysts} onChange={(e) => updateField('catalysts', e.target.value)} placeholder="What events or factors could drive the stock price up?" rows={3} className="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-500 transition-all resize-none" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-900 mb-2">Broader Market Context</label>
+                    <textarea value={formData.marketContext} onChange={(e) => updateField('marketContext', e.target.value)} placeholder="e.g., 'Fed policy is expected to be dovish...'" rows={2} className="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-500 transition-all resize-none" />
+                  </div>
+                   <div>
+                    <label className="block text-sm font-semibold text-gray-900 mb-2">Sector-Specific Trends</label>
+                    <textarea value={formData.sectorTrends} onChange={(e) => updateField('sectorTrends', e.target.value)} placeholder="e.g., 'AI hardware demand is accelerating...'" rows={2} className="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-500 transition-all resize-none" />
                   </div>
                 </div>
 

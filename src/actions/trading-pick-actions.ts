@@ -36,7 +36,7 @@ export async function saveTradingPickAction(
     
     const collectionRef = db.collection(`partners/${partnerId}/tradingPicks`);
     
-    const dataToSave = {
+    const dataToSave: Omit<TradingPick, 'id' | 'createdAt' | 'updatedAt'> = {
         ...pickData,
         partnerId, // Ensure partnerId is always set
         ideaType: 'stock-recommendation', // Set the idea type
