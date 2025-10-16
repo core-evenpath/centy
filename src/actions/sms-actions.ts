@@ -149,7 +149,7 @@ interface SendSmsCampaignInput {
   partnerId: string;
   message: string;
   recipients: CampaignRecipient[];
-  mediaUrl?: string; // Add mediaUrl to support image sending for SMS (MMS)
+  mediaUrl?: string;
 }
 
 export async function sendSmsCampaignAction(input: SendSmsCampaignInput): Promise<{
@@ -161,36 +161,33 @@ export async function sendSmsCampaignAction(input: SendSmsCampaignInput): Promis
   }
 
   try {
-    let uniqueContacts: Contact[] = [];
     const contactIds = new Set<string>();
 
     for (const recipient of input.recipients) {
-      if (recipient.type === 'contact') {
-        if (!contactIds.has(recipient.id)) {
-          const contactDoc = await db.collection(`partners/${input.partnerId}/contacts`).doc(recipient.id).get();
-          if (contactDoc.exists) {
-            uniqueContacts.push({ id: contactDoc.id, ...contactDoc.data() } as Contact);
+        if (recipient.type === 'contact') {
             contactIds.add(recipient.id);
-          }
+        } else if (recipient.type === 'group') {
+            const contactsSnapshot = await db.collection(`partners/${input.partnerId}/contacts`).where('groups', 'array-contains', recipient.name).get();
+            contactsSnapshot.forEach(doc => {
+                contactIds.add(doc.id);
+            });
         }
-      } else if (recipient.type === 'group') {
-        const contactsSnapshot = await db.collection(`partners/${input.partnerId}/contacts`).where('groups', 'array-contains', recipient.name).get();
-        contactsSnapshot.forEach(contactDoc => {
-          if (!contactIds.has(contactDoc.id)) {
-            uniqueContacts.push({ id: contactDoc.id, ...contactDoc.data() } as Contact);
-            contactIds.add(contactDoc.id);
-          }
-        });
-      }
     }
     
-    const sendPromises = uniqueContacts.map(contact => {
+    const uniqueContactIds = Array.from(contactIds);
+    let contactsToSend: Contact[] = [];
+    
+    if (uniqueContactIds.length > 0) {
+      const contactsSnapshot = await db.collection(`partners/${input.partnerId}/contacts`).where(db.FieldPath.documentId(), 'in', uniqueContactIds).get();
+      contactsToSend = contactsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Contact));
+    }
+    
+    const sendPromises = contactsToSend.map(contact => {
       if (contact.phone) {
         return sendSMSAction({
           partnerId: input.partnerId,
           to: contact.phone,
           message: input.message,
-          // mediaUrl: input.mediaUrl, // Assuming sendSMSAction is updated for MMS
         }).catch(err => {
           console.error(`Failed to send SMS to ${contact.phone}:`, err);
           return { success: false, message: `Failed to send to ${contact.name}` };
@@ -204,7 +201,7 @@ export async function sendSmsCampaignAction(input: SendSmsCampaignInput): Promis
 
     return {
       success: true,
-      message: `Campaign successfully sent to ${successCount} of ${uniqueContacts.length} recipients.`,
+      message: `Campaign successfully sent to ${successCount} of ${contactsToSend.length} recipients.`,
     };
 
   } catch (error: any) {
@@ -215,7 +212,6 @@ export async function sendSmsCampaignAction(input: SendSmsCampaignInput): Promis
     };
   }
 }
-
 
 /**
  * Get SMS conversations for a partner

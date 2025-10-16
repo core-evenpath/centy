@@ -1,3 +1,4 @@
+
 {
   "entities": {
     "UserProfile": {
@@ -158,12 +159,12 @@
         "priceTarget": { "type": "string" },
         "currentPrice": { "type": "string" },
         "timeframe": { "type": "string" },
-        "timeframeType": { "type": "string", "enum": ["short", "medium", "long"] },
         "riskLevel": { "type": "string", "enum": ["low", "medium", "high"] },
         "keyRisks": { "type": "string" },
         "catalysts": { "type": "string" },
         "marketContext": { "type": "string" },
-        "sectorTrends": { "type": "string" }
+        "sectorTrends": { "type": "string" },
+        "ideaType": { "type": "string" }
       },
       "required": [
         "partnerId",
@@ -174,9 +175,7 @@
         "thesis",
         "priceTarget",
         "timeframe",
-        "riskLevel",
-        "keyRisks",
-        "catalysts"
+        "riskLevel"
       ]
     }
   },

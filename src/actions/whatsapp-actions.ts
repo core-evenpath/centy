@@ -182,30 +182,28 @@ export async function sendWhatsAppCampaignAction(input: SendWhatsAppCampaignInpu
   }
 
   try {
-    let uniqueContacts: Contact[] = [];
     const contactIds = new Set<string>();
 
     for (const recipient of input.recipients) {
-      if (recipient.type === 'contact') {
-        if (!contactIds.has(recipient.id)) {
-          const contactDoc = await db.collection(`partners/${input.partnerId}/contacts`).doc(recipient.id).get();
-          if (contactDoc.exists) {
-            uniqueContacts.push({ id: contactDoc.id, ...contactDoc.data() } as Contact);
+        if (recipient.type === 'contact') {
             contactIds.add(recipient.id);
-          }
+        } else if (recipient.type === 'group') {
+            const contactsSnapshot = await db.collection(`partners/${input.partnerId}/contacts`).where('groups', 'array-contains', recipient.name).get();
+            contactsSnapshot.forEach(doc => {
+                contactIds.add(doc.id);
+            });
         }
-      } else if (recipient.type === 'group') {
-        const contactsSnapshot = await db.collection(`partners/${input.partnerId}/contacts`).where('groups', 'array-contains', recipient.name).get();
-        contactsSnapshot.forEach(contactDoc => {
-          if (!contactIds.has(contactDoc.id)) {
-            uniqueContacts.push({ id: contactDoc.id, ...contactDoc.data() } as Contact);
-            contactIds.add(contactDoc.id);
-          }
-        });
-      }
     }
     
-    const sendPromises = uniqueContacts.map(contact => {
+    const uniqueContactIds = Array.from(contactIds);
+    let contactsToSend: Contact[] = [];
+    
+    if (uniqueContactIds.length > 0) {
+      const contactsSnapshot = await db.collection(`partners/${input.partnerId}/contacts`).where(db.FieldPath.documentId(), 'in', uniqueContactIds).get();
+      contactsToSend = contactsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Contact));
+    }
+    
+    const sendPromises = contactsToSend.map(contact => {
       if (contact.phone) {
         return sendWhatsAppMessageAction({
           partnerId: input.partnerId,
@@ -225,7 +223,7 @@ export async function sendWhatsAppCampaignAction(input: SendWhatsAppCampaignInpu
 
     return {
       success: true,
-      message: `Campaign successfully sent to ${successCount} of ${uniqueContacts.length} recipient(s).`,
+      message: `Campaign successfully sent to ${successCount} of ${contactsToSend.length} recipient(s).`,
     };
 
   } catch (error: any) {
@@ -236,7 +234,6 @@ export async function sendWhatsAppCampaignAction(input: SendWhatsAppCampaignInpu
     };
   }
 }
-
 
 /**
  * Get WhatsApp conversations for a partner

@@ -161,7 +161,6 @@ const IdeaboxPage = () => {
     const typeInfo = getTemplateTypeInfo('stock-recommendation');
     const Icon = typeInfo.icon;
     
-    // For now, all templates are active
     const templateStatus = 'active';
 
     const colorMap: { [key: string]: string } = {
@@ -174,9 +173,8 @@ const IdeaboxPage = () => {
 
     return (
       <div className="bg-white rounded-xl p-6 border-2 border-gray-200 hover:border-blue-300 hover:shadow-lg transition-all group">
-        {/* Header */}
         <div className="flex items-start justify-between mb-4">
-          <div className={`w-12 h-12 rounded-lg flex items-center justify-center ${colorMap[typeInfo.color as keyof typeof colorMap] || colorMap.blue}`}>
+          <div className={`w-12 h-12 rounded-lg flex items-center justify-center ${colorMap[typeInfo?.color as keyof typeof colorMap] || colorMap.blue}`}>
             <Icon className="w-6 h-6" />
           </div>
           
@@ -196,7 +194,6 @@ const IdeaboxPage = () => {
           </div>
         </div>
 
-        {/* Content */}
         <div className="mb-4">
           <h3 className="font-bold text-lg text-gray-900 mb-2">
             {template.companyName} ({template.ticker})
@@ -204,11 +201,11 @@ const IdeaboxPage = () => {
           
           <div className="flex items-center gap-2 flex-wrap mb-3">
             <span className="px-2 py-1 bg-purple-100 text-purple-700 text-xs rounded-full font-medium">
-              {typeInfo.name}
+              {typeInfo?.name}
             </span>
-            <span className="px-2 py-1 bg-gray-100 text-gray-600 text-xs rounded-full font-medium">
+            {template.sector && <span className="px-2 py-1 bg-gray-100 text-gray-600 text-xs rounded-full font-medium">
               {template.sector}
-            </span>
+            </span>}
             {template.ticker && (
               <span className="px-2 py-1 bg-blue-600 text-white text-xs rounded-full font-bold">
                 {template.ticker}
@@ -225,29 +222,26 @@ const IdeaboxPage = () => {
           </p>
         </div>
 
-        {/* Creator & Date Info */}
         <div className="flex items-center gap-4 text-xs text-gray-500 mb-3 pb-3 border-b border-gray-200">
           <div className="flex items-center gap-1">
             <User className="w-3 h-3" />
             <span>{currentWorkspace?.partnerName || 'You'}</span>
           </div>
-          <div className="flex items-center gap-1">
+          {template.updatedAt && <div className="flex items-center gap-1">
             <Calendar className="w-3 h-3" />
             <span>
               Modified {template.updatedAt 
-                ? new Date(template.updatedAt.toDate()).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+                ? new Date((template.updatedAt as any).toDate()).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
                 : 'Recently'
               }
             </span>
-          </div>
+          </div>}
         </div>
 
-        {/* Usage Stats */}
         <div className="flex items-center justify-between text-xs text-gray-500 mb-4 pb-4 border-b border-gray-200">
           <span className="font-semibold">0 broadcasts</span>
         </div>
 
-        {/* Actions */}
         <div className="flex gap-2">
           <Button 
             asChild 
@@ -311,14 +305,12 @@ const IdeaboxPage = () => {
     );
   };
 
-  // Calculate stats
-  const activeCount = ideas.length; // All are active for now
+  const activeCount = ideas.length; 
   const inactiveCount = 0;
-  const totalBroadcasts = 0; // Will be calculated when we add broadcast tracking
+  const totalBroadcasts = 0; 
 
   return (
     <div className="w-full h-full bg-gray-50 overflow-auto">
-      {/* Top Navigation */}
       <div className="bg-white border-b border-gray-200 px-6 py-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
@@ -338,7 +330,6 @@ const IdeaboxPage = () => {
         </div>
       </div>
 
-      {/* Stats Bar */}
       <div className="bg-white border-b border-gray-200 px-6 py-4">
         <div className="grid grid-cols-5 gap-6">
           <div>
@@ -364,7 +355,6 @@ const IdeaboxPage = () => {
         </div>
       </div>
 
-      {/* Search, Filter, and Status Bar */}
       <div className="bg-white border-b border-gray-200 px-6 py-4">
         <div className="flex items-center gap-4 mb-4">
           <div className="flex-1 relative">
@@ -380,7 +370,6 @@ const IdeaboxPage = () => {
         </div>
 
         <div className="flex items-center justify-between">
-          {/* Category Filter */}
           <div className="flex gap-2 items-center">
             <Filter className="w-5 h-5 text-gray-400 shrink-0" />
             {categories.map((category) => (
@@ -398,7 +387,6 @@ const IdeaboxPage = () => {
             ))}
           </div>
 
-          {/* Status Filter */}
           <div className="flex gap-2">
             <button
               onClick={() => setStatusFilter('all')}
@@ -436,7 +424,6 @@ const IdeaboxPage = () => {
         </div>
       </div>
 
-      {/* Templates Grid */}
       <div className="p-6">
         {isLoading ? (
           <div className="text-center py-20 flex items-center justify-center gap-2 text-gray-600">
@@ -469,20 +456,14 @@ const IdeaboxPage = () => {
         )}
       </div>
 
-      {/* Help Section */}
       <div className="p-6">
         <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-6 border-2 border-blue-200">
-          <h3 className="text-lg font-bold text-gray-900 mb-2">
-            Idea Types for Financial Advisors
-          </h3>
+          <h3 className="text-lg font-bold text-gray-900 mb-2">Idea Types for Financial Advisors</h3>
           <div className="grid grid-cols-5 gap-4">
             {templateTypes.map((type) => {
               const Icon = type.icon;
               return (
-                <div 
-                  key={type.id} 
-                  className="bg-white rounded-lg p-3 border border-blue-200 text-center"
-                >
+                <div key={type.id} className="bg-white rounded-lg p-3 border border-blue-200 text-center">
                   <Icon className={`w-6 h-6 mx-auto mb-2 ${
                     type.color === 'blue' ? 'text-blue-600' :
                     type.color === 'purple' ? 'text-purple-600' :
@@ -490,9 +471,7 @@ const IdeaboxPage = () => {
                     type.color === 'red' ? 'text-red-600' :
                     'text-green-600'
                   }`} />
-                  <div className="text-xs font-semibold text-gray-900">
-                    {type.name}
-                  </div>
+                  <div className="text-xs font-semibold text-gray-900">{type.name}</div>
                 </div>
               );
             })}
