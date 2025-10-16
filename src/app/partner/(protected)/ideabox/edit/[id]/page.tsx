@@ -11,6 +11,7 @@ import StockRecommendationEditor from '@/components/partner/templates/StockRecom
 import { saveTradingPickAction } from '@/actions/trading-pick-actions';
 import type { TradingPick } from '@/lib/types';
 import { Loader2 } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 
 export default function EditIdeaPage() {
   const router = useRouter();
@@ -101,10 +102,12 @@ export default function EditIdeaPage() {
   }
 
   return (
-    <StockRecommendationEditor 
-      initialData={initialData}
-      onSave={handleSave}
-      onBack={() => router.push('/partner/ideabox')}
-    />
+    <div className="overflow-y-auto h-full">
+      <StockRecommendationEditor 
+        initialData={initialData}
+        onSave={handleSave}
+        onBack={() => router.push('/partner/ideabox')}
+      />
+    </div>
   );
 }
