@@ -1,25 +1,23 @@
-
 // src/components/partner/templates/StockRecommendationEditor.tsx
 "use client";
 
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { ArrowLeft, ArrowRight, Send, Sparkles, Upload, FileText, MessageSquare, Brain, Plus, Check, ChevronDown, ChevronUp, AlertCircle, Info, Users, Lock, Database, TrendingUp, Calendar, Save, Loader2, Phone, User, X } from 'lucide-react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { ArrowRight, Send, Sparkles, Upload, FileText, MessageSquare, Brain, Plus, Check, ChevronDown, ChevronUp, AlertCircle, Info, Users, Lock, Database, TrendingUp, Calendar, Save, Loader2, Phone, User, X } from 'lucide-react';
 import { useMultiWorkspaceAuth } from '@/hooks/use-multi-workspace-auth';
 import { useToast } from '@/hooks/use-toast';
+import { saveTradingPickAction } from '@/actions/trading-pick-actions';
 import { Button } from '@/components/ui/button';
 import { sendSmsCampaignAction } from '@/actions/sms-actions';
 import { sendWhatsAppCampaignAction } from '@/actions/whatsapp-actions';
-import type { Contact, ContactGroup, Campaign, TradingPick } from '@/lib/types';
+import type { Contact, ContactGroup } from '@/lib/types';
 import { db } from '@/lib/firebase';
-import { collection, query, onSnapshot, addDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, query, onSnapshot } from 'firebase/firestore';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from '@/lib/utils';
 import Image from 'next/image';
-import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
 
 // Stock database for auto-fill
 const STOCK_DATABASE: Record<string, any> = {
@@ -39,583 +37,1054 @@ const STOCK_DATABASE: Record<string, any> = {
       'U.S. export restrictions impacting China sales (previously significant revenue contributor)',
       'Circular deal structure with OpenAI raises questions about long-term accounting treatment',
       'High expectations priced in - EPS needs to hit $8 (2026), $11 (2027), $50 (2030) to justify valuations'
-    ],
-    aiCatalysts: [
-      'Multi-trillion dollar global AI infrastructure buildout still in early innings',
-      'Intel collaboration announced September 2025 for custom data center and PC products across markets',
-      'Sovereign AI deals in Middle East and Taiwan offsetting China headwinds',
-      'Becoming de facto AI infrastructure company - quarterbacking the entire industry buildout'
     ]
   },
-  'AAPL': { 
-    companyName: 'Apple Inc.', 
-    sector: 'Consumer Electronics / Technology',
-    currentPrice: '$178.23',
+  'AAPL': {
+    companyName: 'Apple Inc.',
+    sector: 'Technology / Consumer Electronics',
+    currentPrice: '$227.50',
     aiThesis: [
-      'iPhone 15 cycle performing stronger than expected with 8% unit growth globally',
-      'Services revenue at $85B annual run-rate with industry-leading 70% gross margins',
-      'Vision Pro launching spatial computing category - 200k units sold in first quarter',
-      'Massive cash flow generation of $110B annually enabling $90B in buybacks',
-      'Ecosystem lock-in with 2B active devices creates unmatched pricing power'
+      'Services revenue growing 15% YoY, now 25% of total revenue with 90%+ gross margins',
+      'iPhone 16 cycle showing strong momentum with AI features driving upgrades',
+      'Wearables and Home segment reached $40B annual run rate',
+      'China showing signs of stabilization after multi-quarter decline'
     ],
     aiRisks: [
-      'iPhone revenue still represents 52% of total - high product concentration risk',
-      'China regulatory challenges and rising competition from Huawei resurgence',
-      'Vision Pro adoption slower than hoped - only 200k units vs 1M target',
-      'Services growth slowing to 9% YoY from previous 20%+ growth rates'
-    ],
-    aiCatalysts: [
-      'iPhone 16 launch September with breakthrough AI features - potential supercycle',
-      'India manufacturing expansion reducing China dependency significantly',
-      'Strategic AI partnership with Google Gemini just announced',
-      'Services attach rate improving steadily - now 30% of revenue vs 20% in 2020'
+      'China regulatory risks and competition from local brands',
+      'High PE ratio of 35x vs historical average of 18x',
+      'Hardware refresh cycles slowing as devices last longer',
+      'App Store revenue under regulatory pressure in EU and US'
     ]
   },
-  'TSLA': { 
-    companyName: 'Tesla, Inc.', 
-    sector: 'Electric Vehicles / Clean Energy',
-    currentPrice: '$242.84',
+  'TSLA': {
+    companyName: 'Tesla, Inc.',
+    sector: 'Automotive / Clean Energy',
+    currentPrice: '$262.90',
     aiThesis: [
-      'Cybertruck production ramping successfully - 125k reservations worth $12.5B',
-      'Energy storage business growing 150% YoY to $6B annual run-rate',
-      'FSD (Full Self-Driving) version 12 showing dramatic improvements in capability',
-      'Operating margins recovering to 18% after price war impact bottomed out',
-      'Gigafactory Mexico starting production H2 2024 - adds 1M unit annual capacity'
+      'Full Self-Driving revenue potential of $10B+ annually once approved',
+      'Cybertruck ramping production with 1M+ reservations',
+      'Energy storage business growing 50%+ YoY, underappreciated by market',
+      'Cost reductions from new manufacturing techniques improving margins'
     ],
     aiRisks: [
-      'EV price war intensifying globally - BYD aggressively cutting prices in China',
-      'Cybertruck production delays and early quality issues being reported',
-      'Musk distraction concerns with X (Twitter) and political activities',
-      'Competition from legacy automakers ramping EV production significantly'
-    ],
-    aiCatalysts: [
-      'Model 2 ($25k affordable EV) unveiling at shareholder meeting June 2024',
-      'FSD licensing deals with other automakers being actively negotiated',
-      'Optimus humanoid robot demo at AI Day - potential $20B+ TAM opportunity',
-      'European sales rebounding strongly with new Model 3 Highland version'
+      'Valuation assumes robotaxi success which faces regulatory hurdles',
+      'Competition intensifying in EV market, especially from Chinese manufacturers',
+      'CEO distraction concerns with multiple company involvement',
+      'Demand uncertainty in key markets as EV subsidies phase out'
     ]
   }
 };
 
-interface StockRecommendationEditorProps {
-  initialData?: TradingPick | null;
-  onSave: (data: Omit<TradingPick, 'id' | 'partnerId'>, existingId?: string) => Promise<boolean>;
-  onBack: () => void;
+interface FormData {
+  ticker: string;
+  companyName: string;
+  sector: string;
+  action: 'buy' | 'sell' | 'hold' | '';
+  thesis: string;
+  priceTarget: string;
+  currentPrice: string;
+  timeframe: string;
+  riskLevel: string;
+  dataSource: 'master' | 'custom';
+  customDataDescription: string;
 }
 
-export default function StockRecommendationEditor({ initialData, onSave, onBack }: StockRecommendationEditorProps) {
-  const [formData, setFormData] = useState<Omit<TradingPick, 'id'| 'partnerId'>>({
+interface AIsuggestions {
+  thesis: string[];
+  risks: string[];
+}
+
+export default function StockRecommendationEditor() {
+  const { currentWorkspace } = useMultiWorkspaceAuth();
+  const { toast } = useToast();
+  const [expandedSection, setExpandedSection] = useState<number>(1);
+  const [autoFilled, setAutoFilled] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [isGeneratingImage, setIsGeneratingImage] = useState(false);
+  const [generatedImageUrl, setGeneratedImageUrl] = useState<string | null>(null);
+  
+  const [formData, setFormData] = useState<FormData>({
     ticker: '',
     companyName: '',
     sector: '',
-    action: 'buy',
+    action: '',
     thesis: '',
     priceTarget: '',
     currentPrice: '',
     timeframe: '',
-    timeframeType: 'short', // short, medium, long
-    riskLevel: 'medium',
-    keyRisks: '',
-    catalysts: '',
-    marketContext: '',
-    sectorTrends: ''
+    riskLevel: '',
+    dataSource: 'master',
+    customDataDescription: ''
   });
-  
-  const [expandedSection, setExpandedSection] = useState(1);
-  const [autoFilled, setAutoFilled] = useState(false);
-  const [isSaving, setIsSaving] = useState(false);
-  const [generatedImageUrl, setGeneratedImageUrl] = useState<string | null>(null);
-  const [isGeneratingImage, setIsGeneratingImage] = useState(false);
-  const [aiSuggestions, setAiSuggestions] = useState<{
-    thesis: string[];
-    risks: string[];
-    catalysts: string[];
-  }>({
+
+  const [aiSuggestions, setAiSuggestions] = useState<AIsuggestions>({
     thesis: [],
-    risks: [],
-    catalysts: []
+    risks: []
   });
+
   const [selectedSuggestions, setSelectedSuggestions] = useState<{
     thesis: number[];
     risks: number[];
-    catalysts: number[];
   }>({
     thesis: [],
-    risks: [],
-    catalysts: []
+    risks: []
   });
 
-  // New state for campaign sending
-  const [platform, setPlatform] = useState<'whatsapp' | 'sms'>('whatsapp');
+  const [selectedRisks, setSelectedRisks] = useState<number[]>([]);
+
+  // Auto-fill when ticker changes
+  useEffect(() => {
+    const ticker = formData.ticker.toUpperCase().trim();
+    if (ticker && STOCK_DATABASE[ticker]) {
+      const stockData = STOCK_DATABASE[ticker];
+      setFormData(prev => ({
+        ...prev,
+        companyName: stockData.companyName,
+        sector: stockData.sector,
+        currentPrice: stockData.currentPrice
+      }));
+      setAiSuggestions({
+        thesis: stockData.aiThesis,
+        risks: stockData.aiRisks
+      });
+      setAutoFilled(true);
+    } else if (ticker) {
+      setAutoFilled(false);
+      setAiSuggestions({ thesis: [], risks: [] });
+    }
+  }, [formData.ticker]);
+
+  const updateField = (field: keyof FormData, value: any) => {
+    setFormData(prev => ({ ...prev, [field]: value }));
+  };
+
+  const toggleSuggestion = (type: 'thesis' | 'risks', index: number) => {
+    setSelectedSuggestions(prev => ({
+      ...prev,
+      [type]: prev[type].includes(index)
+        ? prev[type].filter(i => i !== index)
+        : [...prev[type], index]
+    }));
+  };
+
+  const isStepComplete = (step: number): boolean => {
+    switch(step) {
+      case 1:
+        return !!(formData.ticker && formData.companyName && formData.sector);
+      case 2:
+        // Data source step - always can proceed
+        return true;
+      case 3:
+        return !!formData.action && (formData.thesis.length > 0 || selectedSuggestions.thesis.length > 0);
+      case 4:
+        return !!(formData.priceTarget && formData.timeframe && formData.riskLevel);
+      case 5:
+        return selectedSuggestions.risks.length > 0;
+      default:
+        return false;
+    }
+  };
+
+  const canAccessSection = (section: number): boolean => {
+    for (let i = 1; i < section; i++) {
+      if (!isStepComplete(i)) return false;
+    }
+    return true;
+  };
+
+  const allStepsComplete = useMemo(() => {
+    return isStepComplete(1) && isStepComplete(2) && isStepComplete(3) && isStepComplete(4) && isStepComplete(5);
+  }, [formData, selectedSuggestions]);
+
+  // Contact selection state
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [contactGroups, setContactGroups] = useState<ContactGroup[]>([]);
-  const [selectedRecipients, setSelectedRecipients] = useState<any[]>([]);
+  const [selectedContacts, setSelectedContacts] = useState<string[]>([]);
+  const [selectedGroups, setSelectedGroups] = useState<string[]>([]);
   const [isSending, setIsSending] = useState(false);
-  const [isRecipientPopoverOpen, setIsRecipientPopoverOpen] = useState(false);
-
-  const { currentWorkspace } = useMultiWorkspaceAuth();
-  const { toast } = useToast();
-
-  const partnerId = currentWorkspace?.partnerId;
-  const existingIdeaId = initialData?.id;
-
-  useEffect(() => {
-    if (initialData) {
-      setFormData(prev => ({ ...prev, ...initialData }));
-      if(initialData.ticker) {
-        handleTickerChange(initialData.ticker, true);
-      }
-    }
-  }, [initialData]);
+  const [openContactsPopover, setOpenContactsPopover] = useState(false);
+  const [openGroupsPopover, setOpenGroupsPopover] = useState(false);
 
   // Fetch contacts and groups
   useEffect(() => {
-    if (!partnerId) return;
+    if (!currentWorkspace?.partnerId) return;
 
-    const contactsQuery = query(collection(db, `partners/${partnerId}/contacts`));
-    const groupsQuery = query(collection(db, `partners/${partnerId}/contactGroups`));
+    const contactsRef = collection(db, `partners/${currentWorkspace.partnerId}/contacts`);
+    const groupsRef = collection(db, `partners/${currentWorkspace.partnerId}/contactGroups`);
 
-    const unsubContacts = onSnapshot(contactsQuery, snapshot => {
-      setContacts(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Contact)));
+    const unsubContacts = onSnapshot(query(contactsRef), (snapshot) => {
+      const fetchedContacts = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      })) as Contact[];
+      setContacts(fetchedContacts);
     });
-    
-    const unsubGroups = onSnapshot(groupsQuery, snapshot => {
-      setContactGroups(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ContactGroup)));
+
+    const unsubGroups = onSnapshot(query(groupsRef), (snapshot) => {
+      const fetchedGroups = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      })) as ContactGroup[];
+      setContactGroups(fetchedGroups);
     });
 
     return () => {
       unsubContacts();
       unsubGroups();
     };
-  }, [partnerId]);
+  }, [currentWorkspace?.partnerId]);
 
-
-  const updateField = (field: keyof typeof formData, value: any) => {
-    setFormData({ ...formData, [field]: value });
-  };
-
-  const handleTickerChange = useCallback((value: string, isInitialLoad = false) => {
-    const upperTicker = value.toUpperCase();
-    updateField('ticker', upperTicker);
-    
-    if (STOCK_DATABASE[upperTicker] && !isInitialLoad) {
-      const stockData = STOCK_DATABASE[upperTicker];
-      setFormData(prev => ({
-        ...prev,
-        ticker: upperTicker,
-        companyName: stockData.companyName,
-        sector: stockData.sector,
-        currentPrice: stockData.currentPrice
-      }));
-      
-      setAiSuggestions({
-        thesis: stockData.aiThesis || [],
-        risks: stockData.aiRisks || [],
-        catalysts: stockData.aiCatalysts || []
-      });
-      
-      setSelectedSuggestions({
-        thesis: [],
-        risks: [],
-        catalysts: []
-      });
-      
-      setAutoFilled(true);
-      setTimeout(() => setAutoFilled(false), 3000);
-    } else {
-      if(!isInitialLoad){
-        setAutoFilled(false);
-        setAiSuggestions({ thesis: [], risks: [], catalysts: [] });
-      }
-    }
-  }, []);
-
-  const toggleSuggestion = (type: 'thesis' | 'risks' | 'catalysts', index: number) => {
-    const currentSelections = [...selectedSuggestions[type]];
-    const suggestionIndex = currentSelections.indexOf(index);
-    
-    if (suggestionIndex > -1) {
-      currentSelections.splice(suggestionIndex, 1);
-    } else {
-      currentSelections.push(index);
-    }
-    
-    setSelectedSuggestions({
-      ...selectedSuggestions,
-      [type]: currentSelections
-    });
-    
-    updateTextFromSelections(type, currentSelections);
-  };
-
-  const updateTextFromSelections = (type: 'thesis' | 'risks' | 'catalysts', selections: number[]) => {
-    const suggestions = aiSuggestions[type];
-    const selectedText = selections
-      .sort((a, b) => a - b)
-      .map(i => `• ${suggestions[i]}`)
-      .join('\n');
-    
-    if (type === 'thesis') {
-      updateField('thesis', selectedText);
-    } else if (type === 'risks') {
-      updateField('keyRisks', selectedText);
-    } else if (type === 'catalysts') {
-      updateField('catalysts', selectedText);
-    }
-  };
-
-  const toggleSection = (section: number) => {
-    setExpandedSection(expandedSection === section ? 0 : section);
-  };
-
-  const isStepComplete = (step: number) => {
-    switch(step) {
-      case 1: return !!(formData.ticker && formData.companyName && formData.sector);
-      case 2: return true; // AI Training is optional
-      case 3: return !!(formData.thesis && formData.action);
-      case 4: return !!(formData.priceTarget && formData.timeframe);
-      case 5: return !!(formData.keyRisks && formData.catalysts);
-      default: return false;
-    }
-  };
-
-  const allStepsComplete = useMemo(() => {
-    return [1, 3, 4, 5].every(isStepComplete);
-  }, [formData]);
-
-  const timeframeOptions = [
-    { value: 'short', label: 'Short-term', example: '1-2 weeks', icon: '⚡' },
-    { value: 'medium', label: 'Medium-term', example: '1-6 months', icon: '📈' },
-    { value: 'long', label: 'Long-term', example: '6-24 months', icon: '🎯' }
-  ];
-
-  const handleSaveDraft = async () => {
-    setIsSaving(true);
-    const success = await onSave(formData, existingIdeaId);
-    setIsSaving(false);
-  };
-
-  const handleRecipientSelect = (recipient: any) => {
-    setSelectedRecipients(prev => {
-      if (prev.some(r => r.id === recipient.id)) {
-        return prev.filter(r => r.id !== recipient.id);
-      }
-      return [...prev, recipient];
-    });
-  };
-
-  const availableRecipients = useMemo(() => {
-    return [
-      ...contactGroups.map(g => ({ ...g, type: 'group' })),
-      ...contacts.map(c => ({ ...c, type: 'contact' }))
-    ];
-  }, [contacts, contactGroups]);
-
-  const handleGenerateImage = async () => {
-    if (!formData.ticker) return;
-  
-    setIsGeneratingImage(true);
-    setGeneratedImageUrl(null);
-    toast({ title: 'Generating Image...', description: 'Please wait...' });
-  
-    try {
-      const response = await fetch(`/api/generate-stock-card-image?${new URLSearchParams({
-        ticker: formData.ticker,
-        companyName: formData.companyName,
-        action: formData.action,
-      })}`);
-      
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to generate image from API.');
-      }
-  
-      const data = await response.json();
-      setGeneratedImageUrl(data.imageUrl);
-      toast({ title: 'Image Generated!', description: 'You can now send your broadcast.' });
-  
-    } catch (error: any) {
-      toast({ variant: 'destructive', title: 'Image Generation Failed', description: error.message, duration: 8000 });
-    } finally {
-      setIsGeneratingImage(false);
-    }
-  };
-  
-  useEffect(() => {
-    if (allStepsComplete && !generatedImageUrl && !isGeneratingImage) {
-      handleGenerateImage();
-    }
-  }, [allStepsComplete, generatedImageUrl, isGeneratingImage, handleGenerateImage]);
-
-
-  const handleSendBroadcast = async () => {
-    if (!partnerId || selectedRecipients.length === 0 || !generatedImageUrl) {
-      toast({
-        variant: 'destructive',
-        title: 'Missing Information',
-        description: 'Please generate an image and select recipients before sending.',
-      });
+  const handleSendCampaign = async (channel: 'sms' | 'whatsapp') => {
+    if (!currentWorkspace?.partnerId) {
+      toast({ title: "Error", description: "Partner ID not found", variant: "destructive" });
       return;
     }
-  
-    setIsSending(true);
-    try {
-      const textMessage = `📈 New Stock Pick: ${formData.ticker.toUpperCase()} (${formData.action.toUpperCase()})\n\nThesis: ${formData.thesis}\n\nTarget: ${formData.priceTarget}\nRisk: ${formData.riskLevel.toUpperCase()}`;
-      
-      // 1. Create the Campaign document in Firestore
-      const campaignRef = await addDoc(collection(db, `partners/${partnerId}/campaigns`), {
-        name: `Stock Pick: ${formData.ticker}`,
-        partnerId: partnerId,
-        message: textMessage,
-        mediaUrl: generatedImageUrl,
-        status: 'sent',
-        sentCount: selectedRecipients.reduce((acc, r) => acc + (r.contactCount || 1), 0),
-        engagementRate: 0,
-        revenueGenerated: 0,
-        createdAt: serverTimestamp(),
-        recipients: {
-          contacts: selectedRecipients.filter(r => r.type === 'contact').map(r => r.name),
-          groups: selectedRecipients.filter(r => r.type === 'group').map(r => r.name),
-        },
-      });
-      console.log('Campaign document created with ID:', campaignRef.id);
 
-      // 2. Call the correct action based on platform
-      const campaignPayload = {
-        partnerId,
-        message: textMessage,
-        recipients: selectedRecipients.map(r => ({
-          id: r.id,
-          name: r.name,
-          type: r.contactCount !== undefined ? 'group' : 'contact'
-        })),
-        mediaUrl: generatedImageUrl,
-      };
-  
-      let result;
-      if (platform === 'whatsapp') {
-        result = await sendWhatsAppCampaignAction(campaignPayload as any);
-      } else {
-        result = await sendSmsCampaignAction(campaignPayload);
-      }
-  
+    if (selectedContacts.length === 0 && selectedGroups.length === 0) {
+      toast({ title: "No recipients", description: "Please select contacts or groups", variant: "destructive" });
+      return;
+    }
+
+    setIsSending(true);
+
+    try {
+      const finalThesis = [
+        ...selectedSuggestions.thesis.map(i => aiSuggestions.thesis[i]),
+        formData.thesis
+      ].filter(Boolean).join('\n\n');
+
+      const message = `${formData.action.toUpperCase()} ${formData.ticker}\n\n${finalThesis}\n\nTarget: ${formData.priceTarget}\nTimeframe: ${formData.timeframe}\nRisk: ${formData.riskLevel}`;
+
+      const result = channel === 'sms'
+        ? await sendSmsCampaignAction({
+            partnerId: currentWorkspace.partnerId,
+            message,
+            contactIds: selectedContacts,
+            groupIds: selectedGroups,
+            mediaUrl: generatedImageUrl || undefined,
+          })
+        : await sendWhatsAppCampaignAction({
+            partnerId: currentWorkspace.partnerId,
+            message,
+            contactIds: selectedContacts,
+            groupIds: selectedGroups,
+            mediaUrl: generatedImageUrl || undefined,
+          });
+
       if (result.success) {
-        toast({ title: 'Broadcast Sent Successfully', description: result.message });
+        toast({ title: "Success!", description: `Campaign sent via ${channel.toUpperCase()}` });
       } else {
-        throw new Error(result.message || `Failed to send ${platform} broadcast.`);
+        toast({ title: "Error", description: result.message, variant: "destructive" });
       }
     } catch (error: any) {
-      toast({
-        variant: 'destructive',
-        title: 'Broadcast Failed',
-        description: error.message || 'An unexpected error occurred.',
-        duration: 8000
-      });
+      toast({ title: "Error", description: error.message, variant: "destructive" });
     } finally {
       setIsSending(false);
     }
   };
 
-  const renderSection = (sectionNumber: number, title: string, subtitle: string, children: React.ReactNode) => {
-    const isComplete = isStepComplete(sectionNumber);
-    const isExpanded = expandedSection === sectionNumber;
+  const handleSaveAsDraft = async () => {
+    if (!currentWorkspace?.partnerId) {
+      toast({ title: "Error", description: "Partner ID not found", variant: "destructive" });
+      return;
+    }
 
-    return (
-      <div className={`bg-white rounded-2xl shadow-sm border-2 transition-all ${
-        isExpanded 
-          ? 'border-blue-500 shadow-lg' 
-          : isComplete
-          ? 'border-green-200'
-          : 'border-gray-200'
-      }`}>
-        <button
-          onClick={() => toggleSection(sectionNumber)}
-          className="w-full p-6 flex items-center justify-between hover:bg-gray-50 rounded-t-2xl transition-colors"
-        >
-          <div className="flex items-center gap-4">
-            <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold ${
-              isComplete
-                ? 'bg-green-600 text-white'
-                : isExpanded
-                ? 'bg-blue-600 text-white'
-                : 'bg-gray-300 text-gray-600'
-            }`}>
-              {isComplete ? <Check className="w-6 h-6" /> : sectionNumber}
-            </div>
-            <div className="text-left">
-              <h3 className="text-lg font-bold text-gray-900">{title}</h3>
-              {!isExpanded && (
-                <p className="text-sm text-gray-500 mt-1">{subtitle}</p>
-              )}
-            </div>
-          </div>
-          {isExpanded ? (
-            <ChevronUp className="w-6 h-6 text-gray-400" />
-          ) : (
-            <ChevronDown className="w-6 h-6 text-gray-400" />
-          )}
-        </button>
-        {isExpanded && (
-          <div className="px-6 pb-6 pt-2 border-t border-gray-200">
-            {children}
-          </div>
-        )}
-      </div>
-    );
+    setIsSaving(true);
+
+    try {
+      const finalThesis = [
+        ...selectedSuggestions.thesis.map(i => aiSuggestions.thesis[i]),
+        formData.thesis
+      ].filter(Boolean).join('\n\n');
+
+      const selectedRiskTexts = selectedSuggestions.risks.map(i => aiSuggestions.risks[i]);
+
+      const result = await saveTradingPickAction({
+        partnerId: currentWorkspace.partnerId,
+        ticker: formData.ticker,
+        companyName: formData.companyName,
+        sector: formData.sector,
+        action: formData.action as 'buy' | 'sell' | 'hold',
+        thesis: finalThesis,
+        priceTarget: formData.priceTarget,
+        currentPrice: formData.currentPrice,
+        timeframe: formData.timeframe,
+        riskLevel: formData.riskLevel,
+        risks: selectedRiskTexts,
+        imageUrl: generatedImageUrl || undefined,
+        dataSource: formData.dataSource,
+        customDataDescription: formData.dataSource === 'custom' ? formData.customDataDescription : undefined
+      });
+
+      if (result.success) {
+        toast({ title: "Saved!", description: "Your stock pick has been saved" });
+      } else {
+        toast({ title: "Error", description: result.message, variant: "destructive" });
+      }
+    } catch (error: any) {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   return (
-    <div className="p-6">
-      <style>{`
-        @keyframes fadeIn { from { opacity: 0; transform: translateX(10px); } to { opacity: 1; transform: translateX(0); } }
-        .animate-fade-in { animation: fadeIn 0.3s ease-out; }
-      `}</style>
-      
-      <button onClick={onBack} className="flex items-center gap-2 text-sm text-gray-600 hover:text-gray-900 mb-6 font-medium">
-        <ArrowLeft className="w-4 h-4" />
-        Back to Ideabox
-      </button>
+    <div className="max-w-5xl mx-auto p-8">
+      <div className="mb-8">
+        <h1 className="text-3xl font-bold text-gray-900 mb-2">Create Stock Recommendation</h1>
+        <p className="text-gray-600">Follow these steps to create a professional stock recommendation with AI assistance.</p>
+      </div>
 
-      <div className="space-y-4">
-        {renderSection(1, "Step 1: Basic Information", "Enter ticker to auto-fill details.", 
-          <>
-            <div className="flex items-start gap-3 p-4 bg-blue-50 rounded-lg border border-blue-200 my-6">
-              <Info className="w-5 h-5 text-blue-600 shrink-0 mt-0.5" />
-              <div className="text-sm text-blue-900">
-                <strong>Quick tip:</strong> Just enter the ticker symbol. For popular stocks like NVDA, AAPL, or TSLA, we'll automatically fill in the company name, sector, and current price for you!
+      <div className="space-y-6">
+        {/* Section 1: Basic Information */}
+        <div className={`bg-white rounded-2xl shadow-sm border-2 transition-all ${
+          expandedSection === 1 
+            ? 'border-blue-500 shadow-lg' 
+            : isStepComplete(1)
+            ? 'border-green-500'
+            : 'border-gray-200'
+        }`}>
+          <button
+            onClick={() => setExpandedSection(expandedSection === 1 ? 0 : 1)}
+            className="w-full px-6 py-5 flex items-center justify-between hover:bg-gray-50 transition-colors rounded-t-2xl"
+          >
+            <div className="flex items-center gap-4">
+              <div className={`w-12 h-12 rounded-full flex items-center justify-center text-white font-bold text-lg transition-all ${
+                isStepComplete(1) ? 'bg-green-600' : expandedSection === 1 ? 'bg-blue-600' : 'bg-gray-300'
+              }`}>
+                {isStepComplete(1) ? <Check className="w-6 h-6" /> : '1'}
+              </div>
+              <div className="text-left">
+                <h3 className="text-lg font-bold text-gray-900">Step 1: Basic Information</h3>
+                {isStepComplete(1) && expandedSection !== 1 && (
+                  <p className="text-sm text-gray-600 mt-1">
+                    {formData.ticker} - {formData.companyName}
+                  </p>
+                )}
+                {!isStepComplete(1) && expandedSection !== 1 && (
+                  <p className="text-sm text-gray-500 mt-1">Enter stock ticker and company details</p>
+                )}
               </div>
             </div>
-            <div className="space-y-5">
-              <div>
-                <label className="block text-sm font-semibold text-gray-900 mb-2">
-                  Stock Ticker * <span className="text-gray-500 font-normal">(e.g., NVDA, AAPL, TSLA)</span>
-                </label>
-                <div className="relative">
-                  <Input
+            {expandedSection === 1 ? (
+              <ChevronUp className="w-6 h-6 text-gray-400" />
+            ) : (
+              <ChevronDown className="w-6 h-6 text-gray-400" />
+            )}
+          </button>
+
+          {expandedSection === 1 && (
+            <div className="px-6 pb-6 pt-2 border-t border-gray-200">
+              <div className="flex items-start gap-3 p-4 bg-blue-50 rounded-lg border border-blue-200 mb-6">
+                <Info className="w-5 h-5 text-blue-600 shrink-0 mt-0.5" />
+                <div className="text-sm text-blue-900">
+                  <strong>Quick tip:</strong> Just enter the ticker symbol. For popular stocks like NVDA, AAPL, or TSLA, we'll automatically fill in the company name, sector, and current price for you!
+                </div>
+              </div>
+
+              <div className="space-y-6">
+                <div>
+                  <label className="block text-sm font-semibold text-gray-900 mb-2">
+                    Stock Ticker * <span className="text-gray-500 font-normal">(e.g., NVDA, AAPL, TSLA)</span>
+                  </label>
+                  <input
                     type="text"
                     value={formData.ticker}
-                    onChange={(e) => handleTickerChange(e.target.value)}
-                    placeholder="Start typing: NVDA, AAPL, TSLA..."
-                    className="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-lg font-bold uppercase"
+                    onChange={(e) => updateField('ticker', e.target.value.toUpperCase())}
+                    placeholder="Enter ticker symbol"
+                    className="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-500 transition-all"
                   />
-                  {autoFilled && (
-                    <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-2 text-green-600 animate-fade-in">
-                      <Check className="w-5 h-5" />
-                      <span className="text-sm font-medium">Auto-filled!</span>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-semibold text-gray-900 mb-2">
+                    Company Name *
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="text"
+                      value={formData.companyName}
+                      onChange={(e) => updateField('companyName', e.target.value)}
+                      placeholder="e.g., NVIDIA Corporation"
+                      className={`w-full px-4 py-3 border-2 rounded-xl focus:ring-2 focus:ring-blue-500 transition-all ${
+                        autoFilled ? 'border-green-300 bg-green-50' : 'border-gray-300 focus:border-blue-500'
+                      }`}
+                    />
+                    {autoFilled && (
+                      <button
+                        onClick={() => setAutoFilled(false)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-blue-600 hover:text-blue-700 font-medium"
+                      >
+                        Edit
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-semibold text-gray-900 mb-2">
+                    Sector / Industry *
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="text"
+                      value={formData.sector}
+                      onChange={(e) => updateField('sector', e.target.value)}
+                      placeholder="e.g., Technology, Clean Energy"
+                      className={`w-full px-4 py-3 border-2 rounded-xl focus:ring-2 focus:ring-blue-500 transition-all ${
+                        autoFilled ? 'border-green-300 bg-green-50' : 'border-gray-300 focus:border-blue-500'
+                      }`}
+                    />
+                    {autoFilled && (
+                      <button
+                        onClick={() => setAutoFilled(false)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-blue-600 hover:text-blue-700 font-medium"
+                      >
+                        Edit
+                      </button>
+                    )}
+                  </div>
+                  <p className="text-xs text-gray-500 mt-2">This helps AI match your recommendation with interested clients</p>
+                </div>
+              </div>
+
+              {isStepComplete(1) && (
+                <div className="flex justify-end mt-6">
+                  <button
+                    onClick={() => setExpandedSection(2)}
+                    className="px-6 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-xl font-semibold hover:shadow-lg transition-all flex items-center gap-2"
+                  >
+                    Next: Data Source
+                    <ArrowRight className="w-5 h-5" />
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Section 2: Data Source (NEW STEP) */}
+        <div className={`bg-white rounded-2xl shadow-sm border-2 transition-all ${
+          !canAccessSection(2)
+            ? 'border-gray-200 opacity-60'
+            : expandedSection === 2 
+            ? 'border-blue-500 shadow-lg' 
+            : isStepComplete(2)
+            ? 'border-green-500'
+            : 'border-gray-200'
+        }`}>
+          <button
+            onClick={() => canAccessSection(2) && setExpandedSection(expandedSection === 2 ? 0 : 2)}
+            disabled={!canAccessSection(2)}
+            className="w-full px-6 py-5 flex items-center justify-between hover:bg-gray-50 transition-colors rounded-t-2xl disabled:cursor-not-allowed"
+          >
+            <div className="flex items-center gap-4">
+              <div className={`w-12 h-12 rounded-full flex items-center justify-center text-white font-bold text-lg transition-all ${
+                !canAccessSection(2)
+                  ? 'bg-gray-200 text-gray-400'
+                  : isStepComplete(2)
+                  ? 'bg-green-600'
+                  : expandedSection === 2
+                  ? 'bg-blue-600'
+                  : 'bg-gray-300 text-gray-600'
+              }`}>
+                {!canAccessSection(2) ? (
+                  <Lock className="w-5 h-5" />
+                ) : isStepComplete(2) ? (
+                  <Check className="w-6 h-6" />
+                ) : (
+                  '2'
+                )}
+              </div>
+              <div className="text-left">
+                <h3 className="text-lg font-bold text-gray-900">Step 2: AI Training Data</h3>
+                {isStepComplete(2) && expandedSection !== 2 && (
+                  <p className="text-sm text-gray-600 mt-1">
+                    Using: <strong className="text-gray-900">{formData.dataSource === 'master' ? 'Company-wide data' : 'Custom data for this pick'}</strong>
+                  </p>
+                )}
+                {!isStepComplete(2) && expandedSection !== 2 && canAccessSection(2) && (
+                  <p className="text-sm text-gray-500 mt-1">Choose data source for AI recommendations</p>
+                )}
+              </div>
+            </div>
+            {canAccessSection(2) && (
+              expandedSection === 2 ? (
+                <ChevronUp className="w-6 h-6 text-gray-400" />
+              ) : (
+                <ChevronDown className="w-6 h-6 text-gray-400" />
+              )
+            )}
+          </button>
+
+          {expandedSection === 2 && (
+            <div className="px-6 pb-6 pt-2 border-t border-gray-200">
+              <div className="flex items-start gap-3 p-4 bg-purple-50 rounded-lg border border-purple-200 mb-6">
+                <Database className="w-5 h-5 text-purple-600 shrink-0 mt-0.5" />
+                <div className="text-sm text-purple-900">
+                  Choose whether to use company-wide AI training data or provide custom data specific to this stock pick.
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {/* Master Data Option */}
+                  <button
+                    onClick={() => updateField('dataSource', 'master')}
+                    className={`p-6 border-2 rounded-xl text-left transition-all ${
+                      formData.dataSource === 'master'
+                        ? 'border-blue-600 bg-blue-50 shadow-md'
+                        : 'border-gray-300 hover:border-gray-400'
+                    }`}
+                  >
+                    <div className="flex items-start gap-3">
+                      <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                        formData.dataSource === 'master' ? 'bg-blue-600' : 'bg-gray-200'
+                      }`}>
+                        <Database className={`w-5 h-5 ${
+                          formData.dataSource === 'master' ? 'text-white' : 'text-gray-400'
+                        }`} />
+                      </div>
+                      <div className="flex-1">
+                        <h4 className="font-semibold text-gray-900 mb-1">Master Data (Company-wide)</h4>
+                        <p className="text-sm text-gray-600">
+                          Use your company's general AI training data and knowledge base
+                        </p>
+                      </div>
+                      {formData.dataSource === 'master' && (
+                        <Check className="w-5 h-5 text-blue-600 shrink-0" />
+                      )}
+                    </div>
+                  </button>
+
+                  {/* Custom Data Option */}
+                  <button
+                    onClick={() => updateField('dataSource', 'custom')}
+                    className={`p-6 border-2 rounded-xl text-left transition-all ${
+                      formData.dataSource === 'custom'
+                        ? 'border-blue-600 bg-blue-50 shadow-md'
+                        : 'border-gray-300 hover:border-gray-400'
+                    }`}
+                  >
+                    <div className="flex items-start gap-3">
+                      <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                        formData.dataSource === 'custom' ? 'bg-blue-600' : 'bg-gray-200'
+                      }`}>
+                        <Brain className={`w-5 h-5 ${
+                          formData.dataSource === 'custom' ? 'text-white' : 'text-gray-400'
+                        }`} />
+                      </div>
+                      <div className="flex-1">
+                        <h4 className="font-semibold text-gray-900 mb-1">Custom Data (This Pick Only)</h4>
+                        <p className="text-sm text-gray-600">
+                          Train AI with specific data for this stock recommendation
+                        </p>
+                      </div>
+                      {formData.dataSource === 'custom' && (
+                        <Check className="w-5 h-5 text-blue-600 shrink-0" />
+                      )}
+                    </div>
+                  </button>
+                </div>
+
+                {/* Custom Data Description Field */}
+                {formData.dataSource === 'custom' && (
+                  <div className="mt-4 p-4 bg-gray-50 rounded-lg border border-gray-200">
+                    <label className="block text-sm font-semibold text-gray-900 mb-2">
+                      Custom Training Data Description
+                    </label>
+                    <textarea
+                      value={formData.customDataDescription}
+                      onChange={(e) => updateField('customDataDescription', e.target.value)}
+                      placeholder="Describe the custom data or analysis you want the AI to use for this specific pick..."
+                      rows={4}
+                      className="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-500 transition-all resize-none"
+                    />
+                    <p className="text-xs text-gray-500 mt-2">
+                      This information will be used to train the AI specifically for this stock recommendation
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              {isStepComplete(2) && (
+                <div className="flex justify-end mt-6">
+                  <button
+                    onClick={() => setExpandedSection(3)}
+                    className="px-6 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-xl font-semibold hover:shadow-lg transition-all flex items-center gap-2"
+                  >
+                    Next: Investment Thesis
+                    <ArrowRight className="w-5 h-5" />
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Section 3: Investment Thesis (formerly Section 2) */}
+        <div className={`bg-white rounded-2xl shadow-sm border-2 transition-all ${
+          !canAccessSection(3)
+            ? 'border-gray-200 opacity-60'
+            : expandedSection === 3 
+            ? 'border-blue-500 shadow-lg' 
+            : isStepComplete(3)
+            ? 'border-green-500'
+            : 'border-gray-200'
+        }`}>
+          <button
+            onClick={() => canAccessSection(3) && setExpandedSection(expandedSection === 3 ? 0 : 3)}
+            disabled={!canAccessSection(3)}
+            className="w-full px-6 py-5 flex items-center justify-between hover:bg-gray-50 transition-colors rounded-t-2xl disabled:cursor-not-allowed"
+          >
+            <div className="flex items-center gap-4">
+              <div className={`w-12 h-12 rounded-full flex items-center justify-center text-white font-bold text-lg transition-all ${
+                !canAccessSection(3)
+                  ? 'bg-gray-200 text-gray-400'
+                  : isStepComplete(3)
+                  ? 'bg-green-600'
+                  : expandedSection === 3
+                  ? 'bg-blue-600'
+                  : 'bg-gray-300 text-gray-600'
+              }`}>
+                {!canAccessSection(3) ? (
+                  <Lock className="w-5 h-5" />
+                ) : isStepComplete(3) ? (
+                  <Check className="w-6 h-6" />
+                ) : (
+                  '3'
+                )}
+              </div>
+              <div className="text-left">
+                <h3 className="text-lg font-bold text-gray-900">Step 3: Investment Thesis</h3>
+                {isStepComplete(3) && expandedSection !== 3 && (
+                  <p className="text-sm text-gray-600 mt-1">
+                    <strong className="text-gray-900 capitalize">{formData.action}</strong> recommendation with {selectedSuggestions.thesis.length} key points
+                  </p>
+                )}
+                {!isStepComplete(3) && expandedSection !== 3 && canAccessSection(3) && (
+                  <p className="text-sm text-gray-500 mt-1">Build your investment case</p>
+                )}
+              </div>
+            </div>
+            {canAccessSection(3) && (
+              expandedSection === 3 ? (
+                <ChevronUp className="w-6 h-6 text-gray-400" />
+              ) : (
+                <ChevronDown className="w-6 h-6 text-gray-400" />
+              )
+            )}
+          </button>
+
+          {expandedSection === 3 && (
+            <div className="px-6 pb-6 pt-2 border-t border-gray-200">
+              <div className="flex items-start gap-3 p-4 bg-purple-50 rounded-lg border border-purple-200 mb-6">
+                <Sparkles className="w-5 h-5 text-purple-600 shrink-0 mt-0.5" />
+                <div className="text-sm text-purple-900">
+                  <strong>This is the most important part!</strong> Everything you write here trains your AI agent. When clients ask "Why this stock?", the AI will use your thesis to answer.
+                </div>
+              </div>
+
+              <div className="space-y-6">
+                <div>
+                  <label className="block text-sm font-semibold text-gray-900 mb-3">
+                    What's your recommendation? *
+                  </label>
+                  <div className="grid grid-cols-3 gap-3">
+                    {['buy', 'sell', 'hold'].map((action) => (
+                      <button
+                        key={action}
+                        onClick={() => updateField('action', action)}
+                        className={`py-4 px-4 rounded-xl border-2 font-bold capitalize transition-all ${
+                          formData.action === action
+                            ? 'border-blue-600 bg-blue-50 text-blue-700 shadow-md scale-105'
+                            : 'border-gray-300 text-gray-700 hover:border-gray-400'
+                        }`}
+                      >
+                        {action}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* AI Suggestions */}
+                {aiSuggestions.thesis && aiSuggestions.thesis.length > 0 && (
+                  <div className="bg-gradient-to-br from-purple-50 to-blue-50 rounded-xl p-5 border-2 border-purple-300">
+                    <div className="flex items-center gap-2 mb-4">
+                      <Sparkles className="w-6 h-6 text-purple-600" />
+                      <div>
+                        <h4 className="font-bold text-gray-900">AI-Generated Investment Points</h4>
+                        <p className="text-xs text-gray-600">Check the points you agree with - they'll be added to your thesis automatically</p>
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      {aiSuggestions.thesis.map((suggestion, index) => (
+                        <label
+                          key={index}
+                          className={`flex items-start gap-3 p-4 rounded-lg cursor-pointer transition-all ${
+                            selectedSuggestions.thesis.includes(index)
+                              ? 'bg-blue-100 border-2 border-blue-500'
+                              : 'bg-white border-2 border-gray-200 hover:border-blue-300'
+                          }`}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={selectedSuggestions.thesis.includes(index)}
+                            onChange={() => toggleSuggestion('thesis', index)}
+                            className="mt-1 w-5 h-5 text-blue-600 rounded focus:ring-2 focus:ring-blue-500"
+                          />
+                          <span className="text-sm text-gray-900 flex-1">{suggestion}</span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                <div>
+                  <label className="block text-sm font-semibold text-gray-900 mb-2">
+                    Additional Thesis Points (Optional)
+                  </label>
+                  <textarea
+                    value={formData.thesis}
+                    onChange={(e) => updateField('thesis', e.target.value)}
+                    placeholder="Add any additional points or context to your investment thesis..."
+                    rows={4}
+                    className="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-500 transition-all resize-none"
+                  />
+                </div>
+              </div>
+
+              {isStepComplete(3) && (
+                <div className="flex justify-end mt-6">
+                  <button
+                    onClick={() => setExpandedSection(4)}
+                    className="px-6 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-xl font-semibold hover:shadow-lg transition-all flex items-center gap-2"
+                  >
+                    Next: Price Target & Timeline
+                    <ArrowRight className="w-5 h-5" />
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Section 4: Price Target & Timeline (formerly Section 3) */}
+        <div className={`bg-white rounded-2xl shadow-sm border-2 transition-all ${
+          !canAccessSection(4)
+            ? 'border-gray-200 opacity-60'
+            : expandedSection === 4 
+            ? 'border-blue-500 shadow-lg' 
+            : isStepComplete(4)
+            ? 'border-green-500'
+            : 'border-gray-200'
+        }`}>
+          <button
+            onClick={() => canAccessSection(4) && setExpandedSection(expandedSection === 4 ? 0 : 4)}
+            disabled={!canAccessSection(4)}
+            className="w-full px-6 py-5 flex items-center justify-between hover:bg-gray-50 transition-colors rounded-t-2xl disabled:cursor-not-allowed"
+          >
+            <div className="flex items-center gap-4">
+              <div className={`w-12 h-12 rounded-full flex items-center justify-center text-white font-bold text-lg transition-all ${
+                !canAccessSection(4)
+                  ? 'bg-gray-200 text-gray-400'
+                  : isStepComplete(4)
+                  ? 'bg-green-600'
+                  : expandedSection === 4
+                  ? 'bg-blue-600'
+                  : 'bg-gray-300 text-gray-600'
+              }`}>
+                {!canAccessSection(4) ? (
+                  <Lock className="w-5 h-5" />
+                ) : isStepComplete(4) ? (
+                  <Check className="w-6 h-6" />
+                ) : (
+                  '4'
+                )}
+              </div>
+              <div className="text-left">
+                <h3 className="text-lg font-bold text-gray-900">Step 4: Price Target & Timeline</h3>
+                {isStepComplete(4) && expandedSection !== 4 && (
+                  <div className="flex items-center gap-3 mt-1">
+                    <span className="text-sm text-gray-600">
+                      Target: <strong className="text-gray-900">{formData.priceTarget}</strong>
+                    </span>
+                    <span className="text-sm text-gray-500">• {formData.timeframe}</span>
+                    <span className="px-2 py-1 bg-gray-100 text-gray-700 rounded text-xs font-medium capitalize">
+                      {formData.riskLevel} Risk
+                    </span>
+                  </div>
+                )}
+                {!isStepComplete(4) && expandedSection !== 4 && canAccessSection(4) && (
+                  <p className="text-sm text-gray-500 mt-1">Set price expectations and holding period</p>
+                )}
+              </div>
+            </div>
+            {canAccessSection(4) && (
+              expandedSection === 4 ? (
+                <ChevronUp className="w-6 h-6 text-gray-400" />
+              ) : (
+                <ChevronDown className="w-6 h-6 text-gray-400" />
+              )
+            )}
+          </button>
+
+          {expandedSection === 4 && (
+            <div className="px-6 pb-6 pt-2 border-t border-gray-200">
+              <div className="flex items-start gap-3 p-4 bg-blue-50 rounded-lg border border-blue-200 mb-6">
+                <TrendingUp className="w-5 h-5 text-blue-600 shrink-0 mt-0.5" />
+                <div className="text-sm text-blue-900">
+                  <strong>Set clear expectations:</strong> Clients need to know the target price and how long they should hold. Be specific!
+                </div>
+              </div>
+
+              <div className="space-y-6">
+                <div className="grid grid-cols-2 gap-6">
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-900 mb-2">
+                      Current Price <span className="text-gray-500 font-normal">(Reference)</span>
+                    </label>
+                    <div className="relative">
+                      <input
+                        type="text"
+                        value={formData.currentPrice}
+                        onChange={(e) => updateField('currentPrice', e.target.value)}
+                        placeholder="e.g., $192.57"
+                        className={`w-full px-4 py-3 border-2 rounded-xl focus:ring-2 focus:ring-blue-500 transition-all ${
+                          autoFilled ? 'border-green-300 bg-green-50' : 'border-gray-300 focus:border-blue-500'
+                        }`}
+                      />
+                      {autoFilled && (
+                        <Sparkles className="w-5 h-5 text-green-600 absolute right-3 top-1/2 -translate-y-1/2" />
+                      )}
+                    </div>
+                    {autoFilled && (
+                      <p className="text-xs text-green-600 mt-1 flex items-center gap-1">
+                        <Check className="w-3 h-3" /> Auto-filled with live price
+                      </p>
+                    )}
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-900 mb-2">
+                      Price Target * <span className="text-gray-500 font-normal">(Your goal)</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.priceTarget}
+                      onChange={(e) => updateField('priceTarget', e.target.value)}
+                      placeholder="e.g., 200 or 180-220"
+                      className="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-500 transition-all"
+                    />
+                    <p className="text-xs text-gray-500 mt-1">Single price or range works</p>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-semibold text-gray-900 mb-3">
+                    Expected Timeframe * <span className="text-gray-500 font-normal">(How long to hold?)</span>
+                  </label>
+                  <div className="grid grid-cols-3 gap-3">
+                    {[
+                      { value: 'short-term', label: 'Short-term', sublabel: '1-2 weeks', icon: '⚡' },
+                      { value: 'medium-term', label: 'Medium-term', sublabel: '1-6 months', icon: '📈' },
+                      { value: 'long-term', label: 'Long-term', sublabel: '6-24 months', icon: '🎯' }
+                    ].map((option) => (
+                      <button
+                        key={option.value}
+                        onClick={() => updateField('timeframe', option.value)}
+                        className={`p-4 rounded-xl border-2 text-left transition-all ${
+                          formData.timeframe === option.value
+                            ? 'border-blue-600 bg-blue-50 shadow-md'
+                            : 'border-gray-300 hover:border-gray-400'
+                        }`}
+                      >
+                        <div className="text-2xl mb-2">{option.icon}</div>
+                        <div className="font-semibold text-gray-900">{option.label}</div>
+                        <div className="text-xs text-gray-600">{option.sublabel}</div>
+                      </button>
+                    ))}
+                  </div>
+                  
+                  <div className="mt-4">
+                    <label className="block text-sm text-gray-600 mb-2">Or specify your own timeframe:</label>
+                    <input
+                      type="text"
+                      value={formData.timeframe && !['short-term', 'medium-term', 'long-term'].includes(formData.timeframe) ? formData.timeframe : ''}
+                      onChange={(e) => updateField('timeframe', e.target.value)}
+                      placeholder="e.g., 1-6 months"
+                      className="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-500 transition-all"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-semibold text-gray-900 mb-3">
+                    Risk Level <span className="text-gray-500 font-normal">(Be honest with clients)</span>
+                  </label>
+                  <div className="grid grid-cols-3 gap-3">
+                    {[
+                      { value: 'low', label: 'Low Risk', sublabel: 'Blue chip, stable' },
+                      { value: 'medium', label: 'Medium Risk', sublabel: 'Growth, some volatility' },
+                      { value: 'high', label: 'High Risk', sublabel: 'Speculative, volatile' }
+                    ].map((option) => (
+                      <button
+                        key={option.value}
+                        onClick={() => updateField('riskLevel', option.value)}
+                        className={`p-4 rounded-xl border-2 text-left transition-all ${
+                          formData.riskLevel === option.value
+                            ? 'border-blue-600 bg-blue-50 shadow-md'
+                            : 'border-gray-300 hover:border-gray-400'
+                        }`}
+                      >
+                        <div className="font-semibold text-gray-900">{option.label}</div>
+                        <div className="text-xs text-gray-600 mt-1">{option.sublabel}</div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {isStepComplete(4) && (
+                <div className="flex justify-end mt-6">
+                  <button
+                    onClick={() => setExpandedSection(5)}
+                    className="px-6 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-xl font-semibold hover:shadow-lg transition-all flex items-center gap-2"
+                  >
+                    Next: Risks & Catalysts
+                    <ArrowRight className="w-5 h-5" />
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Section 5: Risks & Catalysts (formerly Section 4) */}
+        <div className={`bg-white rounded-2xl shadow-sm border-2 transition-all ${
+          !canAccessSection(5)
+            ? 'border-gray-200 opacity-60'
+            : expandedSection === 5 
+            ? 'border-blue-500 shadow-lg' 
+            : isStepComplete(5)
+            ? 'border-green-500'
+            : 'border-gray-200'
+        }`}>
+          <button
+            onClick={() => canAccessSection(5) && setExpandedSection(expandedSection === 5 ? 0 : 5)}
+            disabled={!canAccessSection(5)}
+            className="w-full px-6 py-5 flex items-center justify-between hover:bg-gray-50 transition-colors rounded-t-2xl disabled:cursor-not-allowed"
+          >
+            <div className="flex items-center gap-4">
+              <div className={`w-12 h-12 rounded-full flex items-center justify-center text-white font-bold text-lg transition-all ${
+                !canAccessSection(5)
+                  ? 'bg-gray-200 text-gray-400'
+                  : isStepComplete(5)
+                  ? 'bg-green-600'
+                  : expandedSection === 5
+                  ? 'bg-blue-600'
+                  : 'bg-gray-300 text-gray-600'
+              }`}>
+                {!canAccessSection(5) ? (
+                  <Lock className="w-5 h-5" />
+                ) : isStepComplete(5) ? (
+                  <Check className="w-6 h-6" />
+                ) : (
+                  '5'
+                )}
+              </div>
+              <div className="text-left">
+                <h3 className="text-lg font-bold text-gray-900">Step 5: Risks & Catalysts</h3>
+                {isStepComplete(5) && expandedSection !== 5 && (
+                  <p className="text-sm text-gray-600 mt-1">
+                    {selectedSuggestions.risks.length} risk factors selected
+                  </p>
+                )}
+                {!isStepComplete(5) && expandedSection !== 5 && canAccessSection(5) && (
+                  <p className="text-sm text-gray-500 mt-1">Identify potential risks</p>
+                )}
+              </div>
+            </div>
+            {canAccessSection(5) && (
+              expandedSection === 5 ? (
+                <ChevronUp className="w-6 h-6 text-gray-400" />
+              ) : (
+                <ChevronDown className="w-6 h-6 text-gray-400" />
+              )
+            )}
+          </button>
+
+          {expandedSection === 5 && (
+            <div className="px-6 pb-6 pt-2 border-t border-gray-200">
+              <div className="flex items-start gap-3 p-4 bg-yellow-50 rounded-lg border border-yellow-300 mb-6">
+                <AlertCircle className="w-5 h-5 text-yellow-700 shrink-0 mt-0.5" />
+                <div className="text-sm text-yellow-900">
+                  <strong>Be transparent about risks!</strong> When clients ask "What could go wrong?", honest answers build trust. AI will use this to address their concerns properly.
+                </div>
+              </div>
+
+              {aiSuggestions.risks && aiSuggestions.risks.length > 0 && (
+                <div className="bg-red-50 rounded-xl p-5 border-2 border-red-300">
+                  <div className="flex items-center gap-2 mb-4">
+                    <AlertCircle className="w-6 h-6 text-red-600" />
+                    <div>
+                      <h4 className="font-bold text-gray-900">AI-Identified Risk Factors</h4>
+                      <p className="text-xs text-gray-600">Select the risks that apply to your thesis</p>
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    {aiSuggestions.risks.map((risk, index) => (
+                      <label
+                        key={index}
+                        className={`flex items-start gap-3 p-4 rounded-lg cursor-pointer transition-all ${
+                          selectedSuggestions.risks.includes(index)
+                            ? 'bg-red-100 border-2 border-red-500'
+                            : 'bg-white border-2 border-gray-200 hover:border-red-300'
+                        }`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={selectedSuggestions.risks.includes(index)}
+                          onChange={() => toggleSuggestion('risks', index)}
+                          className="mt-1 w-5 h-5 text-red-600 rounded focus:ring-2 focus:ring-red-500"
+                        />
+                        <span className="text-sm text-gray-900 flex-1">{risk}</span>
+                      </label>
+                    ))}
+                  </div>
+                  {selectedSuggestions.risks.length > 0 && (
+                    <div className="mt-4 p-3 bg-white rounded-lg border border-red-200 flex items-center gap-2">
+                      <Info className="w-4 h-4 text-red-600 shrink-0" />
+                      <p className="text-xs text-gray-700">
+                        <strong>Note:</strong> {selectedSuggestions.risks.length} risks selected. These will appear in your risk analysis below.
+                      </p>
                     </div>
                   )}
                 </div>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <Input value={formData.companyName} onChange={(e) => updateField('companyName', e.target.value)} placeholder="Company Name" />
-                <Input value={formData.sector} onChange={(e) => updateField('sector', e.target.value)} placeholder="Sector" />
-              </div>
-            </div>
-          </>
-        )}
-        
-        {renderSection(2, "Step 2: AI Training & Research", "Optional: Provide context for the AI agent.",
-            <>
-                <div className="flex items-start gap-3 p-4 bg-purple-50 rounded-lg border border-purple-200 my-6">
-                  <Brain className="w-5 h-5 text-purple-600 shrink-0 mt-0.5" />
-                  <div className="text-sm text-purple-900">
-                    <strong>Train the AI:</strong> Provide any research documents, articles, or notes. The AI will use this material to answer client questions about your recommendation.
-                  </div>
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <Textarea placeholder="Paste text, articles, or research notes here..." rows={8} />
-                  <div className="border-2 border-dashed border-gray-300 rounded-lg flex flex-col items-center justify-center p-6 text-center">
-                    <Upload className="w-8 h-8 text-gray-400 mb-2" />
-                    <p className="text-sm font-medium text-gray-700">Drop files here or</p>
-                    <Button variant="link" size="sm">Browse Files</Button>
-                  </div>
-                </div>
-            </>
-        )}
+              )}
 
-        {renderSection(3, "Step 3: Investment Thesis", "Define the core recommendation and reasoning.",
-          <>
-            <div className="flex items-start gap-3 p-4 bg-purple-50 rounded-lg border border-purple-200 my-6">
-              <Sparkles className="w-5 h-5 text-purple-600 shrink-0 mt-0.5" />
-              <div className="text-sm text-purple-900">
-                <strong>This is the most important part!</strong> Everything you write here trains your AI agent. When clients ask "Why this stock?", the AI will use your thesis to answer.
-              </div>
-            </div>
-            <div className="space-y-6">
-              <div className="flex gap-2">
-                <Button variant={formData.action === 'buy' ? 'default' : 'outline'} onClick={() => updateField('action', 'buy')} className="flex-1">Buy</Button>
-                <Button variant={formData.action === 'sell' ? 'default' : 'outline'} onClick={() => updateField('action', 'sell')} className="flex-1">Sell</Button>
-                <Button variant={formData.action === 'hold' ? 'default' : 'outline'} onClick={() => updateField('action', 'hold')} className="flex-1">Hold</Button>
-              </div>
-              <Textarea value={formData.thesis} onChange={(e) => updateField('thesis', e.target.value)} placeholder="Explain the investment thesis..." rows={5} />
-              {aiSuggestions.thesis.length > 0 && (
-                <div className="space-y-2">
-                  <h4 className="text-sm font-semibold">AI Suggestions:</h4>
-                  {aiSuggestions.thesis.map((suggestion, index) => (
-                    <button key={index} onClick={() => toggleSuggestion('thesis', index)} className={`p-2 rounded text-left text-sm flex items-start gap-2 w-full transition-colors ${selectedSuggestions.thesis.includes(index) ? 'bg-blue-100' : 'hover:bg-gray-50'}`}>
-                      <Check className={`w-4 h-4 mt-0.5 shrink-0 transition-opacity ${selectedSuggestions.thesis.includes(index) ? 'opacity-100 text-blue-600' : 'opacity-20'}`} />
-                      {suggestion}
-                    </button>
-                  ))}
+              {isStepComplete(5) && (
+                <div className="flex justify-end mt-6">
+                  <button
+                    onClick={() => {
+                      // Scroll to review section
+                      window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
+                    }}
+                    className="px-6 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-xl font-semibold hover:shadow-lg transition-all flex items-center gap-2"
+                  >
+                    Review & Send
+                    <ArrowRight className="w-5 h-5" />
+                  </button>
                 </div>
               )}
             </div>
-          </>
-        )}
-        
-        {renderSection(4, "Step 4: Price Target & Timeline", "Set expectations for the investment.",
-          <>
-            <div className="flex items-start gap-3 p-4 bg-blue-50 rounded-lg border border-blue-200 my-6">
-              <TrendingUp className="w-5 h-5 text-blue-600 shrink-0 mt-0.5" />
-              <div className="text-sm text-blue-900">
-                <strong>Set clear expectations:</strong> Clients need to know the target price and how long they should hold. Be specific!
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <Input value={formData.priceTarget} onChange={(e) => updateField('priceTarget', e.target.value)} placeholder="Price Target (e.g., $300)" />
-              <Input value={formData.timeframe} onChange={(e) => updateField('timeframe', e.target.value)} placeholder="Timeframe (e.g., 6-12 months)" />
-            </div>
-            <div className="flex gap-2 mt-4">
-              {timeframeOptions.map(option => (
-                <button key={option.value} onClick={() => updateField('timeframeType', option.value)} className={`flex-1 p-3 rounded-lg border-2 text-center transition-all ${formData.timeframeType === option.value ? 'border-blue-500 bg-blue-50' : 'hover:bg-gray-50'}`}>
-                  <div className="text-2xl mb-1">{option.icon}</div>
-                  <div className="font-semibold text-sm">{option.label}</div>
-                  <div className="text-xs text-gray-500">{option.example}</div>
-                </button>
-              ))}
-            </div>
-          </>
-        )}
-        
-        {renderSection(5, "Step 5: Risks & Catalysts", "Outline potential risks and upside drivers.",
-          <>
-            <div className="flex items-start gap-3 p-4 bg-amber-50 rounded-lg border border-amber-200 my-6">
-              <AlertCircle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
-              <div className="text-sm text-amber-900">
-                <strong>Be transparent about risks!</strong> When clients ask "What could go wrong?", honest answers build trust. AI will use this to address their concerns properly.
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <Textarea value={formData.keyRisks} onChange={(e) => updateField('keyRisks', e.target.value)} placeholder="Key Risks" rows={4} />
-              <Textarea value={formData.catalysts} onChange={(e) => updateField('catalysts', e.target.value)} placeholder="Potential Catalysts" rows={4} />
-            </div>
-             {aiSuggestions.risks.length > 0 && (
-                <div className="mt-4 space-y-2">
-                  <h4 className="text-sm font-semibold">AI-Suggested Risks:</h4>
-                  {aiSuggestions.risks.map((suggestion, index) => (
-                    <button key={index} onClick={() => toggleSuggestion('risks', index)} className={`p-2 rounded text-left text-sm flex items-start gap-2 w-full transition-colors ${selectedSuggestions.risks.includes(index) ? 'bg-amber-100' : 'hover:bg-gray-50'}`}>
-                      <Check className={`w-4 h-4 mt-0.5 shrink-0 transition-opacity ${selectedSuggestions.risks.includes(index) ? 'opacity-100 text-amber-600' : 'opacity-20'}`} />
-                      {suggestion}
-                    </button>
-                  ))}
-                </div>
-              )}
-          </>
-        )}
+          )}
+        </div>
 
-        {/* Step 6: Review & Send */}
+        {/* Step 6: Review & Send (formerly Step 5) */}
         {allStepsComplete && (
-          <div className="bg-white rounded-2xl shadow-lg border-2 border-green-500 p-8">
+          <div className="space-y-6">
+            <div className="bg-white rounded-2xl shadow-lg border-2 border-green-500 p-8">
               <div className="flex items-center gap-3 mb-6">
                 <div className="w-12 h-12 bg-green-600 rounded-full flex items-center justify-center">
                   <Check className="w-7 h-7 text-white" />
@@ -626,117 +1095,229 @@ export default function StockRecommendationEditor({ initialData, onSave, onBack 
                 </div>
               </div>
               
-              {/* Send Controls */}
-              <div className="bg-gray-50 rounded-xl p-6 border border-gray-200 mb-6">
-                  <h4 className="font-semibold text-gray-900 mb-3 flex items-center gap-2">
-                      <Send className="w-5 h-5 text-blue-600" />
-                      Send as Broadcast
-                  </h4>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">Platform</label>
-                        <Tabs defaultValue="whatsapp" onValueChange={(value) => setPlatform(value as any)} className="w-full">
-                            <TabsList className="grid w-full grid-cols-2">
-                                <TabsTrigger value="whatsapp" className="flex items-center gap-2"><MessageSquare /> WhatsApp</TabsTrigger>
-                                <TabsTrigger value="sms" className="flex items-center gap-2"><Phone /> SMS</TabsTrigger>
-                            </TabsList>
-                        </Tabs>
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">Recipients</label>
-                          <Popover open={isRecipientPopoverOpen} onOpenChange={setIsRecipientPopoverOpen}>
-                            <PopoverTrigger asChild>
-                              <Button
-                                variant="outline"
-                                role="combobox"
-                                aria-expanded={isRecipientPopoverOpen}
-                                className="w-full justify-between h-10"
-                              >
-                                <div className="flex gap-1 flex-wrap items-center truncate">
-                                  {selectedRecipients.length > 0 ? (
-                                    selectedRecipients.map(r => (
-                                      <Badge key={r.id} variant="secondary" className="mr-1">
-                                        <div className="flex items-center">
-                                          {r.type === 'group' ? <Users className="w-3 h-3 mr-1" /> : <User className="w-3 h-3 mr-1" />}
-                                          {r.name}
-                                        </div>
-                                      </Badge>
-                                    ))
-                                  ) : (
-                                    <span className="text-muted-foreground">Select...</span>
-                                  )}
-                                </div>
-                              </Button>
-                            </PopoverTrigger>
-                            <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
-                              <Command>
-                                <CommandInput placeholder="Search recipients..." />
-                                <CommandList>
-                                  <CommandEmpty>No recipients found.</CommandEmpty>
-                                  <CommandGroup heading="Groups">
-                                    {contactGroups.map(group => (
-                                      <CommandItem key={group.id} onSelect={() => handleRecipientSelect({ ...group, type: 'group' })} className="cursor-pointer">
-                                        <Check className={cn("mr-2 h-4 w-4", selectedRecipients.some(r => r.id === group.id) ? "opacity-100" : "opacity-0")} />
-                                        <Users className="mr-2 h-4 w-4 text-muted-foreground" />
-                                        <div className="flex-1">{group.name}</div>
-                                        <div className="text-xs text-muted-foreground">{group.contactCount}</div>
-                                      </CommandItem>
-                                    ))}
-                                  </CommandGroup>
-                                  <CommandGroup heading="Contacts">
-                                    {contacts.map(contact => (
-                                      <CommandItem key={contact.id} onSelect={() => handleRecipientSelect({ ...contact, type: 'contact' })} className="cursor-pointer">
-                                        <Check className={cn("mr-2 h-4 w-4", selectedRecipients.some(r => r.id === contact.id) ? "opacity-100" : "opacity-0")} />
-                                        <User className="mr-2 h-4 w-4 text-muted-foreground" />
-                                        <div className="flex-1">{contact.name}</div>
-                                        <div className="text-xs text-muted-foreground">{contact.phone}</div>
-                                      </CommandItem>
-                                    ))}
-                                  </CommandGroup>
-                                </CommandList>
-                              </Command>
-                            </PopoverContent>
-                          </Popover>
-                      </div>
-                  </div>
-              </div>
-
               {/* Mobile Preview */}
               <div className="mb-6">
-                  <label className="block text-sm font-semibold text-gray-900 mb-2">Mobile Preview</label>
-                  <div className="relative mx-auto border-gray-900 bg-gray-800 border-[14px] rounded-[2.5rem] h-[600px] w-[300px] shadow-xl">
-                    <div className="rounded-[2rem] overflow-hidden w-full h-full bg-white">
-                      <div className="p-4 space-y-4">
-                        {isGeneratingImage ? (
-                          <div className="flex items-center justify-center h-48 bg-gray-100 rounded-lg">
-                            <Loader2 className="w-8 h-8 animate-spin text-gray-400" />
-                          </div>
-                        ) : generatedImageUrl ? (
-                          <Image src={generatedImageUrl} alt="Generated stock pick" width={1200} height={675} className="w-full rounded-lg" data-ai-hint="stock chart" />
-                        ) : (
-                          <div className="flex items-center justify-center h-48 bg-gray-100 rounded-lg">
-                            <Sparkles className="w-8 h-8 text-gray-400" />
-                          </div>
-                        )}
-                        <p className="text-sm whitespace-pre-wrap">📈 New Stock Pick: {formData.ticker.toUpperCase()} ({formData.action.toUpperCase()})\n\nThesis: {formData.thesis}\n\nTarget: {formData.priceTarget}\nRisk: {formData.riskLevel.toUpperCase()}</p>
+                <label className="block text-sm font-semibold text-gray-900 mb-2">
+                  Mobile Preview
+                </label>
+                <div className="relative mx-auto border-gray-800 dark:border-gray-800 bg-gray-800 border-[14px] rounded-[2.5rem] h-[600px] w-[300px] shadow-xl">
+                  <div className="w-[148px] h-[18px] bg-gray-800 top-0 rounded-b-[1rem] left-1/2 -translate-x-1/2 absolute"></div>
+                  <div className="h-[46px] w-[3px] bg-gray-800 absolute -start-[17px] top-[124px] rounded-s-lg"></div>
+                  <div className="h-[46px] w-[3px] bg-gray-800 absolute -start-[17px] top-[178px] rounded-s-lg"></div>
+                  <div className="h-[64px] w-[3px] bg-gray-800 absolute -end-[17px] top-[142px] rounded-e-lg"></div>
+                  <div className="rounded-[2rem] overflow-hidden w-full h-full bg-white dark:bg-gray-800">
+                    <div className="p-4 space-y-4 overflow-y-auto h-full">
+                      {isGeneratingImage ? (
+                        <div className="flex items-center justify-center h-48 bg-gray-100 rounded-lg">
+                          <Loader2 className="w-8 h-8 animate-spin text-gray-400"/>
+                        </div>
+                      ) : generatedImageUrl ? (
+                        <Image 
+                          src={generatedImageUrl} 
+                          alt="Stock recommendation" 
+                          width={300} 
+                          height={200} 
+                          className="w-full h-auto rounded-lg"
+                        />
+                      ) : (
+                        <div className="bg-blue-100 p-4 rounded-lg">
+                          <p className="text-sm font-bold text-blue-900">{formData.action.toUpperCase()} {formData.ticker}</p>
+                          <p className="text-xs text-blue-700 mt-1">{formData.companyName}</p>
+                        </div>
+                      )}
+                      
+                      <div className="text-sm space-y-2">
+                        {selectedSuggestions.thesis.map((i, idx) => (
+                          <p key={idx} className="text-gray-700">• {aiSuggestions.thesis[i]}</p>
+                        ))}
+                        {formData.thesis && <p className="text-gray-700">• {formData.thesis}</p>}
+                      </div>
+                      
+                      <div className="bg-gray-100 p-3 rounded-lg text-xs space-y-1">
+                        <p><strong>Target:</strong> {formData.priceTarget}</p>
+                        <p><strong>Timeframe:</strong> {formData.timeframe}</p>
+                        <p><strong>Risk:</strong> <span className="capitalize">{formData.riskLevel}</span></p>
                       </div>
                     </div>
                   </div>
-              </div>
-              
-              <div className="flex gap-4 mt-6">
-                <Button onClick={handleSendBroadcast} disabled={isSending || !generatedImageUrl || selectedRecipients.length === 0} className="w-full flex-1">
-                  {isSending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4 mr-2" />}
-                  {isSending ? 'Sending...' : `Send to ${selectedRecipients.reduce((acc, r) => acc + (r.contactCount || 1), 0)} recipients`}
-                </Button>
+                </div>
               </div>
 
-              <div className="flex justify-end mt-6">
-                <Button onClick={handleSaveDraft} variant="outline" disabled={isSending || isSaving}>
-                  {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
-                  {isSaving ? 'Saving...' : 'Save as Idea'}
-                </Button>
+              {/* Action Buttons */}
+              <div className="space-y-4">
+                <div className="flex gap-3">
+                  <Button
+                    onClick={handleSaveAsDraft}
+                    variant="outline"
+                    disabled={isSaving}
+                    className="flex-1"
+                  >
+                    {isSaving ? (
+                      <>
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        Saving...
+                      </>
+                    ) : (
+                      <>
+                        <Save className="w-4 h-4 mr-2" />
+                        Save as Draft
+                      </>
+                    )}
+                  </Button>
+                </div>
+
+                <div className="border-t pt-4">
+                  <h4 className="font-semibold text-gray-900 mb-3">Send to Clients</h4>
+                  
+                  {/* Contact Selection */}
+                  <div className="grid grid-cols-2 gap-3 mb-3">
+                    <Popover open={openContactsPopover} onOpenChange={setOpenContactsPopover}>
+                      <PopoverTrigger asChild>
+                        <Button variant="outline" className="justify-between">
+                          <span className="flex items-center gap-2">
+                            <User className="w-4 h-4" />
+                            Contacts
+                          </span>
+                          {selectedContacts.length > 0 && (
+                            <Badge variant="secondary">{selectedContacts.length}</Badge>
+                          )}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-[300px] p-0" align="start">
+                        <Command>
+                          <CommandInput placeholder="Search contacts..." />
+                          <CommandList>
+                            <CommandEmpty>No contacts found.</CommandEmpty>
+                            <CommandGroup>
+                              {contacts.map((contact) => (
+                                <CommandItem
+                                  key={contact.id}
+                                  onSelect={() => {
+                                    setSelectedContacts(prev =>
+                                      prev.includes(contact.id)
+                                        ? prev.filter(id => id !== contact.id)
+                                        : [...prev, contact.id]
+                                    );
+                                  }}
+                                >
+                                  <div className={cn(
+                                    "mr-2 flex h-4 w-4 items-center justify-center rounded-sm border border-primary",
+                                    selectedContacts.includes(contact.id)
+                                      ? "bg-primary text-primary-foreground"
+                                      : "opacity-50 [&_svg]:invisible"
+                                  )}>
+                                    <Check className="h-4 w-4" />
+                                  </div>
+                                  <span>{contact.name}</span>
+                                </CommandItem>
+                              ))}
+                            </CommandGroup>
+                          </CommandList>
+                        </Command>
+                      </PopoverContent>
+                    </Popover>
+
+                    <Popover open={openGroupsPopover} onOpenChange={setOpenGroupsPopover}>
+                      <PopoverTrigger asChild>
+                        <Button variant="outline" className="justify-between">
+                          <span className="flex items-center gap-2">
+                            <Users className="w-4 h-4" />
+                            Groups
+                          </span>
+                          {selectedGroups.length > 0 && (
+                            <Badge variant="secondary">{selectedGroups.length}</Badge>
+                          )}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-[300px] p-0" align="start">
+                        <Command>
+                          <CommandInput placeholder="Search groups..." />
+                          <CommandList>
+                            <CommandEmpty>No groups found.</CommandEmpty>
+                            <CommandGroup>
+                              {contactGroups.map((group) => (
+                                <CommandItem
+                                  key={group.id}
+                                  onSelect={() => {
+                                    setSelectedGroups(prev =>
+                                      prev.includes(group.id)
+                                        ? prev.filter(id => id !== group.id)
+                                        : [...prev, group.id]
+                                    );
+                                  }}
+                                >
+                                  <div className={cn(
+                                    "mr-2 flex h-4 w-4 items-center justify-center rounded-sm border border-primary",
+                                    selectedGroups.includes(group.id)
+                                      ? "bg-primary text-primary-foreground"
+                                      : "opacity-50 [&_svg]:invisible"
+                                  )}>
+                                    <Check className="h-4 w-4" />
+                                  </div>
+                                  <span>{group.name}</span>
+                                </CommandItem>
+                              ))}
+                            </CommandGroup>
+                          </CommandList>
+                        </Command>
+                      </PopoverContent>
+                    </Popover>
+                  </div>
+
+                  {/* Send Buttons */}
+                  <Tabs defaultValue="sms" className="w-full">
+                    <TabsList className="grid w-full grid-cols-2">
+                      <TabsTrigger value="sms">
+                        <Phone className="w-4 h-4 mr-2" />
+                        SMS
+                      </TabsTrigger>
+                      <TabsTrigger value="whatsapp">
+                        <MessageSquare className="w-4 h-4 mr-2" />
+                        WhatsApp
+                      </TabsTrigger>
+                    </TabsList>
+                    <TabsContent value="sms" className="mt-3">
+                      <Button
+                        onClick={() => handleSendCampaign('sms')}
+                        disabled={isSending || (selectedContacts.length === 0 && selectedGroups.length === 0)}
+                        className="w-full"
+                      >
+                        {isSending ? (
+                          <>
+                            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                            Sending...
+                          </>
+                        ) : (
+                          <>
+                            <Send className="w-4 h-4 mr-2" />
+                            Send via SMS
+                          </>
+                        )}
+                      </Button>
+                    </TabsContent>
+                    <TabsContent value="whatsapp" className="mt-3">
+                      <Button
+                        onClick={() => handleSendCampaign('whatsapp')}
+                        disabled={isSending || (selectedContacts.length === 0 && selectedGroups.length === 0)}
+                        className="w-full"
+                      >
+                        {isSending ? (
+                          <>
+                            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                            Sending...
+                          </>
+                        ) : (
+                          <>
+                            <Send className="w-4 h-4 mr-2" />
+                            Send via WhatsApp
+                          </>
+                        )}
+                      </Button>
+                    </TabsContent>
+                  </Tabs>
+                </div>
               </div>
+            </div>
           </div>
         )}
       </div>
