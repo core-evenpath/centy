@@ -284,7 +284,7 @@ export default function UnifiedPartnerSidebar() {
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-56">
-            <DropdownMenuItem onClick={() => router.push('/partner/settings/profile')}>
+            <DropdownMenuItem onClick={() => router.push('/partner/settings')}>
               <Settings className="w-4 h-4 mr-2" />
               Account Settings
             </DropdownMenuItem>
@@ -312,5 +312,3 @@ export default function UnifiedPartnerSidebar() {
     </Sidebar>
   );
 }
-
-    
