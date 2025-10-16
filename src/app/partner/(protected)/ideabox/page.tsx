@@ -1,14 +1,27 @@
+
 // src/app/partner/(protected)/ideabox/page.tsx
 "use client";
 
 import React, { useState, useEffect } from 'react';
 import { db } from '@/lib/firebase';
-import { collection, onSnapshot, query, where } from 'firebase/firestore';
+import { collection, onSnapshot, query, where, deleteDoc, doc } from 'firebase/firestore';
 import { useMultiWorkspaceAuth } from '@/hooks/use-multi-workspace-auth';
 import type { TradingPick } from '@/lib/types';
 import { useToast } from '@/hooks/use-toast';
 import StockRecommendationEditor from '@/components/partner/templates/StockRecommendationEditor';
 import { Plus, FileText, Search, Edit, Copy, Trash2, TrendingUp, MessageSquare, Bell, Calendar, BarChart3, MoreVertical, X, ArrowLeft, User, Eye, EyeOff, CheckCircle, XCircle, Filter, Zap, Database, Globe } from 'lucide-react';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import { saveTradingPickAction } from '@/actions/trading-pick-actions';
 
 const IdeaboxPage = () => {
   const { currentWorkspace } = useMultiWorkspaceAuth();
@@ -18,7 +31,7 @@ const IdeaboxPage = () => {
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [showCreateMenu, setShowCreateMenu] = useState(false);
-  const [viewMode, setViewMode] = useState('grid'); // 'grid' or 'editor'
+  const [viewMode, setViewMode] = useState<'grid' | 'editor'>('grid');
   const [selectedIdea, setSelectedIdea] = useState<TradingPick | { isNew: true, typeInfo: any } | null>(null);
   const [statusFilter, setStatusFilter] = useState('all');
 
@@ -71,17 +84,59 @@ const IdeaboxPage = () => {
       template.ticker?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       template.thesis?.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesCategory = selectedCategory === 'all' || template.sector === selectedCategory;
-    // const matchesStatus = statusFilter === 'all' || template.status === statusFilter; // Add status to your data model if needed
     return matchesSearch && matchesCategory;
   });
 
   const getTemplateTypeInfo = (typeId: string) => {
     return templateTypes.find(t => t.id === typeId);
   };
+  
+  const handleSaveIdea = async (ideaData: Omit<TradingPick, 'id' | 'partnerId'>, existingId?: string) => {
+    if (!partnerId) {
+        toast({ variant: 'destructive', title: 'Error', description: 'No active workspace selected.' });
+        return false;
+    }
 
-  const handleToggleStatus = (templateId: string) => {
-    alert(`Toggling status for template ${templateId}`);
+    try {
+        const result = await saveTradingPickAction({
+            partnerId,
+            pickData: ideaData,
+            pickId: existingId,
+        });
+
+        if (result.success) {
+            toast({ title: 'Idea Saved', description: result.message });
+            return true;
+        } else {
+            throw new Error(result.message);
+        }
+    } catch (error: any) {
+        toast({ variant: 'destructive', title: 'Save Failed', description: error.message });
+        return false;
+    }
   };
+  
+  const handleDeleteIdea = async (idea: TradingPick) => {
+    if (!partnerId || !idea.id) return;
+    try {
+      await deleteDoc(doc(db, `partners/${partnerId}/tradingPicks`, idea.id));
+      toast({
+        title: 'Idea Deleted',
+        description: `"${idea.companyName}" idea has been removed.`,
+      });
+      if (selectedIdea?.id === idea.id) {
+        setViewMode('grid');
+        setSelectedIdea(null);
+      }
+    } catch (error) {
+      toast({
+        variant: 'destructive',
+        title: 'Error',
+        description: 'Failed to delete idea.',
+      });
+    }
+  };
+
 
   const CreateMenuModal = () => (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
@@ -151,83 +206,72 @@ const IdeaboxPage = () => {
       red: 'bg-red-100 text-red-600',
       green: 'bg-green-100 text-green-600'
     };
-
-    return (
-      <div className="bg-white rounded-xl p-6 border-2 border-gray-200 hover:border-blue-300 hover:shadow-lg transition-all group">
-        <div className="flex items-start justify-between mb-4">
-          <div className={`w-12 h-12 rounded-lg flex items-center justify-center ${colorMap[typeInfo?.color as keyof typeof colorMap] || colorMap.blue}`}>
-            <Icon className="w-6 h-6" />
-          </div>
-        </div>
-        <div className="mb-4">
-          <h3 className="font-bold text-lg text-gray-900 mb-2">{template.companyName} ({template.ticker})</h3>
-          <div className="flex items-center gap-2 flex-wrap mb-3">
-            <span className="px-2 py-1 bg-purple-100 text-purple-700 text-xs rounded-full font-medium">
-              {typeInfo?.name}
-            </span>
-            <span className="px-2 py-1 bg-gray-100 text-gray-600 text-xs rounded-full font-medium">
-              {template.sector}
-            </span>
-          </div>
-          <p className="text-sm text-gray-600 line-clamp-2 leading-relaxed">{template.thesis}</p>
-        </div>
-        <div className="flex gap-2">
-          <button
-            onClick={() => {
-              setSelectedIdea(template);
-              setViewMode('editor');
-            }}
-            className="flex-1 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-semibold transition-colors flex items-center justify-center"
-          >
-            <Edit className="w-4 h-4 mr-2" />
-            Edit
-          </button>
-        </div>
-      </div>
-    );
-  };
-
-  const EditorView = () => {
-    if (!selectedIdea) return null;
-    const typeInfo = 'typeInfo' in selectedIdea ? selectedIdea.typeInfo : getTemplateTypeInfo('stock-recommendation');
     
     return (
-      <div className="space-y-6">
-        <button
-          onClick={() => setViewMode('grid')}
-          className="text-blue-600 hover:text-blue-700 font-semibold mb-2 flex items-center"
-        >
-          <ArrowLeft className="w-4 h-4 mr-1" />
-          Back to Ideabox
-        </button>
-        
-        {typeInfo.id === 'stock-recommendation' ? (
-          <StockRecommendationEditor initialData={'isNew' in selectedIdea ? null : selectedIdea} />
-        ) : (
-          <div className="bg-white rounded-xl p-8 border-2 border-gray-200">
-             <h2 className="text-2xl font-bold text-gray-900">
-              {'isNew' in selectedIdea ? `Create ${typeInfo?.name}` : `Edit ${typeInfo?.name}`}
-            </h2>
-          </div>
-        )}
-      </div>
+        <div className="bg-white rounded-xl p-6 border-2 border-gray-200 hover:border-blue-300 hover:shadow-lg transition-all group">
+            <div className="flex items-start justify-between mb-4">
+                <div className={`w-12 h-12 rounded-lg flex items-center justify-center ${colorMap[typeInfo?.color as keyof typeof colorMap] || colorMap.blue}`}>
+                    <Icon className="w-6 h-6" />
+                </div>
+                <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="icon" className="w-8 h-8">
+                            <MoreVertical className="w-4 h-4 text-gray-400" />
+                        </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                        <DropdownMenuItem onClick={() => {
+                            setSelectedIdea(template);
+                            setViewMode('editor');
+                        }}>
+                            <Edit className="w-4 h-4 mr-2"/> Edit
+                        </DropdownMenuItem>
+                         <DropdownMenuItem onClick={() => alert('Duplicating is not set up yet')}>
+                            <Copy className="w-4 h-4 mr-2"/> Duplicate
+                        </DropdownMenuItem>
+                        <DropdownMenuItem className="text-red-500" onClick={(e) => { e.stopPropagation(); handleDeleteIdea(template); }}>
+                            <Trash2 className="w-4 h-4 mr-2"/> Delete
+                        </DropdownMenuItem>
+                    </DropdownMenuContent>
+                </DropdownMenu>
+            </div>
+            <div className="mb-4">
+                <h3 className="font-bold text-lg text-gray-900 mb-2">{template.companyName} ({template.ticker})</h3>
+                <div className="flex items-center gap-2 flex-wrap mb-3">
+                    <span className="px-2 py-1 bg-purple-100 text-purple-700 text-xs rounded-full font-medium">
+                        {typeInfo?.name}
+                    </span>
+                    <span className="px-2 py-1 bg-gray-100 text-gray-600 text-xs rounded-full font-medium">
+                        {template.sector}
+                    </span>
+                </div>
+                <p className="text-sm text-gray-600 line-clamp-2 leading-relaxed">{template.thesis}</p>
+            </div>
+            <div className="flex gap-2">
+                <Button
+                    onClick={() => {
+                        setSelectedIdea(template);
+                        setViewMode('editor');
+                    }}
+                    className="flex-1 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-semibold transition-colors flex items-center justify-center"
+                >
+                    <Edit className="w-4 h-4 mr-2" />
+                    Edit
+                </Button>
+            </div>
+        </div>
     );
   };
-
+  
   if (viewMode === 'editor') {
     return (
       <div className="w-full h-full bg-gray-50 overflow-auto">
-        <div className="bg-white border-b border-gray-200 px-6 py-4">
-          <div className="flex items-center gap-4">
-            <FileText className="w-6 h-6 text-blue-600" />
-            <div>
-              <h1 className="text-xl font-bold text-gray-900">Ideabox</h1>
-              <p className="text-sm text-gray-600">Create and manage communication ideas</p>
-            </div>
-          </div>
-        </div>
         <div className="p-6">
-          <EditorView />
+            <StockRecommendationEditor 
+              initialData={selectedIdea && 'isNew' in selectedIdea ? null : selectedIdea} 
+              onSave={handleSaveIdea}
+              onBack={() => setViewMode('grid')}
+            />
         </div>
       </div>
     );
@@ -238,6 +282,7 @@ const IdeaboxPage = () => {
 
   return (
     <div className="w-full h-full bg-gray-50 overflow-auto">
+      {/* Top Navigation */}
       <div className="bg-white border-b border-gray-200 px-6 py-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
@@ -247,53 +292,45 @@ const IdeaboxPage = () => {
               <p className="text-sm text-gray-600">Create and manage your communication ideas</p>
             </div>
           </div>
-          <button onClick={() => setShowCreateMenu(true)} className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-semibold transition-colors flex items-center shadow-lg">
+          
+          <button
+            onClick={() => setShowCreateMenu(true)}
+            className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-semibold transition-colors flex items-center shadow-lg"
+          >
             <Plus className="w-5 h-5 mr-2" />
             Create Idea
           </button>
         </div>
       </div>
-      <div className="bg-white border-b border-gray-200 px-6 py-4">
-        <div className="grid grid-cols-5 gap-6">
-          <div>
-            <div className="text-2xl font-bold text-gray-900">{ideas.length}</div>
-            <div className="text-sm text-gray-600">Total Ideas</div>
-          </div>
-          <div>
-            <div className="text-2xl font-bold text-green-600">{activeCount}</div>
-            <div className="text-sm text-gray-600">Active</div>
-          </div>
-          <div>
-            <div className="text-2xl font-bold text-gray-600">{inactiveCount}</div>
-            <div className="text-sm text-gray-600">Inactive/Expired</div>
-          </div>
-          <div>
-            <div className="text-2xl font-bold text-gray-900">{ideas.reduce((sum, t) => sum + (t.usageCount || 0), 0)}</div>
-            <div className="text-sm text-gray-600">Total Broadcasts</div>
-          </div>
-          <div>
-            <div className="text-2xl font-bold text-gray-900">{templateTypes.length}</div>
-            <div className="text-sm text-gray-600">Idea Types</div>
-          </div>
-        </div>
-      </div>
+
+      {/* Search, Filter, and Status Bar */}
       <div className="bg-white border-b border-gray-200 px-6 py-4">
         <div className="flex items-center gap-4 mb-4">
           <div className="flex-1 relative">
             <Search className="w-5 h-5 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
-            <input type="text" placeholder="Search ideas by name, label, or content..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
+            <input
+              type="text"
+              placeholder="Search ideas by name, label, or content..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
           </div>
         </div>
+
         <div className="flex items-center justify-between">
-          <div className="flex gap-2">
-            <Filter className="w-5 h-5 text-gray-400" />
-            <button onClick={() => setSelectedCategory('all')} className={`px-4 py-2 rounded-lg font-semibold capitalize transition-colors ${selectedCategory === 'all' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}>all</button>
+          {/* Category Filter */}
+          <div className="flex gap-2 overflow-x-auto">
+            <Filter className="w-5 h-5 text-gray-400 shrink-0 mt-2" />
+            <button onClick={() => setSelectedCategory('all')} className={`px-4 py-2 rounded-lg font-semibold capitalize transition-colors text-sm ${selectedCategory === 'all' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}>all</button>
             {categories.map((category) => (
-              <button key={category} onClick={() => setSelectedCategory(category)} className={`px-4 py-2 rounded-lg font-semibold capitalize transition-colors ${selectedCategory === category ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}>{category}</button>
+              <button key={category} onClick={() => setSelectedCategory(category)} className={`px-4 py-2 rounded-lg font-semibold capitalize transition-colors text-sm ${selectedCategory === category ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}>{category}</button>
             ))}
           </div>
         </div>
       </div>
+
+      {/* Templates Grid */}
       <div className="p-6">
         {isLoading ? (
           <div className="text-center py-20">Loading ideas...</div>
@@ -308,13 +345,17 @@ const IdeaboxPage = () => {
             <FileText className="w-20 h-20 text-gray-300 mx-auto mb-4" />
             <h3 className="text-xl font-bold text-gray-900 mb-2">No Ideas Found</h3>
             <p className="text-gray-600 mb-6">Try adjusting your search or create a new idea</p>
-            <button onClick={() => setShowCreateMenu(true)} className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-semibold transition-colors inline-flex items-center">
+            <button
+              onClick={() => setShowCreateMenu(true)}
+              className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-semibold transition-colors inline-flex items-center"
+            >
               <Plus className="w-5 h-5 mr-2" />
               Create Your First Idea
             </button>
           </div>
         )}
       </div>
+      
       {showCreateMenu && <CreateMenuModal />}
     </div>
   );
