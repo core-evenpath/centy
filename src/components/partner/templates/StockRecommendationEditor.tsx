@@ -465,7 +465,7 @@ export default function StockRecommendationEditor({ initialData, onSave, onBack 
   };
 
   return (
-    <div>
+    <div className="p-6">
       <style>{`
         @keyframes fadeIn { from { opacity: 0; transform: translateX(10px); } to { opacity: 1; transform: translateX(0); } }
         .animate-fade-in { animation: fadeIn 0.3s ease-out; }
