@@ -18,6 +18,8 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from '@/lib/utils';
 import Image from 'next/image';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 
 // Stock database for auto-fill
 const STOCK_DATABASE: Record<string, any> = {
@@ -226,7 +228,7 @@ export default function StockRecommendationEditor({ initialData, onSave, onBack 
         setAiSuggestions({ thesis: [], risks: [], catalysts: [] });
       }
     }
-  }, [formData]);
+  }, []);
 
   const toggleSuggestion = (type: 'thesis' | 'risks' | 'catalysts', index: number) => {
     const currentSelections = [...selectedSuggestions[type]];
@@ -263,7 +265,7 @@ export default function StockRecommendationEditor({ initialData, onSave, onBack 
   };
 
   const toggleSection = (section: number) => {
-    setExpandedSection(expandedSection === section ? null : section);
+    setExpandedSection(expandedSection === section ? 0 : section);
   };
 
   const isStepComplete = (step: number) => {
@@ -343,7 +345,7 @@ export default function StockRecommendationEditor({ initialData, onSave, onBack 
     if (allStepsComplete && !generatedImageUrl && !isGeneratingImage) {
       handleGenerateImage();
     }
-  }, [allStepsComplete, generatedImageUrl, isGeneratingImage]);
+  }, [allStepsComplete, generatedImageUrl, isGeneratingImage, handleGenerateImage]);
 
 
   const handleSendBroadcast = async () => {
@@ -463,7 +465,7 @@ export default function StockRecommendationEditor({ initialData, onSave, onBack 
   };
 
   return (
-    <>
+    <div>
       <style>{`
         @keyframes fadeIn { from { opacity: 0; transform: translateX(10px); } to { opacity: 1; transform: translateX(0); } }
         .animate-fade-in { animation: fadeIn 0.3s ease-out; }
@@ -489,7 +491,7 @@ export default function StockRecommendationEditor({ initialData, onSave, onBack 
                   Stock Ticker * <span className="text-gray-500 font-normal">(e.g., NVDA, AAPL, TSLA)</span>
                 </label>
                 <div className="relative">
-                  <input
+                  <Input
                     type="text"
                     value={formData.ticker}
                     onChange={(e) => handleTickerChange(e.target.value)}
@@ -504,7 +506,10 @@ export default function StockRecommendationEditor({ initialData, onSave, onBack 
                   )}
                 </div>
               </div>
-              {/* Other inputs for Step 1 */}
+              <div className="grid grid-cols-2 gap-4">
+                <Input value={formData.companyName} onChange={(e) => updateField('companyName', e.target.value)} placeholder="Company Name" />
+                <Input value={formData.sector} onChange={(e) => updateField('sector', e.target.value)} placeholder="Sector" />
+              </div>
             </div>
           </>
         )}
@@ -517,7 +522,14 @@ export default function StockRecommendationEditor({ initialData, onSave, onBack 
                     <strong>Train the AI:</strong> Provide any research documents, articles, or notes. The AI will use this material to answer client questions about your recommendation.
                   </div>
                 </div>
-                {/* AI training form fields */}
+                <div className="grid grid-cols-2 gap-4">
+                  <Textarea placeholder="Paste text, articles, or research notes here..." rows={8} />
+                  <div className="border-2 border-dashed border-gray-300 rounded-lg flex flex-col items-center justify-center p-6 text-center">
+                    <Upload className="w-8 h-8 text-gray-400 mb-2" />
+                    <p className="text-sm font-medium text-gray-700">Drop files here or</p>
+                    <Button variant="link" size="sm">Browse Files</Button>
+                  </div>
+                </div>
             </>
         )}
 
@@ -530,7 +542,23 @@ export default function StockRecommendationEditor({ initialData, onSave, onBack 
               </div>
             </div>
             <div className="space-y-6">
-              {/* Thesis form fields */}
+              <div className="flex gap-2">
+                <Button variant={formData.action === 'buy' ? 'default' : 'outline'} onClick={() => updateField('action', 'buy')} className="flex-1">Buy</Button>
+                <Button variant={formData.action === 'sell' ? 'default' : 'outline'} onClick={() => updateField('action', 'sell')} className="flex-1">Sell</Button>
+                <Button variant={formData.action === 'hold' ? 'default' : 'outline'} onClick={() => updateField('action', 'hold')} className="flex-1">Hold</Button>
+              </div>
+              <Textarea value={formData.thesis} onChange={(e) => updateField('thesis', e.target.value)} placeholder="Explain the investment thesis..." rows={5} />
+              {aiSuggestions.thesis.length > 0 && (
+                <div className="space-y-2">
+                  <h4 className="text-sm font-semibold">AI Suggestions:</h4>
+                  {aiSuggestions.thesis.map((suggestion, index) => (
+                    <button key={index} onClick={() => toggleSuggestion('thesis', index)} className={`p-2 rounded text-left text-sm flex items-start gap-2 w-full transition-colors ${selectedSuggestions.thesis.includes(index) ? 'bg-blue-100' : 'hover:bg-gray-50'}`}>
+                      <Check className={`w-4 h-4 mt-0.5 shrink-0 transition-opacity ${selectedSuggestions.thesis.includes(index) ? 'opacity-100 text-blue-600' : 'opacity-20'}`} />
+                      {suggestion}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
           </>
         )}
@@ -543,7 +571,19 @@ export default function StockRecommendationEditor({ initialData, onSave, onBack 
                 <strong>Set clear expectations:</strong> Clients need to know the target price and how long they should hold. Be specific!
               </div>
             </div>
-            {/* Price target form fields */}
+            <div className="grid grid-cols-2 gap-4">
+              <Input value={formData.priceTarget} onChange={(e) => updateField('priceTarget', e.target.value)} placeholder="Price Target (e.g., $300)" />
+              <Input value={formData.timeframe} onChange={(e) => updateField('timeframe', e.target.value)} placeholder="Timeframe (e.g., 6-12 months)" />
+            </div>
+            <div className="flex gap-2 mt-4">
+              {timeframeOptions.map(option => (
+                <button key={option.value} onClick={() => updateField('timeframeType', option.value)} className={`flex-1 p-3 rounded-lg border-2 text-center transition-all ${formData.timeframeType === option.value ? 'border-blue-500 bg-blue-50' : 'hover:bg-gray-50'}`}>
+                  <div className="text-2xl mb-1">{option.icon}</div>
+                  <div className="font-semibold text-sm">{option.label}</div>
+                  <div className="text-xs text-gray-500">{option.example}</div>
+                </button>
+              ))}
+            </div>
           </>
         )}
         
@@ -555,7 +595,21 @@ export default function StockRecommendationEditor({ initialData, onSave, onBack 
                 <strong>Be transparent about risks!</strong> When clients ask "What could go wrong?", honest answers build trust. AI will use this to address their concerns properly.
               </div>
             </div>
-            {/* Risk/Catalyst form fields */}
+            <div className="grid grid-cols-2 gap-4">
+              <Textarea value={formData.keyRisks} onChange={(e) => updateField('keyRisks', e.target.value)} placeholder="Key Risks" rows={4} />
+              <Textarea value={formData.catalysts} onChange={(e) => updateField('catalysts', e.target.value)} placeholder="Potential Catalysts" rows={4} />
+            </div>
+             {aiSuggestions.risks.length > 0 && (
+                <div className="mt-4 space-y-2">
+                  <h4 className="text-sm font-semibold">AI-Suggested Risks:</h4>
+                  {aiSuggestions.risks.map((suggestion, index) => (
+                    <button key={index} onClick={() => toggleSuggestion('risks', index)} className={`p-2 rounded text-left text-sm flex items-start gap-2 w-full transition-colors ${selectedSuggestions.risks.includes(index) ? 'bg-amber-100' : 'hover:bg-gray-50'}`}>
+                      <Check className={`w-4 h-4 mt-0.5 shrink-0 transition-opacity ${selectedSuggestions.risks.includes(index) ? 'opacity-100 text-amber-600' : 'opacity-20'}`} />
+                      {suggestion}
+                    </button>
+                  ))}
+                </div>
+              )}
           </>
         )}
 
@@ -686,6 +740,6 @@ export default function StockRecommendationEditor({ initialData, onSave, onBack 
           </div>
         )}
       </div>
-    </>
+    </div>
   );
 }
