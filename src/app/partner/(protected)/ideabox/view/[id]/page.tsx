@@ -19,7 +19,7 @@ import {
 const DetailItem = ({ label, value, className }: { label: string, value: React.ReactNode, className?: string }) => (
   <div className={className}>
     <p className="text-sm font-medium text-gray-500">{label}</p>
-    <p className="text-base text-gray-900 font-semibold mt-1">{value}</p>
+    <div className="text-base text-gray-900 font-semibold mt-1">{value}</div>
   </div>
 );
 
