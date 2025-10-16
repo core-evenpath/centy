@@ -3,7 +3,7 @@
 "use client";
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { ArrowRight, Send, Sparkles, Upload, FileText, MessageSquare, Brain, Plus, Check, ChevronDown, ChevronUp, AlertCircle, Info, Users, Lock, Database, TrendingUp, Calendar, Save, Loader2, Phone, User, X } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Send, Sparkles, Upload, FileText, MessageSquare, Brain, Plus, Check, ChevronDown, ChevronUp, AlertCircle, Info, Users, Lock, Database, TrendingUp, Calendar, Save, Loader2, Phone, User, X } from 'lucide-react';
 import { useMultiWorkspaceAuth } from '@/hooks/use-multi-workspace-auth';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
