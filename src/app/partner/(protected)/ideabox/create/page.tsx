@@ -96,7 +96,7 @@ export default function CreateIdeaPage() {
 
   if (!selectedType) {
     return (
-      <div className="p-6">
+      <div className="p-6 overflow-y-auto h-full">
         <button onClick={() => router.push('/partner/ideabox')} className="flex items-center gap-2 text-sm text-gray-600 hover:text-gray-900 mb-6 font-medium">
           <ArrowLeft className="w-4 h-4" />
           Back to Ideabox
@@ -133,16 +133,18 @@ export default function CreateIdeaPage() {
 
   if (selectedType === 'stock-recommendation') {
     return (
-      <StockRecommendationEditor 
-        onSave={handleSave}
-        onBack={() => setSelectedType(null)}
-      />
+      <div className="overflow-y-auto h-full">
+        <StockRecommendationEditor 
+          onSave={handleSave}
+          onBack={() => setSelectedType(null)}
+        />
+      </div>
     );
   }
 
   // Placeholder for other editors
   return (
-    <div className="p-6">
+    <div className="p-6 overflow-y-auto h-full">
        <button onClick={() => setSelectedType(null)} className="flex items-center gap-2 text-sm text-gray-600 hover:text-gray-900 mb-6 font-medium">
         <ArrowLeft className="w-4 h-4" />
         Back to Idea Types
