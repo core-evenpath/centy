@@ -273,6 +273,7 @@ export default function StockRecommendationEditor({ initialData }: { initialData
       case 2: return !!(formData.thesis && formData.action);
       case 3: return !!(formData.priceTarget && formData.timeframe);
       case 4: return !!(formData.keyRisks && formData.catalysts);
+      // Step 5 (AI Training) is optional
       default: return false;
     }
   };
@@ -300,11 +301,11 @@ export default function StockRecommendationEditor({ initialData }: { initialData
       return;
     }
 
-    if (!allStepsComplete) {
+    if (!isStepComplete(1) || !isStepComplete(2) || !isStepComplete(3) || !isStepComplete(4)) {
       toast({
         variant: "destructive",
         title: "Incomplete Form",
-        description: "Please complete all steps before saving.",
+        description: "Please complete steps 1-4 before saving.",
       });
       return;
     }
@@ -415,11 +416,10 @@ export default function StockRecommendationEditor({ initialData }: { initialData
         engagementRate: 0,
         revenueGenerated: 0,
         createdAt: serverTimestamp(),
-        recipients: selectedRecipients.map(r => ({
-          id: r.id,
-          name: r.name,
-          type: r.contactCount !== undefined ? 'group' : 'contact'
-        })),
+        recipients: {
+          contacts: selectedRecipients.filter(r => r.type === 'contact').map(r => r.name),
+          groups: selectedRecipients.filter(r => r.type === 'group').map(r => r.name),
+        },
       });
       console.log('Campaign document created with ID:', campaignRef.id);
 
@@ -1172,9 +1172,9 @@ export default function StockRecommendationEditor({ initialData }: { initialData
                   <div className="flex justify-end mt-6">
                     <button
                       onClick={() => setExpandedSection(5)}
-                      className="px-6 py-3 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-xl font-semibold hover:shadow-lg transition-all flex items-center gap-2"
+                      className="px-6 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-xl font-semibold hover:shadow-lg transition-all flex items-center gap-2"
                     >
-                      Review & Send
+                      Next: AI Training
                       <ArrowRight className="w-5 h-5" />
                     </button>
                   </div>
@@ -1182,8 +1182,104 @@ export default function StockRecommendationEditor({ initialData }: { initialData
               </div>
             )}
           </div>
+          
+          {/* Section 5: AI Training */}
+          <div className={`bg-white rounded-2xl shadow-sm border-2 transition-all ${
+            !canAccessSection(5)
+              ? 'border-gray-200 opacity-60'
+              : expandedSection === 5 
+              ? 'border-blue-500 shadow-lg' 
+              : 'border-gray-200'
+          }`}>
+            <button
+              onClick={() => toggleSection(5)}
+              disabled={!canAccessSection(5)}
+              className="w-full p-6 flex items-center justify-between hover:bg-gray-50 rounded-t-2xl transition-colors disabled:cursor-not-allowed disabled:hover:bg-white"
+            >
+              <div className="flex items-center gap-4">
+                <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold ${
+                  !canAccessSection(5)
+                    ? 'bg-gray-200 text-gray-400'
+                    : expandedSection === 5
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-gray-300 text-gray-600'
+                }`}>
+                  {!canAccessSection(5) ? <Lock className="w-5 h-5" /> : '5'}
+                </div>
+                <div className="text-left">
+                  <h3 className="text-lg font-bold text-gray-900">Step 5: AI Training & Research</h3>
+                  <p className="text-sm text-gray-500 mt-1">Provide source material for the AI to learn from.</p>
+                </div>
+              </div>
+              {canAccessSection(5) && (
+                expandedSection === 5 ? <ChevronUp className="w-6 h-6 text-gray-400" /> : <ChevronDown className="w-6 h-6 text-gray-400" />
+              )}
+            </button>
 
-          {/* Step 5: Review & Send */}
+            {expandedSection === 5 && (
+              <div className="px-6 pb-6 pt-2 border-t border-gray-200">
+                <div className="flex items-start gap-3 p-4 bg-purple-50 rounded-lg border border-purple-200 mb-6">
+                  <Brain className="w-5 h-5 text-purple-600 shrink-0 mt-0.5" />
+                  <div className="text-sm text-purple-900">
+                    <strong>Train the AI:</strong> Provide any research documents, articles, or notes. The AI will use this material to answer client questions about your recommendation.
+                  </div>
+                </div>
+
+                <div className="space-y-6">
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-900 mb-2">
+                      Market Context & Sector Trends
+                    </label>
+                    <textarea
+                      value={formData.marketContext}
+                      onChange={(e) => updateField('marketContext', e.target.value)}
+                      placeholder="Paste any relevant market analysis, sector trends, or competitor information here."
+                      rows={8}
+                      className="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 font-mono text-sm"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-900 mb-2">
+                      Upload Research Documents
+                    </label>
+                    <div className="flex items-center justify-center w-full">
+                        <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-gray-300 border-dashed rounded-xl cursor-pointer bg-gray-50 hover:bg-gray-100">
+                            <div className="flex flex-col items-center justify-center pt-5 pb-6">
+                                <Upload className="w-8 h-8 mb-3 text-gray-400" />
+                                <p className="mb-2 text-sm text-gray-500"><span className="font-semibold">Click to upload</span> or drag and drop</p>
+                                <p className="text-xs text-gray-500">PDF, DOCX, TXT (up to 5MB each)</p>
+                            </div>
+                            <input type="file" className="hidden" multiple />
+                        </label>
+                    </div>
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-900 mb-2">
+                      Add Web Articles
+                    </label>
+                     <div className="flex items-center gap-2">
+                        <input type="url" placeholder="https://..." className="flex-1 px-4 py-2 border-2 border-gray-300 rounded-lg"/>
+                        <Button variant="outline">Add URL</Button>
+                    </div>
+                  </div>
+                </div>
+                 
+                <div className="flex justify-end mt-6">
+                    <button
+                      onClick={() => setExpandedSection(6)}
+                      className="px-6 py-3 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-xl font-semibold hover:shadow-lg transition-all flex items-center gap-2"
+                    >
+                      Finish & Review
+                      <ArrowRight className="w-5 h-5" />
+                    </button>
+                  </div>
+              </div>
+            )}
+          </div>
+
+          {/* Step 6: Review & Send */}
           {allStepsComplete && (
             <div className="space-y-6">
               <div className="bg-white rounded-2xl shadow-lg border-2 border-green-500 p-8">
