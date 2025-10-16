@@ -150,13 +150,6 @@ const IdeaboxPage = () => {
     });
   };
 
-  const handleToggleStatus = (templateId: string) => {
-    toast({
-      title: 'Coming Soon',
-      description: 'Status toggle functionality will be available soon.',
-    });
-  };
-
   const TemplateCard = ({ template }: { template: TradingPick }) => {
     const typeInfo = getTemplateTypeInfo('stock-recommendation');
     const Icon = typeInfo.icon;
@@ -254,16 +247,14 @@ const IdeaboxPage = () => {
           </Button>
           
           <Button
-            onClick={() => handleToggleStatus(template.id || '')}
+            asChild
             variant="outline"
-            className={`px-4 ${
-              templateStatus === 'active'
-                ? 'bg-orange-50 hover:bg-orange-100 text-orange-600 border-orange-200'
-                : 'bg-green-50 hover:bg-green-100 text-green-600 border-green-200'
-            }`}
-            title={templateStatus === 'active' ? 'Deactivate' : 'Activate'}
+            className="px-4"
+            title="View Details"
           >
-            {templateStatus === 'active' ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+             <Link href={`/partner/ideabox/view/${template.id}`}>
+              <Eye className="w-4 h-4" />
+            </Link>
           </Button>
           
           <Button
@@ -306,8 +297,6 @@ const IdeaboxPage = () => {
   };
 
   const activeCount = ideas.length; 
-  const inactiveCount = 0;
-  const totalBroadcasts = 0; 
 
   return (
     <div className="w-full h-full bg-gray-50 overflow-auto">
@@ -331,14 +320,10 @@ const IdeaboxPage = () => {
       </div>
 
       <div className="bg-white border-b border-gray-200 px-6 py-4">
-        <div className="grid grid-cols-3 gap-6">
+        <div className="grid grid-cols-2 gap-6">
           <div>
             <div className="text-2xl font-bold text-green-600">{activeCount}</div>
-            <div className="text-sm text-gray-600">Active</div>
-          </div>
-          <div>
-            <div className="text-2xl font-bold text-gray-900">{totalBroadcasts}</div>
-            <div className="text-sm text-gray-600">Total Broadcasts</div>
+            <div className="text-sm text-gray-600">Active Ideas</div>
           </div>
           <div>
             <div className="text-2xl font-bold text-gray-900">{templateTypes.length}</div>
@@ -379,40 +364,6 @@ const IdeaboxPage = () => {
             ))}
           </div>
 
-          <div className="flex gap-2">
-            <button
-              onClick={() => setStatusFilter('all')}
-              className={`px-4 py-2 rounded-lg font-semibold transition-colors ${
-                statusFilter === 'all'
-                  ? 'bg-gray-900 text-white'
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-              }`}
-            >
-              All ({ideas.length})
-            </button>
-            <button
-              onClick={() => setStatusFilter('active')}
-              className={`px-4 py-2 rounded-lg font-semibold transition-colors flex items-center gap-2 ${
-                statusFilter === 'active'
-                  ? 'bg-green-600 text-white'
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-              }`}
-            >
-              <CheckCircle className="w-4 h-4" />
-              Active ({activeCount})
-            </button>
-            <button
-              onClick={() => setStatusFilter('inactive')}
-              className={`px-4 py-2 rounded-lg font-semibold transition-colors flex items-center gap-2 ${
-                statusFilter === 'inactive'
-                  ? 'bg-gray-600 text-white'
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-              }`}
-            >
-              <XCircle className="w-4 h-4" />
-              Inactive ({inactiveCount})
-            </button>
-          </div>
         </div>
       </div>
 
