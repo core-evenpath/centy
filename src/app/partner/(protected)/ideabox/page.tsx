@@ -143,13 +143,6 @@ const IdeaboxPage = () => {
     }
   };
 
-  const handleDuplicate = (template: TradingPick) => {
-    toast({
-      title: 'Coming Soon',
-      description: 'Duplicate functionality will be available soon.',
-    });
-  };
-
   const TemplateCard = ({ template }: { template: TradingPick }) => {
     const typeInfo = getTemplateTypeInfo('stock-recommendation');
     const Icon = typeInfo.icon;
@@ -236,34 +229,17 @@ const IdeaboxPage = () => {
         </div>
 
         <div className="flex gap-2">
-          <Button 
-            asChild 
-            className="flex-1 bg-blue-600 hover:bg-blue-700 text-white"
-          >
+          <Button asChild className="flex-1 bg-blue-600 hover:bg-blue-700 text-white">
+            <Link href={`/partner/ideabox/view/${template.id}`}>
+              <Eye className="w-4 h-4 mr-2" />
+              View Details
+            </Link>
+          </Button>
+
+          <Button asChild variant="outline" className="px-4" title="Edit">
             <Link href={`/partner/ideabox/edit/${template.id}`}>
-              <Edit className="w-4 h-4 mr-2" />
-              Edit
+              <Edit className="w-4 h-4" />
             </Link>
-          </Button>
-          
-          <Button
-            asChild
-            variant="outline"
-            className="px-4"
-            title="View Details"
-          >
-             <Link href={`/partner/ideabox/view/${template.id}`}>
-              <Eye className="w-4 h-4" />
-            </Link>
-          </Button>
-          
-          <Button
-            onClick={() => handleDuplicate(template)}
-            variant="outline"
-            className="px-4 bg-gray-100 hover:bg-gray-200"
-            title="Duplicate"
-          >
-            <Copy className="w-4 h-4" />
           </Button>
           
           <AlertDialog>
