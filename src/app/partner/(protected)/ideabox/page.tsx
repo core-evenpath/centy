@@ -331,18 +331,10 @@ const IdeaboxPage = () => {
       </div>
 
       <div className="bg-white border-b border-gray-200 px-6 py-4">
-        <div className="grid grid-cols-5 gap-6">
-          <div>
-            <div className="text-2xl font-bold text-gray-900">{ideas.length}</div>
-            <div className="text-sm text-gray-600">Total Ideas</div>
-          </div>
+        <div className="grid grid-cols-3 gap-6">
           <div>
             <div className="text-2xl font-bold text-green-600">{activeCount}</div>
             <div className="text-sm text-gray-600">Active</div>
-          </div>
-          <div>
-            <div className="text-2xl font-bold text-gray-600">{inactiveCount}</div>
-            <div className="text-sm text-gray-600">Inactive/Expired</div>
           </div>
           <div>
             <div className="text-2xl font-bold text-gray-900">{totalBroadcasts}</div>
