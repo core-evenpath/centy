@@ -1,3 +1,4 @@
+
 // src/app/partner/(protected)/ideabox/view/[id]/page.tsx
 "use client";
 
@@ -48,6 +49,7 @@ export default function ViewIdeaPage() {
   const { currentWorkspace } = useMultiWorkspaceAuth();
   const [idea, setIdea] = useState<TradingPick | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!id || !currentWorkspace?.partnerId) return;
@@ -60,9 +62,12 @@ export default function ViewIdeaPage() {
 
         if (docSnap.exists()) {
           setIdea({ id: docSnap.id, ...docSnap.data() } as TradingPick);
+        } else {
+          setError("Idea not found.");
         }
       } catch (err) {
-        console.error("Error fetching idea:", err);
+        setError("Failed to load idea.");
+        console.error(err);
       } finally {
         setLoading(false);
       }
@@ -74,8 +79,19 @@ export default function ViewIdeaPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-full p-6">
-        <Loader2 className="w-8 h-8 animate-spin text-gray-500" />
-        <span className="ml-3 text-gray-600">Loading Recommendation...</span>
+        <Loader2 className="w-8 h-8 animate-spin" />
+        <span className="ml-2">Loading editor...</span>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="p-6 text-center text-red-500">
+        <p>{error}</p>
+        <Button onClick={() => router.push('/partner/ideabox')} className="mt-4">
+          Back to Ideabox
+        </Button>
       </div>
     );
   }
@@ -96,7 +112,7 @@ export default function ViewIdeaPage() {
   const riskColor = idea.riskLevel === 'high' ? 'text-red-600' : idea.riskLevel === 'medium' ? 'text-yellow-600' : 'text-green-600';
 
   return (
-    <div className="p-6 bg-gray-50/50 min-h-full">
+    <div className="overflow-y-auto h-full p-6 bg-gray-50/50">
       <div className="max-w-5xl mx-auto">
         {/* Header */}
         <div className="flex items-center justify-between mb-8">
