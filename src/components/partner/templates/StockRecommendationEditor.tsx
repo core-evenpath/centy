@@ -1,3 +1,4 @@
+
 // src/components/partner/templates/StockRecommendationEditor.tsx
 "use client";
 
@@ -273,7 +274,7 @@ export default function StockRecommendationEditor({ initialData }: { initialData
       case 2: return !!(formData.thesis && formData.action);
       case 3: return !!(formData.priceTarget && formData.timeframe);
       case 4: return !!(formData.keyRisks && formData.catalysts);
-      // Step 5 (AI Training) is optional
+      // Step 2 (AI Training) is optional
       default: return false;
     }
   };
@@ -301,15 +302,6 @@ export default function StockRecommendationEditor({ initialData }: { initialData
       return;
     }
 
-    if (!isStepComplete(1) || !isStepComplete(2) || !isStepComplete(3) || !isStepComplete(4)) {
-      toast({
-        variant: "destructive",
-        title: "Incomplete Form",
-        description: "Please complete steps 1-4 before saving.",
-      });
-      return;
-    }
-
     setIsSaving(true);
     try {
       const { ...pickData } = formData;
@@ -320,8 +312,8 @@ export default function StockRecommendationEditor({ initialData }: { initialData
       
       if (result.success) {
         toast({
-          title: "Recommendation Saved",
-          description: "Your stock pick has been saved successfully.",
+          title: "Idea Saved as Draft",
+          description: "Your stock pick has been saved.",
         });
       } else {
         throw new Error(result.message);
@@ -615,7 +607,7 @@ export default function StockRecommendationEditor({ initialData }: { initialData
                       onClick={() => setExpandedSection(2)}
                       className="px-6 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-xl font-semibold hover:shadow-lg transition-all flex items-center gap-2"
                     >
-                      Next: Investment Thesis
+                      Next: AI Training
                       <ArrowRight className="w-5 h-5" />
                     </button>
                   </div>
@@ -624,14 +616,12 @@ export default function StockRecommendationEditor({ initialData }: { initialData
             )}
           </div>
 
-          {/* Section 2: Investment Thesis */}
+          {/* Section 2: AI Training */}
           <div className={`bg-white rounded-2xl shadow-sm border-2 transition-all ${
             !canAccessSection(2)
               ? 'border-gray-200 opacity-60'
               : expandedSection === 2 
               ? 'border-blue-500 shadow-lg' 
-              : isStepComplete(2)
-              ? 'border-green-200'
               : 'border-gray-200'
           }`}>
             <button
@@ -643,23 +633,121 @@ export default function StockRecommendationEditor({ initialData }: { initialData
                 <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold ${
                   !canAccessSection(2)
                     ? 'bg-gray-200 text-gray-400'
-                    : isStepComplete(2)
-                    ? 'bg-green-600 text-white'
                     : expandedSection === 2
                     ? 'bg-blue-600 text-white'
                     : 'bg-gray-300 text-gray-600'
                 }`}>
-                  {!canAccessSection(2) ? (
+                  {!canAccessSection(2) ? <Lock className="w-5 h-5" /> : '2'}
+                </div>
+                <div className="text-left">
+                  <h3 className="text-lg font-bold text-gray-900">Step 2: AI Training & Research</h3>
+                  <p className="text-sm text-gray-500 mt-1">Provide source material for the AI to learn from.</p>
+                </div>
+              </div>
+              {canAccessSection(2) && (
+                expandedSection === 2 ? <ChevronUp className="w-6 h-6 text-gray-400" /> : <ChevronDown className="w-6 h-6 text-gray-400" />
+              )}
+            </button>
+
+            {expandedSection === 2 && (
+              <div className="px-6 pb-6 pt-2 border-t border-gray-200">
+                <div className="flex items-start gap-3 p-4 bg-purple-50 rounded-lg border border-purple-200 mb-6">
+                  <Brain className="w-5 h-5 text-purple-600 shrink-0 mt-0.5" />
+                  <div className="text-sm text-purple-900">
+                    <strong>Train the AI:</strong> Provide any research documents, articles, or notes. The AI will use this material to answer client questions about your recommendation.
+                  </div>
+                </div>
+
+                <div className="space-y-6">
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-900 mb-2">
+                      Market Context & Sector Trends
+                    </label>
+                    <textarea
+                      value={formData.marketContext}
+                      onChange={(e) => updateField('marketContext', e.target.value)}
+                      placeholder="Paste any relevant market analysis, sector trends, or competitor information here."
+                      rows={8}
+                      className="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 font-mono text-sm"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-900 mb-2">
+                      Upload Research Documents
+                    </label>
+                    <div className="flex items-center justify-center w-full">
+                        <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-gray-300 border-dashed rounded-xl cursor-pointer bg-gray-50 hover:bg-gray-100">
+                            <div className="flex flex-col items-center justify-center pt-5 pb-6">
+                                <Upload className="w-8 h-8 mb-3 text-gray-400" />
+                                <p className="mb-2 text-sm text-gray-500"><span className="font-semibold">Click to upload</span> or drag and drop</p>
+                                <p className="text-xs text-gray-500">PDF, DOCX, TXT (up to 5MB each)</p>
+                            </div>
+                            <input type="file" className="hidden" multiple />
+                        </label>
+                    </div>
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-900 mb-2">
+                      Add Web Articles
+                    </label>
+                     <div className="flex items-center gap-2">
+                        <input type="url" placeholder="https://..." className="flex-1 px-4 py-2 border-2 border-gray-300 rounded-lg"/>
+                        <Button variant="outline">Add URL</Button>
+                    </div>
+                  </div>
+                </div>
+                 
+                <div className="flex justify-end mt-6">
+                    <button
+                      onClick={() => setExpandedSection(3)}
+                      className="px-6 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-xl font-semibold hover:shadow-lg transition-all flex items-center gap-2"
+                    >
+                      Next: Investment Thesis
+                      <ArrowRight className="w-5 h-5" />
+                    </button>
+                  </div>
+              </div>
+            )}
+          </div>
+          
+          {/* Section 3: Investment Thesis */}
+          <div className={`bg-white rounded-2xl shadow-sm border-2 transition-all ${
+            !canAccessSection(3)
+              ? 'border-gray-200 opacity-60'
+              : expandedSection === 3 
+              ? 'border-blue-500 shadow-lg' 
+              : isStepComplete(2)
+              ? 'border-green-200'
+              : 'border-gray-200'
+          }`}>
+            <button
+              onClick={() => toggleSection(3)}
+              disabled={!canAccessSection(3)}
+              className="w-full p-6 flex items-center justify-between hover:bg-gray-50 rounded-t-2xl transition-colors disabled:cursor-not-allowed disabled:hover:bg-white"
+            >
+              <div className="flex items-center gap-4">
+                <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold ${
+                  !canAccessSection(3)
+                    ? 'bg-gray-200 text-gray-400'
+                    : isStepComplete(2)
+                    ? 'bg-green-600 text-white'
+                    : expandedSection === 3
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-gray-300 text-gray-600'
+                }`}>
+                  {!canAccessSection(3) ? (
                     <Lock className="w-5 h-5" />
                   ) : isStepComplete(2) ? (
                     <Check className="w-6 h-6" />
                   ) : (
-                    '2'
+                    '3'
                   )}
                 </div>
                 <div className="text-left">
-                  <h3 className="text-lg font-bold text-gray-900">Step 2: Investment Thesis</h3>
-                  {isStepComplete(2) && expandedSection !== 2 && (
+                  <h3 className="text-lg font-bold text-gray-900">Step 3: Investment Thesis</h3>
+                  {isStepComplete(2) && expandedSection !== 3 && (
                     <div className="flex items-center gap-3 mt-1">
                       <span className={`px-3 py-1 rounded-full text-sm font-bold ${
                         formData.action === 'buy' ? 'bg-green-100 text-green-700' :
@@ -673,13 +761,13 @@ export default function StockRecommendationEditor({ initialData }: { initialData
                       </span>
                     </div>
                   )}
-                  {!isStepComplete(2) && expandedSection !== 2 && canAccessSection(2) && (
+                  {!isStepComplete(2) && expandedSection !== 3 && canAccessSection(3) && (
                     <p className="text-sm text-gray-500 mt-1">Why should someone invest in this stock?</p>
                   )}
                 </div>
               </div>
-              {canAccessSection(2) && (
-                expandedSection === 2 ? (
+              {canAccessSection(3) && (
+                expandedSection === 3 ? (
                   <ChevronUp className="w-6 h-6 text-gray-400" />
                 ) : (
                   <ChevronDown className="w-6 h-6 text-gray-400" />
@@ -687,7 +775,7 @@ export default function StockRecommendationEditor({ initialData }: { initialData
               )}
             </button>
 
-            {expandedSection === 2 && (
+            {expandedSection === 3 && (
               <div className="px-6 pb-6 pt-2 border-t border-gray-200">
                 <div className="flex items-start gap-3 p-4 bg-purple-50 rounded-lg border border-purple-200 mb-6">
                   <Sparkles className="w-5 h-5 text-purple-600 shrink-0 mt-0.5" />
@@ -782,7 +870,7 @@ export default function StockRecommendationEditor({ initialData }: { initialData
                 {isStepComplete(2) && (
                   <div className="flex justify-end mt-6">
                     <button
-                      onClick={() => setExpandedSection(3)}
+                      onClick={() => setExpandedSection(4)}
                       className="px-6 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-xl font-semibold hover:shadow-lg transition-all flex items-center gap-2"
                     >
                       Next: Price Target
@@ -793,43 +881,43 @@ export default function StockRecommendationEditor({ initialData }: { initialData
               </div>
             )}
           </div>
-
-          {/* Section 3: Price & Timeline */}
+          
+          {/* Section 4: Price & Timeline */}
           <div className={`bg-white rounded-2xl shadow-sm border-2 transition-all ${
-            !canAccessSection(3)
+            !canAccessSection(4)
               ? 'border-gray-200 opacity-60'
-              : expandedSection === 3 
+              : expandedSection === 4
               ? 'border-blue-500 shadow-lg' 
               : isStepComplete(3)
               ? 'border-green-200'
               : 'border-gray-200'
           }`}>
             <button
-              onClick={() => toggleSection(3)}
-              disabled={!canAccessSection(3)}
+              onClick={() => toggleSection(4)}
+              disabled={!canAccessSection(4)}
               className="w-full p-6 flex items-center justify-between hover:bg-gray-50 rounded-t-2xl transition-colors disabled:cursor-not-allowed disabled:hover:bg-white"
             >
               <div className="flex items-center gap-4">
                 <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold ${
-                  !canAccessSection(3)
+                  !canAccessSection(4)
                     ? 'bg-gray-200 text-gray-400'
                     : isStepComplete(3)
                     ? 'bg-green-600 text-white'
-                    : expandedSection === 3
+                    : expandedSection === 4
                     ? 'bg-blue-600 text-white'
                     : 'bg-gray-300 text-gray-600'
                 }`}>
-                  {!canAccessSection(3) ? (
+                  {!canAccessSection(4) ? (
                     <Lock className="w-5 h-5" />
                   ) : isStepComplete(3) ? (
                     <Check className="w-6 h-6" />
                   ) : (
-                    '3'
+                    '4'
                   )}
                 </div>
                 <div className="text-left">
-                  <h3 className="text-lg font-bold text-gray-900">Step 3: Price Target & Timeline</h3>
-                  {isStepComplete(3) && expandedSection !== 3 && (
+                  <h3 className="text-lg font-bold text-gray-900">Step 4: Price Target & Timeline</h3>
+                  {isStepComplete(3) && expandedSection !== 4 && (
                     <div className="flex items-center gap-3 mt-1">
                       <span className="text-sm text-gray-600">
                         Target: <strong className="text-gray-900">{formData.priceTarget}</strong>
@@ -840,13 +928,13 @@ export default function StockRecommendationEditor({ initialData }: { initialData
                       </span>
                     </div>
                   )}
-                  {!isStepComplete(3) && expandedSection !== 3 && canAccessSection(3) && (
+                  {!isStepComplete(3) && expandedSection !== 4 && canAccessSection(4) && (
                     <p className="text-sm text-gray-500 mt-1">Set price expectations and holding period</p>
                   )}
                 </div>
               </div>
-              {canAccessSection(3) && (
-                expandedSection === 3 ? (
+              {canAccessSection(4) && (
+                expandedSection === 4 ? (
                   <ChevronUp className="w-6 h-6 text-gray-400" />
                 ) : (
                   <ChevronDown className="w-6 h-6 text-gray-400" />
@@ -854,7 +942,7 @@ export default function StockRecommendationEditor({ initialData }: { initialData
               )}
             </button>
 
-            {expandedSection === 3 && (
+            {expandedSection === 4 && (
               <div className="px-6 pb-6 pt-2 border-t border-gray-200">
                 <div className="flex items-start gap-3 p-4 bg-blue-50 rounded-lg border border-blue-200 mb-6">
                   <TrendingUp className="w-5 h-5 text-blue-600 shrink-0 mt-0.5" />
@@ -975,7 +1063,7 @@ export default function StockRecommendationEditor({ initialData }: { initialData
                 {isStepComplete(3) && (
                   <div className="flex justify-end mt-6">
                     <button
-                      onClick={() => setExpandedSection(4)}
+                      onClick={() => setExpandedSection(5)}
                       className="px-6 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-xl font-semibold hover:shadow-lg transition-all flex items-center gap-2"
                     >
                       Next: Risks & Catalysts
@@ -986,56 +1074,56 @@ export default function StockRecommendationEditor({ initialData }: { initialData
               </div>
             )}
           </div>
-
-          {/* Section 4: Risks & Catalysts */}
+          
+          {/* Section 5: Risks & Catalysts */}
           <div className={`bg-white rounded-2xl shadow-sm border-2 transition-all ${
-            !canAccessSection(4)
+            !canAccessSection(5)
               ? 'border-gray-200 opacity-60'
-              : expandedSection === 4 
+              : expandedSection === 5
               ? 'border-blue-500 shadow-lg' 
               : isStepComplete(4)
               ? 'border-green-200'
               : 'border-gray-200'
           }`}>
             <button
-              onClick={() => toggleSection(4)}
-              disabled={!canAccessSection(4)}
+              onClick={() => toggleSection(5)}
+              disabled={!canAccessSection(5)}
               className="w-full p-6 flex items-center justify-between hover:bg-gray-50 rounded-t-2xl transition-colors disabled:cursor-not-allowed disabled:hover:bg-white"
             >
               <div className="flex items-center gap-4">
                 <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold ${
-                  !canAccessSection(4)
+                  !canAccessSection(5)
                     ? 'bg-gray-200 text-gray-400'
                     : isStepComplete(4)
                     ? 'bg-green-600 text-white'
-                    : expandedSection === 4
+                    : expandedSection === 5
                     ? 'bg-blue-600 text-white'
                     : 'bg-gray-300 text-gray-600'
                 }`}>
-                  {!canAccessSection(4) ? (
+                  {!canAccessSection(5) ? (
                     <Lock className="w-5 h-5" />
                   ) : isStepComplete(4) ? (
                     <Check className="w-6 h-6" />
                   ) : (
-                    '4'
+                    '5'
                   )}
                 </div>
                 <div className="text-left">
-                  <h3 className="text-lg font-bold text-gray-900">Step 4: Risks & Catalysts</h3>
-                  {isStepComplete(4) && expandedSection !== 4 && (
+                  <h3 className="text-lg font-bold text-gray-900">Step 5: Risks & Catalysts</h3>
+                  {isStepComplete(4) && expandedSection !== 5 && (
                     <div className="flex items-center gap-3 mt-1">
                       <span className="text-sm text-gray-600">
                         ✓ Risks and upside drivers documented
                       </span>
                     </div>
                   )}
-                  {!isStepComplete(4) && expandedSection !== 4 && canAccessSection(4) && (
+                  {!isStepComplete(4) && expandedSection !== 5 && canAccessSection(5) && (
                     <p className="text-sm text-gray-500 mt-1">What could go wrong? What could go right?</p>
                   )}
                 </div>
               </div>
-              {canAccessSection(4) && (
-                expandedSection === 4 ? (
+              {canAccessSection(5) && (
+                expandedSection === 5 ? (
                   <ChevronUp className="w-6 h-6 text-gray-400" />
                 ) : (
                   <ChevronDown className="w-6 h-6 text-gray-400" />
@@ -1043,7 +1131,7 @@ export default function StockRecommendationEditor({ initialData }: { initialData
               )}
             </button>
 
-            {expandedSection === 4 && (
+            {expandedSection === 5 && (
               <div className="px-6 pb-6 pt-2 border-t border-gray-200">
                 <div className="flex items-start gap-3 p-4 bg-amber-50 rounded-lg border border-amber-200 mb-6">
                   <AlertCircle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
@@ -1169,12 +1257,20 @@ export default function StockRecommendationEditor({ initialData }: { initialData
                 </div>
 
                 {isStepComplete(4) && (
-                  <div className="flex justify-end mt-6">
-                    <button
-                      onClick={() => setExpandedSection(5)}
-                      className="px-6 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-xl font-semibold hover:shadow-lg transition-all flex items-center gap-2"
+                  <div className="flex justify-between mt-6">
+                    <Button
+                      onClick={handleSaveRecommendation}
+                      variant="outline"
+                      disabled={isSaving}
                     >
-                      Next: AI Training
+                      {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
+                      {isSaving ? 'Saving...' : 'Save as Idea'}
+                    </Button>
+                    <button
+                      onClick={() => setExpandedSection(6)}
+                      className="px-6 py-3 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-xl font-semibold hover:shadow-lg transition-all flex items-center gap-2"
+                    >
+                      Finish & Send
                       <ArrowRight className="w-5 h-5" />
                     </button>
                   </div>
@@ -1183,106 +1279,9 @@ export default function StockRecommendationEditor({ initialData }: { initialData
             )}
           </div>
           
-          {/* Section 5: AI Training */}
-          <div className={`bg-white rounded-2xl shadow-sm border-2 transition-all ${
-            !canAccessSection(5)
-              ? 'border-gray-200 opacity-60'
-              : expandedSection === 5 
-              ? 'border-blue-500 shadow-lg' 
-              : 'border-gray-200'
-          }`}>
-            <button
-              onClick={() => toggleSection(5)}
-              disabled={!canAccessSection(5)}
-              className="w-full p-6 flex items-center justify-between hover:bg-gray-50 rounded-t-2xl transition-colors disabled:cursor-not-allowed disabled:hover:bg-white"
-            >
-              <div className="flex items-center gap-4">
-                <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold ${
-                  !canAccessSection(5)
-                    ? 'bg-gray-200 text-gray-400'
-                    : expandedSection === 5
-                    ? 'bg-blue-600 text-white'
-                    : 'bg-gray-300 text-gray-600'
-                }`}>
-                  {!canAccessSection(5) ? <Lock className="w-5 h-5" /> : '5'}
-                </div>
-                <div className="text-left">
-                  <h3 className="text-lg font-bold text-gray-900">Step 5: AI Training & Research</h3>
-                  <p className="text-sm text-gray-500 mt-1">Provide source material for the AI to learn from.</p>
-                </div>
-              </div>
-              {canAccessSection(5) && (
-                expandedSection === 5 ? <ChevronUp className="w-6 h-6 text-gray-400" /> : <ChevronDown className="w-6 h-6 text-gray-400" />
-              )}
-            </button>
-
-            {expandedSection === 5 && (
-              <div className="px-6 pb-6 pt-2 border-t border-gray-200">
-                <div className="flex items-start gap-3 p-4 bg-purple-50 rounded-lg border border-purple-200 mb-6">
-                  <Brain className="w-5 h-5 text-purple-600 shrink-0 mt-0.5" />
-                  <div className="text-sm text-purple-900">
-                    <strong>Train the AI:</strong> Provide any research documents, articles, or notes. The AI will use this material to answer client questions about your recommendation.
-                  </div>
-                </div>
-
-                <div className="space-y-6">
-                  <div>
-                    <label className="block text-sm font-semibold text-gray-900 mb-2">
-                      Market Context & Sector Trends
-                    </label>
-                    <textarea
-                      value={formData.marketContext}
-                      onChange={(e) => updateField('marketContext', e.target.value)}
-                      placeholder="Paste any relevant market analysis, sector trends, or competitor information here."
-                      rows={8}
-                      className="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 font-mono text-sm"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-semibold text-gray-900 mb-2">
-                      Upload Research Documents
-                    </label>
-                    <div className="flex items-center justify-center w-full">
-                        <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-gray-300 border-dashed rounded-xl cursor-pointer bg-gray-50 hover:bg-gray-100">
-                            <div className="flex flex-col items-center justify-center pt-5 pb-6">
-                                <Upload className="w-8 h-8 mb-3 text-gray-400" />
-                                <p className="mb-2 text-sm text-gray-500"><span className="font-semibold">Click to upload</span> or drag and drop</p>
-                                <p className="text-xs text-gray-500">PDF, DOCX, TXT (up to 5MB each)</p>
-                            </div>
-                            <input type="file" className="hidden" multiple />
-                        </label>
-                    </div>
-                  </div>
-                  
-                  <div>
-                    <label className="block text-sm font-semibold text-gray-900 mb-2">
-                      Add Web Articles
-                    </label>
-                     <div className="flex items-center gap-2">
-                        <input type="url" placeholder="https://..." className="flex-1 px-4 py-2 border-2 border-gray-300 rounded-lg"/>
-                        <Button variant="outline">Add URL</Button>
-                    </div>
-                  </div>
-                </div>
-                 
-                <div className="flex justify-end mt-6">
-                    <button
-                      onClick={() => setExpandedSection(6)}
-                      className="px-6 py-3 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-xl font-semibold hover:shadow-lg transition-all flex items-center gap-2"
-                    >
-                      Finish & Review
-                      <ArrowRight className="w-5 h-5" />
-                    </button>
-                  </div>
-              </div>
-            )}
-          </div>
-
           {/* Step 6: Review & Send */}
           {allStepsComplete && (
-            <div className="space-y-6">
-              <div className="bg-white rounded-2xl shadow-lg border-2 border-green-500 p-8">
+            <div className="bg-white rounded-2xl shadow-lg border-2 border-green-500 p-8">
                 <div className="flex items-center gap-3 mb-6">
                   <div className="w-12 h-12 bg-green-600 rounded-full flex items-center justify-center">
                     <Check className="w-7 h-7 text-white" />
@@ -1394,7 +1393,7 @@ export default function StockRecommendationEditor({ initialData }: { initialData
                               <Loader2 className="w-8 h-8 animate-spin text-gray-400" />
                             </div>
                           ) : generatedImageUrl ? (
-                            <Image src={generatedImageUrl} alt="Generated stock pick" width={1200} height={675} className="w-full rounded-lg" />
+                            <Image src={generatedImageUrl} alt="Generated stock pick" width={1200} height={675} className="w-full rounded-lg" data-ai-hint="stock chart" />
                           ) : (
                             <div className="flex items-center justify-center h-48 bg-gray-100 rounded-lg">
                               <Sparkles className="w-8 h-8 text-gray-400" />
@@ -1427,7 +1426,6 @@ export default function StockRecommendationEditor({ initialData }: { initialData
                     {isSaving ? 'Saving...' : 'Save as Idea'}
                   </Button>
                 </div>
-              </div>
             </div>
           )}
         </div>
