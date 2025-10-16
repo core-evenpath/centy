@@ -473,7 +473,7 @@ export default function StockRecommendationEditor({
                       onClick={() => setExpandedSection(2)}
                       className="px-6 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-xl font-semibold hover:shadow-lg transition-all flex items-center gap-2"
                     >
-                      Next: Investment Thesis
+                      Next: Data Source
                       <ArrowRight className="w-5 h-5" />
                     </button>
                   </div>

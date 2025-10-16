@@ -1,11 +1,12 @@
 // src/actions/sms-actions.ts
 'use server';
 
-import { db } from '@/lib/firebase-admin';
-import { sendSMS, getMessageStatus } from '@/lib/twilio-service';
+import { db } from '../lib/firebase-admin';
 import { FieldValue } from 'firebase-admin/firestore';
+import * as admin from 'firebase-admin';
 import type { SendSMSInput, SendSMSResult, SMSMessage, SMSConversation, Contact } from '@/lib/types';
 import { FirestorePermissionError } from '@/firebase/errors';
+import { sendSMS } from '@/lib/twilio-service';
 
 /**
  * Send an SMS message and store it in Firestore
@@ -178,7 +179,7 @@ export async function sendSmsCampaignAction(input: SendSmsCampaignInput): Promis
     let contactsToSend: Contact[] = [];
     
     if (uniqueContactIds.length > 0) {
-      const contactsSnapshot = await db.collection(`partners/${input.partnerId}/contacts`).where(db.FieldPath.documentId(), 'in', uniqueContactIds).get();
+      const contactsSnapshot = await db.collection(`partners/${input.partnerId}/contacts`).where(admin.firestore.FieldPath.documentId(), 'in', uniqueContactIds).get();
       contactsToSend = contactsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Contact));
     }
     
@@ -303,5 +304,3 @@ export async function checkSMSMessageStatus(twilioSid: string): Promise<string> 
   } catch (error: any) {
     console.error('Error checking SMS message status:', error);
     throw error;
-  }
-}

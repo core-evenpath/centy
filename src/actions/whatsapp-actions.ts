@@ -2,6 +2,7 @@
 'use server';
 
 import { db } from '@/lib/firebase-admin';
+import * as admin from 'firebase-admin';
 import { sendWhatsAppMessage, getMessageStatus } from '@/lib/twilio-service';
 import { FieldValue } from 'firebase-admin/firestore';
 import type { SendWhatsAppMessageInput, SendWhatsAppMessageResult, WhatsAppMessage, WhatsAppConversation, Contact } from '@/lib/types';
@@ -199,7 +200,7 @@ export async function sendWhatsAppCampaignAction(input: SendWhatsAppCampaignInpu
     let contactsToSend: Contact[] = [];
     
     if (uniqueContactIds.length > 0) {
-      const contactsSnapshot = await db.collection(`partners/${input.partnerId}/contacts`).where(db.FieldPath.documentId(), 'in', uniqueContactIds).get();
+      const contactsSnapshot = await db.collection(`partners/${input.partnerId}/contacts`).where(admin.firestore.FieldPath.documentId(), 'in', uniqueContactIds).get();
       contactsToSend = contactsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Contact));
     }
     
