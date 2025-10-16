@@ -1,9 +1,8 @@
-// src/components/partner/templates/StockRecommendationEditor.tsx
+
 "use client";
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { useRouter } from 'next/navigation';
-import { ArrowLeft, Send, Sparkles, FileText, MessageSquare, Brain, Plus, Check, ChevronDown, ChevronUp, AlertCircle, Info, Users, Lock, Database, TrendingUp, Calendar, Save, Loader2, Phone, User, X } from 'lucide-react';
+import { ArrowRight, Send, Sparkles, Upload, FileText, MessageSquare, Brain, Plus, Check, ChevronDown, ChevronUp, AlertCircle, Info, Users, Lock, Database, TrendingUp, Calendar, Save, Loader2, Phone, User, X, ArrowLeft } from 'lucide-react';
 import { useMultiWorkspaceAuth } from '@/hooks/use-multi-workspace-auth';
 import { useToast } from '@/hooks/use-toast';
 import { saveTradingPickAction } from '@/actions/trading-pick-actions';
@@ -19,7 +18,9 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from '@/lib/utils';
 import Image from 'next/image';
+import { useRouter } from 'next/navigation';
 
+// Stock database for auto-fill
 const STOCK_DATABASE: Record<string, any> = {
   'NVDA': { 
     companyName: 'NVIDIA Corporation', 
@@ -241,7 +242,7 @@ export default function StockRecommendationEditor({
       if (result.success) {
         toast({ title: "Success!", description: `Campaign sent via ${channel.toUpperCase()}` });
         if (!initialData?.id) {
-            await handleSaveAsIdea(true);
+            await handleSaveAsDraft(true);
         }
       } else {
         toast({ title: "Error", description: result.message, variant: "destructive" });
@@ -253,7 +254,7 @@ export default function StockRecommendationEditor({
     }
   };
 
-  const handleSaveAsIdea = async (calledFromSend: boolean = false) => {
+  const handleSaveAsDraft = async (calledFromSend: boolean = false) => {
     if (!currentWorkspace?.partnerId) return;
     setIsSaving(true);
     
@@ -337,13 +338,15 @@ export default function StockRecommendationEditor({
           animation: fadeIn 0.3s ease-out;
         }
       `}</style>
+      
+      {onBack && (
+        <button onClick={onBack} className="flex items-center gap-2 text-sm text-gray-600 hover:text-gray-900 mb-6 font-medium">
+          <ArrowLeft className="w-4 h-4" />
+          Back to Ideabox
+        </button>
+      )}
+
       <div className="max-w-4xl mx-auto">
-        {onBack && (
-          <button onClick={onBack} className="flex items-center gap-2 text-sm text-gray-600 hover:text-gray-900 mb-6 font-medium">
-            <ArrowLeft className="w-4 h-4" />
-            Back to Ideabox
-          </button>
-        )}
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-gray-900 mb-2">
             {initialData ? 'Edit' : 'Create'} Stock Recommendation
@@ -481,7 +484,7 @@ export default function StockRecommendationEditor({
           
            {/* Section 2: Investment Thesis */}
            <div className={`bg-white rounded-2xl shadow-sm border-2 transition-all ${!canAccessSection(2) ? 'border-gray-200 opacity-60' : expandedSection === 2 ? 'border-blue-500 shadow-lg' : isStepComplete(2) ? 'border-green-500' : 'border-gray-200'}`}>
-            <button onClick={() => canAccessSection(2) && setExpandedSection(expandedSection === 2 ? 0 : 2)} disabled={!canAccessSection(2)} className="w-full px-6 py-5 flex items-center justify-between hover:bg-gray-50 transition-colors rounded-t-2xl disabled:cursor-not-allowed">
+            <button onClick={() => canAccessSection(2) && setExpandedSection(expandedSection === 2 ? 0 : 2)} disabled={!canAccessSection(2)} className="w-full px-6 py-5 flex items-center justify-between hover:bg-gray-50 transition-colors rounded-t-2xl disabled:cursor-not-allowed disabled:hover:bg-white">
               <div className="flex items-center gap-4">
                 <div className={`w-12 h-12 rounded-full flex items-center justify-center text-white font-bold text-lg transition-all ${!canAccessSection(2) ? 'bg-gray-200 text-gray-400' : isStepComplete(2) ? 'bg-green-600' : expandedSection === 2 ? 'bg-blue-600' : 'bg-gray-300 text-gray-600'}`}>
                   {!canAccessSection(2) ? <Lock className="w-5 h-5" /> : isStepComplete(2) ? <Check className="w-6 h-6" /> : '2'}
@@ -589,7 +592,7 @@ export default function StockRecommendationEditor({
           
            {/* Section 3: Price Target & Timeline */}
            <div className={`bg-white rounded-2xl shadow-sm border-2 transition-all ${!canAccessSection(3) ? 'border-gray-200 opacity-60' : expandedSection === 3 ? 'border-blue-500 shadow-lg' : isStepComplete(3) ? 'border-green-500' : 'border-gray-200'}`}>
-            <button onClick={() => canAccessSection(3) && setExpandedSection(expandedSection === 3 ? 0 : 3)} disabled={!canAccessSection(3)} className="w-full px-6 py-5 flex items-center justify-between hover:bg-gray-50 transition-colors rounded-t-2xl disabled:cursor-not-allowed">
+            <button onClick={() => canAccessSection(3) && setExpandedSection(expandedSection === 3 ? 0 : 3)} disabled={!canAccessSection(3)} className="w-full px-6 py-5 flex items-center justify-between hover:bg-gray-50 transition-colors rounded-t-2xl disabled:cursor-not-allowed disabled:hover:bg-white">
               <div className="flex items-center gap-4">
                 <div className={`w-12 h-12 rounded-full flex items-center justify-center text-white font-bold text-lg transition-all ${!canAccessSection(3) ? 'bg-gray-200 text-gray-400' : isStepComplete(3) ? 'bg-green-600' : expandedSection === 3 ? 'bg-blue-600' : 'bg-gray-300 text-gray-600'}`}>
                   {!canAccessSection(3) ? <Lock className="w-5 h-5" /> : isStepComplete(3) ? <Check className="w-6 h-6" /> : '3'}
@@ -667,7 +670,7 @@ export default function StockRecommendationEditor({
           
            {/* Section 4: Risks & Catalysts */}
           <div className={`bg-white rounded-2xl shadow-sm border-2 transition-all ${!canAccessSection(4) ? 'border-gray-200 opacity-60' : expandedSection === 4 ? 'border-blue-500 shadow-lg' : isStepComplete(4) ? 'border-green-500' : 'border-gray-200'}`}>
-            <button onClick={() => canAccessSection(4) && setExpandedSection(expandedSection === 4 ? 0 : 4)} disabled={!canAccessSection(4)} className="w-full px-6 py-5 flex items-center justify-between hover:bg-gray-50 transition-colors rounded-t-2xl disabled:cursor-not-allowed">
+            <button onClick={() => canAccessSection(4) && setExpandedSection(expandedSection === 4 ? 0 : 4)} disabled={!canAccessSection(4)} className="w-full px-6 py-5 flex items-center justify-between hover:bg-gray-50 transition-colors rounded-t-2xl disabled:cursor-not-allowed disabled:hover:bg-white">
               <div className="flex items-center gap-4">
                 <div className={`w-12 h-12 rounded-full flex items-center justify-center text-white font-bold text-lg transition-all ${!canAccessSection(4) ? 'bg-gray-200 text-gray-400' : isStepComplete(4) ? 'bg-green-600' : expandedSection === 4 ? 'bg-blue-600' : 'bg-gray-300 text-gray-600'}`}>
                   {!canAccessSection(4) ? <Lock className="w-5 h-5" /> : isStepComplete(4) ? <Check className="w-6 h-6" /> : '4'}
@@ -730,96 +733,105 @@ export default function StockRecommendationEditor({
             )}
           </div>
 
-          {/* Section 5: Review & Send */}
-          {allStepsComplete && (
-            <div className="space-y-6">
-              <div className="bg-white rounded-2xl shadow-lg border-2 border-green-500 p-8">
-                <div className="flex items-center gap-3 mb-6">
-                  <div className="w-12 h-12 bg-green-600 rounded-full flex items-center justify-center">
-                    <Check className="w-7 h-7 text-white" />
-                  </div>
-                  <div>
-                    <h3 className="text-2xl font-bold text-gray-900">Ready to Send!</h3>
-                    <p className="text-gray-600">Review your recommendation and send it to your clients.</p>
-                  </div>
+        {/* Section 5: Review & Send */}
+        {allStepsComplete && (
+          <div className="space-y-6">
+            <div className="bg-white rounded-2xl shadow-lg border-2 border-green-500 p-8">
+              <div className="flex items-center gap-3 mb-6">
+                <div className="w-12 h-12 bg-green-600 rounded-full flex items-center justify-center">
+                  <Check className="w-7 h-7 text-white" />
                 </div>
-                
-                <div className="mb-6">
-                  <label className="block text-sm font-semibold text-gray-900 mb-2">
-                    Mobile Preview
-                  </label>
-                  <div className="relative mx-auto border-gray-800 dark:border-gray-800 bg-gray-800 border-[14px] rounded-[2.5rem] h-[600px] w-[300px] shadow-xl">
-                    <div className="w-[148px] h-[18px] bg-gray-800 top-0 rounded-b-[1rem] left-1/2 -translate-x-1/2 absolute"></div>
-                    <div className="h-[46px] w-[3px] bg-gray-800 absolute -start-[17px] top-[124px] rounded-s-lg"></div>
-                    <div className="h-[46px] w-[3px] bg-gray-800 absolute -start-[17px] top-[178px] rounded-s-lg"></div>
-                    <div className="h-[64px] w-[3px] bg-gray-800 absolute -end-[17px] top-[142px] rounded-e-lg"></div>
-                    <div className="rounded-[2rem] overflow-hidden w-full h-full bg-white dark:bg-gray-800">
-                      <div className="p-4 space-y-4">
-                        {isGeneratingImage ? <div className="flex items-center justify-center h-48 bg-gray-100 rounded-lg"><Loader2 className="w-8 h-8 animate-spin text-gray-400"/></div> : generatedImageUrl ? <Image src={generatedImageUrl} alt="Generated stock pick" width={1200} height={675} className="w-full rounded-lg" /> : <div className="bg-blue-100 p-4 rounded-lg"><p className="text-sm font-bold text-blue-900">{formData.action.toUpperCase()} {formData.ticker}</p><p className="text-xs text-blue-700 mt-1">{formData.companyName}</p></div>}
-                        <p className="text-sm whitespace-pre-wrap">{`📈 New Stock Pick: ${formData.ticker} (${formData.action.toUpperCase()})\n\nThesis: ${[...selectedSuggestions.thesis.map(i => `• ${aiSuggestions.thesis[i]}`), formData.thesis].filter(Boolean).join('\n')}\n\nTarget: ${formData.priceTarget}\nRisk: ${formData.riskLevel.toUpperCase()}`}</p>
+                <div>
+                  <h3 className="text-2xl font-bold text-gray-900">Ready to Send!</h3>
+                  <p className="text-gray-600">Review your recommendation and send it to your clients.</p>
+                </div>
+              </div>
+              
+              <div className="mb-6">
+                <label className="block text-sm font-semibold text-gray-900 mb-2">
+                  Mobile Preview
+                </label>
+                <div className="relative mx-auto border-gray-800 dark:border-gray-800 bg-gray-800 border-[14px] rounded-[2.5rem] h-[600px] w-[300px] shadow-xl">
+                  <div className="w-[148px] h-[18px] bg-gray-800 top-0 rounded-b-[1rem] left-1/2 -translate-x-1/2 absolute"></div>
+                  <div className="h-[46px] w-[3px] bg-gray-800 absolute -start-[17px] top-[124px] rounded-s-lg"></div>
+                  <div className="h-[46px] w-[3px] bg-gray-800 absolute -start-[17px] top-[178px] rounded-s-lg"></div>
+                  <div className="h-[64px] w-[3px] bg-gray-800 absolute -end-[17px] top-[142px] rounded-e-lg"></div>
+                  <div className="rounded-[2rem] overflow-hidden w-full h-full bg-white dark:bg-gray-800">
+                    <div className="p-4 space-y-4 overflow-y-auto h-full">
+                      {isGeneratingImage ? <div className="flex items-center justify-center h-48 bg-gray-100 rounded-lg"><Loader2 className="w-8 h-8 animate-spin text-gray-400"/></div> : generatedImageUrl ? <Image src={generatedImageUrl} alt="Generated stock pick" width={300} height={200} className="w-full h-auto rounded-lg" /> : <div className="bg-blue-100 p-4 rounded-lg"><p className="text-sm font-bold text-blue-900">{formData.action.toUpperCase()} {formData.ticker}</p><p className="text-xs text-blue-700 mt-1">{formData.companyName}</p></div>}
+                      <div className="text-sm space-y-2">
+                        {selectedSuggestions.thesis.map((i, idx) => (
+                          <p key={idx} className="text-gray-700">• {aiSuggestions.thesis[i]}</p>
+                        ))}
+                        {formData.thesis && <p className="text-gray-700">• {formData.thesis}</p>}
+                      </div>
+                      <div className="bg-gray-100 p-3 rounded-lg text-xs space-y-1">
+                        <p><strong>Target:</strong> {formData.priceTarget}</p>
+                        <p><strong>Timeframe:</strong> {formData.timeframe}</p>
+                        <p><strong>Risk:</strong> <span className="capitalize">{formData.riskLevel}</span></p>
                       </div>
                     </div>
                   </div>
                 </div>
-                
-                <div className="bg-gray-50 rounded-xl p-6 border border-gray-200">
-                  <h4 className="font-semibold text-gray-900 mb-3 flex items-center gap-2">
-                    <Send className="w-5 h-5 text-blue-600" />
-                    Send as Broadcast
-                  </h4>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Platform</label>
-                      <Tabs defaultValue={platform} onValueChange={(value) => setPlatform(value as 'whatsapp' | 'sms')} className="w-full">
-                        <TabsList className="grid w-full grid-cols-2">
-                          <TabsTrigger value="whatsapp" className="flex items-center gap-2"><MessageSquare /> WhatsApp</TabsTrigger>
-                          <TabsTrigger value="sms" className="flex items-center gap-2"><Phone /> SMS</TabsTrigger>
-                        </TabsList>
-                      </Tabs>
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Recipients</label>
-                      <Popover open={isRecipientPopoverOpen} onOpenChange={setIsRecipientPopoverOpen}>
-                        <PopoverTrigger asChild>
-                          <Button variant="outline" role="combobox" aria-expanded={isRecipientPopoverOpen} className="w-full justify-between h-10">
-                            <div className="flex gap-1 flex-wrap items-center truncate">
-                              {(selectedRecipients.length > 0) ? selectedRecipients.map(r => <Badge key={r.id} variant="secondary" className="mr-1"><div className="flex items-center">{r.type === 'group' ? <Users className="w-3 h-3 mr-1" /> : <User className="w-3 h-3 mr-1" />}{r.name}</div></Badge>) : <span className="text-muted-foreground">Select...</span>}
-                            </div>
-                          </Button>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-[300px] p-0" align="start">
-                          <Command>
-                            <CommandInput placeholder="Search recipients..." />
-                            <CommandList>
-                              <CommandEmpty>No recipients found.</CommandEmpty>
-                              <CommandGroup heading="Groups">
-                                {contactGroups.map((group) => <CommandItem key={group.id} onSelect={() => handleRecipientSelect({ ...group, type: 'group' })} className="cursor-pointer"><Check className={cn("mr-2 h-4 w-4", selectedRecipients.some(r => r.id === group.id) ? "opacity-100" : "opacity-0")} /><Users className="mr-2 h-4 w-4 text-muted-foreground" /><div className="flex-1">{group.name}</div><div className="text-xs text-muted-foreground">{group.contactCount} contacts</div></CommandItem>)}
-                              </CommandGroup>
-                              <CommandGroup heading="Contacts">
-                                {contacts.map((contact) => <CommandItem key={contact.id} onSelect={() => handleRecipientSelect({ ...contact, type: 'contact' })} className="cursor-pointer"><Check className={cn("mr-2 h-4 w-4", selectedRecipients.some(r => r.id === contact.id) ? "opacity-100" : "opacity-0")} /><User className="mr-2 h-4 w-4 text-muted-foreground" /><div className="flex-1">{contact.name}</div><div className="text-xs text-muted-foreground">{contact.phone}</div></CommandItem>)}
-                              </CommandGroup>
-                            </CommandList>
-                          </Command>
-                        </PopoverContent>
-                      </Popover>
-                    </div>
+              </div>
+              
+              <div className="bg-gray-50 rounded-xl p-6 border border-gray-200">
+                <h4 className="font-semibold text-gray-900 mb-3 flex items-center gap-2">
+                  <Send className="w-5 h-5 text-blue-600" />
+                  Send as Broadcast
+                </h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Platform</label>
+                    <Tabs defaultValue={platform} onValueChange={(value) => setPlatform(value as 'whatsapp' | 'sms')} className="w-full">
+                      <TabsList className="grid w-full grid-cols-2">
+                        <TabsTrigger value="whatsapp" className="flex items-center gap-2"><MessageSquare /> WhatsApp</TabsTrigger>
+                        <TabsTrigger value="sms" className="flex items-center gap-2"><Phone /> SMS</TabsTrigger>
+                      </TabsList>
+                    </Tabs>
                   </div>
-                  <div className="flex gap-4">
-                    <Button onClick={() => handleSendCampaign(platform)} disabled={isSending || (selectedRecipients.length === 0)} className="w-full flex-1">
-                      {isSending ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Sending...</> : <><Send className="w-4 h-4 mr-2" />Send to {selectedRecipients.length} recipients</>}
-                    </Button>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Recipients</label>
+                    <Popover open={isRecipientPopoverOpen} onOpenChange={setIsRecipientPopoverOpen}>
+                      <PopoverTrigger asChild>
+                        <Button variant="outline" role="combobox" aria-expanded={isRecipientPopoverOpen} className="w-full justify-between h-10">
+                          <div className="flex gap-1 flex-wrap items-center truncate">
+                            {selectedRecipients.length > 0 ? selectedRecipients.map(r => <Badge key={r.id} variant="secondary" className="mr-1"><div className="flex items-center">{r.type === 'group' ? <Users className="w-3 h-3 mr-1" /> : <User className="w-3 h-3 mr-1" />}{r.name}</div></Badge>) : <span className="text-muted-foreground">Select...</span>}
+                          </div>
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-[300px] p-0" align="start">
+                        <Command>
+                          <CommandInput placeholder="Search recipients..." />
+                          <CommandList>
+                            <CommandEmpty>No recipients found.</CommandEmpty>
+                            <CommandGroup heading="Groups">
+                              {contactGroups.map((group) => <CommandItem key={group.id} onSelect={() => handleRecipientSelect({ ...group, type: 'group' })} className="cursor-pointer"><Check className={cn("mr-2 h-4 w-4", selectedRecipients.some(r => r.id === group.id) ? "opacity-100" : "opacity-0")} /><Users className="mr-2 h-4 w-4 text-muted-foreground" /><div className="flex-1">{group.name}</div><div className="text-xs text-muted-foreground">{group.contactCount} contacts</div></CommandItem>)}
+                            </CommandGroup>
+                            <CommandGroup heading="Contacts">
+                              {contacts.map((contact) => <CommandItem key={contact.id} onSelect={() => handleRecipientSelect({ ...contact, type: 'contact' })} className="cursor-pointer"><Check className={cn("mr-2 h-4 w-4", selectedRecipients.some(r => r.id === contact.id) ? "opacity-100" : "opacity-0")} /><User className="mr-2 h-4 w-4 text-muted-foreground" /><div className="flex-1">{contact.name}</div><div className="text-xs text-muted-foreground">{contact.phone}</div></CommandItem>)}
+                            </CommandGroup>
+                          </CommandList>
+                        </Command>
+                      </PopoverContent>
+                    </Popover>
                   </div>
                 </div>
-                
-                <div className="flex justify-end mt-6">
-                  <Button variant="outline" onClick={handleSaveAsDraft} disabled={isSaving}>
-                    {isSaving ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Saving...</> : <><Save className="w-4 h-4 mr-2" />Save as Idea</>}
+                <div className="flex gap-4">
+                  <Button onClick={() => handleSendCampaign(platform)} disabled={isSending || (selectedRecipients.length === 0)} className="w-full flex-1">
+                    {isSending ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Sending...</> : <><Send className="w-4 h-4 mr-2" />Send to {selectedRecipients.length} recipients</>}
                   </Button>
                 </div>
               </div>
+              
+              <div className="flex justify-end mt-6">
+                <Button variant="outline" onClick={handleSaveAsDraft} disabled={isSaving}>
+                  {isSaving ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Saving...</> : <><Save className="w-4 h-4 mr-2" />Save as Idea</>}
+                </Button>
+              </div>
             </div>
-          )}
-        </div>
+          </div>
+        )}
       </div>
     </div>
   );
