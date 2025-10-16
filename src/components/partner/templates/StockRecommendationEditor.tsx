@@ -710,6 +710,14 @@ export default function StockRecommendationEditor({
                           </label>
                         ))}
                       </div>
+                      {selectedSuggestions.risks.length > 0 && (
+                        <div className="mt-4 p-3 bg-white rounded-lg border border-red-200 flex items-center gap-2">
+                          <Info className="w-4 h-4 text-red-600 shrink-0" />
+                          <p className="text-xs text-gray-700">
+                            <strong>Note:</strong> {selectedSuggestions.risks.length} risks selected. These will appear in your risk analysis below.
+                          </p>
+                        </div>
+                      )}
                     </div>
                   )}
                   <div>
@@ -732,6 +740,7 @@ export default function StockRecommendationEditor({
               </div>
             )}
           </div>
+        </div>
 
         {/* Section 5: Review & Send */}
         {allStepsComplete && (
@@ -825,7 +834,7 @@ export default function StockRecommendationEditor({
               </div>
               
               <div className="flex justify-end mt-6">
-                <Button variant="outline" onClick={handleSaveAsDraft} disabled={isSaving}>
+                <Button variant="outline" onClick={() => handleSaveAsDraft(false)} disabled={isSaving}>
                   {isSaving ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Saving...</> : <><Save className="w-4 h-4 mr-2" />Save as Idea</>}
                 </Button>
               </div>
