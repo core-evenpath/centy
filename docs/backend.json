@@ -225,4 +225,8 @@
       "description": "Stores individual contacts for a partner."
     },
     "/partners/{partnerId}/tradingPicks/{pickId}": {
-      "schema": {
+      "schema": { "$ref": "#/entities/TradingPick" },
+      "description": "Stores trading recommendations created by a partner for their AI training."
+    }
+  }
+}
