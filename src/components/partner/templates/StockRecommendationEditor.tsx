@@ -172,7 +172,7 @@ export default function StockRecommendationEditor({
       case 1: return !!(formData.ticker && formData.companyName && formData.sector);
       case 2: return !!formData.action && (formData.thesis.length > 0 || selectedSuggestions.thesis.length > 0);
       case 3: return !!(formData.priceTarget && formData.timeframe && formData.riskLevel);
-      case 4: return !!(formData.keyRisks.length > 0 || selectedSuggestions.risks.length > 0) && !!formData.catalysts;
+      case 4: return true;
       default: return false;
     }
   };
@@ -332,7 +332,7 @@ export default function StockRecommendationEditor({
   ], [contacts, contactGroups]);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 p-8">
+    <>
       <style>{`
         @keyframes fadeIn {
           from { opacity: 0; transform: translateX(10px); }
@@ -854,6 +854,6 @@ export default function StockRecommendationEditor({
           </div>
         )}
       </div>
-    </div>
+    </>
   );
 }
