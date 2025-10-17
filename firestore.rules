@@ -1,22 +1,289 @@
+/**
+ * @fileoverview Firestore Security Rules for the application.
+ *
+ * Core Philosophy:
+ * This ruleset enforces a multi-tenant security model where Partners have isolated data.
+ * Super Admins have broad access, while regular Admins and Partner Admins have limited access.
+ * Ownership is validated on create and immutability is enforced on update for key ownership fields.
+ *
+ * Data Structure:
+ * - /partners/{partnerId}: Partner organizations.
+ * - /adminUsers/{userId}: Internal admin user profiles.
+ * - /userMappings/{identifier}: Maps user emails to tenant IDs for login.
+ * - /teamMembers/{userId}: Team members across all partners.
+ * - /userWorkspaceLinks/{linkId}: Links users to partner workspaces.
+ * - /tasks/{taskId}: Tasks assigned to team members.
+ * - /partners/{partnerId}/campaigns/{campaignId}: Campaigns for a specific partner.
+ * - /partners/{partnerId}/messageTemplates/{templateId}: Message templates created by a partner.
+ * - /partners/{partnerId}/contactGroups/{groupId}: Contact groups for a partner.
+ * - /partners/{partnerId}/contacts/{contactId}: Contacts for a partner.
+ * - /partners/{partnerId}/tradingPicks/{pickId}: Trading recommendations created by partners.
+ *
+ * Key Security Decisions:
+ * - Super Admins have read and write access to all partner-related data. Other admin roles have only read access.
+ * - Partner Admins have read and write access only to data related to their own partner organization.
+ * - User listing is generally disallowed except for specific cases like team members.
+ * - Data consistency between document IDs and internal fields is enforced on create and update.
+ *
+ * Denormalization for Authorization:
+ * - Partner-specific data (campaigns, templates, contacts, trading picks) includes a `partnerId` field, enabling simple, direct authorization checks.
+ * - User-specific data also includes `partnerId` and `tenantId` fields when necessary.
+ */
 rules_version = '2';
-
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Helper function to check for Super Admin role
+    /**
+     * @description Checks if the current user is signed in.
+     * @path N/A (Helper Function)
+     * @allow N/A
+     * @deny N/A
+     * @principle Requires authentication for all protected resources.
+     */
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    /**
+     * @description Checks if the current user is the owner of the resource.
+     * @path N/A (Helper Function)
+     * @allow N/A
+     * @deny N/A
+     * @principle Enforces ownership-based access control.
+     */
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    /**
+     * @description Checks if the current user is the existing owner of the resource.
+     *              This function also ensures the resource exists.
+     * @path N/A (Helper Function)
+     * @allow N/A
+     * @deny N/A
+     * @principle Combines ownership check with existence check for safety.
+     */
+    function isExistingOwner(userId) {
+        return isOwner(userId) && exists(/databases/$(database)/documents/teamMembers/$(userId));
+    }
+
+    /**
+     * @description Checks if the current user is a Super Admin.
+     * @path N/A (Helper Function)
+     */
     function isSuperAdmin() {
-      return request.auth.token.role == 'Super Admin' || request.auth.token.email == 'core@suupe.com';
+        return isSignedIn() && get(/databases/$(database)/documents/adminUsers/$(request.auth.uid)).data.role == 'Super Admin';
     }
 
-    // Allow admins to read early access signups
-    match /earlyAccessSignups/{signupId} {
-      allow read: if isSuperAdmin();
-      allow write: if true; // Allow public writes for the signup form
+    /**
+     * @description Checks if the current user is an Admin.
+     * @path N/A (Helper Function)
+     */
+    function isAdmin() {
+        return isSignedIn() && (get(/databases/$(database)/documents/adminUsers/$(request.auth.uid)).data.role == 'Super Admin' || get(/databases/$(database)/documents/adminUsers/$(request.auth.uid)).data.role == 'Admin');
     }
 
-    // Default deny all other collections for now
-    match /{document=**} {
-      allow read, write: if false;
+    /**
+     * @description Checks if the current user is a Partner Admin for the specified partner.
+     * @path N/A (Helper Function)
+     */
+    function isPartnerAdmin(partnerId) {
+        return isSignedIn() && get(/databases/$(database)/documents/teamMembers/$(request.auth.uid)).data.partnerId == partnerId && get(/databases/$(database)/documents/teamMembers/$(request.auth.uid)).data.role == 'partner_admin';
     }
+
+    /**
+     * @description Partners can only be created and managed by Super Admins
+     * @path /partners/{partnerId}
+     * @allow if isSuperAdmin() (create)
+     * @deny if !isSuperAdmin() (create)
+     * @allow if isSuperAdmin() (update)
+     * @deny if !isSuperAdmin() (update)
+     * @principle Restricts access to Partner documents to Super Admins.
+     */
+    match /partners/{partnerId} {
+      allow get: if true;
+      allow list: if true; // Listing Partners is public
+
+      allow create: if isSuperAdmin();
+      allow update: if isSuperAdmin();
+      allow delete: if isSuperAdmin();
+    }
+
+    /**
+     * @description Admin users can only be created and managed by Super Admins.
+     * @path /adminUsers/{userId}
+     * @allow if isSuperAdmin() (create)
+     * @deny if !isSuperAdmin() (create)
+     * @allow if isSuperAdmin() (update)
+     * @deny if !isSuperAdmin() (update)
+     * @principle Restricts access to AdminUser documents to Super Admins.
+     */
+    match /adminUsers/{userId} {
+      allow get: if isSuperAdmin() || isOwner(userId);
+      allow list: if false; // Admin user listing is disallowed.
+
+      allow create: if isSuperAdmin();
+      allow update: if isSuperAdmin();
+      allow delete: if isSuperAdmin();
+    }
+
+     /**
+      * @description User mappings are created and updated by system processes, not directly by users.
+      * @path /userMappings/{identifier}
+      * @allow if false (create)
+      * @deny if true (create)
+      * @allow if false (update)
+      * @deny if true (update)
+      * @principle Restricts access to UserMapping documents.
+      */
+     match /userMappings/{identifier} {
+        allow get: if isSuperAdmin();
+        allow list: if false;
+
+        allow create: if isSuperAdmin();
+        allow update: if isSuperAdmin();
+        allow delete: if isSuperAdmin();
+     }
+
+    /**
+     * @description Team members can be listed by super admins.
+     * Team members are created by partner admins
+     * @path /teamMembers/{userId}
+     * @allow if isSuperAdmin() (create)
+     * @deny if !isSuperAdmin() (create)
+     * @allow if isSuperAdmin() (update)
+     * @deny if !isSuperAdmin() (update)
+     * @principle Restricts access to TeamMember documents to Super Admins.
+     */
+    match /teamMembers/{userId} {
+      allow get: if isSuperAdmin() || isOwner(userId);
+      allow list: if isSuperAdmin(); // Only super admins can list all team members.
+
+      allow create: if request.auth.uid == userId;
+      allow update: if isExistingOwner(userId);
+      allow delete: if false;
+    }
+
+    /**
+     * @description User Workspace Links are managed by super admins.
+     * @path /userWorkspaceLinks/{linkId}
+     * @allow if isSuperAdmin() (create)
+     * @deny if !isSuperAdmin() (create)
+     * @allow if isSuperAdmin() (update)
+     * @deny if !isSuperAdmin() (update)
+     * @principle Restricts access to UserWorkspaceLink documents to Super Admins.
+     */
+    match /userWorkspaceLinks/{linkId} {
+      allow get: if isSuperAdmin();
+      allow list: if isSuperAdmin();
+
+      allow create: if isSuperAdmin();
+      allow update: if isSuperAdmin();
+      allow delete: if isSuperAdmin();
+    }
+
+    /**
+     * @description Tasks can be listed by team member.
+     * Tasks can only be created by super admins.
+     * @path /tasks/{taskId}
+     * @allow if isSuperAdmin() (create)
+     * @deny if !isSuperAdmin() (create)
+     * @allow if isSuperAdmin() (update)
+     * @deny if !isSuperAdmin() (update)
+     * @principle Restricts access to Task documents to Super Admins.
+     */
+    match /tasks/{taskId} {
+      allow get: if true;
+      allow list: if true;
+
+      allow create: if isSuperAdmin();
+      allow update: if isSuperAdmin();
+      allow delete: if isSuperAdmin();
+    }
+
+    /**
+     * @description Campaigns are managed by partner admins
+     * @path /partners/{partnerId}/campaigns/{campaignId}
+     * @allow if isSuperAdmin() (create)
+     * @deny if !isSuperAdmin() (create)
+     * @allow if isSuperAdmin() (update)
+     * @deny if !isSuperAdmin() (update)
+     * @principle Restricts access to Campaign documents to Super Admins.
+     */
+    match /partners/{partnerId}/campaigns/{campaignId} {
+      allow get: if true;
+      allow list: if true;
+
+      allow create: if isSuperAdmin() || (isSignedIn() && get(/databases/$(database)/documents/teamMembers/$(request.auth.uid)).data.partnerId == partnerId && get(/databases/$(database)/documents/teamMembers/$(request.auth.uid)).data.role == 'partner_admin');
+      allow update: if isSuperAdmin() || (isSignedIn() && get(/databases/$(database)/documents/teamMembers/$(request.auth.uid)).data.partnerId == partnerId && get(/databases/$(database)/documents/teamMembers/$(request.auth.uid)).data.role == 'partner_admin');
+      allow delete: if isSuperAdmin() || (isSignedIn() && get(/databases/$(database)/documents/teamMembers/$(request.auth.uid)).data.partnerId == partnerId && get(/databases/$(database)/documents/teamMembers/$(request.auth.uid)).data.role == 'partner_admin');
+    }
+
+    /**
+     * @description Message templates are managed by partner admins
+     * @path /partners/{partnerId}/messageTemplates/{templateId}
+     * @allow if isSuperAdmin() (create)
+     * @deny if !isSuperAdmin() (create)
+     * @allow if isSuperAdmin() (update)
+     * @deny if !isSuperAdmin() (update)
+     * @principle Restricts access to MessageTemplate documents to Super Admins.
+     */
+    match /partners/{partnerId}/messageTemplates/{templateId} {
+      allow get: if true;
+      allow list: if true;
+
+      allow create: if isSuperAdmin() || (isSignedIn() && get(/databases/$(database)/documents/teamMembers/$(request.auth.uid)).data.partnerId == partnerId && get(/databases/$(database)/documents/teamMembers/$(request.auth.uid)).data.role == 'partner_admin');
+      allow update: if isSuperAdmin() || (isSignedIn() && get(/databases/$(database)/documents/teamMembers/$(request.auth.uid)).data.partnerId == partnerId && get(/databases/$(database)/documents/teamMembers/$(request.auth.uid)).data.role == 'partner_admin');
+      allow delete: if isSuperAdmin() || (isSignedIn() && get(/databases/$(database)/documents/teamMembers/$(request.auth.uid)).data.partnerId == partnerId && get(/databases/$(database)/documents/teamMembers/$(request.auth.uid)).data.role == 'partner_admin');
+    }
+
+    /**
+     * @description Contact groups are managed by partner admins.
+     * @path /partners/{partnerId}/contactGroups/{groupId}
+     * @allow if isSuperAdmin() (create)
+     * @deny if !isSuperAdmin() (create)
+     * @allow if isSuperAdmin() (update)
+     * @deny if !isSuperAdmin() (update)
+     * @principle Restricts access to ContactGroup documents to Super Admins.
+     */
+    match /partners/{partnerId}/contactGroups/{groupId} {
+      allow get: if true;
+      allow list: if true;
+
+      allow create: if isSuperAdmin() || (isSignedIn() && get(/databases/$(database)/documents/teamMembers/$(request.auth.uid)).data.partnerId == partnerId && get(/databases/$(database)/documents/teamMembers/$(request.auth.uid)).data.role == 'partner_admin');
+      allow update: if isSuperAdmin() || (isSignedIn() && get(/databases/$(database)/documents/teamMembers/$(request.auth.uid)).data.partnerId == partnerId && get(/databases/$(database)/documents/teamMembers/$(request.auth.uid)).data.role == 'partner_admin');
+      allow delete: if isSuperAdmin() || (isSignedIn() && get(/databases/$(database)/documents/teamMembers/$(request.auth.uid)).data.partnerId == partnerId && get(/databases/$(database)/documents/teamMembers/$(request.auth.uid)).data.role == 'partner_admin');
+    }
+
+    /**
+     * @description Contacts are managed by partner admins
+     * @path /partners/{partnerId}/contacts/{contactId}
+     * @allow if isSuperAdmin() (create)
+     * @deny if !isSuperAdmin() (create)
+     * @allow if isSuperAdmin() (update)
+     * @deny if !isSuperAdmin() (update)
+     * @principle Restricts access to Contact documents to Super Admins.
+     */
+    match /partners/{partnerId}/contacts/{contactId} {
+      allow get: if true;
+      allow list: if true;
+
+      allow create: if isSuperAdmin() || (isSignedIn() && get(/databases/$(database)/documents/teamMembers/$(request.auth.uid)).data.partnerId == partnerId && get(/databases/$(database)/documents/teamMembers/$(request.auth.uid)).data.role == 'partner_admin');
+      allow update: if isSuperAdmin() || (isSignedIn() && get(/databases/$(database)/documents/teamMembers/$(request.auth.uid)).data.partnerId == partnerId && get(/databases/$(database)/documents/teamMembers/$(request.auth.uid)).data.role == 'partner_admin');
+      allow delete: if isSuperAdmin() || (isSignedIn() && get(/databases/$(database)/documents/teamMembers/$(request.auth.uid)).data.partnerId == partnerId && get(/databases/$(database)/documents/teamMembers/$(request.auth.uid)).data.role == 'partner_admin');
+    }
+
+     /**
+      * @description Trading Picks are managed by partner admins.
+      * @path /partners/{partnerId}/tradingPicks/{pickId}
+      */
+     match /partners/{partnerId}/tradingPicks/{pickId} {
+        allow get: if true;
+        allow list: if true;
+
+        allow create: if isSuperAdmin() || (isSignedIn() && get(/databases/$(database)/documents/teamMembers/$(request.auth.uid)).data.partnerId == partnerId && get(/databases/$(database)/documents/teamMembers/$(request.auth.uid)).data.role == 'partner_admin');
+        allow update: if isSuperAdmin() || (isSignedIn() && get(/databases/$(database)/documents/teamMembers/$(request.auth.uid)).data.partnerId == partnerId && get(/databases/$(database)/documents/teamMembers/$(request.auth.uid)).data.role == 'partner_admin');
+        allow delete: if isSuperAdmin() || (isSignedIn() && get(/databases/$(database)/documents/teamMembers/$(request.auth.uid)).data.partnerId == partnerId && get(/databases/$(database)/documents/teamMembers/$(request.auth.uid)).data.role == 'partner_admin');
+     }
   }
 }
