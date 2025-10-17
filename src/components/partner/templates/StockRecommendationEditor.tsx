@@ -294,18 +294,34 @@ export default function StockRecommendationEditor({
 
       const message = `📈 New Stock Pick: ${formData.ticker} (${formData.action.toUpperCase()})\n\nThesis:\n${finalThesis}\n\nTarget: ${formData.priceTarget}\nTimeframe: ${formData.timeframe}\nRisk: ${formData.riskLevel.toUpperCase()}`;
       
-      const recipients = selectedRecipients.map(r => ({
-        id: r.id,
-        name: r.name,
-        type: r.contactCount !== undefined ? 'group' : 'contact'
-      }));
+      const numbersToSend: string[] = [];
+      selectedRecipients.forEach(r => {
+        if (r.type === 'contact' && r.phone) {
+          numbersToSend.push(r.phone);
+        } else if (r.type === 'group') {
+          // This logic requires fetching contacts for the group on the client-side
+          // which can be inefficient. The `/api/broadcast` endpoint is better suited
+          // to handle group expansion. We pass the raw recipients for now.
+        }
+      });
+      
+      // Let's get all phone numbers for selected contacts and groups
+      const allNumbers = new Set<string>();
+      for (const recipient of selectedRecipients) {
+        if (recipient.type === 'contact' && recipient.phone) {
+          allNumbers.add(recipient.phone);
+        } else if (recipient.type === 'group') {
+          const groupContacts = contacts.filter(c => c.groups?.includes(recipient.name) && c.phone);
+          groupContacts.forEach(c => allNumbers.add(c.phone));
+        }
+      }
 
       const response = await fetch('/api/broadcast', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           method: channel,
-          numbers: recipients.map(r => r.phone).filter(Boolean),
+          numbers: Array.from(allNumbers),
           message,
           ideaId: currentIdeaId,
           partnerId: currentWorkspace.partnerId,
@@ -377,6 +393,8 @@ export default function StockRecommendationEditor({
     ...contactGroups.map(g => ({ ...g, type: 'group' })),
     ...contacts.map(c => ({ ...c, type: 'contact' }))
   ], [contacts, contactGroups]);
+  
+  const canSend = !isSending && selectedRecipients.length > 0 && (!!formData.thesis.trim() || selectedSuggestions.thesis.length > 0 || !!generatedImageUrl);
 
   return (
     <>
@@ -890,7 +908,7 @@ export default function StockRecommendationEditor({
                   </div>
                 </div>
                 <div className="flex gap-4">
-                  <Button onClick={() => handleSendCampaign(platform)} disabled={isSending || (selectedRecipients.length === 0)} className="w-full flex-1">
+                  <Button onClick={() => handleSendCampaign(platform)} disabled={!canSend} className="w-full flex-1">
                     {isSending ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Sending...</> : <><Send className="w-4 h-4 mr-2" />Send to {selectedRecipients.length} recipients</>}
                   </Button>
                 </div>
@@ -908,3 +926,5 @@ export default function StockRecommendationEditor({
     </>
   );
 }
+
+    
