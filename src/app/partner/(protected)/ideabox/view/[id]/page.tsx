@@ -156,7 +156,7 @@ View full details and analysis.`;
         history.push({ id: doc.id, ...doc.data() } as BroadcastRecord);
       });
 
-      // Sort client-side to avoid needing a composite index immediately
+      // Sort client-side to avoid needing a composite index
       history.sort((a, b) => {
         const dateA = a.createdAt?.toDate ? a.createdAt.toDate().getTime() : 0;
         const dateB = b.createdAt?.toDate ? b.createdAt.toDate().getTime() : 0;
@@ -166,23 +166,25 @@ View full details and analysis.`;
       setBroadcastHistory(history);
     } catch (err: any) {
       console.error('Error fetching broadcast history:', err);
-      if (err.code === 'failed-precondition') {
-          console.error(`
-          Firestore Index Missing! 
-          To fix this, go to your Firebase Console, find the Firestore error log for this query, and click the link to create the required composite index.
-          The query requires an index on: collection=broadcasts, field=ideaDetails.ideaId (==), field=createdAt (desc)
-          `);
-          toast({
-              variant: "destructive",
-              title: "Database Index Required",
-              description: "An index is needed to view broadcast history. Check the console logs for a creation link.",
-              duration: 10000,
-          });
+      if (err.code === 'failed-precondition' || err.message.includes('index')) {
+        toast({
+          variant: "destructive",
+          title: "Database Index Required",
+          description: "An index is needed to view broadcast history. Check the console logs for a creation link.",
+          duration: 10000,
+        });
+      } else {
+        toast({
+          variant: "destructive",
+          title: "Error",
+          description: "Could not load broadcast history.",
+        });
       }
     } finally {
       setLoadingHistory(false);
     }
   };
+
 
   useEffect(() => {
     if (broadcastDialogOpen && id && currentWorkspace?.partnerId) {
@@ -448,3 +450,4 @@ View full details and analysis.`;
     </>
   );
 }
+
