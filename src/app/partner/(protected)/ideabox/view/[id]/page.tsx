@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useState, useEffect } from 'react';
@@ -7,14 +6,15 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { useMultiWorkspaceAuth } from '@/hooks/use-multi-workspace-auth';
 import { db } from '@/lib/firebase';
-import { collection, query, where, onSnapshot, getDocs, orderBy, doc, getDoc } from 'firebase/firestore';
+import { collection, query, where, getDocs, doc, getDoc } from 'firebase/firestore';
 import type { TradingPick, BroadcastRecord } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { 
   ArrowLeft, Edit, Send, Loader2, TrendingUp, DollarSign, Calendar, Shield,
-  AlertTriangle, Zap, Target, BarChart3, Tag, Image as ImageIcon, 
-  MessageSquare, Share2, CheckCircle, Clock, History, XCircle, CheckCircle2, Users, Phone
+  AlertTriangle, Target, BarChart3, Tag, Image as ImageIcon, 
+  MessageSquare, Share2, CheckCircle, Clock, History, XCircle, CheckCircle2, 
+  Users, Phone, ChevronDown, ChevronUp, Info, AlertCircle
 } from 'lucide-react';
 import {
   Dialog,
@@ -24,7 +24,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -36,6 +35,11 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 
 const DetailItem = ({ 
   label, 
@@ -99,6 +103,7 @@ export default function ViewIdeaPage() {
   const [broadcastMessage, setBroadcastMessage] = useState('');
   const [broadcastHistory, setBroadcastHistory] = useState<BroadcastRecord[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
+  const [expandedBroadcasts, setExpandedBroadcasts] = useState<Set<string>>(new Set());
   const { toast } = useToast();
 
   useEffect(() => {
@@ -145,18 +150,20 @@ View full details and analysis.`;
     setLoadingHistory(true);
     try {
       const broadcastsRef = collection(db, 'broadcasts');
+      
       const q = query(
-        broadcastsRef, 
-        where("ideaDetails.ideaId", "==", id)
+        broadcastsRef,
+        where("partnerId", "==", currentWorkspace.partnerId),
+        where("ideaId", "==", id)
       );
       
       const querySnapshot = await getDocs(q);
       const history: BroadcastRecord[] = [];
+      
       querySnapshot.forEach((doc) => {
         history.push({ id: doc.id, ...doc.data() } as BroadcastRecord);
       });
 
-      // Sort client-side to avoid needing a composite index
       history.sort((a, b) => {
         const dateA = a.createdAt?.toDate ? a.createdAt.toDate().getTime() : 0;
         const dateB = b.createdAt?.toDate ? b.createdAt.toDate().getTime() : 0;
@@ -164,13 +171,21 @@ View full details and analysis.`;
       });
       
       setBroadcastHistory(history);
+      console.log('Fetched broadcast history:', history.length, 'records');
     } catch (err: any) {
       console.error('Error fetching broadcast history:', err);
-      if (err.code === 'failed-precondition' || err.message.includes('index')) {
+      
+      if (err.code === 'permission-denied') {
+        toast({
+          variant: "destructive",
+          title: "Permission Denied",
+          description: "You don't have permission to view broadcast history.",
+        });
+      } else if (err.code === 'failed-precondition' || err.message?.includes('index')) {
         toast({
           variant: "destructive",
           title: "Database Index Required",
-          description: "An index is needed to view broadcast history. Check the console logs for a creation link.",
+          description: "A database index is needed. Please contact your administrator.",
           duration: 10000,
         });
       } else {
@@ -185,22 +200,53 @@ View full details and analysis.`;
     }
   };
 
-
   useEffect(() => {
-    if (broadcastDialogOpen && id && currentWorkspace?.partnerId) {
+    if (id && currentWorkspace?.partnerId) {
       fetchBroadcastHistory();
     }
-  }, [broadcastDialogOpen, id, currentWorkspace?.partnerId]);
+  }, [id, currentWorkspace?.partnerId]);
+
+  const toggleBroadcastExpand = (broadcastId: string) => {
+    setExpandedBroadcasts(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(broadcastId)) {
+        newSet.delete(broadcastId);
+      } else {
+        newSet.add(broadcastId);
+      }
+      return newSet;
+    });
+  };
 
   const handleBroadcast = async () => {
     if (!phoneNumbers.trim()) {
-      toast({ title: 'Error', description: 'Please enter at least one phone number', variant: 'destructive'});
+      toast({ 
+        title: 'Error', 
+        description: 'Please enter at least one phone number', 
+        variant: 'destructive'
+      });
+      return;
+    }
+
+    if (!broadcastMessage.trim()) {
+      toast({ 
+        title: 'Error', 
+        description: 'Please enter a message', 
+        variant: 'destructive'
+      });
       return;
     }
 
     setBroadcasting(true);
     try {
-      const numbers = phoneNumbers.split(/[,\n]/).map(num => num.trim()).filter(num => num.length > 0);
+      const numbers = phoneNumbers
+        .split(/[,\n]/)
+        .map(num => num.trim())
+        .filter(num => num.length > 0);
+
+      if (numbers.length === 0) {
+        throw new Error('No valid phone numbers found');
+      }
 
       const response = await fetch('/api/broadcast', {
         method: 'POST',
@@ -217,7 +263,9 @@ View full details and analysis.`;
 
       const result = await response.json();
 
-      if (!response.ok) throw new Error(result.message || 'Broadcast failed');
+      if (!response.ok) {
+        throw new Error(result.message || 'Broadcast failed');
+      }
 
       toast({ 
         title: "Success", 
@@ -226,9 +274,15 @@ View full details and analysis.`;
       
       setBroadcastDialogOpen(false);
       setPhoneNumbers('');
-      fetchBroadcastHistory();
+      
+      await fetchBroadcastHistory();
     } catch (err: any) {
-      toast({ title: "Error", description: err.message || 'Failed to broadcast. Please try again.', variant: 'destructive' });
+      console.error('Broadcast error:', err);
+      toast({ 
+        title: "Error", 
+        description: err.message || 'Failed to broadcast. Please try again.', 
+        variant: 'destructive' 
+      });
     } finally {
       setBroadcasting(false);
     }
@@ -271,25 +325,50 @@ View full details and analysis.`;
     );
   }
 
-  const actionColor = idea.action === 'buy' ? 'bg-green-50 text-green-700 border-green-200' : idea.action === 'sell' ? 'bg-red-50 text-red-700 border-red-200' : 'bg-yellow-50 text-yellow-700 border-yellow-200';
-  const actionBadgeColor = idea.action === 'buy' ? 'bg-green-600' : idea.action === 'sell' ? 'bg-red-600' : 'bg-yellow-600';
-  const riskColor = idea.riskLevel === 'high' ? 'text-red-600' : idea.riskLevel === 'medium' ? 'text-yellow-600' : 'text-green-600';
+  const actionColor = idea.action === 'buy' 
+    ? 'bg-green-50 text-green-700 border-green-200' 
+    : idea.action === 'sell' 
+    ? 'bg-red-50 text-red-700 border-red-200' 
+    : 'bg-yellow-50 text-yellow-700 border-yellow-200';
+    
+  const actionBadgeColor = idea.action === 'buy' 
+    ? 'bg-green-600' 
+    : idea.action === 'sell' 
+    ? 'bg-red-600' 
+    : 'bg-yellow-600';
+    
+  const riskColor = idea.riskLevel === 'high' 
+    ? 'text-red-600' 
+    : idea.riskLevel === 'medium' 
+    ? 'text-yellow-600' 
+    : 'text-green-600';
 
   return (
     <>
       <div className="overflow-y-auto h-full bg-gradient-to-br from-gray-50 to-gray-100/50">
         <div className="max-w-7xl mx-auto p-6 lg:p-8">
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
-            <Button variant="ghost" onClick={() => router.push('/partner/ideabox')} className="flex items-center gap-2 hover:bg-white">
+            <Button 
+              variant="ghost" 
+              onClick={() => router.push('/partner/ideabox')} 
+              className="flex items-center gap-2 hover:bg-white"
+            >
               <ArrowLeft className="w-4 h-4" />
               Back to Ideabox
             </Button>
             <div className="flex items-center gap-3 w-full sm:w-auto">
-              <Button variant="outline" onClick={() => setBroadcastDialogOpen(true)} className="flex-1 sm:flex-none bg-white hover:bg-gray-50">
+              <Button 
+                variant="outline" 
+                onClick={() => setBroadcastDialogOpen(true)} 
+                className="flex-1 sm:flex-none bg-white hover:bg-gray-50"
+              >
                 <Share2 className="w-4 h-4 mr-2" />
                 Broadcast
               </Button>
-              <Button asChild className="flex-1 sm:flex-none bg-blue-600 hover:bg-blue-700">
+              <Button 
+                asChild 
+                className="flex-1 sm:flex-none bg-blue-600 hover:bg-blue-700"
+              >
                 <Link href={`/partner/ideabox/edit/${idea.id}`}>
                   <Edit className="w-4 h-4 mr-2" />
                   Edit Idea
@@ -331,9 +410,11 @@ View full details and analysis.`;
               <Section title="Investment Thesis" icon={TrendingUp}>
                 <div className="prose prose-sm max-w-none text-gray-700 leading-relaxed whitespace-pre-wrap">{idea.thesis}</div>
               </Section>
+
               <Section title="Key Risks" icon={AlertTriangle}>
                 <div className="prose prose-sm max-w-none text-gray-700 leading-relaxed whitespace-pre-wrap">{idea.keyRisks}</div>
               </Section>
+
               <Section title="Market Intelligence" icon={BarChart3}>
                 <Tabs defaultValue="catalysts" className="w-full">
                   <TabsList className="grid w-full grid-cols-3">
@@ -341,10 +422,199 @@ View full details and analysis.`;
                     <TabsTrigger value="market">Market</TabsTrigger>
                     <TabsTrigger value="sector">Sector</TabsTrigger>
                   </TabsList>
-                  <TabsContent value="catalysts" className="mt-4"><p className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap">{idea.catalysts || 'No specific catalysts identified.'}</p></TabsContent>
-                  <TabsContent value="market" className="mt-4"><p className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap">{idea.marketContext || 'No market context provided.'}</p></TabsContent>
-                  <TabsContent value="sector" className="mt-4"><p className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap">{idea.sectorTrends || 'No sector trends specified.'}</p></TabsContent>
+                  <TabsContent value="catalysts" className="mt-4">
+                    <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap">{idea.catalysts || 'No specific catalysts identified.'}</p>
+                  </TabsContent>
+                  <TabsContent value="market" className="mt-4">
+                    <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap">{idea.marketContext || 'No market context provided.'}</p>
+                  </TabsContent>
+                  <TabsContent value="sector" className="mt-4">
+                    <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap">{idea.sectorTrends || 'No sector trends specified.'}</p>
+                  </TabsContent>
                 </Tabs>
+              </Section>
+
+              <Section title="Broadcast History" icon={History}>
+                {loadingHistory ? (
+                  <div className="flex items-center justify-center py-12">
+                    <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
+                  </div>
+                ) : broadcastHistory.length === 0 ? (
+                  <div className="text-center py-12">
+                    <History className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+                    <p className="text-sm font-medium text-gray-900 mb-1">No broadcasts yet</p>
+                    <p className="text-xs text-gray-500">Send your first broadcast to share this idea with clients</p>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between mb-4 pb-4 border-b">
+                      <div>
+                        <p className="text-sm font-semibold text-gray-900">
+                          {broadcastHistory.length} {broadcastHistory.length === 1 ? 'broadcast' : 'broadcasts'} sent
+                        </p>
+                        <p className="text-xs text-gray-500 mt-1">
+                          Total: {broadcastHistory.reduce((sum, b) => sum + b.recipientCount, 0)} recipients, {broadcastHistory.reduce((sum, b) => sum + b.successCount, 0)} successful
+                        </p>
+                      </div>
+                      <Button variant="ghost" size="sm" onClick={fetchBroadcastHistory} disabled={loadingHistory}>
+                        <History className="w-4 h-4 mr-2" />
+                        Refresh
+                      </Button>
+                    </div>
+                    <div className="space-y-3">
+                      {broadcastHistory.map((broadcast) => {
+                        const isExpanded = expandedBroadcasts.has(broadcast.id);
+                        return (
+                          <Card key={broadcast.id} className="hover:shadow-md transition-shadow">
+                            <CardHeader className="pb-3">
+                              <div className="flex items-start justify-between">
+                                <div className="flex items-center gap-3">
+                                  <div className={`p-2 rounded-lg ${broadcast.method === 'whatsapp' ? 'bg-green-100' : 'bg-blue-100'}`}>
+                                    {broadcast.method === 'whatsapp' ? (
+                                      <MessageSquare className="w-4 h-4 text-green-700" />
+                                    ) : (
+                                      <Phone className="w-4 h-4 text-blue-700" />
+                                    )}
+                                  </div>
+                                  <div>
+                                    <CardTitle className="text-sm font-semibold">
+                                      {broadcast.method === 'whatsapp' ? 'WhatsApp' : 'SMS'} Broadcast
+                                    </CardTitle>
+                                    <CardDescription className="text-xs">
+                                      {broadcast.createdAt && new Date((broadcast.createdAt as any).toDate()).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' })}
+                                    </CardDescription>
+                                  </div>
+                                </div>
+                                <Badge variant={broadcast.status === 'completed' ? 'default' : 'secondary'} className={`text-xs ${broadcast.status === 'completed' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'}`}>
+                                  {broadcast.status}
+                                </Badge>
+                              </div>
+                            </CardHeader>
+                            <CardContent className="pb-4">
+                              <div className="grid grid-cols-3 gap-4 mb-4">
+                                <div className="bg-gray-50 rounded-lg p-3 text-center">
+                                  <div className="flex items-center justify-center gap-1 mb-1">
+                                    <Users className="w-3 h-3 text-gray-500" />
+                                    <p className="text-xs text-gray-500">Recipients</p>
+                                  </div>
+                                  <p className="text-xl font-bold text-gray-900">{broadcast.recipientCount}</p>
+                                </div>
+                                <div className="bg-green-50 rounded-lg p-3 text-center">
+                                  <div className="flex items-center justify-center gap-1 mb-1">
+                                    <CheckCircle2 className="w-3 h-3 text-green-600" />
+                                    <p className="text-xs text-green-700">Sent</p>
+                                  </div>
+                                  <p className="text-xl font-bold text-green-700">{broadcast.successCount}</p>
+                                </div>
+                                <div className="bg-red-50 rounded-lg p-3 text-center">
+                                  <div className="flex items-center justify-center gap-1 mb-1">
+                                    <XCircle className="w-3 h-3 text-red-600" />
+                                    <p className="text-xs text-red-700">Failed</p>
+                                  </div>
+                                  <p className="text-xl font-bold text-red-700">{broadcast.failedCount}</p>
+                                </div>
+                              </div>
+                              
+                              <div className="bg-gray-50 rounded-lg p-3 border border-gray-200 mb-3">
+                                <p className="text-xs font-medium text-gray-700 mb-1">Message:</p>
+                                <p className="text-xs text-gray-600 line-clamp-2">{broadcast.message}</p>
+                              </div>
+
+                              <Collapsible open={isExpanded} onOpenChange={() => toggleBroadcastExpand(broadcast.id)}>
+                                <CollapsibleTrigger asChild>
+                                  <Button variant="ghost" size="sm" className="w-full justify-between">
+                                    <span className="text-xs font-medium flex items-center gap-2">
+                                      <Info className="w-3 h-3" />
+                                      {isExpanded ? 'Hide Details' : 'Show Details'}
+                                    </span>
+                                    {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                                  </Button>
+                                </CollapsibleTrigger>
+                                <CollapsibleContent className="mt-3">
+                                  <div className="space-y-3">
+                                    <div className="bg-white rounded-lg p-3 border border-gray-200">
+                                      <p className="text-xs font-medium text-gray-700 mb-1">Broadcast ID:</p>
+                                      <p className="text-xs text-gray-600 font-mono">{broadcast.id}</p>
+                                    </div>
+
+                                    {broadcast.partnerName && (
+                                      <div className="bg-white rounded-lg p-3 border border-gray-200">
+                                        <p className="text-xs font-medium text-gray-700 mb-1">Partner:</p>
+                                        <p className="text-xs text-gray-600">{broadcast.partnerName}</p>
+                                      </div>
+                                    )}
+
+                                    {broadcast.mediaUrl && (
+                                      <div className="bg-white rounded-lg p-3 border border-gray-200">
+                                        <p className="text-xs font-medium text-gray-700 mb-1">Media Attached:</p>
+                                        <a href={broadcast.mediaUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 hover:underline break-all">
+                                          {broadcast.mediaUrl}
+                                        </a>
+                                      </div>
+                                    )}
+
+                                    {broadcast.recipients && broadcast.recipients.length > 0 && (
+                                      <div className="bg-white rounded-lg p-3 border border-gray-200">
+                                        <p className="text-xs font-medium text-gray-700 mb-2">Recipients ({broadcast.recipients.length}):</p>
+                                        <div className="max-h-32 overflow-y-auto space-y-1">
+                                          {broadcast.recipients.map((phone, idx) => (
+                                            <div key={idx} className="flex items-center gap-2 text-xs">
+                                              <Phone className="w-3 h-3 text-gray-400" />
+                                              <span className="font-mono text-gray-600">{phone}</span>
+                                            </div>
+                                          ))}
+                                        </div>
+                                      </div>
+                                    )}
+
+                                    {broadcast.results && broadcast.results.length > 0 && (
+                                      <div className="bg-white rounded-lg p-3 border border-gray-200">
+                                        <p className="text-xs font-medium text-gray-700 mb-2">Delivery Details:</p>
+                                        <div className="max-h-48 overflow-y-auto space-y-2">
+                                          {broadcast.results.map((result: any, idx: number) => (
+                                            <div key={idx} className={`flex items-start gap-2 p-2 rounded ${result.status === 'success' ? 'bg-green-50' : 'bg-red-50'}`}>
+                                              {result.status === 'success' ? (
+                                                <CheckCircle className="w-3 h-3 text-green-600 mt-0.5" />
+                                              ) : (
+                                                <AlertCircle className="w-3 h-3 text-red-600 mt-0.5" />
+                                              )}
+                                              <div className="flex-1 min-w-0">
+                                                <p className="text-xs font-mono text-gray-700">{result.phoneNumber}</p>
+                                                {result.messageSid && <p className="text-xs text-gray-500 mt-0.5">SID: {result.messageSid}</p>}
+                                                {result.error && <p className="text-xs text-red-600 mt-0.5">{result.error}</p>}
+                                              </div>
+                                            </div>
+                                          ))}
+                                        </div>
+                                      </div>
+                                    )}
+
+                                    <div className="grid grid-cols-2 gap-3">
+                                      <div className="bg-white rounded-lg p-3 border border-gray-200">
+                                        <p className="text-xs font-medium text-gray-700 mb-1">Started:</p>
+                                        <p className="text-xs text-gray-600">
+                                          {broadcast.createdAt && new Date((broadcast.createdAt as any).toDate()).toLocaleString('en-US', { dateStyle: 'short', timeStyle: 'medium' })}
+                                        </p>
+                                      </div>
+                                      {broadcast.completedAt && (
+                                        <div className="bg-white rounded-lg p-3 border border-gray-200">
+                                          <p className="text-xs font-medium text-gray-700 mb-1">Completed:</p>
+                                          <p className="text-xs text-gray-600">
+                                            {new Date((broadcast.completedAt as any).toDate()).toLocaleString('en-US', { dateStyle: 'short', timeStyle: 'medium' })}
+                                          </p>
+                                        </div>
+                                      )}
+                                    </div>
+                                  </div>
+                                </CollapsibleContent>
+                              </Collapsible>
+                            </CardContent>
+                          </Card>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
               </Section>
             </div>
 
@@ -365,6 +635,7 @@ View full details and analysis.`;
                   </div>
                 )}
               </Section>
+
               <Section title="Tracking Info" icon={Calendar}>
                 <div className="space-y-4">
                   <DetailItem icon={Tag} label="Idea Type" value={<Badge variant="secondary" className="capitalize">{idea.ideaType}</Badge>} />
@@ -380,74 +651,64 @@ View full details and analysis.`;
       <Dialog open={broadcastDialogOpen} onOpenChange={setBroadcastDialogOpen}>
         <DialogContent className="sm:max-w-[700px] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2"><Share2 className="w-5 h-5 text-blue-600" />Broadcast Stock Idea</DialogTitle>
+            <DialogTitle className="flex items-center gap-2">
+              <Share2 className="w-5 h-5 text-blue-600" />
+              Broadcast Stock Idea
+            </DialogTitle>
             <DialogDescription>Send this {idea.ticker} recommendation to your clients.</DialogDescription>
           </DialogHeader>
-          <Tabs defaultValue="compose" className="w-full">
-            <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="compose"><Send className="w-4 h-4 mr-2" />Compose</TabsTrigger>
-              <TabsTrigger value="history"><History className="w-4 h-4 mr-2" />History</TabsTrigger>
-            </TabsList>
-            <TabsContent value="compose" className="space-y-4 py-4">
-              <div className="space-y-2">
-                <Label>Platform</Label>
-                <Tabs value={broadcastMethod} onValueChange={(v) => setBroadcastMethod(v as 'whatsapp' | 'sms')}><TabsList className="grid w-full grid-cols-2"><TabsTrigger value="whatsapp"><MessageSquare className="w-4 h-4 mr-2" />WhatsApp</TabsTrigger><TabsTrigger value="sms"><Phone className="w-4 h-4 mr-2" />SMS</TabsTrigger></TabsList></Tabs>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="phone-numbers">Phone Numbers <span className="text-xs text-gray-500 ml-2">(comma or newline separated)</span></Label>
-                <Textarea id="phone-numbers" placeholder="+1234567890, +0987654321..." value={phoneNumbers} onChange={(e) => setPhoneNumbers(e.target.value)} rows={4} className="font-mono text-sm" />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="broadcast-message">Message</Label>
-                <Textarea id="broadcast-message" value={broadcastMessage} onChange={(e) => setBroadcastMessage(e.target.value)} rows={10} className="text-sm" />
-                <p className="text-xs text-gray-500">Customize this message before sending</p>
-              </div>
-              <DialogFooter>
-                <Button variant="outline" onClick={() => setBroadcastDialogOpen(false)} disabled={broadcasting}>Cancel</Button>
-                <Button onClick={handleBroadcast} disabled={broadcasting || !phoneNumbers.trim()}>
-                  {broadcasting ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Broadcasting...</> : <><Send className="w-4 h-4 mr-2" />Send Broadcast</>}
-                </Button>
-              </DialogFooter>
-            </TabsContent>
-            <TabsContent value="history" className="py-4">
-              {loadingHistory ? (
-                <div className="flex items-center justify-center py-8"><Loader2 className="w-6 h-6 animate-spin text-blue-600" /></div>
-              ) : broadcastHistory.length === 0 ? (
-                <div className="text-center py-8">
-                  <History className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-                  <p className="text-sm text-gray-500">No broadcast history for this idea</p>
-                </div>
+
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label>Platform</Label>
+              <Tabs value={broadcastMethod} onValueChange={(v) => setBroadcastMethod(v as 'whatsapp' | 'sms')}>
+                <TabsList className="grid w-full grid-cols-2">
+                  <TabsTrigger value="whatsapp">
+                    <MessageSquare className="w-4 h-4 mr-2" />
+                    WhatsApp
+                  </TabsTrigger>
+                  <TabsTrigger value="sms">
+                    <Phone className="w-4 h-4 mr-2" />
+                    SMS
+                  </TabsTrigger>
+                </TabsList>
+              </Tabs>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="phone-numbers">
+                Phone Numbers <span className="text-xs text-gray-500 ml-2">(comma or newline separated)</span>
+              </Label>
+              <Textarea id="phone-numbers" placeholder="+1234567890, +0987654321..." value={phoneNumbers} onChange={(e) => setPhoneNumbers(e.target.value)} rows={4} className="font-mono text-sm" />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="broadcast-message">Message</Label>
+              <Textarea id="broadcast-message" value={broadcastMessage} onChange={(e) => setBroadcastMessage(e.target.value)} rows={10} className="text-sm" />
+              <p className="text-xs text-gray-500">Customize this message before sending</p>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setBroadcastDialogOpen(false)} disabled={broadcasting}>
+              Cancel
+            </Button>
+            <Button onClick={handleBroadcast} disabled={broadcasting || !phoneNumbers.trim()}>
+              {broadcasting ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Broadcasting...
+                </>
               ) : (
-                <div className="space-y-3 max-h-96 overflow-y-auto">
-                  {broadcastHistory.map((broadcast) => (
-                    <Card key={broadcast.id}>
-                      <CardHeader className="pb-3">
-                        <div className="flex items-start justify-between">
-                          <div className="flex items-center gap-2">
-                            {broadcast.method === 'whatsapp' ? <MessageSquare className="w-4 h-4 text-green-600" /> : <Send className="w-4 h-4 text-blue-600" />}
-                            <CardTitle className="text-sm font-semibold">{broadcast.method.toUpperCase()} Broadcast</CardTitle>
-                          </div>
-                          <Badge variant={broadcast.status === 'completed' ? 'default' : 'secondary'} className="text-xs">{broadcast.status}</Badge>
-                        </div>
-                        <CardDescription className="text-xs">{broadcast.createdAt && new Date((broadcast.createdAt as any).toDate()).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' })}</CardDescription>
-                      </CardHeader>
-                      <CardContent className="pb-3">
-                        <div className="grid grid-cols-3 gap-4 mb-3">
-                          <div className="text-center"><p className="text-xs text-gray-500">Recipients</p><p className="text-lg font-semibold">{broadcast.recipientCount}</p></div>
-                          <div className="text-center"><p className="text-xs text-gray-500">Sent</p><p className="text-lg font-semibold text-green-600">{broadcast.successCount}</p></div>
-                          <div className="text-center"><p className="text-xs text-gray-500">Failed</p><p className="text-lg font-semibold text-red-600">{broadcast.failedCount}</p></div>
-                        </div>
-                        <div className="bg-gray-50 rounded p-3"><p className="text-xs text-gray-600 line-clamp-3">{broadcast.message}</p></div>
-                      </CardContent>
-                    </Card>
-                  ))}
-                </div>
+                <>
+                  <Send className="w-4 h-4 mr-2" />
+                  Send Broadcast
+                </>
               )}
-            </TabsContent>
-          </Tabs>
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </>
   );
 }
-

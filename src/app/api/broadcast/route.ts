@@ -1,4 +1,3 @@
-
 // src/app/api/broadcast/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/firebase-admin';
@@ -51,7 +50,7 @@ export async function POST(request: NextRequest) {
       if (ideaSnap.exists) {
         const data = ideaSnap.data();
         ideaDataForBroadcast = {
-          ideaId: ideaSnap.id, // Correctly save ideaId here
+          ideaId: ideaSnap.id,
           ticker: data?.ticker,
           companyName: data?.companyName,
           action: data?.action,
@@ -75,7 +74,7 @@ export async function POST(request: NextRequest) {
       method,
       message,
       mediaUrl: mediaUrl || null,
-      ideaId: ideaId || null, // Keep top-level for simpler queries if needed
+      ideaId: ideaId || null,
       ideaDetails: ideaDataForBroadcast,
       recipientCount: numbers.length,
       recipients: numbers,
@@ -120,7 +119,7 @@ export async function POST(request: NextRequest) {
         }
         
         if (!twilioResponse.success) {
-            throw new Error(twilioResponse.message);
+          throw new Error(twilioResponse.message);
         }
 
         results.push({
