@@ -124,7 +124,7 @@ export async function POST(request: NextRequest) {
         results.push({
           phoneNumber,
           status: 'success',
-          messageSid: twilioResponse.twilioSid,
+          messageSid: twilioResponse.twilioSid || null,
         });
         successCount++;
       } catch (error: any) {
@@ -150,7 +150,7 @@ export async function POST(request: NextRequest) {
     // If an ideaId was provided, update the tradingPick document
     if (ideaRef) {
       const historyEntry = {
-        timestamp: FieldValue.serverTimestamp(),
+        timestamp: new Date(), // Use new Date() instead of serverTimestamp()
         method,
         recipientCount: numbers.length,
         successful: successCount,
