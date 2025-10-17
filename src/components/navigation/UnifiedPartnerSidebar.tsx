@@ -115,13 +115,6 @@ export default function UnifiedPartnerSidebar() {
       description: 'Direct & Group Chat'
     },
     { 
-      icon: Radio, 
-      label: 'Broadcast', 
-      href: '/partner/broadcast',
-      badge: null,
-      description: 'Send out ideas'
-    },
-    { 
       icon: Users, 
       label: 'Contacts', 
       href: '/partner/contacts',
