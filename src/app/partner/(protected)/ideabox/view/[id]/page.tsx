@@ -8,13 +8,13 @@ import Image from 'next/image';
 import { useMultiWorkspaceAuth } from '@/hooks/use-multi-workspace-auth';
 import { db } from '@/lib/firebase';
 import { doc, getDoc, collection, query, where, orderBy, getDocs } from 'firebase/firestore';
-import type { TradingPick } from '@/lib/types';
+import type { TradingPick, BroadcastRecord } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { 
   ArrowLeft, Edit, Send, Loader2, TrendingUp, DollarSign, Calendar, Shield,
   AlertTriangle, Zap, Target, BarChart3, Tag, Image as ImageIcon, 
-  MessageSquare, Share2, CheckCircle, Clock, History, XCircle, CheckCircle2
+  MessageSquare, Share2, CheckCircle, Clock, History, XCircle, CheckCircle2, Users
 } from 'lucide-react';
 import {
   Dialog,
@@ -83,20 +83,6 @@ const Section = ({
     </div>
   );
 };
-
-interface BroadcastRecord {
-  id: string;
-  method: string;
-  recipientCount: number;
-  successCount: number;
-  failedCount: number;
-  message: string;
-  createdAt: any;
-  status: string;
-  timestamp?: any;
-  successful?: number;
-  failed?: number;
-}
 
 export default function ViewIdeaPage() {
   const router = useRouter();
