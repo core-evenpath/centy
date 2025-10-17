@@ -431,6 +431,7 @@ export default function MessagingPage() {
       );
     }
     
+    // Only render text content if no attachments
     return <p className="whitespace-pre-wrap break-words">{message.content}</p>;
   };
 
@@ -912,5 +913,3 @@ export default function MessagingPage() {
     </div>
   );
 }
-
-    
