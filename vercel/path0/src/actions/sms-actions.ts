@@ -1,7 +1,7 @@
 // src/actions/sms-actions.ts
 'use server';
 
-import { db } from '../lib/firebase-admin';
+import { db } from '@/lib/firebase-admin';
 import { FieldValue } from 'firebase-admin/firestore';
 import * as admin from 'firebase-admin';
 import type { SendSMSInput, SendSMSResult, SMSMessage, SMSConversation, Contact } from '@/lib/types';
