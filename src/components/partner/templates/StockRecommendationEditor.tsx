@@ -117,6 +117,7 @@ export default function StockRecommendationEditor({
   const [isSaving, setIsSaving] = useState(false);
   const [isGeneratingImage, setIsGeneratingImage] = useState(false);
   const [generatedImageUrl, setGeneratedImageUrl] = useState<string | null>(initialData?.imageUrl || null);
+  const [ideaId, setIdeaId] = useState<string | undefined>(initialData?.id);
   
   const [formData, setFormData] = useState<FormData>({
     ticker: initialData?.ticker || '',
@@ -214,6 +215,63 @@ export default function StockRecommendationEditor({
     return () => { unsubContacts(); unsubGroups(); };
   }, [currentWorkspace?.partnerId]);
 
+  const assemblePickData = () => {
+    const finalThesis = [
+      ...selectedSuggestions.thesis.map(i => aiSuggestions.thesis[i]),
+      formData.thesis
+    ].filter(Boolean).join('\n\n');
+  
+    const selectedRiskTexts = selectedSuggestions.risks.map(i => aiSuggestions.risks[i]);
+  
+    return {
+      ticker: formData.ticker.toUpperCase(),
+      companyName: formData.companyName,
+      sector: formData.sector,
+      action: formData.action as 'buy' | 'sell' | 'hold',
+      thesis: finalThesis,
+      priceTarget: formData.priceTarget,
+      currentPrice: formData.currentPrice,
+      timeframe: formData.timeframe,
+      riskLevel: formData.riskLevel as 'low' | 'medium' | 'high',
+      keyRisks: [formData.keyRisks, ...selectedRiskTexts].filter(Boolean).join('\n'),
+      catalysts: formData.catalysts,
+      marketContext: formData.marketContext,
+      sectorTrends: formData.sectorTrends,
+      ideaType: 'stock-recommendation',
+      partnerId: currentWorkspace!.partnerId,
+      imageUrl: generatedImageUrl || undefined,
+      analystNotes: formData.analystNotes,
+    };
+  };
+
+  const handleSaveAndGetId = async (): Promise<string | undefined> => {
+    if (ideaId) return ideaId; // Already has an ID
+    if (!currentWorkspace?.partnerId) return undefined;
+  
+    setIsSaving(true);
+    try {
+      const pickData = assemblePickData();
+      const result = await saveTradingPickAction({
+        partnerId: currentWorkspace.partnerId,
+        pickData,
+        pickId: ideaId,
+      });
+  
+      if (result.success && result.pickId) {
+        setIdeaId(result.pickId);
+        toast({ title: 'Idea Saved!', description: 'Your draft has been saved.' });
+        return result.pickId;
+      } else {
+        throw new Error(result.message);
+      }
+    } catch (error: any) {
+      toast({ title: "Draft save failed", description: error.message, variant: "destructive" });
+      return undefined;
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   const handleSendCampaign = async (channel: 'sms' | 'whatsapp') => {
     if (!currentWorkspace?.partnerId) return;
     if (selectedRecipients.length === 0) {
@@ -224,6 +282,11 @@ export default function StockRecommendationEditor({
     setIsSending(true);
 
     try {
+      const currentIdeaId = await handleSaveAndGetId();
+      if (!currentIdeaId) {
+          throw new Error("Failed to save the idea before sending. Please try again.");
+      }
+
       const finalThesis = [
         ...selectedSuggestions.thesis.map(i => aiSuggestions.thesis[i]),
         formData.thesis
@@ -237,21 +300,25 @@ export default function StockRecommendationEditor({
         type: r.contactCount !== undefined ? 'group' : 'contact'
       }));
 
-      const action = channel === 'sms' ? sendSmsCampaignAction : sendWhatsAppCampaignAction;
-      const result = await action({
-        partnerId: currentWorkspace.partnerId,
-        message,
-        recipients,
-        mediaUrl: generatedImageUrl || undefined,
+      const response = await fetch('/api/broadcast', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          method: channel,
+          numbers: recipients.map(r => r.phone).filter(Boolean),
+          message,
+          ideaId: currentIdeaId,
+          partnerId: currentWorkspace.partnerId,
+          mediaUrl: generatedImageUrl || undefined,
+        }),
       });
 
+      const result = await response.json();
+
       if (result.success) {
-        toast({ title: "Success!", description: `Campaign sent via ${channel.toUpperCase()}` });
-        if (!initialData?.id) {
-            await handleSaveAsDraft(true);
-        }
+        toast({ title: "Success!", description: result.message });
       } else {
-        toast({ title: "Error", description: result.message, variant: "destructive" });
+        throw new Error(result.message || 'Failed to send campaign');
       }
     } catch (error: any) {
       toast({ title: "Error", description: error.message, variant: "destructive" });
@@ -260,40 +327,16 @@ export default function StockRecommendationEditor({
     }
   };
 
+
   const handleSaveAsDraft = async (calledFromSend: boolean = false) => {
     if (!currentWorkspace?.partnerId) return;
     setIsSaving(true);
     
     try {
-      const finalThesis = [
-        ...selectedSuggestions.thesis.map(i => aiSuggestions.thesis[i]),
-        formData.thesis
-      ].filter(Boolean).join('\n\n');
-
-      const selectedRiskTexts = selectedSuggestions.risks.map(i => aiSuggestions.risks[i]);
-
-      const pickData: Omit<TradingPick, 'id'> = {
-        ticker: formData.ticker.toUpperCase(),
-        companyName: formData.companyName,
-        sector: formData.sector,
-        action: formData.action as 'buy' | 'sell' | 'hold',
-        thesis: finalThesis,
-        priceTarget: formData.priceTarget,
-        currentPrice: formData.currentPrice,
-        timeframe: formData.timeframe,
-        riskLevel: formData.riskLevel as 'low' | 'medium' | 'high',
-        keyRisks: [formData.keyRisks, ...selectedRiskTexts].filter(Boolean).join('\n'),
-        catalysts: formData.catalysts,
-        marketContext: formData.marketContext,
-        sectorTrends: formData.sectorTrends,
-        ideaType: 'stock-recommendation',
-        partnerId: currentWorkspace.partnerId,
-        imageUrl: generatedImageUrl || undefined,
-        analystNotes: formData.analystNotes,
-      };
+      const pickData = assemblePickData();
 
       if (onSave) {
-        const success = await onSave(pickData, initialData?.id);
+        const success = await onSave(pickData, ideaId);
         if (success && !calledFromSend) {
             router.push('/partner/ideabox');
         }
@@ -301,9 +344,10 @@ export default function StockRecommendationEditor({
         const result = await saveTradingPickAction({
             partnerId: currentWorkspace.partnerId,
             pickData,
-            pickId: initialData?.id
+            pickId: ideaId
         });
         if (result.success) {
+            if (result.pickId && !ideaId) setIdeaId(result.pickId);
             toast({ title: 'Idea Saved!', description: 'Your stock recommendation has been saved.' });
             if(!calledFromSend) router.push('/partner/ideabox');
         } else {
