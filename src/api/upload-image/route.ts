@@ -22,27 +22,28 @@ export async function POST(request: NextRequest) {
     try {
         const { image, partnerId } = await request.json();
 
-        if (!image || !image.startsWith('data:image')) {
-            return NextResponse.json({ error: 'Valid image data URI is required.' }, { status: 400 });
+        if (!image || !image.startsWith('data:')) {
+            return NextResponse.json({ error: 'Valid data URI is required.' }, { status: 400 });
         }
         if (!partnerId) {
             return NextResponse.json({ error: 'Partner ID is required for upload.' }, { status: 400 });
         }
 
-        const mimeTypeMatch = image.match(/data:(image\/[^;]+);/);
+        const mimeTypeMatch = image.match(/data:([^;]+);/);
         if (!mimeTypeMatch || !mimeTypeMatch[1]) {
-            return NextResponse.json({ error: 'Could not determine image MIME type.' }, { status: 400 });
+            return NextResponse.json({ error: 'Could not determine file MIME type.' }, { status: 400 });
         }
         const mimeType = mimeTypeMatch[1];
         
         const base64Data = image.split(';base64,').pop();
         if (!base64Data) {
-            return NextResponse.json({ error: 'Invalid base64 image data.' }, { status: 400 });
+            return NextResponse.json({ error: 'Invalid base64 data.' }, { status: 400 });
         }
 
         const buffer = Buffer.from(base64Data, 'base64');
-        const fileExtension = mimeType.split('/')[1] || 'png';
-        const fileName = `partner-uploads/${partnerId}/broadcasts/${uuidv4()}.${fileExtension}`;
+        const fileType = mimeType.split('/')[0];
+        const fileExtension = mimeType.split('/')[1] || 'bin';
+        const fileName = `partner-uploads/${partnerId}/broadcasts/${fileType}/${uuidv4()}.${fileExtension}`;
         
         const bucketName = process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET;
         if (!bucketName) {
@@ -64,16 +65,16 @@ export async function POST(request: NextRequest) {
 
         const publicUrl = file.publicUrl();
     
-        console.log(`AI Image uploaded to Storage. Public URL: ${publicUrl}`);
+        console.log(`File uploaded to Storage. Public URL: ${publicUrl}`);
 
         return NextResponse.json({
-            imageUrl: publicUrl
+            url: publicUrl
         });
 
     } catch (error: any) {
         console.error("Error in /api/upload-image:", error);
         return NextResponse.json(
-            { error: error.message || 'Failed to generate and store image' },
+            { error: error.message || 'Failed to upload file.' },
             { status: 500 }
         );
     }

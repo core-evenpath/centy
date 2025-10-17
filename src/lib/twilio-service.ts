@@ -27,6 +27,7 @@ function getTwilioClient() {
 export interface SendSMSOptions {
   to: string; // Phone number in E.164 format (e.g., +1234567890)
   body: string;
+  mediaUrl?: string; // Add mediaUrl for MMS
 }
 
 export interface SendWhatsAppMessageOptions {
@@ -61,6 +62,10 @@ export async function sendSMS(options: SendSMSOptions): Promise<TwilioMessageRes
       to: formattedTo,
       body: options.body,
     };
+
+    if (options.mediaUrl) {
+      messageParams.mediaUrl = [options.mediaUrl];
+    }
 
     // Use Messaging Service if available, otherwise use 'from' number
     if (messagingServiceSid) {

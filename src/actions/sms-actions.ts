@@ -1,12 +1,12 @@
 // src/actions/sms-actions.ts
 'use server';
 
-import { db } from '../lib/firebase-admin';
+import { db } from '@/lib/firebase-admin';
 import { FieldValue } from 'firebase-admin/firestore';
 import * as admin from 'firebase-admin';
 import type { SendSMSInput, SendSMSResult, SMSMessage, SMSConversation, Contact } from '@/lib/types';
 import { FirestorePermissionError } from '@/firebase/errors';
-import { sendSMS } from '@/lib/twilio-service';
+import { sendSMS, getMessageStatus } from '@/lib/twilio-service';
 
 /**
  * Send an SMS message and store it in Firestore
@@ -17,8 +17,8 @@ export async function sendSMSAction(input: SendSMSInput): Promise<SendSMSResult>
   }
 
   // Validate input
-  if (!input.to || !input.message) {
-    return { success: false, message: 'Phone number and message are required' };
+  if (!input.to || (!input.message && !input.mediaUrl)) {
+    return { success: false, message: 'Phone number and a message or image are required' };
   }
 
   if (!input.partnerId) {
@@ -30,6 +30,7 @@ export async function sendSMSAction(input: SendSMSInput): Promise<SendSMSResult>
     const twilioResponse = await sendSMS({
       to: input.to,
       body: input.message,
+      mediaUrl: input.mediaUrl,
     });
 
     let conversationId = input.conversationId;
@@ -85,9 +86,10 @@ export async function sendSMSAction(input: SendSMSInput): Promise<SendSMSResult>
     // Store message in Firestore
     const messageRef = db.collection('smsMessages').doc();
     const messageData: Partial<SMSMessage> = {
+      id: messageRef.id,
       conversationId,
       senderId: input.partnerId,
-      type: 'text',
+      type: input.mediaUrl ? 'image' : 'text',
       content: input.message,
       direction: 'outbound',
       platform: 'sms',
@@ -102,6 +104,17 @@ export async function sendSMSAction(input: SendSMSInput): Promise<SendSMSResult>
       isEdited: false,
       createdAt: FieldValue.serverTimestamp(),
     };
+
+    if (input.mediaUrl) {
+      messageData.attachments = [{
+        id: messageRef.id,
+        type: 'image',
+        name: 'media_attachment',
+        url: input.mediaUrl,
+        size: 0,
+        mimeType: 'image/png',
+      }];
+    }
 
     await messageRef.set(messageData);
 
@@ -189,6 +202,7 @@ export async function sendSmsCampaignAction(input: SendSmsCampaignInput): Promis
           partnerId: input.partnerId,
           to: contact.phone,
           message: input.message,
+          mediaUrl: input.mediaUrl,
         }).catch(err => {
           console.error(`Failed to send SMS to ${contact.phone}:`, err);
           return { success: false, message: `Failed to send to ${contact.name}` };
@@ -304,3 +318,5 @@ export async function checkSMSMessageStatus(twilioSid: string): Promise<string> 
   } catch (error: any) {
     console.error('Error checking SMS message status:', error);
     throw error;
+  }
+}

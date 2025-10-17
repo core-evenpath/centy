@@ -1,4 +1,3 @@
-
 // src/components/partner/messaging/CreateCampaignModal.tsx
 "use client";
 
@@ -370,7 +369,7 @@ export const CreateCampaignModal = ({
                       ref={fileInputRef}
                       onChange={handleImageUpload}
                       className="hidden"
-                      accept="image/*"
+                      accept="image/*,video/*"
                     />
                     <Button variant="ghost" size="sm" onClick={() => setShowAiComposer(true)}>
                       <Sparkles className="w-4 h-4 mr-2 text-purple-500" />
@@ -402,9 +401,13 @@ export const CreateCampaignModal = ({
                 </div>
                  {mediaUrl && (
                   <div className="mt-4">
-                    <Label>Image Attachment</Label>
+                    <Label>Attachment Preview</Label>
                     <div className="mt-2 relative w-48 h-48">
-                      <img src={mediaUrl} alt="Attachment preview" className="rounded-lg object-cover w-full h-full" />
+                      {mediaUrl.includes('.mp4') || mediaUrl.includes('video/') ? (
+                          <video src={mediaUrl} controls className="rounded-lg object-cover w-full h-full" />
+                      ) : (
+                          <img src={mediaUrl} alt="Attachment preview" className="rounded-lg object-cover w-full h-full" />
+                      )}
                       <Button
                         variant="destructive"
                         size="sm"
@@ -430,20 +433,19 @@ export const CreateCampaignModal = ({
         </DialogContent>
       </Dialog>
       
-      {showAiComposer && (
-        <AIComposerModal
-          isOpen={showAiComposer}
-          onClose={() => setShowAiComposer(false)}
-          onTextGenerated={(text) => {
-            setMessage(text);
-            setShowAiComposer(false);
-          }}
-          onImageGenerated={(imageUrl) => {
-            setMediaUrl(imageUrl);
-            setShowAiComposer(false);
-          }}
-        />
-      )}
+      <AIComposerModal
+        isOpen={showAiComposer}
+        onClose={() => setShowAiComposer(false)}
+        onTextGenerated={(text) => {
+          setMessage(text);
+          setShowAiComposer(false);
+        }}
+        onImageGenerated={(imageUrl) => {
+          setMediaUrl(imageUrl);
+          setShowAiComposer(false);
+        }}
+        initialPrompt={message}
+      />
     </>
   );
 };

@@ -1,4 +1,5 @@
 
+
 // ============================================================================
 // FIREBASE BACKEND VARIABLES
 // ============================================================================
@@ -1274,11 +1275,41 @@ export interface TradingPick {
   createdAt?: any;
   updatedAt?: any;
   broadcasted?: boolean;
-  broadcastHistory?: any[];
+  broadcastHistory?: BroadcastRecord[];
   views?: number;
   analystNotes?: string;
   lastBroadcastAt?: any; // Firebase Timestamp
 }
+
+export interface BroadcastRecord {
+  id: string;
+  partnerId: string;
+  partnerName: string;
+  method: 'whatsapp' | 'sms';
+  message: string;
+  mediaUrl?: string;
+  ideaId?: string;
+  ideaDetails?: {
+    ideaId: string;
+    ticker: string;
+    companyName: string;
+    action: string;
+  };
+  recipientCount: number;
+  recipients: string[];
+  status: 'processing' | 'completed';
+  successCount: number;
+  failedCount: number;
+  results: Array<{
+    phoneNumber: string;
+    status: 'success' | 'failed';
+    messageSid?: string | null;
+    error?: string;
+  }>;
+  createdAt: any;
+  completedAt?: any;
+}
+
 
 
 // ============================================================================
@@ -1731,6 +1762,7 @@ export interface SendSMSInput {
   to: string; // Phone number in E.164 format
   message: string;
   conversationId?: string;
+  mediaUrl?: string; // Add mediaUrl for MMS
 }
 
 export interface SendSMSResult {
