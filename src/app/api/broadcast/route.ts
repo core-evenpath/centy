@@ -43,13 +43,19 @@ export async function POST(request: NextRequest) {
     }
 
     // Get idea details if ideaId is provided
-    let ideaDetails = null;
+    let ideaDataForBroadcast = null;
     let ideaRef;
     if (ideaId) {
       ideaRef = db.collection(`partners/${partnerId}/tradingPicks`).doc(ideaId);
       const ideaSnap = await ideaRef.get();
       if (ideaSnap.exists) {
-        ideaDetails = { id: ideaSnap.id, ...ideaSnap.data() };
+        const data = ideaSnap.data();
+        ideaDataForBroadcast = {
+          ideaId: ideaSnap.id, // Correctly save ideaId here
+          ticker: data?.ticker,
+          companyName: data?.companyName,
+          action: data?.action,
+        };
       }
     }
 
@@ -69,12 +75,8 @@ export async function POST(request: NextRequest) {
       method,
       message,
       mediaUrl: mediaUrl || null,
-      ideaId: ideaId || null,
-      ideaDetails: ideaDetails ? {
-        ticker: ideaDetails.ticker,
-        companyName: ideaDetails.companyName,
-        action: ideaDetails.action,
-      } : null,
+      ideaId: ideaId || null, // Keep top-level for simpler queries if needed
+      ideaDetails: ideaDataForBroadcast,
       recipientCount: numbers.length,
       recipients: numbers,
       status: 'processing',
@@ -91,7 +93,7 @@ export async function POST(request: NextRequest) {
     const results: Array<{
       phoneNumber: string;
       status: 'success' | 'failed';
-      messageSid?: string | null; // Allow null for Firestore
+      messageSid?: string | null;
       error?: string;
     }> = [];
 
@@ -132,7 +134,7 @@ export async function POST(request: NextRequest) {
           phoneNumber,
           status: 'failed',
           error: error.message || 'Unknown error',
-          messageSid: null, // Ensure messageSid is null, not undefined
+          messageSid: null,
         });
         failedCount++;
       }
@@ -150,7 +152,7 @@ export async function POST(request: NextRequest) {
     // If an ideaId was provided, update the tradingPick document
     if (ideaRef) {
       const historyEntry = {
-        timestamp: new Date(), // Use new Date() instead of serverTimestamp()
+        timestamp: new Date(),
         method,
         recipientCount: numbers.length,
         successful: successCount,
