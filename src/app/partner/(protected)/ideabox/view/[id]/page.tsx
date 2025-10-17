@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useState, useEffect } from 'react';
@@ -13,7 +14,7 @@ import { Badge } from '@/components/ui/badge';
 import { 
   ArrowLeft, Edit, Send, Loader2, TrendingUp, DollarSign, Calendar, Shield,
   AlertTriangle, Zap, Target, BarChart3, Tag, Image as ImageIcon, 
-  MessageSquare, Share2, CheckCircle2, Clock, History
+  MessageSquare, Share2, CheckCircle, Clock, History, XCircle, CheckCircle2
 } from 'lucide-react';
 import {
   Dialog,
@@ -92,6 +93,9 @@ interface BroadcastRecord {
   message: string;
   createdAt: any;
   status: string;
+  timestamp?: any;
+  successful?: number;
+  failed?: number;
 }
 
 export default function ViewIdeaPage() {
@@ -431,6 +435,35 @@ View full details and analysis.`;
                     </p>
                   </TabsContent>
                 </Tabs>
+              </Section>
+              
+               <Section title="Broadcast History" icon={History}>
+                {idea.broadcastHistory && idea.broadcastHistory.length > 0 ? (
+                  <div className="space-y-3">
+                    {idea.broadcastHistory.map((item, index) => (
+                      <div key={index} className="p-3 border rounded-lg bg-gray-50 flex items-start gap-3">
+                        <div className={`mt-1 flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center ${item.method === 'whatsapp' ? 'bg-green-100' : 'bg-blue-100'}`}>
+                          {item.method === 'whatsapp' ? <MessageSquare className="w-4 h-4 text-green-600" /> : <Send className="w-4 h-4 text-blue-600" />}
+                        </div>
+                        <div className="flex-1">
+                          <div className="flex items-center justify-between">
+                            <p className="text-sm font-medium capitalize">{item.method} Broadcast</p>
+                            <p className="text-xs text-gray-500">
+                              {item.timestamp?.toDate ? item.timestamp.toDate().toLocaleDateString() : 'Recent'}
+                            </p>
+                          </div>
+                          <div className="grid grid-cols-3 gap-2 mt-2 text-xs">
+                            <div className="flex items-center gap-1 text-gray-600"><Users className="w-3 h-3" />{item.recipientCount} Recipients</div>
+                            <div className="flex items-center gap-1 text-green-600"><CheckCircle2 className="w-3 h-3" />{item.successful} Sent</div>
+                            <div className="flex items-center gap-1 text-red-600"><XCircle className="w-3 h-3" />{item.failed} Failed</div>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-sm text-gray-500 text-center py-4">No broadcast history for this idea yet.</p>
+                )}
               </Section>
             </div>
 
