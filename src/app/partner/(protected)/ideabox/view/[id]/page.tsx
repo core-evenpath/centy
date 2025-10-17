@@ -7,14 +7,14 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { useMultiWorkspaceAuth } from '@/hooks/use-multi-workspace-auth';
 import { db } from '@/lib/firebase';
-import { doc, getDoc, collection, query, where, orderBy, getDocs } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, getDocs, orderBy } from 'firebase/firestore';
 import type { TradingPick, BroadcastRecord } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { 
   ArrowLeft, Edit, Send, Loader2, TrendingUp, DollarSign, Calendar, Shield,
   AlertTriangle, Zap, Target, BarChart3, Tag, Image as ImageIcon, 
-  MessageSquare, Share2, CheckCircle, Clock, History, XCircle, CheckCircle2, Users
+  MessageSquare, Share2, CheckCircle, Clock, History, XCircle, CheckCircle2, Users, Phone
 } from 'lucide-react';
 import {
   Dialog,
@@ -151,17 +151,21 @@ View full details and analysis.`;
     setLoadingHistory(true);
     try {
       const broadcastsRef = collection(db, 'broadcasts');
-      const q = query(
-        broadcastsRef,
-        where('ideaDetails.ideaId', '==', id),
-        orderBy('createdAt', 'desc')
-      );
+      // Create a query against the collection
+      const q = query(broadcastsRef, where("ideaDetails.ideaId", "==", id));
       
-      const snapshot = await getDocs(q);
-      const history: BroadcastRecord[] = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      } as BroadcastRecord));
+      const querySnapshot = await getDocs(q);
+      const history: BroadcastRecord[] = [];
+      querySnapshot.forEach((doc) => {
+        history.push({ id: doc.id, ...doc.data() } as BroadcastRecord);
+      });
+      
+      // Manually sort by date on the client-side
+      history.sort((a, b) => {
+        const dateA = a.createdAt?.toDate ? a.createdAt.toDate() : new Date(0);
+        const dateB = b.createdAt?.toDate ? b.createdAt.toDate() : new Date(0);
+        return dateB.getTime() - dateA.getTime();
+      });
       
       setBroadcastHistory(history);
     } catch (err: any) {
