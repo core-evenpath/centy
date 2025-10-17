@@ -1,3 +1,4 @@
+
 // src/app/api/webhooks/twilio/sms/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/firebase-admin';
@@ -72,7 +73,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Handle incoming messages
-    if (payload.Body && payload.From && payload.To) {
+    if ((payload.Body || payload.NumMedia) && payload.From && payload.To) {
       console.log('📨 SMS: Processing incoming message');
       await handleIncomingMessage(payload as TwilioSMSWebhookPayload);
       return NextResponse.json({ success: true, message: 'Message received' });
@@ -168,12 +169,13 @@ async function handleIncomingMessage(payload: TwilioSMSWebhookPayload) {
   };
 
   // Add media attachments if present
-  if (payload.MediaUrl0) {
-    (messageData as any).attachments = [{
-      type: 'image',
-      name: 'media',
-      url: payload.MediaUrl0,
-      size: 0,
+  if (payload.NumMedia && parseInt(payload.NumMedia) > 0) {
+    messageData.attachments = [{
+      id: payload.MessageSid,
+      type: 'image', // Assuming image for now
+      name: 'mms_attachment',
+      url: payload.MediaUrl0!,
+      size: 0, // Size is not provided by Twilio webhook
       mimeType: payload.MediaContentType0 || 'image/jpeg',
     }];
   }
@@ -223,3 +225,5 @@ async function handleStatusUpdate(payload: Partial<TwilioSMSWebhookPayload>) {
     console.warn('⚠️ SMS: Message SID not found for status update:', payload.MessageSid);
   }
 }
+
+    

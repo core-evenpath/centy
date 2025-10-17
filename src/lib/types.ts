@@ -1,5 +1,4 @@
 
-
 // ============================================================================
 // FIREBASE BACKEND VARIABLES
 // ============================================================================
@@ -86,6 +85,7 @@ export interface UserWorkspaceLink {
   joinedAt: FirebaseTimestamp;
   invitedBy?: string;
   invitedAt?: FirebaseTimestamp;
+  lastAccessedAt?: FirebaseTimestamp;
   partnerName: string;
   partnerAvatar: string | null;
 }
@@ -1664,18 +1664,18 @@ export type PhoneAuthResult = {
 // ============================================================================
 
 export interface WhatsAppMessage extends ChatMessage {
+  direction: 'outbound' | 'inbound';
+  platform: 'whatsapp';
   whatsappMetadata: {
     twilioSid?: string;
-    twilioStatus?: 'queued' | 'sent' | 'delivered' | 'read' | 'failed' | 'undelivered';
-    to: string; // WhatsApp number in format: whatsapp:+1234567890
+    twilioStatus?: 'queued' | 'sent' | 'delivered' | 'read' | 'failed' | 'undelivered' | 'received';
+    to: string; // whatsapp:+1234567890
     from: string; // Twilio WhatsApp number
-    errorCode?: string;
-    errorMessage?: string;
+    errorCode?: string | null;
+    errorMessage?: string | null;
     numMedia?: number;
     mediaUrls?: string[];
   };
-  direction: 'outbound' | 'inbound';
-  platform: 'whatsapp';
 }
 
 export interface WhatsAppConversation extends Conversation {
@@ -1704,7 +1704,7 @@ export interface TwilioWebhookPayload {
 export interface SendWhatsAppMessageInput {
   partnerId: string;
   to: string; // Phone number without whatsapp: prefix
-  message: string;
+  message?: string;
   conversationId?: string;
   mediaUrl?: string;
 }
@@ -1722,16 +1722,16 @@ export interface SendWhatsAppMessageResult {
 // ============================================================================
 
 export interface SMSMessage extends ChatMessage {
-  smsMetadata: {
-    twilioSid?: string;
-    twilioStatus?: 'queued' | 'sent' | 'delivered' | 'failed' | 'undelivered';
-    to: string; // Phone number in E.164 format: +1234567890
-    from: string; // Twilio phone number
-    errorCode?: string;
-    errorMessage?: string;
-  };
   direction: 'outbound' | 'inbound';
   platform: 'sms';
+  smsMetadata: {
+    twilioSid?: string;
+    twilioStatus?: 'queued' | 'sent' | 'delivered' | 'failed' | 'undelivered' | 'received';
+    to: string; // Phone number in E.164 format: +1234567890
+    from: string; // Twilio phone number
+    errorCode?: string | null;
+    errorMessage?: string | null;
+  };
 }
 
 export interface SMSConversation extends Conversation {
@@ -1760,9 +1760,9 @@ export interface TwilioSMSWebhookPayload {
 export interface SendSMSInput {
   partnerId: string;
   to: string; // Phone number in E.164 format
-  message: string;
+  message?: string;
   conversationId?: string;
-  mediaUrl?: string; // Add mediaUrl for MMS
+  mediaUrl?: string;
 }
 
 export interface SendSMSResult {
@@ -1772,3 +1772,5 @@ export interface SendSMSResult {
   twilioSid?: string;
   conversationId?: string;
 }
+
+    

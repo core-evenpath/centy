@@ -1,3 +1,4 @@
+
 // src/app/partner/(protected)/messaging/page.tsx
 "use client";
 
@@ -85,6 +86,7 @@ export default function MessagingPage() {
   const [showNewConversation, setShowNewConversation] = useState(false);
   const [showDiagnostics, setShowDiagnostics] = useState(false);
   const [diagnostics, setDiagnostics] = useState<MessagingDiagnostics | null>(null);
+  const [mediaUrl, setMediaUrl] = useState<string | null>(null);
 
   const partnerId = currentWorkspace?.partnerId || user?.customClaims?.partnerId;
   const conversationIdFromUrl = searchParams.get('conversation');
@@ -272,7 +274,7 @@ export default function MessagingPage() {
         result = await sendSMSAction({ 
           partnerId, 
           to: phoneNumber, 
-          message: currentMessage.trim(), 
+          message: currentMessage.trim() || undefined,
           conversationId,
           mediaUrl: currentMediaUrl || undefined
         });
@@ -280,7 +282,7 @@ export default function MessagingPage() {
         result = await sendWhatsAppMessageAction({ 
           partnerId, 
           to: phoneNumber, 
-          message: currentMessage.trim(), 
+          message: currentMessage.trim() || undefined,
           conversationId,
           mediaUrl: currentMediaUrl || undefined
         });
@@ -357,18 +359,16 @@ export default function MessagingPage() {
     return formatDistanceToNow(date, { addSuffix: true });
   };
   
-  const [mediaUrl, setMediaUrl] = useState<string | null>(null);
-
   const renderMessageContent = (message: UnifiedMessage) => {
     const hasAttachments = message.attachments && message.attachments.length > 0;
-    
+  
     if (hasAttachments) {
       return (
         <div className="space-y-2">
           {message.attachments!.map((attachment, index) => {
-            const attachmentUrl = (attachment as any).url || (attachment as any).Url;
-            const attachmentType = (attachment as any).mimeType || (attachment as any).type || '';
-
+            const attachmentUrl = attachment.url;
+            const attachmentType = attachment.mimeType || '';
+  
             if (attachmentType.startsWith('image/')) {
               return (
                 <a 
@@ -380,7 +380,7 @@ export default function MessagingPage() {
                 >
                   <img 
                     src={attachmentUrl} 
-                    alt={(attachment as any).name || 'attachment'} 
+                    alt={attachment.name || 'attachment'} 
                     className="rounded-lg max-w-sm w-full cursor-pointer hover:opacity-90 transition-opacity" 
                     loading="lazy"
                   />
@@ -418,7 +418,7 @@ export default function MessagingPage() {
                   className="flex items-center gap-2 p-2 rounded bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
                 >
                   <FileText className="w-5 h-5 text-gray-500" />
-                  <span className="text-sm">{(attachment as any).name || 'File'}</span>
+                  <span className="text-sm">{attachment.name || 'File'}</span>
                   <Download className="w-4 h-4 ml-auto text-gray-500" />
                 </a>
               );
@@ -912,3 +912,5 @@ export default function MessagingPage() {
     </div>
   );
 }
+
+    

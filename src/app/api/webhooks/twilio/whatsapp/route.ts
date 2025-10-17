@@ -1,7 +1,9 @@
+
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import { db } from '@/lib/firebase-admin';
 import { FieldValue } from 'firebase-admin/firestore';
+import type { WhatsAppMessage } from '@/lib/types';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -38,7 +40,7 @@ export async function POST(request: NextRequest) {
     }
     
     // Handle incoming messages
-    if (payload.Body && payload.From && payload.To) {
+    if ((payload.Body || payload.NumMedia) && payload.From && payload.To) {
       console.log('📨 Incoming message detected');
       await handleIncomingMessage(payload);
       return NextResponse.json({ success: true, message: 'Message received' });
@@ -88,11 +90,8 @@ async function handleIncomingMessage(payload: Record<string, string>) {
   console.log('');
   console.log('📨 Processing inbound message...');
   
-  // CRITICAL: Extract phone numbers correctly
-  // From: whatsapp:+918008968303 (customer sending TO you)
-  // To: whatsapp:+19107149473 (your business number)
-  const customerPhone = payload.From.replace('whatsapp:', ''); // Customer's phone
-  const businessPhone = payload.To; // Keep whatsapp: prefix for lookup
+  const customerPhone = payload.From.replace('whatsapp:', '');
+  const businessPhone = payload.To;
   
   console.log('👤 Customer phone:', customerPhone);
   console.log('🏢 Business phone:', businessPhone);
@@ -120,7 +119,7 @@ async function handleIncomingMessage(payload: Record<string, string>) {
       type: 'direct',
       platform: 'whatsapp',
       title: `WhatsApp: ${customerPhone}`,
-      customerPhone: customerPhone, // Customer's phone number
+      customerPhone: customerPhone,
       participants: [],
       isActive: true,
       messageCount: 1,
@@ -144,25 +143,41 @@ async function handleIncomingMessage(payload: Record<string, string>) {
   console.log('💾 Saving message to whatsappMessages...');
   const msgRef = db.collection('whatsappMessages').doc();
   
-  const messageData = {
+  const hasMedia = payload.NumMedia && parseInt(payload.NumMedia) > 0;
+
+  const messageData: Partial<WhatsAppMessage> = {
     id: msgRef.id,
     conversationId,
-    partnerId, // CRITICAL: Must match user's workspace partnerId
-    senderId: `customer:${customerPhone}`, // CRITICAL: Identify sender as a customer
-    type: 'text',
+    partnerId,
+    senderId: `customer:${customerPhone}`,
+    type: hasMedia ? 'image' : 'text',
     content: payload.Body || '',
-    direction: 'inbound', // CRITICAL: This is an INBOUND message from customer
+    direction: 'inbound',
     platform: 'whatsapp',
     whatsappMetadata: {
       twilioSid: payload.MessageSid,
       twilioStatus: 'received',
-      to: payload.To, // Business number
-      from: payload.From, // Customer number
+      to: payload.To,
+      from: payload.From,
       numMedia: parseInt(payload.NumMedia || '0'),
     },
     isEdited: false,
     createdAt: FieldValue.serverTimestamp(),
   };
+
+  if (hasMedia) {
+    messageData.attachments = [{
+      id: payload.MessageSid,
+      type: payload.MediaContentType0?.startsWith('image') ? 'image' : 'file',
+      name: 'whatsapp_media',
+      url: payload.MediaUrl0!,
+      size: 0, // Size is not available from webhook
+      mimeType: payload.MediaContentType0 || 'application/octet-stream',
+    }];
+    if (messageData.whatsappMetadata) {
+        messageData.whatsappMetadata.mediaUrls = [payload.MediaUrl0!];
+    }
+  }
   
   console.log('📝 Message data:', JSON.stringify(messageData, null, 2));
   
@@ -198,3 +213,5 @@ async function handleStatusUpdate(payload: Record<string, string>) {
     console.warn('⚠️ Message not found for status update');
   }
 }
+
+    
