@@ -818,7 +818,7 @@ export default function MessagingPage() {
                           'yyyy-MM-dd'
                         ));
                       
-                      const isOutbound = message.senderId === partnerId;
+                      const isOutbound = message.direction === 'outbound';
 
                       return (
                         <React.Fragment key={message.id}>

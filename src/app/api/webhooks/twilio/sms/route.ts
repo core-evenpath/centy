@@ -73,7 +73,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Handle incoming messages
-    if ((payload.Body || payload.NumMedia) && payload.From && payload.To) {
+    if ((payload.Body || (payload.NumMedia && parseInt(payload.NumMedia) > 0)) && payload.From && payload.To) {
       console.log('📨 SMS: Processing incoming message');
       await handleIncomingMessage(payload as TwilioSMSWebhookPayload);
       return NextResponse.json({ success: true, message: 'Message received' });
@@ -169,14 +169,14 @@ async function handleIncomingMessage(payload: TwilioSMSWebhookPayload) {
   };
 
   // Add media attachments if present
-  if (payload.NumMedia && parseInt(payload.NumMedia) > 0) {
+  if (payload.NumMedia && parseInt(payload.NumMedia) > 0 && payload.MediaUrl0) {
     messageData.attachments = [{
       id: payload.MessageSid,
-      type: 'image', // Assuming image for now
+      type: payload.MediaContentType0?.startsWith('image') ? 'image' : 'file',
       name: 'mms_attachment',
-      url: payload.MediaUrl0!,
+      url: payload.MediaUrl0,
       size: 0, // Size is not provided by Twilio webhook
-      mimeType: payload.MediaContentType0 || 'image/jpeg',
+      mimeType: payload.MediaContentType0 || 'application/octet-stream',
     }];
   }
 
@@ -225,5 +225,3 @@ async function handleStatusUpdate(payload: Partial<TwilioSMSWebhookPayload>) {
     console.warn('⚠️ SMS: Message SID not found for status update:', payload.MessageSid);
   }
 }
-
-    

@@ -40,7 +40,7 @@ export async function POST(request: NextRequest) {
     }
     
     // Handle incoming messages
-    if ((payload.Body || payload.NumMedia) && payload.From && payload.To) {
+    if ((payload.Body || (payload.NumMedia && parseInt(payload.NumMedia) > 0)) && payload.From && payload.To) {
       console.log('📨 Incoming message detected');
       await handleIncomingMessage(payload);
       return NextResponse.json({ success: true, message: 'Message received' });
@@ -165,17 +165,17 @@ async function handleIncomingMessage(payload: Record<string, string>) {
     createdAt: FieldValue.serverTimestamp(),
   };
 
-  if (hasMedia) {
+  if (hasMedia && payload.MediaUrl0) {
     messageData.attachments = [{
       id: payload.MessageSid,
       type: payload.MediaContentType0?.startsWith('image') ? 'image' : 'file',
       name: 'whatsapp_media',
-      url: payload.MediaUrl0!,
+      url: payload.MediaUrl0,
       size: 0, // Size is not available from webhook
       mimeType: payload.MediaContentType0 || 'application/octet-stream',
     }];
     if (messageData.whatsappMetadata) {
-        messageData.whatsappMetadata.mediaUrls = [payload.MediaUrl0!];
+        messageData.whatsappMetadata.mediaUrls = [payload.MediaUrl0];
     }
   }
   
@@ -213,5 +213,3 @@ async function handleStatusUpdate(payload: Record<string, string>) {
     console.warn('⚠️ Message not found for status update');
   }
 }
-
-    
