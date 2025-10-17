@@ -156,8 +156,8 @@ View full details and analysis.`;
       const q = query(
         broadcastsRef,
         where('partnerId', '==', currentWorkspace.partnerId),
-        where('ideaDetails.ideaId', '==', id),
-        orderBy('createdAt', 'desc')
+        where('ideaDetails.ideaId', '==', id)
+        // Removing orderBy to avoid needing a composite index. We will sort on the client.
       );
       
       const snapshot = await getDocs(q);
@@ -166,6 +166,13 @@ View full details and analysis.`;
         ...doc.data()
       } as BroadcastRecord));
       
+      // Sort the history by date on the client side
+      history.sort((a, b) => {
+        const dateA = a.createdAt?.toDate ? a.createdAt.toDate().getTime() : 0;
+        const dateB = b.createdAt?.toDate ? b.createdAt.toDate().getTime() : 0;
+        return dateB - dateA;
+      });
+
       setBroadcastHistory(history);
     } catch (err) {
       console.error('Error fetching broadcast history:', err);
