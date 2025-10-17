@@ -48,7 +48,7 @@ export async function POST(request: NextRequest) {
     if (ideaId) {
       ideaRef = db.collection(`partners/${partnerId}/tradingPicks`).doc(ideaId);
       const ideaSnap = await ideaRef.get();
-      if (ideaSnap.exists()) {
+      if (ideaSnap.exists) {
         ideaDetails = { id: ideaSnap.id, ...ideaSnap.data() };
       }
     }
@@ -56,7 +56,7 @@ export async function POST(request: NextRequest) {
     // Get partner details
     const partnerRef = db.collection('partners').doc(partnerId);
     const partnerSnap = await partnerRef.get();
-    const partnerData = partnerSnap.exists() ? partnerSnap.data() : null;
+    const partnerData = partnerSnap.exists ? partnerSnap.data() : null;
 
     // Create broadcast record in the root 'broadcasts' collection
     const broadcastRef = db.collection('broadcasts').doc();
@@ -146,7 +146,7 @@ export async function POST(request: NextRequest) {
       completedAt: FieldValue.serverTimestamp(),
     });
 
-    // **FIX**: If an ideaId was provided, update the tradingPick document
+    // If an ideaId was provided, update the tradingPick document
     if (ideaRef) {
       const historyEntry = {
         timestamp: FieldValue.serverTimestamp(),
