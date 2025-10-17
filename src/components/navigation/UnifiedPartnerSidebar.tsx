@@ -1,3 +1,4 @@
+
 // src/components/navigation/UnifiedPartnerSidebar.tsx
 "use client";
 
@@ -100,6 +101,13 @@ export default function UnifiedPartnerSidebar() {
 
   const allMenuItems: MenuItem[] = [
     { 
+      icon: FileText, 
+      label: 'Ideabox', 
+      href: '/partner/ideabox',
+      badge: null,
+      description: 'Create and manage ideas'
+    },
+    { 
       icon: MessageSquare, 
       label: 'Conversations', 
       href: '/partner/messaging',
@@ -112,13 +120,6 @@ export default function UnifiedPartnerSidebar() {
       href: '/partner/broadcast',
       badge: null,
       description: 'Send out ideas'
-    },
-    { 
-      icon: FileText, 
-      label: 'Ideabox', 
-      href: '/partner/ideabox',
-      badge: null,
-      description: 'Create and manage ideas'
     },
     { 
       icon: Users, 
