@@ -156,7 +156,7 @@ View full details and analysis.`;
       const q = query(
         broadcastsRef,
         where('partnerId', '==', currentWorkspace.partnerId),
-        where('ideaId', '==', id),
+        where('ideaDetails.ideaId', '==', id),
         orderBy('createdAt', 'desc')
       );
       
