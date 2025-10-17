@@ -145,17 +145,22 @@ View full details and analysis.`;
     setLoadingHistory(true);
     try {
       const broadcastsRef = collection(db, 'broadcasts');
-      // Create a query against the collection
       const q = query(
         broadcastsRef, 
-        where("ideaDetails.ideaId", "==", id),
-        orderBy('createdAt', 'desc')
+        where("ideaDetails.ideaId", "==", id)
       );
       
       const querySnapshot = await getDocs(q);
       const history: BroadcastRecord[] = [];
       querySnapshot.forEach((doc) => {
         history.push({ id: doc.id, ...doc.data() } as BroadcastRecord);
+      });
+
+      // Sort client-side to avoid needing a composite index immediately
+      history.sort((a, b) => {
+        const dateA = a.createdAt?.toDate ? a.createdAt.toDate().getTime() : 0;
+        const dateB = b.createdAt?.toDate ? b.createdAt.toDate().getTime() : 0;
+        return dateB - dateA;
       });
       
       setBroadcastHistory(history);
