@@ -7,7 +7,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { useMultiWorkspaceAuth } from '@/hooks/use-multi-workspace-auth';
 import { db } from '@/lib/firebase';
-import { collection, query, where, onSnapshot, getDocs, orderBy } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, getDocs, orderBy, doc, getDoc } from 'firebase/firestore';
 import type { TradingPick, BroadcastRecord } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -139,12 +139,6 @@ View full details and analysis.`;
     fetchIdea();
   }, [id, currentWorkspace?.partnerId]);
 
-  useEffect(() => {
-    if (broadcastDialogOpen && id && currentWorkspace?.partnerId) {
-      fetchBroadcastHistory();
-    }
-  }, [broadcastDialogOpen, id, currentWorkspace?.partnerId]);
-
   const fetchBroadcastHistory = async () => {
     if (!id || !currentWorkspace?.partnerId) return;
     
@@ -152,19 +146,16 @@ View full details and analysis.`;
     try {
       const broadcastsRef = collection(db, 'broadcasts');
       // Create a query against the collection
-      const q = query(broadcastsRef, where("ideaDetails.ideaId", "==", id));
+      const q = query(
+        broadcastsRef, 
+        where("ideaDetails.ideaId", "==", id),
+        orderBy('createdAt', 'desc')
+      );
       
       const querySnapshot = await getDocs(q);
       const history: BroadcastRecord[] = [];
       querySnapshot.forEach((doc) => {
         history.push({ id: doc.id, ...doc.data() } as BroadcastRecord);
-      });
-      
-      // Manually sort by date on the client-side
-      history.sort((a, b) => {
-        const dateA = a.createdAt?.toDate ? a.createdAt.toDate() : new Date(0);
-        const dateB = b.createdAt?.toDate ? b.createdAt.toDate() : new Date(0);
-        return dateB.getTime() - dateA.getTime();
       });
       
       setBroadcastHistory(history);
@@ -187,6 +178,12 @@ View full details and analysis.`;
       setLoadingHistory(false);
     }
   };
+
+  useEffect(() => {
+    if (broadcastDialogOpen && id && currentWorkspace?.partnerId) {
+      fetchBroadcastHistory();
+    }
+  }, [broadcastDialogOpen, id, currentWorkspace?.partnerId]);
 
   const handleBroadcast = async () => {
     if (!phoneNumbers.trim()) {
