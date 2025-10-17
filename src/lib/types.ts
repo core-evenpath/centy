@@ -1277,6 +1277,7 @@ export interface TradingPick {
   broadcastHistory?: any[];
   views?: number;
   analystNotes?: string;
+  lastBroadcastAt?: any; // Firebase Timestamp
 }
 
 
