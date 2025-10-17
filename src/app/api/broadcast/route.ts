@@ -91,7 +91,7 @@ export async function POST(request: NextRequest) {
     const results: Array<{
       phoneNumber: string;
       status: 'success' | 'failed';
-      messageSid?: string;
+      messageSid?: string | null; // Allow null for Firestore
       error?: string;
     }> = [];
 
@@ -124,7 +124,7 @@ export async function POST(request: NextRequest) {
         results.push({
           phoneNumber,
           status: 'success',
-          messageSid: twilioResponse.sid,
+          messageSid: twilioResponse.twilioSid,
         });
         successCount++;
       } catch (error: any) {
@@ -132,6 +132,7 @@ export async function POST(request: NextRequest) {
           phoneNumber,
           status: 'failed',
           error: error.message || 'Unknown error',
+          messageSid: null, // Ensure messageSid is null, not undefined
         });
         failedCount++;
       }
