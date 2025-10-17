@@ -6,14 +6,14 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { useMultiWorkspaceAuth } from '@/hooks/use-multi-workspace-auth';
 import { db } from '@/lib/firebase';
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, getDoc, collection, query, where, orderBy, getDocs } from 'firebase/firestore';
 import type { TradingPick } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { 
   ArrowLeft, Edit, Send, Loader2, TrendingUp, DollarSign, Calendar, Shield,
   AlertTriangle, Zap, Target, BarChart3, Tag, Image as ImageIcon, 
-  MessageSquare, Share2, CheckCircle2, Clock
+  MessageSquare, Share2, CheckCircle2, Clock, History
 } from 'lucide-react';
 import {
   Dialog,
@@ -28,6 +28,13 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from '@/hooks/use-toast';
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 
 const DetailItem = ({ 
   label, 
@@ -76,6 +83,17 @@ const Section = ({
   );
 };
 
+interface BroadcastRecord {
+  id: string;
+  method: string;
+  recipientCount: number;
+  successCount: number;
+  failedCount: number;
+  message: string;
+  createdAt: any;
+  status: string;
+}
+
 export default function ViewIdeaPage() {
   const router = useRouter();
   const params = useParams();
@@ -89,6 +107,8 @@ export default function ViewIdeaPage() {
   const [broadcastMethod, setBroadcastMethod] = useState<'whatsapp' | 'sms'>('whatsapp');
   const [phoneNumbers, setPhoneNumbers] = useState('');
   const [broadcastMessage, setBroadcastMessage] = useState('');
+  const [broadcastHistory, setBroadcastHistory] = useState<BroadcastRecord[]>([]);
+  const [loadingHistory, setLoadingHistory] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -130,6 +150,40 @@ View full details and analysis.`;
     fetchIdea();
   }, [id, currentWorkspace?.partnerId]);
 
+  // Fetch broadcast history when dialog opens
+  useEffect(() => {
+    if (broadcastDialogOpen && id && currentWorkspace?.partnerId) {
+      fetchBroadcastHistory();
+    }
+  }, [broadcastDialogOpen, id, currentWorkspace?.partnerId]);
+
+  const fetchBroadcastHistory = async () => {
+    if (!id || !currentWorkspace?.partnerId) return;
+    
+    setLoadingHistory(true);
+    try {
+      const broadcastsRef = collection(db, 'broadcasts');
+      const q = query(
+        broadcastsRef,
+        where('partnerId', '==', currentWorkspace.partnerId),
+        where('ideaId', '==', id),
+        orderBy('createdAt', 'desc')
+      );
+      
+      const snapshot = await getDocs(q);
+      const history: BroadcastRecord[] = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      } as BroadcastRecord));
+      
+      setBroadcastHistory(history);
+    } catch (err) {
+      console.error('Error fetching broadcast history:', err);
+    } finally {
+      setLoadingHistory(false);
+    }
+  };
+
   const handleBroadcast = async () => {
     if (!phoneNumbers.trim()) {
       toast({ title: 'Error', description: 'Please enter at least one phone number', variant: 'destructive'});
@@ -144,8 +198,6 @@ View full details and analysis.`;
         .map(num => num.trim())
         .filter(num => num.length > 0);
 
-      // TODO: Integrate with your existing WhatsApp/SMS API
-      // This should match the implementation in /partner/ideabox/create
       const response = await fetch('/api/broadcast', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -155,17 +207,33 @@ View full details and analysis.`;
           message: broadcastMessage,
           ideaId: idea?.id,
           partnerId: currentWorkspace?.partnerId,
+          mediaUrl: idea?.imageUrl || undefined,
         }),
       });
 
-      if (!response.ok) throw new Error('Broadcast failed');
+      const result = await response.json();
 
-      toast({ title: "Success", description: `Successfully broadcasted to ${numbers.length} recipient(s) via ${broadcastMethod.toUpperCase()}`});
+      if (!response.ok) {
+        throw new Error(result.message || 'Broadcast failed');
+      }
+
+      toast({ 
+        title: "Success", 
+        description: `Successfully broadcasted to ${result.successCount} recipient(s) via ${broadcastMethod.toUpperCase()}. ${result.failedCount > 0 ? `${result.failedCount} failed.` : ''}`
+      });
+      
       setBroadcastDialogOpen(false);
       setPhoneNumbers('');
-    } catch (err) {
+      
+      // Refresh broadcast history
+      fetchBroadcastHistory();
+    } catch (err: any) {
       console.error('Broadcast error:', err);
-      toast({ title: "Error", description: 'Failed to broadcast. Please try again.', variant: 'destructive' });
+      toast({ 
+        title: "Error", 
+        description: err.message || 'Failed to broadcast. Please try again.', 
+        variant: 'destructive' 
+      });
     } finally {
       setBroadcasting(false);
     }
@@ -441,7 +509,7 @@ View full details and analysis.`;
 
       {/* Broadcast Dialog */}
       <Dialog open={broadcastDialogOpen} onOpenChange={setBroadcastDialogOpen}>
-        <DialogContent className="sm:max-w-[600px]">
+        <DialogContent className="sm:max-w-[700px] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Share2 className="w-5 h-5 text-blue-600" />
@@ -452,85 +520,166 @@ View full details and analysis.`;
             </DialogDescription>
           </DialogHeader>
           
-          <div className="space-y-4 py-4">
-            {/* Method Selection */}
-            <div className="space-y-2">
-              <Label>Broadcast Method</Label>
-              <Tabs value={broadcastMethod} onValueChange={(v) => setBroadcastMethod(v as 'whatsapp' | 'sms')}>
-                <TabsList className="grid w-full grid-cols-2">
-                  <TabsTrigger value="whatsapp">
-                    <MessageSquare className="w-4 h-4 mr-2" />
-                    WhatsApp
-                  </TabsTrigger>
-                  <TabsTrigger value="sms">
-                    <Send className="w-4 h-4 mr-2" />
-                    SMS
-                  </TabsTrigger>
-                </TabsList>
-              </Tabs>
-            </div>
+          <Tabs defaultValue="compose" className="w-full">
+            <TabsList className="grid w-full grid-cols-2">
+              <TabsTrigger value="compose">
+                <Send className="w-4 h-4 mr-2" />
+                Compose
+              </TabsTrigger>
+              <TabsTrigger value="history">
+                <History className="w-4 h-4 mr-2" />
+                History
+              </TabsTrigger>
+            </TabsList>
 
-            {/* Phone Numbers */}
-            <div className="space-y-2">
-              <Label htmlFor="phone-numbers">
-                Phone Numbers
-                <span className="text-xs text-gray-500 ml-2">(comma or newline separated)</span>
-              </Label>
-              <Textarea
-                id="phone-numbers"
-                placeholder="+1234567890, +0987654321&#10;+1122334455"
-                value={phoneNumbers}
-                onChange={(e) => setPhoneNumbers(e.target.value)}
-                rows={4}
-                className="font-mono text-sm"
-              />
-            </div>
+            <TabsContent value="compose" className="space-y-4 py-4">
+              {/* Method Selection */}
+              <div className="space-y-2">
+                <Label>Broadcast Method</Label>
+                <Tabs value={broadcastMethod} onValueChange={(v) => setBroadcastMethod(v as 'whatsapp' | 'sms')}>
+                  <TabsList className="grid w-full grid-cols-2">
+                    <TabsTrigger value="whatsapp">
+                      <MessageSquare className="w-4 h-4 mr-2" />
+                      WhatsApp
+                    </TabsTrigger>
+                    <TabsTrigger value="sms">
+                      <Send className="w-4 h-4 mr-2" />
+                      SMS
+                    </TabsTrigger>
+                  </TabsList>
+                </Tabs>
+              </div>
 
-            {/* Message Preview/Edit */}
-            <div className="space-y-2">
-              <Label htmlFor="broadcast-message">Message</Label>
-              <Textarea
-                id="broadcast-message"
-                value={broadcastMessage}
-                onChange={(e) => setBroadcastMessage(e.target.value)}
-                rows={10}
-                className="text-sm"
-              />
-              <p className="text-xs text-gray-500">
-                Customize this message before sending
-              </p>
-            </div>
-          </div>
+              {/* Phone Numbers */}
+              <div className="space-y-2">
+                <Label htmlFor="phone-numbers">
+                  Phone Numbers
+                  <span className="text-xs text-gray-500 ml-2">(comma or newline separated)</span>
+                </Label>
+                <Textarea
+                  id="phone-numbers"
+                  placeholder="+1234567890, +0987654321&#10;+1122334455"
+                  value={phoneNumbers}
+                  onChange={(e) => setPhoneNumbers(e.target.value)}
+                  rows={4}
+                  className="font-mono text-sm"
+                />
+              </div>
 
-          <DialogFooter>
-            <Button 
-              variant="outline" 
-              onClick={() => setBroadcastDialogOpen(false)}
-              disabled={broadcasting}
-            >
-              Cancel
-            </Button>
-            <Button 
-              onClick={handleBroadcast}
-              disabled={broadcasting || !phoneNumbers.trim()}
-            >
-              {broadcasting ? (
-                <>
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  Broadcasting...
-                </>
+              {/* Message Preview/Edit */}
+              <div className="space-y-2">
+                <Label htmlFor="broadcast-message">Message</Label>
+                <Textarea
+                  id="broadcast-message"
+                  value={broadcastMessage}
+                  onChange={(e) => setBroadcastMessage(e.target.value)}
+                  rows={10}
+                  className="text-sm"
+                />
+                <p className="text-xs text-gray-500">
+                  Customize this message before sending
+                </p>
+              </div>
+
+              <DialogFooter>
+                <Button 
+                  variant="outline" 
+                  onClick={() => setBroadcastDialogOpen(false)}
+                  disabled={broadcasting}
+                >
+                  Cancel
+                </Button>
+                <Button 
+                  onClick={handleBroadcast}
+                  disabled={broadcasting || !phoneNumbers.trim()}
+                >
+                  {broadcasting ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      Broadcasting...
+                    </>
+                  ) : (
+                    <>
+                      <Send className="w-4 h-4 mr-2" />
+                      Send Broadcast
+                    </>
+                  )}
+                </Button>
+              </DialogFooter>
+            </TabsContent>
+
+            <TabsContent value="history" className="py-4">
+              {loadingHistory ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="w-6 h-6 animate-spin text-blue-600" />
+                </div>
+              ) : broadcastHistory.length === 0 ? (
+                <div className="text-center py-8">
+                  <History className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+                  <p className="text-sm text-gray-500">No broadcast history for this idea</p>
+                </div>
               ) : (
-                <>
-                  <Send className="w-4 h-4 mr-2" />
-                  Send Broadcast
-                </>
+                <div className="space-y-3 max-h-96 overflow-y-auto">
+                  {broadcastHistory.map((broadcast) => (
+                    <Card key={broadcast.id}>
+                      <CardHeader className="pb-3">
+                        <div className="flex items-start justify-between">
+                          <div className="flex items-center gap-2">
+                            {broadcast.method === 'whatsapp' ? (
+                              <MessageSquare className="w-4 h-4 text-green-600" />
+                            ) : (
+                              <Send className="w-4 h-4 text-blue-600" />
+                            )}
+                            <CardTitle className="text-sm font-semibold">
+                              {broadcast.method.toUpperCase()} Broadcast
+                            </CardTitle>
+                          </div>
+                          <Badge 
+                            variant={broadcast.status === 'completed' ? 'default' : 'secondary'}
+                            className="text-xs"
+                          >
+                            {broadcast.status}
+                          </Badge>
+                        </div>
+                        <CardDescription className="text-xs">
+                          {broadcast.createdAt && new Date((broadcast.createdAt as any).toDate()).toLocaleString('en-US', {
+                            year: 'numeric',
+                            month: 'short',
+                            day: 'numeric',
+                            hour: '2-digit',
+                            minute: '2-digit'
+                          })}
+                        </CardDescription>
+                      </CardHeader>
+                      <CardContent className="pb-3">
+                        <div className="grid grid-cols-3 gap-4 mb-3">
+                          <div className="text-center">
+                            <p className="text-xs text-gray-500">Recipients</p>
+                            <p className="text-lg font-semibold">{broadcast.recipientCount}</p>
+                          </div>
+                          <div className="text-center">
+                            <p className="text-xs text-gray-500">Sent</p>
+                            <p className="text-lg font-semibold text-green-600">{broadcast.successCount}</p>
+                          </div>
+                          <div className="text-center">
+                            <p className="text-xs text-gray-500">Failed</p>
+                            <p className="text-lg font-semibold text-red-600">{broadcast.failedCount}</p>
+                          </div>
+                        </div>
+                        <div className="bg-gray-50 rounded p-3">
+                          <p className="text-xs text-gray-600 line-clamp-3">
+                            {broadcast.message}
+                          </p>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
               )}
-            </Button>
-          </DialogFooter>
+            </TabsContent>
+          </Tabs>
         </DialogContent>
       </Dialog>
     </>
   );
 }
-
-    

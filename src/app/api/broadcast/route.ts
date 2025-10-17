@@ -1,12 +1,12 @@
+
 // src/app/api/broadcast/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/firebase-admin';
 import { FieldValue } from 'firebase-admin/firestore';
-import { sendWhatsAppMessageAction } from '@/actions/whatsapp-actions';
 import { sendSMSAction } from '@/actions/sms-actions';
-import { normalizePhoneNumber } from '@/utils/phone-utils';
+import { sendWhatsAppMessageAction } from '@/actions/whatsapp-actions';
 
-interface BroadcastRequestBody {
+interface BroadcastRequest {
   method: 'whatsapp' | 'sms';
   numbers: string[];
   message: string;
@@ -15,18 +15,19 @@ interface BroadcastRequestBody {
   mediaUrl?: string;
 }
 
-interface BroadcastResultDetail {
-  number: string;
-  success: boolean;
-  messageId?: string;
-  error?: string;
-}
-
 export async function POST(request: NextRequest) {
   try {
-    const body: BroadcastRequestBody = await request.json();
+    if (!db) {
+      return NextResponse.json(
+        { success: false, message: 'Database not configured' },
+        { status: 500 }
+      );
+    }
+
+    const body: BroadcastRequest = await request.json();
     const { method, numbers, message, ideaId, partnerId, mediaUrl } = body;
 
+    // Validate input
     if (!method || !numbers || !message || !partnerId) {
       return NextResponse.json(
         { success: false, message: 'Missing required fields' },
@@ -34,84 +35,149 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const results: BroadcastResultDetail[] = [];
-    
-    // Process numbers in parallel
-    const sendPromises = numbers.map(async (num) => {
-      const normalizedNumber = normalizePhoneNumber(num);
+    if (!Array.isArray(numbers) || numbers.length === 0) {
+      return NextResponse.json(
+        { success: false, message: 'At least one phone number is required' },
+        { status: 400 }
+      );
+    }
+
+    // Get idea details if ideaId is provided
+    let ideaDetails = null;
+    let ideaRef;
+    if (ideaId) {
+      ideaRef = db.collection(`partners/${partnerId}/tradingPicks`).doc(ideaId);
+      const ideaSnap = await ideaRef.get();
+      if (ideaSnap.exists()) {
+        ideaDetails = { id: ideaSnap.id, ...ideaSnap.data() };
+      }
+    }
+
+    // Get partner details
+    const partnerRef = db.collection('partners').doc(partnerId);
+    const partnerSnap = await partnerRef.get();
+    const partnerData = partnerSnap.exists() ? partnerSnap.data() : null;
+
+    // Create broadcast record in the root 'broadcasts' collection
+    const broadcastRef = db.collection('broadcasts').doc();
+    const broadcastId = broadcastRef.id;
+
+    const broadcastData = {
+      id: broadcastId,
+      partnerId,
+      partnerName: partnerData?.name || 'Unknown Partner',
+      method,
+      message,
+      mediaUrl: mediaUrl || null,
+      ideaId: ideaId || null,
+      ideaDetails: ideaDetails ? {
+        ticker: ideaDetails.ticker,
+        companyName: ideaDetails.companyName,
+        action: ideaDetails.action,
+      } : null,
+      recipientCount: numbers.length,
+      recipients: numbers,
+      status: 'processing',
+      successCount: 0,
+      failedCount: 0,
+      results: [],
+      createdAt: FieldValue.serverTimestamp(),
+      completedAt: null,
+    };
+
+    await broadcastRef.set(broadcastData);
+
+    // Send messages and track results
+    const results: Array<{
+      phoneNumber: string;
+      status: 'success' | 'failed';
+      messageSid?: string;
+      error?: string;
+    }> = [];
+
+    let successCount = 0;
+    let failedCount = 0;
+
+    for (const phoneNumber of numbers) {
       try {
-        let result;
+        let twilioResponse;
+
         if (method === 'whatsapp') {
-          result = await sendWhatsAppMessageAction({
+          twilioResponse = await sendWhatsAppMessageAction({
             partnerId,
-            to: normalizedNumber,
-            message,
-            mediaUrl,
+            to: phoneNumber,
+            message: message,
+            mediaUrl: mediaUrl || undefined,
           });
         } else {
-          // SMS doesn't support mediaUrl in this implementation
-          result = await sendSMSAction({
+          twilioResponse = await sendSMSAction({
             partnerId,
-            to: normalizedNumber,
-            message,
+            to: phoneNumber,
+            message: message,
           });
         }
         
-        if (result.success) {
-          return { number: normalizedNumber, success: true, messageId: result.messageId };
-        } else {
-          return { number: normalizedNumber, success: false, error: result.message };
+        if (!twilioResponse.success) {
+            throw new Error(twilioResponse.message);
         }
-      } catch (err: any) {
-        return { number: normalizedNumber, success: false, error: err.message };
+
+        results.push({
+          phoneNumber,
+          status: 'success',
+          messageSid: twilioResponse.sid,
+        });
+        successCount++;
+      } catch (error: any) {
+        results.push({
+          phoneNumber,
+          status: 'failed',
+          error: error.message || 'Unknown error',
+        });
+        failedCount++;
       }
+    }
+
+    // Update the root broadcast record with final results
+    await broadcastRef.update({
+      status: 'completed',
+      successCount,
+      failedCount,
+      results,
+      completedAt: FieldValue.serverTimestamp(),
     });
 
-    const settledResults = await Promise.all(sendPromises);
-    results.push(...settledResults);
-
-    const successfulSends = results.filter(r => r.success).length;
-    const failedSends = results.filter(r => !r.success).length;
-
-    // If an ideaId is provided, update the trading pick document
-    if (ideaId) {
-      try {
-        const ideaRef = db.collection(`partners/${partnerId}/tradingPicks`).doc(ideaId);
-        
-        const broadcastEvent = {
-          timestamp: FieldValue.serverTimestamp(),
-          method,
-          recipientCount: numbers.length,
-          successful: successfulSends,
-          failed: failedSends,
-        };
-
-        await ideaRef.update({
-          broadcasted: true,
-          lastBroadcastAt: FieldValue.serverTimestamp(),
-          broadcastHistory: FieldValue.arrayUnion(broadcastEvent),
-        });
-
-      } catch (dbError: any) {
-        console.error(`Failed to update trading pick ${ideaId}:`, dbError);
-        // Don't fail the entire broadcast, just log the error
-      }
+    // **FIX**: If an ideaId was provided, update the tradingPick document
+    if (ideaRef) {
+      const historyEntry = {
+        timestamp: FieldValue.serverTimestamp(),
+        method,
+        recipientCount: numbers.length,
+        successful: successCount,
+        failed: failedCount,
+        broadcastId: broadcastId,
+      };
+      
+      await ideaRef.update({
+        broadcasted: true,
+        lastBroadcastAt: FieldValue.serverTimestamp(),
+        broadcastHistory: FieldValue.arrayUnion(historyEntry)
+      });
+      console.log(`Updated trading pick ${ideaId} with broadcast history.`);
     }
 
     return NextResponse.json({
       success: true,
-      message: `Broadcast completed. ${successfulSends} successful, ${failedSends} failed.`,
-      results: {
-        successful: successfulSends,
-        failed: failedSends,
-        details: results,
-      },
+      message: `Broadcast completed: ${successCount} sent, ${failedCount} failed`,
+      broadcastId,
+      successCount,
+      failedCount,
+      results,
     });
 
   } catch (error: any) {
-    console.error('Error in /api/broadcast:', error);
+    console.error('Broadcast error:', error);
     return NextResponse.json(
-      { success: false, message: error.message || 'An unexpected error occurred' },
+      { success: false, message: error.message || 'Failed to broadcast' },
       { status: 500 }
     );
   }
