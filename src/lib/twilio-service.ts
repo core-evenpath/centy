@@ -104,7 +104,10 @@ export async function sendWhatsAppMessage(options: SendWhatsAppMessageOptions): 
     if (messagingServiceSid) {
       messageParams.messagingServiceSid = messagingServiceSid;
     } else if (twilioWhatsAppNumber) {
-      messageParams.from = `whatsapp:${twilioWhatsAppNumber}`;
+      const fromNumber = twilioWhatsAppNumber.startsWith('whatsapp:')
+        ? twilioWhatsAppNumber
+        : `whatsapp:${twilioWhatsAppNumber}`;
+      messageParams.from = fromNumber;
     } else {
       throw new Error('Neither TWILIO_MESSAGING_SERVICE_SID nor TWILIO_WHATSAPP_NUMBER is configured for WhatsApp.');
     }
