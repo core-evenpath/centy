@@ -148,7 +148,7 @@ async function handleIncomingMessage(payload: Record<string, string>) {
     id: msgRef.id,
     conversationId,
     partnerId, // CRITICAL: Must match user's workspace partnerId
-    senderId: customerPhone, // CRITICAL: Customer's phone, NOT partnerId!
+    senderId: `customer:${customerPhone}`, // CRITICAL: Identify sender as a customer
     type: 'text',
     content: payload.Body || '',
     direction: 'inbound', // CRITICAL: This is an INBOUND message from customer
@@ -172,7 +172,7 @@ async function handleIncomingMessage(payload: Record<string, string>) {
   console.log('✅ Message saved successfully!');
   console.log('   Message ID:', msgRef.id);
   console.log('   Direction: inbound ✅');
-  console.log('   Sender ID:', customerPhone, '✅');
+  console.log('   Sender ID:', `customer:${customerPhone}`, '✅');
   console.log('   Partner ID:', partnerId, '✅');
   console.log('   Conversation ID:', conversationId);
   console.log('');

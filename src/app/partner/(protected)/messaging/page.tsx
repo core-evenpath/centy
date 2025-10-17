@@ -238,16 +238,16 @@ export default function MessagingPage() {
   }, [messages]);
 
   const handleSendMessage = async () => {
-    if (!messageInput.trim()) return;
+    if (!messageInput.trim() && !mediaUrl) return;
     if (!partnerId) {
       toast({ variant: 'destructive', title: 'Error', description: 'Partner ID not found' });
       return;
     }
-
+  
     let phoneNumber = '';
     let conversationId = '';
     let platform = selectedConversation?.platform || 'whatsapp';
-
+  
     if (selectedConversation) {
       phoneNumber = selectedConversation.customerPhone;
       conversationId = selectedConversation.id;
@@ -258,20 +258,34 @@ export default function MessagingPage() {
       toast({ variant: 'destructive', title: 'Error', description: 'Please select a conversation or enter a phone number' });
       return;
     }
-
+  
     setIsSending(true);
     const currentMessage = messageInput;
+    const currentMediaUrl = mediaUrl;
     setMessageInput('');
-
+    setMediaUrl(null);
+  
     try {
       let result;
       
       if (platform === 'sms') {
-        result = await sendSMSAction({ partnerId, to: phoneNumber, message: currentMessage.trim(), conversationId });
+        result = await sendSMSAction({ 
+          partnerId, 
+          to: phoneNumber, 
+          message: currentMessage.trim(), 
+          conversationId,
+          mediaUrl: currentMediaUrl || undefined
+        });
       } else {
-        result = await sendWhatsAppMessageAction({ partnerId, to: phoneNumber, message: currentMessage.trim(), conversationId });
+        result = await sendWhatsAppMessageAction({ 
+          partnerId, 
+          to: phoneNumber, 
+          message: currentMessage.trim(), 
+          conversationId,
+          mediaUrl: currentMediaUrl || undefined
+        });
       }
-
+  
       if (result.success) {
         setNewPhoneNumber('');
         setShowNewConversation(false);
@@ -282,11 +296,13 @@ export default function MessagingPage() {
       } else {
         toast({ variant: 'destructive', title: 'Error', description: result.message });
         setMessageInput(currentMessage);
+        setMediaUrl(currentMediaUrl);
       }
     } catch (error: any) {
       console.error('Error sending message:', error);
       toast({ variant: 'destructive', title: 'Error', description: `Failed to send ${platform === 'sms' ? 'SMS' : 'WhatsApp message'}` });
       setMessageInput(currentMessage);
+      setMediaUrl(currentMediaUrl);
     } finally {
       setIsSending(false);
     }
@@ -341,6 +357,8 @@ export default function MessagingPage() {
     return formatDistanceToNow(date, { addSuffix: true });
   };
   
+  const [mediaUrl, setMediaUrl] = useState<string | null>(null);
+
   const renderMessageContent = (message: UnifiedMessage) => {
     const hasAttachments = message.attachments && message.attachments.length > 0;
     
@@ -348,39 +366,42 @@ export default function MessagingPage() {
       return (
         <div className="space-y-2">
           {message.attachments!.map((attachment, index) => {
-            if (attachment.type.startsWith('image/')) {
+            const attachmentUrl = (attachment as any).url || (attachment as any).Url;
+            const attachmentType = (attachment as any).mimeType || (attachment as any).type || '';
+
+            if (attachmentType.startsWith('image/')) {
               return (
                 <a 
                   key={index}
-                  href={attachment.url} 
+                  href={attachmentUrl} 
                   target="_blank" 
                   rel="noopener noreferrer"
                   className="block"
                 >
                   <img 
-                    src={attachment.url} 
-                    alt={attachment.name} 
+                    src={attachmentUrl} 
+                    alt={(attachment as any).name || 'attachment'} 
                     className="rounded-lg max-w-sm w-full cursor-pointer hover:opacity-90 transition-opacity" 
                     loading="lazy"
                   />
                 </a>
               );
-            } else if (attachment.type.startsWith('video/')) {
+            } else if (attachmentType.startsWith('video/')) {
               return (
                 <video 
                   key={index}
-                  src={attachment.url} 
+                  src={attachmentUrl} 
                   controls 
                   className="rounded-lg max-w-sm w-full"
                 >
                   Your browser does not support the video tag.
                 </video>
               );
-            } else if (attachment.type.startsWith('audio/')) {
+            } else if (attachmentType.startsWith('audio/')) {
               return (
                 <audio 
                   key={index}
-                  src={attachment.url} 
+                  src={attachmentUrl} 
                   controls 
                   className="w-full max-w-sm"
                 >
@@ -391,13 +412,13 @@ export default function MessagingPage() {
               return (
                 <a 
                   key={index}
-                  href={attachment.url} 
+                  href={attachmentUrl} 
                   target="_blank" 
                   rel="noopener noreferrer"
                   className="flex items-center gap-2 p-2 rounded bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
                 >
                   <FileText className="w-5 h-5 text-gray-500" />
-                  <span className="text-sm">{attachment.name}</span>
+                  <span className="text-sm">{(attachment as any).name || 'File'}</span>
                   <Download className="w-4 h-4 ml-auto text-gray-500" />
                 </a>
               );
@@ -795,6 +816,8 @@ export default function MessagingPage() {
                           messages[index - 1].createdAt instanceof Timestamp ? messages[index - 1].createdAt.toDate() : new Date(messages[index - 1].createdAt), 
                           'yyyy-MM-dd'
                         ));
+                      
+                      const isOutbound = message.senderId === partnerId;
 
                       return (
                         <React.Fragment key={message.id}>
@@ -812,12 +835,12 @@ export default function MessagingPage() {
                           )}
                           <div 
                             className={`flex ${
-                              message.direction === 'outbound' ? 'justify-end' : 'justify-start'
+                              isOutbound ? 'justify-end' : 'justify-start'
                             }`}
                           >
                             <div 
                               className={`max-w-[70%] rounded-lg px-4 py-2 ${
-                                message.direction === 'outbound' 
+                                isOutbound
                                   ? 'bg-blue-600 text-white rounded-br-none' 
                                   : 'bg-white dark:bg-gray-800 border rounded-bl-none shadow-sm'
                               }`}
@@ -825,13 +848,13 @@ export default function MessagingPage() {
                               {renderMessageContent(message)}
                               <div 
                                 className={`flex items-center gap-1 mt-1 text-xs ${
-                                  message.direction === 'outbound' 
+                                  isOutbound
                                     ? 'text-blue-100' 
                                     : 'text-muted-foreground'
                                 }`}
                               >
                                 <span>{formatTimestamp(message.createdAt)}</span>
-                                {message.direction === 'outbound' && (
+                                {isOutbound && (
                                   <span className="ml-1">
                                     {getMessageStatusIcon(
                                       message.platform === 'sms' 

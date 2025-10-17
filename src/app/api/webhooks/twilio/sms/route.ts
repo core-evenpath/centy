@@ -152,7 +152,7 @@ async function handleIncomingMessage(payload: TwilioSMSWebhookPayload) {
   const messageData: Partial<SMSMessage> = {
     conversationId,
     partnerId: partnerId, // Ensure partnerId is stored
-    senderId: fromPhone,
+    senderId: `customer:${fromPhone}`, // Identify sender as a customer
     type: payload.NumMedia && parseInt(payload.NumMedia) > 0 ? 'image' : 'text',
     content: payload.Body || '',
     direction: 'inbound',
