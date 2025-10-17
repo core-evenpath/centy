@@ -1253,6 +1253,32 @@ export interface ContactGroup {
   createdAt?: any;
 }
 
+export interface TradingPick {
+  id?: string;
+  partnerId: string;
+  ticker: string;
+  companyName: string;
+  sector: string;
+  action: 'buy' | 'sell' | 'hold';
+  thesis: string;
+  priceTarget: string;
+  currentPrice?: string;
+  timeframe: string;
+  riskLevel: 'low' | 'medium' | 'high';
+  keyRisks?: string;
+  catalysts?: string;
+  marketContext?: string;
+  sectorTrends?: string;
+  ideaType?: string;
+  imageUrl?: string;
+  createdAt?: any;
+  updatedAt?: any;
+  broadcasted?: boolean;
+  broadcastHistory?: any[];
+  views?: number;
+  analystNotes?: string;
+}
+
 
 // ============================================================================
 // SYSTEM CONFIGURATION VARIABLES

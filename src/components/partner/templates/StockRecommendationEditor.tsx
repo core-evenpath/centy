@@ -90,6 +90,7 @@ interface FormData {
   catalysts: string;
   marketContext: string;
   sectorTrends: string;
+  analystNotes: string;
 }
 
 interface AIsuggestions {
@@ -131,6 +132,7 @@ export default function StockRecommendationEditor({
     catalysts: initialData?.catalysts || '',
     marketContext: initialData?.marketContext || '',
     sectorTrends: initialData?.sectorTrends || '',
+    analystNotes: initialData?.analystNotes || '',
   });
 
   const [aiSuggestions, setAiSuggestions] = useState<AIsuggestions>({ thesis: [], risks: [] });
@@ -287,6 +289,7 @@ export default function StockRecommendationEditor({
         ideaType: 'stock-recommendation',
         partnerId: currentWorkspace.partnerId,
         imageUrl: generatedImageUrl || undefined,
+        analystNotes: formData.analystNotes,
       };
 
       if (onSave) {
@@ -680,9 +683,9 @@ export default function StockRecommendationEditor({
                   {!canAccessSection(4) ? <Lock className="w-5 h-5" /> : isStepComplete(4) ? <Check className="w-6 h-6" /> : '4'}
                 </div>
                 <div className="text-left">
-                  <h3 className="text-lg font-bold text-gray-900">Step 4: Risks & Catalysts</h3>
+                  <h3 className="text-lg font-bold text-gray-900">Step 4: Advanced Analysis</h3>
                   {isStepComplete(4) && expandedSection !== 4 && <p className="text-sm text-gray-600 mt-1">✓ Risks and upside drivers documented</p>}
-                  {!isStepComplete(4) && expandedSection !== 4 && canAccessSection(4) && <p className="text-sm text-gray-500 mt-1">Identify potential risks</p>}
+                  {!isStepComplete(4) && expandedSection !== 4 && canAccessSection(4) && <p className="text-sm text-gray-500 mt-1">Add risks, catalysts, and analyst notes</p>}
                 </div>
               </div>
               {canAccessSection(4) && (expandedSection === 4 ? <ChevronUp className="w-6 h-6 text-gray-400" /> : <ChevronDown className="w-6 h-6 text-gray-400" />)}
@@ -739,6 +742,10 @@ export default function StockRecommendationEditor({
                    <div>
                     <label className="block text-sm font-semibold text-gray-900 mb-2">Sector-Specific Trends</label>
                     <textarea value={formData.sectorTrends} onChange={(e) => updateField('sectorTrends', e.target.value)} placeholder="e.g., 'AI hardware demand is accelerating...'" rows={2} className="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-500 transition-all resize-none" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-900 mb-2">Internal Analyst Notes</label>
+                    <textarea value={formData.analystNotes} onChange={(e) => updateField('analystNotes', e.target.value)} placeholder="Internal notes visible only to your team..." rows={3} className="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-500 transition-all resize-none" />
                   </div>
                 </div>
 

@@ -164,7 +164,11 @@
         "catalysts": { "type": "string" },
         "marketContext": { "type": "string" },
         "sectorTrends": { "type": "string" },
-        "ideaType": { "type": "string" }
+        "ideaType": { "type": "string" },
+        "broadcasted": { "type": "boolean" },
+        "broadcastHistory": { "type": "array", "items": { "type": "object" } },
+        "views": { "type": "number" },
+        "analystNotes": { "type": "string" }
       },
       "required": [
         "partnerId",

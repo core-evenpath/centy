@@ -40,6 +40,7 @@ export async function saveTradingPickAction(
         ...pickData,
         partnerId, // Ensure partnerId is always set
         ideaType: 'stock-recommendation', // Set the idea type
+        analystNotes: pickData.analystNotes || '', // Ensure analystNotes is saved
     };
     
     if (pickId) {
@@ -57,6 +58,9 @@ export async function saveTradingPickAction(
         ...dataToSave,
         createdAt: FieldValue.serverTimestamp(),
         updatedAt: FieldValue.serverTimestamp(),
+        views: 0, // Initialize views
+        broadcasted: false, // Initialize broadcasted status
+        broadcastHistory: [], // Initialize broadcast history
       });
       console.log(`New trading pick created with ID: ${docRef.id}`);
       return { success: true, message: 'Recommendation saved successfully.', pickId: docRef.id };
