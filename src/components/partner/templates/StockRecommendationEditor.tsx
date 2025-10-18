@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
@@ -98,6 +97,12 @@ interface AIsuggestions {
   risks: string[];
 }
 
+interface TrainingDataState {
+  source: 'mission-control' | 'upload' | null;
+  uploadedFiles: File[];
+  missionControlSelection: string[];
+}
+
 interface StockRecommendationEditorProps {
   onSave?: (data: Omit<TradingPick, 'id' | 'partnerId'>, id?: string) => Promise<boolean>;
   onBack?: () => void;
@@ -118,6 +123,7 @@ export default function StockRecommendationEditor({
   const [isGeneratingImage, setIsGeneratingImage] = useState(false);
   const [generatedImageUrl, setGeneratedImageUrl] = useState<string | null>(initialData?.imageUrl || null);
   const [ideaId, setIdeaId] = useState<string | undefined>(initialData?.id);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   
   const [formData, setFormData] = useState<FormData>({
     ticker: initialData?.ticker || '',
@@ -134,6 +140,12 @@ export default function StockRecommendationEditor({
     marketContext: initialData?.marketContext || '',
     sectorTrends: initialData?.sectorTrends || '',
     analystNotes: initialData?.analystNotes || '',
+  });
+
+  const [trainingData, setTrainingData] = useState<TrainingDataState>({
+    source: null,
+    uploadedFiles: [],
+    missionControlSelection: []
   });
 
   const [aiSuggestions, setAiSuggestions] = useState<AIsuggestions>({ thesis: [], risks: [] });
@@ -170,12 +182,39 @@ export default function StockRecommendationEditor({
     }));
   };
 
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    const newFiles = Array.from(files);
+    setTrainingData(prev => ({
+      ...prev,
+      uploadedFiles: [...prev.uploadedFiles, ...newFiles]
+    }));
+
+    toast({
+      title: "Files Added",
+      description: `${newFiles.length} file(s) added for training data.`
+    });
+  };
+
+  const removeUploadedFile = (index: number) => {
+    setTrainingData(prev => ({
+      ...prev,
+      uploadedFiles: prev.uploadedFiles.filter((_, i) => i !== index)
+    }));
+  };
+
   const isStepComplete = (step: number): boolean => {
     switch(step) {
       case 1: return !!(formData.ticker && formData.companyName && formData.sector);
-      case 2: return !!formData.action && (formData.thesis.length > 0 || selectedSuggestions.thesis.length > 0);
-      case 3: return !!(formData.priceTarget && formData.timeframe && formData.riskLevel);
-      case 4: return true;
+      case 2: return trainingData.source !== null && (
+        (trainingData.source === 'mission-control' && trainingData.missionControlSelection.length > 0) ||
+        (trainingData.source === 'upload' && trainingData.uploadedFiles.length > 0)
+      );
+      case 3: return !!formData.action && (formData.thesis.length > 0 || selectedSuggestions.thesis.length > 0);
+      case 4: return !!(formData.priceTarget && formData.timeframe && formData.riskLevel);
+      case 5: return true;
       default: return false;
     }
   };
@@ -188,8 +227,8 @@ export default function StockRecommendationEditor({
   };
   
   const allStepsComplete = useMemo(() => {
-    return isStepComplete(1) && isStepComplete(2) && isStepComplete(3) && isStepComplete(4);
-  }, [formData, selectedSuggestions]);
+    return isStepComplete(1) && isStepComplete(2) && isStepComplete(3) && isStepComplete(4) && isStepComplete(5);
+  }, [formData, selectedSuggestions, trainingData]);
 
   // Contact selection state
   const [contacts, setContacts] = useState<Contact[]>([]);
@@ -245,7 +284,7 @@ export default function StockRecommendationEditor({
   };
 
   const handleSaveAndGetId = async (): Promise<string | undefined> => {
-    if (ideaId) return ideaId; // Already has an ID
+    if (ideaId) return ideaId;
     if (!currentWorkspace?.partnerId) return undefined;
   
     setIsSaving(true);
@@ -294,18 +333,6 @@ export default function StockRecommendationEditor({
 
       const message = `📈 New Stock Pick: ${formData.ticker} (${formData.action.toUpperCase()})\n\nThesis:\n${finalThesis}\n\nTarget: ${formData.priceTarget}\nTimeframe: ${formData.timeframe}\nRisk: ${formData.riskLevel.toUpperCase()}`;
       
-      const numbersToSend: string[] = [];
-      selectedRecipients.forEach(r => {
-        if (r.type === 'contact' && r.phone) {
-          numbersToSend.push(r.phone);
-        } else if (r.type === 'group') {
-          // This logic requires fetching contacts for the group on the client-side
-          // which can be inefficient. The `/api/broadcast` endpoint is better suited
-          // to handle group expansion. We pass the raw recipients for now.
-        }
-      });
-      
-      // Let's get all phone numbers for selected contacts and groups
       const allNumbers = new Set<string>();
       for (const recipient of selectedRecipients) {
         if (recipient.type === 'contact' && recipient.phone) {
@@ -342,7 +369,6 @@ export default function StockRecommendationEditor({
       setIsSending(false);
     }
   };
-
 
   const handleSaveAsDraft = async (calledFromSend: boolean = false) => {
     if (!currentWorkspace?.partnerId) return;
@@ -542,6 +568,261 @@ export default function StockRecommendationEditor({
                       onClick={() => setExpandedSection(2)}
                       className="px-6 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-xl font-semibold hover:shadow-lg transition-all flex items-center gap-2"
                     >
+                      Next: Train Data
+                      <ArrowRight className="w-5 h-5" />
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Section 2: Train Data */}
+          <div className={`bg-white rounded-2xl shadow-sm border-2 transition-all ${
+            !canAccessSection(2)
+              ? 'border-gray-200 opacity-60'
+              : expandedSection === 2 
+              ? 'border-blue-500 shadow-lg' 
+              : isStepComplete(2)
+              ? 'border-green-500'
+              : 'border-gray-200'
+          }`}>
+            <button
+              onClick={() => canAccessSection(2) && setExpandedSection(expandedSection === 2 ? 0 : 2)}
+              disabled={!canAccessSection(2)}
+              className="w-full px-6 py-5 flex items-center justify-between hover:bg-gray-50 transition-colors rounded-t-2xl disabled:cursor-not-allowed disabled:hover:bg-white"
+            >
+              <div className="flex items-center gap-4">
+                <div className={`w-12 h-12 rounded-full flex items-center justify-center text-white font-bold text-lg transition-all ${
+                  !canAccessSection(2) 
+                    ? 'bg-gray-200 text-gray-400' 
+                    : isStepComplete(2) 
+                    ? 'bg-green-600' 
+                    : expandedSection === 2 
+                    ? 'bg-blue-600' 
+                    : 'bg-gray-300 text-gray-600'
+                }`}>
+                  {!canAccessSection(2) ? <Lock className="w-5 h-5" /> : isStepComplete(2) ? <Check className="w-6 h-6" /> : '2'}
+                </div>
+                <div className="text-left">
+                  <h3 className="text-lg font-bold text-gray-900">Step 2: Train Data</h3>
+                  {isStepComplete(2) && expandedSection !== 2 && (
+                    <p className="text-sm text-gray-600 mt-1">
+                      {trainingData.source === 'mission-control' 
+                        ? `${trainingData.missionControlSelection.length} items from Mission Control` 
+                        : `${trainingData.uploadedFiles.length} file(s) uploaded`}
+                    </p>
+                  )}
+                  {!isStepComplete(2) && expandedSection !== 2 && canAccessSection(2) && (
+                    <p className="text-sm text-gray-500 mt-1">Choose your training data source</p>
+                  )}
+                </div>
+              </div>
+              {canAccessSection(2) && (expandedSection === 2 ? <ChevronUp className="w-6 h-6 text-gray-400" /> : <ChevronDown className="w-6 h-6 text-gray-400" />)}
+            </button>
+
+            {expandedSection === 2 && (
+              <div className="px-6 pb-6 pt-2 border-t border-gray-200">
+                <div className="flex items-start gap-3 p-4 bg-indigo-50 rounded-lg border border-indigo-200 mb-6">
+                  <Brain className="w-5 h-5 text-indigo-600 shrink-0 mt-0.5" />
+                  <div className="text-sm text-indigo-900">
+                    <strong>Train your AI agent:</strong> Choose to either use your existing master data from Mission Control or upload new files. This data will help the AI understand your analysis style and provide better recommendations.
+                  </div>
+                </div>
+
+                <div className="space-y-6">
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-900 mb-3">
+                      Select Training Data Source *
+                    </label>
+                    <div className="grid grid-cols-2 gap-4">
+                      <button
+                        onClick={() => setTrainingData(prev => ({ ...prev, source: 'mission-control', uploadedFiles: [] }))}
+                        className={`p-6 rounded-xl border-2 text-left transition-all ${
+                          trainingData.source === 'mission-control'
+                            ? 'border-indigo-600 bg-indigo-50 shadow-md'
+                            : 'border-gray-300 hover:border-gray-400'
+                        }`}
+                      >
+                        <Database className="w-8 h-8 text-indigo-600 mb-3" />
+                        <div className="font-semibold text-gray-900 mb-1">Mission Control</div>
+                        <div className="text-xs text-gray-600">Use your existing master data and previous analysis</div>
+                      </button>
+
+                      <button
+                        onClick={() => setTrainingData(prev => ({ ...prev, source: 'upload', missionControlSelection: [] }))}
+                        className={`p-6 rounded-xl border-2 text-left transition-all ${
+                          trainingData.source === 'upload'
+                            ? 'border-indigo-600 bg-indigo-50 shadow-md'
+                            : 'border-gray-300 hover:border-gray-400'
+                        }`}
+                      >
+                        <Upload className="w-8 h-8 text-indigo-600 mb-3" />
+                        <div className="font-semibold text-gray-900 mb-1">Upload Files</div>
+                        <div className="text-xs text-gray-600">Upload new documents, reports, or analysis files</div>
+                      </button>
+                    </div>
+                  </div>
+
+                  {trainingData.source === 'mission-control' && (
+                    <div className="animate-fade-in">
+                      <div className="bg-gradient-to-br from-indigo-50 to-purple-50 rounded-xl p-5 border-2 border-indigo-300">
+                        <div className="flex items-center gap-2 mb-4">
+                          <Database className="w-6 h-6 text-indigo-600" />
+                          <div>
+                            <h4 className="font-bold text-gray-900">Mission Control Data</h4>
+                            <p className="text-xs text-gray-600">Select data sources to train your AI agent (Placeholder)</p>
+                          </div>
+                        </div>
+                        <div className="space-y-2">
+                          {[
+                            { id: 'historical-analysis', name: 'Historical Stock Analysis', count: 247 },
+                            { id: 'market-reports', name: 'Market Research Reports', count: 89 },
+                            { id: 'trading-patterns', name: 'Trading Pattern Data', count: 156 },
+                            { id: 'sector-insights', name: 'Sector-Specific Insights', count: 73 },
+                            { id: 'risk-assessments', name: 'Risk Assessment Models', count: 42 }
+                          ].map((item) => (
+                            <label
+                              key={item.id}
+                              className={`flex items-start gap-3 p-4 rounded-lg cursor-pointer transition-all ${
+                                trainingData.missionControlSelection.includes(item.id)
+                                  ? 'bg-indigo-100 border-2 border-indigo-500'
+                                  : 'bg-white border-2 border-gray-200 hover:border-indigo-300'
+                              }`}
+                            >
+                              <input
+                                type="checkbox"
+                                checked={trainingData.missionControlSelection.includes(item.id)}
+                                onChange={(e) => {
+                                  if (e.target.checked) {
+                                    setTrainingData(prev => ({
+                                      ...prev,
+                                      missionControlSelection: [...prev.missionControlSelection, item.id]
+                                    }));
+                                  } else {
+                                    setTrainingData(prev => ({
+                                      ...prev,
+                                      missionControlSelection: prev.missionControlSelection.filter(id => id !== item.id)
+                                    }));
+                                  }
+                                }}
+                                className="mt-1 w-5 h-5 text-indigo-600 rounded focus:ring-2 focus:ring-indigo-500"
+                              />
+                              <div className="flex-1">
+                                <span className="text-sm font-medium text-gray-900">{item.name}</span>
+                                <span className="text-xs text-gray-500 ml-2">({item.count} records)</span>
+                              </div>
+                            </label>
+                          ))}
+                        </div>
+                        {trainingData.missionControlSelection.length > 0 && (
+                          <div className="mt-4 p-3 bg-white rounded-lg border border-indigo-200 flex items-center gap-2">
+                            <Check className="w-4 h-4 text-indigo-600 shrink-0" />
+                            <p className="text-xs text-gray-700">
+                              <strong>{trainingData.missionControlSelection.length}</strong> data source(s) selected for AI training
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {trainingData.source === 'upload' && (
+                    <div className="animate-fade-in">
+                      <div className="bg-gradient-to-br from-purple-50 to-pink-50 rounded-xl p-5 border-2 border-purple-300">
+                        <div className="flex items-center gap-2 mb-4">
+                          <Upload className="w-6 h-6 text-purple-600" />
+                          <div>
+                            <h4 className="font-bold text-gray-900">Upload Training Files</h4>
+                            <p className="text-xs text-gray-600">Upload documents, spreadsheets, or reports (Placeholder)</p>
+                          </div>
+                        </div>
+
+                        <div className="space-y-4">
+                          <div>
+                            <Button
+                              variant="outline"
+                              onClick={() => fileInputRef.current?.click()}
+                              className="w-full"
+                            >
+                              <Upload className="w-4 h-4 mr-2" />
+                              Choose Files to Upload
+                            </Button>
+                            <input
+                              ref={fileInputRef}
+                              type="file"
+                              multiple
+                              accept=".pdf,.doc,.docx,.xls,.xlsx,.csv,.txt"
+                              onChange={handleFileUpload}
+                              className="hidden"
+                            />
+                            <p className="text-xs text-gray-500 mt-2">
+                              Supported formats: PDF, Word, Excel, CSV, Text files
+                            </p>
+                          </div>
+
+                          {trainingData.uploadedFiles.length > 0 && (
+                            <div className="space-y-2">
+                              <p className="text-sm font-semibold text-gray-900">
+                                Uploaded Files ({trainingData.uploadedFiles.length})
+                              </p>
+                              {trainingData.uploadedFiles.map((file, index) => (
+                                <div
+                                  key={index}
+                                  className="flex items-center justify-between p-3 bg-white rounded-lg border border-purple-200"
+                                >
+                                  <div className="flex items-center gap-3 flex-1 min-w-0">
+                                    <FileText className="w-5 h-5 text-purple-600 shrink-0" />
+                                    <div className="min-w-0 flex-1">
+                                      <p className="text-sm font-medium text-gray-900 truncate">
+                                        {file.name}
+                                      </p>
+                                      <p className="text-xs text-gray-500">
+                                        {(file.size / 1024).toFixed(2)} KB
+                                      </p>
+                                    </div>
+                                  </div>
+                                  <button
+                                    onClick={() => removeUploadedFile(index)}
+                                    className="p-1 hover:bg-red-50 rounded-lg transition-colors"
+                                  >
+                                    <X className="w-4 h-4 text-red-600" />
+                                  </button>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+
+                          {trainingData.uploadedFiles.length === 0 && (
+                            <div className="p-8 border-2 border-dashed border-purple-300 rounded-lg text-center">
+                              <Upload className="w-12 h-12 text-purple-400 mx-auto mb-3" />
+                              <p className="text-sm text-gray-600">No files uploaded yet</p>
+                              <p className="text-xs text-gray-500 mt-1">Click the button above to select files</p>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {trainingData.source && (
+                    <div className="bg-yellow-50 rounded-lg p-4 border border-yellow-200">
+                      <div className="flex items-start gap-2">
+                        <AlertCircle className="w-5 h-5 text-yellow-600 shrink-0 mt-0.5" />
+                        <div className="text-sm text-yellow-900">
+                          <strong>Note:</strong> This is a placeholder UI. Training data integration with the backend will be implemented in the next phase. For now, you can proceed with your selection to complete the workflow.
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {isStepComplete(2) && (
+                  <div className="flex justify-end mt-6">
+                    <button
+                      onClick={() => setExpandedSection(3)}
+                      className="px-6 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-xl font-semibold hover:shadow-lg transition-all flex items-center gap-2"
+                    >
                       Next: Investment Thesis
                       <ArrowRight className="w-5 h-5" />
                     </button>
@@ -551,23 +832,49 @@ export default function StockRecommendationEditor({
             )}
           </div>
           
-           {/* Section 2: Investment Thesis */}
-           <div className={`bg-white rounded-2xl shadow-sm border-2 transition-all ${!canAccessSection(2) ? 'border-gray-200 opacity-60' : expandedSection === 2 ? 'border-blue-500 shadow-lg' : isStepComplete(2) ? 'border-green-500' : 'border-gray-200'}`}>
-            <button onClick={() => canAccessSection(2) && setExpandedSection(expandedSection === 2 ? 0 : 2)} disabled={!canAccessSection(2)} className="w-full px-6 py-5 flex items-center justify-between hover:bg-gray-50 transition-colors rounded-t-2xl disabled:cursor-not-allowed disabled:hover:bg-white">
+          {/* Section 3: Investment Thesis */}
+          <div className={`bg-white rounded-2xl shadow-sm border-2 transition-all ${
+            !canAccessSection(3)
+              ? 'border-gray-200 opacity-60'
+              : expandedSection === 3 
+              ? 'border-blue-500 shadow-lg' 
+              : isStepComplete(3)
+              ? 'border-green-500'
+              : 'border-gray-200'
+          }`}>
+            <button
+              onClick={() => canAccessSection(3) && setExpandedSection(expandedSection === 3 ? 0 : 3)}
+              disabled={!canAccessSection(3)}
+              className="w-full px-6 py-5 flex items-center justify-between hover:bg-gray-50 transition-colors rounded-t-2xl disabled:cursor-not-allowed disabled:hover:bg-white"
+            >
               <div className="flex items-center gap-4">
-                <div className={`w-12 h-12 rounded-full flex items-center justify-center text-white font-bold text-lg transition-all ${!canAccessSection(2) ? 'bg-gray-200 text-gray-400' : isStepComplete(2) ? 'bg-green-600' : expandedSection === 2 ? 'bg-blue-600' : 'bg-gray-300 text-gray-600'}`}>
-                  {!canAccessSection(2) ? <Lock className="w-5 h-5" /> : isStepComplete(2) ? <Check className="w-6 h-6" /> : '2'}
+                <div className={`w-12 h-12 rounded-full flex items-center justify-center text-white font-bold text-lg transition-all ${
+                  !canAccessSection(3) 
+                    ? 'bg-gray-200 text-gray-400' 
+                    : isStepComplete(3) 
+                    ? 'bg-green-600' 
+                    : expandedSection === 3 
+                    ? 'bg-blue-600' 
+                    : 'bg-gray-300 text-gray-600'
+                }`}>
+                  {!canAccessSection(3) ? <Lock className="w-5 h-5" /> : isStepComplete(3) ? <Check className="w-6 h-6" /> : '3'}
                 </div>
                 <div className="text-left">
-                  <h3 className="text-lg font-bold text-gray-900">Step 2: Investment Thesis</h3>
-                  {isStepComplete(2) && expandedSection !== 2 && <p className="text-sm text-gray-600 mt-1"><strong className="text-gray-900 capitalize">{formData.action}</strong> recommendation with {selectedSuggestions.thesis.length} key points</p>}
-                  {!isStepComplete(2) && expandedSection !== 2 && canAccessSection(2) && <p className="text-sm text-gray-500 mt-1">Build your investment case</p>}
+                  <h3 className="text-lg font-bold text-gray-900">Step 3: Investment Thesis</h3>
+                  {isStepComplete(3) && expandedSection !== 3 && (
+                    <p className="text-sm text-gray-600 mt-1">
+                      <strong className="text-gray-900 capitalize">{formData.action}</strong> recommendation with {selectedSuggestions.thesis.length} key points
+                    </p>
+                  )}
+                  {!isStepComplete(3) && expandedSection !== 3 && canAccessSection(3) && (
+                    <p className="text-sm text-gray-500 mt-1">Build your investment case</p>
+                  )}
                 </div>
               </div>
-              {canAccessSection(2) && (expandedSection === 2 ? <ChevronUp className="w-6 h-6 text-gray-400" /> : <ChevronDown className="w-6 h-6 text-gray-400" />)}
+              {canAccessSection(3) && (expandedSection === 3 ? <ChevronUp className="w-6 h-6 text-gray-400" /> : <ChevronDown className="w-6 h-6 text-gray-400" />)}
             </button>
 
-            {expandedSection === 2 && (
+            {expandedSection === 3 && (
               <div className="px-6 pb-6 pt-2 border-t border-gray-200">
                 <div className="flex items-start gap-3 p-4 bg-purple-50 rounded-lg border border-purple-200 mb-6">
                   <Sparkles className="w-5 h-5 text-purple-600 shrink-0 mt-0.5" />
@@ -644,10 +951,10 @@ export default function StockRecommendationEditor({
                   </div>
                 </div>
 
-                {isStepComplete(2) && (
+                {isStepComplete(3) && (
                   <div className="flex justify-end mt-6">
                     <button
-                      onClick={() => setExpandedSection(3)}
+                      onClick={() => setExpandedSection(4)}
                       className="px-6 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-xl font-semibold hover:shadow-lg transition-all flex items-center gap-2"
                     >
                       Next: Price Target & Timeline
@@ -659,22 +966,51 @@ export default function StockRecommendationEditor({
             )}
           </div>
           
-           {/* Section 3: Price Target & Timeline */}
-           <div className={`bg-white rounded-2xl shadow-sm border-2 transition-all ${!canAccessSection(3) ? 'border-gray-200 opacity-60' : expandedSection === 3 ? 'border-blue-500 shadow-lg' : isStepComplete(3) ? 'border-green-500' : 'border-gray-200'}`}>
-            <button onClick={() => canAccessSection(3) && setExpandedSection(expandedSection === 3 ? 0 : 3)} disabled={!canAccessSection(3)} className="w-full px-6 py-5 flex items-center justify-between hover:bg-gray-50 transition-colors rounded-t-2xl disabled:cursor-not-allowed disabled:hover:bg-white">
+          {/* Section 4: Price Target & Timeline */}
+          <div className={`bg-white rounded-2xl shadow-sm border-2 transition-all ${
+            !canAccessSection(4)
+              ? 'border-gray-200 opacity-60'
+              : expandedSection === 4 
+              ? 'border-blue-500 shadow-lg' 
+              : isStepComplete(4)
+              ? 'border-green-500'
+              : 'border-gray-200'
+          }`}>
+            <button
+              onClick={() => canAccessSection(4) && setExpandedSection(expandedSection === 4 ? 0 : 4)}
+              disabled={!canAccessSection(4)}
+              className="w-full px-6 py-5 flex items-center justify-between hover:bg-gray-50 transition-colors rounded-t-2xl disabled:cursor-not-allowed disabled:hover:bg-white"
+            >
               <div className="flex items-center gap-4">
-                <div className={`w-12 h-12 rounded-full flex items-center justify-center text-white font-bold text-lg transition-all ${!canAccessSection(3) ? 'bg-gray-200 text-gray-400' : isStepComplete(3) ? 'bg-green-600' : expandedSection === 3 ? 'bg-blue-600' : 'bg-gray-300 text-gray-600'}`}>
-                  {!canAccessSection(3) ? <Lock className="w-5 h-5" /> : isStepComplete(3) ? <Check className="w-6 h-6" /> : '3'}
+                <div className={`w-12 h-12 rounded-full flex items-center justify-center text-white font-bold text-lg transition-all ${
+                  !canAccessSection(4) 
+                    ? 'bg-gray-200 text-gray-400' 
+                    : isStepComplete(4) 
+                    ? 'bg-green-600' 
+                    : expandedSection === 4 
+                    ? 'bg-blue-600' 
+                    : 'bg-gray-300 text-gray-600'
+                }`}>
+                  {!canAccessSection(4) ? <Lock className="w-5 h-5" /> : isStepComplete(4) ? <Check className="w-6 h-6" /> : '4'}
                 </div>
                 <div className="text-left">
-                  <h3 className="text-lg font-bold text-gray-900">Step 3: Price Target & Timeline</h3>
-                  {isStepComplete(3) && expandedSection !== 3 && <div className="flex items-center gap-3 mt-1"><span className="text-sm text-gray-600">Target: <strong className="text-gray-900">{formData.priceTarget}</strong></span><span className="text-sm text-gray-500">• {formData.timeframe}</span><span className="px-2 py-1 bg-gray-100 text-gray-700 rounded text-xs font-medium capitalize">{formData.riskLevel} Risk</span></div>}
-                  {!isStepComplete(3) && expandedSection !== 3 && canAccessSection(3) && <p className="text-sm text-gray-500 mt-1">Set price expectations and holding period</p>}
+                  <h3 className="text-lg font-bold text-gray-900">Step 4: Price Target & Timeline</h3>
+                  {isStepComplete(4) && expandedSection !== 4 && (
+                    <div className="flex items-center gap-3 mt-1">
+                      <span className="text-sm text-gray-600">Target: <strong className="text-gray-900">{formData.priceTarget}</strong></span>
+                      <span className="text-sm text-gray-500">• {formData.timeframe}</span>
+                      <span className="px-2 py-1 bg-gray-100 text-gray-700 rounded text-xs font-medium capitalize">{formData.riskLevel} Risk</span>
+                    </div>
+                  )}
+                  {!isStepComplete(4) && expandedSection !== 4 && canAccessSection(4) && (
+                    <p className="text-sm text-gray-500 mt-1">Set price expectations and holding period</p>
+                  )}
                 </div>
               </div>
-              {canAccessSection(3) && (expandedSection === 3 ? <ChevronUp className="w-6 h-6 text-gray-400" /> : <ChevronDown className="w-6 h-6 text-gray-400" />)}
+              {canAccessSection(4) && (expandedSection === 4 ? <ChevronUp className="w-6 h-6 text-gray-400" /> : <ChevronDown className="w-6 h-6 text-gray-400" />)}
             </button>
-            {expandedSection === 3 && (
+
+            {expandedSection === 4 && (
               <div className="px-6 pb-6 pt-2 border-t border-gray-200">
                 <div className="flex items-start gap-3 p-4 bg-blue-50 rounded-lg border border-blue-200 mb-6">
                   <TrendingUp className="w-5 h-5 text-blue-600 shrink-0 mt-0.5" />
@@ -682,27 +1018,65 @@ export default function StockRecommendationEditor({
                     <strong>Set clear expectations:</strong> Clients need to know the target price and how long they should hold. Be specific!
                   </div>
                 </div>
+
                 <div className="space-y-6">
                   <div className="grid grid-cols-2 gap-6">
                     <div>
-                      <label className="block text-sm font-semibold text-gray-900 mb-2">Current Price <span className="text-gray-500 font-normal">(Reference)</span></label>
+                      <label className="block text-sm font-semibold text-gray-900 mb-2">
+                        Current Price <span className="text-gray-500 font-normal">(Reference)</span>
+                      </label>
                       <div className="relative">
-                        <input type="text" value={formData.currentPrice} onChange={(e) => updateField('currentPrice', e.target.value)} placeholder="e.g., $192.57" className={`w-full px-4 py-3 border-2 rounded-xl focus:ring-2 focus:ring-blue-500 transition-all ${autoFilled ? 'border-green-300 bg-green-50' : 'border-gray-300 focus:border-blue-500'}`} />
+                        <input
+                          type="text"
+                          value={formData.currentPrice}
+                          onChange={(e) => updateField('currentPrice', e.target.value)}
+                          placeholder="e.g., $192.57"
+                          className={`w-full px-4 py-3 border-2 rounded-xl focus:ring-2 focus:ring-blue-500 transition-all ${
+                            autoFilled ? 'border-green-300 bg-green-50' : 'border-gray-300 focus:border-blue-500'
+                          }`}
+                        />
                         {autoFilled && <Sparkles className="w-5 h-5 text-green-600 absolute right-3 top-1/2 -translate-y-1/2" />}
                       </div>
-                      {autoFilled && <p className="text-xs text-green-600 mt-1 flex items-center gap-1"><Check className="w-3 h-3" /> Auto-filled with live price</p>}
+                      {autoFilled && (
+                        <p className="text-xs text-green-600 mt-1 flex items-center gap-1">
+                          <Check className="w-3 h-3" /> Auto-filled with live price
+                        </p>
+                      )}
                     </div>
                     <div>
-                      <label className="block text-sm font-semibold text-gray-900 mb-2">Price Target * <span className="text-gray-500 font-normal">(Your goal)</span></label>
-                      <input type="text" value={formData.priceTarget} onChange={(e) => updateField('priceTarget', e.target.value)} placeholder="e.g., 200 or 180-220" className="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-500 transition-all" />
+                      <label className="block text-sm font-semibold text-gray-900 mb-2">
+                        Price Target * <span className="text-gray-500 font-normal">(Your goal)</span>
+                      </label>
+                      <input
+                        type="text"
+                        value={formData.priceTarget}
+                        onChange={(e) => updateField('priceTarget', e.target.value)}
+                        placeholder="e.g., 200 or 180-220"
+                        className="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-500 transition-all"
+                      />
                       <p className="text-xs text-gray-500 mt-1">Single price or range works</p>
                     </div>
                   </div>
+
                   <div>
-                    <label className="block text-sm font-semibold text-gray-900 mb-3">Expected Timeframe * <span className="text-gray-500 font-normal">(How long to hold?)</span></label>
+                    <label className="block text-sm font-semibold text-gray-900 mb-3">
+                      Expected Timeframe * <span className="text-gray-500 font-normal">(How long to hold?)</span>
+                    </label>
                     <div className="grid grid-cols-3 gap-3">
-                      {[{ value: 'short-term', label: 'Short-term', sublabel: '1-2 weeks', icon: '⚡' }, { value: 'medium-term', label: 'Medium-term', sublabel: '1-6 months', icon: '📈' }, { value: 'long-term', label: 'Long-term', sublabel: '6-24 months', icon: '🎯' }].map((option) => (
-                        <button key={option.value} onClick={() => updateField('timeframe', option.value)} className={`p-4 rounded-xl border-2 text-left transition-all ${formData.timeframe === option.value ? 'border-blue-600 bg-blue-50 shadow-md' : 'border-gray-300 hover:border-gray-400'}`}>
+                      {[
+                        { value: 'short-term', label: 'Short-term', sublabel: '1-2 weeks', icon: '⚡' },
+                        { value: 'medium-term', label: 'Medium-term', sublabel: '1-6 months', icon: '📈' },
+                        { value: 'long-term', label: 'Long-term', sublabel: '6-24 months', icon: '🎯' }
+                      ].map((option) => (
+                        <button
+                          key={option.value}
+                          onClick={() => updateField('timeframe', option.value)}
+                          className={`p-4 rounded-xl border-2 text-left transition-all ${
+                            formData.timeframe === option.value
+                              ? 'border-blue-600 bg-blue-50 shadow-md'
+                              : 'border-gray-300 hover:border-gray-400'
+                          }`}
+                        >
                           <div className="text-2xl mb-2">{option.icon}</div>
                           <div className="font-semibold text-gray-900">{option.label}</div>
                           <div className="text-xs text-gray-600">{option.sublabel}</div>
@@ -711,14 +1085,35 @@ export default function StockRecommendationEditor({
                     </div>
                     <div className="mt-4">
                       <label className="block text-sm text-gray-600 mb-2">Or specify your own timeframe:</label>
-                      <input type="text" value={formData.timeframe && !['short-term', 'medium-term', 'long-term'].includes(formData.timeframe) ? formData.timeframe : ''} onChange={(e) => updateField('timeframe', e.target.value)} placeholder="e.g., 1-6 months" className="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-500 transition-all" />
+                      <input
+                        type="text"
+                        value={formData.timeframe && !['short-term', 'medium-term', 'long-term'].includes(formData.timeframe) ? formData.timeframe : ''}
+                        onChange={(e) => updateField('timeframe', e.target.value)}
+                        placeholder="e.g., 1-6 months"
+                        className="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-500 transition-all"
+                      />
                     </div>
                   </div>
+
                   <div>
-                    <label className="block text-sm font-semibold text-gray-900 mb-3">Risk Level <span className="text-gray-500 font-normal">(Be honest with clients)</span></label>
+                    <label className="block text-sm font-semibold text-gray-900 mb-3">
+                      Risk Level <span className="text-gray-500 font-normal">(Be honest with clients)</span>
+                    </label>
                     <div className="grid grid-cols-3 gap-3">
-                      {[{ value: 'low', label: 'Low Risk', sublabel: 'Blue chip, stable' }, { value: 'medium', label: 'Medium Risk', sublabel: 'Growth, some volatility' }, { value: 'high', label: 'High Risk', sublabel: 'Speculative, volatile' }].map((option) => (
-                        <button key={option.value} onClick={() => updateField('riskLevel', option.value as 'low'|'medium'|'high'|'')} className={`p-4 rounded-xl border-2 text-left transition-all ${formData.riskLevel === option.value ? 'border-blue-600 bg-blue-50 shadow-md' : 'border-gray-300 hover:border-gray-400'}`}>
+                      {[
+                        { value: 'low', label: 'Low Risk', sublabel: 'Blue chip, stable' },
+                        { value: 'medium', label: 'Medium Risk', sublabel: 'Growth, some volatility' },
+                        { value: 'high', label: 'High Risk', sublabel: 'Speculative, volatile' }
+                      ].map((option) => (
+                        <button
+                          key={option.value}
+                          onClick={() => updateField('riskLevel', option.value as 'low'|'medium'|'high'|'')}
+                          className={`p-4 rounded-xl border-2 text-left transition-all ${
+                            formData.riskLevel === option.value
+                              ? 'border-blue-600 bg-blue-50 shadow-md'
+                              : 'border-gray-300 hover:border-gray-400'
+                          }`}
+                        >
                           <div className="font-semibold text-gray-900">{option.label}</div>
                           <div className="text-xs text-gray-600 mt-1">{option.sublabel}</div>
                         </button>
@@ -726,10 +1121,15 @@ export default function StockRecommendationEditor({
                     </div>
                   </div>
                 </div>
-                {isStepComplete(3) && (
+
+                {isStepComplete(4) && (
                   <div className="flex justify-end mt-6">
-                    <button onClick={() => setExpandedSection(4)} className="px-6 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-xl font-semibold hover:shadow-lg transition-all flex items-center gap-2">
-                      Next: Risks & Catalysts <ArrowRight className="w-5 h-5" />
+                    <button
+                      onClick={() => setExpandedSection(5)}
+                      className="px-6 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-xl font-semibold hover:shadow-lg transition-all flex items-center gap-2"
+                    >
+                      Next: Risks & Catalysts
+                      <ArrowRight className="w-5 h-5" />
                     </button>
                   </div>
                 )}
@@ -737,22 +1137,46 @@ export default function StockRecommendationEditor({
             )}
           </div>
           
-           {/* Section 4: Risks & Catalysts */}
-          <div className={`bg-white rounded-2xl shadow-sm border-2 transition-all ${!canAccessSection(4) ? 'border-gray-200 opacity-60' : expandedSection === 4 ? 'border-blue-500 shadow-lg' : isStepComplete(4) ? 'border-green-500' : 'border-gray-200'}`}>
-            <button onClick={() => canAccessSection(4) && setExpandedSection(expandedSection === 4 ? 0 : 4)} disabled={!canAccessSection(4)} className="w-full px-6 py-5 flex items-center justify-between hover:bg-gray-50 transition-colors rounded-t-2xl disabled:cursor-not-allowed disabled:hover:bg-white">
+          {/* Section 5: Risks & Catalysts */}
+          <div className={`bg-white rounded-2xl shadow-sm border-2 transition-all ${
+            !canAccessSection(5)
+              ? 'border-gray-200 opacity-60'
+              : expandedSection === 5 
+              ? 'border-blue-500 shadow-lg' 
+              : isStepComplete(5)
+              ? 'border-green-500'
+              : 'border-gray-200'
+          }`}>
+            <button
+              onClick={() => canAccessSection(5) && setExpandedSection(expandedSection === 5 ? 0 : 5)}
+              disabled={!canAccessSection(5)}
+              className="w-full px-6 py-5 flex items-center justify-between hover:bg-gray-50 transition-colors rounded-t-2xl disabled:cursor-not-allowed disabled:hover:bg-white"
+            >
               <div className="flex items-center gap-4">
-                <div className={`w-12 h-12 rounded-full flex items-center justify-center text-white font-bold text-lg transition-all ${!canAccessSection(4) ? 'bg-gray-200 text-gray-400' : isStepComplete(4) ? 'bg-green-600' : expandedSection === 4 ? 'bg-blue-600' : 'bg-gray-300 text-gray-600'}`}>
-                  {!canAccessSection(4) ? <Lock className="w-5 h-5" /> : isStepComplete(4) ? <Check className="w-6 h-6" /> : '4'}
+                <div className={`w-12 h-12 rounded-full flex items-center justify-center text-white font-bold text-lg transition-all ${
+                  !canAccessSection(5) 
+                    ? 'bg-gray-200 text-gray-400' 
+                    : isStepComplete(5) 
+                    ? 'bg-green-600' 
+                    : expandedSection === 5 
+                    ? 'bg-blue-600' 
+                    : 'bg-gray-300 text-gray-600'
+                }`}>
+                  {!canAccessSection(5) ? <Lock className="w-5 h-5" /> : isStepComplete(5) ? <Check className="w-6 h-6" /> : '5'}
                 </div>
                 <div className="text-left">
-                  <h3 className="text-lg font-bold text-gray-900">Step 4: Advanced Analysis</h3>
-                  {isStepComplete(4) && expandedSection !== 4 && <p className="text-sm text-gray-600 mt-1">✓ Risks and upside drivers documented</p>}
-                  {!isStepComplete(4) && expandedSection !== 4 && canAccessSection(4) && <p className="text-sm text-gray-500 mt-1">Add risks, catalysts, and analyst notes</p>}
+                  <h3 className="text-lg font-bold text-gray-900">Step 5: Advanced Analysis</h3>
+                  {isStepComplete(5) && expandedSection !== 5 && (<p className="text-sm text-gray-600 mt-1">✓ Risks and upside drivers documented</p>
+                  )}
+                  {!isStepComplete(5) && expandedSection !== 5 && canAccessSection(5) && (
+                    <p className="text-sm text-gray-500 mt-1">Add risks, catalysts, and analyst notes</p>
+                  )}
                 </div>
               </div>
-              {canAccessSection(4) && (expandedSection === 4 ? <ChevronUp className="w-6 h-6 text-gray-400" /> : <ChevronDown className="w-6 h-6 text-gray-400" />)}
+              {canAccessSection(5) && (expandedSection === 5 ? <ChevronUp className="w-6 h-6 text-gray-400" /> : <ChevronDown className="w-6 h-6 text-gray-400" />)}
             </button>
-            {expandedSection === 4 && (
+
+            {expandedSection === 5 && (
               <div className="px-6 pb-6 pt-2 border-t border-gray-200">
                 <div className="flex items-start gap-3 p-4 bg-yellow-50 rounded-lg border border-yellow-300 mb-6">
                   <AlertCircle className="w-5 h-5 text-yellow-700 shrink-0 mt-0.5" />
@@ -773,8 +1197,20 @@ export default function StockRecommendationEditor({
                       </div>
                       <div className="space-y-2">
                         {aiSuggestions.risks.map((risk, index) => (
-                          <label key={index} className={`flex items-start gap-3 p-4 rounded-lg cursor-pointer transition-all ${selectedSuggestions.risks.includes(index) ? 'bg-red-100 border-2 border-red-500' : 'bg-white border-2 border-gray-200 hover:border-red-300'}`}>
-                            <input type="checkbox" checked={selectedSuggestions.risks.includes(index)} onChange={() => toggleSuggestion('risks', index)} className="mt-1 w-5 h-5 text-red-600 rounded focus:ring-2 focus:ring-red-500" />
+                          <label
+                            key={index}
+                            className={`flex items-start gap-3 p-4 rounded-lg cursor-pointer transition-all ${
+                              selectedSuggestions.risks.includes(index)
+                                ? 'bg-red-100 border-2 border-red-500'
+                                : 'bg-white border-2 border-gray-200 hover:border-red-300'
+                            }`}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={selectedSuggestions.risks.includes(index)}
+                              onChange={() => toggleSuggestion('risks', index)}
+                              className="mt-1 w-5 h-5 text-red-600 rounded focus:ring-2 focus:ring-red-500"
+                            />
                             <span className="text-sm text-gray-900 flex-1">{risk}</span>
                           </label>
                         ))}
@@ -789,32 +1225,71 @@ export default function StockRecommendationEditor({
                       )}
                     </div>
                   )}
+
                   <div>
                     <label className="block text-sm font-semibold text-gray-900 mb-2">Additional Key Risks</label>
-                    <textarea value={formData.keyRisks} onChange={(e) => updateField('keyRisks', e.target.value)} placeholder="Describe any other potential risks or downsides..." rows={3} className="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-500 transition-all resize-none" />
+                    <textarea
+                      value={formData.keyRisks}
+                      onChange={(e) => updateField('keyRisks', e.target.value)}
+                      placeholder="Describe any other potential risks or downsides..."
+                      rows={3}
+                      className="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-500 transition-all resize-none"
+                    />
                   </div>
+
                   <div>
                     <label className="block text-sm font-semibold text-gray-900 mb-2">Potential Catalysts / Upside Drivers</label>
-                    <textarea value={formData.catalysts} onChange={(e) => updateField('catalysts', e.target.value)} placeholder="What events or factors could drive the stock price up?" rows={3} className="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-500 transition-all resize-none" />
+                    <textarea
+                      value={formData.catalysts}
+                      onChange={(e) => updateField('catalysts', e.target.value)}
+                      placeholder="What events or factors could drive the stock price up?"
+                      rows={3}
+                      className="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-500 transition-all resize-none"
+                    />
                   </div>
+
                   <div>
                     <label className="block text-sm font-semibold text-gray-900 mb-2">Broader Market Context</label>
-                    <textarea value={formData.marketContext} onChange={(e) => updateField('marketContext', e.target.value)} placeholder="e.g., 'Fed policy is expected to be dovish...'" rows={2} className="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-500 transition-all resize-none" />
+                    <textarea
+                      value={formData.marketContext}
+                      onChange={(e) => updateField('marketContext', e.target.value)}
+                      placeholder="e.g., 'Fed policy is expected to be dovish...'"
+                      rows={2}
+                      className="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-500 transition-all resize-none"
+                    />
                   </div>
-                   <div>
+
+                  <div>
                     <label className="block text-sm font-semibold text-gray-900 mb-2">Sector-Specific Trends</label>
-                    <textarea value={formData.sectorTrends} onChange={(e) => updateField('sectorTrends', e.target.value)} placeholder="e.g., 'AI hardware demand is accelerating...'" rows={2} className="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-500 transition-all resize-none" />
+                    <textarea
+                      value={formData.sectorTrends}
+                      onChange={(e) => updateField('sectorTrends', e.target.value)}
+                      placeholder="e.g., 'AI hardware demand is accelerating...'"
+                      rows={2}
+                      className="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-500 transition-all resize-none"
+                    />
                   </div>
+
                   <div>
                     <label className="block text-sm font-semibold text-gray-900 mb-2">Internal Analyst Notes</label>
-                    <textarea value={formData.analystNotes} onChange={(e) => updateField('analystNotes', e.target.value)} placeholder="Internal notes visible only to your team..." rows={3} className="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-500 transition-all resize-none" />
+                    <textarea
+                      value={formData.analystNotes}
+                      onChange={(e) => updateField('analystNotes', e.target.value)}
+                      placeholder="Internal notes visible only to your team..."
+                      rows={3}
+                      className="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-500 transition-all resize-none"
+                    />
                   </div>
                 </div>
 
-                {isStepComplete(4) && (
+                {isStepComplete(5) && (
                   <div className="flex justify-end mt-6">
-                    <button onClick={() => { window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' }); }} className="px-6 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-xl font-semibold hover:shadow-lg transition-all flex items-center gap-2">
-                      Review & Send <ArrowRight className="w-5 h-5" />
+                    <button
+                      onClick={() => { window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' }); }}
+                      className="px-6 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-xl font-semibold hover:shadow-lg transition-all flex items-center gap-2"
+                    >
+                      Review & Send
+                      <ArrowRight className="w-5 h-5" />
                     </button>
                   </div>
                 )}
@@ -823,7 +1298,7 @@ export default function StockRecommendationEditor({
           </div>
         </div>
 
-        {/* Section 5: Review & Send */}
+        {/* Section 6: Review & Send */}
         {allStepsComplete && (
           <div className="space-y-6">
             <div className="bg-white rounded-2xl shadow-lg border-2 border-green-500 p-8">
@@ -848,7 +1323,18 @@ export default function StockRecommendationEditor({
                   <div className="h-[64px] w-[3px] bg-gray-800 absolute -end-[17px] top-[142px] rounded-e-lg"></div>
                   <div className="rounded-[2rem] overflow-hidden w-full h-full bg-white dark:bg-gray-800">
                     <div className="p-4 space-y-4 overflow-y-auto h-full">
-                      {isGeneratingImage ? <div className="flex items-center justify-center h-48 bg-gray-100 rounded-lg"><Loader2 className="w-8 h-8 animate-spin text-gray-400"/></div> : generatedImageUrl ? <Image src={generatedImageUrl} alt="Generated stock pick" width={300} height={200} className="w-full h-auto rounded-lg" /> : <div className="bg-blue-100 p-4 rounded-lg"><p className="text-sm font-bold text-blue-900">{formData.action.toUpperCase()} {formData.ticker}</p><p className="text-xs text-blue-700 mt-1">{formData.companyName}</p></div>}
+                      {isGeneratingImage ? (
+                        <div className="flex items-center justify-center h-48 bg-gray-100 rounded-lg">
+                          <Loader2 className="w-8 h-8 animate-spin text-gray-400"/>
+                        </div>
+                      ) : generatedImageUrl ? (
+                        <Image src={generatedImageUrl} alt="Generated stock pick" width={300} height={200} className="w-full h-auto rounded-lg" />
+                      ) : (
+                        <div className="bg-blue-100 p-4 rounded-lg">
+                          <p className="text-sm font-bold text-blue-900">{formData.action.toUpperCase()} {formData.ticker}</p>
+                          <p className="text-xs text-blue-700 mt-1">{formData.companyName}</p>
+                        </div>
+                      )}
                       <div className="text-sm space-y-2">
                         {selectedSuggestions.thesis.map((i, idx) => (
                           <p key={idx} className="text-gray-700">• {aiSuggestions.thesis[i]}</p>
@@ -875,8 +1361,12 @@ export default function StockRecommendationEditor({
                     <label className="block text-sm font-medium text-gray-700 mb-2">Platform</label>
                     <Tabs defaultValue={platform} onValueChange={(value) => setPlatform(value as 'whatsapp' | 'sms')} className="w-full">
                       <TabsList className="grid w-full grid-cols-2">
-                        <TabsTrigger value="whatsapp" className="flex items-center gap-2"><MessageSquare /> WhatsApp</TabsTrigger>
-                        <TabsTrigger value="sms" className="flex items-center gap-2"><Phone /> SMS</TabsTrigger>
+                        <TabsTrigger value="whatsapp" className="flex items-center gap-2">
+                          <MessageSquare className="w-4 h-4" /> WhatsApp
+                        </TabsTrigger>
+                        <TabsTrigger value="sms" className="flex items-center gap-2">
+                          <Phone className="w-4 h-4" /> SMS
+                        </TabsTrigger>
                       </TabsList>
                     </Tabs>
                   </div>
@@ -886,7 +1376,18 @@ export default function StockRecommendationEditor({
                       <PopoverTrigger asChild>
                         <Button variant="outline" role="combobox" aria-expanded={isRecipientPopoverOpen} className="w-full justify-between h-10">
                           <div className="flex gap-1 flex-wrap items-center truncate">
-                            {selectedRecipients.length > 0 ? selectedRecipients.map(r => <Badge key={r.id} variant="secondary" className="mr-1"><div className="flex items-center">{r.type === 'group' ? <Users className="w-3 h-3 mr-1" /> : <User className="w-3 h-3 mr-1" />}{r.name}</div></Badge>) : <span className="text-muted-foreground">Select...</span>}
+                            {selectedRecipients.length > 0 ? (
+                              selectedRecipients.map(r => (
+                                <Badge key={r.id} variant="secondary" className="mr-1">
+                                  <div className="flex items-center">
+                                    {r.type === 'group' ? <Users className="w-3 h-3 mr-1" /> : <User className="w-3 h-3 mr-1" />}
+                                    {r.name}
+                                  </div>
+                                </Badge>
+                              ))
+                            ) : (
+                              <span className="text-muted-foreground">Select...</span>
+                            )}
                           </div>
                         </Button>
                       </PopoverTrigger>
@@ -896,10 +1397,32 @@ export default function StockRecommendationEditor({
                           <CommandList>
                             <CommandEmpty>No recipients found.</CommandEmpty>
                             <CommandGroup heading="Groups">
-                              {contactGroups.map((group) => <CommandItem key={group.id} onSelect={() => handleRecipientSelect({ ...group, type: 'group' })} className="cursor-pointer"><Check className={cn("mr-2 h-4 w-4", selectedRecipients.some(r => r.id === group.id) ? "opacity-100" : "opacity-0")} /><Users className="mr-2 h-4 w-4 text-muted-foreground" /><div className="flex-1">{group.name}</div><div className="text-xs text-muted-foreground">{group.contactCount} contacts</div></CommandItem>)}
+                              {contactGroups.map((group) => (
+                                <CommandItem
+                                  key={group.id}
+                                  onSelect={() => handleRecipientSelect({ ...group, type: 'group' })}
+                                  className="cursor-pointer"
+                                >
+                                  <Check className={cn("mr-2 h-4 w-4", selectedRecipients.some(r => r.id === group.id) ? "opacity-100" : "opacity-0")} />
+                                  <Users className="mr-2 h-4 w-4 text-muted-foreground" />
+                                  <div className="flex-1">{group.name}</div>
+                                  <div className="text-xs text-muted-foreground">{group.contactCount} contacts</div>
+                                </CommandItem>
+                              ))}
                             </CommandGroup>
                             <CommandGroup heading="Contacts">
-                              {contacts.map((contact) => <CommandItem key={contact.id} onSelect={() => handleRecipientSelect({ ...contact, type: 'contact' })} className="cursor-pointer"><Check className={cn("mr-2 h-4 w-4", selectedRecipients.some(r => r.id === contact.id) ? "opacity-100" : "opacity-0")} /><User className="mr-2 h-4 w-4 text-muted-foreground" /><div className="flex-1">{contact.name}</div><div className="text-xs text-muted-foreground">{contact.phone}</div></CommandItem>)}
+                              {contacts.map((contact) => (
+                                <CommandItem
+                                  key={contact.id}
+                                  onSelect={() => handleRecipientSelect({ ...contact, type: 'contact' })}
+                                  className="cursor-pointer"
+                                >
+                                  <Check className={cn("mr-2 h-4 w-4", selectedRecipients.some(r => r.id === contact.id) ? "opacity-100" : "opacity-0")} />
+                                  <User className="mr-2 h-4 w-4 text-muted-foreground" />
+                                  <div className="flex-1">{contact.name}</div>
+                                  <div className="text-xs text-muted-foreground">{contact.phone}</div>
+                                </CommandItem>
+                              ))}
                             </CommandGroup>
                           </CommandList>
                         </Command>
@@ -909,14 +1432,34 @@ export default function StockRecommendationEditor({
                 </div>
                 <div className="flex gap-4">
                   <Button onClick={() => handleSendCampaign(platform)} disabled={!canSend} className="w-full flex-1">
-                    {isSending ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Sending...</> : <><Send className="w-4 h-4 mr-2" />Send to {selectedRecipients.length} recipients</>}
+                    {isSending ? (
+                      <>
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        Sending...
+                      </>
+                    ) : (
+                      <>
+                        <Send className="w-4 h-4 mr-2" />
+                        Send to {selectedRecipients.length} recipients
+                      </>
+                    )}
                   </Button>
                 </div>
               </div>
               
               <div className="flex justify-end mt-6">
                 <Button variant="outline" onClick={() => handleSaveAsDraft(false)} disabled={isSaving}>
-                  {isSaving ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Saving...</> : <><Save className="w-4 h-4 mr-2" />Save as Idea</>}
+                  {isSaving ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      Saving...
+                    </>
+                  ) : (
+                    <>
+                      <Save className="w-4 h-4 mr-2" />
+                      Save as Idea
+                    </>
+                  )}
                 </Button>
               </div>
             </div>
@@ -926,5 +1469,3 @@ export default function StockRecommendationEditor({
     </>
   );
 }
-
-    
