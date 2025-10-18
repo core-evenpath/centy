@@ -1,8 +1,7 @@
-
 "use client";
 
 import React, { useState, useCallback } from 'react';
-import { Upload, FileText, FileSearch, CheckCircle, Database, Eye, Loader2 as Loader, Sparkles, BookOpen, X, AlertCircle, TrendingUp, Download, Trash2, RefreshCw, Info, Zap, Brain, FileCheck } from 'lucide-react';
+import { Upload, FileText, FileSearch, CheckCircle, Database, Eye, Loader2 as Loader, Sparkles, BookOpen, X, AlertCircle, TrendingUp, Download, Trash2, RefreshCw, Info, Zap, Brain, FileCheck, Clock } from 'lucide-react';
 import { useDropzone } from 'react-dropzone';
 import { toast } from 'sonner';
 
@@ -82,11 +81,11 @@ export default function KnowledgeBaseTab() {
 
   const getProcessingStageText = (stage?: string): string => {
     switch(stage) {
-      case 'extracting': return 'Extracting text from document';
-      case 'chunking': return 'Breaking into knowledge chunks';
-      case 'embedding': return 'Creating AI embeddings';
-      case 'indexing': return 'Indexing for fast retrieval';
-      default: return 'Processing document';
+      case 'extracting': return 'Extracting text';
+      case 'chunking': return 'Creating chunks';
+      case 'embedding': return 'Generating embeddings';
+      case 'indexing': return 'Indexing content';
+      default: return 'Processing';
     }
   };
 
@@ -104,7 +103,7 @@ export default function KnowledgeBaseTab() {
   const simulateUpload = (docId: number, fileName: string) => {
     let progress = 0;
     const interval = setInterval(() => {
-      progress += Math.random() * 8 + 4; // Smoother progress increments
+      progress += Math.random() * 8 + 4;
       
       if (progress >= 100) {
         progress = 100;
@@ -143,12 +142,10 @@ export default function KnowledgeBaseTab() {
     const interval = setInterval(() => {
       progress += Math.random() * 6 + 2;
       
-      // Update stage based on progress
       if (progress > 25 && currentStageIndex === 0) currentStageIndex = 1;
       if (progress > 50 && currentStageIndex === 1) currentStageIndex = 2;
       if (progress > 75 && currentStageIndex === 2) currentStageIndex = 3;
       
-      // Update chunk count during chunking stage
       if (currentStageIndex >= 1) {
         chunks = Math.floor(((progress - 25) / 75) * totalChunks);
       }
@@ -170,7 +167,7 @@ export default function KnowledgeBaseTab() {
             : doc
         ));
         setUploadQueue(prev => prev - 1);
-        toast.success(`✨ Knowledge base updated`, {
+        toast.success(`Knowledge base updated`, {
           description: `${fileName} processed into ${chunks} chunks`
         });
       } else {
@@ -211,7 +208,7 @@ export default function KnowledgeBaseTab() {
   };
 
   const validateFile = (file: File): string | null => {
-    const maxSize = 50 * 1024 * 1024; // 50MB
+    const maxSize = 50 * 1024 * 1024;
     const allowedTypes = [
       'application/pdf',
       'application/msword',
@@ -248,7 +245,6 @@ export default function KnowledgeBaseTab() {
       }
     });
 
-    // Show error toasts for invalid files
     if (errors.length > 0) {
       errors.forEach(({ file, error }) => {
         toast.error(`Cannot upload ${file}`, {
@@ -258,7 +254,6 @@ export default function KnowledgeBaseTab() {
       });
     }
 
-    // Process valid files
     if (validFiles.length > 0) {
       const newDocs: Document[] = validFiles.map((file, index) => {
         const { category, icon } = categorizeDocument(file.name);
@@ -281,18 +276,16 @@ export default function KnowledgeBaseTab() {
       setDocuments(prev => [...newDocs, ...prev]);
       setUploadQueue(prev => prev + validFiles.length);
 
-      // Show success toast
       if (validFiles.length === 1) {
-        toast.success('🚀 Upload started', {
+        toast.success('Upload started', {
           description: validFiles[0].name
         });
       } else {
-        toast.success('🚀 Uploads started', {
+        toast.success('Uploads started', {
           description: `Processing ${validFiles.length} documents`
         });
       }
 
-      // Start upload simulation for each file
       newDocs.forEach(doc => {
         setTimeout(() => simulateUpload(doc.id, doc.name), 100);
       });
@@ -343,7 +336,7 @@ export default function KnowledgeBaseTab() {
         : d
     ));
     setUploadQueue(prev => prev + 1);
-    toast.info('🔄 Retrying upload', {
+    toast.info('Retrying upload', {
       description: doc.name
     });
     simulateUpload(docId, doc.name);
@@ -353,61 +346,56 @@ export default function KnowledgeBaseTab() {
     toast.success('Download started', {
       description: doc.name
     });
-    // Implement actual download logic here
   };
   
   return (
     <div className="space-y-6">
-      {/* Header with Live Metrics */}
-      <div className="bg-gradient-to-br from-blue-600 to-purple-600 rounded-xl shadow-lg p-8 text-white">
+      {/* Header with Metrics */}
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
         <div className="flex items-start justify-between mb-6">
           <div className="flex items-start gap-4">
-            <div className="w-14 h-14 bg-white/20 backdrop-blur rounded-xl flex items-center justify-center shadow-lg">
-              <Database className="w-7 h-7 text-white" />
+            <div className="w-12 h-12 bg-blue-50 rounded-lg flex items-center justify-center">
+              <Database className="w-6 h-6 text-blue-600" />
             </div>
             <div className="flex-1">
-              <h2 className="text-2xl font-bold mb-2">AI Knowledge Base</h2>
-              <p className="text-blue-100">Train AI with your documents for smarter, context-aware responses</p>
+              <h2 className="text-xl font-semibold text-gray-900 mb-1">Knowledge Base</h2>
+              <p className="text-sm text-gray-600">Train AI with your documents for contextual responses</p>
             </div>
           </div>
         </div>
 
-        {/* Live Metrics Dashboard */}
+        {/* Metrics */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <div className="bg-white/10 backdrop-blur rounded-lg p-4 border border-white/20">
-            <div className="flex items-center gap-2 mb-1">
-              <FileCheck className="w-4 h-4 text-blue-200" />
-              <span className="text-sm text-blue-200">Documents</span>
+          <div className="bg-gray-50 rounded-lg p-4 border border-gray-100">
+            <div className="flex items-center gap-2 mb-2">
+              <FileCheck className="w-4 h-4 text-gray-600" />
+              <span className="text-sm text-gray-600">Documents</span>
             </div>
-            <div className="text-2xl font-bold">{metrics.processedDocs}</div>
-            <div className="text-xs text-blue-200 mt-1">Active in knowledge base</div>
+            <div className="text-2xl font-semibold text-gray-900">{metrics.processedDocs}</div>
           </div>
           
-          <div className="bg-white/10 backdrop-blur rounded-lg p-4 border border-white/20">
-            <div className="flex items-center gap-2 mb-1">
-              <Zap className="w-4 h-4 text-purple-200" />
-              <span className="text-sm text-purple-200">Chunks</span>
+          <div className="bg-gray-50 rounded-lg p-4 border border-gray-100">
+            <div className="flex items-center gap-2 mb-2">
+              <Zap className="w-4 h-4 text-gray-600" />
+              <span className="text-sm text-gray-600">Chunks</span>
             </div>
-            <div className="text-2xl font-bold">{metrics.totalChunks}</div>
-            <div className="text-xs text-purple-200 mt-1">Knowledge segments</div>
+            <div className="text-2xl font-semibold text-gray-900">{metrics.totalChunks}</div>
           </div>
           
-          <div className="bg-white/10 backdrop-blur rounded-lg p-4 border border-white/20">
-            <div className="flex items-center gap-2 mb-1">
-              <Database className="w-4 h-4 text-pink-200" />
-              <span className="text-sm text-pink-200">Storage</span>
+          <div className="bg-gray-50 rounded-lg p-4 border border-gray-100">
+            <div className="flex items-center gap-2 mb-2">
+              <Database className="w-4 h-4 text-gray-600" />
+              <span className="text-sm text-gray-600">Storage</span>
             </div>
-            <div className="text-2xl font-bold">{formatFileSize(metrics.totalSize)}</div>
-            <div className="text-xs text-pink-200 mt-1">Total size</div>
+            <div className="text-2xl font-semibold text-gray-900">{formatFileSize(metrics.totalSize)}</div>
           </div>
           
-          <div className="bg-white/10 backdrop-blur rounded-lg p-4 border border-white/20">
-            <div className="flex items-center gap-2 mb-1">
-              <TrendingUp className="w-4 h-4 text-green-200" />
-              <span className="text-sm text-green-200">Training</span>
+          <div className="bg-gray-50 rounded-lg p-4 border border-gray-100">
+            <div className="flex items-center gap-2 mb-2">
+              <TrendingUp className="w-4 h-4 text-gray-600" />
+              <span className="text-sm text-gray-600">Training</span>
             </div>
-            <div className="text-2xl font-bold">{metrics.activeTraining}</div>
-            <div className="text-xs text-green-200 mt-1">Active processes</div>
+            <div className="text-2xl font-semibold text-gray-900">{metrics.activeTraining}</div>
           </div>
         </div>
       </div>
@@ -419,139 +407,122 @@ export default function KnowledgeBaseTab() {
           onMouseEnter={() => setIsHovering(true)}
           onMouseLeave={() => setIsHovering(false)}
           className={`
-            relative border-2 border-dashed rounded-xl p-12 text-center transition-all duration-300 cursor-pointer overflow-hidden
-            ${isDragActive && !isDragReject ? 'border-blue-500 bg-blue-50 scale-[1.02] shadow-xl' : ''}
-            ${isDragReject ? 'border-red-500 bg-red-50 scale-[0.98]' : ''}
-            ${!isDragActive && !isHovering ? 'border-gray-300' : ''}
-            ${!isDragActive && isHovering ? 'border-blue-400 bg-blue-50/50 shadow-lg' : ''}
+            relative border-2 border-dashed rounded-lg p-10 text-center transition-all duration-200 cursor-pointer
+            ${isDragActive && !isDragReject ? 'border-blue-400 bg-blue-50/50' : ''}
+            ${isDragReject ? 'border-red-400 bg-red-50/50' : ''}
+            ${!isDragActive && !isHovering ? 'border-gray-300 bg-gray-50/50' : ''}
+            ${!isDragActive && isHovering ? 'border-blue-300 bg-blue-50/30' : ''}
           `}
         >
-          {/* Animated Background Effect */}
-          {(isDragActive || isHovering) && (
-            <div className="absolute inset-0 bg-gradient-to-br from-blue-400/10 to-purple-400/10 animate-pulse" />
-          )}
-          
           <input {...getInputProps()} />
           
-          <div className="relative z-10">
-            <div className={`
-              w-20 h-20 bg-gradient-to-br from-blue-600 to-purple-600 rounded-2xl 
-              flex items-center justify-center mx-auto mb-4 transition-all duration-300 shadow-lg
-              ${isDragActive ? 'scale-110 rotate-6' : ''}
-              ${isHovering ? 'scale-105' : ''}
-            `}>
-              <Upload className={`w-10 h-10 text-white transition-transform ${isDragActive ? 'animate-bounce' : ''}`} />
-            </div>
-            
-            {isDragReject ? (
-              <>
-                <h3 className="text-xl font-bold text-red-600 mb-2">⚠️ Invalid file type</h3>
-                <p className="text-red-600">Please upload supported file formats only</p>
-              </>
-            ) : isDragActive ? (
-              <>
-                <h3 className="text-xl font-bold text-blue-600 mb-2">✨ Drop files here</h3>
-                <p className="text-blue-600">Release to start training AI</p>
-              </>
-            ) : (
-              <>
-                <h3 className="text-xl font-bold text-gray-900 mb-2">
-                  Drop files here or click to upload
-                </h3>
-                <p className="text-gray-600 mb-6">
-                  AI will automatically extract knowledge and create searchable chunks
-                </p>
-                <button
-                  type="button"
-                  className="inline-flex items-center gap-2 px-8 py-4 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg hover:from-blue-700 hover:to-purple-700 transition-all shadow-lg font-medium text-lg hover:shadow-xl hover:scale-105"
-                >
-                  <Upload className="w-5 h-5" />
-                  Select Files
-                </button>
-                <p className="text-sm text-gray-500 mt-4 flex items-center justify-center gap-2">
-                  <Info className="w-4 h-4" />
-                  PDF, Word, Excel, PowerPoint, Text • Max 50MB per file
-                </p>
-              </>
-            )}
+          <div className="w-16 h-16 bg-gray-100 rounded-lg flex items-center justify-center mx-auto mb-4 transition-colors">
+            <Upload className={`w-8 h-8 text-gray-600 ${isDragActive ? 'scale-110' : ''} transition-transform`} />
           </div>
+          
+          {isDragReject ? (
+            <>
+              <h3 className="text-lg font-semibold text-red-600 mb-1">Invalid file type</h3>
+              <p className="text-sm text-red-600">Please upload supported formats only</p>
+            </>
+          ) : isDragActive ? (
+            <>
+              <h3 className="text-lg font-semibold text-blue-600 mb-1">Drop files here</h3>
+              <p className="text-sm text-blue-600">Release to start upload</p>
+            </>
+          ) : (
+            <>
+              <h3 className="text-base font-semibold text-gray-900 mb-1">
+                Drop files here or click to browse
+              </h3>
+              <p className="text-sm text-gray-600 mb-5">
+                AI will extract knowledge and create searchable chunks
+              </p>
+              <button
+                type="button"
+                className="inline-flex items-center gap-2 px-6 py-2.5 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors"
+              >
+                <Upload className="w-4 h-4" />
+                Select Files
+              </button>
+              <p className="text-xs text-gray-500 mt-4">
+                PDF, Word, Excel, PowerPoint, Text • Max 50MB per file
+              </p>
+            </>
+          )}
         </div>
 
         {/* Active Upload Queue */}
         {uploadQueue > 0 && (
-          <div className="mt-6 p-5 bg-gradient-to-r from-blue-50 to-purple-50 border border-blue-200 rounded-xl shadow-sm">
+          <div className="mt-5 p-4 bg-blue-50 border border-blue-200 rounded-lg">
             <div className="flex items-center gap-3">
-              <div className="relative">
-                <Loader className="w-6 h-6 text-blue-600 animate-spin" />
-                <div className="absolute inset-0 w-6 h-6 border-2 border-blue-200 rounded-full animate-ping" />
-              </div>
-              <div className="flex-1">
-                <p className="font-semibold text-blue-900">
-                  Training AI with {uploadQueue} document{uploadQueue > 1 ? 's' : ''}
+              <Loader className="w-5 h-5 text-blue-600 animate-spin flex-shrink-0" />
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-blue-900">
+                  Processing {uploadQueue} document{uploadQueue > 1 ? 's' : ''}
                 </p>
-                <p className="text-sm text-blue-700">Processing and creating knowledge chunks...</p>
+                <p className="text-xs text-blue-700">Creating knowledge chunks...</p>
               </div>
-              <div className="flex items-center gap-2 px-3 py-1 bg-blue-600 text-white rounded-full text-sm font-medium shadow-md">
-                <TrendingUp className="w-4 h-4" />
-                {uploadQueue} active
+              <div className="px-2.5 py-1 bg-blue-600 text-white rounded text-xs font-medium">
+                {uploadQueue}
               </div>
             </div>
           </div>
         )}
       </div>
 
-      {/* Best Practices Guide */}
-      <div className="bg-gradient-to-br from-blue-50 to-purple-50 border border-blue-200 rounded-xl p-6 shadow-sm">
-        <h3 className="font-semibold text-gray-900 mb-4 flex items-center gap-2">
-          <Sparkles className="w-5 h-5 text-blue-600" />
-          What Makes Great Training Data?
+      {/* Best Practices */}
+      <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm">
+        <h3 className="font-medium text-gray-900 mb-4 flex items-center gap-2">
+          <Sparkles className="w-4 h-4 text-gray-600" />
+          Best Practices
         </h3>
         <div className="grid md:grid-cols-2 gap-4">
-          <div className="bg-white rounded-lg p-4 border border-gray-200 hover:shadow-md transition-shadow">
-            <h4 className="font-medium text-gray-900 mb-3 flex items-center gap-2">
+          <div className="border border-gray-200 rounded-lg p-4">
+            <h4 className="text-sm font-medium text-gray-900 mb-3 flex items-center gap-2">
               <CheckCircle className="w-4 h-4 text-green-600" />
-              Best Practices
+              Recommendations
             </h4>
             <ul className="space-y-2 text-sm text-gray-700">
               <li className="flex items-start gap-2">
-                <span className="text-green-600 mt-0.5">•</span>
-                <span>Clear, well-structured documents with headers</span>
+                <span className="text-gray-400">•</span>
+                <span>Well-structured documents with clear headers</span>
               </li>
               <li className="flex items-start gap-2">
-                <span className="text-green-600 mt-0.5">•</span>
-                <span>Your actual methodologies and frameworks</span>
+                <span className="text-gray-400">•</span>
+                <span>Your methodologies and frameworks</span>
               </li>
               <li className="flex items-start gap-2">
-                <span className="text-green-600 mt-0.5">•</span>
-                <span>Recent and up-to-date content (last 12 months)</span>
+                <span className="text-gray-400">•</span>
+                <span>Recent content (last 12 months)</span>
               </li>
               <li className="flex items-start gap-2">
-                <span className="text-green-600 mt-0.5">•</span>
-                <span>Specific examples and real case studies</span>
+                <span className="text-gray-400">•</span>
+                <span>Specific examples and case studies</span>
               </li>
             </ul>
           </div>
-          <div className="bg-white rounded-lg p-4 border border-gray-200 hover:shadow-md transition-shadow">
-            <h4 className="font-medium text-gray-900 mb-3 flex items-center gap-2">
+          <div className="border border-gray-200 rounded-lg p-4">
+            <h4 className="text-sm font-medium text-gray-900 mb-3 flex items-center gap-2">
               <BookOpen className="w-4 h-4 text-blue-600" />
-              Recommended Document Types
+              Document Types
             </h4>
             <ul className="space-y-2 text-sm text-gray-700">
               <li className="flex items-start gap-2">
                 <span>📊</span>
-                <span>Research reports & market analysis</span>
+                <span>Research reports & analysis</span>
               </li>
               <li className="flex items-start gap-2">
                 <span>💼</span>
-                <span>Investment strategies & guidelines</span>
+                <span>Investment strategies</span>
               </li>
               <li className="flex items-start gap-2">
                 <span>⚖️</span>
-                <span>Compliance & regulatory documents</span>
+                <span>Compliance documents</span>
               </li>
               <li className="flex items-start gap-2">
                 <span>❓</span>
-                <span>Client FAQs & common scenarios</span>
+                <span>Client FAQs</span>
               </li>
             </ul>
           </div>
@@ -560,18 +531,18 @@ export default function KnowledgeBaseTab() {
 
       {/* Document List */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-200">
-        <div className="px-6 py-5 border-b border-gray-200 bg-gray-50">
+        <div className="px-6 py-4 border-b border-gray-200">
           <div className="flex items-center justify-between">
             <div>
-              <h3 className="text-lg font-semibold text-gray-900 mb-1">Your Knowledge Base</h3>
-              <p className="text-sm text-gray-600">
-                {documents.length} document{documents.length !== 1 ? 's' : ''} • {metrics.totalChunks} knowledge chunks • {formatFileSize(metrics.totalSize)}
+              <h3 className="font-semibold text-gray-900">Your Documents</h3>
+              <p className="text-sm text-gray-600 mt-0.5">
+                {documents.length} document{documents.length !== 1 ? 's' : ''} • {metrics.totalChunks} chunks
               </p>
             </div>
             {uploadQueue > 0 && (
-              <div className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium shadow-md animate-pulse">
-                <Loader className="w-4 h-4 animate-spin" />
-                {uploadQueue} processing
+              <div className="flex items-center gap-2 px-3 py-1.5 bg-blue-600 text-white rounded-lg text-sm font-medium">
+                <Loader className="w-3.5 h-3.5 animate-spin" />
+                {uploadQueue}
               </div>
             )}
           </div>
@@ -586,69 +557,60 @@ export default function KnowledgeBaseTab() {
               <div 
                 key={doc.id} 
                 className={`
-                  p-6 transition-all duration-200 cursor-pointer
-                  ${isSelected ? 'bg-blue-50 border-l-4 border-l-blue-600' : 'hover:bg-gray-50'}
+                  p-5 transition-colors cursor-pointer
+                  ${isSelected ? 'bg-blue-50/50 border-l-2 border-l-blue-600' : 'hover:bg-gray-50/50'}
                 `}
                 onClick={() => setSelectedDocId(isSelected ? null : doc.id)}
               >
                 <div className="flex items-start gap-4">
                   <div className={`
-                    w-12 h-12 rounded-lg flex items-center justify-center flex-shrink-0 transition-all
-                    ${doc.status === 'processed' ? 'bg-green-100' : 'bg-blue-100'}
-                    ${isSelected ? 'scale-110 shadow-md' : ''}
+                    w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0
+                    ${doc.status === 'processed' ? 'bg-green-50' : 'bg-blue-50'}
                   `}>
                     {doc.status === 'processed' ? (
-                      <FileCheck className="w-6 h-6 text-green-600" />
+                      <FileCheck className="w-5 h-5 text-green-600" />
                     ) : (
-                      <FileText className="w-6 h-6 text-blue-600" />
+                      <FileText className="w-5 h-5 text-blue-600" />
                     )}
                   </div>
                   
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-start justify-between mb-2">
+                    <div className="flex items-start justify-between mb-1">
                       <div className="flex-1">
-                        <h4 className="font-semibold text-gray-900 mb-1 flex items-center gap-2">
-                          {doc.name}
-                          {doc.status === 'processed' && (
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-green-100 text-green-700 rounded text-xs font-medium">
-                              <CheckCircle className="w-3 h-3" />
-                              Ready
-                            </span>
-                          )}
-                        </h4>
-                        <div className="flex items-center gap-3 text-sm text-gray-500 flex-wrap">
+                        <h4 className="font-medium text-gray-900 mb-1">{doc.name}</h4>
+                        <div className="flex items-center gap-2 text-xs text-gray-500">
                           <span>{doc.size}</span>
                           <span>•</span>
                           <span>{doc.uploadedAt}</span>
                           {doc.status === 'processed' && (
                             <>
                               <span>•</span>
-                              <span className="font-medium text-blue-600">{doc.chunks} chunks</span>
+                              <span className="text-blue-600 font-medium">{doc.chunks} chunks</span>
                             </>
                           )}
                         </div>
                       </div>
                       
-                      <div className="flex items-center gap-2">
-                        {/* Status Badges */}
+                      <div className="flex items-center gap-1.5">
+                        {/* Status */}
                         {doc.status === 'uploading' && (
-                          <div className="flex items-center gap-2 px-3 py-1.5 bg-blue-100 text-blue-700 rounded-lg text-sm font-medium min-w-[140px]">
-                            <Loader className="w-4 h-4 animate-spin" />
-                            Uploading {doc.uploadProgress}%
+                          <div className="flex items-center gap-1.5 px-2.5 py-1 bg-blue-100 text-blue-700 rounded text-xs font-medium">
+                            <Loader className="w-3 h-3 animate-spin" />
+                            {doc.uploadProgress}%
                           </div>
                         )}
                         
                         {doc.status === 'processing' && (
-                          <div className="flex items-center gap-2 px-3 py-1.5 bg-purple-100 text-purple-700 rounded-lg text-sm font-medium min-w-[140px]">
-                            <ProcessingIcon className="w-4 h-4 animate-spin" />
+                          <div className="flex items-center gap-1.5 px-2.5 py-1 bg-purple-100 text-purple-700 rounded text-xs font-medium">
+                            <ProcessingIcon className="w-3 h-3 animate-spin" />
                             {doc.processingProgress}%
                           </div>
                         )}
                         
                         {doc.status === 'error' && (
                           <>
-                            <div className="flex items-center gap-2 px-3 py-1.5 bg-red-100 text-red-700 rounded-lg text-sm font-medium">
-                              <AlertCircle className="w-4 h-4" />
+                            <div className="flex items-center gap-1.5 px-2.5 py-1 bg-red-100 text-red-700 rounded text-xs font-medium">
+                              <AlertCircle className="w-3 h-3" />
                               Failed
                             </div>
                             <button 
@@ -656,14 +618,13 @@ export default function KnowledgeBaseTab() {
                                 e.stopPropagation();
                                 retryUpload(doc.id);
                               }}
-                              className="px-3 py-1.5 text-sm text-blue-600 hover:bg-blue-50 rounded-lg font-medium transition-colors"
+                              className="p-1.5 text-blue-600 hover:bg-blue-50 rounded transition-colors"
                             >
-                              <RefreshCw className="w-4 h-4" />
+                              <RefreshCw className="w-3.5 h-3.5" />
                             </button>
                           </>
                         )}
                         
-                        {/* Action Buttons for Processed Docs */}
                         {doc.status === 'processed' && (
                           <>
                             <button 
@@ -671,23 +632,22 @@ export default function KnowledgeBaseTab() {
                                 e.stopPropagation();
                                 downloadDocument(doc);
                               }}
-                              className="p-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
-                              title="Download document"
+                              className="p-1.5 text-gray-600 hover:bg-gray-100 rounded transition-colors"
+                              title="Download"
                             >
-                              <Download className="w-4 h-4" />
+                              <Download className="w-3.5 h-3.5" />
                             </button>
                             <button 
                               onClick={(e) => {
                                 e.stopPropagation();
-                                // View usage analytics
                                 toast.info('Usage analytics', {
-                                  description: `${doc.name} has been referenced ${doc.timesReferenced} times`
+                                  description: `${doc.name} referenced ${doc.timesReferenced} times`
                                 });
                               }}
-                              className="p-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+                              className="p-1.5 text-gray-600 hover:bg-gray-100 rounded transition-colors"
                               title="View usage"
                             >
-                              <FileSearch className="w-4 h-4" />
+                              <FileSearch className="w-3.5 h-3.5" />
                             </button>
                           </>
                         )}
@@ -697,65 +657,50 @@ export default function KnowledgeBaseTab() {
                             e.stopPropagation();
                             removeDocument(doc.id);
                           }}
-                          className="p-2 text-gray-600 hover:bg-red-50 hover:text-red-600 rounded-lg transition-colors"
-                          title="Remove document"
+                          className="p-1.5 text-gray-600 hover:bg-red-50 hover:text-red-600 rounded transition-colors"
+                          title="Remove"
                         >
-                          <Trash2 className="w-4 h-4" />
+                          <Trash2 className="w-3.5 h-3.5" />
                         </button>
                       </div>
                     </div>
 
-                    {/* Upload Progress Bar */}
+                    {/* Upload Progress */}
                     {doc.status === 'uploading' && doc.uploadProgress !== undefined && (
-                      <div className="mt-3 space-y-2">
-                        <div className="w-full bg-gray-200 rounded-full h-2.5 overflow-hidden">
+                      <div className="mt-3 space-y-1.5">
+                        <div className="w-full bg-gray-200 rounded-full h-1.5 overflow-hidden">
                           <div 
-                            className="bg-gradient-to-r from-blue-600 to-blue-500 h-2.5 rounded-full transition-all duration-300 ease-out relative overflow-hidden"
+                            className="bg-blue-600 h-1.5 rounded-full transition-all duration-300"
                             style={{ width: `${doc.uploadProgress}%` }}
-                          >
-                            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent animate-shimmer" />
-                          </div>
+                          />
                         </div>
-                        <div className="flex items-center justify-between text-xs">
-                          <span className="text-blue-700 font-medium">Uploading to cloud...</span>
-                          <span className="text-gray-500">{doc.uploadProgress}%</span>
-                        </div>
+                        <p className="text-xs text-gray-600">Uploading...</p>
                       </div>
                     )}
 
-                    {/* Processing Progress with Stages */}
+                    {/* Processing Progress */}
                     {doc.status === 'processing' && (
-                      <div className="mt-3 space-y-3">
-                        <div className="w-full bg-gray-200 rounded-full h-2.5 overflow-hidden">
+                      <div className="mt-3 space-y-2">
+                        <div className="w-full bg-gray-200 rounded-full h-1.5 overflow-hidden">
                           <div 
-                            className="bg-gradient-to-r from-purple-600 via-pink-600 to-purple-600 h-2.5 rounded-full transition-all duration-300 ease-out relative overflow-hidden"
+                            className="bg-purple-600 h-1.5 rounded-full transition-all duration-300"
                             style={{ width: `${doc.processingProgress}%` }}
-                          >
-                            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent animate-shimmer" 
-                                 style={{ animationDuration: '2s' }} />
-                          </div>
+                          />
                         </div>
                         
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-2">
-                            <ProcessingIcon className="w-4 h-4 text-purple-600 animate-pulse" />
-                            <span className="text-xs font-medium text-purple-700">
-                              {getProcessingStageText(doc.processingStage)}
-                            </span>
+                        <div className="flex items-center justify-between text-xs">
+                          <div className="flex items-center gap-1.5 text-gray-600">
+                            <ProcessingIcon className="w-3 h-3" />
+                            <span>{getProcessingStageText(doc.processingStage)}</span>
                           </div>
-                          <div className="flex items-center gap-3 text-xs">
-                            {doc.chunks > 0 && (
-                              <span className="text-purple-700 font-medium animate-pulse">
-                                {doc.chunks} chunks created
-                              </span>
-                            )}
-                            <span className="text-gray-500">{doc.processingProgress}%</span>
-                          </div>
+                          {doc.chunks > 0 && (
+                            <span className="text-purple-600 font-medium">{doc.chunks} chunks</span>
+                          )}
                         </div>
 
-                        {/* Processing Stage Indicators */}
-                        <div className="grid grid-cols-4 gap-2">
-                          {['extracting', 'chunking', 'embedding', 'indexing'].map((stage, index) => {
+                        {/* Stage Indicators */}
+                        <div className="grid grid-cols-4 gap-1.5 pt-1">
+                          {['extracting', 'chunking','embedding', 'indexing'].map((stage, index) => {
                             const stageProgress = doc.processingProgress || 0;
                             const stageThreshold = (index + 1) * 25;
                             const isActive = doc.processingStage === stage;
@@ -765,20 +710,20 @@ export default function KnowledgeBaseTab() {
                               <div 
                                 key={stage}
                                 className={`
-                                  flex items-center gap-1.5 px-2 py-1 rounded text-xs transition-all
-                                  ${isActive ? 'bg-purple-100 text-purple-700 font-medium scale-105 shadow-sm' : ''}
-                                  ${isComplete && !isActive ? 'bg-green-100 text-green-700' : ''}
+                                  flex items-center gap-1 px-1.5 py-0.5 rounded text-xs transition-all
+                                  ${isActive ? 'bg-purple-100 text-purple-700 font-medium' : ''}
+                                  ${isComplete && !isActive ? 'bg-green-50 text-green-600' : ''}
                                   ${!isActive && !isComplete ? 'bg-gray-100 text-gray-400' : ''}
                                 `}
                               >
                                 {isComplete ? (
-                                  <CheckCircle className="w-3 h-3" />
+                                  <CheckCircle className="w-2.5 h-2.5" />
                                 ) : isActive ? (
-                                  <Loader className="w-3 h-3 animate-spin" />
+                                  <Loader className="w-2.5 h-2.5 animate-spin" />
                                 ) : (
-                                  <div className="w-3 h-3 rounded-full border-2 border-current" />
+                                  <div className="w-2.5 h-2.5 rounded-full border border-current" />
                                 )}
-                                <span className="capitalize">{stage}</span>
+                                <span className="capitalize text-[10px]">{stage}</span>
                               </div>
                             );
                           })}
@@ -788,93 +733,92 @@ export default function KnowledgeBaseTab() {
 
                     {/* Error Message */}
                     {doc.status === 'error' && doc.error && (
-                      <div className="mt-3 p-3 bg-red-50 border border-red-200 rounded-lg flex items-start gap-2 animate-shake">
-                        <AlertCircle className="w-4 h-4 text-red-600 flex-shrink-0 mt-0.5" />
-                        <div className="flex-1">
-                          <p className="text-sm font-medium text-red-900">Upload failed</p>
-                          <p className="text-sm text-red-700">{doc.error}</p>
+                      <div className="mt-3 p-2.5 bg-red-50 border border-red-200 rounded flex items-start gap-2">
+                        <AlertCircle className="w-3.5 h-3.5 text-red-600 flex-shrink-0 mt-0.5" />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs font-medium text-red-900">Upload failed</p>
+                          <p className="text-xs text-red-700">{doc.error}</p>
                         </div>
                       </div>
                     )}
 
-                    {/* Document Stats - Expanded View */}
+                    {/* Expanded Details */}
                     {doc.status === 'processed' && isSelected && (
-                      <div className="mt-4 p-4 bg-gradient-to-br from-gray-50 to-blue-50 rounded-lg border border-gray-200 animate-fadeIn">
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
-                          <div className="flex items-center gap-3">
-                            <span className="text-3xl">{doc.categoryIcon}</span>
+                      <div className="mt-4 p-4 bg-gray-50 rounded-lg border border-gray-200">
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-3">
+                          <div className="flex items-center gap-2">
+                            <span className="text-xl">{doc.categoryIcon}</span>
                             <div>
-                              <div className="font-semibold text-gray-900 text-sm">{doc.category}</div>
+                              <div className="text-sm font-medium text-gray-900">{doc.category}</div>
                               <div className="text-xs text-gray-500">Category</div>
                             </div>
                           </div>
                           
-                          <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
-                              <Zap className="w-5 h-5 text-blue-600" />
+                          <div className="flex items-center gap-2">
+                            <div className="w-8 h-8 bg-blue-100 rounded flex items-center justify-center">
+                              <Zap className="w-4 h-4 text-blue-600" />
                             </div>
                             <div>
-                              <div className="font-semibold text-gray-900 text-sm">{doc.chunks}</div>
+                              <div className="text-sm font-medium text-gray-900">{doc.chunks}</div>
                               <div className="text-xs text-gray-500">Chunks</div>
                             </div>
                           </div>
                           
-                          <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center">
-                              <Eye className="w-5 h-5 text-green-600" />
+                          <div className="flex items-center gap-2">
+                            <div className="w-8 h-8 bg-green-100 rounded flex items-center justify-center">
+                              <Eye className="w-4 h-4 text-green-600" />
                             </div>
                             <div>
-                              <div className="font-semibold text-gray-900 text-sm">{doc.timesReferenced}</div>
+                              <div className="text-sm font-medium text-gray-900">{doc.timesReferenced}</div>
                               <div className="text-xs text-gray-500">References</div>
                             </div>
                           </div>
                           
-                          <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center">
-                              <Clock className="w-5 h-5 text-purple-600" />
+                          <div className="flex items-center gap-2">
+                            <div className="w-8 h-8 bg-purple-100 rounded flex items-center justify-center">
+                              <Clock className="w-4 h-4 text-purple-600" />
                             </div>
                             <div>
-                              <div className="font-semibold text-gray-900 text-sm">{doc.lastUsed || 'Never'}</div>
+                              <div className="text-sm font-medium text-gray-900">{doc.lastUsed || 'Never'}</div>
                               <div className="text-xs text-gray-500">Last Used</div>
                             </div>
                           </div>
                         </div>
 
-                        {/* Quick Actions */}
                         <div className="flex items-center gap-2 pt-3 border-t border-gray-200">
                           <button 
                             onClick={(e) => {
                               e.stopPropagation();
-                              toast.success('Viewing document insights', {
+                              toast.success('Viewing insights', {
                                 description: `${doc.name} analytics`
                               });
                             }}
-                            className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"
+                            className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"
                           >
-                            <Eye className="w-4 h-4" />
+                            <Eye className="w-3.5 h-3.5" />
                             View Insights
                           </button>
                           <button 
                             onClick={(e) => {
                               e.stopPropagation();
-                              toast.success('Retraining AI', {
+                              toast.success('Retraining', {
                                 description: `Reprocessing ${doc.name}`
                               });
                             }}
-                            className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors text-sm font-medium"
+                            className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors text-sm font-medium"
                           >
-                            <Brain className="w-4 h-4" />
+                            <Brain className="w-3.5 h-3.5" />
                             Retrain
                           </button>
                         </div>
                       </div>
                     )}
 
-                    {/* Collapsed View Quick Stats */}
+                    {/* Collapsed Quick Stats */}
                     {doc.status === 'processed' && !isSelected && (
-                      <div className="mt-3 flex items-center gap-4 text-xs text-gray-600">
+                      <div className="mt-3 flex items-center gap-3 text-xs text-gray-600">
                         <div className="flex items-center gap-1">
-                          <span className="text-lg">{doc.categoryIcon}</span>
+                          <span>{doc.categoryIcon}</span>
                           <span>{doc.category}</span>
                         </div>
                         <div className="flex items-center gap-1">
@@ -883,7 +827,7 @@ export default function KnowledgeBaseTab() {
                         </div>
                         <div className="flex items-center gap-1">
                           <Eye className="w-3 h-3 text-green-600" />
-                          <span>{doc.timesReferenced} references</span>
+                          <span>{doc.timesReferenced} refs</span>
                         </div>
                         <button 
                           onClick={(e) => {
@@ -892,7 +836,7 @@ export default function KnowledgeBaseTab() {
                           }}
                           className="ml-auto text-blue-600 hover:text-blue-700 font-medium"
                         >
-                          View details →
+                          Details →
                         </button>
                       </div>
                     )}
@@ -904,11 +848,11 @@ export default function KnowledgeBaseTab() {
           
           {documents.length === 0 && (
             <div className="p-12 text-center">
-              <div className="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                <Database className="w-10 h-10 text-gray-400" />
+              <div className="w-16 h-16 bg-gray-100 rounded-lg flex items-center justify-center mx-auto mb-3">
+                <Database className="w-8 h-8 text-gray-400" />
               </div>
-              <h3 className="text-lg font-semibold text-gray-900 mb-2">No documents yet</h3>
-              <p className="text-gray-600 mb-4">Upload your first document to start training AI</p>
+              <h3 className="text-base font-medium text-gray-900 mb-1">No documents yet</h3>
+              <p className="text-sm text-gray-600">Upload your first document to start training AI</p>
             </div>
           )}
         </div>
