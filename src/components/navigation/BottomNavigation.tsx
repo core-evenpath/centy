@@ -1,9 +1,10 @@
+
 "use client";
 
 import React from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { MessageSquare, CheckSquare, Users, Home, User } from 'lucide-react';
+import { MessageSquare, CheckSquare, Users, Home, User, Zap } from 'lucide-react';
 import { cn } from '../../lib/utils';
 
 interface BottomNavigationProps {
@@ -25,7 +26,7 @@ export default function BottomNavigation({ userRole = 'employee' }: BottomNaviga
       case 'partner_admin':
         return [
           { name: 'Dashboard', href: '/partner', icon: Home },
-          { name: 'Tasks', href: '/partner/tasks', icon: CheckSquare },
+          { name: 'Mission', href: '/partner/mission-control', icon: Zap },
           { name: 'Chat', href: '/employee/chat', icon: MessageSquare },
           { name: 'Team', href: '/partner/team', icon: Users }
         ];

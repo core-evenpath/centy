@@ -568,7 +568,7 @@ export default function StockRecommendationEditor({
                       onClick={() => setExpandedSection(2)}
                       className="px-6 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-xl font-semibold hover:shadow-lg transition-all flex items-center gap-2"
                     >
-                      Next: Train Data
+                      Next: Mission Control
                       <ArrowRight className="w-5 h-5" />
                     </button>
                   </div>
@@ -605,7 +605,7 @@ export default function StockRecommendationEditor({
                   {!canAccessSection(2) ? <Lock className="w-5 h-5" /> : isStepComplete(2) ? <Check className="w-6 h-6" /> : '2'}
                 </div>
                 <div className="text-left">
-                  <h3 className="text-lg font-bold text-gray-900">Step 2: Train Data</h3>
+                  <h3 className="text-lg font-bold text-gray-900">Step 2: Data Insights</h3>
                   {isStepComplete(2) && expandedSection !== 2 && (
                     <p className="text-sm text-gray-600 mt-1">
                       {trainingData.source === 'mission-control' 

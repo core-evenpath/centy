@@ -20,6 +20,7 @@ import {
   Users,
   FileText,
   Radio,
+  Zap,  // <-- ADDED for Mission Control icon
 } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
@@ -100,6 +101,13 @@ export default function UnifiedPartnerSidebar() {
   }, [currentWorkspace?.partnerId]);
 
   const allMenuItems: MenuItem[] = [
+    { 
+      icon: Zap, 
+      label: 'Mission Control', 
+      href: '/partner/mission-control',
+      badge: null,
+      description: 'AI Knowledge Base & Monitoring'
+    },
     { 
       icon: FileText, 
       label: 'Ideabox', 
