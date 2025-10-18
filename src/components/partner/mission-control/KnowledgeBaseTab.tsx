@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useState, useCallback } from 'react';
@@ -408,7 +409,7 @@ export default function KnowledgeBaseTab() {
           onMouseLeave={() => setIsHovering(false)}
           className={`
             relative border-2 border-dashed rounded-lg p-10 text-center transition-all duration-200 cursor-pointer
-            ${isDragActive && !isDragReject ? 'border-blue-400 bg-blue-50/50' : ''}
+            ${isDragActive && !isDragReject ? 'border-blue-400 bg-blue-50/50 scale-105' : ''}
             ${isDragReject ? 'border-red-400 bg-red-50/50' : ''}
             ${!isDragActive && !isHovering ? 'border-gray-300 bg-gray-50/50' : ''}
             ${!isDragActive && isHovering ? 'border-blue-300 bg-blue-50/30' : ''}
@@ -416,7 +417,7 @@ export default function KnowledgeBaseTab() {
         >
           <input {...getInputProps()} />
           
-          <div className="w-16 h-16 bg-gray-100 rounded-lg flex items-center justify-center mx-auto mb-4 transition-colors">
+          <div className="w-16 h-16 bg-gray-100 rounded-lg flex items-center justify-center mx-auto mb-4 transition-transform group-hover:scale-110">
             <Upload className={`w-8 h-8 text-gray-600 ${isDragActive ? 'scale-110' : ''} transition-transform`} />
           </div>
           
@@ -454,7 +455,7 @@ export default function KnowledgeBaseTab() {
 
         {/* Active Upload Queue */}
         {uploadQueue > 0 && (
-          <div className="mt-5 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+          <div className="mt-5 p-4 bg-blue-50 border border-blue-200 rounded-lg animate-fadeIn">
             <div className="flex items-center gap-3">
               <Loader className="w-5 h-5 text-blue-600 animate-spin flex-shrink-0" />
               <div className="flex-1 min-w-0">
@@ -510,11 +511,11 @@ export default function KnowledgeBaseTab() {
             <ul className="space-y-2 text-sm text-gray-700">
               <li className="flex items-start gap-2">
                 <span>📊</span>
-                <span>Research reports & analysis</span>
+                <span>Research reports & market analysis</span>
               </li>
               <li className="flex items-start gap-2">
                 <span>💼</span>
-                <span>Investment strategies</span>
+                <span>Investment strategies & guidelines</span>
               </li>
               <li className="flex items-start gap-2">
                 <span>⚖️</span>
@@ -557,7 +558,7 @@ export default function KnowledgeBaseTab() {
               <div 
                 key={doc.id} 
                 className={`
-                  p-5 transition-colors cursor-pointer
+                  p-5 transition-colors cursor-pointer animate-fadeIn
                   ${isSelected ? 'bg-blue-50/50 border-l-2 border-l-blue-600' : 'hover:bg-gray-50/50'}
                 `}
                 onClick={() => setSelectedDocId(isSelected ? null : doc.id)}
@@ -609,7 +610,7 @@ export default function KnowledgeBaseTab() {
                         
                         {doc.status === 'error' && (
                           <>
-                            <div className="flex items-center gap-1.5 px-2.5 py-1 bg-red-100 text-red-700 rounded text-xs font-medium">
+                            <div className="flex items-center gap-1.5 px-2.5 py-1 bg-red-100 text-red-700 rounded text-xs font-medium animate-shake">
                               <AlertCircle className="w-3 h-3" />
                               Failed
                             </div>
@@ -670,9 +671,11 @@ export default function KnowledgeBaseTab() {
                       <div className="mt-3 space-y-1.5">
                         <div className="w-full bg-gray-200 rounded-full h-1.5 overflow-hidden">
                           <div 
-                            className="bg-blue-600 h-1.5 rounded-full transition-all duration-300"
+                            className="bg-blue-600 h-1.5 rounded-full transition-all duration-300 relative overflow-hidden"
                             style={{ width: `${doc.uploadProgress}%` }}
-                          />
+                          >
+                             <div className="absolute top-0 left-0 h-full w-full bg-white/30 animate-shimmer"></div>
+                          </div>
                         </div>
                         <p className="text-xs text-gray-600">Uploading...</p>
                       </div>
@@ -683,9 +686,11 @@ export default function KnowledgeBaseTab() {
                       <div className="mt-3 space-y-2">
                         <div className="w-full bg-gray-200 rounded-full h-1.5 overflow-hidden">
                           <div 
-                            className="bg-purple-600 h-1.5 rounded-full transition-all duration-300"
+                            className="bg-purple-600 h-1.5 rounded-full transition-all duration-300 relative overflow-hidden"
                             style={{ width: `${doc.processingProgress}%` }}
-                          />
+                          >
+                            <div className="absolute top-0 left-0 h-full w-full bg-white/30 animate-shimmer"></div>
+                          </div>
                         </div>
                         
                         <div className="flex items-center justify-between text-xs">
@@ -733,7 +738,7 @@ export default function KnowledgeBaseTab() {
 
                     {/* Error Message */}
                     {doc.status === 'error' && doc.error && (
-                      <div className="mt-3 p-2.5 bg-red-50 border border-red-200 rounded flex items-start gap-2">
+                      <div className="mt-3 p-2.5 bg-red-50 border border-red-200 rounded flex items-start gap-2 animate-shake">
                         <AlertCircle className="w-3.5 h-3.5 text-red-600 flex-shrink-0 mt-0.5" />
                         <div className="flex-1 min-w-0">
                           <p className="text-xs font-medium text-red-900">Upload failed</p>
@@ -744,7 +749,7 @@ export default function KnowledgeBaseTab() {
 
                     {/* Expanded Details */}
                     {doc.status === 'processed' && isSelected && (
-                      <div className="mt-4 p-4 bg-gray-50 rounded-lg border border-gray-200">
+                      <div className="mt-4 p-4 bg-gray-50 rounded-lg border border-gray-200 animate-fadeIn">
                         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-3">
                           <div className="flex items-center gap-2">
                             <span className="text-xl">{doc.categoryIcon}</span>
