@@ -97,6 +97,7 @@ const getStockDataFlow = ai.defineFlow(
         const analysisResponse = await stockAnalysisPrompt({
             prompt: `Generate an investment thesis and risks for ${ticker}.`
         });
+        
         const analysis = analysisResponse.output();
 
         if (!analysis) {
