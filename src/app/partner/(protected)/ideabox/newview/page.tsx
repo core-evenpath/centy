@@ -2,7 +2,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { TrendingUp, AlertTriangle, Target, DollarSign, Activity, Zap, Globe, FileText, CheckCircle, ExternalLink, Calendar, Database, Shield, Download, Clock } from 'lucide-react';
+import { TrendingUp, AlertTriangle, Target, DollarSign, Activity, Zap, Globe, FileText, CheckCircle, ExternalLink, Calendar, Database, Shield, Download, Clock, AlertCircle } from 'lucide-react';
 
 export default function CombinedNVDAView() {
   const [expandedSection, setExpandedSection] = useState<string | null>('sec');
