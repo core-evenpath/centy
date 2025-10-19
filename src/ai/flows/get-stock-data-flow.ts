@@ -5,6 +5,7 @@
 
 import { ai } from '../genkit';
 import { z } from 'genkit';
+import { googleAI } from '@genkit-ai/google-genai';
 
 // Define the output schema for our main flow
 const StockDataOutputSchema = z.object({
@@ -58,6 +59,7 @@ const getStockInfoTool = ai.defineTool(
 // Define the AI prompt that uses the tool and generates analysis.
 const stockAnalysisPrompt = ai.definePrompt({
     name: 'stockAnalysisPrompt',
+    model: googleAI.model('gemini-1.5-flash-latest'),
     tools: [getStockInfoTool],
     system: `You are a world-class financial analyst. Your task is to provide a concise, compelling investment thesis and identify key risks for a given stock.
     
