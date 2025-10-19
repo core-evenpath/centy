@@ -2,7 +2,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { TrendingUp, AlertTriangle, Target, DollarSign, Activity, Zap, Globe, FileText, CheckCircle, ExternalLink, Calendar, Database, Shield, Download, AlertCircle } from 'lucide-react';
+import { TrendingUp, AlertTriangle, Target, DollarSign, Activity, Zap, Globe, FileText, CheckCircle, ExternalLink, Calendar, Database, Shield, Download, Clock } from 'lucide-react';
 
 export default function CombinedNVDAView() {
   const [expandedSection, setExpandedSection] = useState<string | null>('sec');
@@ -12,7 +12,7 @@ export default function CombinedNVDAView() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-gray-100 p-6">
+    <div className="bg-gradient-to-br from-slate-50 to-gray-100 p-6">
       <div className="max-w-7xl mx-auto">
         
         {/* --- Institutional Equity Analysis START --- */}
@@ -848,8 +848,6 @@ export default function CombinedNVDAView() {
             For questions about data sources or methodology, please contact your financial advisor
           </p>
         </div>
-
-        {/* --- Data Sources & Methodology END --- */}
       </div>
     </div>
   );

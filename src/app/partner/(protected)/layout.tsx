@@ -48,7 +48,7 @@ export default function ProtectedPartnerLayout({
           <PartnerAuthWrapper>
             <div className="flex h-screen bg-gray-100 dark:bg-gray-900">
               <UnifiedPartnerSidebar />
-              <main className="flex-1 flex flex-col overflow-hidden">
+              <main className="flex-1 flex flex-col overflow-y-auto">
                 {children}
               </main>
             </div>
