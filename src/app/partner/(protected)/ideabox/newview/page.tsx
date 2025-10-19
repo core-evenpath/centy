@@ -2,7 +2,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { TrendingUp, AlertTriangle, Target, DollarSign, Activity, Zap, Globe, FileText, CheckCircle, ExternalLink, Calendar, Database, Shield, Download } from 'lucide-react';
+import { TrendingUp, AlertTriangle, Target, DollarSign, Activity, Zap, Globe, FileText, CheckCircle, ExternalLink, Calendar, Database, Shield, Download, AlertCircle } from 'lucide-react';
 
 export default function CombinedNVDAView() {
   const [expandedSection, setExpandedSection] = useState<string | null>('sec');
@@ -670,7 +670,7 @@ export default function CombinedNVDAView() {
                     <li>Confirmed Q2 results: Revenue $46.7B, up 56% YoY</li>
                     <li>Gaming division: $4.3B sales, up 49% YoY</li>
                     <li>Robotics division: $586M sales</li>
-                    <li>Blackwell sales: 17% sequential</li>
+                    <li>Blackwell sales: 17% sequential growth</li>
                     <li>Historical context: 9 consecutive quarters >50% growth</li>
                   </ul>
                 </div>
