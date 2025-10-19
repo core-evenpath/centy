@@ -14,3 +14,4 @@ import '@/ai/flows/suggest-industry-templates.ts';
 import '@/ai/flows/generate-campaign-content-flow.ts';
 import '@/ai/flows/generate-campaign-image-flow.ts';
 import '@/ai/flows/generate-stock-pick-image-flow.ts';
+import '@/ai/flows/get-stock-data-flow.ts';

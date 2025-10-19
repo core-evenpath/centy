@@ -18,62 +18,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from '@/lib/utils';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
-
-// Stock database for auto-fill
-const STOCK_DATABASE: Record<string, any> = {
-  'NVDA': { 
-    companyName: 'NVIDIA Corporation', 
-    sector: 'Semiconductors / AI Hardware',
-    currentPrice: '$192.57',
-    aiThesis: [
-      'Q2 2026 revenue hit $46.7B (up 56% YoY) with Blackwell Data Center revenue up 17% sequentially',
-      'Maintaining ~75% market share in AI accelerator market with growth visibility through next decade',
-      'Blackwell architecture delivering 30x faster inference vs prior generations with superior energy efficiency',
-      'OpenAI strategic partnership: $100B commitment for 10+ gigawatts of AI infrastructure, could generate $300-500B revenue',
-      'Cantor Fitzgerald street-high price target of $300 (55% upside) - top pick in AI hardware space'
-    ],
-    aiRisks: [
-      'Stock trading at $192.57 vs $300 target - recent 40%+ pullback from highs creates entry opportunity',
-      'U.S. export restrictions impacting China sales (previously significant revenue contributor)',
-      'Circular deal structure with OpenAI raises questions about long-term accounting treatment',
-      'High expectations priced in - EPS needs to hit $8 (2026), $11 (2027), $50 (2030) to justify valuations'
-    ]
-  },
-  'AAPL': {
-    companyName: 'Apple Inc.',
-    sector: 'Technology / Consumer Electronics',
-    currentPrice: '$227.50',
-    aiThesis: [
-      'Services revenue growing 15% YoY, now 25% of total revenue with 90%+ gross margins',
-      'iPhone 16 cycle showing strong momentum with AI features driving upgrades',
-      'Wearables and Home segment reached $40B annual run rate',
-      'China showing signs of stabilization after multi-quarter decline'
-    ],
-    aiRisks: [
-      'China regulatory risks and competition from local brands',
-      'High PE ratio of 35x vs historical average of 18x',
-      'Hardware refresh cycles slowing as devices last longer',
-      'App Store revenue under regulatory pressure in EU and US'
-    ]
-  },
-  'TSLA': {
-    companyName: 'Tesla, Inc.',
-    sector: 'Automotive / Clean Energy',
-    currentPrice: '$262.90',
-    aiThesis: [
-      'Full Self-Driving revenue potential of $10B+ annually once approved',
-      'Cybertruck ramping production with 1M+ reservations',
-      'Energy storage business growing 50%+ YoY, underappreciated by market',
-      'Cost reductions from new manufacturing techniques improving margins'
-    ],
-    aiRisks: [
-      'Valuation assumes robotaxi success which faces regulatory hurdles',
-      'Competition intensifying in EV market, especially from Chinese manufacturers',
-      'CEO distraction concerns with multiple company involvement',
-      'Demand uncertainty in key markets as EV subsidies phase out'
-    ]
-  }
-};
+import { getStockData } from '@/ai/flows/get-stock-data-flow';
 
 interface FormData {
   ticker: string;
@@ -124,6 +69,7 @@ export default function StockRecommendationEditor({
   const [generatedImageUrl, setGeneratedImageUrl] = useState<string | null>(initialData?.imageUrl || null);
   const [ideaId, setIdeaId] = useState<string | undefined>(initialData?.id);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [isFetchingStockData, setIsFetchingStockData] = useState(false);
   
   const [formData, setFormData] = useState<FormData>({
     ticker: initialData?.ticker || '',
@@ -152,22 +98,69 @@ export default function StockRecommendationEditor({
   const [selectedSuggestions, setSelectedSuggestions] = useState<{ thesis: number[], risks: number[] }>({ thesis: [], risks: [] });
 
   useEffect(() => {
-    const ticker = formData.ticker.toUpperCase().trim();
-    if (ticker && STOCK_DATABASE[ticker]) {
-      const stockData = STOCK_DATABASE[ticker];
-      setFormData(prev => ({
-        ...prev,
-        companyName: stockData.companyName,
-        sector: stockData.sector,
-        currentPrice: stockData.currentPrice
-      }));
-      setAiSuggestions({ thesis: stockData.aiThesis, risks: stockData.aiRisks });
-      setAutoFilled(true);
-    } else if (ticker) {
+    const fetchStockData = async () => {
+      const ticker = formData.ticker.toUpperCase().trim();
+      if (ticker.length < 1) {
+        // Clear fields if ticker is empty
+        setFormData(prev => ({
+          ...prev,
+          companyName: '',
+          sector: '',
+          currentPrice: ''
+        }));
+        setAiSuggestions({ thesis: [], risks: [] });
+        setSelectedSuggestions({ thesis: [], risks: [] });
+        setAutoFilled(false);
+        return;
+      }
+      
+      setIsFetchingStockData(true);
       setAutoFilled(false);
-      setAiSuggestions({ thesis: [], risks: [] });
-    }
-  }, [formData.ticker]);
+      try {
+        const result = await getStockData(ticker);
+        if (result.success) {
+          setFormData(prev => ({
+            ...prev,
+            companyName: result.companyName || '',
+            sector: result.sector || '',
+            currentPrice: result.currentPrice || ''
+          }));
+          setAiSuggestions({
+            thesis: result.aiThesis || [],
+            risks: result.aiRisks || []
+          });
+          setAutoFilled(true);
+          toast({
+            title: "Stock Data Loaded",
+            description: `${result.companyName} (${ticker}) data fetched successfully.`,
+          });
+        } else {
+          toast({
+            variant: "destructive",
+            title: "Could Not Fetch Data",
+            description: result.errorMessage || `No data found for ticker: ${ticker}`,
+          });
+          setAiSuggestions({ thesis: [], risks: [] });
+        }
+      } catch (error: any) {
+        console.error("Error fetching stock data:", error);
+        toast({
+          variant: "destructive",
+          title: "API Error",
+          description: `An error occurred while fetching data for ${ticker}.`,
+        });
+        setAiSuggestions({ thesis: [], risks: [] });
+      } finally {
+        setIsFetchingStockData(false);
+      }
+    };
+
+    const debounceTimer = setTimeout(() => {
+        if(formData.ticker) fetchStockData();
+    }, 1000); // 1-second debounce
+
+    return () => clearTimeout(debounceTimer);
+  }, [formData.ticker, toast]);
 
   const updateField = (field: keyof FormData, value: any) => {
     setFormData(prev => ({ ...prev, [field]: value }));
@@ -492,22 +485,25 @@ export default function StockRecommendationEditor({
                 <div className="flex items-start gap-3 p-4 bg-blue-50 rounded-lg border border-blue-200 mb-6">
                   <Info className="w-5 h-5 text-blue-600 shrink-0 mt-0.5" />
                   <div className="text-sm text-blue-900">
-                    <strong>Quick tip:</strong> Just enter the ticker symbol. For popular stocks like NVDA, AAPL, or TSLA, we'll automatically fill in the company name, sector, and current price for you!
+                    <strong>Quick tip:</strong> Enter a ticker. Our AI will automatically fetch company info and generate investment points for you!
                   </div>
                 </div>
 
                 <div className="space-y-6">
                   <div>
                     <label className="block text-sm font-semibold text-gray-900 mb-2">
-                      Stock Ticker * <span className="text-gray-500 font-normal">(e.g., NVDA, AAPL, TSLA)</span>
+                      Stock Ticker *
                     </label>
-                    <input
-                      type="text"
-                      value={formData.ticker}
-                      onChange={(e) => updateField('ticker', e.target.value.toUpperCase())}
-                      placeholder="Enter ticker symbol"
-                      className="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-500 transition-all"
-                    />
+                    <div className="relative">
+                      <input
+                        type="text"
+                        value={formData.ticker}
+                        onChange={(e) => updateField('ticker', e.target.value)}
+                        placeholder="e.g., NVDA, AAPL, TSLA"
+                        className="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-500 transition-all"
+                      />
+                      {isFetchingStockData && <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 animate-spin" />}
+                    </div>
                   </div>
 
                   <div>
@@ -519,7 +515,7 @@ export default function StockRecommendationEditor({
                         type="text"
                         value={formData.companyName}
                         onChange={(e) => updateField('companyName', e.target.value)}
-                        placeholder="e.g., NVIDIA Corporation"
+                        placeholder="Auto-filled from ticker"
                         className={`w-full px-4 py-3 border-2 rounded-xl focus:ring-2 focus:ring-blue-500 transition-all ${
                           autoFilled ? 'border-green-300 bg-green-50' : 'border-gray-300 focus:border-blue-500'
                         }`}
@@ -544,7 +540,7 @@ export default function StockRecommendationEditor({
                         type="text"
                         value={formData.sector}
                         onChange={(e) => updateField('sector', e.target.value)}
-                        placeholder="e.g., Technology, Clean Energy"
+                        placeholder="Auto-filled from ticker"
                         className={`w-full px-4 py-3 border-2 rounded-xl focus:ring-2 focus:ring-blue-500 transition-all ${
                           autoFilled ? 'border-green-300 bg-green-50' : 'border-gray-300 focus:border-blue-500'
                         }`}
@@ -568,7 +564,7 @@ export default function StockRecommendationEditor({
                       onClick={() => setExpandedSection(2)}
                       className="px-6 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-xl font-semibold hover:shadow-lg transition-all flex items-center gap-2"
                     >
-                      Next: Mission Control
+                      Next: Data Insights
                       <ArrowRight className="w-5 h-5" />
                     </button>
                   </div>

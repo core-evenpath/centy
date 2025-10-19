@@ -143,7 +143,7 @@ function CreateIdeaPage() {
 
   if (selectedType === 'stock-recommendation') {
     return (
-      <div className="overflow-y-auto h-full">
+      <div className="p-6 overflow-y-auto h-full bg-gradient-to-br from-gray-50 to-gray-100/50">
         <StockRecommendationEditor 
           onSave={handleSave}
           onBack={() => setSelectedType(null)}
