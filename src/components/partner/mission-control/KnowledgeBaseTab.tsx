@@ -2,7 +2,7 @@
 "use client";
 
 import React, { useState, useCallback, useEffect } from 'react';
-import { Upload, FileText, FileSearch, CheckCircle, Database, Eye, Loader2 as Loader, Sparkles, BookOpen, X, AlertCircle, TrendingUp, Download, Trash2, RefreshCw, Info, Zap, Brain, FileCheck, Clock } from 'lucide-react';
+import { Upload, FileText, FileSearch, CheckCircle, Database, Eye, Loader2 as Loader, Sparkles, BookOpen, X, AlertCircle, TrendingUp, Download, Trash2, RefreshCw, Info, Zap, Brain, FileCheck, Clock, Loader2 } from 'lucide-react';
 import { useDropzone } from 'react-dropzone';
 import { useAuth } from '@/hooks/use-auth';
 import { useToast } from '@/hooks/use-toast';
@@ -211,6 +211,7 @@ export default function KnowledgeBaseTab() {
 
     if (validFiles.length > 0) {
       try {
+        setIsUploading(true);
         toast({
           title: 'Upload started',
           description: validFiles[0].name
@@ -426,7 +427,11 @@ export default function KnowledgeBaseTab() {
       </div>
 
       {/* Upload Zone */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-8">
+      <div className="relative bg-white rounded-xl shadow-sm border border-gray-200 p-8">
+        {isUploading && <div className='absolute left-0 top-0 w-full h-full bg-gray-200 z-10 flex items-center justify-center gap-3'>
+          <Loader2 className="w-8 h-8 animate-spin" />
+          <div>Uploading and processing file</div>
+        </div>}
         <div
           {...getRootProps()}
           onMouseEnter={() => setIsHovering(true)}
