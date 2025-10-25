@@ -30,6 +30,8 @@ export async function GET(request: NextRequest) {
   }
 
   try {
+    let ts = performance.now();
+    console.log(`starting rag query at ${ts}`);
     if (typeof userQuery !== "string" || userQuery.length < 5) {
       return NextResponse.json(
         {
@@ -46,6 +48,8 @@ export async function GET(request: NextRequest) {
       query: userQuery,
       options: { k: 3 },
     });
+    console.log(`ending rag query: time taken ${performance.now() - ts} `);
+    ts = performance.now();
 
     const { text } = await ai.generate({
       model: googleAI.model("gemini-2.5-flash"),
@@ -58,6 +62,8 @@ If you don't know, do not make up an answer.
 Question: ${userQuery}`,
       docs,
     });
+    console.log(`ending llm query: time taken ${performance.now() - ts} `);
+    ts = performance.now();
 
     return NextResponse.json({
       success: true,
