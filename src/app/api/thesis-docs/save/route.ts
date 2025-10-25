@@ -93,11 +93,11 @@ async function getThesisInfo(pdfText: string) {
 
 export async function POST(request: NextRequest) {
   console.log("[SAVE] Starting document upload process");
-  
+
   const headersList = await headers();
   const authHeader = headersList.get("authorization") || "";
   const userData = await getPartnerId(authHeader);
-  
+
   if (!userData.success) {
     console.error("[SAVE] Authentication failed:", userData.error);
     return NextResponse.json(
@@ -105,7 +105,7 @@ export async function POST(request: NextRequest) {
       { status: 401 }
     );
   }
-  
+
   if (typeof userData.partnerId === undefined) {
     console.error("[SAVE] Partner ID is undefined");
     return NextResponse.json(
@@ -204,18 +204,23 @@ export async function POST(request: NextRequest) {
     console.log("[SAVE] Collection:", RAGINDEX_COLLECTION_NAME);
     console.log("[SAVE] FileId:", fileId);
     console.log("[SAVE] FilePath:", tempFilePath);
-    
+
     try {
-      await indexPdfFile(RAGINDEX_COLLECTION_NAME, fileId, tempFilePath);
+      await indexPdfFile(
+        RAGINDEX_COLLECTION_NAME,
+        userData.partnerId,
+        fileId,
+        tempFilePath
+      );
       console.log("[SAVE] RAG indexing completed successfully");
-      
+
       // Verify indexing
       const ragChunks = await db
         .collection(RAGINDEX_COLLECTION_NAME)
         .where("fileId", "==", fileId)
         .limit(1)
         .get();
-      
+
       console.log("[SAVE] Verification - chunks found:", !ragChunks.empty);
     } catch (ragError: any) {
       console.error("[SAVE] RAG indexing failed:", ragError);

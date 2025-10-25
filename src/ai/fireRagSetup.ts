@@ -44,6 +44,7 @@ export const firestoreRetriever = (collectionName: string) =>
 
 export async function indexPdfFile(
   collectionName: string,
+  partnerId: string,
   fileId: string,
   filePath: string
 ) {
@@ -68,11 +69,12 @@ export async function indexPdfFile(
   // TODO
   // fileId should be unique per partner per file
   // Add chunks to the index.
-  await indexToFirestore(collectionName, fileId, chunks);
+  await indexToFirestore(collectionName, partnerId, fileId, chunks);
 }
 
 export async function indexToFirestore(
   collectionName: string,
+  partnerId: string,
   fileId: string,
   data: string[]
 ) {
@@ -95,6 +97,7 @@ export async function indexToFirestore(
     )[0].embedding;
     await db.collection(indexConfig.collection).add({
       fileId,
+      partnerId,
       [indexConfig.vectorField]: FieldValue.vector(embedding),
       [indexConfig.contentField]: text,
     });

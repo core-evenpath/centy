@@ -119,7 +119,12 @@ export async function POST(request: NextRequest) {
 
           console.log(`-- START ragging ${currentFileUrl}`);
           ts = performance.now();
-          await indexPdfFile(RAGINDEX_COLLECTION_NAME, fileId, tempFilePath);
+          await indexPdfFile(
+            RAGINDEX_COLLECTION_NAME,
+            userData.partnerId,
+            fileId,
+            tempFilePath
+          );
           processedDocsCount += 1;
           console.log(
             `-- DONE ragging ${currentFileUrl} : time_taken = ${
