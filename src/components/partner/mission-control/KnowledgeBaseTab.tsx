@@ -29,59 +29,23 @@ interface Document {
 export default function KnowledgeBaseTab() {
   const user = useAuth();
   const { toast } = useToast();
-  const [documents, setDocuments] = useState<Document[]>([
-    {
-      id: 1,
-      name: 'Q3 2025 Market Analysis.pdf',
-      size: '2.4 MB',
-      rawSize: 2400000,
-      status: 'processed',
-      category: 'Market Research',
-      categoryIcon: '📊',
-      uploadedAt: '2 hours ago',
-      chunks: 45,
-      timesReferenced: 23,
-      lastUsed: '2 mins ago'
-    },
-    {
-      id: 2,
-      name: 'Portfolio Allocation Strategy.docx',
-      size: '856 KB',
-      rawSize: 856000,
-      status: 'processed',
-      category: 'Investment Strategy',
-      categoryIcon: '💼',
-      uploadedAt: '3 hours ago',
-      chunks: 28,
-      timesReferenced: 15,
-      lastUsed: '5 mins ago'
-    },
-    {
-      id: 3,
-      name: 'SEC Compliance Guidelines 2025.pdf',
-      size: '3.1 MB',
-      rawSize: 3100000,
-      status: 'processing',
-      category: 'Compliance',
-      categoryIcon: '⚖️',
-      uploadedAt: 'Just now',
-      chunks: 18,
-      timesReferenced: 0,
-      processingProgress: 65,
-      processingStage: 'chunking'
-    },
-  ]);
-
+  const [documents, setDocuments] = useState<{
+    fileId: string;
+    url: string;
+    name?: string;
+    metaData?: any;
+    thesisInfo?: any
+  }[]>([]);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadQueue, setUploadQueue] = useState<number>(0);
   const [isHovering, setIsHovering] = useState(false);
-  const [selectedDocId, setSelectedDocId] = useState<number | null>(null);
+  const [selectedFileId, setSelectedFileId] = useState<string | null>(null);
 
   const metrics = {
-    totalChunks: documents.reduce((sum, doc) => sum + doc.chunks, 0),
-    totalSize: documents.reduce((sum, doc) => sum + doc.rawSize, 0),
-    processedDocs: documents.filter(doc => doc.status === 'processed').length,
-    activeTraining: documents.filter(doc => doc.status === 'uploading' || doc.status === 'processing').length
+    totalChunks: (documents ?? []).reduce((sum, doc) => sum + (doc.metaData?.chunks ?? 0), 0),
+    totalSize: (documents ?? []).reduce((sum, doc) => sum + (doc.metaData?.rawSize ?? 0), 0),
+    processedDocs: (documents ?? []).filter(doc => doc.metaData?.status === 'processed').length ?? 0,
+    activeTraining: (documents ?? []).filter(doc => doc.metaData?.status === 'uploading' || doc.metaData?.status === 'processing').length ?? 0
   };
 
   const formatFileSize = (bytes: number): string => {
@@ -168,7 +132,6 @@ export default function KnowledgeBaseTab() {
     }
   }, [])
 
-  const [actualDocuments, setactualDocuments] = useState<{ url: string; name?: string }[]>([]);
   const fetchDocs = useCallback(async () => {
     const response = await fetch('/api/thesis-docs/list', {
       method: 'GET',
@@ -179,7 +142,7 @@ export default function KnowledgeBaseTab() {
     })
 
     const json = await response.json();
-    setactualDocuments(json.data ?? []);
+    setDocuments(json.data ?? []);
   }, []);
 
   // fetch uploaded docs data on initial load
@@ -257,23 +220,8 @@ export default function KnowledgeBaseTab() {
               description: 'Your pdf is attached and ready to send.'
             });
           }
+          setIsUploading(false);
         };
-        const newDoc = {
-          id: Date.now(),
-          name: file.name,
-          size: formatFileSize(file.size),
-          rawSize: file.size,
-          status: 'uploading' as const,
-          category,
-          categoryIcon: icon,
-          uploadedAt: 'Uploading...',
-          chunks: 0,
-          timesReferenced: 0,
-          uploadProgress: 0,
-          file
-        }
-        setDocuments(prev => [newDoc, ...prev]);
-        return newDoc;
       } catch (error: any) {
         console.error("Error uploading image:", error);
         toast({
@@ -281,7 +229,6 @@ export default function KnowledgeBaseTab() {
           title: "Cannot upload file",
           description: error.message
         });
-      } finally {
         setIsUploading(false);
       }
     }
@@ -343,12 +290,12 @@ export default function KnowledgeBaseTab() {
     }
   };
 
-  const retryUpload = (docId: number) => {
-    const doc = documents.find(d => d.id === docId);
+  const retryUpload = (fileId: string) => {
+    const doc = documents.find(d => d.fileId === fileId);
     if (!doc) return;
 
     setDocuments(prev => prev.map(d =>
-      d.id === docId
+      d.fileId === fileId
         ? { ...d, status: 'uploading', uploadProgress: 0, error: undefined }
         : d
     ));
@@ -385,8 +332,9 @@ export default function KnowledgeBaseTab() {
             type="button"
             className="inline-flex items-center gap-2 px-6 py-2.5 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors"
             onClick={initiateDocumentRag}
+            disabled={ragInProcess}
           >
-            Rag this!
+            {ragInProcess ? "Ragging.." : "Rag this!"}
           </button>
         </div>
 
@@ -566,7 +514,7 @@ export default function KnowledgeBaseTab() {
             <div>
               <h3 className="font-semibold text-gray-900">Your Documents</h3>
               <p className="text-sm text-gray-600 mt-0.5">
-                {documents.length} document{documents.length !== 1 ? 's' : ''} • {metrics.totalChunks} chunks
+                {(documents ?? []).length} document{(documents ?? []).length !== 1 ? 's' : ''} • {metrics.totalChunks} chunks
               </p>
             </div>
             {uploadQueue > 0 && (
@@ -579,8 +527,8 @@ export default function KnowledgeBaseTab() {
         </div>
 
         <div className="divide-y divide-gray-200">
-          {actualDocuments.map((doc, idx) => {
-            const isSelected = selectedDocId === doc.id;
+          {documents.map((doc, idx) => {
+            const isSelected = selectedFileId === doc.fileId;
 
             return (
               <div
@@ -631,7 +579,7 @@ export default function KnowledgeBaseTab() {
                               e.stopPropagation();
                               toast({
                                 title: 'Usage analytics',
-                                description: `${doc.name} referenced ${doc.timesReferenced ?? "-"} times`
+                                description: `${doc.name} referenced ${doc.metaData?.timesReferenced ?? "-"} times`
                               });
                             }}
                             className="p-1.5 text-gray-600 hover:bg-gray-100 rounded transition-colors"
@@ -659,7 +607,7 @@ export default function KnowledgeBaseTab() {
                       <div className="mt-4 p-4 bg-gray-50 rounded-lg border border-gray-200 animate-fadeIn">
                         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-3">
                           <div className="flex items-center gap-2">
-                            <span className="text-xl">{doc.categoryIcon}</span>
+                            <span className="text-xl">{doc.metaData.categoryIcon}</span>
                             <div>
                               <div className="text-sm font-medium text-gray-900">{doc.metaData?.category ?? "No category"}</div>
                               <div className="text-xs text-gray-500">Category</div>
@@ -671,7 +619,7 @@ export default function KnowledgeBaseTab() {
                               <Zap className="w-4 h-4 text-blue-600" />
                             </div>
                             <div>
-                              <div className="text-sm font-medium text-gray-900">{doc.chunks}</div>
+                              <div className="text-sm font-medium text-gray-900">{doc.metaData?.chunks}</div>
                               <div className="text-xs text-gray-500">Chunks</div>
                             </div>
                           </div>
@@ -681,7 +629,7 @@ export default function KnowledgeBaseTab() {
                               <Eye className="w-4 h-4 text-green-600" />
                             </div>
                             <div>
-                              <div className="text-sm font-medium text-gray-900">{doc.timesReferenced}</div>
+                              <div className="text-sm font-medium text-gray-900">{doc.metaData?.timesReferenced}</div>
                               <div className="text-xs text-gray-500">References</div>
                             </div>
                           </div>
@@ -691,7 +639,7 @@ export default function KnowledgeBaseTab() {
                               <Clock className="w-4 h-4 text-purple-600" />
                             </div>
                             <div>
-                              <div className="text-sm font-medium text-gray-900">{doc.lastUsed || 'Never'}</div>
+                              <div className="text-sm font-medium text-gray-900">{doc.metaData?.lastUsed || 'Never'}</div>
                               <div className="text-xs text-gray-500">Last Used</div>
                             </div>
                           </div>
@@ -732,7 +680,7 @@ export default function KnowledgeBaseTab() {
                     {!isSelected && (
                       <div className="mt-3 flex items-center gap-3 text-xs text-gray-600">
                         <div className="flex items-center gap-1">
-                          <span>{doc.categoryIcon ?? '📊'}</span>
+                          <span>{doc.metaData?.categoryIcon ?? '📊'}</span>
                           <span>{doc.metaData?.category ?? "No Category"}</span>
                         </div>
                         <div className="flex items-center gap-1">
@@ -741,12 +689,12 @@ export default function KnowledgeBaseTab() {
                         </div>
                         <div className="flex items-center gap-1">
                           <Eye className="w-3 h-3 text-green-600" />
-                          <span>{doc.timesReferenced ?? 10} refs</span>
+                          <span>{doc.metaData?.timesReferenced ?? 10} refs</span>
                         </div>
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
-                            setSelectedDocId(doc.id);
+                            setSelectedFileId(doc.fileId);
                           }}
                           className="ml-auto text-blue-600 hover:text-blue-700 font-medium"
                         >
@@ -760,7 +708,7 @@ export default function KnowledgeBaseTab() {
             );
           })}
 
-          {documents.length === 0 && (
+          {(documents ?? []).length === 0 && (
             <div className="p-12 text-center">
               <div className="w-16 h-16 bg-gray-100 rounded-lg flex items-center justify-center mx-auto mb-3">
                 <Database className="w-8 h-8 text-gray-400" />
