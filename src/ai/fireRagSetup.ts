@@ -1,10 +1,10 @@
 import path from "path";
-import { chunk } from "llm-chunk";
 import PDFParser from "pdf2json";
 
 import { googleAI } from "@genkit-ai/google-genai";
 import { FieldValue } from "firebase-admin/firestore";
 import { defineFirestoreRetriever } from "@genkit-ai/firebase";
+import { RecursiveCharacterTextSplitter } from "@langchain/textsplitters";
 
 import { ai } from "./genkit";
 import { db } from "@/lib/firebase-admin";
@@ -53,7 +53,17 @@ export async function indexPdfFile(
   const pdfTxt = await extractPageTextFromPdf(filePath);
 
   // Divide the PDF text into segments.
-  const chunks = chunk(pdfTxt.text);
+  const splitter = new RecursiveCharacterTextSplitter({
+    chunkSize: 1024 * 2,
+    chunkOverlap: 128,
+  });
+  const cleanedPdfText = pdfTxt.text
+    .replace(/^\s+$/g, "")
+    .replace(/\s{10,}/g, " ");
+  const chunks = await splitter.splitText(
+    // remove empty lines and too many spaces
+    cleanedPdfText
+  );
 
   // TODO
   // fileId should be unique per partner per file
@@ -74,7 +84,9 @@ export async function indexToFirestore(
     embedder,
   };
 
+  console.log(`--- indexing chunks = ${data.length}`);
   for (const text of data) {
+    console.log(`--- indexing text.length = ${text.length}`);
     const embedding = (
       await ai.embed({
         embedder: indexConfig.embedder,
@@ -87,6 +99,37 @@ export async function indexToFirestore(
       [indexConfig.contentField]: text,
     });
   }
+}
+
+export async function deleteAllRagIndexDocs(collectionName: string) {
+  const indexConfig = {
+    collection: collectionName,
+    contentField: "text",
+    vectorField: "embedding",
+    embedder,
+  };
+
+  const query = db.collection(indexConfig.collection);
+  const snapshot = await query.get();
+
+  const batchSize = snapshot.size;
+  if (batchSize === 0) {
+    // When there are no documents left, we are done
+    return;
+  }
+
+  // Delete documents in a batch
+  const batch = db.batch();
+  snapshot.docs.forEach((doc) => {
+    batch.delete(doc.ref);
+  });
+  await batch.commit();
+
+  // Recurse on the next process tick, to avoid
+  // exploding the stack.
+  process.nextTick(() => {
+    deleteAllRagIndexDocs(collectionName);
+  });
 }
 
 export async function deleteRagIndexDocs(
