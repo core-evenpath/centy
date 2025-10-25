@@ -1,10 +1,15 @@
 import fs from "fs/promises";
 import { v4 as uuidv4 } from "uuid";
-import * as admin from "firebase-admin";
+import { headers } from "next/headers";
 import { NextRequest, NextResponse } from "next/server";
 
-import { RAGINDEX_COLLECTION_NAME, indexPdfFile } from "@/ai/fireRagSetup";
-import { db } from "@/lib/firebase-admin";
+import {
+  RAGINDEX_COLLECTION_NAME,
+  deleteAllRagIndexDocs,
+  indexPdfFile,
+} from "@/ai/fireRagSetup";
+import * as admin from "firebase-admin";
+import { adminAuth, db } from "@/lib/firebase-admin";
 
 // Ensure storage is initialized with the app
 let storage: admin.storage.Storage;
@@ -12,6 +17,23 @@ try {
   storage = admin.storage();
 } catch (e: any) {
   console.error("Failed to initialize Firebase Storage:", e.message);
+}
+
+// Helper function to get partnerId for authenticated user
+async function getPartnerId(authHeader: string) {
+  try {
+    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+      return {
+        success: false,
+        error: "Missing or invalid authorization header",
+      };
+    }
+    const idToken = authHeader.split("Bearer ")[1];
+    const customClaims = await adminAuth.verifyIdToken(idToken);
+    return { success: true, partnerId: customClaims.partnerId };
+  } catch (error) {
+    return { success: false, error: "Invalid token" };
+  }
 }
 
 const downloadFile = async (url: string, path: string) => {
@@ -30,11 +52,25 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     );
   }
-
+  const headersList = await headers();
+  const authHeader = headersList.get("authorization") || "";
+  const userData = await getPartnerId(authHeader);
+  if (!userData.success) {
+    return NextResponse.json(
+      { error: "Could not authenticate user" },
+      { status: 401 }
+    );
+  }
+  if (typeof userData.partnerId === undefined) {
+    return NextResponse.json(
+      { error: "Could not find partner ID" },
+      { status: 401 }
+    );
+  }
   try {
     // get all documents for partnerId
     const ragDocsForPartner = await db
-      .collection(RAGINDEX_COLLECTION_NAME)
+      .collection(`thesis-docs/${userData.partnerId}/docs`)
       .listDocuments();
 
     // -- steps
@@ -47,13 +83,21 @@ export async function POST(request: NextRequest) {
     let processedDocsCount = 0;
     let processingError: { fileUrl: string } | undefined = undefined;
     let currentFileUrl: string | undefined = undefined;
+    let ts = performance.now();
+    console.log(`-- START deleteRagIndexDocs @ ${ts}`);
+    await deleteAllRagIndexDocs(RAGINDEX_COLLECTION_NAME);
+    console.log(
+      `-- DONE deleteRagIndexDocs time_taken = ${performance.now() - ts}`
+    );
+    ts = performance.now();
+
     for (const docRef of ragDocsForPartner) {
       const docSnap = await docRef.get();
       if (docSnap.exists) {
         const docData = docSnap.data();
         if (docData) {
           currentFileUrl = docData.url;
-          const docId = docData.docId;
+          const fileId = docData.fileId;
           if (!currentFileUrl) {
             console.error(
               `--- invalid currentFileUrl=${currentFileUrl} for docData=${JSON.stringify(
@@ -62,9 +106,9 @@ export async function POST(request: NextRequest) {
             );
             break;
           }
-          if (!docId) {
+          if (!fileId) {
             console.error(
-              `--- invalid docId for document with currentFileUrl=${currentFileUrl} for docData=${JSON.stringify(
+              `--- invalid fileId for document with currentFileUrl=${currentFileUrl} for docData=${JSON.stringify(
                 docData
               )}`
             );
@@ -72,12 +116,21 @@ export async function POST(request: NextRequest) {
           }
           const tempFilePath = `/tmp/${uuidv4()}.pdf`;
           await downloadFile(currentFileUrl, tempFilePath);
-          await indexPdfFile(RAGINDEX_COLLECTION_NAME, docId, tempFilePath);
+
+          console.log(`-- START ragging ${currentFileUrl}`);
+          ts = performance.now();
+          await indexPdfFile(RAGINDEX_COLLECTION_NAME, fileId, tempFilePath);
           processedDocsCount += 1;
+          console.log(
+            `-- DONE ragging ${currentFileUrl} : time_taken = ${
+              performance.now() - ts
+            }`
+          );
+          ts = performance.now();
         }
       } else {
         console.error(`${docSnap.id} does not exist`);
-        break;
+        // break;
       }
     }
     if (processingError) {
