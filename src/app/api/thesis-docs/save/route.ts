@@ -31,6 +31,14 @@ async function getPartnerId(authHeader: string) {
   }
 }
 
+// Ensure storage is initialized with the app
+let storage: admin.storage.Storage;
+try {
+  storage = admin.storage();
+} catch (e: any) {
+  console.error("Failed to initialize Firebase Storage:", e.message);
+}
+
 // function to extract data from pdf content
 async function getThesisInfo(pdfText: string) {
   const CompanyInfoSchema = z.object({
@@ -68,45 +76,48 @@ async function getThesisInfo(pdfText: string) {
       {
         text: `
       I have investment thesis text from a pdf file.
-      Extract the data from the text
-      ### TEXT FROM PDF
+      Extract the company information and create a structured JSON response.
+      
+      Text:
       ${pdfText}
       `,
       },
     ],
-    output: { schema: CompanyInfoSchema },
+    output: {
+      schema: ThesisSchema,
+    },
   });
-  return aiResponse.toJSON().message?.content;
-}
 
-// Ensure storage is initialized with the app
-let storage: admin.storage.Storage;
-try {
-  storage = admin.storage();
-} catch (e: any) {
-  console.error("Failed to initialize Firebase Storage:", e.message);
+  return aiResponse.output;
 }
 
 export async function POST(request: NextRequest) {
+  console.log("[SAVE] Starting document upload process");
+  
   const headersList = await headers();
   const authHeader = headersList.get("authorization") || "";
   const userData = await getPartnerId(authHeader);
+  
   if (!userData.success) {
+    console.error("[SAVE] Authentication failed:", userData.error);
     return NextResponse.json(
       { error: "Could not authenticate user" },
       { status: 401 }
     );
   }
+  
   if (typeof userData.partnerId === undefined) {
+    console.error("[SAVE] Partner ID is undefined");
     return NextResponse.json(
       { error: "Could not find partner ID" },
       { status: 401 }
     );
   }
+
+  console.log("[SAVE] Authenticated partner:", userData.partnerId);
+
   if (!storage) {
-    console.error(
-      "Firebase Storage is not configured on the server. Check firebase-admin.ts initialization."
-    );
+    console.error("[SAVE] Firebase Storage is not configured");
     return NextResponse.json(
       { error: "Firebase Storage is not configured on the server." },
       { status: 500 }
@@ -114,20 +125,22 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const params = await request.json();
-    const { pdfFile, metaData } = params;
+    const { pdfFile, metaData } = await request.json();
+    console.log("[SAVE] Received file:", metaData?.name);
 
-    if (!pdfFile || !pdfFile.startsWith("data:application")) {
+    if (!pdfFile || !pdfFile.startsWith("data:")) {
+      console.error("[SAVE] Invalid PDF data format");
       return NextResponse.json(
         { error: "Valid pdf data URI is required." },
         { status: 400 }
       );
     }
 
-    const mimeTypeMatch = pdfFile.match(/data:(application\/pdf);/);
+    const mimeTypeMatch = pdfFile.match(/data:([^;]+);/);
     if (!mimeTypeMatch || !mimeTypeMatch[1]) {
+      console.error("[SAVE] Could not determine MIME type");
       return NextResponse.json(
-        { error: "Could not determine image MIME type." },
+        { error: "Could not determine pdf MIME type." },
         { status: 400 }
       );
     }
@@ -135,6 +148,7 @@ export async function POST(request: NextRequest) {
 
     const base64Data = pdfFile.split(";base64,").pop();
     if (!base64Data) {
+      console.error("[SAVE] Invalid base64 data");
       return NextResponse.json(
         { error: "Invalid base64 pdf data." },
         { status: 400 }
@@ -153,43 +167,91 @@ export async function POST(request: NextRequest) {
     const fileName = `partner-uploads/thesis-pdf/${uuidv4()}.${fileExtension}`;
     const file = bucket.file(fileName);
 
-    // also write to temp file and extract data
+    console.log("[SAVE] Writing file to storage:", fileName);
+
+    // Write to temp file for processing
     const tempFilePath = `/tmp/${uuidv4()}.pdf`;
     await fs.writeFile(tempFilePath, buffer);
-    // const pdfText = await extractTextFromPdf(tempFilePath);
-    const pdfText = await extractPageTextFromPdf(tempFilePath);
+    console.log("[SAVE] Created temp file:", tempFilePath);
 
+    // Extract text from PDF
+    console.log("[SAVE] Extracting text from PDF...");
+    const pdfText = await extractPageTextFromPdf(tempFilePath);
+    console.log("[SAVE] Extracted text length:", pdfText.text.length);
+
+    // Upload to storage
     await file.save(buffer, {
       metadata: {
         contentType: mimeType,
-        cacheControl: "public, max-age=31536000", // Cache for 1 year
+        cacheControl: "public, max-age=31536000",
       },
     });
-
     await file.makePublic();
-    // Make the file publicly accessible
     const publicUrl = file.publicUrl();
+    console.log("[SAVE] File uploaded to:", publicUrl);
 
+    // Extract thesis info (optional)
+    console.log("[SAVE] Extracting thesis info...");
     const thesisInfo = await getThesisInfo(pdfText.text);
-    // const thesisInfo = { assume: "some thesis" };
+    console.log("[SAVE] Thesis info extracted");
 
+    // Generate unique file ID
     const fileId = uuidv4();
-    await indexPdfFile(RAGINDEX_COLLECTION_NAME, fileId, tempFilePath);
+    console.log("[SAVE] Generated fileId:", fileId);
 
-    // TODO - save document first, then RAG, then set document.status = PROCESSED
+    // Index PDF in RAG system
+    console.log("[SAVE] Starting RAG indexing...");
+    console.log("[SAVE] Collection:", RAGINDEX_COLLECTION_NAME);
+    console.log("[SAVE] FileId:", fileId);
+    console.log("[SAVE] FilePath:", tempFilePath);
+    
+    try {
+      await indexPdfFile(RAGINDEX_COLLECTION_NAME, fileId, tempFilePath);
+      console.log("[SAVE] RAG indexing completed successfully");
+      
+      // Verify indexing
+      const ragChunks = await db
+        .collection(RAGINDEX_COLLECTION_NAME)
+        .where("fileId", "==", fileId)
+        .limit(1)
+        .get();
+      
+      console.log("[SAVE] Verification - chunks found:", !ragChunks.empty);
+    } catch (ragError: any) {
+      console.error("[SAVE] RAG indexing failed:", ragError);
+      console.error("[SAVE] RAG error stack:", ragError.stack);
+      // Continue anyway - don't fail the upload
+    }
 
+    // Clean up temp file
+    try {
+      await fs.unlink(tempFilePath);
+      console.log("[SAVE] Cleaned up temp file");
+    } catch (cleanupError) {
+      console.error("[SAVE] Failed to clean up temp file:", cleanupError);
+    }
+
+    // Save document metadata
+    console.log("[SAVE] Saving document metadata to Firestore...");
     await db.collection(`thesis-docs/${userData.partnerId}/docs`).add({
       fileId,
       url: publicUrl,
       thesisInfo,
       metaData: metaData ?? {},
+      status: "processing",
+      createdAt: new Date().toISOString(),
     });
+    console.log("[SAVE] Document metadata saved");
 
     return NextResponse.json({
+      success: true,
       url: publicUrl,
+      fileId: fileId,
       thesisInfo,
     });
   } catch (error: any) {
+    console.error("[SAVE] Error in save route:", error);
+    console.error("[SAVE] Error stack:", error.stack);
     return NextResponse.json(
       { error: error.message || "Failed to generate and store image" },
       { status: 500 }
