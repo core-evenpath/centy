@@ -3,25 +3,9 @@ import { headers } from "next/headers";
 import { googleAI } from "@genkit-ai/google-genai";
 import { z } from "genkit";
 import { ai } from "@/ai/genkit";
-import { adminAuth, db } from "@/lib/firebase-admin";
+import { db } from "@/lib/firebase-admin";
 import { RAGINDEX_COLLECTION_NAME } from "@/ai/fireRagSetup";
-
-// Helper function to get partnerId for authenticated user
-async function getPartnerId(authHeader: string) {
-  try {
-    if (!authHeader || !authHeader.startsWith("Bearer ")) {
-      return {
-        success: false,
-        error: "Missing or invalid authorization header",
-      };
-    }
-    const idToken = authHeader.split("Bearer ")[1];
-    const customClaims = await adminAuth.verifyIdToken(idToken);
-    return { success: true, partnerId: customClaims.partnerId };
-  } catch (error) {
-    return { success: false, error: "Invalid token" };
-  }
-}
+import { getPartnerId } from "@/utils/auth";
 
 /**
  * MC-LOOP-2: Generate intelligent tags for documents
@@ -29,22 +13,22 @@ async function getPartnerId(authHeader: string) {
  * using AI without breaking the existing RAG implementation
  */
 export async function POST(request: NextRequest) {
-  console.log('[MC-LOOP-2] Starting tag generation...');
-  
+  console.log("[MC-LOOP-2] Starting tag generation...");
+
   try {
     const headersList = await headers();
     const authHeader = headersList.get("authorization") || "";
     const userData = await getPartnerId(authHeader);
 
     if (!userData.success || !userData.partnerId) {
-      console.error('[MC-LOOP-2] Authentication failed');
+      console.error("[MC-LOOP-2] Authentication failed");
       return NextResponse.json(
         { error: "Could not authenticate user" },
         { status: 401 }
       );
     }
 
-    console.log('[MC-LOOP-2] Authenticated partner:', userData.partnerId);
+    console.log("[MC-LOOP-2] Authenticated partner:", userData.partnerId);
 
     const body = await request.json();
     const { fileUrl, fileName } = body;
@@ -56,7 +40,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    console.log('[MC-LOOP-2] Processing file:', fileName, fileUrl);
+    console.log("[MC-LOOP-2] Processing file:", fileName, fileUrl);
 
     // Find the document in the database
     const docsSnapshot = await db
@@ -66,7 +50,7 @@ export async function POST(request: NextRequest) {
       .get();
 
     if (docsSnapshot.empty) {
-      console.error('[MC-LOOP-2] Document not found in database');
+      console.error("[MC-LOOP-2] Document not found in database");
       return NextResponse.json(
         { error: "Document not found" },
         { status: 404 }
@@ -77,7 +61,7 @@ export async function POST(request: NextRequest) {
     const docData = docsSnapshot.docs[0].data();
     const fileId = docData.fileId;
 
-    console.log('[MC-LOOP-2] Found document with fileId:', fileId);
+    console.log("[MC-LOOP-2] Found document with fileId:", fileId);
 
     // Get content chunks from RAG index
     const docsFromRag = await db
@@ -87,36 +71,41 @@ export async function POST(request: NextRequest) {
       .get();
 
     if (docsFromRag.empty) {
-      console.error('[MC-LOOP-2] No content chunks found in RAG index');
+      console.error("[MC-LOOP-2] No content chunks found in RAG index");
       return NextResponse.json(
-        { 
-          error: "Document content not indexed yet. Please wait for RAG processing to complete.",
-          requiresRetry: true 
+        {
+          error:
+            "Document content not indexed yet. Please wait for RAG processing to complete.",
+          requiresRetry: true,
         },
         { status: 400 }
       );
     }
 
-    console.log('[MC-LOOP-2] Found', docsFromRag.docs.length, 'content chunks');
+    console.log("[MC-LOOP-2] Found", docsFromRag.docs.length, "content chunks");
 
     // Extract text content from the chunks
-    const contentChunks = docsFromRag.docs.map(doc => doc.data().text);
+    const contentChunks = docsFromRag.docs.map((doc) => doc.data().text);
     const combinedContent = contentChunks.join("\n\n");
     const contentSample = combinedContent.substring(0, 4000); // Use first 4000 chars
 
-    console.log('[MC-LOOP-2] Content sample length:', contentSample.length);
+    console.log("[MC-LOOP-2] Content sample length:", contentSample.length);
 
     // Define schema for tag generation
     const TagGenerationSchema = z.object({
       tags: z
         .array(z.string())
-        .describe("5-15 concise, searchable tags (1-3 words each). Include document type, topics, industry, entities, and time period."),
+        .describe(
+          "5-15 concise, searchable tags (1-3 words each). Include document type, topics, industry, entities, and time period."
+        ),
       primaryCategory: z
         .string()
-        .describe("Main category: 'Market Analysis', 'Investment Strategy', 'Compliance', 'Client Resources', 'Financial Report', or 'General'"),
+        .describe(
+          "Main category: 'Market Analysis', 'Investment Strategy', 'Compliance', 'Client Resources', 'Financial Report', or 'General'"
+        ),
     });
 
-    console.log('[MC-LOOP-2] Calling AI to generate tags...');
+    console.log("[MC-LOOP-2] Calling AI to generate tags...");
 
     // Generate tags using AI
     const { output } = await ai.generate({
@@ -144,19 +133,20 @@ Prioritize terms that make this document discoverable.`,
       output: { schema: TagGenerationSchema },
     });
 
-    console.log('[MC-LOOP-2] AI response received');
+    console.log("[MC-LOOP-2] AI response received");
 
     // Parse the generated tags
-    const generatedData = typeof output === 'string' ? JSON.parse(output) : output;
+    const generatedData =
+      typeof output === "string" ? JSON.parse(output) : output;
     const tags = (generatedData.tags || [])
       .map((tag: string) => tag.trim())
       .filter((tag: string) => tag.length > 0)
       .slice(0, 15);
-    
+
     const primaryCategory = generatedData.primaryCategory || "General";
 
-    console.log('[MC-LOOP-2] Generated tags:', tags);
-    console.log('[MC-LOOP-2] Primary category:', primaryCategory);
+    console.log("[MC-LOOP-2] Generated tags:", tags);
+    console.log("[MC-LOOP-2] Primary category:", primaryCategory);
 
     // Store sample indexed content for search preview
     const indexedContentSample = contentChunks.slice(0, 3);
@@ -170,7 +160,7 @@ Prioritize terms that make this document discoverable.`,
       indexedContent: indexedContentSample,
     });
 
-    console.log('[MC-LOOP-2] Successfully updated document with tags');
+    console.log("[MC-LOOP-2] Successfully updated document with tags");
 
     return NextResponse.json({
       success: true,

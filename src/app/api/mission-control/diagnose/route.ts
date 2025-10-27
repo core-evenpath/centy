@@ -1,24 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { headers } from "next/headers";
-import { adminAuth, db } from "@/lib/firebase-admin";
+import { db } from "@/lib/firebase-admin";
 import { RAGINDEX_COLLECTION_NAME } from "@/ai/fireRagSetup";
-
-// Helper function to get partnerId for authenticated user
-async function getPartnerId(authHeader: string) {
-  try {
-    if (!authHeader || !authHeader.startsWith("Bearer ")) {
-      return {
-        success: false,
-        error: "Missing or invalid authorization header",
-      };
-    }
-    const idToken = authHeader.split("Bearer ")[1];
-    const customClaims = await adminAuth.verifyIdToken(idToken);
-    return { success: true, partnerId: customClaims.partnerId };
-  } catch (error) {
-    return { success: false, error: "Invalid token" };
-  }
-}
+import { getPartnerId } from "@/utils/auth";
 
 /**
  * Diagnostic endpoint to check RAG system health
@@ -30,8 +14,8 @@ export async function GET(request: NextRequest) {
     summary: {
       healthy: true,
       errors: [],
-      warnings: []
-    }
+      warnings: [],
+    },
   };
 
   try {
@@ -44,7 +28,7 @@ export async function GET(request: NextRequest) {
       diagnostics.checks.push({
         name: "Authentication",
         status: "FAILED",
-        error: "Could not authenticate user"
+        error: "Could not authenticate user",
       });
       diagnostics.summary.healthy = false;
       diagnostics.summary.errors.push("Authentication failed");
@@ -54,7 +38,7 @@ export async function GET(request: NextRequest) {
     diagnostics.checks.push({
       name: "Authentication",
       status: "OK",
-      partnerId: userData.partnerId
+      partnerId: userData.partnerId,
     });
 
     // Check 2: Partner documents collection
@@ -66,15 +50,15 @@ export async function GET(request: NextRequest) {
       name: "Partner Documents Collection",
       status: docsSnapshot.empty ? "WARNING" : "OK",
       documentCount: docsSnapshot.size,
-      documents: docsSnapshot.docs.map(doc => ({
+      documents: docsSnapshot.docs.map((doc) => ({
         id: doc.id,
         fileId: doc.data().fileId,
         url: doc.data().url,
         hasMetadata: !!doc.data().metaData,
         hasTags: !!doc.data().tags,
         tagCount: doc.data().tags?.length || 0,
-        status: doc.data().status
-      }))
+        status: doc.data().status,
+      })),
     });
 
     if (docsSnapshot.empty) {
@@ -88,7 +72,7 @@ export async function GET(request: NextRequest) {
       .get();
 
     const fileIdCounts: { [key: string]: number } = {};
-    ragSnapshot.docs.forEach(doc => {
+    ragSnapshot.docs.forEach((doc) => {
       const fileId = doc.data().fileId;
       if (fileId) {
         fileIdCounts[fileId] = (fileIdCounts[fileId] || 0) + 1;
@@ -101,19 +85,21 @@ export async function GET(request: NextRequest) {
       totalChunks: ragSnapshot.size,
       uniqueFiles: Object.keys(fileIdCounts).length,
       chunksPerFile: fileIdCounts,
-      sampleChunks: ragSnapshot.docs.slice(0, 3).map(doc => ({
+      sampleChunks: ragSnapshot.docs.slice(0, 3).map((doc) => ({
         id: doc.id,
         fileId: doc.data().fileId,
         hasEmbedding: !!doc.data().embedding,
         hasText: !!doc.data().text,
         textLength: doc.data().text?.length || 0,
-        textPreview: doc.data().text?.substring(0, 100)
-      }))
+        textPreview: doc.data().text?.substring(0, 100),
+      })),
     });
 
     if (ragSnapshot.empty) {
       diagnostics.summary.healthy = false;
-      diagnostics.summary.errors.push("RAG index is empty - no content indexed");
+      diagnostics.summary.errors.push(
+        "RAG index is empty - no content indexed"
+      );
     }
 
     // Check 4: Cross-reference documents with RAG chunks
@@ -142,7 +128,7 @@ export async function GET(request: NextRequest) {
       status: missingInRag.length > 0 ? "WARNING" : "OK",
       documentsInBothSystems: foundInRag.length,
       documentsNotIndexed: missingInRag.length,
-      missingFileIds: missingInRag
+      missingFileIds: missingInRag,
     });
 
     if (missingInRag.length > 0) {
@@ -155,7 +141,7 @@ export async function GET(request: NextRequest) {
     if (!ragSnapshot.empty) {
       const sampleDoc = ragSnapshot.docs[0];
       const embedding = sampleDoc.data().embedding;
-      
+
       diagnostics.checks.push({
         name: "Embedding Configuration",
         status: embedding ? "OK" : "FAILED",
@@ -185,7 +171,7 @@ export async function GET(request: NextRequest) {
       name: "System Error",
       status: "FAILED",
       error: error.message,
-      stack: error.stack
+      stack: error.stack,
     });
     return NextResponse.json(diagnostics, { status: 500 });
   }
