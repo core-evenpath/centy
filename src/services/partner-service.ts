@@ -2,7 +2,7 @@
 import 'server-only';
 import { db } from '@/lib/firebase-admin';
 import { mockPartners } from '@/lib/mockData';
-import type { Partner } from '../../lib/types';
+import type { Partner } from '../lib/types';
 import * as admin from 'firebase-admin';
 
 /**
