@@ -1,24 +1,9 @@
 // src/app/api/thesis-docs/list/route.ts
 import { NextResponse } from "next/server";
-import { db, adminAuth } from "@/lib/firebase-admin";
+import { db } from "@/lib/firebase-admin";
 import { headers } from "next/headers";
-
-// Helper function to get partnerId for authenticated user
-async function getPartnerId(authHeader: string) {
-  try {
-    if (!authHeader || !authHeader.startsWith("Bearer ")) {
-      return {
-        success: false,
-        error: "Missing or invalid authorization header",
-      };
-    }
-    const idToken = authHeader.split("Bearer ")[1];
-    const customClaims = await adminAuth.verifyIdToken(idToken);
-    return { success: true, partnerId: customClaims.partnerId };
-  } catch (error) {
-    return { success: false, error: "Invalid token" };
-  }
-}
+import { getPartnerId } from "@/utils/auth";
+import { getPartnerThesisDocs } from "@/services/thesis-docs";
 
 export async function GET() {
   try {
@@ -26,7 +11,6 @@ export async function GET() {
     const authHeader = headersList.get("authorization") || "";
 
     const userData = await getPartnerId(authHeader);
-    console.log(userData);
     if (!userData?.partnerId) {
       return NextResponse.json(
         {
@@ -37,22 +21,10 @@ export async function GET() {
       );
     }
 
-    // Get partner docs
-    const partnerDocsCollection = await db
-      .collection(`thesis-docs/${userData.partnerId}/docs`)
-      .get();
-
-    if (partnerDocsCollection.empty) {
-      return NextResponse.json({
-        success: true,
-        data: [],
-      });
-    }
-
-    const partnerDocs = partnerDocsCollection.docs.map((snap) => snap.data());
+    const docs = await getPartnerThesisDocs(userData.partnerId);
     return NextResponse.json({
       success: true,
-      data: partnerDocs,
+      data: docs,
     });
   } catch (error: any) {
     console.error("Error fetching partner details:", error);

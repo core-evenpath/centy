@@ -5,7 +5,6 @@ import { headers } from "next/headers";
 import * as admin from "firebase-admin";
 import { NextRequest, NextResponse } from "next/server";
 
-import { adminAuth, db } from "@/lib/firebase-admin";
 import { googleAI } from "@genkit-ai/google-genai";
 import { ai } from "@/ai/genkit";
 import {
@@ -13,23 +12,8 @@ import {
   extractPageTextFromPdf,
   indexPdfFile,
 } from "@/ai/fireRagSetup";
-
-// Helper function to get partnerId for authenticated user
-async function getPartnerId(authHeader: string) {
-  try {
-    if (!authHeader || !authHeader.startsWith("Bearer ")) {
-      return {
-        success: false,
-        error: "Missing or invalid authorization header",
-      };
-    }
-    const idToken = authHeader.split("Bearer ")[1];
-    const customClaims = await adminAuth.verifyIdToken(idToken);
-    return { success: true, partnerId: customClaims.partnerId };
-  } catch (error) {
-    return { success: false, error: "Invalid token" };
-  }
-}
+import { getPartnerId } from "@/utils/auth";
+import { addThesisDoc, getFirstRagIndex } from "@/services/thesis-docs";
 
 // Ensure storage is initialized with the app
 let storage: admin.storage.Storage;
@@ -214,12 +198,7 @@ export async function POST(request: NextRequest) {
       );
       console.log("[SAVE] RAG indexing completed successfully");
 
-      // Verify indexing
-      const ragChunks = await db
-        .collection(RAGINDEX_COLLECTION_NAME)
-        .where("fileId", "==", fileId)
-        .limit(1)
-        .get();
+      const ragChunks = await getFirstRagIndex(fileId);
 
       console.log("[SAVE] Verification - chunks found:", !ragChunks.empty);
     } catch (ragError: any) {
@@ -238,14 +217,13 @@ export async function POST(request: NextRequest) {
 
     // Save document metadata
     console.log("[SAVE] Saving document metadata to Firestore...");
-    await db.collection(`thesis-docs/${userData.partnerId}/docs`).add({
+    await addThesisDoc(
       fileId,
-      url: publicUrl,
+      userData.partnerId,
+      publicUrl,
       thesisInfo,
-      metaData: metaData ?? {},
-      status: "processing",
-      createdAt: new Date().toISOString(),
-    });
+      metaData
+    );
     console.log("[SAVE] Document metadata saved");
 
     return NextResponse.json({

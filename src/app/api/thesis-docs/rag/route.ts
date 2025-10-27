@@ -9,7 +9,8 @@ import {
   indexPdfFile,
 } from "@/ai/fireRagSetup";
 import * as admin from "firebase-admin";
-import { adminAuth, db } from "@/lib/firebase-admin";
+import { getPartnerId } from "@/utils/auth";
+import { getPartnerRagIndexDocs } from "@/services/thesis-docs";
 
 // Ensure storage is initialized with the app
 let storage: admin.storage.Storage;
@@ -17,23 +18,6 @@ try {
   storage = admin.storage();
 } catch (e: any) {
   console.error("Failed to initialize Firebase Storage:", e.message);
-}
-
-// Helper function to get partnerId for authenticated user
-async function getPartnerId(authHeader: string) {
-  try {
-    if (!authHeader || !authHeader.startsWith("Bearer ")) {
-      return {
-        success: false,
-        error: "Missing or invalid authorization header",
-      };
-    }
-    const idToken = authHeader.split("Bearer ")[1];
-    const customClaims = await adminAuth.verifyIdToken(idToken);
-    return { success: true, partnerId: customClaims.partnerId };
-  } catch (error) {
-    return { success: false, error: "Invalid token" };
-  }
 }
 
 const downloadFile = async (url: string, path: string) => {
@@ -68,16 +52,8 @@ export async function POST(request: NextRequest) {
     );
   }
   try {
-    // get all documents for partnerId
-    const ragDocsForPartner = await db
-      .collection(`thesis-docs/${userData.partnerId}/docs`)
-      .listDocuments();
-
-    // -- steps
-    // for every document/file for partnerId
-    // save as local tmp file
-    // generate a new fileId for every file
-    // call extractPdf on each doc with fileId
+    // get all rag index documents for partnerId
+    const ragDocsForPartner = await getPartnerRagIndexDocs(userData.partnerId);
 
     // Loop to iterate over the collection and print the id and data of each document
     let processedDocsCount = 0;
