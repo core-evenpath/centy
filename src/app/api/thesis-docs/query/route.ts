@@ -7,8 +7,8 @@ import {
   RAGINDEX_COLLECTION_NAME,
   firestoreRetriever,
 } from "@/ai/fireRagSetup";
-import { adminAuth } from "@/lib/firebase-admin";
-import { NextRequest, NextResponse } from "next/server";
+import { type NextRequest, NextResponse } from "next/server";
+import { getPartnerId } from "@/utils/auth";
 
 // Ensure storage is initialized with the app
 let storage: admin.storage.Storage;
@@ -16,23 +16,6 @@ try {
   storage = admin.storage();
 } catch (e: any) {
   console.error("Failed to initialize Firebase Storage:", e.message);
-}
-
-// Helper function to get partnerId for authenticated user
-async function getPartnerId(authHeader: string) {
-  try {
-    if (!authHeader || !authHeader.startsWith("Bearer ")) {
-      return {
-        success: false,
-        error: "Missing or invalid authorization header",
-      };
-    }
-    const idToken = authHeader.split("Bearer ")[1];
-    const customClaims = await adminAuth.verifyIdToken(idToken);
-    return { success: true, partnerId: customClaims.partnerId };
-  } catch (error) {
-    return { success: false, error: "Invalid token" };
-  }
 }
 
 export async function GET(request: NextRequest) {

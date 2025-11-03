@@ -13,7 +13,7 @@ import {
   serverTimestamp,
   Timestamp 
 } from 'firebase/firestore';
-import type { WorkspaceInvitation, UserWorkspaceLink } from '../../lib/types';
+import type { WorkspaceInvitation, UserWorkspaceLink } from '../lib/types';
 
 export interface AcceptInvitationResult {
   success: boolean;
@@ -42,13 +42,9 @@ export async function acceptInvitationByPhone(
   try {
     // Find pending invitations for this phone number
     // Note: This requires that invitations can be created with phone numbers
-    const invitationsQuery = query(
-      collection(db, 'workspaceInvitations'),
-      where('phoneNumber', '==', phoneNumber),
-      where('status', '==', 'pending')
-    );
+    const invitationsQuery = db.collection('workspaceInvitations').where('phoneNumber', '==', phoneNumber).where('status', '==', 'pending')
 
-    const invitationsSnapshot = await getDocs(invitationsQuery);
+    const invitationsSnapshot = await invitationsQuery.get()
     
     if (invitationsSnapshot.empty) {
       return {
@@ -68,7 +64,7 @@ export async function acceptInvitationByPhone(
       const expiresAt = (invitation.expiresAt as any).toDate();
       
       if (now > expiresAt) {
-        await updateDoc(doc(db, 'workspaceInvitations', invitationDoc.id), {
+        await db.collection('workspaceInvitations').doc(invitationDoc.id).update({
           status: 'expired'
         });
         continue;
@@ -86,15 +82,15 @@ export async function acceptInvitationByPhone(
         invitedBy: invitation.invitedBy,
         invitedAt: invitation.invitedAt,
         partnerName: invitation.partnerName,
-        partnerAvatar: undefined,
+        partnerAvatar: null,
         lastAccessedAt: serverTimestamp() as any
       };
 
       const linkId = `${userId}_${invitation.partnerId}`;
-      await setDoc(doc(db, 'userWorkspaceLinks', linkId), workspaceLink);
+      await db.collection('userWorkspaceLinks').doc(linkId).set(workspaceLink);
 
       // Update invitation status
-      await updateDoc(doc(db, 'workspaceInvitations', invitationDoc.id), {
+      await db.collection('workspaceInvitations').doc(invitationDoc.id).update({
         status: 'accepted',
         acceptedAt: serverTimestamp(),
         acceptedBy: userId
@@ -195,7 +191,7 @@ export async function createWorkspaceInvitationWithPhone(input: {
   }
 
   try {
-    const invitationId = doc(collection(db, 'workspaceInvitations')).id;
+    const invitationId = db.collection('workspaceInvitations').doc().id;
     
     const invitation: Omit<WorkspaceInvitation, 'id'> = {
       email: input.email || '',
@@ -212,7 +208,7 @@ export async function createWorkspaceInvitationWithPhone(input: {
       inviterEmail: input.inviterEmail
     };
 
-    await setDoc(doc(db, 'workspaceInvitations', invitationId), invitation);
+    await db.collection('workspaceInvitations').doc(invitationId).set(invitation);
 
     return {
       success: true,
@@ -242,13 +238,11 @@ export async function getPendingInvitations(
     const invitations: WorkspaceInvitation[] = [];
     
     if (phoneNumber) {
-      const phoneQuery = query(
-        collection(db, 'workspaceInvitations'),
-        where('phoneNumber', '==', phoneNumber),
-        where('status', '==', 'pending')
-      );
+      const phoneQuery = db.collection('workspaceInvitations').
+        where('phoneNumber', '==', phoneNumber).
+        where('status', '==', 'pending');
       
-      const phoneSnapshot = await getDocs(phoneQuery);
+      const phoneSnapshot = await phoneQuery.get();
       invitations.push(...phoneSnapshot.docs.map(doc => ({ 
         id: doc.id, 
         ...doc.data() 
@@ -256,13 +250,11 @@ export async function getPendingInvitations(
     }
     
     if (email) {
-      const emailQuery = query(
-        collection(db, 'workspaceInvitations'),
-        where('email', '==', email.toLowerCase()),
+      const emailQuery = db.collection('workspaceInvitations').
+        where('email', '==', email.toLowerCase()).
         where('status', '==', 'pending')
-      );
       
-      const emailSnapshot = await getDocs(emailQuery);
+      const emailSnapshot = await emailQuery.get();
       invitations.push(...emailSnapshot.docs.map(doc => ({ 
         id: doc.id, 
         ...doc.data() 

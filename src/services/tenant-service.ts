@@ -179,7 +179,7 @@ export async function getPartnerDetailsByPartnerId(partnerId: string): Promise<{
       const data = doc.data() as Partner;
       return {
         success: true,
-        partner: { id: doc.id, ...data },
+        partner: { ...data, id: doc.id },
         tenantId: data.tenantId,
         message: "Partner details found"
       };
