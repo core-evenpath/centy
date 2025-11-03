@@ -91,18 +91,32 @@ export async function POST(request: NextRequest) {
 
     console.log("[MC-LOOP-2] Content sample length:", contentSample.length);
 
-    // Define schema for tag generation
+    // Define schema for tag generation with proper structure for Gemini
+    // FIXED: Added proper field descriptions and constraints to prevent empty properties error
     const TagGenerationSchema = z.object({
       tags: z
-        .array(z.string())
+        .array(
+          z.string()
+            .min(1)
+            .describe("A single searchable tag or keyword")
+        )
+        .min(5)
+        .max(15)
         .describe(
-          "5-15 concise, searchable tags (1-3 words each). Include document type, topics, industry, entities, and time period."
+          "Array of 5-15 concise, searchable tags (1-3 words each). Include document type, topics, industry, entities, and time period."
         ),
       primaryCategory: z
         .string()
+        .min(1)
         .describe(
           "Main category: 'Market Analysis', 'Investment Strategy', 'Compliance', 'Client Resources', 'Financial Report', or 'General'"
         ),
+      confidence: z
+        .number()
+        .min(0)
+        .max(1)
+        .default(0.8)
+        .describe("Confidence score for the tag generation (0-1)"),
     });
 
     console.log("[MC-LOOP-2] Calling AI to generate tags...");
@@ -126,7 +140,15 @@ Generate:
    - Time periods (Q1, Q2, 2024, 2025, etc.)
    - Specific concepts or methodologies
 
-2. Primary Category: Choose the most fitting category
+2. Primary Category: Choose the most fitting category from:
+   - Market Analysis
+   - Investment Strategy
+   - Compliance
+   - Client Resources
+   - Financial Report
+   - General
+
+3. Confidence: Your confidence level in these tags (0.0 to 1.0)
 
 Make tags professional, concise (1-3 words), and useful for search.
 Prioritize terms that make this document discoverable.`,
@@ -138,15 +160,18 @@ Prioritize terms that make this document discoverable.`,
     // Parse the generated tags
     const generatedData =
       typeof output === "string" ? JSON.parse(output) : output;
+    
     const tags = (generatedData.tags || [])
       .map((tag: string) => tag.trim())
       .filter((tag: string) => tag.length > 0)
       .slice(0, 15);
 
     const primaryCategory = generatedData.primaryCategory || "General";
+    const confidence = generatedData.confidence || 0.8;
 
     console.log("[MC-LOOP-2] Generated tags:", tags);
     console.log("[MC-LOOP-2] Primary category:", primaryCategory);
+    console.log("[MC-LOOP-2] Confidence:", confidence);
 
     // Store sample indexed content for search preview
     const indexedContentSample = contentChunks.slice(0, 3);
@@ -158,6 +183,7 @@ Prioritize terms that make this document discoverable.`,
       tagsGeneratedAt: new Date().toISOString(),
       status: "ready",
       indexedContent: indexedContentSample,
+      tagConfidence: confidence,
     });
 
     console.log("[MC-LOOP-2] Successfully updated document with tags");
@@ -166,6 +192,7 @@ Prioritize terms that make this document discoverable.`,
       success: true,
       tags: tags,
       primaryCategory: primaryCategory,
+      confidence: confidence,
       message: "Tags generated successfully",
     });
   } catch (error: any) {

@@ -25,34 +25,58 @@ try {
 
 // function to extract data from pdf content
 async function getThesisInfo(pdfText: string) {
+  // FIXED: Added proper schema structure for Gemini
   const CompanyInfoSchema = z.object({
-    companyTicker: z.string().describe("The stock ticker of the company."),
-    companyName: z.string().describe("The full name of the company."),
-    sector: z.string().describe("The sector the company operates in."),
-    currentPrice: z.string().describe("The current stock price as a string."),
+    companyTicker: z
+      .string()
+      .min(1)
+      .describe("The stock ticker of the company."),
+    companyName: z
+      .string()
+      .min(1)
+      .describe("The full name of the company."),
+    sector: z
+      .string()
+      .min(1)
+      .describe("The sector the company operates in."),
+    currentPrice: z
+      .string()
+      .min(1)
+      .describe("The current stock price as a string."),
     aiThesis: z
-      .array(z.string())
+      .array(
+        z.string().min(1).describe("A single thesis point about the company")
+      )
+      .min(1)
+      .max(5)
       .describe("An array of thesis points about the company. Max of 5 items"),
     aiRisks: z
-      .array(z.string())
+      .array(
+        z.string().min(1).describe("A single risk factor for the company")
+      )
+      .min(1)
+      .max(5)
       .describe(
         "An array of potential risks associated with the company. Max of 5 items"
       ),
     aiCatalysts: z
-      .array(z.string())
+      .array(
+        z.string().min(1).describe("A single catalyst for the company")
+      )
+      .min(1)
+      .max(5)
       .describe(
         "An array of catalysts that could drive the company's performance. Max of 5 items"
       ),
   });
 
-  const ThesisSchema = z
-    .record(
-      z.string().describe("The stock ticker for the company"),
-      CompanyInfoSchema
-    )
-    .describe(
-      "A record of company ticker symbols mapped to their information."
-    );
+  // FIXED: Instead of using z.record (which causes issues), use a wrapper object
+  const ThesisSchema = z.object({
+    companies: z
+      .array(CompanyInfoSchema)
+      .min(1)
+      .describe("Array of company information extracted from the document"),
+  });
 
   const aiResponse = await ai.generate({
     model: googleAI.model("gemini-2.0-flash-lite"),
@@ -61,6 +85,9 @@ async function getThesisInfo(pdfText: string) {
         text: `
       I have investment thesis text from a pdf file.
       Extract the company information and create a structured JSON response.
+      
+      If multiple companies are mentioned, include all of them.
+      If no companies are found, create at least one entry with generic information.
       
       Text:
       ${pdfText}
@@ -72,7 +99,22 @@ async function getThesisInfo(pdfText: string) {
     },
   });
 
-  return aiResponse.output;
+  // Convert array format back to record format for backward compatibility
+  const output = aiResponse.output;
+  if (output && typeof output === 'object' && 'companies' in output) {
+    const companies = output.companies as Array<any>;
+    const record: Record<string, any> = {};
+    
+    companies.forEach((company: any) => {
+      if (company.companyTicker) {
+        record[company.companyTicker] = company;
+      }
+    });
+    
+    return record;
+  }
+  
+  return output;
 }
 
 export async function POST(request: NextRequest) {
@@ -176,8 +218,15 @@ export async function POST(request: NextRequest) {
 
     // Extract thesis info (optional)
     console.log("[SAVE] Extracting thesis info...");
-    const thesisInfo = await getThesisInfo(pdfText.text);
-    console.log("[SAVE] Thesis info extracted");
+    let thesisInfo;
+    try {
+      thesisInfo = await getThesisInfo(pdfText.text);
+      console.log("[SAVE] Thesis info extracted successfully");
+    } catch (thesisError: any) {
+      console.error("[SAVE] Failed to extract thesis info:", thesisError);
+      console.error("[SAVE] Continuing without thesis info...");
+      thesisInfo = {}; // Continue without thesis info
+    }
 
     // Generate unique file ID
     const fileId = uuidv4();
