@@ -1,4 +1,3 @@
-
 // ============================================================================
 // FIREBASE BACKEND VARIABLES
 // ============================================================================
@@ -1683,6 +1682,7 @@ export interface WhatsAppConversation extends Conversation {
   customerPhone: string; // WhatsApp number
   customerName?: string;
   lastWhatsAppStatus?: 'active' | 'opt_out' | 'blocked';
+  recentMessages?: WhatsAppMessage[]; // <-- ADDED FOR DENORMALIZATION
 }
 
 export interface TwilioWebhookPayload {
@@ -1739,6 +1739,7 @@ export interface SMSConversation extends Conversation {
   customerPhone: string; // Phone number
   customerName?: string;
   lastSMSStatus?: 'active' | 'opt_out' | 'blocked';
+  recentMessages?: SMSMessage[]; // <-- ADDED FOR DENORMALIZATION
 }
 
 export interface TwilioSMSWebhookPayload {
@@ -1772,5 +1773,3 @@ export interface SendSMSResult {
   twilioSid?: string;
   conversationId?: string;
 }
-
-    

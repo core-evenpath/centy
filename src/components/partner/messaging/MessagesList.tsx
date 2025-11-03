@@ -19,6 +19,7 @@ interface MessagesListProps {
 export default function MessagesList({ messages, isLoading }: MessagesListProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const [isUserScrolledUp, setIsUserScrolledUp] = useState(false);
   const [showScrollButton, setShowScrollButton] = useState(false);
   const previousMessageCountRef = useRef(0);
   const isInitialLoadRef = useRef(true);
@@ -38,6 +39,7 @@ export default function MessagesList({ messages, isLoading }: MessagesListProps)
   // Handle scroll event
   const handleScroll = useCallback(() => {
     const isAtBottom = checkIfScrolledToBottom();
+    setIsUserScrolledUp(!isAtBottom);
     setShowScrollButton(!isAtBottom && messages.length > 0);
   }, [checkIfScrolledToBottom, messages.length]);
 
@@ -51,8 +53,9 @@ export default function MessagesList({ messages, isLoading }: MessagesListProps)
   // Initial load - scroll to bottom instantly
   useEffect(() => {
     if (isInitialLoadRef.current && messages.length > 0 && !isLoading) {
+      console.log('📍 Initial load - scrolling to bottom instantly');
       setTimeout(() => {
-        scrollToBottom('auto');
+        scrollToBottom('instant');
         isInitialLoadRef.current = false;
       }, 100);
     }
@@ -60,7 +63,7 @@ export default function MessagesList({ messages, isLoading }: MessagesListProps)
 
   // Handle new messages - only auto-scroll if user is at bottom
   useEffect(() => {
-    if (isInitialLoadRef.current) return;
+    if (isInitialLoadRef.current) return; // Skip during initial load
 
     const hasNewMessages = messages.length > previousMessageCountRef.current;
     previousMessageCountRef.current = messages.length;
@@ -69,20 +72,21 @@ export default function MessagesList({ messages, isLoading }: MessagesListProps)
       const isAtBottom = checkIfScrolledToBottom();
       
       if (isAtBottom) {
+        console.log('📍 New message + user at bottom - auto-scrolling');
         setTimeout(() => scrollToBottom('smooth'), 100);
+      } else {
+        console.log('📍 New message + user scrolled up - NOT auto-scrolling');
       }
     }
   }, [messages.length, scrollToBottom, checkIfScrolledToBottom]);
 
   // Reset on conversation change
   useEffect(() => {
-    const conversationId = messages[0]?.conversationId;
-    if (conversationId) {
-      isInitialLoadRef.current = true;
-      previousMessageCountRef.current = 0;
-      setShowScrollButton(false);
-    }
-  }, [messages[0]?.conversationId]);
+    isInitialLoadRef.current = true;
+    previousMessageCountRef.current = 0;
+    setIsUserScrolledUp(false);
+    setShowScrollButton(false);
+  }, [messages[0]?.conversationId]); // Reset when conversation changes
 
   const formatMessageTimestamp = (timestamp: any) => {
     if (!timestamp) return '';
@@ -97,6 +101,7 @@ export default function MessagesList({ messages, isLoading }: MessagesListProps)
       if (diffMins < 1440) return `${Math.floor(diffMins / 60)}h ago`;
       return format(date, 'MMM d, h:mm a');
     } catch (error) {
+      console.error('Error formatting timestamp:', error);
       return '';
     }
   };
@@ -132,7 +137,7 @@ export default function MessagesList({ messages, isLoading }: MessagesListProps)
       <div 
         ref={scrollContainerRef}
         onScroll={handleScroll}
-        className="h-full overflow-y-auto overflow-x-hidden"
+        className="h-full overflow-y-auto overflow-x-hidden scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent hover:scrollbar-thumb-gray-400"
         style={{
           scrollbarWidth: 'thin',
           scrollbarColor: 'rgb(203 213 225) transparent'
@@ -157,39 +162,19 @@ export default function MessagesList({ messages, isLoading }: MessagesListProps)
         </div>
       </div>
 
-      {/* Scroll to Bottom Button */}
+      {/* Scroll to Bottom Button - WhatsApp Style */}
       {showScrollButton && (
-        <div className="absolute bottom-6 right-6 z-10">
+        <div className="absolute bottom-6 right-6 z-10 animate-in fade-in slide-in-from-bottom-2 duration-200">
           <Button
             onClick={() => scrollToBottom('smooth')}
             size="icon"
-            className="h-12 w-12 rounded-full shadow-lg bg-white dark:bg-gray-800 text-blue-600 hover:bg-blue-50 dark:hover:bg-gray-700 border-2 border-gray-200 dark:border-gray-700 transition-all hover:scale-110"
+            className="h-12 w-12 rounded-full shadow-lg bg-white dark:bg-gray-800 text-blue-600 hover:bg-blue-50 dark:hover:bg-gray-700 border-2 border-gray-200 dark:border-gray-700"
             variant="outline"
           >
             <ArrowDown className="h-5 w-5" />
           </Button>
         </div>
       )}
-      
-      {/* Custom Scrollbar Styles */}
-      <style jsx>{`
-        div::-webkit-scrollbar {
-          width: 6px;
-        }
-
-        div::-webkit-scrollbar-track {
-          background: transparent;
-        }
-
-        div::-webkit-scrollbar-thumb {
-          background-color: rgb(203 213 225);
-          border-radius: 3px;
-        }
-
-        div::-webkit-scrollbar-thumb:hover {
-          background-color: rgb(148 163 184);
-        }
-      `}</style>
     </div>
   );
 }

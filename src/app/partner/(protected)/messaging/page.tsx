@@ -40,7 +40,7 @@ import EmptyState from '@/components/partner/messaging/EmptyState';
 import DiagnosticsView from '@/components/partner/messaging/DiagnosticsView';
 
 type Platform = 'sms' | 'whatsapp';
-type UnifiedConversation = (SMSConversation | WhatsAppConversation) & { platform: Platform };
+type UnifiedConversation = (SMSConversation | WhatsAppConversation) & { platform: Platform; recentMessages?: UnifiedMessage[] };
 type UnifiedMessage = (SMSMessage | WhatsAppMessage) & { platform: Platform };
 
 interface MessagingDiagnostics {
@@ -76,10 +76,22 @@ export default function MessagingPage() {
   // Optimistic messages state
   const [optimisticMessages, setOptimisticMessages] = useState<UnifiedMessage[]>([]);
 
-  // Use messages hook with notification callback
-  const { messages: firebaseMessages, isLoading: isLoadingMessages, error: messagesError } = useMessages({
+  // Get initial messages from the selected conversation (thanks to denormalization)
+  const initialRecentMessages = useMemo(() => {
+    return (selectedConversation?.recentMessages || []) as UnifiedMessage[];
+  }, [selectedConversation]);
+
+  // Use messages hook with notification callback and initial messages
+  const { 
+    messages: firebaseMessages, 
+    isLoadingMore: isLoadingMessages, // This is now for pagination
+    error: messagesError,
+    loadMore,
+    allMessagesLoaded 
+  } = useMessages({
     conversationId: selectedConversation?.id,
     platform: selectedConversation?.platform,
+    initialRecentMessages: initialRecentMessages,
     onNewMessage: () => {
       if (selectedConversation) {
         notify(selectedConversation.customerName || selectedConversation.customerPhone);
@@ -135,7 +147,7 @@ export default function MessagingPage() {
     if (conversationIdFromUrl && conversations.length > 0) {
       const convo = conversations.find(c => c.id === conversationIdFromUrl);
       if (convo) {
-        setSelectedConversation(convo);
+        setSelectedConversation(convo as UnifiedConversation);
         setShowNewConversation(false);
         setShowDiagnostics(false);
       }
@@ -151,14 +163,19 @@ export default function MessagingPage() {
   
     let phoneNumber = '';
     let conversationId = '';
-    let platform = selectedConversation?.platform || 'whatsapp';
+    // Default to 'whatsapp' if no conversation is selected
+    let platform: Platform = selectedConversation?.platform || 'whatsapp';
+    let isNewConvo = false;
   
-    if (selectedConversation) {
+    if (selectedConversation && selectedConversation.id !== 'pending') {
       phoneNumber = selectedConversation.customerPhone;
       conversationId = selectedConversation.id;
       platform = selectedConversation.platform;
     } else if (showNewConversation && newPhoneNumber) {
       phoneNumber = newPhoneNumber;
+      isNewConvo = true;
+      conversationId = 'pending'; // Use 'pending' for optimistic conversation
+      // platform remains 'whatsapp' as default for new conversations
     } else {
       toast({ variant: 'destructive', title: 'Error', description: 'Please select a conversation or enter a phone number' });
       return;
@@ -167,17 +184,39 @@ export default function MessagingPage() {
     const currentMessage = messageInput.trim();
     const optimisticId = `optimistic-${Date.now()}`;
     
+    // *** UX FIX: Switch view immediately for new conversations ***
+    if (isNewConvo) {
+      const optimisticConversation: UnifiedConversation = {
+        id: 'pending',
+        customerPhone: phoneNumber,
+        customerName: phoneNumber, // Use phone number as temporary name
+        platform: platform,
+        partnerId: partnerId,
+        type: 'direct', // Default 'direct' type from types.ts
+        messageCount: 1,
+        lastMessageAt: Timestamp.now(),
+        participants: [], // Default empty participants
+        isActive: true, // Default active
+        createdAt: Timestamp.now(),
+        recentMessages: [], // Starts with no recent messages
+      };
+      // Set this optimistic conversation as "selected"
+      setSelectedConversation(optimisticConversation);
+      // Hide the new conversation form, which will show the MessagesList
+      setShowNewConversation(false);
+    }
+    
     console.log('📤 Sending message:', { 
       phoneNumber, 
       platform, 
-      conversationId,
+      conversationId: selectedConversation?.id || 'pending', // Use the selected convo id
       messageLength: currentMessage.length 
     });
 
     // Create optimistic message
     const optimisticMessage: UnifiedMessage = {
       id: optimisticId,
-      conversationId: conversationId || 'pending',
+      conversationId: selectedConversation?.id || 'pending', // Assign to current convo
       senderId: user?.uid || 'current-user',
       content: currentMessage,
       direction: 'outbound',
@@ -220,14 +259,16 @@ export default function MessagingPage() {
           partnerId, 
           to: phoneNumber, 
           message: currentMessage,
-          conversationId: conversationId || undefined
+          // Send undefined for conversationId if it's a new convo
+          conversationId: isNewConvo ? undefined : selectedConversation?.id
         });
       } else {
         result = await sendWhatsAppMessageAction({
           partnerId,
           to: phoneNumber,
           message: currentMessage,
-          conversationId: conversationId || undefined
+          // Send undefined for conversationId if it's a new convo
+          conversationId: isNewConvo ? undefined : selectedConversation?.id
         });
       }
 
@@ -240,20 +281,39 @@ export default function MessagingPage() {
           duration: 2000 
         });
 
-        // Remove optimistic message after a delay (real message should appear from Firebase)
-        setTimeout(() => {
-          setOptimisticMessages(prev => prev.filter(m => m.id !== optimisticId));
-        }, 2000);
+        // *** UX FIX: Robust de-duplication ***
+        if (result.messageId) {
+          // If server returns the real message ID, update our optimistic message
+          // This allows the `useMemo` hook to de-dupe it once Firebase loads it
+          setOptimisticMessages(prev =>
+            prev.map(m =>
+              m.id === optimisticId ? { ...m, id: result.messageId! } : m
+            )
+          );
+          
+          // Fallback garbage collection: remove the message from optimistic state
+          // after a long delay, in case the Firebase listener fails.
+          setTimeout(() => {
+            setOptimisticMessages(prev => prev.filter(m => m.id !== result.messageId));
+          }, 10000); // 10 seconds
+
+        } else {
+          // Fallback for older actions: remove optimistic message after 2s
+          setTimeout(() => {
+            setOptimisticMessages(prev => prev.filter(m => m.id !== optimisticId));
+          }, 2000);
+        }
         
-        if (result.conversationId && !selectedConversation) {
+        // If this was a new convo, find the *real* convo now
+        if (result.conversationId && isNewConvo) {
           setTimeout(() => {
             const foundConvo = conversations.find(c => c.id === result.conversationId);
             if (foundConvo) {
-              setSelectedConversation(foundConvo);
-              setShowNewConversation(false);
+              // Replace the 'pending' convo with the real one
+              setSelectedConversation(foundConvo as UnifiedConversation);
               setNewPhoneNumber('');
             }
-          }, 500);
+          }, 500); // Wait for useConversations to update
         }
       } else {
         throw new Error(result.message || 'Failed to send message');
@@ -272,6 +332,12 @@ export default function MessagingPage() {
       
       // Restore message input on error
       setMessageInput(currentMessage);
+      
+      // *** UX FIX: If sending the *first* message fails, go back to new convo form
+      if (isNewConvo) {
+        setSelectedConversation(null);
+        setShowNewConversation(true);
+      }
     } finally {
       setIsSending(false);
     }
@@ -303,6 +369,7 @@ export default function MessagingPage() {
   const handleViewDiagnostics = () => {
     setShowDiagnostics(true);
     setShowNewConversation(false);
+    setSelectedConversation(null);
   };
 
   return (
@@ -359,7 +426,7 @@ export default function MessagingPage() {
       <div className="flex-1 flex overflow-hidden">
         {/* Conversations Sidebar */}
         <ConversationList
-          conversations={conversations}
+          conversations={conversations as UnifiedConversation[]}
           selectedConversation={selectedConversation}
           searchTerm={searchTerm}
           onSearchChange={setSearchTerm}
@@ -388,7 +455,12 @@ export default function MessagingPage() {
           ) : selectedConversation ? (
             <>
               <ChatHeader conversation={selectedConversation} />
-              <MessagesList messages={messages} isLoading={isLoadingMessages} />
+              <MessagesList 
+                messages={messages} 
+                isLoading={isLoadingMessages} // This is now for pagination
+                onLoadMore={loadMore}
+                allMessagesLoaded={allMessagesLoaded}
+              />
               <MessageInput
                 value={messageInput}
                 onChange={setMessageInput}
