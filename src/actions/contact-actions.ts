@@ -12,6 +12,10 @@ interface CreateContactInput {
   phone: string;
   status: 'active' | 'inactive';
   groups?: string[];
+  occupation?: string;
+  portfolio?: string;
+  accountType?: string;
+  notes?: string;
 }
 
 export async function createContactAction(input: CreateContactInput): Promise<{
@@ -41,7 +45,12 @@ export async function createContactAction(input: CreateContactInput): Promise<{
       email: input.email || '',
       status: input.status,
       groups: input.groups || [],
+      occupation: input.occupation || '',
+      portfolio: input.portfolio || '',
+      accountType: input.accountType || '',
+      notes: input.notes || '',
       createdAt: FieldValue.serverTimestamp() as any,
+      updatedAt: FieldValue.serverTimestamp() as any,
     };
 
     const contactRef = await db.collection(`partners/${input.partnerId}/contacts`).add(contactData);

@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { X, Mail, Phone, Building2, DollarSign, User, FileText, Edit, Save, Loader2, Briefcase } from 'lucide-react';
 import type { SMSConversation, WhatsAppConversation, Contact } from '@/lib/types';
 import { db } from '@/lib/firebase';
-import { doc, setDoc, updateDoc, collection, query, where, getDocs, limit } from 'firebase/firestore';
+import { doc, getDoc, setDoc, updateDoc, collection, query, where, getDocs, limit } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
@@ -16,7 +16,6 @@ type Platform = 'sms' | 'whatsapp';
 type UnifiedConversation = (SMSConversation | WhatsAppConversation) & { 
   platform: Platform;
   contactId?: string; // Enriched from contacts
-  contactName?: string;
 };
 
 interface ClientProfilePanelProps {
@@ -41,7 +40,7 @@ export default function ClientProfilePanel({ conversation, onClose, partnerId }:
         // Try to use contactId from enriched conversation first
         if (conversation.contactId) {
           const contactRef = doc(db, `partners/${partnerId}/contacts`, conversation.contactId);
-          const contactSnap = await contactRef.get();
+          const contactSnap = await getDoc(contactRef);
           
           if (contactSnap.exists()) {
             const contactData = { id: contactSnap.id, ...contactSnap.data() } as Contact;
@@ -66,7 +65,7 @@ export default function ClientProfilePanel({ conversation, onClose, partnerId }:
           // No existing contact - prepare new contact template
           setContact(null);
           setEditedContact({
-            name: conversation.customerName || conversation.contactName || '',
+            name: conversation.customerName || '',
             phone: conversation.customerPhone,
             email: '',
             portfolio: '',
@@ -93,7 +92,7 @@ export default function ClientProfilePanel({ conversation, onClose, partnerId }:
     if (partnerId && conversation.customerPhone) {
       fetchContact();
     }
-  }, [partnerId, conversation.customerPhone, conversation.contactId, toast]);
+  }, [partnerId, conversation.customerPhone, conversation.contactId]);
 
   const handleFieldChange = (field: string, value: string) => {
     setEditedContact(prev => ({ ...prev, [field]: value }));
@@ -205,7 +204,15 @@ export default function ClientProfilePanel({ conversation, onClose, partnerId }:
     isEditing: editing, 
     placeholder,
     type = 'text'
-  }: any) => (
+  }: {
+    icon: any;
+    label: string;
+    value: string | undefined;
+    field: string;
+    isEditing: boolean;
+    placeholder: string;
+    type?: string;
+  }) => (
     <div className="flex items-start gap-3">
       <div className="w-9 h-9 bg-slate-100 rounded-lg flex items-center justify-center flex-shrink-0">
         <Icon className="w-4 h-4 text-slate-600" />

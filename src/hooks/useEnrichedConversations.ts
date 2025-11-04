@@ -36,6 +36,7 @@ export function useEnrichedConversations<T extends ConversationWithPhone>(
     setIsLoadingContacts(true);
 
     const contactsRef = collection(db, `partners/${partnerId}/contacts`);
+    // Load all contacts to ensure complete matching
     const q = query(contactsRef);
 
     const unsubscribe = onSnapshot(
@@ -46,12 +47,12 @@ export function useEnrichedConversations<T extends ConversationWithPhone>(
         snapshot.docs.forEach(doc => {
           const contact = { id: doc.id, ...doc.data() } as Contact;
           
-          // Map by phone number as primary key
+          // Map by phone number
           if (contact.phone) {
             contactMap.set(`phone:${contact.phone}`, contact);
           }
           
-          // Also map by email if available
+          // Also map by email as secondary identifier
           if (contact.email) {
             contactMap.set(`email:${contact.email}`, contact);
           }
@@ -71,18 +72,10 @@ export function useEnrichedConversations<T extends ConversationWithPhone>(
 
   // Enrich conversations with contact data
   const enrichedConversations = useMemo(() => {
-    if (isLoadingContacts) {
-      // Return conversations with a loading state for contact info
-      return conversations.map(convo => ({
-        ...convo,
-        contactName: convo.customerName, // Fallback
-      }));
-    }
-    
     return conversations.map(conversation => 
       enrichConversationWithContact(conversation, contacts)
     );
-  }, [conversations, contacts, isLoadingContacts]);
+  }, [conversations, contacts]);
 
   return {
     enrichedConversations,
