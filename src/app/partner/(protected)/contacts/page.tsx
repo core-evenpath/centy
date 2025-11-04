@@ -21,6 +21,7 @@ import PartnerHeader from '../../../../components/partner/PartnerHeader';
 import { Users, Search, Plus, MoreVertical, Edit, Trash2, Loader2, AlertCircle } from 'lucide-react';
 import sampleContacts from '@/lib/contacts.json';
 import AddContactModal from '@/components/partner/contacts/AddContactModal';
+import EditContactModal from '@/components/partner/contacts/EditContactModal';
 
 export default function ContactsPage() {
   const { currentWorkspace } = useMultiWorkspaceAuth();
@@ -30,6 +31,8 @@ export default function ContactsPage() {
   const [statusFilter, setStatusFilter] = useState('all');
   const [firestoreError, setFirestoreError] = useState<string | null>(null);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [editingContact, setEditingContact] = useState<Contact | null>(null);
   const seedHasBeenAttempted = useRef(false);
 
   const partnerId = currentWorkspace?.partnerId;
@@ -103,6 +106,11 @@ export default function ContactsPage() {
       return matchesSearch && matchesStatus;
     });
   }, [contacts, searchTerm, statusFilter]);
+
+  const handleEditClick = (contact: Contact) => {
+    setEditingContact(contact);
+    setIsEditModalOpen(true);
+  };
 
   const getStatusBadge = (status: string) => {
     return status === 'active'
@@ -184,7 +192,7 @@ export default function ContactsPage() {
                         <TableCell className="font-medium">{contact.name}</TableCell>
                         <TableCell>{contact.phone}</TableCell>
                         <TableCell>{contact.email || 'N/A'}</TableCell>
-                        <TableCell>{getStatusBadge(contact.status)}</TableCell>
+                        <TableCell>{getStatusBadge(contact.status ?? 'active')}</TableCell>
                         <TableCell>
                           <div className="flex flex-wrap gap-1">
                             {contact.groups?.map(group => <Badge key={group} variant="outline">{group}</Badge>)}
@@ -198,7 +206,10 @@ export default function ContactsPage() {
                               </Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent>
-                              <DropdownMenuItem><Edit className="w-4 h-4 mr-2" />Edit</DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => handleEditClick(contact)}>
+                                <Edit className="w-4 h-4 mr-2" />
+                                Edit
+                              </DropdownMenuItem>
                               <DropdownMenuItem className="text-red-600"><Trash2 className="w-4 h-4 mr-2" />Delete</DropdownMenuItem>
                             </DropdownMenuContent>
                           </DropdownMenu>
@@ -224,11 +235,22 @@ export default function ContactsPage() {
       </main>
 
       {partnerId && (
-        <AddContactModal
-          isOpen={isAddModalOpen}
-          onClose={() => setIsAddModalOpen(false)}
-          partnerId={partnerId}
-        />
+        <>
+          <AddContactModal
+            isOpen={isAddModalOpen}
+            onClose={() => setIsAddModalOpen(false)}
+            partnerId={partnerId}
+          />
+          <EditContactModal
+            isOpen={isEditModalOpen}
+            onClose={() => {
+              setIsEditModalOpen(false);
+              setEditingContact(null);
+            }}
+            contact={editingContact}
+            partnerId={partnerId}
+          />
+        </>
       )}
     </>
   );
