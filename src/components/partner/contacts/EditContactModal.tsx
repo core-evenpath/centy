@@ -63,9 +63,9 @@ export default function EditContactModal({
         email: formData.email,
         status: formData.status as 'active' | 'inactive',
         groups: formData.groups,
-        portfolio: formData.portfolio,
-        occupation: formData.occupation,
-        accountType: formData.accountType,
+        lifetimeValue: formData.lifetimeValue,
+        company: formData.company,
+        category: formData.category,
       });
 
       if (result.success) {
@@ -87,37 +87,34 @@ export default function EditContactModal({
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-[500px]">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <Edit className="w-5 h-5" />
-            Edit Contact
-          </DialogTitle>
+          <DialogTitle>Edit Contact</DialogTitle>
           <DialogDescription>
-            Update the details for {contact?.name}.
+            Update the contact details below. Fields marked with * are required.
           </DialogDescription>
         </DialogHeader>
-        
-        <form onSubmit={handleSubmit}>
+        <form onSubmit={handleSubmit} className="space-y-4">
           <Tabs defaultValue="basic" className="w-full">
             <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="basic" className="flex items-center gap-2">
-                <User className="w-4 h-4" />
+              <TabsTrigger value="basic">
+                <User className="w-4 h-4 mr-2" />
                 Basic Info
               </TabsTrigger>
-              <TabsTrigger value="professional" className="flex items-center gap-2">
-                <Briefcase className="w-4 h-4" />
-                Professional
+              <TabsTrigger value="business">
+                <Briefcase className="w-4 h-4 mr-2" />
+                Business Info
               </TabsTrigger>
             </TabsList>
 
             <TabsContent value="basic" className="space-y-4 mt-4">
               <div className="space-y-2">
-                <Label htmlFor="name">Full Name *</Label>
+                <Label htmlFor="name">Name *</Label>
                 <Input
                   id="name"
                   value={formData.name || ''}
                   onChange={handleInputChange}
+                  placeholder="John Doe"
                   required
                   disabled={isSubmitting}
                 />
@@ -127,9 +124,9 @@ export default function EditContactModal({
                 <Label htmlFor="phone">Phone Number *</Label>
                 <Input
                   id="phone"
-                  type="tel"
                   value={formData.phone || ''}
                   onChange={handleInputChange}
+                  placeholder="+1234567890"
                   required
                   disabled={isSubmitting}
                 />
@@ -142,6 +139,7 @@ export default function EditContactModal({
                   type="email"
                   value={formData.email || ''}
                   onChange={handleInputChange}
+                  placeholder="john.doe@example.com"
                   disabled={isSubmitting}
                 />
               </div>
@@ -163,46 +161,36 @@ export default function EditContactModal({
               </div>
             </TabsContent>
 
-            <TabsContent value="professional" className="space-y-4 mt-4">
+            <TabsContent value="business" className="space-y-4 mt-4">
               <div className="space-y-2">
-                <Label htmlFor="occupation">Occupation</Label>
+                <Label htmlFor="company">Company / Organization</Label>
                 <Input
-                  id="occupation"
-                  value={formData.occupation || ''}
+                  id="company"
+                  value={formData.company || ''}
                   onChange={handleInputChange}
-                  placeholder="e.g., Tech Executive, Entrepreneur"
+                  placeholder="e.g., Acme Corp, Tech Solutions"
                   disabled={isSubmitting}
                 />
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="accountType">Account Type</Label>
-                <Select 
-                  value={formData.accountType || ''} 
-                  onValueChange={(value) => handleSelectChange('accountType', value)}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select account type" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="Individual Brokerage">Individual Brokerage</SelectItem>
-                    <SelectItem value="Joint Account">Joint Account</SelectItem>
-                    <SelectItem value="IRA">IRA</SelectItem>
-                    <SelectItem value="Roth IRA">Roth IRA</SelectItem>
-                    <SelectItem value="401(k)">401(k)</SelectItem>
-                    <SelectItem value="Family Trust">Family Trust</SelectItem>
-                    <SelectItem value="Corporate Account">Corporate Account</SelectItem>
-                  </SelectContent>
-                </Select>
+                <Label htmlFor="category">Category / Tier</Label>
+                <Input
+                  id="category"
+                  value={formData.category || ''}
+                  onChange={handleInputChange}
+                  placeholder="e.g., Premium, Enterprise, Basic"
+                  disabled={isSubmitting}
+                />
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="portfolio">Portfolio Size</Label>
+                <Label htmlFor="lifetimeValue">Lifetime Value</Label>
                 <Input
-                  id="portfolio"
-                  value={formData.portfolio || ''}
+                  id="lifetimeValue"
+                  value={formData.lifetimeValue || ''}
                   onChange={handleInputChange}
-                  placeholder="e.g., $2.4M, $500K"
+                  placeholder="e.g., $50K, High Value, Tier 1"
                   disabled={isSubmitting}
                 />
               </div>

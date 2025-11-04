@@ -15,7 +15,7 @@ import { updateContactAction } from '@/actions/contact-actions';
 type Platform = 'sms' | 'whatsapp';
 type UnifiedConversation = (SMSConversation | WhatsAppConversation) & { 
   platform: Platform;
-  contactId?: string; // Enriched from contacts
+  contactId?: string;
 };
 
 interface ClientProfilePanelProps {
@@ -37,7 +37,6 @@ export default function ClientProfilePanel({ conversation, onClose, partnerId }:
       setIsLoading(true);
       
       try {
-        // Try to use contactId from enriched conversation first
         if (conversation.contactId) {
           const contactRef = doc(db, `partners/${partnerId}/contacts`, conversation.contactId);
           const contactSnap = await getDoc(contactRef);
@@ -51,7 +50,6 @@ export default function ClientProfilePanel({ conversation, onClose, partnerId }:
           }
         }
 
-        // Fallback: search by phone number
         const contactsRef = collection(db, `partners/${partnerId}/contacts`);
         const q = query(contactsRef, where('phone', '==', conversation.customerPhone), limit(1));
         const snapshot = await getDocs(q);
@@ -62,15 +60,14 @@ export default function ClientProfilePanel({ conversation, onClose, partnerId }:
           setContact(contactData);
           setEditedContact(contactData);
         } else {
-          // No existing contact - prepare new contact template
           setContact(null);
           setEditedContact({
             name: conversation.customerName || '',
             phone: conversation.customerPhone,
             email: '',
-            portfolio: '',
-            occupation: '',
-            accountType: '',
+            lifetimeValue: '',
+            company: '',
+            category: '',
             notes: '',
             groups: [],
             tags: [],
@@ -113,12 +110,11 @@ export default function ClientProfilePanel({ conversation, onClose, partnerId }:
       const contactId = contact?.id;
 
       if (!contactId) {
-        // Create new contact
         const newContactRef = doc(collection(db, `partners/${partnerId}/contacts`));
         const newContactData: Partial<Contact> = {
           ...editedContact,
           partnerId: partnerId,
-          phone: conversation.customerPhone, // Ensure phone is set
+          phone: conversation.customerPhone,
           status: 'active',
           createdAt: new Date(),
           updatedAt: new Date(),
@@ -133,10 +129,9 @@ export default function ClientProfilePanel({ conversation, onClose, partnerId }:
         
         toast({ 
           title: 'Contact Created', 
-          description: 'New contact profile has been saved.' 
+          description: 'New contact profile has been saved.'
         });
       } else {
-        // Update existing contact using the server action
         const result = await updateContactAction({
           partnerId,
           contactId,
@@ -145,13 +140,12 @@ export default function ClientProfilePanel({ conversation, onClose, partnerId }:
           email: editedContact.email,
           status: editedContact.status as 'active' | 'inactive' || 'active',
           groups: editedContact.groups,
-          portfolio: editedContact.portfolio,
-          occupation: editedContact.occupation,
-          accountType: editedContact.accountType,
+          lifetimeValue: editedContact.lifetimeValue,
+          company: editedContact.company,
+          category: editedContact.category,
         });
 
         if (result.success) {
-          // Also update notes separately if changed
           if (editedContact.notes !== contact.notes) {
             const contactRef = doc(db, `partners/${partnerId}/contacts`, contactId);
             await updateDoc(contactRef, { 
@@ -163,7 +157,7 @@ export default function ClientProfilePanel({ conversation, onClose, partnerId }:
           setContact(prev => prev ? { ...prev, ...editedContact } : null);
           toast({ 
             title: 'Profile Updated', 
-            description: 'Client information has been saved.' 
+            description: 'Contact information has been saved.' 
           });
         } else {
           throw new Error(result.message);
@@ -176,7 +170,7 @@ export default function ClientProfilePanel({ conversation, onClose, partnerId }:
       toast({ 
         variant: 'destructive', 
         title: 'Save Failed', 
-        description: error.message || 'Could not save client profile.' 
+        description: error.message || 'Could not save contact profile.' 
       });
     } finally {
       setIsSaving(false);
@@ -188,9 +182,9 @@ export default function ClientProfilePanel({ conversation, onClose, partnerId }:
       name: conversation.customerName || '',
       phone: conversation.customerPhone,
       email: '',
-      portfolio: '',
-      occupation: '',
-      accountType: '',
+      lifetimeValue: '',
+      company: '',
+      category: '',
       notes: '',
     });
     setIsEditing(false);
@@ -238,183 +232,157 @@ export default function ClientProfilePanel({ conversation, onClose, partnerId }:
 
   const getInitials = (name?: string) => {
     if (!name) return '??';
-    return name.split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase();
+    const parts = name.split(' ');
+    if (parts.length >= 2) {
+      return `${parts[0][0]}${parts[1][0]}`.toUpperCase();
+    }
+    return name.slice(0, 2).toUpperCase();
   };
 
   return (
-    <>
-      {/* Backdrop */}
-      <div 
-        className="fixed inset-0 bg-black bg-opacity-30 z-40 transition-opacity"
-        onClick={onClose}
-      />
-      
-      {/* Panel */}
-      <div className="fixed top-0 right-0 h-full w-96 bg-white shadow-2xl z-50 transform transition-transform duration-300 ease-out border-l border-slate-200 flex flex-col">
-        
-        {/* Header */}
-        <div className="p-5 border-b border-slate-200">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold text-slate-900">Client Profile</h3>
-            <button 
-              onClick={onClose} 
-              className="p-2 hover:bg-slate-100 rounded-lg transition-colors"
-              aria-label="Close"
-            >
-              <X className="w-5 h-5 text-slate-600" />
-            </button>
+    <div className="w-80 bg-white border-l border-slate-200 flex flex-col h-full">
+      {/* Header */}
+      <div className="p-5 border-b border-slate-200 flex items-center justify-between">
+        <h3 className="text-sm font-semibold text-slate-700">Contact Profile</h3>
+        <div className="flex items-center gap-2">
+          {isEditing ? (
+            <>
+              <Button size="sm" variant="ghost" onClick={handleCancel} disabled={isSaving}>
+                Cancel
+              </Button>
+              <Button size="sm" onClick={handleSave} disabled={isSaving}>
+                {isSaving ? (
+                  <><Loader2 className="w-4 h-4 mr-1 animate-spin" /> Saving</>
+                ) : (
+                  <><Save className="w-4 h-4 mr-1" /> Save</>
+                )}
+              </Button>
+            </>
+          ) : (
+            <>
+              <Button size="sm" variant="ghost" onClick={() => setIsEditing(true)}>
+                <Edit className="w-4 h-4 mr-1" /> Edit
+              </Button>
+              <Button size="sm" variant="ghost" onClick={onClose}>
+                <X className="w-4 h-4" />
+              </Button>
+            </>
+          )}
+        </div>
+      </div>
+
+      {/* Profile Picture & Name */}
+      <div className="p-5 border-b border-slate-200">
+        <div className="flex flex-col items-center">
+          <div className="w-20 h-20 rounded-full bg-blue-500 flex items-center justify-center text-white text-2xl font-bold mb-3">
+            {getInitials(contact?.name || conversation.customerName)}
           </div>
-          
-          {/* Profile Header */}
-          <div className="text-center">
-            <div className="w-20 h-20 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 text-white flex items-center justify-center text-2xl font-bold mx-auto mb-3 shadow-lg">
-              {getInitials(isEditing ? editedContact?.name : contact?.name)}
-            </div>
+          <div className="w-full text-center">
             {isEditing ? (
               <Input 
                 value={editedContact?.name || ''} 
                 onChange={e => handleFieldChange('name', e.target.value)}
                 className="text-center font-semibold"
-                placeholder="Client Name"
+                placeholder="Contact Name"
               />
             ) : (
               <h4 className="font-semibold text-slate-900 text-lg">
-                {contact?.name || conversation.customerName || 'Unknown Client'}
+                {contact?.name || conversation.customerName || 'Unknown Contact'}
               </h4>
             )}
           </div>
         </div>
-
-        {/* Content */}
-        <div className="flex-1 overflow-y-auto p-5">
-          {isLoading ? (
-            <div className="flex justify-center items-center h-full">
-              <Loader2 className="w-6 h-6 animate-spin text-slate-500" />
-            </div>
-          ) : (
-            <div className="space-y-6">
-              {/* Contact Details */}
-              <div>
-                <h5 className="text-xs font-semibold text-slate-700 uppercase tracking-wide mb-3">
-                  Contact Details
-                </h5>
-                <div className="space-y-3">
-                  <DetailItem 
-                    icon={Phone} 
-                    label="Phone" 
-                    value={conversation.customerPhone} 
-                    isEditing={false}
-                  />
-                  <DetailItem 
-                    icon={Mail} 
-                    label="Email" 
-                    value={editedContact?.email} 
-                    field="email" 
-                    isEditing={isEditing}
-                    placeholder="client@example.com"
-                    type="email"
-                  />
-                </div>
-              </div>
-
-              {/* Professional Info */}
-              <div>
-                <h5 className="text-xs font-semibold text-slate-700 uppercase tracking-wide mb-3">
-                  Professional Info
-                </h5>
-                <div className="space-y-3">
-                  <DetailItem 
-                    icon={Briefcase} 
-                    label="Occupation" 
-                    value={editedContact?.occupation} 
-                    field="occupation" 
-                    isEditing={isEditing}
-                    placeholder="e.g., Tech Executive"
-                  />
-                  <DetailItem 
-                    icon={Building2} 
-                    label="Account Type" 
-                    value={editedContact?.accountType} 
-                    field="accountType" 
-                    isEditing={isEditing}
-                    placeholder="e.g., Individual Brokerage"
-                  />
-                  <DetailItem 
-                    icon={DollarSign} 
-                    label="Portfolio Size" 
-                    value={editedContact?.portfolio} 
-                    field="portfolio" 
-                    isEditing={isEditing}
-                    placeholder="e.g., $2.4M"
-                  />
-                </div>
-              </div>
-
-              {/* Notes */}
-              <div>
-                <h5 className="text-xs font-semibold text-slate-700 uppercase tracking-wide mb-3">
-                  Notes
-                </h5>
-                {isEditing ? (
-                  <Textarea
-                    value={editedContact?.notes || ''}
-                    onChange={(e) => handleFieldChange('notes', e.target.value)}
-                    placeholder="Add notes about this client..."
-                    rows={6}
-                    className="text-sm resize-none"
-                  />
-                ) : (
-                  <div className="text-sm p-4 bg-slate-50 rounded-lg whitespace-pre-wrap min-h-[120px] text-slate-700">
-                    {contact?.notes || <span className="text-slate-400 italic">No notes yet.</span>}
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* Footer Actions */}
-        <div className="p-5 border-t border-slate-200 bg-slate-50">
-          {isEditing ? (
-            <div className="flex gap-2">
-              <Button
-                onClick={handleCancel}
-                variant="outline"
-                className="flex-1"
-                disabled={isSaving}
-              >
-                Cancel
-              </Button>
-              <Button
-                onClick={handleSave}
-                className="flex-1"
-                disabled={isSaving}
-              >
-                {isSaving ? (
-                  <>
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    Saving...
-                  </>
-                ) : (
-                  <>
-                    <Save className="w-4 h-4 mr-2" />
-                    Save
-                  </>
-                )}
-              </Button>
-            </div>
-          ) : (
-            <Button
-              onClick={() => setIsEditing(true)}
-              className="w-full"
-              variant="default"
-            >
-              <Edit className="w-4 h-4 mr-2" />
-              Edit Profile
-            </Button>
-          )}
-        </div>
       </div>
-    </>
+
+      {/* Content */}
+      <div className="flex-1 overflow-y-auto p-5">
+        {isLoading ? (
+          <div className="flex justify-center items-center h-full">
+            <Loader2 className="w-6 h-6 animate-spin text-slate-500" />
+          </div>
+        ) : (
+          <div className="space-y-6">
+            {/* Contact Details */}
+            <div>
+              <h5 className="text-xs font-semibold text-slate-700 uppercase tracking-wide mb-3">
+                Contact Details
+              </h5>
+              <div className="space-y-3">
+                <DetailItem 
+                  icon={Phone} 
+                  label="Phone" 
+                  value={conversation.customerPhone} 
+                  field="phone"
+                  isEditing={false}
+                  placeholder=""
+                />
+                <DetailItem 
+                  icon={Mail} 
+                  label="Email" 
+                  value={editedContact?.email} 
+                  field="email" 
+                  isEditing={isEditing}
+                  placeholder="contact@example.com"
+                  type="email"
+                />
+              </div>
+            </div>
+
+            {/* Business Info - Generic Fields */}
+            <div>
+              <h5 className="text-xs font-semibold text-slate-700 uppercase tracking-wide mb-3">
+                Business Info
+              </h5>
+              <div className="space-y-3">
+                <DetailItem 
+                  icon={Building2} 
+                  label="Company" 
+                  value={editedContact?.company} 
+                  field="company" 
+                  isEditing={isEditing}
+                  placeholder="e.g., Acme Corp"
+                />
+                <DetailItem 
+                  icon={Briefcase} 
+                  label="Category" 
+                  value={editedContact?.category} 
+                  field="category" 
+                  isEditing={isEditing}
+                  placeholder="e.g., Premium, Enterprise"
+                />
+                <DetailItem 
+                  icon={DollarSign} 
+                  label="Lifetime Value" 
+                  value={editedContact?.lifetimeValue} 
+                  field="lifetimeValue" 
+                  isEditing={isEditing}
+                  placeholder="e.g., $50K, Tier 1"
+                />
+              </div>
+            </div>
+
+            {/* Notes */}
+            <div>
+              <h5 className="text-xs font-semibold text-slate-700 uppercase tracking-wide mb-3">
+                Notes
+              </h5>
+              {isEditing ? (
+                <Textarea
+                  value={editedContact?.notes || ''}
+                  onChange={(e) => handleFieldChange('notes', e.target.value)}
+                  placeholder="Add notes about this contact..."
+                  rows={4}
+                  className="text-sm"
+                />
+              ) : (
+                <p className="text-sm text-slate-700 whitespace-pre-wrap">
+                  {contact?.notes || <span className="text-slate-400">No notes yet</span>}
+                </p>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
   );
 }

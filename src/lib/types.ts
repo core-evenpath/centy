@@ -1,3 +1,4 @@
+// src/lib/types.ts
 // ============================================================================
 // FIREBASE BACKEND VARIABLES
 // ============================================================================
@@ -146,9 +147,9 @@ export interface Partner {
   };
   businessProfile: BusinessProfile | null;
   aiMemory: AIMemory | null;
-  createdAt?: any | string; // Allow for serverTimestamp or string
-  updatedAt?: any | string; // Allow for serverTimestamp or string
-  tasksCompleted?: number; // Added for mock data compatibility
+  createdAt?: any | string;
+  updatedAt?: any | string;
+  tasksCompleted?: number;
 }
 
 export interface PartnerSettings {
@@ -173,23 +174,8 @@ export interface PartnerSubscription {
   cancelAtPeriodEnd: boolean;
   stripeCustomerId?: string;
   stripeSubscriptionId?: string;
-}
-
-export interface BillingInfo {
-  companyName?: string;
-  address?: Address;
-  taxId?: string;
   billingEmail?: string;
   paymentMethod?: PaymentMethod;
-}
-
-export interface Address {
-  line1: string;
-  line2?: string;
-  city: string;
-  state: string;
-  postalCode: string;
-  country: string;
 }
 
 export interface PaymentMethod {
@@ -200,703 +186,72 @@ export interface PaymentMethod {
   expiryYear?: number;
 }
 
-// ============================================================================
-// 4. INDUSTRY & BUSINESS PROFILE VARIABLES
-// ============================================================================
-
 export interface Industry {
   id: string;
   name: string;
-  slug: string;
   description: string;
-  icon: string;
-  category?: string;
-  workflowPatterns?: WorkflowPattern[];
-  successMetrics?: SuccessMetric[];
-  popularIntegrations?: string[];
-  averageSetupTime?: number;
-  averageROI?: number;
-  isActive?: boolean;
-  createdAt: Date;
-  updatedAt: Date;
-}
-
-export interface WorkflowPattern {
-  name: string;
-  description: string;
-  frequency: 'common' | 'moderate' | 'rare';
-  complexity: 'simple' | 'medium' | 'complex';
-  estimatedValue: number;
-}
-
-export interface SuccessMetric {
-  name: string;
-  description: string;
-  unit: string;
-  benchmarkValue: number;
-  formula?: string;
+  commonPainPoints: string[];
+  typicalWorkflows: string[];
+  keyMetrics: string[];
+  regulatoryConsiderations: string[];
 }
 
 export interface BusinessProfile {
-  id: string;
-  partnerId: string;
-  industryId: string;
-  industry: Industry;
-  businessName: string;
-  businessSize: 'small' | 'medium' | 'large';
-  employeeCount?: number;
-  locationCity?: string;
-  locationState?: string;
-  locationCountry?: string;
+  goals: string[];
+  challenges: string[];
+  currentProcesses: CurrentProcess[];
+  tools: Tool[];
+  team: TeamComposition;
+}
+
+export interface CurrentProcess {
+  name: string;
+  description: string;
+  timeSpent: string;
+  frequency: string;
   painPoints: string[];
-  currentTools: CurrentTool[];
-  goals: BusinessGoal[];
-  monthlyRevenueRange?: string;
-  budgetRange?: string;
-  timelineExpectation?: string;
-  technicalExpertise?: 'low' | 'medium' | 'high';
-  createdAt?: any;
-  updatedAt?: any;
+  desiredOutcome: string;
+}
+
+export interface Tool {
+  name: string;
+  category: string;
+  integrationType: 'native' | 'api' | 'manual';
+  isConnected: boolean;
+}
+
+export interface TeamComposition {
+  totalSize: number;
+  roles: TeamRole[];
+}
+
+export interface TeamRole {
+  title: string;
+  count: number;
+  responsibilities: string[];
 }
 
 export interface AIMemory {
-  businessUnderstanding: string;
-  keyInsights: string[];
-  successPatterns: string;
-  workflowPreferences: string;
-  concernsRisks: string;
+  lastUpdated: Date;
+  preferences: {
+    communicationStyle: string;
+    decisionMakingStyle: string;
+    priorities: string[];
+  };
+  learnings: {
+    successfulPatterns: Pattern[];
+    challenges: Pattern[];
+    improvements: Pattern[];
+  };
+  recommendations: string[];
 }
 
-export interface BusinessLocation {
-  city?: string;
-  state?: string;
-  country: string;
-  timezone?: string;
-}
-
-export interface CurrentTool {
-  name: string;
-  category: string;
-  satisfaction: 1 | 2 | 3 | 4 | 5;
-  monthlySpend?: number;
-  integrationRequired?: boolean;
-}
-
-export interface BusinessGoal {
-  category?: string;
-  description: string;
-  priority: 'high' | 'medium' | 'low';
-  timeline: string;
-  measurable?: boolean;
-}
-
-// ============================================================================
-// 5. WORKFLOW TEMPLATE VARIABLES
-// ============================================================================
-
-export const SuggestIndustryTemplatesInputSchema = z.object({
-  industry: z.string().describe('The industry to generate workflow templates for (e.g., "Property Management").'),
-});
-export type SuggestIndustryTemplatesInput = z.infer<typeof SuggestIndustryTemplatesInputSchema>;
-
-export const IndustryTemplateSchema = z.object({
-  name: z.string().describe("A concise, descriptive name for the workflow template."),
-  description: z.string().describe("A one-sentence summary of what the workflow accomplishes."),
-  category: z.string().describe("A one-word category for the workflow (e.g., 'Emergency', 'Financial', 'Leasing')."),
-  popularity: z.enum(['Most Popular', 'Popular', 'New']).optional().describe("A popularity ranking."),
-  steps: z.number().int().describe("An estimated number of steps in the workflow."),
-  icon: z.string().min(1).describe("A single emoji character to represent the workflow."),
-});
-export type IndustryTemplate = z.infer<typeof IndustryTemplateSchema>;
-
-export const SuggestIndustryTemplatesOutputSchema = z.object({
-  templates: z.array(IndustryTemplateSchema),
-});
-export type SuggestIndustryTemplatesOutput = z.infer<typeof SuggestIndustryTemplatesOutputSchema>;
-
-
-export const SuggestWorkflowStepsInputSchema = z.object({
-  workflowDescription: z.string().describe('A description of the workflow for which to suggest steps.'),
-});
-export type SuggestWorkflowStepsInput = z.infer<typeof SuggestWorkflowStepsInputSchema>;
-
-
-export const StepSchema: z.ZodType<any> = z.lazy(() => z.object({
-  id: z.string().optional(),
-  type: z.string().describe("The type of the step, e.g., 'ai_agent', 'human_input', 'conditional_branch', 'api_call', 'notification'."),
-  name: z.string().describe("A human-readable name for the step, e.g., 'Classify Request Urgency'."),
-  description: z.string().describe("A brief explanation of what this step does."),
-  // For conditional branches
-  branches: z.array(z.object({
-    condition: z.string().describe("The condition for this branch, e.g., 'IF urgency = CRITICAL'"),
-    steps: z.array(StepSchema).describe("The nested steps for this branch.")
-  })).optional(),
-}));
-
-
-export const SuggestWorkflowStepsOutputSchema = z.object({
-  name: z.string().describe("A concise name for the entire workflow."),
-  description: z.string().describe("A short description of what the workflow accomplishes."),
-  steps: z.array(StepSchema).describe("An array of the structured steps for the workflow, which can include nested conditional branches."),
-});
-export type SuggestWorkflowStepsOutput = z.infer<typeof SuggestWorkflowStepsOutputSchema>;
-
-// AI Composer Schemas
-export const GenerateCampaignContentInputSchema = z.object({
-  prompt: z.string().describe('The user\'s request for the campaign content.'),
-});
-export type GenerateCampaignContentInput = z.infer<typeof GenerateCampaignContentInputSchema>;
-
-export const GenerateCampaignContentOutputSchema = z.object({
-  content: z.string().describe('The generated marketing content.'),
-});
-export type GenerateCampaignContentOutput = z.infer<typeof GenerateCampaignContentOutputSchema>;
-
-export const GenerateCampaignImageInputSchema = z.object({
-  prompt: z.string().describe("The user's text prompt to generate an image from."),
-});
-export type GenerateCampaignImageInput = z.infer<typeof GenerateCampaignImageInputSchema>;
-
-export const GenerateCampaignImageOutputSchema = z.object({
-  imageUrl: z.string().url().describe('The data URI of the generated image.'),
-});
-export type GenerateCampaignImageOutput = z.infer<typeof GenerateCampaignImageOutputSchema>;
-
-
-export interface WorkflowTemplate {
-  id: string;
-  title: string;
-  description: string;
-  category: string;
-  industryId?: string;
-  industry?: Industry;
-  templateType: 'ready' | 'ai_generated' | 'custom';
-  complexity: 'simple' | 'medium' | 'complex';
-  steps: WorkflowStep[];
-  isFeatured: boolean;
-  isPublic?: boolean;
-  successRate: number;
-  avgSetupTimeHours: number;
-  roiPercentage: number;
-  usageCount: number;
-  userRating?: number;
-  estimatedTime: string;
-  tags: string[];
-  icon: string;
-  thumbnail?: string;
-  apiIntegrations: string[];
-  requiredPermissions?: string[];
-  createdBy?: string;
-  createdByRole?: 'admin' | 'partner';
-  createdAt: Date;
-  updatedAt: Date;
-  lastUsedAt?: Date;
-  aiAgents?: number;
-  totalUses?: number; // Added for analytics
-}
-
-export interface WorkflowStep {
-  id: string;
-  type: 'ai_agent' | 'human_input' | 'approval' | 'notification' | 'api_call' | 'conditional_branch' | 'data_processing' | 'file_handling' | 'delay' | 'webhook';
-  title: string;
-  description: string;
-  configuration: StepConfiguration;
-  order: number;
-  isRequired: boolean;
-  conditions?: StepCondition[];
-  errorHandling?: ErrorHandling;
-  timeout?: number;
-  retryPolicy?: RetryPolicy;
-  aiGenerated?: boolean;
-  branches?: WorkflowBranch[]; // For conditional steps
-}
-
-export interface WorkflowBranch {
-  condition: string;
-  steps: WorkflowStep[];
-}
-
-export interface StepConfiguration {
-  // AI Agent Step
-  agentType?: 'summarize' | 'classify' | 'extract' | 'generate' | 'analyze' | 'translate' | 'sentiment';
-  aiModel?: string;
-  prompt?: string;
-  systemPrompt?: string;
-  provider?: 'openai' | 'anthropic' | 'google';
-  temperature?: number;
-  maxTokens?: number;
-  
-  // Manual Input Step
-  inputType?: 'text' | 'file' | 'image' | 'form' | 'signature' | 'recording';
-  fields?: FormField[];
-  required?: boolean;
-  placeholder?: string;
-  validation?: ValidationRule[];
-  fileTypes?: string[];
-  maxFileSize?: number;
-  
-  // Approval Step
-  approverRole?: 'partner_admin' | 'specific_user' | 'any_admin';
-  approverId?: string;
-  autoApprove?: boolean;
-  timeoutHours?: number;
-  escalationRules?: EscalationRule[];
-  
-  // Notification Step
-  channel?: 'email' | 'sms' | 'chat' | 'push' | 'webhook';
-  template?: string;
-  recipients?: string[];
-  urgent?: boolean;
-  customMessage?: string;
-  attachments?: string[];
-  
-  // API Call Step
-  endpoint?: string;
-  method?: 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH';
-  headers?: Record<string, string>;
-  body?: any;
-  authentication?: APIAuthentication;
-  responseMapping?: ResponseMapping;
-  
-  // Conditional Step
-  conditions?: LogicalCondition[];
-  trueSteps?: string[];
-  falseSteps?: string[];
-  
-  // Data Processing Step
-  transformations?: DataTransformation[];
-  validations?: DataValidation[];
-  mappings?: DataMapping[];
-  
-  // Delay Step
-  delayType?: 'fixed' | 'until_date' | 'until_condition';
-  duration?: number;
-  unit?: 'seconds' | 'minutes' | 'hours' | 'days';
-  targetDate?: Date;
-  condition?: string;
-}
-
-export interface FormField {
-  id: string;
-  type: 'text' | 'email' | 'number' | 'date' | 'select' | 'multiselect' | 'textarea' | 'file' | 'checkbox' | 'radio';
-  label: string;
-  placeholder?: string;
-  required: boolean;
-  validation?: ValidationRule[];
-  options?: SelectOption[];
-  defaultValue?: any;
-  helpText?: string;
-}
-
-export interface ValidationRule {
-  type: 'required' | 'email' | 'phone' | 'url' | 'min_length' | 'max_length' | 'pattern' | 'custom';
-  value?: any;
-  message: string;
-}
-
-export interface SelectOption {
-  value: string;
-  label: string;
-  disabled?: boolean;
-}
-
-export interface StepCondition {
-  field: string;
-  operator: 'equals' | 'not_equals' | 'contains' | 'not_contains' | 'greater_than' | 'less_than' | 'exists' | 'not_exists';
-  value: any;
-  logicalOperator?: 'AND' | 'OR';
-}
-
-export interface ErrorHandling {
-  onError: 'stop' | 'continue' | 'retry' | 'skip' | 'escalate';
-  maxRetries?: number;
-  retryDelay?: number;
-  fallbackSteps?: string[];
-  notifyOnError?: boolean;
-}
-
-export interface RetryPolicy {
-  maxAttempts: number;
-  backoffStrategy: 'fixed' | 'exponential' | 'linear';
-  initialDelay: number;
-  maxDelay?: number;
-  multiplier?: number;
-}
-
-// ============================================================================
-// 6. WORKFLOW INSTANCE & EXECUTION VARIABLES
-// ============================================================================
-
-export interface WorkflowInstance {
-  id: string;
-  templateId: string;
-  template?: WorkflowTemplate;
-  partnerId: string;
-  businessProfileId?: string;
-  name: string;
-  description?: string;
-  customizations: WorkflowCustomization[];
-  deploymentStatus: 'draft' | 'testing' | 'live' | 'paused' | 'archived';
-  triggerConfig: TriggerConfiguration;
-  performanceMetrics: PerformanceMetrics;
-  schedule?: ScheduleConfig;
-  isActive: boolean;
-  createdBy: string;
-  createdAt: Date;
-  updatedAt: Date;
-  lastExecutedAt?: Date;
-  nextExecutionAt?: Date;
-}
-
-export interface WorkflowCustomization {
-  stepId: string;
-  field: string;
-  originalValue: any;
-  customValue: any;
-  reason?: string;
-  modifiedBy: string;
-  modifiedAt: Date;
-}
-
-export interface TriggerConfiguration {
-  type: 'manual' | 'schedule' | 'webhook' | 'email' | 'form_submission' | 'api_event' | 'file_upload';
-  settings: TriggerSettings;
-  isActive: boolean;
-}
-
-export interface TriggerSettings {
-  // Schedule Trigger
-  frequency?: 'once' | 'daily' | 'weekly' | 'monthly' | 'custom';
-  cronExpression?: string;
-  timezone?: string;
-  
-  // Webhook Trigger
-  webhookUrl?: string;
-  secret?: string;
-  headers?: Record<string, string>;
-  
-  // Form Trigger
-  formId?: string;
-  formFields?: string[];
-  
-  // Email Trigger
-  emailAddress?: string;
-  emailFilters?: EmailFilter[];
-}
-
-export interface EmailFilter {
-  field: 'subject' | 'from' | 'body';
-  operator: 'contains' | 'equals' | 'starts_with' | 'ends_with';
-  value: string;
-}
-
-export interface ScheduleConfig {
-  enabled: boolean;
-  frequency: 'hourly' | 'daily' | 'weekly' | 'monthly' | 'custom';
-  interval: number;
-  daysOfWeek?: number[];
-  timeOfDay?: string;
-  timezone: string;
-  nextRun?: Date;
-}
-
-export interface PerformanceMetrics {
-  totalExecutions: number;
-  successfulExecutions: number;
-  failedExecutions: number;
-  averageExecutionTime: number;
-  lastSuccessAt?: Date;
-  lastFailureAt?: Date;
-  uptimePercentage: number;
-  costPerExecution?: number;
-  roiGenerated?: number;
-}
-
-export interface WorkflowExecution {
-  id: string;
-  workflowInstanceId: string;
-  workflowInstance?: WorkflowInstance;
-  triggerData: any;
-  executionPath: ExecutionStep[];
-  status: 'queued' | 'running' | 'completed' | 'failed' | 'cancelled' | 'paused';
-  currentStepId?: string;
-  startedAt: Date;
-  completedAt?: Date;
-  duration?: number;
-  errorDetails?: ExecutionError;
-  results: ExecutionResults;
-  context: ExecutionContext;
-  priority: 'low' | 'normal' | 'high' | 'urgent';
-  createdBy?: string;
-}
-
-export interface ExecutionStep {
-  stepId: string;
-  status: 'pending' | 'running' | 'completed' | 'failed' | 'skipped';
-  startedAt?: Date;
-  completedAt?: Date;
-  duration?: number;
-  input?: any;
-  output?: any;
-  errorMessage?: string;
-  retryCount?: number;
-  assignedTo?: string;
-}
-
-export interface ExecutionError {
-  code: string;
-  message: string;
-  stepId?: string;
-  timestamp: Date;
-  stackTrace?: string;
-  recoverable: boolean;
-}
-
-export interface ExecutionResults {
-  success: boolean;
-  data: any;
-  files?: ExecutionFile[];
-  notifications?: NotificationResult[];
-  apiCalls?: APICallResult[];
-  metrics?: any;
-}
-
-export interface ExecutionFile {
-  id: string;
-  name: string;
-  type: string;
-  size: number;
-  url: string;
-  createdAt: Date;
-}
-
-export interface NotificationResult {
-  channel: string;
-  recipient: string;
-  status: 'sent' | 'failed' | 'pending';
-  messageId?: string;
-  timestamp: Date;
-}
-
-export interface APICallResult {
-  endpoint: string;
-  method: string;
-  statusCode: number;
-  responseTime: number;
-  success: boolean;
-  timestamp: Date;
-}
-
-export interface ExecutionContext {
-  partnerId: string;
-  userId?: string;
-  businessProfileId?: string;
-  environment: 'production' | 'testing' | 'development';
-  variables: Record<string, any>;
-  metadata: Record<string, any>;
-}
-
-// ============================================================================
-// 7. AI & PROBLEM DESCRIPTION VARIABLES
-// ============================================================================
-
-export interface ProblemDescription {
-  id: string;
-  partnerId: string;
-  title: string;
-  description: string;
-  category?: string;
-  priority: 'low' | 'medium' | 'high' | 'critical';
-  status: 'analyzing' | 'solution_ready' | 'implemented' | 'closed';
-  aiAnalysis?: AIAnalysis;
-  generatedWorkflows?: GeneratedWorkflow[];
-  selectedWorkflowId?: string;
-  feedback?: ProblemFeedback;
-  createdBy: string;
-  createdAt: Date;
-  updatedAt: Date;
-}
-
-export interface AIAnalysis {
-  category: string;
-  complexity: 'simple' | 'medium' | 'complex';
-  stakeholders: string[];
-  triggerEvents: string[];
-  successCriteria: string[];
-  estimatedTimeToSolve: string;
-  confidenceScore: number;
-  recommendedApproach: string;
-  potentialChallenges: string[];
-  requiredResources: string[];
-}
-
-export interface GeneratedWorkflow {
-  id: string;
-  problemDescriptionId: string;
-  title: string;
-  description: string;
-  steps: WorkflowStep[];
-  estimatedROI: number;
-  estimatedSetupTime: string;
-  confidenceScore: number;
-  requiredIntegrations: string[];
-  isSelected: boolean;
-  createdAt: Date;
-}
-
-export interface ProblemFeedback {
-  solutionRating: 1 | 2 | 3 | 4 | 5;
-  implementationSuccess: boolean;
-  comments: string;
-  improvements: string[];
-  wouldRecommend: boolean;
-  createdAt: Date;
-}
-
-export interface AIGenerationLog {
-  id: string;
-  type: 'problem_analysis' | 'workflow_generation' | 'optimization_suggestion';
-  inputData: any;
-  outputData: any;
-  model: string;
-  provider: 'openai' | 'anthropic' | 'google';
-  tokenUsage: TokenUsage;
-  processingTime: number;
-  confidenceScore?: number;
-  success: boolean;
-  errorMessage?: string;
-  createdAt: Date;
-}
-
-export interface TokenUsage {
-  promptTokens: number;
-  completionTokens: number;
-  totalTokens: number;
-  cost?: number;
-}
-
-export interface AITrainingData {
-  id: string;
-  type: 'problem_example' | 'workflow_template' | 'success_pattern' | 'failure_pattern';
-  industryId?: string;
-  category: string;
-  inputData: any;
-  expectedOutput: any;
-  actualOutput?: any;
-  performance?: number;
-  isValidated: boolean;
-  validatedBy?: string;
-  validatedAt?: Date;
-  createdAt: Date;
-}
-
-// ============================================================================
-// 8. API INTEGRATION VARIABLES
-// ============================================================================
-
-export interface APIIntegration {
-  id: string;
-  name: string;
-  provider: string;
-  category: 'communication' | 'payment' | 'calendar' | 'crm' | 'storage' | 'analytics' | 'industry_specific';
-  description: string;
-  icon: string;
-  supportedActions: APIAction[];
-  authType: 'api_key' | 'oauth2' | 'basic_auth' | 'bearer_token';
-  baseUrl: string;
-  documentation: string;
-  isActive: boolean;
-  popularityScore: number;
-  reliabilityScore: number;
-  avgResponseTime: number;
-  cost: APICosting;
-  limitations: APILimitation[];
-  requiredCredentials: string[];
-  createdAt: Date;
-  updatedAt: Date;
-}
-
-export interface APIAction {
-  id: string;
-  name: string;
-  description: string;
-  method: 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH';
-  endpoint: string;
-  parameters: APIParameter[];
-  responseFormat: any;
-  examples: APIExample[];
-}
-
-export interface APIParameter {
-  name: string;
-  type: 'string' | 'number' | 'boolean' | 'object' | 'array';
-  required: boolean;
-  description: string;
-  defaultValue?: any;
-  validation?: ValidationRule[];
-}
-
-export interface APIExample {
-  title: string;
-  description: string;
-  request: any;
-  response: any;
-}
-
-export interface APICosting {
-  model: 'free' | 'freemium' | 'per_request' | 'subscription';
-  freeLimit?: number;
-  costPerRequest?: number;
-  subscriptionTiers?: SubscriptionTier[];
-}
-
-export interface SubscriptionTier {
-  name: string;
-  monthlyPrice: number;
-  requestLimit: number;
-  features: string[];
-}
-
-export interface APILimitation {
-  type: 'rate_limit' | 'data_limit' | 'feature_restriction';
-  description: string;
-  value?: number;
-  unit?: string;
-}
-
-export interface PartnerAPIConfiguration {
-  id: string;
-  partnerId: string;
-  apiIntegrationId: string;
-  apiIntegration?: APIIntegration;
-  displayName?: string;
-  configuration: APICredentials;
-  status: 'active' | 'inactive' | 'error' | 'testing';
-  lastTestAt?: Date;
-  lastErrorAt?: Date;
-  errorMessage?: string;
-  usageStats: APIUsageStats;
-  createdBy: string;
-  createdAt: Date;
-  updatedAt: Date;
-}
-
-export interface APICredentials {
-  authType: string;
-  credentials: Record<string, any>; // Encrypted
-  endpoints?: Record<string, string>;
-  settings?: Record<string, any>;
-}
-
-export interface APIUsageStats {
-  totalCalls: number;
-  successfulCalls: number;
-  failedCalls: number;
-  lastCallAt?: Date;
-  averageResponseTime: number;
-  monthlyUsage: number;
-  quotaUsed?: number;
-  quotaLimit?: number;
+export interface Pattern {
+  context: string;
+  observation: string;
+  confidence: number;
+  frequency: number;
+  lastSeen: Date;
 }
 
 // ============================================================================
@@ -922,7 +277,7 @@ export interface Task {
 }
 
 export interface TeamMember {
-  id: string; // Should be the user's UID
+  id: string;
   userId?: string;
   tenantId?: string;
   user?: UserProfile;
@@ -992,9 +347,9 @@ export interface Availability {
 }
 
 export interface WorkingHours {
-  dayOfWeek: number; // 0-6 (Sunday-Saturday)
-  startTime: string; // HH:MM
-  endTime: string; // HH:MM
+  dayOfWeek: number;
+  startTime: string;
+  endTime: string;
   isActive: boolean;
 }
 
@@ -1028,27 +383,20 @@ export interface AnalyticsData {
 }
 
 export interface AnalyticsMetrics {
-  // Workflow Performance
   totalExecutions?: number;
   successRate?: number;
   averageExecutionTime?: number;
   errorRate?: number;
   topPerformingWorkflows?: WorkflowStat[];
   bottleneckSteps?: StepStat[];
-  
-  // Team Metrics
   teamProductivity?: number;
   averageTaskCompletionTime?: number;
   teamUtilization?: number;
   topPerformers?: TeamMemberStat[];
-  
-  // Business Impact
   timesSaved?: number;
   costReduction?: number;
   revenueGenerated?: number;
   customerSatisfactionImpact?: number;
-  
-  // Usage Stats
   activeUsers?: number;
   workflowsCreated?: number;
   apiCallsCount?: number;
@@ -1058,86 +406,38 @@ export interface AnalyticsMetrics {
 export interface WorkflowStat {
   workflowId: string;
   workflowName: string;
-  executions: number;
+  executionCount: number;
   successRate: number;
-  avgDuration: number;
-  roiGenerated: number;
+  averageTime: number;
 }
 
 export interface StepStat {
   stepId: string;
   stepName: string;
-  stepType: string;
+  averageTime: number;
   failureRate: number;
-  avgDuration: number;
-  bottleneckScore: number;
 }
 
 export interface TeamMemberStat {
   memberId: string;
   memberName: string;
   tasksCompleted: number;
-  avgCompletionTime: number;
+  averageCompletionTime: number;
   qualityScore: number;
-  productivityScore: number;
-}
-
-export interface DashboardWidget {
-  id: string;
-  partnerId: string;
-  type: 'chart' | 'metric' | 'table' | 'progress' | 'alert';
-  title: string;
-  description?: string;
-  position: WidgetPosition;
-  size: WidgetSize;
-  configuration: WidgetConfiguration;
-  dataSource: string;
-  refreshInterval: number;
-  isActive: boolean;
-  createdBy: string;
-  createdAt: Date;
-  updatedAt: Date;
-}
-
-export interface WidgetPosition {
-  x: number;
-  y: number;
-  row: number;
-  col: number;
-}
-
-export interface WidgetSize {
-  width: number;
-  height: number;
-  minWidth?: number;
-  minHeight?: number;
-}
-
-export interface WidgetConfiguration {
-  chartType?: 'line' | 'bar' | 'pie' | 'doughnut' | 'area';
-  metrics?: string[];
-  filters?: any[];
-  timeRange?: string;
-  groupBy?: string;
-  sortBy?: string;
-  colors?: string[];
-  showLegend?: boolean;
-  showGrid?: boolean;
 }
 
 // ============================================================================
-// 11. COMMUNICATION & NOTIFICATION VARIABLES
+// 11. NOTIFICATIONS & COMMUNICATIONS VARIABLES
 // ============================================================================
 
 export interface Notification {
   id: string;
   partnerId: string;
-  userId?: string;
-  type: 'info' | 'success' | 'warning' | 'error';
-  category: 'workflow' | 'system' | 'team' | 'billing' | 'integration';
+  userId: string;
+  type: 'workflow' | 'system' | 'team' | 'billing' | 'integration';
   title: string;
   message: string;
-  data?: any;
+  data: any;
   channels: NotificationChannel[];
   status: 'pending' | 'sent' | 'delivered' | 'failed' | 'read';
   priority: 'low' | 'normal' | 'high' | 'urgent';
@@ -1163,13 +463,13 @@ export interface Conversation {
   type: 'general' | 'workflow_specific' | 'support' | 'direct_message' | 'direct' | 'group';
   title: string;
   description?: string;
-  participants: ConversationParticipant[] | string[]; // Allow both formats
+  participants: ConversationParticipant[] | string[];
   workflowId?: string;
   isActive: boolean;
-  lastMessageAt?: any; // Firebase Timestamp
+  lastMessageAt?: any;
   messageCount: number;
   createdBy: string;
-  createdAt: any; // Firebase Timestamp
+  createdAt: any;
 }
 
 export interface ConversationParticipant {
@@ -1216,6 +516,7 @@ export interface MessageReaction {
 // ============================================================================
 // 12. CAMPAIGN & CONTACTS VARIABLES
 // ============================================================================
+
 export interface Campaign {
   id: string;
   name: string;
@@ -1229,9 +530,13 @@ export interface Campaign {
   sentCount: number;
   engagementRate: number;
   revenueGenerated: number;
-  createdAt: any; // Firebase Timestamp
-  sentAt?: any; // Firebase Timestamp
+  createdAt: any;
+  sentAt?: any;
 }
+
+// ============================================================================
+// UPDATED CONTACT INTERFACE WITH GENERIC CRM FIELDS
+// ============================================================================
 
 export interface Contact {
   id: string;
@@ -1245,16 +550,44 @@ export interface Contact {
   createdAt: Date | Timestamp;
   updatedAt?: Date | Timestamp;
   isActive?: boolean;
+  status?: 'active' | 'inactive';
   
-  // RIA-specific fields
-  portfolio?: string;        // e.g., "$2.4M"
-  occupation?: string;       // e.g., "Tech Executive"
-  accountType?: string;      // e.g., "Individual Brokerage", "IRA", "Family Trust"
-  riskProfile?: string;      // e.g., "Moderate", "Aggressive", "Conservative"
-  lastReviewDate?: Date | Timestamp;
-  nextReviewDate?: Date | Timestamp;
+  // ===================================================================
+  // GENERIC CRM FIELDS - Applicable to any business type
+  // ===================================================================
+  
+  /**
+   * Lifetime Value - Customer's total value/worth
+   * Examples by industry:
+   * - Financial Services: "$2.4M", "$500K"
+   * - SaaS: "$50K ARR", "$100K"
+   * - Real Estate: "$5M Portfolio", "$1.2M"
+   * - E-commerce: "$10K LTV", "VIP"
+   * - Professional Services: "$250K/year", "High Value"
+   */
+  lifetimeValue?: string;
+  
+  /**
+   * Company - Customer's company or organization
+   * Examples:
+   * - "Acme Corp"
+   * - "Tech Solutions Inc"
+   * - "Goldman Sachs"
+   * - "Shopify"
+   */
+  company?: string;
+  
+  /**
+   * Category - Customer tier, plan type, or membership level
+   * Examples by industry:
+   * - Financial Services: "Individual Brokerage", "IRA", "Family Trust"
+   * - SaaS: "Enterprise", "Professional", "Starter"
+   * - Real Estate: "Investor", "First-Time Buyer", "Commercial"
+   * - E-commerce: "Premium Member", "Regular", "Wholesale"
+   * - Professional Services: "Retainer", "Project-Based", "Hourly"
+   */
+  category?: string;
 }
-
 
 export interface ContactGroup {
   id: string;
@@ -1289,7 +622,7 @@ export interface TradingPick {
   broadcastHistory?: BroadcastRecord[];
   views?: number;
   analystNotes?: string;
-  lastBroadcastAt?: any; // Firebase Timestamp
+  lastBroadcastAt?: any;
 }
 
 export interface BroadcastRecord {
@@ -1321,7 +654,123 @@ export interface BroadcastRecord {
   completedAt?: any;
 }
 
+// ============================================================================
+// WHATSAPP MESSAGING TYPES
+// ============================================================================
 
+export interface WhatsAppMessage extends ChatMessage {
+  direction: 'outbound' | 'inbound';
+  platform: 'whatsapp';
+  whatsappMetadata: {
+    twilioSid?: string;
+    twilioStatus?: 'queued' | 'sent' | 'delivered' | 'read' | 'failed' | 'undelivered' | 'received';
+    to: string;
+    from: string;
+    errorCode?: string | null;
+    errorMessage?: string | null;
+    numMedia?: number;
+    mediaUrls?: string[];
+  };
+}
+
+export interface WhatsAppConversation extends Conversation {
+  platform: 'whatsapp';
+  customerPhone: string;
+  customerName?: string;
+  lastWhatsAppStatus?: 'active' | 'opt_out' | 'blocked';
+  recentMessages?: WhatsAppMessage[];
+  contactId?: string;
+}
+
+export interface TwilioWebhookPayload {
+  MessageSid: string;
+  AccountSid: string;
+  MessagingServiceSid?: string;
+  From: string;
+  To: string;
+  Body: string;
+  NumMedia?: string;
+  MediaUrl0?: string;
+  MediaContentType0?: string;
+  SmsStatus?: string;
+  MessageStatus?: string;
+  ApiVersion?: string;
+  SmsSid?: string;
+}
+
+export interface SendWhatsAppMessageInput {
+  partnerId: string;
+  to: string;
+  message?: string;
+  conversationId?: string;
+  mediaUrl?: string;
+}
+
+export interface SendWhatsAppMessageResult {
+  success: boolean;
+  message: string;
+  messageId?: string;
+  twilioSid?: string;
+  conversationId?: string;
+}
+
+// ============================================================================
+// SMS MESSAGING TYPES
+// ============================================================================
+
+export interface SMSMessage extends ChatMessage {
+  direction: 'outbound' | 'inbound';
+  platform: 'sms';
+  smsMetadata: {
+    twilioSid?: string;
+    twilioStatus?: 'queued' | 'sent' | 'delivered' | 'failed' | 'undelivered' | 'received';
+    to: string;
+    from: string;
+    errorCode?: string | null;
+    errorMessage?: string | null;
+  };
+}
+
+export interface SMSConversation extends Conversation {
+  platform: 'sms';
+  customerPhone: string;
+  customerName?: string;
+  lastSMSStatus?: 'active' | 'opt_out' | 'blocked';
+  recentMessages?: SMSMessage[];
+  contactId?: string;
+}
+
+export interface TwilioSMSWebhookPayload {
+  MessageSid: string;
+  AccountSid: string;
+  MessagingServiceSid?: string;
+  From: string;
+  To: string;
+  Body: string;
+  NumMedia?: string;
+  MediaUrl0?: string;
+  MediaContentType0?: string;
+  SmsStatus?: string;
+  MessageStatus?: string;
+  ApiVersion?: string;
+  SmsSid?: string;
+}
+
+export interface SendSMSInput {
+  partnerId: string;
+  to: string;
+  message?: string;
+  conversationId?: string;
+  mediaUrl?: string;
+}
+
+export interface SendSMSResult {
+  success: boolean;
+  message: string;
+  messageId?: string;
+  twilioSid?: string;
+  conversationId?: string;
+}
 
 // ============================================================================
 // SYSTEM CONFIGURATION VARIABLES
@@ -1379,38 +828,68 @@ export interface AuditLog {
 }
 
 // ============================================================================
-// FILE MANAGEMENT VARIABLES
+// MULTI-WORKSPACE & SECURITY VARIABLES
 // ============================================================================
 
-export interface FileUpload {
-  id: string;
-  partnerId: string;
-  userId: string;
-  fileName: string;
-  originalName: string;
-  mimeType: string;
-  size: number;
-  url: string;
-  thumbnailUrl?: string;
-  category: 'workflow_attachment' | 'profile_image' | 'document' | 'temporary';
-  workflowId?: string;
-  executionId?: string;
-  isPublic: boolean;
-  expiresAt?: Date;
-  downloadCount: number;
-  lastAccessedAt?: Date;
-  createdAt: Date;
+export interface MultiWorkspaceCustomClaims {
+  role: 'Super Admin' | 'Admin' | 'partner_admin' | 'employee';
+  partnerId?: string;
+  tenantId?: string;
+  partnerIds?: string[];
+  workspaces?: WorkspaceAccess[];
+  activePartnerId?: string;
+  activeTenantId?: string;
 }
 
-export interface StorageQuota {
+export interface WorkspaceAccess {
   partnerId: string;
-  totalLimit: number;
-  usedSpace: number;
-  fileCount: number;
-  lastCalculatedAt: Date;
-  warningThreshold: number;
-  isOverLimit: boolean;
+  tenantId: string;
+  role: 'partner_admin' | 'employee';
+  permissions: string[];
+  status: 'active' | 'invited' | 'suspended';
+  partnerName: string;
+  partnerAvatar?: string | null;
 }
+
+export interface MultiWorkspaceFirebaseAuthUser extends Omit<FirebaseAuthUser, 'customClaims'> {
+  customClaims?: MultiWorkspaceCustomClaims;
+}
+
+export interface WorkspaceInvitation {
+  id?: string;
+  email?: string;
+  phoneNumber?: string;
+  partnerId: string;
+  tenantId: string;
+  role: 'partner_admin' | 'employee';
+  invitedBy: string;
+  invitedAt: FirebaseTimestamp;
+  expiresAt: any;
+  status: 'pending' | 'accepted' | 'expired' | 'cancelled';
+  inviteCode?: string;
+  partnerName: string;
+  inviterName: string;
+  inviterEmail: string;
+}
+
+export interface MultiWorkspaceAuthState extends AuthState {
+  user: MultiWorkspaceFirebaseAuthUser | null;
+  currentWorkspace: WorkspaceAccess | null;
+  availableWorkspaces: WorkspaceAccess[];
+  switchWorkspace: (partnerId: string) => Promise<boolean>;
+  refreshWorkspaces: () => Promise<void | (() => void)>;
+  hasAccessToPartner: (partnerId: string) => boolean;
+  isPartnerAdminFor: (partnerId: string) => boolean;
+  canModifyPartner: (partnerId: string) => boolean;
+}
+
+export type PhoneAuthResult = {
+  success: boolean;
+  message: string;
+  userId?: string;
+  workspaces?: WorkspaceAccess[];
+  hasMultipleWorkspaces?: boolean;
+};
 
 // ============================================================================
 // BILLING & SUBSCRIPTION VARIABLES
@@ -1485,6 +964,121 @@ export interface PlanLimit {
   resource: string;
   limit: number;
   unit: string;
+}
+
+// ============================================================================
+// API INTEGRATION VARIABLES
+// ============================================================================
+
+export interface APIIntegration {
+  id: string;
+  name: string;
+  provider: string;
+  category: 'communication' | 'payment' | 'calendar' | 'crm' | 'storage' | 'analytics' | 'industry_specific';
+  description: string;
+  icon: string;
+  supportedActions: APIAction[];
+  authType: 'api_key' | 'oauth2' | 'basic_auth' | 'bearer_token';
+  baseUrl: string;
+  documentation: string;
+  isActive: boolean;
+  popularityScore: number;
+  reliabilityScore: number;
+  avgResponseTime: number;
+  cost: APICosting;
+  limitations: APILimitation[];
+  requiredCredentials: string[];
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface APIAction {
+  id: string;
+  name: string;
+  description: string;
+  method: 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH';
+  endpoint: string;
+  parameters: APIParameter[];
+  responseFormat: any;
+  examples: APIExample[];
+}
+
+export interface APIParameter {
+  name: string;
+  type: 'string' | 'number' | 'boolean' | 'object' | 'array';
+  required: boolean;
+  description: string;
+  defaultValue?: any;
+  validation?: ValidationRule[];
+}
+
+export interface ValidationRule {
+  type: 'required' | 'min' | 'max' | 'pattern' | 'email' | 'url' | 'custom';
+  value?: any;
+  errorMessage: string;
+}
+
+export interface APIExample {
+  title: string;
+  description: string;
+  request: any;
+  response: any;
+}
+
+export interface APICosting {
+  model: 'free' | 'freemium' | 'per_request' | 'subscription';
+  freeLimit?: number;
+  costPerRequest?: number;
+  subscriptionTiers?: SubscriptionTier[];
+}
+
+export interface SubscriptionTier {
+  name: string;
+  monthlyPrice: number;
+  requestLimit: number;
+  features: string[];
+}
+
+export interface APILimitation {
+  type: 'rate_limit' | 'data_limit' | 'feature_restriction';
+  description: string;
+  value?: number;
+  unit?: string;
+}
+
+export interface PartnerAPIConfiguration {
+  id: string;
+  partnerId: string;
+  apiIntegrationId: string;
+  apiIntegration?: APIIntegration;
+  displayName?: string;
+  configuration: APICredentials;
+  status: 'active' | 'inactive' | 'error' | 'testing';
+  lastTestAt?: Date;
+  lastErrorAt?: Date;
+  errorMessage?: string;
+  usageStats: APIUsageStats;
+  createdBy: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface APICredentials {
+  authType: string;
+  credentials: Record<string, any>;
+  endpoints?: Record<string, string>;
+  settings?: Record<string, any>;
+}
+
+export interface APIUsageStats {
+  totalCalls: number;
+  successfulCalls: number;
+  failedCalls: number;
+  lastCallAt?: Date;
+  averageResponseTime: number;
+  monthlyUsage: number;
+  quotaUsed?: number;
+  quotaLimit?: number;
 }
 
 // ============================================================================
@@ -1577,7 +1171,7 @@ export interface ResponseMapping {
 
 export interface APIAuthentication {
   type: 'none' | 'api_key' | 'bearer_token' | 'basic_auth' | 'oauth2';
-  credentials: Record<string, any>; // Encrypted
+  credentials: Record<string, any>;
 }
 
 export interface EscalationRule {
@@ -1588,203 +1182,59 @@ export interface EscalationRule {
 }
 
 // ============================================================================
-// SECURITY RULES VARIABLES
+// FILE MANAGEMENT VARIABLES
+// ============================================================================
+
+export interface FileUpload {
+  id: string;
+  partnerId: string;
+  userId: string;
+  fileName: string;
+  originalName: string;
+  mimeType: string;
+  size: number;
+  url: string;
+  thumbnailUrl?: string;
+  category: 'workflow_attachment' | 'profile_image' | 'document' | 'temporary';
+  workflowId?: string;
+  executionId?: string;
+  isPublic: boolean;
+  expiresAt?: Date;
+  downloadCount: number;
+  lastAccessedAt?: Date;
+  createdAt: Date;
+}
+
+export interface StorageQuota {
+  partnerId: string;
+  totalLimit: number;
+  usedSpace: number;
+  fileCount: number;
+  lastCalculatedAt: Date;
+  warningThreshold: number;
+  isOverLimit: boolean;
+}
+
+export interface AITrainingData {
+  id: string;
+  type: 'problem_example' | 'workflow_template' | 'success_pattern' | 'failure_pattern';
+  industryId?: string;
+  category: string;
+  inputData: any;
+  expectedOutput: any;
+  actualOutput?: any;
+  performance?: number;
+  isValidated: boolean;
+  validatedBy?: string;
+  validatedAt?: Date;
+  createdAt: Date;
+}
+
+// ============================================================================
+// RESOURCE ACCESS VARIABLES
 // ============================================================================
 
 export interface ResourceAccess {
   resource: string;
   action: 'read' | 'write' | 'delete' | 'admin';
-}
-
-export interface MultiWorkspaceCustomClaims {
-  role: 'Super Admin' | 'Admin' | 'partner_admin' | 'employee';
-  
-  // Legacy single workspace support (backward compatibility)
-  partnerId?: string;
-  tenantId?: string;
-  
-  // NEW: Multi-workspace support
-  partnerIds?: string[]; // Array of partner IDs user has access to
-  workspaces?: WorkspaceAccess[]; // Detailed workspace access info
-  
-  // Current active workspace (for UI context)
-  activePartnerId?: string;
-  activeTenantId?: string;
-}
-
-export interface WorkspaceAccess {
-  partnerId: string;
-  tenantId: string;
-  role: 'partner_admin' | 'employee';
-  permissions: string[];
-  status: 'active' | 'invited' | 'suspended';
-  partnerName: string;
-  partnerAvatar?: string | null;
-}
-
-// Enhanced FirebaseAuthUser with multi-workspace support
-export interface MultiWorkspaceFirebaseAuthUser extends Omit<FirebaseAuthUser, 'customClaims'> {
-  customClaims?: MultiWorkspaceCustomClaims;
-}
-
-export interface WorkspaceInvitation {
-  id?: string;
-  email?: string;
-  phoneNumber?: string; // Support for phone-based invitations
-  partnerId: string;
-  tenantId: string;
-  role: 'partner_admin' | 'employee';
-  invitedBy: string; // User ID
-  invitedAt: FirebaseTimestamp;
-  expiresAt: any; // Allow for serverTimestamp
-  status: 'pending' | 'accepted' | 'expired' | 'cancelled';
-  inviteCode?: string; // Optional invite code for self-service joining
-  
-  // Partner details for the invitation
-  partnerName: string;
-  inviterName: string;
-  inviterEmail: string;
-}
-
-// Multi-workspace authentication state
-export interface MultiWorkspaceAuthState extends AuthState {
-  user: MultiWorkspaceFirebaseAuthUser | null;
-  currentWorkspace: WorkspaceAccess | null;
-  availableWorkspaces: WorkspaceAccess[];
-  
-  // Workspace switching
-  switchWorkspace: (partnerId: string) => Promise<boolean>;
-  refreshWorkspaces: () => Promise<void | (() => void)>;
-  
-  // Multi-workspace permissions
-  hasAccessToPartner: (partnerId: string) => boolean;
-  isPartnerAdminFor: (partnerId: string) => boolean;
-  canModifyPartner: (partnerId: string) => boolean;
-}
-
-export type PhoneAuthResult = {
-    success: boolean;
-    message: string;
-    userId?: string;
-    workspaces?: WorkspaceAccess[];
-    hasMultipleWorkspaces?: boolean;
-};
-
-// ============================================================================
-// WHATSAPP MESSAGING TYPES
-// ============================================================================
-
-export interface WhatsAppMessage extends ChatMessage {
-  direction: 'outbound' | 'inbound';
-  platform: 'whatsapp';
-  whatsappMetadata: {
-    twilioSid?: string;
-    twilioStatus?: 'queued' | 'sent' | 'delivered' | 'read' | 'failed' | 'undelivered' | 'received';
-    to: string; // whatsapp:+1234567890
-    from: string; // Twilio WhatsApp number
-    errorCode?: string | null;
-    errorMessage?: string | null;
-    numMedia?: number;
-    mediaUrls?: string[];
-  };
-}
-
-export interface WhatsAppConversation extends Conversation {
-  platform: 'whatsapp';
-  customerPhone: string; // WhatsApp number
-  customerName?: string;
-  lastWhatsAppStatus?: 'active' | 'opt_out' | 'blocked';
-  recentMessages?: WhatsAppMessage[];
-  contactId?: string; // Reference to contact document
-}
-
-
-export interface TwilioWebhookPayload {
-  MessageSid: string;
-  AccountSid: string;
-  MessagingServiceSid?: string;
-  From: string; // whatsapp:+1234567890
-  To: string; // whatsapp:+1234567890
-  Body: string;
-  NumMedia?: string;
-  MediaUrl0?: string;
-  MediaContentType0?: string;
-  SmsStatus?: string;
-  MessageStatus?: string;
-  ApiVersion?: string;
-  SmsSid?: string;
-}
-
-export interface SendWhatsAppMessageInput {
-  partnerId: string;
-  to: string; // Phone number without whatsapp: prefix
-  message?: string;
-  conversationId?: string;
-  mediaUrl?: string;
-}
-
-export interface SendWhatsAppMessageResult {
-  success: boolean;
-  message: string;
-  messageId?: string;
-  twilioSid?: string;
-  conversationId?: string;
-}
-
-// ============================================================================
-// SMS MESSAGING TYPES
-// ============================================================================
-
-export interface SMSMessage extends ChatMessage {
-  direction: 'outbound' | 'inbound';
-  platform: 'sms';
-  smsMetadata: {
-    twilioSid?: string;
-    twilioStatus?: 'queued' | 'sent' | 'delivered' | 'failed' | 'undelivered' | 'received';
-    to: string; // Phone number in E.164 format: +1234567890
-    from: string; // Twilio phone number
-    errorCode?: string | null;
-    errorMessage?: string | null;
-  };
-}
-
-export interface SMSConversation extends Conversation {
-  platform: 'sms';
-  customerPhone: string; // Phone number
-  customerName?: string;
-  lastSMSStatus?: 'active' | 'opt_out' | 'blocked';
-  recentMessages?: SMSMessage[];
-  contactId?: string; // Reference to contact document
-}
-
-export interface TwilioSMSWebhookPayload {
-  MessageSid: string;
-  AccountSid: string;
-  MessagingServiceSid?: string;
-  From: string; // +1234567890
-  To: string; // +1234567890
-  Body: string;
-  NumMedia?: string;
-  MediaUrl0?: string;
-  MediaContentType0?: string;
-  SmsStatus?: string;
-  MessageStatus?: string;
-  ApiVersion?: string;
-  SmsSid?: string;
-}
-
-export interface SendSMSInput {
-  partnerId: string;
-  to: string; // Phone number in E.164 format
-  message?: string;
-  conversationId?: string;
-  mediaUrl?: string;
-}
-
-export interface SendSMSResult {
-  success: boolean;
-  message: string;
-  messageId?: string;
-  twilioSid?: string;
-  conversationId?: string;
 }

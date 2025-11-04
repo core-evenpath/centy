@@ -80,10 +80,10 @@ export async function createContactFromConversation(
     createdAt: new Date(),
     updatedAt: new Date(),
     isActive: true,
-    // RIA-specific fields
-    portfolio: '',
-    occupation: '',
-    accountType: '',
+    // Generic CRM fields
+    lifetimeValue: '',
+    company: '',
+    category: '',
   };
   
   await setDoc(newContactRef, contactData);

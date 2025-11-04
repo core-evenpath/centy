@@ -12,9 +12,10 @@ interface CreateContactInput {
   phone: string;
   status: 'active' | 'inactive';
   groups?: string[];
-  occupation?: string;
-  portfolio?: string;
-  accountType?: string;
+  // Generic CRM fields
+  company?: string;
+  lifetimeValue?: string;
+  category?: string;
   notes?: string;
 }
 
@@ -45,9 +46,9 @@ export async function createContactAction(input: CreateContactInput): Promise<{
       email: input.email || '',
       status: input.status,
       groups: input.groups || [],
-      occupation: input.occupation || '',
-      portfolio: input.portfolio || '',
-      accountType: input.accountType || '',
+      company: input.company || '',
+      lifetimeValue: input.lifetimeValue || '',
+      category: input.category || '',
       notes: input.notes || '',
       createdAt: FieldValue.serverTimestamp() as any,
       updatedAt: FieldValue.serverTimestamp() as any,
@@ -77,9 +78,10 @@ interface UpdateContactInput {
   phone: string;
   status: 'active' | 'inactive';
   groups?: string[];
-  portfolio?: string;
-  occupation?: string;
-  accountType?: string;
+  // Generic CRM fields
+  lifetimeValue?: string;
+  company?: string;
+  category?: string;
 }
 
 export async function updateContactAction(input: UpdateContactInput): Promise<{
@@ -128,6 +130,51 @@ export async function updateContactAction(input: UpdateContactInput): Promise<{
     return {
       success: false,
       message: `Failed to update contact: ${error.message}`,
+    };
+  }
+}
+
+export async function deleteContactAction(partnerId: string, contactId: string): Promise<{
+  success: boolean;
+  message: string;
+}> {
+  if (!db) {
+    return {
+      success: false,
+      message: "Database not available",
+    };
+  }
+
+  if (!partnerId || !contactId) {
+    return {
+      success: false,
+      message: "Partner ID and contact ID are required",
+    };
+  }
+
+  try {
+    const contactRef = db.collection(`partners/${partnerId}/contacts`).doc(contactId);
+
+    // Verify the contact belongs to the partner before deleting
+    const contactDoc = await contactRef.get();
+    if (!contactDoc.exists || contactDoc.data()?.partnerId !== partnerId) {
+      return {
+        success: false,
+        message: "Contact not found or you do not have permission to delete it.",
+      };
+    }
+
+    await contactRef.delete();
+
+    return {
+      success: true,
+      message: "Contact deleted successfully",
+    };
+  } catch (error: any) {
+    console.error("Error deleting contact:", error);
+    return {
+      success: false,
+      message: `Failed to delete contact: ${error.message}`,
     };
   }
 }
