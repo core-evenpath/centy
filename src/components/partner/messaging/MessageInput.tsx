@@ -4,7 +4,7 @@
 import React from 'react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import { Loader2, Send } from 'lucide-react';
+import { Send } from 'lucide-react';
 
 interface MessageInputProps {
   value: string;
@@ -23,28 +23,30 @@ export default function MessageInput({ value, onChange, onSend, isSending, disab
   };
 
   return (
-    <div className="border-t p-4 bg-white dark:bg-gray-800">
-      <div className="flex items-end gap-2">
-        <Textarea
-          placeholder="Type a message..."
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          onKeyDown={handleKeyDown}
-          className="flex-1 min-h-[60px] max-h-[120px] resize-none"
-          disabled={isSending || disabled}
-        />
-        <Button 
-          onClick={onSend} 
-          disabled={isSending || !value.trim() || disabled}
-          size="icon"
-          className="h-[60px] w-[60px]"
-        >
-          {isSending ? (
-            <Loader2 className="w-5 h-5 animate-spin" />
-          ) : (
-            <Send className="w-5 h-5" />
-          )}
-        </Button>
+    <div className="border-t border-slate-200 p-5 bg-white">
+      <div className="max-w-3xl mx-auto">
+        <div className="flex items-end gap-3">
+          <div className="flex-1">
+            <Textarea
+              value={value}
+              onChange={(e) => onChange(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder="Type a message..."
+              rows={1}
+              disabled={isSending || disabled}
+              className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-1 focus:ring-slate-400 resize-none text-sm"
+              style={{ minHeight: '48px', maxHeight: '120px' }}
+            />
+          </div>
+          <Button
+            onClick={onSend}
+            disabled={isSending || !value.trim() || disabled}
+            className="px-5 py-3 bg-slate-700 hover:bg-slate-800 rounded-xl h-[48px]"
+          >
+            <Send className="w-4 h-4 mr-2" />
+            Send
+          </Button>
+        </div>
       </div>
     </div>
   );

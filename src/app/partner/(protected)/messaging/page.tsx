@@ -38,9 +38,20 @@ import MessageInput from '@/components/partner/messaging/MessageInput';
 import NewConversationForm from '@/components/partner/messaging/NewConversationForm';
 import EmptyState from '@/components/partner/messaging/EmptyState';
 import DiagnosticsView from '@/components/partner/messaging/DiagnosticsView';
+import ClientProfilePanel from '@/components/partner/messaging/ClientProfilePanel';
 
 type Platform = 'sms' | 'whatsapp';
-type UnifiedConversation = (SMSConversation | WhatsAppConversation) & { platform: Platform; recentMessages?: UnifiedMessage[] };
+type UnifiedConversation = (SMSConversation | WhatsAppConversation) & { 
+  platform: Platform; 
+  recentMessages?: any[];
+  clientInfo?: {
+    portfolio?: string;
+    email?: string;
+    occupation?: string;
+    accountType?: string;
+    notes?: string;
+  };
+};
 type UnifiedMessage = (SMSMessage | WhatsAppMessage) & { platform: Platform };
 
 interface MessagingDiagnostics {
@@ -71,20 +82,21 @@ export default function MessagingPage() {
   const [isSending, setIsSending] = useState(false);
   const [showNewConversation, setShowNewConversation] = useState(false);
   const [showDiagnostics, setShowDiagnostics] = useState(false);
+  const [showClientProfile, setShowClientProfile] = useState(false);
   const [diagnostics, setDiagnostics] = useState<MessagingDiagnostics | null>(null);
   
   // Optimistic messages state
   const [optimisticMessages, setOptimisticMessages] = useState<UnifiedMessage[]>([]);
 
-  // Get initial messages from the selected conversation (thanks to denormalization)
+  // Get initial messages from the selected conversation
   const initialRecentMessages = useMemo(() => {
     return (selectedConversation?.recentMessages || []) as UnifiedMessage[];
   }, [selectedConversation]);
 
-  // Use messages hook with notification callback and initial messages
+  // Use messages hook
   const { 
     messages: firebaseMessages, 
-    isLoadingMore: isLoadingMessages, // This is now for pagination
+    isLoadingMore: isLoadingMessages,
     error: messagesError,
     loadMore,
     allMessagesLoaded 
@@ -114,16 +126,6 @@ export default function MessagingPage() {
   useEffect(() => {
     setOptimisticMessages([]);
   }, [selectedConversation?.id]);
-
-  // Debug logs
-  useEffect(() => {
-    console.log('💬 Messages state:', {
-      firebase: firebaseMessages.length,
-      optimistic: optimisticMessages.length,
-      combined: messages.length,
-      conversationId: selectedConversation?.id
-    });
-  }, [firebaseMessages.length, optimisticMessages.length, messages.length, selectedConversation?.id]);
 
   // Fetch diagnostics
   useEffect(() => {
@@ -163,7 +165,6 @@ export default function MessagingPage() {
   
     let phoneNumber = '';
     let conversationId = '';
-    // Default to 'whatsapp' if no conversation is selected
     let platform: Platform = selectedConversation?.platform || 'whatsapp';
     let isNewConvo = false;
   
@@ -174,8 +175,7 @@ export default function MessagingPage() {
     } else if (showNewConversation && newPhoneNumber) {
       phoneNumber = newPhoneNumber;
       isNewConvo = true;
-      conversationId = 'pending'; // Use 'pending' for optimistic conversation
-      // platform remains 'whatsapp' as default for new conversations
+      conversationId = 'pending';
     } else {
       toast({ variant: 'destructive', title: 'Error', description: 'Please select a conversation or enter a phone number' });
       return;
@@ -184,39 +184,28 @@ export default function MessagingPage() {
     const currentMessage = messageInput.trim();
     const optimisticId = `optimistic-${Date.now()}`;
     
-    // *** UX FIX: Switch view immediately for new conversations ***
     if (isNewConvo) {
       const optimisticConversation: UnifiedConversation = {
         id: 'pending',
         customerPhone: phoneNumber,
-        customerName: phoneNumber, // Use phone number as temporary name
+        customerName: phoneNumber,
         platform: platform,
         partnerId: partnerId,
-        type: 'direct', // Default 'direct' type from types.ts
+        type: 'direct',
         messageCount: 1,
         lastMessageAt: Timestamp.now(),
-        participants: [], // Default empty participants
-        isActive: true, // Default active
+        participants: [],
+        isActive: true,
         createdAt: Timestamp.now(),
-        recentMessages: [], // Starts with no recent messages
+        recentMessages: [],
       };
-      // Set this optimistic conversation as "selected"
       setSelectedConversation(optimisticConversation);
-      // Hide the new conversation form, which will show the MessagesList
       setShowNewConversation(false);
     }
-    
-    console.log('📤 Sending message:', { 
-      phoneNumber, 
-      platform, 
-      conversationId: selectedConversation?.id || 'pending', // Use the selected convo id
-      messageLength: currentMessage.length 
-    });
 
-    // Create optimistic message
     const optimisticMessage: UnifiedMessage = {
       id: optimisticId,
-      conversationId: selectedConversation?.id || 'pending', // Assign to current convo
+      conversationId: selectedConversation?.id || 'pending',
       senderId: user?.uid || 'current-user',
       content: currentMessage,
       direction: 'outbound',
@@ -244,10 +233,7 @@ export default function MessagingPage() {
       })
     } as UnifiedMessage;
 
-    // Add optimistic message immediately
     setOptimisticMessages(prev => [...prev, optimisticMessage]);
-    
-    // Clear input immediately for better UX
     setMessageInput('');
     setIsSending(true);
   
@@ -259,7 +245,6 @@ export default function MessagingPage() {
           partnerId, 
           to: phoneNumber, 
           message: currentMessage,
-          // Send undefined for conversationId if it's a new convo
           conversationId: isNewConvo ? undefined : selectedConversation?.id
         });
       } else {
@@ -267,12 +252,9 @@ export default function MessagingPage() {
           partnerId,
           to: phoneNumber,
           message: currentMessage,
-          // Send undefined for conversationId if it's a new convo
           conversationId: isNewConvo ? undefined : selectedConversation?.id
         });
       }
-
-      console.log('✅ Message sent result:', result);
   
       if (result.success) {
         toast({ 
@@ -281,39 +263,30 @@ export default function MessagingPage() {
           duration: 2000 
         });
 
-        // *** UX FIX: Robust de-duplication ***
         if (result.messageId) {
-          // If server returns the real message ID, update our optimistic message
-          // This allows the `useMemo` hook to de-dupe it once Firebase loads it
           setOptimisticMessages(prev =>
             prev.map(m =>
               m.id === optimisticId ? { ...m, id: result.messageId! } : m
             )
           );
           
-          // Fallback garbage collection: remove the message from optimistic state
-          // after a long delay, in case the Firebase listener fails.
           setTimeout(() => {
             setOptimisticMessages(prev => prev.filter(m => m.id !== result.messageId));
-          }, 10000); // 10 seconds
-
+          }, 10000);
         } else {
-          // Fallback for older actions: remove optimistic message after 2s
           setTimeout(() => {
             setOptimisticMessages(prev => prev.filter(m => m.id !== optimisticId));
           }, 2000);
         }
         
-        // If this was a new convo, find the *real* convo now
         if (result.conversationId && isNewConvo) {
           setTimeout(() => {
             const foundConvo = conversations.find(c => c.id === result.conversationId);
             if (foundConvo) {
-              // Replace the 'pending' convo with the real one
               setSelectedConversation(foundConvo as UnifiedConversation);
               setNewPhoneNumber('');
             }
-          }, 500); // Wait for useConversations to update
+          }, 500);
         }
       } else {
         throw new Error(result.message || 'Failed to send message');
@@ -321,7 +294,6 @@ export default function MessagingPage() {
     } catch (error: any) {
       console.error('❌ Send message error:', error);
       
-      // Remove optimistic message on error
       setOptimisticMessages(prev => prev.filter(m => m.id !== optimisticId));
       
       toast({ 
@@ -330,10 +302,8 @@ export default function MessagingPage() {
         description: error.message 
       });
       
-      // Restore message input on error
       setMessageInput(currentMessage);
       
-      // *** UX FIX: If sending the *first* message fails, go back to new convo form
       if (isNewConvo) {
         setSelectedConversation(null);
         setShowNewConversation(true);
@@ -344,17 +314,18 @@ export default function MessagingPage() {
   };
 
   const handleSelectConversation = (conversation: UnifiedConversation) => {
-    console.log('👆 User selected conversation:', conversation.id);
     setSelectedConversation(conversation);
     setShowNewConversation(false);
     setShowDiagnostics(false);
-    setOptimisticMessages([]); // Clear optimistic messages
+    setShowClientProfile(false);
+    setOptimisticMessages([]);
   };
 
   const handleNewConversation = () => {
     setShowNewConversation(true);
     setSelectedConversation(null);
     setShowDiagnostics(false);
+    setShowClientProfile(false);
     setMessageInput('');
     setNewPhoneNumber('');
     setOptimisticMessages([]);
@@ -370,21 +341,25 @@ export default function MessagingPage() {
     setShowDiagnostics(true);
     setShowNewConversation(false);
     setSelectedConversation(null);
+    setShowClientProfile(false);
+  };
+
+  const handleShowClientProfile = () => {
+    setShowClientProfile(true);
   };
 
   return (
-    <div className="flex flex-col h-screen bg-gray-50 dark:bg-gray-900">
-      {/* Audio element for notifications */}
+    <div className="flex flex-col h-screen bg-slate-50">
       <audio ref={audioRef} src="/audio/notification.mp3" preload="auto" />
       
       {/* Header */}
-      <header className="bg-white dark:bg-gray-800 border-b px-6 py-4">
+      <header className="bg-white border-b border-slate-200 px-6 py-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <MessageSquare className="w-6 h-6 text-blue-600" />
+            <MessageSquare className="w-6 h-6 text-slate-700" />
             <div>
-              <h1 className="text-2xl font-bold">Messaging</h1>
-              <p className="text-sm text-muted-foreground">
+              <h1 className="text-2xl font-bold text-slate-900">Messages</h1>
+              <p className="text-sm text-slate-600">
                 SMS & WhatsApp powered by Twilio
               </p>
             </div>
@@ -436,7 +411,7 @@ export default function MessagingPage() {
         />
 
         {/* Main Content Area */}
-        <div className="flex-1 flex flex-col bg-gray-50 dark:bg-gray-900">
+        <div className="flex-1 flex flex-col bg-white relative">
           {showDiagnostics ? (
             <DiagnosticsView 
               diagnostics={diagnostics} 
@@ -454,10 +429,13 @@ export default function MessagingPage() {
             />
           ) : selectedConversation ? (
             <>
-              <ChatHeader conversation={selectedConversation} />
+              <ChatHeader 
+                conversation={selectedConversation}
+                onShowClientProfile={handleShowClientProfile}
+              />
               <MessagesList 
                 messages={messages} 
-                isLoading={isLoadingMessages} // This is now for pagination
+                isLoading={isLoadingMessages}
                 onLoadMore={loadMore}
                 allMessagesLoaded={allMessagesLoaded}
               />
@@ -476,6 +454,15 @@ export default function MessagingPage() {
           )}
         </div>
       </div>
+
+      {/* Client Profile Panel */}
+      {showClientProfile && selectedConversation && partnerId && (
+        <ClientProfilePanel
+          conversation={selectedConversation}
+          onClose={() => setShowClientProfile(false)}
+          partnerId={partnerId}
+        />
+      )}
     </div>
   );
 }

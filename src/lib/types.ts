@@ -3,6 +3,7 @@
 // ============================================================================
 import { z } from 'zod';
 import type { UserInfo } from 'firebase/auth';
+import type { Timestamp } from 'firebase/firestore';
 
 
 // ============================================================================
@@ -1234,15 +1235,26 @@ export interface Campaign {
 
 export interface Contact {
   id: string;
-  name: string;
   partnerId: string;
-  email?: string;
+  name: string;
   phone: string;
-  status: 'active' | 'inactive';
+  email?: string;
   groups?: string[];
-  createdAt?: any;
-  updatedAt?: any;
+  tags?: string[];
+  notes?: string;
+  createdAt: Date | Timestamp;
+  updatedAt?: Date | Timestamp;
+  isActive?: boolean;
+  
+  // RIA-specific fields
+  portfolio?: string;        // e.g., "$2.4M"
+  occupation?: string;       // e.g., "Tech Executive"
+  accountType?: string;      // e.g., "Individual Brokerage", "IRA", "Family Trust"
+  riskProfile?: string;      // e.g., "Moderate", "Aggressive", "Conservative"
+  lastReviewDate?: Date | Timestamp;
+  nextReviewDate?: Date | Timestamp;
 }
+
 
 export interface ContactGroup {
   id: string;
@@ -1682,8 +1694,10 @@ export interface WhatsAppConversation extends Conversation {
   customerPhone: string; // WhatsApp number
   customerName?: string;
   lastWhatsAppStatus?: 'active' | 'opt_out' | 'blocked';
-  recentMessages?: WhatsAppMessage[]; // <-- ADDED FOR DENORMALIZATION
+  recentMessages?: WhatsAppMessage[];
+  contactId?: string; // Reference to contact document
 }
+
 
 export interface TwilioWebhookPayload {
   MessageSid: string;
@@ -1739,7 +1753,8 @@ export interface SMSConversation extends Conversation {
   customerPhone: string; // Phone number
   customerName?: string;
   lastSMSStatus?: 'active' | 'opt_out' | 'blocked';
-  recentMessages?: SMSMessage[]; // <-- ADDED FOR DENORMALIZATION
+  recentMessages?: SMSMessage[];
+  contactId?: string; // Reference to contact document
 }
 
 export interface TwilioSMSWebhookPayload {
