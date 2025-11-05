@@ -1,9 +1,4 @@
-// src/app/partner/(protected)/messaging/page.tsx - MODIFIED VERSION WITH CONTACT ENRICHMENT
-// Key Changes:
-// 1. Import useEnrichedConversations hook
-// 2. Use enrichedConversations instead of raw conversations
-// 3. Display contact names throughout the UI
-
+// src/app/partner/(protected)/messaging/page.tsx
 "use client";
 
 import React, { useState, useEffect, useMemo } from 'react';
@@ -27,16 +22,21 @@ import {
 } from 'lucide-react';
 import { sendSMSAction } from '@/actions/sms-actions';
 import { sendWhatsAppMessageAction } from '@/actions/whatsapp-actions';
-import type { SMSConversation, WhatsAppConversation, SMSMessage, WhatsAppMessage } from '@/lib/types';
 import { Timestamp } from 'firebase/firestore';
 
-// Custom hooks
 import { useConversations } from '@/hooks/useConversations';
-import { useMessages } from '@/hooks/useMessages';
+import { useEnrichedConversations } from '@/hooks/useEnrichedConversations';
+import { useUnifiedMessages } from '@/hooks/useUnifiedMessages';
 import { useNotifications } from '@/hooks/useNotifications';
-import { useEnrichedConversations } from '@/hooks/useEnrichedConversations'; // NEW IMPORT
 
-// Components
+import { 
+  groupConversationsByPhone, 
+  getConversationIdForPlatform,
+  getPreferredPlatform,
+  type UnifiedConversation,
+  type UnifiedMessage
+} from '@/lib/conversation-grouping-service';
+
 import ConversationList from '@/components/partner/messaging/ConversationList';
 import ChatHeader from '@/components/partner/messaging/ChatHeader';
 import MessagesList from '@/components/partner/messaging/MessagesList';
@@ -47,21 +47,6 @@ import DiagnosticsView from '@/components/partner/messaging/DiagnosticsView';
 import ClientProfilePanel from '@/components/partner/messaging/ClientProfilePanel';
 
 type Platform = 'sms' | 'whatsapp';
-type UnifiedConversation = (SMSConversation | WhatsAppConversation) & { 
-  platform: Platform; 
-  recentMessages?: any[];
-  clientInfo?: {
-    portfolio?: string;
-    email?: string;
-    occupation?: string;
-    accountType?: string;
-    notes?: string;
-  };
-  contactName?: string;    // NEW
-  contactEmail?: string;   // NEW
-  contactId?: string;      // NEW
-};
-type UnifiedMessage = (SMSMessage | WhatsAppMessage) & { platform: Platform };
 
 interface MessagingDiagnostics {
   configOk: boolean;
@@ -79,19 +64,29 @@ export default function MessagingPage() {
   
   const partnerId = currentWorkspace?.partnerId || user?.customClaims?.partnerId;
   
-  // Custom hooks
+  console.log('🏠 Messaging Page - Partner ID:', partnerId);
+  
   const { conversations: rawConversations, isLoading: isLoadingConversations } = useConversations(partnerId);
   
-  // NEW: Enrich conversations with contact data
+  console.log('📦 Raw conversations:', rawConversations.length);
+  rawConversations.forEach(c => {
+    console.log(`  ${c.platform}: ${c.customerPhone} (${c.messageCount} msgs)`);
+  });
+  
   const { enrichedConversations, isLoadingContacts } = useEnrichedConversations(rawConversations, partnerId);
   
-  // Use enriched conversations instead of raw
-  const conversations = enrichedConversations as UnifiedConversation[];
+  console.log('💎 Enriched conversations:', enrichedConversations.length);
+  
+  const groupedConversations = useMemo(() => {
+    const grouped = groupConversationsByPhone(enrichedConversations);
+    console.log('🎯 Final grouped conversations:', grouped.length);
+    return grouped;
+  }, [enrichedConversations]);
   
   const { notificationsEnabled, setNotificationsEnabled, audioRef, notify } = useNotifications();
   
-  // State
   const [selectedConversation, setSelectedConversation] = useState<UnifiedConversation | null>(null);
+  const [selectedPlatform, setSelectedPlatform] = useState<Platform>('whatsapp');
   const [messageInput, setMessageInput] = useState('');
   const [newPhoneNumber, setNewPhoneNumber] = useState('');
   const [newPlatform, setNewPlatform] = useState<Platform>('whatsapp');
@@ -102,28 +97,20 @@ export default function MessagingPage() {
   const [showClientProfile, setShowClientProfile] = useState(false);
   const [diagnostics, setDiagnostics] = useState<MessagingDiagnostics | null>(null);
   
-  // Optimistic messages state
   const [optimisticMessages, setOptimisticMessages] = useState<UnifiedMessage[]>([]);
 
-  // Get initial messages from the selected conversation
-  const initialRecentMessages = useMemo(() => {
-    return (selectedConversation?.recentMessages || []) as UnifiedMessage[];
-  }, [selectedConversation]);
+  console.log('📌 Selected conversation:', selectedConversation?.id);
+  console.log('🎚️ Selected platform:', selectedPlatform);
 
-  // Use messages hook
   const { 
-    messages: firebaseMessages, 
-    isLoadingMore: isLoadingMessages,
-    error: messagesError,
-    loadMore,
-    allMessagesLoaded 
-  } = useMessages({
-    conversationId: selectedConversation?.id,
-    platform: selectedConversation?.platform,
-    initialRecentMessages: initialRecentMessages,
+    messages: unifiedMessages, 
+    isLoadingMore, 
+    allMessagesLoaded, 
+    loadMore 
+  } = useUnifiedMessages({
+    unifiedConversation: selectedConversation,
     onNewMessage: () => {
       if (selectedConversation) {
-        // Use contact name if available, fallback to customerName or phone
         const displayName = selectedConversation.contactName || 
                           selectedConversation.customerName || 
                           selectedConversation.customerPhone;
@@ -132,23 +119,22 @@ export default function MessagingPage() {
     },
   });
 
-  // Combine Firebase messages with optimistic messages
+  console.log('💬 Unified messages:', unifiedMessages.length);
+
   const messages = useMemo(() => {
-    const firebaseMessageIds = new Set(firebaseMessages.map(m => m.id));
-    const uniqueOptimistic = optimisticMessages.filter(m => !firebaseMessageIds.has(m.id));
-    return [...firebaseMessages, ...uniqueOptimistic].sort((a, b) => {
+    const messageIds = new Set(unifiedMessages.map(m => m.id));
+    const uniqueOptimistic = optimisticMessages.filter(m => !messageIds.has(m.id));
+    return [...unifiedMessages, ...uniqueOptimistic].sort((a, b) => {
       const timeA = a.createdAt?.toMillis?.() || 0;
       const timeB = b.createdAt?.toMillis?.() || 0;
       return timeA - timeB;
     });
-  }, [firebaseMessages, optimisticMessages]);
+  }, [unifiedMessages, optimisticMessages]);
 
-  // Clear optimistic messages when conversation changes
   useEffect(() => {
     setOptimisticMessages([]);
   }, [selectedConversation?.id]);
 
-  // Fetch diagnostics
   useEffect(() => {
     async function fetchDiagnostics() {
       try {
@@ -158,31 +144,30 @@ export default function MessagingPage() {
           setDiagnostics(data);
         }
       } catch (error) {
-        console.error("Failed to fetch messaging diagnostics", error);
+        console.error("Failed to fetch diagnostics", error);
       }
     }
     fetchDiagnostics();
   }, []);
 
-  // Select conversation from URL
   useEffect(() => {
     const conversationIdFromUrl = searchParams.get('conversation');
-    if (conversationIdFromUrl && conversations.length > 0) {
-      const convo = conversations.find(c => c.id === conversationIdFromUrl);
+    if (conversationIdFromUrl && groupedConversations.length > 0) {
+      const convo = groupedConversations.find(c => c.id === conversationIdFromUrl);
       if (convo) {
-        setSelectedConversation(convo as UnifiedConversation);
+        setSelectedConversation(convo);
+        setSelectedPlatform(getPreferredPlatform(convo));
         setShowNewConversation(false);
         setShowDiagnostics(false);
       }
     }
-  }, [searchParams, conversations]);
+  }, [searchParams, groupedConversations]);
 
-  // NEW: Filter conversations with contact name support
   const filteredConversations = useMemo(() => {
-    if (!searchTerm) return conversations;
+    if (!searchTerm) return groupedConversations;
     
     const lowerSearch = searchTerm.toLowerCase();
-    return conversations.filter(convo => {
+    return groupedConversations.filter(convo => {
       const phone = convo.customerPhone?.toLowerCase() || '';
       const customerName = convo.customerName?.toLowerCase() || '';
       const contactName = convo.contactName?.toLowerCase() || '';
@@ -193,7 +178,29 @@ export default function MessagingPage() {
              contactName.includes(lowerSearch) ||
              contactEmail.includes(lowerSearch);
     });
-  }, [conversations, searchTerm]);
+  }, [groupedConversations, searchTerm]);
+
+  const handleSelectConversation = (conversation: UnifiedConversation) => {
+    console.log('👆 Selected conversation:', {
+      id: conversation.id,
+      platforms: conversation.availablePlatforms,
+      smsId: conversation.smsConversationId,
+      whatsappId: conversation.whatsappConversationId
+    });
+    
+    setSelectedConversation(conversation);
+    const preferred = getPreferredPlatform(conversation);
+    console.log('🎯 Setting platform to:', preferred);
+    setSelectedPlatform(preferred);
+    setShowNewConversation(false);
+    setShowDiagnostics(false);
+    setShowClientProfile(false);
+  };
+
+  const handlePlatformChange = (platform: Platform) => {
+    console.log('🔄 Platform changed to:', platform);
+    setSelectedPlatform(platform);
+  };
 
   const handleSendMessage = async () => {
     if (!messageInput.trim()) return;
@@ -204,16 +211,24 @@ export default function MessagingPage() {
   
     let phoneNumber = '';
     let conversationId = '';
-    let platform: Platform = selectedConversation?.platform || newPlatform;
-    let isNewConvo = false;
-  
-    if (selectedConversation && selectedConversation.id !== 'pending') {
+    let platform: Platform = selectedPlatform;
+    
+    console.log('📤 Sending message:', { platform, selectedConversation: !!selectedConversation });
+    
+    if (selectedConversation) {
       phoneNumber = selectedConversation.customerPhone;
-      conversationId = selectedConversation.id;
-      platform = selectedConversation.platform;
+      const platformConvoId = getConversationIdForPlatform(selectedConversation, platform);
+      
+      console.log('📝 Platform conversation ID:', platformConvoId);
+      
+      if (!platformConvoId) {
+        conversationId = 'pending';
+      } else {
+        conversationId = platformConvoId;
+      }
     } else if (showNewConversation && newPhoneNumber) {
       phoneNumber = newPhoneNumber;
-      isNewConvo = true;
+      platform = newPlatform;
       conversationId = 'pending';
     } else {
       toast({ variant: 'destructive', title: 'Error', description: 'Please select a conversation or enter a phone number' });
@@ -223,7 +238,6 @@ export default function MessagingPage() {
     const currentMessage = messageInput.trim();
     const tempId = `temp-${Date.now()}`;
     
-    // Create optimistic message
     const optimisticMessage: UnifiedMessage = {
       id: tempId,
       conversationId: conversationId === 'pending' ? '' : conversationId,
@@ -252,6 +266,8 @@ export default function MessagingPage() {
     try {
       let result;
       
+      console.log('🚀 Sending via:', platform);
+      
       if (platform === 'sms') {
         result = await sendSMSAction({
           partnerId,
@@ -268,38 +284,33 @@ export default function MessagingPage() {
         });
       }
 
+      console.log('📬 Send result:', result);
+
       if (result.success) {
-        // Remove optimistic message - real one will come from Firebase
-        setOptimisticMessages(prev => prev.filter(m => m.id !== tempId));
+        toast({ title: 'Message sent', description: 'Your message was delivered successfully' });
         
-        if (isNewConvo && result.conversationId) {
-          const newConvo = conversations.find(c => c.id === result.conversationId);
-          if (newConvo) {
-            setSelectedConversation(newConvo);
-            setShowNewConversation(false);
-            setNewPhoneNumber('');
-          }
+        setTimeout(() => {
+          setOptimisticMessages(prev => prev.filter(m => m.id !== tempId));
+        }, 1000);
+
+        if (showNewConversation && result.conversationId) {
+          setShowNewConversation(false);
         }
       } else {
-        throw new Error(result.message);
+        throw new Error(result.message || 'Failed to send message');
       }
     } catch (error: any) {
-      setOptimisticMessages(prev => prev.filter(m => m.id !== tempId));
+      console.error('❌ Send error:', error);
       toast({ 
         variant: 'destructive', 
         title: 'Failed to send message', 
         description: error.message 
       });
+      
+      setOptimisticMessages(prev => prev.filter(m => m.id !== tempId));
     } finally {
       setIsSending(false);
     }
-  };
-
-  const handleSelectConversation = (conversation: UnifiedConversation) => {
-    setSelectedConversation(conversation);
-    setShowNewConversation(false);
-    setShowDiagnostics(false);
-    setShowClientProfile(false);
   };
 
   const handleNewConversation = () => {
@@ -308,34 +319,26 @@ export default function MessagingPage() {
     setShowDiagnostics(false);
     setShowClientProfile(false);
     setNewPhoneNumber('');
+    setMessageInput('');
   };
 
   const handleViewDiagnostics = () => {
     setShowDiagnostics(true);
     setShowNewConversation(false);
     setSelectedConversation(null);
-    setShowClientProfile(false);
   };
 
-  const handleShowClientProfile = () => {
-    setShowClientProfile(true);
+  const handleToggleProfile = () => {
+    setShowClientProfile(!showClientProfile);
   };
 
   return (
-    <div className="flex flex-col h-screen bg-slate-50">
-      <audio ref={audioRef} src="/audio/notification.mp3" preload="auto" />
-      
-      {/* Header */}
-      <header className="bg-white border-b border-slate-200 px-6 py-4">
+    <div className="flex flex-col h-screen bg-slate-100">
+      <header className="bg-white border-b border-slate-200 px-6 py-3">
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <MessageSquare className="w-6 h-6 text-slate-700" />
-            <div>
-              <h1 className="text-2xl font-bold text-slate-900">Messages</h1>
-              <p className="text-sm text-slate-600">
-                SMS & WhatsApp powered by Twilio
-              </p>
-            </div>
+          <div className="flex items-center gap-2">
+            <MessageSquare className="w-5 h-5 text-blue-600" />
+            <h1 className="text-lg font-semibold text-slate-900">Messaging</h1>
           </div>
           <div className="flex items-center gap-2">
             <Button
@@ -372,7 +375,6 @@ export default function MessagingPage() {
       </header>
 
       <div className="flex-1 flex overflow-hidden">
-        {/* Conversations Sidebar */}
         <ConversationList
           conversations={filteredConversations}
           selectedConversation={selectedConversation}
@@ -383,7 +385,6 @@ export default function MessagingPage() {
           isLoading={isLoadingConversations || isLoadingContacts}
         />
 
-        {/* Main Content Area */}
         <div className="flex-1 flex flex-col bg-white relative">
           {showDiagnostics ? (
             <DiagnosticsView 
@@ -403,23 +404,25 @@ export default function MessagingPage() {
             />
           ) : selectedConversation ? (
             <>
-              <ChatHeader
+              <ChatHeader 
                 conversation={selectedConversation}
-                onShowClientProfile={handleShowClientProfile}
+                selectedPlatform={selectedPlatform}
+                onPlatformChange={handlePlatformChange}
+                onToggleProfile={handleToggleProfile}
               />
-              <MessagesList
+              <MessagesList 
                 messages={messages}
-                isLoading={isLoadingMessages}
-                onLoadMore={loadMore}
+                isLoadingMore={isLoadingMore}
                 allMessagesLoaded={allMessagesLoaded}
-                error={messagesError}
+                onLoadMore={loadMore}
+                partnerId={partnerId || ''}
               />
               <MessageInput
                 value={messageInput}
                 onChange={setMessageInput}
                 onSend={handleSendMessage}
                 isSending={isSending}
-                placeholder="Type your message..."
+                placeholder={`Send via ${selectedPlatform === 'whatsapp' ? 'WhatsApp' : 'SMS'}...`}
               />
             </>
           ) : (
@@ -427,15 +430,16 @@ export default function MessagingPage() {
           )}
         </div>
 
-        {/* Client Profile Panel */}
-        {showClientProfile && selectedConversation && partnerId && (
-          <ClientProfilePanel
+        {selectedConversation && showClientProfile && partnerId && (
+          <ClientProfilePanel 
             conversation={selectedConversation}
             onClose={() => setShowClientProfile(false)}
             partnerId={partnerId}
           />
         )}
       </div>
+
+      <audio ref={audioRef} src="/notification.mp3" />
     </div>
   );
 }

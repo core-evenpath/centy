@@ -4,19 +4,14 @@
 import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { X, Mail, Phone, Building2, DollarSign, User, FileText, Edit, Save, Loader2, Briefcase } from 'lucide-react';
-import type { SMSConversation, WhatsAppConversation, Contact } from '@/lib/types';
+import type { Contact } from '@/lib/types';
+import type { UnifiedConversation } from '@/lib/conversation-grouping-service';
 import { db } from '@/lib/firebase';
 import { doc, getDoc, setDoc, updateDoc, collection, query, where, getDocs, limit } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
 import { updateContactAction } from '@/actions/contact-actions';
-
-type Platform = 'sms' | 'whatsapp';
-type UnifiedConversation = (SMSConversation | WhatsAppConversation) & { 
-  platform: Platform;
-  contactId?: string;
-};
 
 interface ClientProfilePanelProps {
   conversation: UnifiedConversation;
@@ -37,6 +32,7 @@ export default function ClientProfilePanel({ conversation, onClose, partnerId }:
       setIsLoading(true);
       
       try {
+        // Try to find contact by contactId first
         if (conversation.contactId) {
           const contactRef = doc(db, `partners/${partnerId}/contacts`, conversation.contactId);
           const contactSnap = await getDoc(contactRef);
@@ -50,6 +46,7 @@ export default function ClientProfilePanel({ conversation, onClose, partnerId }:
           }
         }
 
+        // Search by phone number
         const contactsRef = collection(db, `partners/${partnerId}/contacts`);
         const q = query(contactsRef, where('phone', '==', conversation.customerPhone), limit(1));
         const snapshot = await getDocs(q);
@@ -60,15 +57,16 @@ export default function ClientProfilePanel({ conversation, onClose, partnerId }:
           setContact(contactData);
           setEditedContact(contactData);
         } else {
+          // Create default contact object for new contact
           setContact(null);
           setEditedContact({
-            name: conversation.customerName || '',
+            name: conversation.contactName || conversation.customerName || '',
             phone: conversation.customerPhone,
-            email: '',
-            lifetimeValue: '',
-            company: '',
-            category: '',
-            notes: '',
+            email: conversation.contactEmail || '',
+            lifetimeValue: conversation.clientInfo?.lifetimeValue || '',
+            company: conversation.clientInfo?.company || '',
+            category: conversation.clientInfo?.category || '',
+            notes: conversation.clientInfo?.notes || '',
             groups: [],
             tags: [],
             status: 'active',
@@ -89,7 +87,7 @@ export default function ClientProfilePanel({ conversation, onClose, partnerId }:
     if (partnerId && conversation.customerPhone) {
       fetchContact();
     }
-  }, [partnerId, conversation.customerPhone, conversation.contactId]);
+  }, [partnerId, conversation.customerPhone, conversation.contactId, conversation.contactName, conversation.customerName, conversation.contactEmail, conversation.clientInfo]);
 
   const handleFieldChange = (field: string, value: string) => {
     setEditedContact(prev => ({ ...prev, [field]: value }));
@@ -110,6 +108,7 @@ export default function ClientProfilePanel({ conversation, onClose, partnerId }:
       const contactId = contact?.id;
 
       if (!contactId) {
+        // Create new contact
         const newContactRef = doc(collection(db, `partners/${partnerId}/contacts`));
         const newContactData: Partial<Contact> = {
           ...editedContact,
@@ -132,6 +131,7 @@ export default function ClientProfilePanel({ conversation, onClose, partnerId }:
           description: 'New contact profile has been saved.'
         });
       } else {
+        // Update existing contact
         const result = await updateContactAction({
           partnerId,
           contactId,
@@ -146,6 +146,7 @@ export default function ClientProfilePanel({ conversation, onClose, partnerId }:
         });
 
         if (result.success) {
+          // Update notes separately if changed
           if (editedContact.notes !== contact.notes) {
             const contactRef = doc(db, `partners/${partnerId}/contacts`, contactId);
             await updateDoc(contactRef, { 
@@ -179,9 +180,9 @@ export default function ClientProfilePanel({ conversation, onClose, partnerId }:
 
   const handleCancel = () => {
     setEditedContact(contact || {
-      name: conversation.customerName || '',
+      name: conversation.contactName || conversation.customerName || '',
       phone: conversation.customerPhone,
-      email: '',
+      email: conversation.contactEmail || '',
       lifetimeValue: '',
       company: '',
       category: '',
@@ -239,6 +240,8 @@ export default function ClientProfilePanel({ conversation, onClose, partnerId }:
     return name.slice(0, 2).toUpperCase();
   };
 
+  const displayName = contact?.name || conversation.contactName || conversation.customerName || 'Unknown Contact';
+
   return (
     <div className="w-80 bg-white border-l border-slate-200 flex flex-col h-full">
       {/* Header */}
@@ -274,8 +277,8 @@ export default function ClientProfilePanel({ conversation, onClose, partnerId }:
       {/* Profile Picture & Name */}
       <div className="p-5 border-b border-slate-200">
         <div className="flex flex-col items-center">
-          <div className="w-20 h-20 rounded-full bg-blue-500 flex items-center justify-center text-white text-2xl font-bold mb-3">
-            {getInitials(contact?.name || conversation.customerName)}
+          <div className="w-20 h-20 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white text-2xl font-bold mb-3">
+            {getInitials(displayName)}
           </div>
           <div className="w-full text-center">
             {isEditing ? (
@@ -287,7 +290,7 @@ export default function ClientProfilePanel({ conversation, onClose, partnerId }:
               />
             ) : (
               <h4 className="font-semibold text-slate-900 text-lg">
-                {contact?.name || conversation.customerName || 'Unknown Contact'}
+                {displayName}
               </h4>
             )}
           </div>
@@ -371,14 +374,34 @@ export default function ClientProfilePanel({ conversation, onClose, partnerId }:
                   value={editedContact?.notes || ''}
                   onChange={(e) => handleFieldChange('notes', e.target.value)}
                   placeholder="Add notes about this contact..."
-                  rows={4}
-                  className="text-sm"
+                  className="min-h-[100px] text-sm"
                 />
               ) : (
                 <p className="text-sm text-slate-700 whitespace-pre-wrap">
-                  {contact?.notes || <span className="text-slate-400">No notes yet</span>}
+                  {editedContact?.notes || <span className="text-slate-400">No notes yet</span>}
                 </p>
               )}
+            </div>
+
+            {/* Platform Info */}
+            <div>
+              <h5 className="text-xs font-semibold text-slate-700 uppercase tracking-wide mb-3">
+                Available Platforms
+              </h5>
+              <div className="flex gap-2">
+                {conversation.availablePlatforms?.map(platform => (
+                  <span
+                    key={platform}
+                    className={`px-3 py-1 rounded-full text-xs font-medium ${
+                      platform === 'whatsapp'
+                        ? 'bg-green-100 text-green-700'
+                        : 'bg-blue-100 text-blue-700'
+                    }`}
+                  >
+                    {platform === 'whatsapp' ? 'WhatsApp' : 'SMS'}
+                  </span>
+                ))}
+              </div>
             </div>
           </div>
         )}
