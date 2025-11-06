@@ -2,7 +2,7 @@
 "use client";
 
 import { useEffect, useState, useCallback, useRef } from 'react';
-import { collection, query, where, orderBy, limit, getDocs, onSnapshot, Timestamp } from 'firebase/firestore';
+import { collection, query, where, orderBy, getDocs, onSnapshot } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import type { UnifiedMessage, UnifiedConversation } from '@/lib/conversation-grouping-service';
 
@@ -23,257 +23,240 @@ export function useUnifiedMessages({
   const [error, setError] = useState<Error | null>(null);
   
   const onNewMessageRef = useRef(onNewMessage);
+  const lastMessageCountRef = useRef(0);
+  
   onNewMessageRef.current = onNewMessage;
 
+  // Reset everything when conversation changes
   useEffect(() => {
+    console.log('🔄 [useUnifiedMessages] Conversation changed - HARD RESET');
     setMessages([]);
     setAllMessagesLoaded(false);
     setError(null);
+    setIsLoadingMore(false);
+    lastMessageCountRef.current = 0;
   }, [unifiedConversation?.id]);
 
+  // Main effect: Set up real-time listeners
   useEffect(() => {
     if (!unifiedConversation || !db) {
+      console.log('❌ [useUnifiedMessages] No conversation or db');
       setMessages([]);
       return;
     }
 
-    console.log('📥 Loading messages for:', {
-      smsId: unifiedConversation.smsConversationId,
-      whatsappId: unifiedConversation.whatsappConversationId
+    console.log('🚀 [useUnifiedMessages] Setting up listeners for:', {
+      conversationId: unifiedConversation.id,
+      phone: unifiedConversation.customerPhone,
+      smsConversationId: unifiedConversation.smsConversationId,
+      whatsappConversationId: unifiedConversation.whatsappConversationId,
+      platforms: unifiedConversation.availablePlatforms
     });
 
-    const loadInitialMessages = async () => {
-      try {
-        const allMessages: UnifiedMessage[] = [];
+    // Store all messages from both platforms
+    let smsMessages: UnifiedMessage[] = [];
+    let whatsappMessages: UnifiedMessage[] = [];
+    let smsReady = false;
+    let whatsappReady = false;
 
-        if (unifiedConversation.smsConversationId) {
-          console.log('📞 Loading SMS messages from:', unifiedConversation.smsConversationId);
-          const smsQuery = query(
-            collection(db, 'smsMessages'),
-            where('conversationId', '==', unifiedConversation.smsConversationId),
-            orderBy('createdAt', 'desc'),
-            limit(50)
-          );
-          
-          const smsSnapshot = await getDocs(smsQuery);
-          console.log('📞 Found', smsSnapshot.size, 'SMS messages');
-          
-          const smsMessages = smsSnapshot.docs.map(doc => ({
-            id: doc.id,
-            ...doc.data(),
-            platform: 'sms' as Platform,
-            conversationId: unifiedConversation.smsConversationId!
-          } as UnifiedMessage));
-          
-          allMessages.push(...smsMessages);
+    // Function to merge and update messages
+    const updateMessages = () => {
+      console.log('🔀 [useUnifiedMessages] Merging messages:', {
+        sms: smsMessages.length,
+        whatsapp: whatsappMessages.length,
+        smsReady,
+        whatsappReady
+      });
+
+      // Combine all messages
+      const allMessages = [...smsMessages, ...whatsappMessages];
+
+      // Sort chronologically (oldest first)
+      allMessages.sort((a, b) => {
+        const timeA = a.createdAt?.toMillis?.() || 0;
+        const timeB = b.createdAt?.toMillis?.() || 0;
+        return timeA - timeB;
+      });
+
+      console.log('📊 [useUnifiedMessages] Final message counts:', {
+        total: allMessages.length,
+        inbound: allMessages.filter(m => m.direction === 'inbound').length,
+        outbound: allMessages.filter(m => m.direction === 'outbound').length,
+        byPlatform: {
+          sms: allMessages.filter(m => m.platform === 'sms').length,
+          whatsapp: allMessages.filter(m => m.platform === 'whatsapp').length
         }
+      });
 
-        if (unifiedConversation.whatsappConversationId) {
-          console.log('💬 Loading WhatsApp messages from:', unifiedConversation.whatsappConversationId);
-          const whatsappQuery = query(
-            collection(db, 'whatsappMessages'),
-            where('conversationId', '==', unifiedConversation.whatsappConversationId),
-            orderBy('createdAt', 'desc'),
-            limit(50)
-          );
-          
-          const whatsappSnapshot = await getDocs(whatsappQuery);
-          console.log('💬 Found', whatsappSnapshot.size, 'WhatsApp messages');
-          
-          const whatsappMessages = whatsappSnapshot.docs.map(doc => ({
-            id: doc.id,
-            ...doc.data(),
-            platform: 'whatsapp' as Platform,
-            conversationId: unifiedConversation.whatsappConversationId!
-          } as UnifiedMessage));
-          
-          allMessages.push(...whatsappMessages);
-        }
+      // Detect new messages for notification
+      const currentCount = allMessages.length;
+      const previousCount = lastMessageCountRef.current;
 
-        allMessages.sort((a, b) => {
-          const timeA = a.createdAt?.toMillis?.() || 0;
-          const timeB = b.createdAt?.toMillis?.() || 0;
-          return timeA - timeB;
+      if (previousCount > 0 && currentCount > previousCount) {
+        console.log('🔔 [useUnifiedMessages] NEW MESSAGE DETECTED!', {
+          previous: previousCount,
+          current: currentCount,
+          new: currentCount - previousCount
         });
 
-        console.log('✅ Total loaded:', allMessages.length, 'messages');
-        setMessages(allMessages);
-      } catch (err) {
-        console.error('❌ Error loading messages:', err);
-        setError(err as Error);
+        // Check if latest message is inbound
+        const latestMessage = allMessages[allMessages.length - 1];
+        if (latestMessage?.direction === 'inbound') {
+          console.log('🔊 [useUnifiedMessages] New INBOUND message - triggering notification');
+          if (onNewMessageRef.current) {
+            onNewMessageRef.current();
+          }
+        }
       }
+
+      lastMessageCountRef.current = currentCount;
+      setMessages(allMessages);
     };
 
-    loadInitialMessages();
-  }, [unifiedConversation?.id, unifiedConversation?.smsConversationId, unifiedConversation?.whatsappConversationId]);
-
-  useEffect(() => {
-    if (!unifiedConversation || !db) {
-      return;
-    }
-
-    console.log('🔥 Setting up listeners');
     const unsubscribers: (() => void)[] = [];
 
-    const setupListener = (
-      conversationId: string,
-      platform: Platform,
-      collectionName: 'smsMessages' | 'whatsappMessages'
-    ) => {
-      console.log(`🎧 Listening to ${platform} in ${collectionName} for:`, conversationId);
-      
-      const messagesQuery = query(
-        collection(db, collectionName),
-        where('conversationId', '==', conversationId),
+    // Set up SMS listener
+    if (unifiedConversation.smsConversationId) {
+      console.log('📞 [SMS] Setting up listener for:', unifiedConversation.smsConversationId);
+
+      const smsQuery = query(
+        collection(db, 'smsMessages'),
+        where('conversationId', '==', unifiedConversation.smsConversationId),
         orderBy('createdAt', 'asc')
       );
 
-      const unsubscribe = onSnapshot(
-        messagesQuery,
+      const unsubscribeSMS = onSnapshot(
+        smsQuery,
         (snapshot) => {
-          console.log(`📨 ${platform} snapshot: ${snapshot.size} docs`);
-          
-          if (snapshot.empty) {
-            console.log(`📭 No ${platform} messages`);
-            return;
-          }
+          console.log('📨 [SMS] Snapshot received:', {
+            size: snapshot.size,
+            empty: snapshot.empty
+          });
 
-          const allSnapshotMessages = snapshot.docs.map(doc => {
+          smsMessages = snapshot.docs.map(doc => {
             const data = doc.data();
             return {
               id: doc.id,
               ...data,
-              platform,
-              conversationId
+              platform: 'sms' as Platform,
+              conversationId: unifiedConversation.smsConversationId!
             } as UnifiedMessage;
           });
 
-          console.log(`📦 ${platform} messages:`, allSnapshotMessages.map(m => ({
-            id: m.id,
-            content: m.content?.substring(0, 20),
-            direction: m.direction
-          })));
-
-          setMessages(prevMessages => {
-            const existingIds = new Set(prevMessages.map(m => m.id));
-            const newMessages = allSnapshotMessages.filter(m => !existingIds.has(m.id));
-            
-            if (newMessages.length > 0) {
-              console.log(`✨ ${newMessages.length} new ${platform} message(s)`);
-              
-              if (newMessages.some(m => m.direction === 'inbound')) {
-                onNewMessageRef.current?.();
-              }
-              
-              const merged = [...prevMessages, ...newMessages].sort((a, b) => {
-                const timeA = a.createdAt?.toMillis?.() || 0;
-                const timeB = b.createdAt?.toMillis?.() || 0;
-                return timeA - timeB;
-              });
-              
-              return merged;
-            }
-            
-            return prevMessages;
+          console.log('📦 [SMS] Messages processed:', {
+            count: smsMessages.length,
+            inbound: smsMessages.filter(m => m.direction === 'inbound').length,
+            outbound: smsMessages.filter(m => m.direction === 'outbound').length,
+            sample: smsMessages.slice(0, 3).map(m => ({
+              id: m.id.substring(0, 10),
+              direction: m.direction,
+              content: m.content?.substring(0, 30)
+            }))
           });
+
+          smsReady = true;
+          updateMessages();
         },
         (err) => {
-          console.error(`❌ ${platform} listener error:`, err);
+          console.error('❌ [SMS] Listener error:', err);
           setError(err as Error);
         }
       );
 
-      return unsubscribe;
-    };
-
-    if (unifiedConversation.smsConversationId) {
-      unsubscribers.push(setupListener(
-        unifiedConversation.smsConversationId,
-        'sms',
-        'smsMessages'
-      ));
+      unsubscribers.push(unsubscribeSMS);
+    } else {
+      console.log('⏭️ [SMS] No SMS conversation, marking as ready');
+      smsReady = true;
     }
 
+    // Set up WhatsApp listener
     if (unifiedConversation.whatsappConversationId) {
-      unsubscribers.push(setupListener(
-        unifiedConversation.whatsappConversationId,
-        'whatsapp',
-        'whatsappMessages'
-      ));
+      console.log('💬 [WhatsApp] Setting up listener for:', unifiedConversation.whatsappConversationId);
+
+      const whatsappQuery = query(
+        collection(db, 'whatsappMessages'),
+        where('conversationId', '==', unifiedConversation.whatsappConversationId),
+        orderBy('createdAt', 'asc')
+      );
+
+      const unsubscribeWhatsApp = onSnapshot(
+        whatsappQuery,
+        (snapshot) => {
+          console.log('📨 [WhatsApp] Snapshot received:', {
+            size: snapshot.size,
+            empty: snapshot.empty
+          });
+
+          whatsappMessages = snapshot.docs.map(doc => {
+            const data = doc.data();
+            return {
+              id: doc.id,
+              ...data,
+              platform: 'whatsapp' as Platform,
+              conversationId: unifiedConversation.whatsappConversationId!
+            } as UnifiedMessage;
+          });
+
+          console.log('📦 [WhatsApp] Messages processed:', {
+            count: whatsappMessages.length,
+            inbound: whatsappMessages.filter(m => m.direction === 'inbound').length,
+            outbound: whatsappMessages.filter(m => m.direction === 'outbound').length,
+            sample: whatsappMessages.slice(0, 3).map(m => ({
+              id: m.id.substring(0, 10),
+              direction: m.direction,
+              content: m.content?.substring(0, 30)
+            }))
+          });
+
+          whatsappReady = true;
+          updateMessages();
+        },
+        (err) => {
+          console.error('❌ [WhatsApp] Listener error:', err);
+          setError(err as Error);
+        }
+      );
+
+      unsubscribers.push(unsubscribeWhatsApp);
+    } else {
+      console.log('⏭️ [WhatsApp] No WhatsApp conversation, marking as ready');
+      whatsappReady = true;
     }
 
+    // Initial merge if both are ready
+    if (smsReady && whatsappReady) {
+      updateMessages();
+    }
+
+    // Cleanup
     return () => {
-      console.log('🧹 Cleanup listeners');
+      console.log('🧹 [useUnifiedMessages] Cleaning up listeners');
       unsubscribers.forEach(unsub => unsub());
     };
-  }, [unifiedConversation?.id, unifiedConversation?.smsConversationId, unifiedConversation?.whatsappConversationId]);
+  }, [
+    unifiedConversation?.id,
+    unifiedConversation?.smsConversationId,
+    unifiedConversation?.whatsappConversationId
+  ]);
 
+  // Load more (pagination) - simplified version
   const loadMore = useCallback(async () => {
-    if (!unifiedConversation || !db || allMessagesLoaded || isLoadingMore || messages.length === 0) {
-      return;
-    }
+    console.log('📥 [useUnifiedMessages] Load more requested');
+    
+    // For now, we're loading all messages in real-time, so nothing to paginate
+    // This can be implemented later if needed for very large conversations
+    setAllMessagesLoaded(true);
+  }, []);
 
-    setIsLoadingMore(true);
-
-    try {
-      const oldestMessage = messages[0];
-      const beforeTime = oldestMessage.createdAt;
-      const olderMessages: UnifiedMessage[] = [];
-
-      if (unifiedConversation.smsConversationId) {
-        const smsQuery = query(
-          collection(db, 'smsMessages'),
-          where('conversationId', '==', unifiedConversation.smsConversationId),
-          where('createdAt', '<', beforeTime),
-          orderBy('createdAt', 'desc'),
-          limit(20)
-        );
-
-        const smsSnapshot = await getDocs(smsQuery);
-        olderMessages.push(...smsSnapshot.docs.map(doc => ({
-          id: doc.id,
-          ...doc.data(),
-          platform: 'sms' as Platform,
-          conversationId: unifiedConversation.smsConversationId!
-        } as UnifiedMessage)));
-      }
-
-      if (unifiedConversation.whatsappConversationId) {
-        const whatsappQuery = query(
-          collection(db, 'whatsappMessages'),
-          where('conversationId', '==', unifiedConversation.whatsappConversationId),
-          where('createdAt', '<', beforeTime),
-          orderBy('createdAt', 'desc'),
-          limit(20)
-        );
-
-        const whatsappSnapshot = await getDocs(whatsappQuery);
-        olderMessages.push(...whatsappSnapshot.docs.map(doc => ({
-          id: doc.id,
-          ...doc.data(),
-          platform: 'whatsapp' as Platform,
-          conversationId: unifiedConversation.whatsappConversationId!
-        } as UnifiedMessage)));
-      }
-
-      if (olderMessages.length === 0) {
-        setAllMessagesLoaded(true);
-      } else {
-        olderMessages.sort((a, b) => {
-          const timeA = a.createdAt?.toMillis?.() || 0;
-          const timeB = b.createdAt?.toMillis?.() || 0;
-          return timeA - timeB;
-        });
-
-        setMessages(prev => [...olderMessages, ...prev]);
-      }
-    } catch (err) {
-      console.error('Error loading more:', err);
-      setError(err as Error);
-    } finally {
-      setIsLoadingMore(false);
-    }
-  }, [unifiedConversation, messages, allMessagesLoaded, isLoadingMore]);
+  // Final state log
+  console.log('🏁 [useUnifiedMessages] Current state:', {
+    totalMessages: messages.length,
+    inbound: messages.filter(m => m.direction === 'inbound').length,
+    outbound: messages.filter(m => m.direction === 'outbound').length,
+    sms: messages.filter(m => m.platform === 'sms').length,
+    whatsapp: messages.filter(m => m.platform === 'whatsapp').length,
+    hasError: !!error
+  });
 
   return {
     messages,

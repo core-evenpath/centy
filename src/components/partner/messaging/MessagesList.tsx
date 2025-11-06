@@ -4,7 +4,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Loader2, ArrowDown, MessageCircle, Smartphone, Check, CheckCheck } from 'lucide-react';
-import { format, isToday, isYesterday, isThisWeek } from 'date-fns';
+import { format, isToday, isYesterday, isThisWeek, isSameDay } from 'date-fns';
 import type { UnifiedMessage } from '@/lib/conversation-grouping-service';
 
 interface MessagesListProps {
@@ -26,42 +26,66 @@ export default function MessagesList({
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const isInitialLoadRef = useRef(true);
   const previousMessageCountRef = useRef(0);
-  
   const [showScrollButton, setShowScrollButton] = useState(false);
+  const [userHasScrolled, setUserHasScrolled] = useState(false);
+
+  console.log('📋 MessagesList render:', {
+    total: messages.length,
+    inbound: messages.filter(m => m.direction === 'inbound').length,
+    outbound: messages.filter(m => m.direction === 'outbound').length,
+    platforms: {
+      sms: messages.filter(m => m.platform === 'sms').length,
+      whatsapp: messages.filter(m => m.platform === 'whatsapp').length
+    },
+    sample: messages.slice(-5).map(m => ({
+      direction: m.direction,
+      platform: m.platform,
+      content: m.content?.substring(0, 20)
+    }))
+  });
 
   // Scroll to bottom helper
-  const scrollToBottom = (behavior: ScrollBehavior = 'auto') => {
-    if (scrollContainerRef.current) {
-      scrollContainerRef.current.scrollTop = scrollContainerRef.current.scrollHeight;
+  const scrollToBottom = (behavior: ScrollBehavior = 'smooth') => {
+    if (messagesEndRef.current) {
+      messagesEndRef.current.scrollIntoView({ behavior, block: 'end' });
     }
   };
 
-  // Check if user is scrolled to bottom
-  const checkIfScrolledToBottom = () => {
+  // Check if user is near the bottom
+  const isNearBottom = () => {
     if (!scrollContainerRef.current) return false;
-    const threshold = 100;
+    const threshold = 150;
     const { scrollTop, scrollHeight, clientHeight } = scrollContainerRef.current;
-    const isAtBottom = scrollHeight - scrollTop - clientHeight < threshold;
-    return isAtBottom;
+    const distanceFromBottom = scrollHeight - scrollTop - clientHeight;
+    return distanceFromBottom < threshold;
   };
 
   // Handle scroll events
   const handleScroll = () => {
     if (!scrollContainerRef.current) return;
     
-    const isAtBottom = checkIfScrolledToBottom();
-    setShowScrollButton(!isAtBottom);
+    const nearBottom = isNearBottom();
+    setShowScrollButton(!nearBottom);
+
+    // Mark that user has manually scrolled
+    if (!nearBottom) {
+      setUserHasScrolled(true);
+    } else {
+      setUserHasScrolled(false);
+    }
 
     // Load more messages when scrolled to top
     const { scrollTop } = scrollContainerRef.current;
-    if (scrollTop < 50 && !isLoadingMore && !allMessagesLoaded) {
+    if (scrollTop < 100 && !isLoadingMore && !allMessagesLoaded && messages.length > 0) {
+      console.log('📥 User scrolled to top, loading more messages');
       onLoadMore();
     }
   };
 
-  // Initial scroll on mount and when messages first load
+  // Auto-scroll on initial load
   useEffect(() => {
     if (messages.length > 0 && isInitialLoadRef.current) {
+      console.log('🎬 Initial load, scrolling to bottom immediately');
       setTimeout(() => {
         scrollToBottom('auto');
         isInitialLoadRef.current = false;
@@ -69,175 +93,227 @@ export default function MessagesList({
     }
   }, [messages.length]);
 
-  // Handle new messages
+  // Auto-scroll when new messages arrive (only if user is near bottom)
   useEffect(() => {
-    if (isInitialLoadRef.current) return;
+    const messageCount = messages.length;
+    const previousCount = previousMessageCountRef.current;
 
-    const hasNewMessages = messages.length > previousMessageCountRef.current;
-    previousMessageCountRef.current = messages.length;
+    if (messageCount > previousCount && previousCount > 0 && !isInitialLoadRef.current) {
+      console.log('📨 New message(s) arrived:', {
+        current: messageCount,
+        previous: previousCount,
+        new: messageCount - previousCount,
+        userHasScrolled,
+        isNearBottom: isNearBottom()
+      });
 
-    if (hasNewMessages && messages.length > 0) {
-      const isAtBottom = checkIfScrolledToBottom();
-      
-      if (isAtBottom) {
+      // Only auto-scroll if user hasn't manually scrolled away
+      if (!userHasScrolled || isNearBottom()) {
+        console.log('⬇️ Auto-scrolling to new message');
         setTimeout(() => scrollToBottom('smooth'), 100);
+      } else {
+        console.log('👤 User scrolled away, not auto-scrolling');
       }
     }
-  }, [messages.length]);
 
-  // Reset on conversation change
-  useEffect(() => {
-    isInitialLoadRef.current = true;
-    previousMessageCountRef.current = 0;
-    setShowScrollButton(false);
-  }, [messages[0]?.conversationId]);
+    previousMessageCountRef.current = messageCount;
+  }, [messages.length, userHasScrolled]);
 
-  const formatMessageTimestamp = (timestamp: any) => {
+  const formatMessageTime = (timestamp: any) => {
     if (!timestamp) return '';
+    
     try {
       const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
-      if (isToday(date)) {
-        return format(date, 'h:mm a');
-      } else if (isYesterday(date)) {
-        return `Yesterday ${format(date, 'h:mm a')}`;
-      } else if (isThisWeek(date)) {
-        return format(date, 'EEE h:mm a');
-      }
-      return format(date, 'MMM d, h:mm a');
-    } catch {
+      return format(date, 'h:mm a');
+    } catch (error) {
       return '';
     }
   };
 
-  const getStatusIcon = (message: UnifiedMessage) => {
-    if (message.direction === 'inbound') return null;
-
-    const status = message.platform === 'sms' 
-      ? message.smsMetadata?.twilioStatus 
-      : message.whatsAppMetadata?.messageStatus;
-
-    if (status === 'delivered' || status === 'read') {
-      return <CheckCheck className="w-3 h-3" />;
-    } else if (status === 'sent') {
-      return <Check className="w-3 h-3" />;
+  const formatDateDivider = (timestamp: any) => {
+    if (!timestamp) return '';
+    
+    try {
+      const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
+      
+      if (isToday(date)) {
+        return 'Today';
+      } else if (isYesterday(date)) {
+        return 'Yesterday';
+      } else if (isThisWeek(date)) {
+        return format(date, 'EEEE');
+      } else {
+        return format(date, 'MMMM d, yyyy');
+      }
+    } catch (error) {
+      return '';
     }
+  };
+
+  const getMessageStatusIcon = (message: UnifiedMessage) => {
+    if (message.direction === 'inbound') return null;
+    
+    if (message.status === 'delivered' || message.status === 'read') {
+      return <CheckCheck className="w-3.5 h-3.5 text-blue-400" />;
+    } else if (message.status === 'sent') {
+      return <Check className="w-3.5 h-3.5 text-gray-400" />;
+    }
+    
     return null;
   };
 
-  const PlatformBadge = ({ platform }: { platform: 'sms' | 'whatsapp' }) => (
-    <div className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium ${
-      platform === 'whatsapp' 
-        ? 'bg-green-100 text-green-700' 
-        : 'bg-blue-100 text-blue-700'
-    }`}>
-      {platform === 'whatsapp' ? (
-        <MessageCircle className="w-2.5 h-2.5" />
-      ) : (
-        <Smartphone className="w-2.5 h-2.5" />
-      )}
-      <span className="uppercase">{platform}</span>
-    </div>
-  );
+  const getPlatformBadge = (platform: 'sms' | 'whatsapp') => {
+    if (platform === 'whatsapp') {
+      return (
+        <div className="flex items-center gap-1 text-[10px] text-gray-500">
+          <MessageCircle className="w-3 h-3 text-green-600" />
+          <span>WhatsApp</span>
+        </div>
+      );
+    }
+    return (
+      <div className="flex items-center gap-1 text-[10px] text-gray-500">
+        <Smartphone className="w-3 h-3 text-blue-600" />
+        <span>SMS</span>
+      </div>
+    );
+  };
+
+  // Check if we should show date divider
+  const shouldShowDateDivider = (currentMessage: UnifiedMessage, previousMessage: UnifiedMessage | null) => {
+    if (!previousMessage) return true;
+    
+    try {
+      const currentDate = currentMessage.createdAt?.toDate?.() || new Date();
+      const previousDate = previousMessage.createdAt?.toDate?.() || new Date();
+      return !isSameDay(currentDate, previousDate);
+    } catch {
+      return false;
+    }
+  };
 
   if (messages.length === 0) {
     return (
-      <div className="flex-1 flex items-center justify-center bg-slate-50">
-        <div className="text-center text-slate-500">
-          <MessageCircle className="w-12 h-12 mx-auto mb-3 opacity-50" />
-          <p className="text-sm">No messages yet</p>
-          <p className="text-xs mt-1">Start the conversation below</p>
+      <div className="flex items-center justify-center h-full bg-gray-50">
+        <div className="text-center">
+          <MessageCircle className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+          <p className="text-gray-500 font-medium">No messages yet</p>
+          <p className="text-sm text-gray-400 mt-2">Start the conversation by sending a message</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="flex-1 relative bg-slate-50 overflow-hidden">
-      {/* Scrollable container */}
-      <div 
-        ref={scrollContainerRef}
-        className="absolute inset-0 overflow-y-auto"
-        onScroll={handleScroll}
-      >
-        <div className="p-6 space-y-4">
-          {/* Loading more indicator */}
-          {isLoadingMore && (
-            <div className="flex justify-center py-2">
-              <Loader2 className="w-5 h-5 animate-spin text-slate-400" />
-            </div>
-          )}
+    <div className="relative h-full bg-gray-50">
+      {/* Loading indicator for pagination */}
+      {isLoadingMore && (
+        <div className="absolute top-4 left-1/2 transform -translate-x-1/2 z-10">
+          <div className="bg-white rounded-full shadow-lg px-4 py-2 flex items-center gap-2">
+            <Loader2 className="w-4 h-4 animate-spin text-blue-600" />
+            <span className="text-sm text-gray-600">Loading older messages...</span>
+          </div>
+        </div>
+      )}
 
-          {/* Messages */}
+      {/* Messages container */}
+      <div
+        ref={scrollContainerRef}
+        onScroll={handleScroll}
+        className="h-full overflow-y-auto px-4 py-4"
+      >
+        {/* Load more hint */}
+        {!allMessagesLoaded && messages.length >= 30 && (
+          <div className="text-center py-3 mb-2">
+            <p className="text-xs text-gray-400">↑ Scroll up to load older messages</p>
+          </div>
+        )}
+
+        {/* Messages */}
+        <div className="space-y-1">
           {messages.map((message, index) => {
             const isOutbound = message.direction === 'outbound';
-            const showDateDivider = index === 0 || 
-              (messages[index - 1] && 
-               new Date(message.createdAt?.toDate?.() || message.createdAt).toDateString() !== 
-               new Date(messages[index - 1].createdAt?.toDate?.() || messages[index - 1].createdAt).toDateString());
+            const previousMessage = index > 0 ? messages[index - 1] : null;
+            const showDateDivider = shouldShowDateDivider(message, previousMessage);
 
             return (
-              <div key={message.id}>
-                {/* Date Divider */}
+              <React.Fragment key={message.id}>
+                {/* Date divider */}
                 {showDateDivider && (
                   <div className="flex items-center justify-center my-4">
-                    <div className="bg-white px-3 py-1 rounded-full text-xs text-slate-600 shadow-sm">
-                      {formatMessageTimestamp(message.createdAt)}
+                    <div className="bg-gray-200 rounded-md px-3 py-1">
+                      <span className="text-xs text-gray-600 font-medium">
+                        {formatDateDivider(message.createdAt)}
+                      </span>
                     </div>
                   </div>
                 )}
 
-                {/* Message */}
-                <div className={`flex ${isOutbound ? 'justify-end' : 'justify-start'}`}>
-                  <div className={`max-w-[70%] ${isOutbound ? 'items-end' : 'items-start'} flex flex-col gap-1`}>
-                    {/* Platform Badge */}
-                    <PlatformBadge platform={message.platform} />
+                {/* Message bubble */}
+                <div className={`flex ${isOutbound ? 'justify-end' : 'justify-start'} mb-1`}>
+                  <div className={`max-w-[75%] ${isOutbound ? 'items-end' : 'items-start'} flex flex-col`}>
+                    {/* Platform badge (show for first message or platform switch) */}
+                    {(index === 0 || message.platform !== previousMessage?.platform) && (
+                      <div className="mb-1 px-2">
+                        {getPlatformBadge(message.platform)}
+                      </div>
+                    )}
                     
-                    {/* Message Bubble */}
                     <div
-                      className={`rounded-2xl px-4 py-2 ${
+                      className={`rounded-lg px-3 py-2 ${
                         isOutbound
-                          ? 'bg-blue-600 text-white rounded-br-sm'
-                          : 'bg-white text-slate-900 shadow-sm rounded-bl-sm'
+                          ? 'bg-blue-500 text-white rounded-br-none'
+                          : 'bg-white text-gray-900 shadow-sm rounded-bl-none'
                       }`}
                     >
-                      {message.type === 'image' && message.attachments?.[0] && (
-                        <img
-                          src={message.attachments[0].url}
-                          alt="Message attachment"
-                          className="rounded-lg mb-2 max-w-full"
-                        />
-                      )}
-                      <p className="text-sm whitespace-pre-wrap break-words">
+                      {/* Message content */}
+                      <p className="text-[15px] leading-relaxed whitespace-pre-wrap break-words">
                         {message.content}
                       </p>
-                    </div>
 
-                    {/* Timestamp and Status */}
-                    <div className={`flex items-center gap-1 text-xs ${
-                      isOutbound ? 'text-slate-500' : 'text-slate-500'
-                    }`}>
-                      <span>{format(message.createdAt?.toDate?.() || new Date(message.createdAt), 'h:mm a')}</span>
-                      {isOutbound && getStatusIcon(message)}
+                      {/* Media attachments */}
+                      {message.mediaUrl && (
+                        <div className="mt-2 rounded-md overflow-hidden">
+                          <img
+                            src={message.mediaUrl}
+                            alt="Attachment"
+                            className="max-w-full h-auto"
+                            style={{ maxHeight: '300px' }}
+                          />
+                        </div>
+                      )}
+
+                      {/* Message metadata */}
+                      <div className={`flex items-center justify-end gap-1 mt-1 ${
+                        isOutbound ? 'text-blue-100' : 'text-gray-500'
+                      }`}>
+                        <span className="text-[11px]">{formatMessageTime(message.createdAt)}</span>
+                        {getMessageStatusIcon(message)}
+                      </div>
                     </div>
                   </div>
                 </div>
-              </div>
+              </React.Fragment>
             );
           })}
-
-          <div ref={messagesEndRef} />
         </div>
+
+        {/* Scroll anchor */}
+        <div ref={messagesEndRef} className="h-1" />
       </div>
 
-      {/* Scroll to Bottom Button */}
+      {/* Scroll to bottom button */}
       {showScrollButton && (
-        <Button
-          size="icon"
-          className="absolute bottom-4 right-4 rounded-full shadow-lg z-10"
-          onClick={() => scrollToBottom('smooth')}
+        <button
+          onClick={() => {
+            scrollToBottom('smooth');
+            setUserHasScrolled(false);
+          }}
+          className="absolute bottom-6 right-6 bg-white text-gray-700 rounded-full p-3 shadow-lg hover:shadow-xl transition-all border border-gray-200 hover:bg-gray-50"
+          aria-label="Scroll to bottom"
         >
-          <ArrowDown className="w-4 h-4" />
-        </Button>
+          <ArrowDown className="w-5 h-5" />
+        </button>
       )}
     </div>
   );

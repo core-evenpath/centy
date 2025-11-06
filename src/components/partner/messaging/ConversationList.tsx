@@ -8,14 +8,13 @@ import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Loader2, Plus, Search, MessageCircle, Smartphone } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
-import type { UnifiedConversation } from '@/lib/conversation-grouping-service';
 
 interface ConversationListProps {
-  conversations: UnifiedConversation[];
-  selectedConversation: UnifiedConversation | null;
+  conversations: any[];
+  selectedConversation: any | null;
   searchTerm: string;
   onSearchChange: (term: string) => void;
-  onSelectConversation: (conversation: UnifiedConversation) => void;
+  onSelectConversation: (conversation: any) => void;
   onNewConversation: () => void;
   isLoading: boolean;
 }
@@ -30,7 +29,7 @@ export default function ConversationList({
   isLoading,
 }: ConversationListProps) {
 
-  const getDisplayName = (convo: UnifiedConversation) => {
+  const getDisplayName = (convo: any) => {
     return convo.contactName || convo.customerName || convo.customerPhone;
   };
 
@@ -44,19 +43,31 @@ export default function ConversationList({
     }
   };
 
+  const getPlatformIcon = (platform: string) => {
+    if (platform === 'whatsapp') {
+      return <MessageCircle className="w-4 h-4 text-green-600" />;
+    }
+    return <Smartphone className="w-4 h-4 text-blue-600" />;
+  };
+
+  const getPlatformBadge = (platform: string) => {
+    if (platform === 'whatsapp') {
+      return <Badge variant="outline" className="text-xs bg-green-50 text-green-700 border-green-200">WhatsApp</Badge>;
+    }
+    return <Badge variant="outline" className="text-xs bg-blue-50 text-blue-700 border-blue-200">SMS</Badge>;
+  };
+
   console.log('📋 ConversationList render:', {
     total: conversations.length,
     isLoading,
-    conversations: conversations.map(c => ({
-      phone: c.customerPhone,
-      platforms: c.availablePlatforms,
-      smsId: c.smsConversationId,
-      whatsappId: c.whatsappConversationId
-    }))
+    selected: selectedConversation?.id,
+    sms: conversations.filter(c => c.platform === 'sms').length,
+    whatsapp: conversations.filter(c => c.platform === 'whatsapp').length
   });
 
   return (
     <aside className="bg-white border-r border-slate-200 flex flex-col h-full w-80">
+      {/* Header */}
       <div className="p-4 border-b border-slate-200">
         <div className="flex items-center justify-between mb-3">
           <h1 className="text-lg font-semibold text-slate-900">Messages</h1>
@@ -76,6 +87,7 @@ export default function ConversationList({
         </div>
       </div>
 
+      {/* Conversations List */}
       <ScrollArea className="flex-1">
         {isLoading ? (
           <div className="flex justify-center items-center h-32">
@@ -83,93 +95,77 @@ export default function ConversationList({
           </div>
         ) : conversations.length === 0 ? (
           <div className="p-6 text-center text-slate-500">
-            <MessageCircle className="w-12 h-12 mx-auto mb-2 opacity-50" />
+            <MessageCircle className="w-12 h-12 mx-auto mb-3 text-slate-300" />
             <p className="text-sm">No conversations yet</p>
-            <Button 
-              variant="outline" 
-              size="sm" 
-              className="mt-3"
-              onClick={onNewConversation}
-            >
-              Start a conversation
-            </Button>
           </div>
         ) : (
           <div className="divide-y divide-slate-100">
             {conversations.map((convo) => {
-              const isSelected = selectedConversation?.id === convo.id;
-              const lastMessage = convo.recentMessages?.[0];
               const displayName = getDisplayName(convo);
-              
-              console.log('📱 Rendering conversation:', {
-                phone: convo.customerPhone,
-                platforms: convo.availablePlatforms,
-                displayName
-              });
+              const isSelected = selectedConversation?.id === convo.id;
               
               return (
-                <button
+                <div
                   key={convo.id}
-                  onClick={() => {
-                    console.log('👆 Clicked conversation:', convo.id);
-                    onSelectConversation(convo);
-                  }}
-                  className={`w-full px-4 py-3 text-left hover:bg-slate-50 transition-colors ${
-                    isSelected ? 'bg-blue-50 border-l-4 border-l-blue-600' : ''
+                  onClick={() => onSelectConversation(convo)}
+                  className={`p-4 cursor-pointer transition-colors hover:bg-slate-50 ${
+                    isSelected ? 'bg-blue-50 border-l-4 border-blue-600' : ''
                   }`}
                 >
-                  <div className="flex items-start justify-between mb-1">
-                    <div className="flex-1 min-w-0">
-                      <h3 className="font-medium text-slate-900 truncate text-sm">
-                        {displayName}
-                      </h3>
-                      {convo.contactName && convo.customerPhone !== displayName && (
-                        <p className="text-xs text-slate-500 truncate">
-                          {convo.customerPhone}
-                        </p>
-                      )}
+                  {/* Contact Avatar */}
+                  <div className="flex items-start gap-3">
+                    <div className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white font-semibold flex-shrink-0">
+                      {displayName.charAt(0).toUpperCase()}
                     </div>
-                    <span className="text-xs text-slate-500 ml-2 flex-shrink-0">
-                      {formatTime(convo.lastMessageAt)}
-                    </span>
-                  </div>
-
-                  <p className="text-xs text-slate-600 truncate mb-2">
-                    {lastMessage?.content || 'No messages yet'}
-                  </p>
-
-                  <div className="flex items-center gap-1.5">
-                    {convo.availablePlatforms.map(platform => (
-                      <Badge 
-                        key={platform}
-                        variant={platform === 'whatsapp' ? 'default' : 'secondary'}
-                        className={`text-xs px-2 py-0 h-5 ${
-                          platform === 'whatsapp' 
-                            ? 'bg-green-100 text-green-700 hover:bg-green-200' 
-                            : 'bg-blue-100 text-blue-700 hover:bg-blue-200'
-                        }`}
-                      >
-                        {platform === 'whatsapp' ? (
-                          <MessageCircle className="w-3 h-3 mr-1" />
-                        ) : (
-                          <Smartphone className="w-3 h-3 mr-1" />
-                        )}
-                        {platform === 'whatsapp' ? 'WhatsApp' : 'SMS'}
-                      </Badge>
-                    ))}
                     
-                    {convo.messageCount > 0 && (
-                      <span className="text-xs text-slate-500 ml-auto">
-                        {convo.messageCount} {convo.messageCount === 1 ? 'msg' : 'msgs'}
-                      </span>
-                    )}
+                    <div className="flex-1 min-w-0">
+                      {/* Name and Time */}
+                      <div className="flex items-center justify-between mb-1">
+                        <p className="font-semibold text-slate-900 text-sm truncate">
+                          {displayName}
+                        </p>
+                        <span className="text-xs text-slate-500 ml-2">
+                          {formatTime(convo.lastMessageAt)}
+                        </span>
+                      </div>
+                      
+                      {/* Phone Number */}
+                      <p className="text-xs text-slate-500 mb-2">{convo.customerPhone}</p>
+                      
+                      {/* Platform Badge and Message Count */}
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          {getPlatformIcon(convo.platform)}
+                          {getPlatformBadge(convo.platform)}
+                        </div>
+                        
+                        {convo.messageCount > 0 && (
+                          <span className="text-xs text-slate-500">
+                            {convo.messageCount} msgs
+                          </span>
+                        )}
+                      </div>
+                    </div>
                   </div>
-                </button>
+                </div>
               );
             })}
           </div>
         )}
       </ScrollArea>
+
+      {/* Info Banner */}
+      {!isLoading && conversations.length > 0 && (
+        <div className="p-3 bg-blue-50 border-t border-blue-100">
+          <p className="text-xs text-blue-800">
+            <span className="font-semibold">{conversations.length} conversations</span>
+            {' • '}
+            <span>{conversations.filter(c => c.platform === 'sms').length} SMS</span>
+            {' • '}
+            <span>{conversations.filter(c => c.platform === 'whatsapp').length} WhatsApp</span>
+          </p>
+        </div>
+      )}
     </aside>
   );
 }

@@ -26,16 +26,8 @@ import { Timestamp } from 'firebase/firestore';
 
 import { useConversations } from '@/hooks/useConversations';
 import { useEnrichedConversations } from '@/hooks/useEnrichedConversations';
-import { useUnifiedMessages } from '@/hooks/useUnifiedMessages';
+import { useConversationMessages } from '@/hooks/useConversationMessages';
 import { useNotifications } from '@/hooks/useNotifications';
-
-import { 
-  groupConversationsByPhone, 
-  getConversationIdForPlatform,
-  getPreferredPlatform,
-  type UnifiedConversation,
-  type UnifiedMessage
-} from '@/lib/conversation-grouping-service';
 
 import ConversationList from '@/components/partner/messaging/ConversationList';
 import ChatHeader from '@/components/partner/messaging/ChatHeader';
@@ -57,6 +49,23 @@ interface MessagingDiagnostics {
   baseUrl: string;
 }
 
+// Simple conversation type - no merging
+interface SimpleConversation {
+  id: string;
+  platform: Platform;
+  customerPhone: string;
+  customerName?: string;
+  contactName?: string;
+  contactEmail?: string;
+  contactId?: string;
+  lastMessageAt: any;
+  messageCount: number;
+  isActive: boolean;
+  partnerId: string;
+  createdAt: any;
+  clientInfo?: any;
+}
+
 export default function MessagingPage() {
   const { user, currentWorkspace } = useMultiWorkspaceAuth();
   const { toast } = useToast();
@@ -64,77 +73,97 @@ export default function MessagingPage() {
   
   const partnerId = currentWorkspace?.partnerId || user?.customClaims?.partnerId;
   
-  console.log('🏠 Messaging Page - Partner ID:', partnerId);
+  console.log('════════════════════════════════════════════');
+  console.log('🏠 MESSAGING PAGE - SEPARATE THREADS VERSION');
+  console.log('Partner ID:', partnerId);
+  console.log('════════════════════════════════════════════');
   
+  // Fetch all conversations (no grouping)
   const { conversations: rawConversations, isLoading: isLoadingConversations } = useConversations(partnerId);
   
-  console.log('📦 Raw conversations:', rawConversations.length);
-  rawConversations.forEach(c => {
-    console.log(`  ${c.platform}: ${c.customerPhone} (${c.messageCount} msgs)`);
+  console.log('📦 Raw conversations:', {
+    total: rawConversations.length,
+    sms: rawConversations.filter(c => c.platform === 'sms').length,
+    whatsapp: rawConversations.filter(c => c.platform === 'whatsapp').length
   });
   
+  // Enrich with contact data
   const { enrichedConversations, isLoadingContacts } = useEnrichedConversations(rawConversations, partnerId);
   
-  console.log('💎 Enriched conversations:', enrichedConversations.length);
-  
-  const groupedConversations = useMemo(() => {
-    const grouped = groupConversationsByPhone(enrichedConversations);
-    console.log('🎯 Final grouped conversations:', grouped.length);
-    return grouped;
+  // Convert to simple format (no grouping - each conversation is separate)
+  const simpleConversations: SimpleConversation[] = useMemo(() => {
+    return enrichedConversations.map(conv => ({
+      id: conv.id,
+      platform: conv.platform as Platform,
+      customerPhone: conv.customerPhone,
+      customerName: conv.customerName,
+      contactName: conv.contactName,
+      contactEmail: conv.contactEmail,
+      contactId: conv.contactId,
+      lastMessageAt: conv.lastMessageAt,
+      messageCount: conv.messageCount,
+      isActive: conv.isActive,
+      partnerId: conv.partnerId,
+      createdAt: conv.createdAt,
+      clientInfo: conv.clientInfo
+    }));
   }, [enrichedConversations]);
+
+  console.log('✅ Simple conversations (separate threads):', {
+    total: simpleConversations.length,
+    sms: simpleConversations.filter(c => c.platform === 'sms').length,
+    whatsapp: simpleConversations.filter(c => c.platform === 'whatsapp').length
+  });
   
   const { notificationsEnabled, setNotificationsEnabled, audioRef, notify } = useNotifications();
   
-  const [selectedConversation, setSelectedConversation] = useState<UnifiedConversation | null>(null);
-  const [selectedPlatform, setSelectedPlatform] = useState<Platform>('whatsapp');
+  const [selectedConversation, setSelectedConversation] = useState<SimpleConversation | null>(null);
   const [messageInput, setMessageInput] = useState('');
-  const [newPhoneNumber, setNewPhoneNumber] = useState('');
-  const [newPlatform, setNewPlatform] = useState<Platform>('whatsapp');
   const [searchTerm, setSearchTerm] = useState('');
-  const [isSending, setIsSending] = useState(false);
   const [showNewConversation, setShowNewConversation] = useState(false);
   const [showDiagnostics, setShowDiagnostics] = useState(false);
   const [showClientProfile, setShowClientProfile] = useState(false);
   const [diagnostics, setDiagnostics] = useState<MessagingDiagnostics | null>(null);
-  
-  const [optimisticMessages, setOptimisticMessages] = useState<UnifiedMessage[]>([]);
+  const [optimisticMessages, setOptimisticMessages] = useState<any[]>([]);
 
-  console.log('📌 Selected conversation:', selectedConversation?.id);
-  console.log('🎚️ Selected platform:', selectedPlatform);
-
+  // Load messages for selected conversation (single platform only)
   const { 
-    messages: unifiedMessages, 
-    isLoadingMore, 
-    allMessagesLoaded, 
-    loadMore 
-  } = useUnifiedMessages({
-    unifiedConversation: selectedConversation,
+    messages: loadedMessages, 
+    isLoading: isLoadingMessages 
+  } = useConversationMessages({
+    conversationId: selectedConversation?.id,
+    platform: selectedConversation?.platform || 'sms',
     onNewMessage: () => {
-      if (selectedConversation) {
-        const displayName = selectedConversation.contactName || 
-                          selectedConversation.customerName || 
-                          selectedConversation.customerPhone;
-        notify(displayName);
-      }
-    },
+      console.log('🔔 New message notification!');
+      notify();
+    }
   });
 
-  console.log('💬 Unified messages:', unifiedMessages.length);
+  console.log('📨 Messages for selected conversation:', {
+    conversationId: selectedConversation?.id,
+    platform: selectedConversation?.platform,
+    count: loadedMessages.length,
+    inbound: loadedMessages.filter(m => m.direction === 'inbound').length,
+    outbound: loadedMessages.filter(m => m.direction === 'outbound').length
+  });
 
-  const messages = useMemo(() => {
-    const messageIds = new Set(unifiedMessages.map(m => m.id));
-    const uniqueOptimistic = optimisticMessages.filter(m => !messageIds.has(m.id));
-    return [...unifiedMessages, ...uniqueOptimistic].sort((a, b) => {
+  // Combine with optimistic messages
+  const allMessages = useMemo(() => {
+    const combined = [...loadedMessages, ...optimisticMessages];
+    combined.sort((a, b) => {
       const timeA = a.createdAt?.toMillis?.() || 0;
       const timeB = b.createdAt?.toMillis?.() || 0;
       return timeA - timeB;
     });
-  }, [unifiedMessages, optimisticMessages]);
+    return combined;
+  }, [loadedMessages, optimisticMessages]);
 
+  // Clear optimistic when conversation changes
   useEffect(() => {
     setOptimisticMessages([]);
   }, [selectedConversation?.id]);
 
+  // Fetch diagnostics
   useEffect(() => {
     async function fetchDiagnostics() {
       try {
@@ -150,166 +179,92 @@ export default function MessagingPage() {
     fetchDiagnostics();
   }, []);
 
-  useEffect(() => {
-    const conversationIdFromUrl = searchParams.get('conversation');
-    if (conversationIdFromUrl && groupedConversations.length > 0) {
-      const convo = groupedConversations.find(c => c.id === conversationIdFromUrl);
-      if (convo) {
-        setSelectedConversation(convo);
-        setSelectedPlatform(getPreferredPlatform(convo));
-        setShowNewConversation(false);
-        setShowDiagnostics(false);
-      }
-    }
-  }, [searchParams, groupedConversations]);
-
+  // Filter conversations
   const filteredConversations = useMemo(() => {
-    if (!searchTerm) return groupedConversations;
+    if (!searchTerm) return simpleConversations;
     
     const lowerSearch = searchTerm.toLowerCase();
-    return groupedConversations.filter(convo => {
+    return simpleConversations.filter(convo => {
       const phone = convo.customerPhone?.toLowerCase() || '';
       const customerName = convo.customerName?.toLowerCase() || '';
       const contactName = convo.contactName?.toLowerCase() || '';
-      const contactEmail = convo.contactEmail?.toLowerCase() || '';
       
       return phone.includes(lowerSearch) || 
              customerName.includes(lowerSearch) ||
-             contactName.includes(lowerSearch) ||
-             contactEmail.includes(lowerSearch);
+             contactName.includes(lowerSearch);
     });
-  }, [groupedConversations, searchTerm]);
+  }, [simpleConversations, searchTerm]);
 
-  const handleSelectConversation = (conversation: UnifiedConversation) => {
-    console.log('👆 Selected conversation:', {
+  const handleSelectConversation = (conversation: any) => {
+    console.log('════════════════════════════════════════════');
+    console.log('👆 CONVERSATION SELECTED:', {
       id: conversation.id,
-      platforms: conversation.availablePlatforms,
-      smsId: conversation.smsConversationId,
-      whatsappId: conversation.whatsappConversationId
+      platform: conversation.platform,
+      phone: conversation.customerPhone,
+      name: conversation.contactName || conversation.customerName
     });
+    console.log('════════════════════════════════════════════');
     
     setSelectedConversation(conversation);
-    const preferred = getPreferredPlatform(conversation);
-    console.log('🎯 Setting platform to:', preferred);
-    setSelectedPlatform(preferred);
     setShowNewConversation(false);
     setShowDiagnostics(false);
     setShowClientProfile(false);
   };
 
-  const handlePlatformChange = (platform: Platform) => {
-    console.log('🔄 Platform changed to:', platform);
-    setSelectedPlatform(platform);
-  };
-
   const handleSendMessage = async () => {
     if (!messageInput.trim()) return;
-    if (!partnerId) {
-      toast({ variant: 'destructive', title: 'Error', description: 'Partner ID not found' });
-      return;
-    }
-  
-    let phoneNumber = '';
-    let conversationId = '';
-    let platform: Platform = selectedPlatform;
-    
-    console.log('📤 Sending message:', { platform, selectedConversation: !!selectedConversation });
-    
-    if (selectedConversation) {
-      phoneNumber = selectedConversation.customerPhone;
-      const platformConvoId = getConversationIdForPlatform(selectedConversation, platform);
-      
-      console.log('📝 Platform conversation ID:', platformConvoId);
-      
-      if (!platformConvoId) {
-        conversationId = 'pending';
-      } else {
-        conversationId = platformConvoId;
-      }
-    } else if (showNewConversation && newPhoneNumber) {
-      phoneNumber = newPhoneNumber;
-      platform = newPlatform;
-      conversationId = 'pending';
-    } else {
-      toast({ variant: 'destructive', title: 'Error', description: 'Please select a conversation or enter a phone number' });
-      return;
-    }
+    if (!partnerId || !selectedConversation) return;
 
-    const currentMessage = messageInput.trim();
-    const tempId = `temp-${Date.now()}`;
-    
-    const optimisticMessage: UnifiedMessage = {
-      id: tempId,
-      conversationId: conversationId === 'pending' ? '' : conversationId,
-      senderId: partnerId,
-      content: currentMessage,
-      type: 'text',
+    console.log('📤 Sending message via', selectedConversation.platform);
+
+    // Optimistic message
+    const optimistic = {
+      id: `optimistic-${Date.now()}`,
+      conversationId: selectedConversation.id,
       direction: 'outbound',
-      platform: platform,
+      content: messageInput,
+      status: 'pending',
       createdAt: Timestamp.now(),
-      smsMetadata: platform === 'sms' ? {
-        to: phoneNumber,
-        from: '',
-        twilioStatus: 'queued',
-      } : undefined,
-      whatsAppMetadata: platform === 'whatsapp' ? {
-        to: `whatsapp:${phoneNumber}`,
-        from: '',
-        messageStatus: 'queued',
-      } : undefined,
-    } as UnifiedMessage;
-    
-    setOptimisticMessages(prev => [...prev, optimisticMessage]);
+      senderId: user?.uid
+    };
+
+    setOptimisticMessages(prev => [...prev, optimistic]);
+    const messageText = messageInput;
     setMessageInput('');
-    setIsSending(true);
 
     try {
       let result;
       
-      console.log('🚀 Sending via:', platform);
-      
-      if (platform === 'sms') {
+      if (selectedConversation.platform === 'sms') {
         result = await sendSMSAction({
           partnerId,
-          to: phoneNumber,
-          message: currentMessage,
-          conversationId: conversationId !== 'pending' ? conversationId : undefined,
+          to: selectedConversation.customerPhone,
+          message: messageText,
+          conversationId: selectedConversation.id,
         });
       } else {
         result = await sendWhatsAppMessageAction({
           partnerId,
-          to: phoneNumber,
-          message: currentMessage,
-          conversationId: conversationId !== 'pending' ? conversationId : undefined,
+          to: selectedConversation.customerPhone,
+          message: messageText,
+          conversationId: selectedConversation.id,
         });
       }
 
-      console.log('📬 Send result:', result);
-
       if (result.success) {
-        toast({ title: 'Message sent', description: 'Your message was delivered successfully' });
-        
-        setTimeout(() => {
-          setOptimisticMessages(prev => prev.filter(m => m.id !== tempId));
-        }, 1000);
-
-        if (showNewConversation && result.conversationId) {
-          setShowNewConversation(false);
-        }
+        console.log('✅ Message sent successfully');
+        setOptimisticMessages(prev => prev.filter(m => m.id !== optimistic.id));
       } else {
-        throw new Error(result.message || 'Failed to send message');
+        throw new Error(result.message || 'Failed to send');
       }
     } catch (error: any) {
       console.error('❌ Send error:', error);
       toast({ 
         variant: 'destructive', 
-        title: 'Failed to send message', 
+        title: 'Failed to send', 
         description: error.message 
       });
-      
-      setOptimisticMessages(prev => prev.filter(m => m.id !== tempId));
-    } finally {
-      setIsSending(false);
+      setOptimisticMessages(prev => prev.filter(m => m.id !== optimistic.id));
     }
   };
 
@@ -318,128 +273,167 @@ export default function MessagingPage() {
     setSelectedConversation(null);
     setShowDiagnostics(false);
     setShowClientProfile(false);
-    setNewPhoneNumber('');
-    setMessageInput('');
+  };
+
+  const handleConversationCreated = (conversationId: string, platform: Platform) => {
+    console.log('🎉 New conversation created:', { conversationId, platform });
+    setShowNewConversation(false);
+    
+    setTimeout(() => {
+      const newConvo = simpleConversations.find(c => c.id === conversationId);
+      if (newConvo) {
+        handleSelectConversation(newConvo);
+      }
+    }, 500);
   };
 
   const handleViewDiagnostics = () => {
     setShowDiagnostics(true);
-    setShowNewConversation(false);
     setSelectedConversation(null);
+    setShowNewConversation(false);
+    setShowClientProfile(false);
   };
 
   const handleToggleProfile = () => {
-    setShowClientProfile(!showClientProfile);
+    setShowClientProfile(prev => !prev);
   };
 
+  // Convert simple conversation for components that expect unified format
+  const selectedForComponents = selectedConversation ? {
+    id: selectedConversation.id,
+    customerPhone: selectedConversation.customerPhone,
+    customerName: selectedConversation.customerName,
+    contactName: selectedConversation.contactName,
+    contactEmail: selectedConversation.contactEmail,
+    contactId: selectedConversation.contactId,
+    availablePlatforms: [selectedConversation.platform],
+    smsConversationId: selectedConversation.platform === 'sms' ? selectedConversation.id : undefined,
+    whatsappConversationId: selectedConversation.platform === 'whatsapp' ? selectedConversation.id : undefined,
+    lastMessageAt: selectedConversation.lastMessageAt,
+    messageCount: selectedConversation.messageCount,
+    recentMessages: [],
+    isActive: selectedConversation.isActive,
+    clientInfo: selectedConversation.clientInfo,
+    partnerId: selectedConversation.partnerId,
+    createdAt: selectedConversation.createdAt
+  } : null;
+
   return (
-    <div className="flex flex-col h-screen bg-slate-100">
-      <header className="bg-white border-b border-slate-200 px-6 py-3">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <MessageSquare className="w-5 h-5 text-blue-600" />
-            <h1 className="text-lg font-semibold text-slate-900">Messaging</h1>
-          </div>
-          <div className="flex items-center gap-2">
-            <Button
-              variant={notificationsEnabled ? "outline" : "ghost"}
-              size="icon"
-              onClick={() => setNotificationsEnabled(!notificationsEnabled)}
-              title={notificationsEnabled ? "Notifications enabled" : "Notifications disabled"}
-            >
-              {notificationsEnabled ? (
-                <Bell className="w-4 h-4" />
+    <div className="flex h-screen bg-gray-50 overflow-hidden">
+      <audio ref={audioRef} src="/notification.mp3" />
+      
+      {/* Conversation List - Shows separate SMS and WhatsApp threads */}
+      <ConversationList
+        conversations={filteredConversations}
+        selectedConversation={selectedForComponents}
+        searchTerm={searchTerm}
+        onSearchChange={setSearchTerm}
+        onSelectConversation={handleSelectConversation}
+        onNewConversation={handleNewConversation}
+        isLoading={isLoadingConversations || isLoadingContacts}
+      />
+
+      <main className="flex-1 flex flex-col relative min-w-0">
+        {showDiagnostics ? (
+          <DiagnosticsView 
+            diagnostics={diagnostics}
+            onClose={() => setShowDiagnostics(false)}
+          />
+        ) : showNewConversation ? (
+          <NewConversationForm
+            partnerId={partnerId}
+            onClose={() => setShowNewConversation(false)}
+            onConversationCreated={handleConversationCreated}
+          />
+        ) : selectedConversation ? (
+          <>
+            {/* Chat Header - Shows platform badge */}
+            <ChatHeader
+              conversation={selectedForComponents!}
+              selectedPlatform={selectedConversation.platform}
+              onPlatformChange={() => {}} // No switching since separate threads
+              onToggleProfile={handleToggleProfile}
+            />
+
+            {/* Messages List */}
+            <div className="flex-1 overflow-hidden">
+              {isLoadingMessages ? (
+                <div className="flex items-center justify-center h-full">
+                  <div className="text-center">
+                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+                    <p className="text-gray-500">Loading messages...</p>
+                  </div>
+                </div>
               ) : (
-                <BellOff className="w-4 h-4" />
+                <MessagesList
+                  messages={allMessages}
+                  isLoadingMore={false}
+                  allMessagesLoaded={true}
+                  onLoadMore={() => {}}
+                  partnerId={partnerId}
+                />
               )}
-            </Button>
-            <Button onClick={handleNewConversation}>
-              <Plus className="w-4 h-4 mr-2" />
-              New Conversation
-            </Button>
+            </div>
+
+            {/* Message Input */}
+            <MessageInput
+              value={messageInput}
+              onChange={setMessageInput}
+              onSend={handleSendMessage}
+              platform={selectedConversation.platform}
+              disabled={false}
+            />
+
+            {/* Client Profile Panel */}
+            {showClientProfile && (
+              <div className="absolute top-0 right-0 h-full w-96 bg-white shadow-xl z-10 border-l border-gray-200">
+                <ClientProfilePanel
+                  conversation={selectedForComponents!}
+                  onClose={handleToggleProfile}
+                  partnerId={partnerId}
+                />
+              </div>
+            )}
+          </>
+        ) : (
+          <EmptyState 
+            onNewConversation={handleNewConversation}
+            onViewDiagnostics={handleViewDiagnostics}
+          />
+        )}
+
+        {/* Settings */}
+        {!showDiagnostics && !showNewConversation && (
+          <div className="absolute top-4 right-4 z-20">
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="icon">
-                  <MoreVertical className="w-4 h-4" />
+                <Button variant="ghost" size="icon" className="bg-white shadow-sm">
+                  <MoreVertical className="w-5 h-5" />
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => setNotificationsEnabled(!notificationsEnabled)}>
+                  {notificationsEnabled ? (
+                    <>
+                      <BellOff className="w-4 h-4 mr-2" />
+                      Disable Notifications
+                    </>
+                  ) : (
+                    <>
+                      <Bell className="w-4 h-4 mr-2" />
+                      Enable Notifications
+                    </>
+                  )}
+                </DropdownMenuItem>
                 <DropdownMenuItem onClick={handleViewDiagnostics}>
                   <Settings className="w-4 h-4 mr-2" />
-                  Diagnostics
+                  View Diagnostics
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
-        </div>
-      </header>
-
-      <div className="flex-1 flex overflow-hidden">
-        <ConversationList
-          conversations={filteredConversations}
-          selectedConversation={selectedConversation}
-          searchTerm={searchTerm}
-          onSearchChange={setSearchTerm}
-          onSelectConversation={handleSelectConversation}
-          onNewConversation={handleNewConversation}
-          isLoading={isLoadingConversations || isLoadingContacts}
-        />
-
-        <div className="flex-1 flex flex-col bg-white relative">
-          {showDiagnostics ? (
-            <DiagnosticsView 
-              diagnostics={diagnostics} 
-              onBack={() => setShowDiagnostics(false)} 
-            />
-          ) : showNewConversation ? (
-            <NewConversationForm
-              phoneNumber={newPhoneNumber}
-              message={messageInput}
-              platform={newPlatform}
-              isSending={isSending}
-              onPhoneNumberChange={setNewPhoneNumber}
-              onMessageChange={setMessageInput}
-              onPlatformChange={setNewPlatform}
-              onSend={handleSendMessage}
-            />
-          ) : selectedConversation ? (
-            <>
-              <ChatHeader 
-                conversation={selectedConversation}
-                selectedPlatform={selectedPlatform}
-                onPlatformChange={handlePlatformChange}
-                onToggleProfile={handleToggleProfile}
-              />
-              <MessagesList 
-                messages={messages}
-                isLoadingMore={isLoadingMore}
-                allMessagesLoaded={allMessagesLoaded}
-                onLoadMore={loadMore}
-                partnerId={partnerId || ''}
-              />
-              <MessageInput
-                value={messageInput}
-                onChange={setMessageInput}
-                onSend={handleSendMessage}
-                isSending={isSending}
-                placeholder={`Send via ${selectedPlatform === 'whatsapp' ? 'WhatsApp' : 'SMS'}...`}
-              />
-            </>
-          ) : (
-            <EmptyState onNewConversation={handleNewConversation} />
-          )}
-        </div>
-
-        {selectedConversation && showClientProfile && partnerId && (
-          <ClientProfilePanel 
-            conversation={selectedConversation}
-            onClose={() => setShowClientProfile(false)}
-            partnerId={partnerId}
-          />
         )}
-      </div>
-
-      <audio ref={audioRef} src="/notification.mp3" />
+      </main>
     </div>
   );
 }
