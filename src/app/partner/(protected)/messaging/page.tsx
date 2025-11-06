@@ -1,30 +1,14 @@
-// src/app/partner/(protected)/messaging/page.tsx
 "use client";
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useMultiWorkspaceAuth } from '@/hooks/use-multi-workspace-auth';
 import { Button } from '@/components/ui/button';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { useToast } from '@/hooks/use-toast';
-import { 
-  MessageSquare, 
-  Plus,
-  MoreVertical,
-  Settings,
-  Bell,
-  BellOff,
-} from 'lucide-react';
+import { Bell } from 'lucide-react';
 import { sendSMSAction } from '@/actions/sms-actions';
 import { sendWhatsAppMessageAction } from '@/actions/whatsapp-actions';
-import { deleteMessageAction, deleteConversationAction } from '@/actions/message-actions';
 import { Timestamp } from 'firebase/firestore';
-import { groupConversationsByPhone } from '@/lib/conversation-utils';
 
 import { useConversations } from '@/hooks/useConversations';
 import { useEnrichedConversations } from '@/hooks/useEnrichedConversations';
@@ -65,10 +49,6 @@ interface SimpleConversation {
   partnerId: string;
   createdAt: any;
   clientInfo?: any;
-  availablePlatforms?: Platform[];
-  smsConversationId?: string;
-  whatsappConversationId?: string;
-  isPinned?: boolean;
 }
 
 export default function MessagingPage() {
@@ -78,23 +58,11 @@ export default function MessagingPage() {
   
   const partnerId = currentWorkspace?.partnerId || user?.customClaims?.partnerId;
   
-  console.log('════════════════════════════════════════════');
-  console.log('🏠 MESSAGING PAGE - SEPARATE THREADS VERSION');
-  console.log('Partner ID:', partnerId);
-  console.log('════════════════════════════════════════════');
-  
   const { conversations: rawConversations, isLoading: isLoadingConversations } = useConversations(partnerId);
-  
-  console.log('📦 Raw conversations:', {
-    total: rawConversations.length,
-    sms: rawConversations.filter(c => c.platform === 'sms').length,
-    whatsapp: rawConversations.filter(c => c.platform === 'whatsapp').length
-  });
-  
   const { enrichedConversations, isLoadingContacts } = useEnrichedConversations(rawConversations, partnerId);
   
   const simpleConversations: SimpleConversation[] = useMemo(() => {
-    const converted = enrichedConversations.map(conv => ({
+    return enrichedConversations.map(conv => ({
       id: conv.id,
       platform: conv.platform as Platform,
       customerPhone: conv.customerPhone,
@@ -109,112 +77,81 @@ export default function MessagingPage() {
       createdAt: conv.createdAt,
       clientInfo: conv.clientInfo
     }));
-    
-    return groupConversationsByPhone(converted) as SimpleConversation[];
   }, [enrichedConversations]);
-
-  console.log('✅ Simple conversations (separate threads):', {
-    total: simpleConversations.length,
-    sms: simpleConversations.filter(c => c.platform === 'sms').length,
-    whatsapp: simpleConversations.filter(c => c.platform === 'whatsapp').length
-  });
   
-  const { notificationsEnabled, setNotificationsEnabled, audioRef, notify } = useNotifications();
+  const { notifications, hasUnread, markAllAsRead } = useNotifications(partnerId);
   
   const [selectedConversation, setSelectedConversation] = useState<SimpleConversation | null>(null);
-  const [messageInput, setMessageInput] = useState('');
-  const [searchTerm, setSearchTerm] = useState('');
   const [showNewConversation, setShowNewConversation] = useState(false);
   const [showDiagnostics, setShowDiagnostics] = useState(false);
   const [showClientProfile, setShowClientProfile] = useState(false);
-  const [diagnostics, setDiagnostics] = useState<MessagingDiagnostics | null>(null);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [messageInput, setMessageInput] = useState('');
   const [optimisticMessages, setOptimisticMessages] = useState<any[]>([]);
-
+  const [notificationSound, setNotificationSound] = useState(true);
+  const audioRef = useRef<HTMLAudioElement>(null);
+  
   const { 
-    messages: loadedMessages, 
-    isLoading: isLoadingMessages 
+    messages: dbMessages, 
+    isLoading: isLoadingMessages
   } = useConversationMessages({
     conversationId: selectedConversation?.id,
     platform: selectedConversation?.platform || 'sms',
     onNewMessage: () => {
-      console.log('🔔 New message notification!');
-      notify();
+      if (notificationSound) {
+        audioRef.current?.play().catch(e => console.log('Audio play failed:', e));
+      }
     }
-  });
-
-  console.log('📨 Messages for selected conversation:', {
-    conversationId: selectedConversation?.id,
-    platform: selectedConversation?.platform,
-    count: loadedMessages.length,
-    inbound: loadedMessages.filter(m => m.direction === 'inbound').length,
-    outbound: loadedMessages.filter(m => m.direction === 'outbound').length
   });
 
   const allMessages = useMemo(() => {
-    const combined = [...loadedMessages, ...optimisticMessages];
-    combined.sort((a, b) => {
-      const timeA = a.createdAt?.toMillis?.() || 0;
-      const timeB = b.createdAt?.toMillis?.() || 0;
-      return timeA - timeB;
+    return [...dbMessages, ...optimisticMessages].sort((a, b) => {
+      const aTime = a.createdAt?.toMillis?.() || a.createdAt?.seconds * 1000 || 0;
+      const bTime = b.createdAt?.toMillis?.() || b.createdAt?.seconds * 1000 || 0;
+      return aTime - bTime;
     });
-    return combined;
-  }, [loadedMessages, optimisticMessages]);
-
-  useEffect(() => {
-    setOptimisticMessages([]);
-  }, [selectedConversation?.id]);
-
-  useEffect(() => {
-    async function fetchDiagnostics() {
-      try {
-        const response = await fetch('/api/diagnostics/messaging');
-        if (response.ok) {
-          const data = await response.json();
-          setDiagnostics(data);
-        }
-      } catch (error) {
-        console.error("Failed to fetch diagnostics", error);
-      }
-    }
-    fetchDiagnostics();
-  }, []);
+  }, [dbMessages, optimisticMessages]);
 
   const filteredConversations = useMemo(() => {
     if (!searchTerm) return simpleConversations;
-    
-    const lowerSearch = searchTerm.toLowerCase();
-    return simpleConversations.filter(convo => {
-      const phone = convo.customerPhone?.toLowerCase() || '';
-      const customerName = convo.customerName?.toLowerCase() || '';
-      const contactName = convo.contactName?.toLowerCase() || '';
-      
-      return phone.includes(lowerSearch) || 
-             customerName.includes(lowerSearch) ||
-             contactName.includes(lowerSearch);
-    });
+    const term = searchTerm.toLowerCase();
+    return simpleConversations.filter(conv => 
+      conv.contactName?.toLowerCase().includes(term) ||
+      conv.customerName?.toLowerCase().includes(term) ||
+      conv.customerPhone.includes(term)
+    );
   }, [simpleConversations, searchTerm]);
 
-  const handleSelectConversation = (conversation: any) => {
-    console.log('════════════════════════════════════════════');
-    console.log('👆 CONVERSATION SELECTED:', {
-      id: conversation.id,
-      platform: conversation.platform,
-      phone: conversation.customerPhone,
-      name: conversation.contactName || conversation.customerName
-    });
-    console.log('════════════════════════════════════════════');
-    
+  const [diagnostics, setDiagnostics] = useState<MessagingDiagnostics>({
+    configOk: false,
+    accountSid: false,
+    authToken: false,
+    smsNumber: false,
+    whatsAppNumber: false,
+    baseUrl: typeof window !== 'undefined' ? window.location.origin : ''
+  });
+
+  useEffect(() => {
+    const urlConversationId = searchParams.get('conversation');
+    if (urlConversationId && simpleConversations.length > 0) {
+      const conv = simpleConversations.find(c => c.id === urlConversationId);
+      if (conv) {
+        handleSelectConversation(conv);
+      }
+    }
+  }, [searchParams, simpleConversations]);
+
+  const handleSelectConversation = (conversation: SimpleConversation) => {
     setSelectedConversation(conversation);
     setShowNewConversation(false);
     setShowDiagnostics(false);
     setShowClientProfile(false);
+    setOptimisticMessages([]);
   };
 
   const handleSendMessage = async () => {
     if (!messageInput.trim()) return;
     if (!partnerId || !selectedConversation) return;
-
-    console.log('📤 Sending message via', selectedConversation.platform);
 
     const optimistic = {
       id: `optimistic-${Date.now()}`,
@@ -250,7 +187,6 @@ export default function MessagingPage() {
       }
 
       if (result.success) {
-        console.log('✅ Message sent successfully');
         setOptimisticMessages(prev => prev.filter(m => m.id !== optimistic.id));
       } else {
         throw new Error(result.message || 'Failed to send');
@@ -266,75 +202,6 @@ export default function MessagingPage() {
     }
   };
 
-  const handleDeleteMessage = async (messageId: string, conversationId: string, platform: Platform) => {
-    if (!partnerId) return;
-
-    try {
-      const result = await deleteMessageAction({
-        messageId,
-        conversationId,
-        platform,
-        partnerId,
-      });
-
-      if (result.success) {
-        toast({
-          title: 'Message deleted',
-          description: 'The message has been deleted successfully.',
-        });
-      } else {
-        throw new Error(result.message);
-      }
-    } catch (error: any) {
-      console.error('❌ Delete error:', error);
-      toast({
-        variant: 'destructive',
-        title: 'Failed to delete',
-        description: error.message || 'Could not delete the message.',
-      });
-    }
-  };
-
-  const handleDeleteConversation = async (conversationId: string, platform: Platform) => {
-    if (!partnerId) return;
-
-    try {
-      const result = await deleteConversationAction({
-        conversationId,
-        platform,
-        partnerId,
-      });
-
-      if (result.success) {
-        if (selectedConversation?.id === conversationId) {
-          setSelectedConversation(null);
-        }
-        
-        toast({
-          title: 'Conversation deleted',
-          description: `Conversation and ${result.deletedMessagesCount || 0} messages deleted successfully.`,
-        });
-      } else {
-        throw new Error(result.message);
-      }
-    } catch (error: any) {
-      console.error('❌ Delete conversation error:', error);
-      toast({
-        variant: 'destructive',
-        title: 'Failed to delete conversation',
-        description: error.message || 'Could not delete the conversation.',
-      });
-    }
-  };
-
-  const handlePinConversation = async (conversationId: string, platform: Platform) => {
-    console.log('📌 Pin conversation:', { conversationId, platform });
-    toast({
-      title: 'Pin feature',
-      description: 'Pin/Unpin functionality will be implemented soon.',
-    });
-  };
-
   const handleNewConversation = () => {
     setShowNewConversation(true);
     setSelectedConversation(null);
@@ -343,9 +210,7 @@ export default function MessagingPage() {
   };
 
   const handleConversationCreated = (conversationId: string, platform: Platform) => {
-    console.log('🎉 New conversation created:', { conversationId, platform });
     setShowNewConversation(false);
-    
     setTimeout(() => {
       const newConvo = simpleConversations.find(c => c.id === conversationId);
       if (newConvo) {
@@ -372,9 +237,9 @@ export default function MessagingPage() {
     contactName: selectedConversation.contactName,
     contactEmail: selectedConversation.contactEmail,
     contactId: selectedConversation.contactId,
-    availablePlatforms: selectedConversation.availablePlatforms || [selectedConversation.platform],
-    smsConversationId: selectedConversation.smsConversationId || (selectedConversation.platform === 'sms' ? selectedConversation.id : undefined),
-    whatsappConversationId: selectedConversation.whatsappConversationId || (selectedConversation.platform === 'whatsapp' ? selectedConversation.id : undefined),
+    availablePlatforms: [selectedConversation.platform],
+    smsConversationId: selectedConversation.platform === 'sms' ? selectedConversation.id : undefined,
+    whatsappConversationId: selectedConversation.platform === 'whatsapp' ? selectedConversation.id : undefined,
     lastMessageAt: selectedConversation.lastMessageAt,
     messageCount: selectedConversation.messageCount,
     recentMessages: [],
@@ -395,99 +260,88 @@ export default function MessagingPage() {
         onSearchChange={setSearchTerm}
         onSelectConversation={handleSelectConversation}
         onNewConversation={handleNewConversation}
-        onDeleteConversation={handleDeleteConversation}
-        onPinConversation={handlePinConversation}
         isLoading={isLoadingConversations || isLoadingContacts}
       />
 
-      <main className="flex-1 flex flex-col relative min-w-0">
-        {showDiagnostics ? (
-          <DiagnosticsView 
-            diagnostics={diagnostics}
-            onClose={() => setShowDiagnostics(false)}
-          />
-        ) : showNewConversation ? (
-          <NewConversationForm
-            partnerId={partnerId}
-            onClose={() => setShowNewConversation(false)}
-            onConversationCreated={handleConversationCreated}
-          />
-        ) : selectedConversation ? (
-          <>
-            <ChatHeader
-              conversation={selectedForComponents!}
-              selectedPlatform={selectedConversation.platform}
-              onPlatformChange={() => {}}
-              onToggleProfile={handleToggleProfile}
+      <main className="flex-1 flex relative min-w-0">
+        <div className="flex-1 flex flex-col">
+          {showDiagnostics ? (
+            <DiagnosticsView 
+              diagnostics={diagnostics}
+              onClose={() => setShowDiagnostics(false)}
             />
+          ) : showNewConversation ? (
+            <NewConversationForm
+              partnerId={partnerId}
+              onClose={() => setShowNewConversation(false)}
+              onConversationCreated={handleConversationCreated}
+            />
+          ) : selectedConversation ? (
+            <>
+              <ChatHeader
+                conversation={selectedForComponents!}
+                selectedPlatform={selectedConversation.platform}
+                onPlatformChange={() => {}}
+                onToggleProfile={handleToggleProfile}
+              />
 
-            <div className="flex-1 overflow-hidden">
-              {isLoadingMessages ? (
-                <div className="flex items-center justify-center h-full">
-                  <div className="text-center">
-                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-                    <p className="text-gray-500">Loading messages...</p>
+              <div className="flex-1 overflow-hidden">
+                {isLoadingMessages ? (
+                  <div className="flex items-center justify-center h-full">
+                    <div className="text-center">
+                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-slate-600 mx-auto mb-4"></div>
+                      <p className="text-sm text-slate-600">Loading messages...</p>
+                    </div>
                   </div>
-                </div>
-              ) : (
-                <MessagesList
-                  messages={allMessages}
-                  isLoadingMore={false}
-                  allMessagesLoaded={true}
-                  onLoadMore={() => {}}
-                  partnerId={partnerId}
-                  onDeleteMessage={handleDeleteMessage}
-                />
-              )}
-            </div>
-
-            <MessageInput
-              value={messageInput}
-              onChange={setMessageInput}
-              onSend={handleSendMessage}
-              platform={selectedConversation.platform}
-              disabled={false}
-            />
-
-            {showClientProfile && (
-              <div className="absolute top-0 right-0 h-full w-96 bg-white shadow-xl z-10 border-l border-gray-200">
-                <ClientProfilePanel
-                  conversation={selectedForComponents!}
-                  onClose={handleToggleProfile}
-                  partnerId={partnerId}
-                />
+                ) : (
+                  <MessagesList
+                    messages={allMessages}
+                    isLoadingMore={false}
+                    allMessagesLoaded={true}
+                    onLoadMore={() => {}}
+                    partnerId={partnerId}
+                  />
+                )}
               </div>
-            )}
-          </>
-        ) : (
-          <EmptyState 
-            onNewConversation={handleNewConversation}
-            onViewDiagnostics={handleViewDiagnostics}
-          />
-        )}
 
-        {!showDiagnostics && !showNewConversation && (
-          <div className="absolute top-4 right-4 z-20">
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon" className="bg-white shadow-sm">
-                  <MoreVertical className="w-5 h-5" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={() => setNotificationsEnabled(!notificationsEnabled)}>
-                  {notificationsEnabled ? <BellOff className="w-4 h-4 mr-2" /> : <Bell className="w-4 h-4 mr-2" />}
-                  {notificationsEnabled ? 'Disable' : 'Enable'} Notifications
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={handleViewDiagnostics}>
-                  <Settings className="w-4 h-4 mr-2" />
-                  Diagnostics
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+              <MessageInput
+                value={messageInput}
+                onChange={setMessageInput}
+                onSend={handleSendMessage}
+                isSending={false}
+                platform={selectedConversation.platform}
+              />
+            </>
+          ) : (
+            <EmptyState 
+              onNewConversation={handleNewConversation}
+              onViewDiagnostics={handleViewDiagnostics}
+            />
+          )}
+        </div>
+
+        {showClientProfile && selectedConversation && (
+          <div className="w-96 border-l border-slate-200 bg-white">
+            <ClientProfilePanel
+              conversation={selectedForComponents!}
+              partnerId={partnerId}
+              onClose={() => setShowClientProfile(false)}
+            />
           </div>
         )}
       </main>
+
+      {hasUnread && (
+        <div className="fixed bottom-4 right-4 z-50">
+          <Button
+            onClick={markAllAsRead}
+            className="bg-blue-600 hover:bg-blue-700 text-white shadow-lg"
+          >
+            <Bell className="w-4 h-4 mr-2" />
+            {notifications.filter(n => !n.isRead).length} new
+          </Button>
+        </div>
+      )}
     </div>
   );
 }

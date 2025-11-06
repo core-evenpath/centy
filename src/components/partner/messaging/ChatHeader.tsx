@@ -1,26 +1,41 @@
-// src/components/partner/messaging/ChatHeader.tsx
 "use client";
 
 import React from 'react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { 
-  User,
-  MessageCircle,
-  Smartphone,
-  ChevronDown,
-  MoreVertical
-} from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuTrigger,
   DropdownMenuSeparator,
+  DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import type { UnifiedConversation } from '@/lib/conversation-grouping-service';
+import { 
+  User, 
+  MoreVertical,
+  MessageCircle,
+  Smartphone
+} from 'lucide-react';
+import { Phone, Mail } from 'lucide-react';
 
 type Platform = 'sms' | 'whatsapp';
+
+interface UnifiedConversation {
+  id: string;
+  customerPhone: string;
+  customerName?: string;
+  contactName?: string;
+  contactEmail?: string;
+  contactId?: string;
+  availablePlatforms: Platform[];
+  smsConversationId?: string;
+  whatsappConversationId?: string;
+  lastMessageAt: any;
+  messageCount: number;
+  recentMessages?: any[];
+  isActive: boolean;
+  clientInfo?: any;
+}
 
 interface ChatHeaderProps {
   conversation: UnifiedConversation;
@@ -29,111 +44,40 @@ interface ChatHeaderProps {
   onToggleProfile: () => void;
 }
 
-export default function ChatHeader({ 
-  conversation, 
+export default function ChatHeader({
+  conversation,
   selectedPlatform,
   onPlatformChange,
-  onToggleProfile 
+  onToggleProfile,
 }: ChatHeaderProps) {
   const displayName = conversation.contactName || conversation.customerName || conversation.customerPhone;
   const hasMultiplePlatforms = conversation.availablePlatforms.length > 1;
 
-  console.log('🎨 ChatHeader render:', {
-    displayName,
-    platforms: conversation.availablePlatforms,
-    selectedPlatform,
-    hasMultiplePlatforms
-  });
-
   return (
-    <div className="bg-white border-b border-slate-200 px-6 py-4">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3 flex-1">
-          <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white font-semibold">
-            {displayName.charAt(0).toUpperCase()}
+    <div className="border-b border-slate-200 bg-white">
+      <div className="max-w-3xl mx-auto px-5 py-4 flex items-center justify-between">
+        <div className="flex items-center gap-3 min-w-0 flex-1">
+          <div className="flex-shrink-0 w-10 h-10 rounded-full bg-slate-200 flex items-center justify-center">
+            <User className="w-5 h-5 text-slate-600" />
           </div>
-          <div className="flex-1 min-w-0">
-            <h2 className="font-semibold text-slate-900 text-base truncate">
-              {displayName}
-            </h2>
-            <div className="flex items-center gap-2 mt-0.5">
-              <span className="text-xs text-slate-500">{conversation.customerPhone}</span>
-              {conversation.clientInfo?.company && (
+          
+          <div className="min-w-0 flex-1">
+            <h2 className="font-semibold text-slate-900 truncate">{displayName}</h2>
+            <div className="flex items-center gap-2 text-sm text-slate-500">
+              <Phone className="w-3 h-3" />
+              <span className="truncate">{conversation.customerPhone}</span>
+              {conversation.contactEmail && (
                 <>
-                  <span className="text-slate-300">•</span>
-                  <span className="text-xs text-slate-500">{conversation.clientInfo.company}</span>
+                  <span>•</span>
+                  <Mail className="w-3 h-3" />
+                  <span className="truncate">{conversation.contactEmail}</span>
                 </>
               )}
             </div>
           </div>
         </div>
 
-        {hasMultiplePlatforms ? (
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button 
-                variant="outline" 
-                size="sm"
-                className="gap-2"
-              >
-                {selectedPlatform === 'whatsapp' ? (
-                  <>
-                    <MessageCircle className="w-4 h-4 text-green-600" />
-                    <span>WhatsApp</span>
-                  </>
-                ) : (
-                  <>
-                    <Smartphone className="w-4 h-4 text-blue-600" />
-                    <span>SMS</span>
-                  </>
-                )}
-                <ChevronDown className="w-3 h-3 text-slate-500" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              {conversation.availablePlatforms.map(platform => (
-                <DropdownMenuItem
-                  key={platform}
-                  onClick={() => {
-                    console.log('🔄 Switching to platform:', platform);
-                    onPlatformChange(platform);
-                  }}
-                  className={selectedPlatform === platform ? 'bg-slate-50' : ''}
-                >
-                  {platform === 'whatsapp' ? (
-                    <>
-                      <MessageCircle className="w-4 h-4 mr-2 text-green-600" />
-                      <span>Send via WhatsApp</span>
-                    </>
-                  ) : (
-                    <>
-                      <Smartphone className="w-4 h-4 mr-2 text-blue-600" />
-                      <span>Send via SMS</span>
-                    </>
-                  )}
-                </DropdownMenuItem>
-              ))}
-            </DropdownMenuContent>
-          </DropdownMenu>
-        ) : (
-          <Badge 
-            variant="secondary"
-            className={`${
-              selectedPlatform === 'whatsapp'
-                ? 'bg-green-100 text-green-700'
-                : 'bg-blue-100 text-blue-700'
-            }`}
-          >
-            {selectedPlatform === 'whatsapp' ? (
-              <MessageCircle className="w-3 h-3 mr-1" />
-            ) : (
-              <Smartphone className="w-3 h-3 mr-1" />
-            )}
-            {selectedPlatform === 'whatsapp' ? 'WhatsApp' : 'SMS'}
-          </Badge>
-        )}
-
-        <div className="flex items-center gap-2 ml-3">
+        <div className="flex items-center gap-2 ml-3 flex-shrink-0">
           <Button 
             variant="ghost" 
             size="sm"
