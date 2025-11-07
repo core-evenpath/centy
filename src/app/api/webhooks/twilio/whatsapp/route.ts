@@ -6,7 +6,7 @@ import { FieldValue } from 'firebase-admin/firestore';
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
-const WEBHOOK_VERSION = 'v9-final-fix';
+const WEBHOOK_VERSION = 'v10-final-fix';
 
 async function logWebhookCall(payload: any, success: boolean, error?: string) {
   try {
@@ -42,11 +42,10 @@ export async function GET() {
 export async function POST(request: Request) {
   console.log(`🔔 WhatsApp Webhook ${WEBHOOK_VERSION}`);
   
-  let payload: Record<string, string> = {};
-
+  const payload: Record<string, string> = {};
+  
   try {
     const formData = await request.formData();
-    
     formData.forEach((value, key) => {
       payload[key] = value.toString();
     });
@@ -59,72 +58,38 @@ export async function POST(request: Request) {
       numMedia: payload.NumMedia
     });
     
-    if (!db) {
-      throw new Error('Database not configured');
-    }
+    if (!db) throw new Error('Database not configured');
 
-    // Handle status updates
     if (payload.MessageStatus) {
       console.log('Status update:', payload.MessageStatus);
       await logWebhookCall(payload, true);
-      return NextResponse.json({ 
-        success: true, 
-        message: 'Status update received',
-        version: WEBHOOK_VERSION 
-      });
+      return NextResponse.json({ success: true, message: 'Status update received', version: WEBHOOK_VERSION });
     }
 
-    // Validate required fields
     if (!payload.From || !payload.To) {
-      console.log('Missing From or To');
-      await logWebhookCall(payload, false, 'Missing required fields');
-      return NextResponse.json({ 
-        success: false, 
-        error: 'Missing required fields' 
-      }, { status: 400 });
+      throw new Error('Missing required fields: From or To');
     }
 
     const fromPhone = payload.From.replace('whatsapp:', '');
     const toPhone = payload.To;
     
-    // Get partner ID from phone mapping
     const lookupId = toPhone.startsWith('whatsapp:') ? toPhone : `whatsapp:${toPhone}`;
-    console.log('Looking up:', lookupId);
-    
     const mappingDoc = await db.collection('twilioPhoneMappings').doc(lookupId).get();
     
-    if (!mappingDoc.exists) {
-      const errorMsg = `No phone mapping found for ${lookupId}`;
-      console.error('❌', errorMsg);
-      await logWebhookCall(payload, false, errorMsg);
-      throw new Error(errorMsg);
-    }
+    if (!mappingDoc.exists) throw new Error(`No phone mapping found for ${lookupId}`);
     
     const partnerId = mappingDoc.data()?.partnerId;
-    if (!partnerId) {
-      const errorMsg = 'Phone mapping has no partnerId';
-      console.error('❌', errorMsg);
-      await logWebhookCall(payload, false, errorMsg);
-      throw new Error(errorMsg);
-    }
+    if (!partnerId) throw new Error('Phone mapping has no partnerId');
 
     console.log('✅ Partner ID:', partnerId);
 
-    // Find or create conversation
-    const convoQuery = await db
-      .collection('whatsappConversations')
-      .where('customerPhone', '==', fromPhone)
-      .where('partnerId', '==', partnerId)
-      .limit(1)
-      .get();
-
+    const convoQuery = await db.collection('whatsappConversations').where('customerPhone', '==', fromPhone).where('partnerId', '==', partnerId).limit(1).get();
     let conversationId: string;
     
     if (convoQuery.empty) {
       console.log('Creating new conversation');
       const convoRef = db.collection('whatsappConversations').doc();
       conversationId = convoRef.id;
-      
       await convoRef.set({
         id: conversationId,
         partnerId: partnerId,
@@ -139,7 +104,6 @@ export async function POST(request: Request) {
         createdAt: FieldValue.serverTimestamp(),
         lastMessageAt: FieldValue.serverTimestamp(),
       });
-      
       console.log('✨ Created conversation:', conversationId);
     } else {
       conversationId = convoQuery.docs[0].id;
@@ -147,61 +111,64 @@ export async function POST(request: Request) {
         lastMessageAt: FieldValue.serverTimestamp(),
         messageCount: FieldValue.increment(1),
       });
-      
       console.log('📝 Updated conversation:', conversationId);
     }
-    
-    // --- START: CORRECTED MESSAGE CONSTRUCTION ---
 
-    // 1. Create the base message object, valid for ALL messages
-    const messageData: Record<string, any> = {
-      conversationId,
-      partnerId,
-      senderId: `customer:${fromPhone}`,
-      content: payload.Body || '',
-      direction: 'inbound',
-      platform: 'whatsapp',
-      isEdited: false,
-      createdAt: FieldValue.serverTimestamp(),
-    };
-
-    // 2. Create the base metadata object
-    const whatsappMetadata: Record<string, any> = {
-      twilioSid: payload.MessageSid,
-      twilioStatus: 'received',
-      to: payload.To,
-      from: payload.From,
-    };
-
-    // 3. Conditionally add media fields if media exists
+    let messageData: Record<string, any>;
     const numMedia = parseInt(payload.NumMedia || '0');
+
     if (numMedia > 0 && payload.MediaUrl0) {
-      messageData.type = payload.MediaContentType0?.startsWith('image') ? 'image' : 'file';
-      messageData.attachments = [{
-        id: payload.MessageSid,
-        type: messageData.type,
-        name: 'whatsapp_media',
-        url: payload.MediaUrl0,
-        size: 0,
-        mimeType: payload.MediaContentType0 || 'application/octet-stream',
-      }];
-      
-      // Add media properties to metadata object
-      whatsappMetadata.numMedia = numMedia;
-      whatsappMetadata.mediaUrls = [payload.MediaUrl0]; // Only this field causes the error
+      // --- Message WITH Media ---
+      messageData = {
+        conversationId,
+        partnerId,
+        senderId: `customer:${fromPhone}`,
+        type: payload.MediaContentType0?.startsWith('image') ? 'image' : 'file',
+        content: payload.Body || '',
+        direction: 'inbound',
+        platform: 'whatsapp',
+        isEdited: false,
+        createdAt: FieldValue.serverTimestamp(),
+        attachments: [{
+          id: payload.MessageSid,
+          type: payload.MediaContentType0?.startsWith('image') ? 'image' : 'file',
+          name: 'whatsapp_media',
+          url: payload.MediaUrl0,
+          size: 0, // Size not provided by Twilio
+          mimeType: payload.MediaContentType0 || 'application/octet-stream',
+        }],
+        whatsappMetadata: {
+          twilioSid: payload.MessageSid,
+          twilioStatus: 'received',
+          to: payload.To,
+          from: payload.From,
+          numMedia: numMedia,
+          mediaUrls: [payload.MediaUrl0]
+        },
+      };
+      console.log('💾 Saving message with media');
+
     } else {
-      messageData.type = 'text'; // It's a text message
+      // --- Text-only Message ---
+      messageData = {
+        conversationId,
+        partnerId,
+        senderId: `customer:${fromPhone}`,
+        type: 'text',
+        content: payload.Body || '',
+        direction: 'inbound',
+        platform: 'whatsapp',
+        isEdited: false,
+        createdAt: FieldValue.serverTimestamp(),
+        whatsappMetadata: {
+          twilioSid: payload.MessageSid,
+          twilioStatus: 'received',
+          to: payload.To,
+          from: payload.From,
+        },
+      };
+      console.log('💾 Saving text-only message');
     }
-
-    // 4. Assign the correctly formed metadata object
-    messageData.whatsappMetadata = whatsappMetadata;
-    
-    // --- END: CORRECTED MESSAGE CONSTRUCTION ---
-
-    console.log('💾 Saving message:', { 
-        type: messageData.type,
-        hasMedia: numMedia > 0
-    });
     
     const messageRef = await db.collection('whatsappMessages').add(messageData);
     console.log('✅ Message saved:', messageRef.id);
@@ -218,14 +185,7 @@ export async function POST(request: Request) {
 
   } catch (error: any) {
     console.error('❌ Webhook Error:', error.message);
-    console.error('Stack:', error.stack);
-    
     await logWebhookCall(payload, false, error.message);
-    
-    return NextResponse.json({ 
-      success: false,
-      error: error.message,
-      version: WEBHOOK_VERSION
-    }, { status: 500 });
+    return NextResponse.json({ success: false, error: error.message, version: WEBHOOK_VERSION }, { status: 500 });
   }
 }
