@@ -150,7 +150,7 @@ export async function POST(request: Request) {
       
       console.log('📝 Updated conversation:', conversationId);
     }
-
+    
     // Build message data
     const messageData: Record<string, any> = {
       conversationId: conversationId,
@@ -162,18 +162,21 @@ export async function POST(request: Request) {
       platform: 'whatsapp',
       isEdited: false,
       createdAt: FieldValue.serverTimestamp(),
-      whatsappMetadata: {
+    };
+    
+    // Build metadata object dynamically
+    const metadata: Record<string, any> = {
         twilioSid: payload.MessageSid,
         twilioStatus: 'received',
         to: payload.To,
         from: payload.From,
         numMedia: parseInt(payload.NumMedia || '0'),
-      },
     };
 
-    // Conditionally add media fields ONLY if media exists
+    // Conditionally add media fields
     if (payload.NumMedia && parseInt(payload.NumMedia) > 0 && payload.MediaUrl0) {
       messageData.type = payload.MediaContentType0?.startsWith('image') ? 'image' : 'file';
+      
       messageData.attachments = [{
         id: payload.MessageSid,
         type: messageData.type,
@@ -182,7 +185,13 @@ export async function POST(request: Request) {
         size: 0,
         mimeType: payload.MediaContentType0 || 'application/octet-stream',
       }];
+      
+      // ONLY add mediaUrls to metadata if media exists
+      metadata.mediaUrls = [payload.MediaUrl0];
     }
+    
+    // Assign the correctly built metadata object
+    messageData.whatsappMetadata = metadata;
     
     console.log('💾 Saving message:', {
       type: messageData.type,
@@ -207,7 +216,9 @@ export async function POST(request: Request) {
     console.error('❌ Webhook Error:', error.message);
     console.error('Stack:', error.stack);
     
-    await logWebhookCall(payload, false, error.message);
+    // Use an empty object for the payload if it's not defined
+    const errorPayload = Object.keys(payload).length > 0 ? payload : { rawRequestError: "Could not parse form data" };
+    await logWebhookCall(errorPayload, false, error.message);
     
     return NextResponse.json({ 
       success: false,
