@@ -7,7 +7,7 @@ import type { WhatsAppMessage } from '@/lib/types';
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
-const WEBHOOK_VERSION = 'v12-final-fix';
+const WEBHOOK_VERSION = 'v13-explicit-media-handling';
 
 async function logWebhookCall(payload: any, success: boolean, error?: string) {
   try {
@@ -114,10 +114,19 @@ export async function POST(request: Request) {
     }
 
     const numMedia = parseInt(payload.NumMedia || '0');
+    
     let messageData: Partial<WhatsAppMessage>;
+    const baseMetadata = {
+      twilioSid: payload.MessageSid,
+      twilioStatus: 'received' as const,
+      to: payload.To,
+      from: payload.From,
+      errorCode: null,
+      errorMessage: null,
+    };
 
     if (numMedia > 0 && payload.MediaUrl0) {
-      // Logic for messages WITH media
+      // Message WITH media
       messageData = {
         conversationId,
         partnerId,
@@ -137,17 +146,14 @@ export async function POST(request: Request) {
           mimeType: payload.MediaContentType0 || 'application/octet-stream',
         }],
         whatsappMetadata: {
-          twilioSid: payload.MessageSid,
-          twilioStatus: 'received',
-          to: payload.To,
-          from: payload.From,
+          ...baseMetadata,
           numMedia: numMedia,
           mediaUrls: [payload.MediaUrl0],
         },
       };
       console.log('💾 Saving message WITH media');
     } else {
-      // Logic for text-only messages
+      // Text-only message
       messageData = {
         conversationId,
         partnerId,
@@ -159,10 +165,9 @@ export async function POST(request: Request) {
         isEdited: false,
         createdAt: FieldValue.serverTimestamp(),
         whatsappMetadata: {
-          twilioSid: payload.MessageSid,
-          twilioStatus: 'received',
-          to: payload.To,
-          from: payload.From,
+          ...baseMetadata,
+          numMedia: 0,
+          mediaUrls: [], // Use an empty array instead of undefined
         },
       };
       console.log('💾 Saving text-only message');
