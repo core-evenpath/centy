@@ -119,6 +119,7 @@ export async function POST(request: Request) {
 
     if (numMedia > 0 && payload.MediaUrl0) {
       // --- Message WITH Media ---
+      console.log('💾 Saving message with media');
       messageData = {
         conversationId,
         partnerId,
@@ -134,7 +135,7 @@ export async function POST(request: Request) {
           type: payload.MediaContentType0?.startsWith('image') ? 'image' : 'file',
           name: 'whatsapp_media',
           url: payload.MediaUrl0,
-          size: 0, // Size not provided by Twilio
+          size: 0,
           mimeType: payload.MediaContentType0 || 'application/octet-stream',
         }],
         whatsappMetadata: {
@@ -146,10 +147,10 @@ export async function POST(request: Request) {
           mediaUrls: [payload.MediaUrl0]
         },
       };
-      console.log('💾 Saving message with media');
 
     } else {
       // --- Text-only Message ---
+      console.log('💾 Saving text-only message');
       messageData = {
         conversationId,
         partnerId,
@@ -167,7 +168,6 @@ export async function POST(request: Request) {
           from: payload.From,
         },
       };
-      console.log('💾 Saving text-only message');
     }
     
     const messageRef = await db.collection('whatsappMessages').add(messageData);
