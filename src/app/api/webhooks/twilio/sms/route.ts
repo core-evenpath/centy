@@ -1,8 +1,11 @@
 
+// src/app/api/webhooks/twilio/sms/route.ts
+
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import { db } from '@/lib/firebase-admin';
 import { FieldValue } from 'firebase-admin/firestore';
+import type { SMSMessage } from '@/lib/types';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -85,25 +88,25 @@ export async function POST(request: NextRequest) {
 }
 
 async function getPartnerIdFromPhone(toPhone: string): Promise<string> {
-  if (!db) throw new Error('Database not configured');
+    if (!db) throw new Error('Database not configured');
+    
+    console.log('🔍 Looking up SMS mapping for:', toPhone);
+    
+    // For SMS, we use the direct E.164 number as the document ID
+    const mappingDoc = await db.collection('twilioPhoneMappings').doc(toPhone).get();
   
-  console.log('🔍 Looking up SMS mapping for:', toPhone);
-  
-  // For SMS, the phone number might not have the 'whatsapp:' prefix, so we check both
-  const snapshot = await db.collection('twilioPhoneMappings')
-    .where('phoneNumber', '==', toPhone)
-    .limit(1)
-    .get();
-
-  if (!snapshot.empty) {
-    const data = snapshot.docs[0].data();
-    console.log('✅ Found mapping for', toPhone);
-    return data.partnerId;
-  }
-  
-  console.error('❌ No phone mapping found for:', toPhone);
-  throw new Error(`No phone mapping found for ${toPhone}.`);
+    if (mappingDoc.exists) {
+        const data = mappingDoc.data();
+        if (data?.partnerId) {
+            console.log(`✅ Found mapping for ${toPhone} -> Partner: ${data.partnerId}`);
+            return data.partnerId;
+        }
+    }
+    
+    console.error('❌ No phone mapping found for:', toPhone);
+    throw new Error(`No phone mapping found for ${toPhone}.`);
 }
+
 
 async function handleIncomingMessage(payload: Record<string, string>) {
   if (!db) throw new Error('Database not configured');
@@ -146,11 +149,11 @@ async function handleIncomingMessage(payload: Record<string, string>) {
     });
   }
 
-  const messageData: any = {
+  const messageData: Partial<SMSMessage> = {
     conversationId,
     partnerId: partnerId, // ✅ CRITICAL FIX: Add partnerId
     senderId: `customer:${fromPhone}`,
-    type: payload.NumMedia && parseInt(payload.NumMedia) > 0 ? 'image' : 'text',
+    type: 'text',
     content: payload.Body || '',
     direction: 'inbound',
     platform: 'sms',
@@ -163,17 +166,6 @@ async function handleIncomingMessage(payload: Record<string, string>) {
     isEdited: false,
     createdAt: FieldValue.serverTimestamp(),
   };
-
-  if (payload.MediaUrl0) {
-    messageData.attachments = [{
-      id: payload.MessageSid,
-      type: payload.MediaContentType0?.startsWith('image') ? 'image' : 'file',
-      name: 'mms_attachment',
-      url: payload.MediaUrl0,
-      size: 0,
-      mimeType: payload.MediaContentType0 || 'application/octet-stream',
-    }];
-  }
 
   await db.collection('smsMessages').add(messageData);
   console.log('✅ SMS: Stored incoming message for partnerId:', partnerId);
@@ -199,3 +191,4 @@ async function handleStatusUpdate(payload: Record<string, string>) {
     console.log('Updated message status:', payload.MessageSid, payload.MessageStatus);
   }
 }
+
