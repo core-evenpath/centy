@@ -1,3 +1,4 @@
+// src/app/api/webhooks/twilio/whatsapp/route.ts
 
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/firebase-admin';
@@ -7,7 +8,7 @@ import type { WhatsAppMessage } from '@/lib/types';
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
-const WEBHOOK_VERSION = 'v13-explicit-media-handling';
+const WEBHOOK_VERSION = 'v14-text-only';
 
 async function logWebhookCall(payload: any, success: boolean, error?: string) {
   try {
@@ -113,74 +114,36 @@ export async function POST(request: Request) {
       console.log('📝 Updated conversation:', conversationId);
     }
 
-    const numMedia = parseInt(payload.NumMedia || '0');
-    
-    let messageData: Partial<WhatsAppMessage>;
-    const baseMetadata = {
-      twilioSid: payload.MessageSid,
-      twilioStatus: 'received' as const,
-      to: payload.To,
-      from: payload.From,
-      errorCode: null,
-      errorMessage: null,
+    // Simplified logic for text-only messages
+    const messageData: Partial<WhatsAppMessage> = {
+      conversationId,
+      partnerId,
+      senderId: `customer:${fromPhone}`,
+      type: 'text',
+      content: payload.Body || '',
+      direction: 'inbound',
+      platform: 'whatsapp',
+      isEdited: false,
+      createdAt: FieldValue.serverTimestamp(),
+      whatsappMetadata: {
+        twilioSid: payload.MessageSid,
+        twilioStatus: 'received' as const,
+        to: payload.To,
+        from: payload.From,
+        errorCode: null,
+        errorMessage: null,
+        numMedia: 0,
+      },
     };
-
-    if (numMedia > 0 && payload.MediaUrl0) {
-      // Message WITH media
-      messageData = {
-        conversationId,
-        partnerId,
-        senderId: `customer:${fromPhone}`,
-        type: 'image',
-        content: payload.Body || '',
-        direction: 'inbound',
-        platform: 'whatsapp',
-        isEdited: false,
-        createdAt: FieldValue.serverTimestamp(),
-        attachments: [{
-          id: payload.MessageSid,
-          type: payload.MediaContentType0?.startsWith('image') ? 'image' : 'file',
-          name: 'whatsapp_media',
-          url: payload.MediaUrl0,
-          size: 0,
-          mimeType: payload.MediaContentType0 || 'application/octet-stream',
-        }],
-        whatsappMetadata: {
-          ...baseMetadata,
-          numMedia: numMedia,
-          mediaUrls: [payload.MediaUrl0],
-        },
-      };
-      console.log('💾 Saving message WITH media');
-    } else {
-      // Text-only message
-      messageData = {
-        conversationId,
-        partnerId,
-        senderId: `customer:${fromPhone}`,
-        type: 'text',
-        content: payload.Body || '',
-        direction: 'inbound',
-        platform: 'whatsapp',
-        isEdited: false,
-        createdAt: FieldValue.serverTimestamp(),
-        whatsappMetadata: {
-          ...baseMetadata,
-          numMedia: 0,
-          mediaUrls: [], // Use an empty array instead of undefined
-        },
-      };
-      console.log('💾 Saving text-only message');
-    }
     
     const messageRef = await db.collection('whatsappMessages').add(messageData);
-    console.log('✅ Message saved:', messageRef.id);
+    console.log('✅ Text message saved:', messageRef.id);
 
     await logWebhookCall(payload, true);
 
     return NextResponse.json({ 
       success: true, 
-      message: 'Message received and saved',
+      message: 'Text message received and saved',
       version: WEBHOOK_VERSION,
       messageId: messageRef.id,
       conversationId: conversationId
