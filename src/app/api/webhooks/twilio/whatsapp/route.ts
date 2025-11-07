@@ -42,9 +42,10 @@ export async function GET() {
 export async function POST(request: Request) {
   console.log(`🔔 WhatsApp Webhook ${WEBHOOK_VERSION}`);
   
+  let payload: Record<string, string> = {};
+
   try {
     const formData = await request.formData();
-    const payload: Record<string, string> = {};
     
     formData.forEach((value, key) => {
       payload[key] = value.toString();
@@ -150,10 +151,10 @@ export async function POST(request: Request) {
       console.log('📝 Updated conversation:', conversationId);
     }
 
-    // Build message data - CRITICAL: Only add fields that have actual values
+    // Build message data
     const messageData: Record<string, any> = {
       conversationId: conversationId,
-      partnerId: partnerId, // ✅ CRITICAL FIX: Ensure partnerId is set
+      partnerId: partnerId,
       senderId: `customer:${fromPhone}`,
       type: 'text',
       content: payload.Body || '',
@@ -163,8 +164,7 @@ export async function POST(request: Request) {
       createdAt: FieldValue.serverTimestamp(),
     };
 
-    // CRITICAL: Only add whatsappMetadata fields that exist
-    // Build it dynamically to avoid undefined
+    // Dynamically build metadata to avoid undefined fields
     const metadata: Record<string, any> = {
       twilioSid: payload.MessageSid,
       twilioStatus: 'received',
@@ -172,25 +172,21 @@ export async function POST(request: Request) {
       from: payload.From,
     };
 
-    // Only add numMedia if it exists
-    if (payload.NumMedia) {
-      metadata.numMedia = parseInt(payload.NumMedia);
-    }
-
-    // ONLY add mediaUrls if there's actually media
-    if (payload.NumMedia && parseInt(payload.NumMedia) > 0 && payload.MediaUrl0) {
-      metadata.mediaUrls = [payload.MediaUrl0];
-      messageData.type = payload.MediaContentType0?.startsWith('image') ? 'image' : 'file';
-      
-      // Add attachments
-      messageData.attachments = [{
-        id: payload.MessageSid,
-        type: messageData.type,
-        name: 'whatsapp_media',
-        url: payload.MediaUrl0,
-        size: 0,
-        mimeType: payload.MediaContentType0 || 'application/octet-stream',
-      }];
+    const numMedia = parseInt(payload.NumMedia || '0');
+    if (numMedia > 0) {
+      metadata.numMedia = numMedia;
+      if (payload.MediaUrl0) {
+        metadata.mediaUrls = [payload.MediaUrl0];
+        messageData.type = payload.MediaContentType0?.startsWith('image') ? 'image' : 'file';
+        messageData.attachments = [{
+          id: payload.MessageSid,
+          type: messageData.type,
+          name: 'whatsapp_media',
+          url: payload.MediaUrl0,
+          size: 0,
+          mimeType: payload.MediaContentType0 || 'application/octet-stream',
+        }];
+      }
     }
 
     messageData.whatsappMetadata = metadata;
@@ -218,7 +214,7 @@ export async function POST(request: Request) {
     console.error('❌ Webhook Error:', error.message);
     console.error('Stack:', error.stack);
     
-    await logWebhookCall({}, false, error.message);
+    await logWebhookCall(payload, false, error.message);
     
     return NextResponse.json({ 
       success: false,
@@ -227,4 +223,3 @@ export async function POST(request: Request) {
     }, { status: 500 });
   }
 }
-
