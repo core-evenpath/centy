@@ -1,14 +1,13 @@
 // src/app/api/webhooks/twilio/whatsapp/route.ts
 
 import { NextResponse } from 'next/server';
+import type { NextRequest } from 'next/server';
 import { db } from '@/lib/firebase-admin';
 import { FieldValue } from 'firebase-admin/firestore';
 import type { WhatsAppMessage } from '@/lib/types';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
-
-const WEBHOOK_VERSION = 'v14-text-only';
 
 async function logWebhookCall(payload: any, success: boolean, error?: string) {
   try {
@@ -24,25 +23,23 @@ async function logWebhookCall(payload: any, success: boolean, error?: string) {
       to: payload.To || null,
       body: payload.Body || null,
       messageSid: payload.MessageSid || null,
-      version: WEBHOOK_VERSION
+      version: 'v15-text-only-fallback'
     });
   } catch (err) {
     console.error('Failed to log webhook call:', err);
   }
 }
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   return NextResponse.json({ 
     success: true,
     message: 'WhatsApp webhook active',
     timestamp: new Date().toISOString(),
-    version: WEBHOOK_VERSION,
-    route: '/api/webhooks/twilio/whatsapp'
+    version: 'v15-text-only-fallback'
   });
 }
 
-export async function POST(request: Request) {
-  console.log(`🔔 WhatsApp Webhook ${WEBHOOK_VERSION}`);
+export async function POST(request: NextRequest) {
   let payload: Record<string, string> = {};
   
   try {
@@ -51,20 +48,11 @@ export async function POST(request: Request) {
       payload[key] = value.toString();
     });
     
-    console.log('📦 Received:', {
-      from: payload.From,
-      to: payload.To,
-      body: payload.Body?.substring(0, 30),
-      messageSid: payload.MessageSid,
-      numMedia: payload.NumMedia
-    });
-    
     if (!db) throw new Error('Database not configured');
 
     if (payload.MessageStatus) {
-      console.log('Status update:', payload.MessageStatus);
-      await logWebhookCall(payload, true);
-      return NextResponse.json({ success: true, message: 'Status update received', version: WEBHOOK_VERSION });
+      await logWebhookCall(payload, true, 'Status update received, skipping processing.');
+      return NextResponse.json({ success: true, message: 'Status update received' });
     }
 
     if (!payload.From || !payload.To) {
@@ -82,9 +70,12 @@ export async function POST(request: Request) {
     const partnerId = mappingDoc.data()?.partnerId;
     if (!partnerId) throw new Error('Phone mapping has no partnerId');
 
-    console.log('✅ Partner ID:', partnerId);
-
-    const convoQuery = await db.collection('whatsappConversations').where('customerPhone', '==', fromPhone).where('partnerId', '==', partnerId).limit(1).get();
+    const convoQuery = await db.collection('whatsappConversations')
+      .where('customerPhone', '==', fromPhone)
+      .where('partnerId', '==', partnerId)
+      .limit(1)
+      .get();
+      
     let conversationId: string;
     
     if (convoQuery.empty) {
@@ -104,17 +95,17 @@ export async function POST(request: Request) {
         createdAt: FieldValue.serverTimestamp(),
         lastMessageAt: FieldValue.serverTimestamp(),
       });
-      console.log('✨ Created conversation:', conversationId);
     } else {
       conversationId = convoQuery.docs[0].id;
       await convoQuery.docs[0].ref.update({
         lastMessageAt: FieldValue.serverTimestamp(),
         messageCount: FieldValue.increment(1),
       });
-      console.log('📝 Updated conversation:', conversationId);
     }
 
-    // Simplified logic for text-only messages
+    // --- Start of Simplified Message Creation ---
+
+    // Base object for a text message, with no optional fields.
     const messageData: Partial<WhatsAppMessage> = {
       conversationId,
       partnerId,
@@ -132,19 +123,18 @@ export async function POST(request: Request) {
         from: payload.From,
         errorCode: null,
         errorMessage: null,
-        numMedia: 0,
       },
     };
     
+    // --- End of Simplified Message Creation ---
+
     const messageRef = await db.collection('whatsappMessages').add(messageData);
-    console.log('✅ Text message saved:', messageRef.id);
 
     await logWebhookCall(payload, true);
 
     return NextResponse.json({ 
       success: true, 
       message: 'Text message received and saved',
-      version: WEBHOOK_VERSION,
       messageId: messageRef.id,
       conversationId: conversationId
     });
@@ -152,6 +142,6 @@ export async function POST(request: Request) {
   } catch (error: any) {
     console.error('❌ Webhook Error:', error.message);
     await logWebhookCall(payload, false, error.message);
-    return NextResponse.json({ success: false, error: error.message, version: WEBHOOK_VERSION }, { status: 500 });
+    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
   }
 }
