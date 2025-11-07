@@ -1,3 +1,4 @@
+
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/firebase-admin';
 import { FieldValue } from 'firebase-admin/firestore';
@@ -5,7 +6,28 @@ import { FieldValue } from 'firebase-admin/firestore';
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
-const WEBHOOK_VERSION = 'v4-minimal-2025-11-08';
+const WEBHOOK_VERSION = 'v5-fixed-2025-11-08';
+
+async function logWebhookCall(payload: any, success: boolean, error?: string) {
+  try {
+    if (!db) return;
+    
+    await db.collection('webhookLogs').add({
+      platform: 'whatsapp',
+      payload: payload,
+      success: success,
+      error: error || null,
+      timestamp: FieldValue.serverTimestamp(),
+      from: payload.From || null,
+      to: payload.To || null,
+      body: payload.Body || null,
+      messageSid: payload.MessageSid || null,
+      version: WEBHOOK_VERSION
+    });
+  } catch (err) {
+    console.error('Failed to log webhook call:', err);
+  }
+}
 
 export async function GET() {
   return NextResponse.json({ 
@@ -32,7 +54,8 @@ export async function POST(request: Request) {
       from: payload.From,
       to: payload.To,
       body: payload.Body?.substring(0, 30),
-      messageSid: payload.MessageSid
+      messageSid: payload.MessageSid,
+      numMedia: payload.NumMedia
     });
     
     if (!db) {
@@ -42,6 +65,7 @@ export async function POST(request: Request) {
     // Handle status updates
     if (payload.MessageStatus) {
       console.log('Status update:', payload.MessageStatus);
+      await logWebhookCall(payload, true);
       return NextResponse.json({ 
         success: true, 
         message: 'Status update received',
@@ -52,6 +76,7 @@ export async function POST(request: Request) {
     // Validate required fields
     if (!payload.From || !payload.To) {
       console.log('Missing From or To');
+      await logWebhookCall(payload, false, 'Missing required fields');
       return NextResponse.json({ 
         success: false, 
         error: 'Missing required fields' 
@@ -68,15 +93,21 @@ export async function POST(request: Request) {
     const mappingDoc = await db.collection('twilioPhoneMappings').doc(lookupId).get();
     
     if (!mappingDoc.exists) {
-      throw new Error(`No phone mapping found for ${lookupId}`);
+      const errorMsg = `No phone mapping found for ${lookupId}`;
+      console.error('❌', errorMsg);
+      await logWebhookCall(payload, false, errorMsg);
+      throw new Error(errorMsg);
     }
     
     const partnerId = mappingDoc.data()?.partnerId;
     if (!partnerId) {
-      throw new Error('Phone mapping has no partnerId');
+      const errorMsg = 'Phone mapping has no partnerId';
+      console.error('❌', errorMsg);
+      await logWebhookCall(payload, false, errorMsg);
+      throw new Error(errorMsg);
     }
 
-    console.log('Partner ID:', partnerId);
+    console.log('✅ Partner ID:', partnerId);
 
     // Find or create conversation
     const convoQuery = await db
@@ -108,7 +139,7 @@ export async function POST(request: Request) {
         lastMessageAt: FieldValue.serverTimestamp(),
       });
       
-      console.log('Created conversation:', conversationId);
+      console.log('✨ Created conversation:', conversationId);
     } else {
       conversationId = convoQuery.docs[0].id;
       await convoQuery.docs[0].ref.update({
@@ -116,13 +147,13 @@ export async function POST(request: Request) {
         messageCount: FieldValue.increment(1),
       });
       
-      console.log('Updated conversation:', conversationId);
+      console.log('📝 Updated conversation:', conversationId);
     }
 
-    // Create message with ONLY fields that have values
+    // Build message data - CRITICAL: Only add fields that have actual values
     const messageData: Record<string, any> = {
       conversationId: conversationId,
-      partnerId: partnerId,
+      partnerId: partnerId, // ✅ CRITICAL FIX: Ensure partnerId is set
       senderId: `customer:${fromPhone}`,
       type: 'text',
       content: payload.Body || '',
@@ -132,9 +163,48 @@ export async function POST(request: Request) {
       createdAt: FieldValue.serverTimestamp(),
     };
 
-    console.log('Saving message...');
+    // CRITICAL: Only add whatsappMetadata fields that exist
+    // Build it dynamically to avoid undefined
+    const metadata: Record<string, any> = {
+      twilioSid: payload.MessageSid,
+      twilioStatus: 'received',
+      to: payload.To,
+      from: payload.From,
+    };
+
+    // Only add numMedia if it exists
+    if (payload.NumMedia) {
+      metadata.numMedia = parseInt(payload.NumMedia);
+    }
+
+    // ONLY add mediaUrls if there's actually media
+    if (payload.NumMedia && parseInt(payload.NumMedia) > 0 && payload.MediaUrl0) {
+      metadata.mediaUrls = [payload.MediaUrl0];
+      messageData.type = 'image';
+      
+      // Add attachments
+      messageData.attachments = [{
+        id: payload.MessageSid,
+        type: payload.MediaContentType0?.startsWith('image') ? 'image' : 'file',
+        name: 'whatsapp_media',
+        url: payload.MediaUrl0,
+        size: 0,
+        mimeType: payload.MediaContentType0 || 'application/octet-stream',
+      }];
+    }
+
+    messageData.whatsappMetadata = metadata;
+
+    console.log('💾 Saving message with metadata:', {
+      hasMediaUrls: !!metadata.mediaUrls,
+      numMedia: metadata.numMedia,
+      messageType: messageData.type
+    });
+
     const messageRef = await db.collection('whatsappMessages').add(messageData);
     console.log('✅ Message saved:', messageRef.id);
+
+    await logWebhookCall(payload, true);
 
     return NextResponse.json({ 
       success: true, 
@@ -147,6 +217,8 @@ export async function POST(request: Request) {
   } catch (error: any) {
     console.error('❌ Webhook Error:', error.message);
     console.error('Stack:', error.stack);
+    
+    await logWebhookCall({}, false, error.message);
     
     return NextResponse.json({ 
       success: false,

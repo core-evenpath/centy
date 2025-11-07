@@ -1,3 +1,4 @@
+// src/actions/whatsapp-actions.ts
 'use server';
 
 import { db } from '@/lib/firebase-admin';
@@ -40,6 +41,7 @@ export async function sendWhatsAppMessageAction(input: SendWhatsAppMessageInput)
     let conversationId = input.conversationId;
     let conversationRef;
     
+    // Try to find existing conversation
     if (!conversationId) {
       const q = await db.collection('whatsappConversations')
         .where('partnerId', '==', input.partnerId)
@@ -55,6 +57,7 @@ export async function sendWhatsAppMessageAction(input: SendWhatsAppMessageInput)
     }
     
     if (!conversationId) {
+      // Create new conversation
       conversationRef = db.collection('whatsappConversations').doc();
       conversationId = conversationRef.id;
 
@@ -76,14 +79,44 @@ export async function sendWhatsAppMessageAction(input: SendWhatsAppMessageInput)
       await conversationRef.set(newConversation);
       console.log('✨ Created new WhatsApp conversation:', conversationId, 'with phone:', normalizedPhoneNumber);
     } else {
+      // Update existing conversation - but verify it exists first
       if (!conversationRef) {
         conversationRef = db.collection('whatsappConversations').doc(conversationId);
       }
-      await conversationRef.update({
-        lastMessageAt: FieldValue.serverTimestamp(),
-        messageCount: FieldValue.increment(1),
-        isActive: true
-      });
+      
+      // Check if conversation exists before updating
+      const conversationDoc = await conversationRef.get();
+      
+      if (conversationDoc.exists) {
+        await conversationRef.update({
+          lastMessageAt: FieldValue.serverTimestamp(),
+          messageCount: FieldValue.increment(1),
+          isActive: true
+        });
+        console.log('✅ Updated existing conversation');
+      } else {
+        // Conversation was deleted, create a new one
+        console.log('⚠️ Conversation not found, creating new one');
+        conversationId = conversationRef.id;
+        
+        const newConversation: Partial<WhatsAppConversation> = {
+          id: conversationId,
+          partnerId: input.partnerId,
+          type: 'direct',
+          platform: 'whatsapp',
+          title: `WhatsApp: ${normalizedPhoneNumber}`,
+          customerPhone: normalizedPhoneNumber,
+          participants: [],
+          isActive: true,
+          messageCount: 0,
+          createdBy: input.partnerId,
+          createdAt: FieldValue.serverTimestamp(),
+          lastMessageAt: FieldValue.serverTimestamp(),
+        };
+        
+        await conversationRef.set(newConversation);
+        console.log('✨ Created new conversation to replace missing one');
+      }
     }
 
     const messageRef = db.collection('whatsappMessages').doc();
