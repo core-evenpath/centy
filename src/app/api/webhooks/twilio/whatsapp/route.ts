@@ -180,12 +180,12 @@ export async function POST(request: Request) {
     // ONLY add mediaUrls if there's actually media
     if (payload.NumMedia && parseInt(payload.NumMedia) > 0 && payload.MediaUrl0) {
       metadata.mediaUrls = [payload.MediaUrl0];
-      messageData.type = 'image';
+      messageData.type = payload.MediaContentType0?.startsWith('image') ? 'image' : 'file';
       
       // Add attachments
       messageData.attachments = [{
         id: payload.MessageSid,
-        type: payload.MediaContentType0?.startsWith('image') ? 'image' : 'file',
+        type: messageData.type,
         name: 'whatsapp_media',
         url: payload.MediaUrl0,
         size: 0,
@@ -227,3 +227,4 @@ export async function POST(request: Request) {
     }, { status: 500 });
   }
 }
+

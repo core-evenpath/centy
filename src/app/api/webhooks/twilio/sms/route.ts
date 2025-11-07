@@ -1,3 +1,4 @@
+
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import { db } from '@/lib/firebase-admin';
@@ -88,23 +89,20 @@ async function getPartnerIdFromPhone(toPhone: string): Promise<string> {
   
   console.log('🔍 Looking up SMS mapping for:', toPhone);
   
-  const doc = await db.collection('twilioPhoneMappings').doc(toPhone).get();
-  
-  if (!doc.exists) {
-    console.error('❌ No phone mapping found for:', toPhone);
-    throw new Error(`No phone mapping found for ${toPhone}. Run: npm run create-sms-phone-mapping`);
+  // For SMS, the phone number might not have the 'whatsapp:' prefix, so we check both
+  const snapshot = await db.collection('twilioPhoneMappings')
+    .where('phoneNumber', '==', toPhone)
+    .limit(1)
+    .get();
+
+  if (!snapshot.empty) {
+    const data = snapshot.docs[0].data();
+    console.log('✅ Found mapping for', toPhone);
+    return data.partnerId;
   }
   
-  const mappingData = doc.data();
-  const partnerId = mappingData?.partnerId;
-  
-  console.log('✅ Found SMS mapping:', {
-    phoneNumber: toPhone,
-    partnerId: partnerId,
-    platform: mappingData?.platform
-  });
-  
-  return partnerId;
+  console.error('❌ No phone mapping found for:', toPhone);
+  throw new Error(`No phone mapping found for ${toPhone}.`);
 }
 
 async function handleIncomingMessage(payload: Record<string, string>) {
@@ -150,7 +148,7 @@ async function handleIncomingMessage(payload: Record<string, string>) {
 
   const messageData: any = {
     conversationId,
-    partnerId: partnerId,
+    partnerId: partnerId, // ✅ CRITICAL FIX: Add partnerId
     senderId: `customer:${fromPhone}`,
     type: payload.NumMedia && parseInt(payload.NumMedia) > 0 ? 'image' : 'text',
     content: payload.Body || '',
