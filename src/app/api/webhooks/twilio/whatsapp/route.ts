@@ -6,7 +6,7 @@ import { FieldValue } from 'firebase-admin/firestore';
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
-const WEBHOOK_VERSION = 'v6-final-fix-2025-11-09';
+const WEBHOOK_VERSION = 'v7-definitive-fix';
 
 async function logWebhookCall(payload: any, success: boolean, error?: string) {
   try {
@@ -211,7 +211,6 @@ export async function POST(request: Request) {
     console.error('❌ Webhook Error:', error.message);
     console.error('Stack:', error.stack);
     
-    // Use an empty object for the payload if it's not defined
     const errorPayload = Object.keys(payload).length > 0 ? payload : { rawRequestError: "Could not parse form data" };
     await logWebhookCall(errorPayload, false, error.message);
     
