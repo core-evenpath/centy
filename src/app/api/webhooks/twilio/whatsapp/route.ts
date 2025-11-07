@@ -182,14 +182,12 @@ export async function POST(request: Request) {
         size: 0,
         mimeType: payload.MediaContentType0 || 'application/octet-stream',
       }];
-      // Add mediaUrl to metadata only when present
-      messageData.whatsappMetadata.mediaUrls = [payload.MediaUrl0];
     }
     
-    console.log('💾 Saving message with metadata:', {
-      hasMediaUrls: !!messageData.whatsappMetadata.mediaUrls,
-      numMedia: messageData.whatsappMetadata.numMedia,
-      messageType: messageData.type
+    console.log('💾 Saving message:', {
+      type: messageData.type,
+      hasContent: !!messageData.content,
+      hasAttachment: !!messageData.attachments
     });
 
     const messageRef = await db.collection('whatsappMessages').add(messageData);
