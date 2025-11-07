@@ -162,38 +162,33 @@ export async function POST(request: Request) {
       platform: 'whatsapp',
       isEdited: false,
       createdAt: FieldValue.serverTimestamp(),
+      whatsappMetadata: {
+        twilioSid: payload.MessageSid,
+        twilioStatus: 'received',
+        to: payload.To,
+        from: payload.From,
+        numMedia: parseInt(payload.NumMedia || '0'),
+      },
     };
 
-    // Dynamically build metadata to avoid undefined fields
-    const metadata: Record<string, any> = {
-      twilioSid: payload.MessageSid,
-      twilioStatus: 'received',
-      to: payload.To,
-      from: payload.From,
-    };
-
-    const numMedia = parseInt(payload.NumMedia || '0');
-    if (numMedia > 0) {
-      metadata.numMedia = numMedia;
-      if (payload.MediaUrl0) {
-        metadata.mediaUrls = [payload.MediaUrl0];
-        messageData.type = payload.MediaContentType0?.startsWith('image') ? 'image' : 'file';
-        messageData.attachments = [{
-          id: payload.MessageSid,
-          type: messageData.type,
-          name: 'whatsapp_media',
-          url: payload.MediaUrl0,
-          size: 0,
-          mimeType: payload.MediaContentType0 || 'application/octet-stream',
-        }];
-      }
+    // Conditionally add media fields ONLY if media exists
+    if (payload.NumMedia && parseInt(payload.NumMedia) > 0 && payload.MediaUrl0) {
+      messageData.type = payload.MediaContentType0?.startsWith('image') ? 'image' : 'file';
+      messageData.attachments = [{
+        id: payload.MessageSid,
+        type: messageData.type,
+        name: 'whatsapp_media',
+        url: payload.MediaUrl0,
+        size: 0,
+        mimeType: payload.MediaContentType0 || 'application/octet-stream',
+      }];
+      // Add mediaUrl to metadata only when present
+      messageData.whatsappMetadata.mediaUrls = [payload.MediaUrl0];
     }
-
-    messageData.whatsappMetadata = metadata;
-
+    
     console.log('💾 Saving message with metadata:', {
-      hasMediaUrls: !!metadata.mediaUrls,
-      numMedia: metadata.numMedia,
+      hasMediaUrls: !!messageData.whatsappMetadata.mediaUrls,
+      numMedia: messageData.whatsappMetadata.numMedia,
       messageType: messageData.type
     });
 
