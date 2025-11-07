@@ -88,6 +88,7 @@ export async function sendSMSAction(input: SendSMSInput): Promise<SendSMSResult>
     const messageData: Partial<SMSMessage> = {
       id: messageRef.id,
       conversationId,
+      partnerId: input.partnerId, // ✅ CRITICAL: Added partnerId
       senderId: input.partnerId,
       type: input.mediaUrl ? 'image' : 'text',
       content: input.message,
@@ -125,51 +126,34 @@ export async function sendSMSAction(input: SendSMSInput): Promise<SendSMSResult>
       twilioSid: twilioResponse.sid,
       conversationId,
     };
-  } catch (serverError: any) {
-    console.error("Error in sendSMSAction:", serverError);
+  } catch (error: any) {
+    console.error('Error sending SMS:', error);
     
-    // Handle Firestore permission errors
-    if (serverError.code === 7 || serverError.message?.includes('PERMISSION_DENIED')) {
+    if (error.code === 7 || error.message?.includes('PERMISSION_DENIED')) {
       const permissionError = new FirestorePermissionError({
-        path: 'smsMessages or smsConversations',
+        path: error.ref?.path || 'unknown path',
         operation: 'write',
-        requestResourceData: { info: "data not captured" },
+        requestResourceData: error.requestData || { info: "data not captured" },
       });
       throw permissionError;
     }
     
-    // Handle Twilio errors
-    if (serverError.message?.includes('Twilio')) {
-      return {
-        success: false,
-        message: `Twilio error: ${serverError.message}`,
-      };
-    }
-    
     return {
       success: false,
-      message: serverError.message || 'Failed to send SMS',
+      message: error.message || 'Failed to send SMS',
     };
   }
 }
 
-interface CampaignRecipient {
-  id: string;
-  name: string;
-  type: 'contact' | 'group';
-}
-
-interface SendSmsCampaignInput {
+/**
+ * Send SMS to multiple contacts (campaign)
+ */
+export async function sendSMSCampaignAction(input: {
   partnerId: string;
   message: string;
-  recipients: CampaignRecipient[];
+  recipients: Array<{ id: string; name: string; type: 'contact' | 'group' }>;
   mediaUrl?: string;
-}
-
-export async function sendSmsCampaignAction(input: SendSmsCampaignInput): Promise<{
-  success: boolean;
-  message: string;
-}> {
+}): Promise<{ success: boolean; message: string }> {
   if (!db) {
     return { success: false, message: 'Server not configured' };
   }
@@ -178,24 +162,33 @@ export async function sendSmsCampaignAction(input: SendSmsCampaignInput): Promis
     const contactIds = new Set<string>();
 
     for (const recipient of input.recipients) {
-        if (recipient.type === 'contact') {
-            contactIds.add(recipient.id);
-        } else if (recipient.type === 'group') {
-            const contactsSnapshot = await db.collection(`partners/${input.partnerId}/contacts`).where('groups', 'array-contains', recipient.name).get();
-            contactsSnapshot.forEach(doc => {
-                contactIds.add(doc.id);
-            });
-        }
+      if (recipient.type === 'contact') {
+        contactIds.add(recipient.id);
+      } else if (recipient.type === 'group') {
+        const contactsSnapshot = await db
+          .collection(`partners/${input.partnerId}/contacts`)
+          .where('groups', 'array-contains', recipient.name)
+          .get();
+        contactsSnapshot.forEach(doc => {
+          contactIds.add(doc.id);
+        });
+      }
     }
-    
+
     const uniqueContactIds = Array.from(contactIds);
     let contactsToSend: Contact[] = [];
-    
+
     if (uniqueContactIds.length > 0) {
-      const contactsSnapshot = await db.collection(`partners/${input.partnerId}/contacts`).where(admin.firestore.FieldPath.documentId(), 'in', uniqueContactIds).get();
-      contactsToSend = contactsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Contact));
+      const contactsSnapshot = await db
+        .collection(`partners/${input.partnerId}/contacts`)
+        .where(admin.firestore.FieldPath.documentId(), 'in', uniqueContactIds)
+        .get();
+      contactsToSend = contactsSnapshot.docs.map(doc => ({ 
+        id: doc.id, 
+        ...doc.data() 
+      } as Contact));
     }
-    
+
     const sendPromises = contactsToSend.map(contact => {
       if (contact.phone) {
         return sendSMSAction({
@@ -208,7 +201,10 @@ export async function sendSmsCampaignAction(input: SendSmsCampaignInput): Promis
           return { success: false, message: `Failed to send to ${contact.name}` };
         });
       }
-      return Promise.resolve({ success: false, message: `No phone for ${contact.name}`});
+      return Promise.resolve({ 
+        success: false, 
+        message: `No phone for ${contact.name}` 
+      });
     });
 
     const results = await Promise.all(sendPromises);
@@ -216,11 +212,10 @@ export async function sendSmsCampaignAction(input: SendSmsCampaignInput): Promis
 
     return {
       success: true,
-      message: `Campaign successfully sent to ${successCount} of ${contactsToSend.length} recipients.`,
+      message: `Campaign sent to ${successCount} of ${contactsToSend.length} recipient(s).`,
     };
-
   } catch (error: any) {
-    console.error('Error in sendSmsCampaignAction:', error);
+    console.error('Error in sendSMSCampaignAction:', error);
     return {
       success: false,
       message: `Failed to send campaign: ${error.message}`,
@@ -276,47 +271,6 @@ export async function getSMSMessages(conversationId: string) {
     }));
   } catch (error: any) {
     console.error('Error fetching SMS messages:', error);
-    throw error;
-  }
-}
-
-/**
- * Update SMS message status from Twilio webhook
- */
-export async function updateSMSMessageStatus(twilioSid: string, status: string): Promise<void> {
-  if (!db) {
-    throw new Error('Server not configured');
-  }
-
-  try {
-    // Find message by Twilio SID
-    const snapshot = await db
-      .collection('smsMessages')
-      .where('smsMetadata.twilioSid', '==', twilioSid)
-      .limit(1)
-      .get();
-
-    if (!snapshot.empty) {
-      const doc = snapshot.docs[0];
-      await doc.ref.update({
-        'smsMetadata.twilioStatus': status,
-        updatedAt: FieldValue.serverTimestamp(),
-      });
-    }
-  } catch (error: any) {
-    console.error('Error updating SMS message status:', error);
-    throw error;
-  }
-}
-
-/**
- * Get SMS message status from Twilio
- */
-export async function checkSMSMessageStatus(twilioSid: string): Promise<string> {
-  try {
-    return await getMessageStatus(twilioSid);
-  } catch (error: any) {
-    console.error('Error checking SMS message status:', error);
     throw error;
   }
 }

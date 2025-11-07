@@ -29,7 +29,14 @@ if (!admin.apps.length) {
         projectId,
         storageBucket,
       });
+      
+      // ✅ CRITICAL FIX: Configure Firestore to ignore undefined properties
+      admin.firestore().settings({
+        ignoreUndefinedProperties: true,
+      });
+      
       console.log('Firebase Admin SDK initialized successfully.');
+      console.log('Firestore configured to ignore undefined properties.');
     } else {
       const missingVars = [];
       if (!privateKey) missingVars.push('FIREBASE_PRIVATE_KEY');
@@ -44,10 +51,18 @@ if (!admin.apps.length) {
   }
 } else {
   app = admin.apps[0]!;
+  
+  // Also set the setting for already initialized app
+  try {
+    admin.firestore().settings({
+      ignoreUndefinedProperties: true,
+    });
+  } catch (error) {
+    // Settings may have already been set, ignore this error
+    console.log('Firestore settings already configured.');
+  }
 }
 
-// These are now exported as functions to ensure they are called after initialization
-// and to avoid potential race conditions.
 const db = getFirestore(app);
 const adminAuth = getAuth(app);
 
