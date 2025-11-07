@@ -32,7 +32,9 @@ if (!admin.apps.length) {
       });
       
       // ✅ CRITICAL FIX: Configure Firestore to ignore undefined properties
-      admin.firestore().settings({
+      // This is a robust fallback for the entire application.
+      const firestore = getFirestore(app);
+      firestore.settings({
         ignoreUndefinedProperties: true,
       });
       
@@ -52,16 +54,6 @@ if (!admin.apps.length) {
   }
 } else {
   app = admin.apps[0]!;
-  
-  // Also set the setting for already initialized app
-  try {
-    admin.firestore().settings({
-      ignoreUndefinedProperties: true,
-    });
-  } catch (error) {
-    // Settings may have already been set, ignore this error
-    console.log('Firestore settings already configured.');
-  }
 }
 
 const db = getFirestore(app);

@@ -6,7 +6,7 @@ import { FieldValue } from 'firebase-admin/firestore';
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
-const WEBHOOK_VERSION = 'v5-fixed-2025-11-08';
+const WEBHOOK_VERSION = 'v6-final-fix-2025-11-09';
 
 async function logWebhookCall(payload: any, success: boolean, error?: string) {
   try {
@@ -153,27 +153,26 @@ export async function POST(request: Request) {
     
     // Build message data
     const messageData: Record<string, any> = {
-      conversationId: conversationId,
-      partnerId: partnerId,
+      conversationId,
+      partnerId,
       senderId: `customer:${fromPhone}`,
-      type: 'text',
+      type: 'text', // Default to text
       content: payload.Body || '',
       direction: 'inbound',
       platform: 'whatsapp',
       isEdited: false,
       createdAt: FieldValue.serverTimestamp(),
     };
-    
-    // Build metadata object dynamically
+
+    // Construct the metadata object with guaranteed fields
     const metadata: Record<string, any> = {
         twilioSid: payload.MessageSid,
         twilioStatus: 'received',
         to: payload.To,
         from: payload.From,
-        numMedia: parseInt(payload.NumMedia || '0'),
     };
-
-    // Conditionally add media fields
+    
+    // **CRITICAL FIX**: Only add media-related fields if media is present
     if (payload.NumMedia && parseInt(payload.NumMedia) > 0 && payload.MediaUrl0) {
       messageData.type = payload.MediaContentType0?.startsWith('image') ? 'image' : 'file';
       
@@ -186,18 +185,14 @@ export async function POST(request: Request) {
         mimeType: payload.MediaContentType0 || 'application/octet-stream',
       }];
       
-      // ONLY add mediaUrls to metadata if media exists
+      metadata.numMedia = parseInt(payload.NumMedia);
       metadata.mediaUrls = [payload.MediaUrl0];
     }
     
     // Assign the correctly built metadata object
     messageData.whatsappMetadata = metadata;
     
-    console.log('💾 Saving message:', {
-      type: messageData.type,
-      hasContent: !!messageData.content,
-      hasAttachment: !!messageData.attachments
-    });
+    console.log('💾 Saving message with metadata:', messageData);
 
     const messageRef = await db.collection('whatsappMessages').add(messageData);
     console.log('✅ Message saved:', messageRef.id);
