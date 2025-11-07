@@ -7,7 +7,7 @@ import type { WhatsAppMessage } from '@/lib/types';
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
-const WEBHOOK_VERSION = 'v11-definitive-fix';
+const WEBHOOK_VERSION = 'v12-final-fix';
 
 async function logWebhookCall(payload: any, success: boolean, error?: string) {
   try {
@@ -114,43 +114,58 @@ export async function POST(request: Request) {
     }
 
     const numMedia = parseInt(payload.NumMedia || '0');
-    
-    // Construct base message data
-    const messageData: Partial<WhatsAppMessage> = {
-      conversationId,
-      partnerId,
-      senderId: `customer:${fromPhone}`,
-      content: payload.Body || '',
-      direction: 'inbound',
-      platform: 'whatsapp',
-      isEdited: false,
-      createdAt: FieldValue.serverTimestamp(),
-      whatsappMetadata: {
-        twilioSid: payload.MessageSid,
-        twilioStatus: 'received',
-        to: payload.To,
-        from: payload.From,
-        numMedia: numMedia,
-        mediaUrls: [], // Always initialize as an empty array
-      },
-    };
+    let messageData: Partial<WhatsAppMessage>;
 
-    // Conditionally add media information
     if (numMedia > 0 && payload.MediaUrl0) {
-      messageData.type = 'image';
-      messageData.attachments = [{
-        id: payload.MessageSid,
-        type: payload.MediaContentType0?.startsWith('image') ? 'image' : 'file',
-        name: 'whatsapp_media',
-        url: payload.MediaUrl0,
-        size: 0,
-        mimeType: payload.MediaContentType0 || 'application/octet-stream',
-      }];
-      if (messageData.whatsappMetadata) {
-        messageData.whatsappMetadata.mediaUrls = [payload.MediaUrl0];
-      }
+      // Logic for messages WITH media
+      messageData = {
+        conversationId,
+        partnerId,
+        senderId: `customer:${fromPhone}`,
+        type: 'image',
+        content: payload.Body || '',
+        direction: 'inbound',
+        platform: 'whatsapp',
+        isEdited: false,
+        createdAt: FieldValue.serverTimestamp(),
+        attachments: [{
+          id: payload.MessageSid,
+          type: payload.MediaContentType0?.startsWith('image') ? 'image' : 'file',
+          name: 'whatsapp_media',
+          url: payload.MediaUrl0,
+          size: 0,
+          mimeType: payload.MediaContentType0 || 'application/octet-stream',
+        }],
+        whatsappMetadata: {
+          twilioSid: payload.MessageSid,
+          twilioStatus: 'received',
+          to: payload.To,
+          from: payload.From,
+          numMedia: numMedia,
+          mediaUrls: [payload.MediaUrl0],
+        },
+      };
+      console.log('💾 Saving message WITH media');
     } else {
-      messageData.type = 'text';
+      // Logic for text-only messages
+      messageData = {
+        conversationId,
+        partnerId,
+        senderId: `customer:${fromPhone}`,
+        type: 'text',
+        content: payload.Body || '',
+        direction: 'inbound',
+        platform: 'whatsapp',
+        isEdited: false,
+        createdAt: FieldValue.serverTimestamp(),
+        whatsappMetadata: {
+          twilioSid: payload.MessageSid,
+          twilioStatus: 'received',
+          to: payload.To,
+          from: payload.From,
+        },
+      };
+      console.log('💾 Saving text-only message');
     }
     
     const messageRef = await db.collection('whatsappMessages').add(messageData);
