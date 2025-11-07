@@ -6,7 +6,7 @@ import { FieldValue } from 'firebase-admin/firestore';
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
-const WEBHOOK_VERSION = 'v7-definitive-fix';
+const WEBHOOK_VERSION = 'v8-final-fix';
 
 async function logWebhookCall(payload: any, success: boolean, error?: string) {
   try {
@@ -164,15 +164,13 @@ export async function POST(request: Request) {
       createdAt: FieldValue.serverTimestamp(),
     };
 
-    // Construct the metadata object with guaranteed fields
     const metadata: Record<string, any> = {
-        twilioSid: payload.MessageSid,
-        twilioStatus: 'received',
-        to: payload.To,
-        from: payload.From,
+      twilioSid: payload.MessageSid,
+      twilioStatus: 'received',
+      to: payload.To,
+      from: payload.From,
     };
     
-    // **CRITICAL FIX**: Only add media-related fields if media is present
     if (payload.NumMedia && parseInt(payload.NumMedia) > 0 && payload.MediaUrl0) {
       messageData.type = payload.MediaContentType0?.startsWith('image') ? 'image' : 'file';
       
@@ -189,7 +187,6 @@ export async function POST(request: Request) {
       metadata.mediaUrls = [payload.MediaUrl0];
     }
     
-    // Assign the correctly built metadata object
     messageData.whatsappMetadata = metadata;
     
     console.log('💾 Saving message with metadata:', messageData);
