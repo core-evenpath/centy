@@ -1,3 +1,4 @@
+
 // src/lib/firebase-admin.ts
 import 'server-only';
 import admin from 'firebase-admin';
@@ -6,6 +7,8 @@ import { getAuth } from 'firebase-admin/auth';
 import { getStorage } from 'firebase-admin/storage';
 
 let app: admin.app.App;
+let db: admin.firestore.Firestore;
+let adminAuth: admin.auth.Auth;
 
 function formatPrivateKey(key: string) {
   return key.replace(/\\n/g, '\n');
@@ -28,12 +31,14 @@ if (!admin.apps.length) {
         projectId,
         storageBucket,
       });
-      
-      const firestore = getFirestore(app);
-      // Ensure this setting is applied
-      firestore.settings({
+
+      // Get Firestore instance and immediately apply settings
+      db = getFirestore(app);
+      db.settings({
         ignoreUndefinedProperties: true,
       });
+
+      adminAuth = getAuth(app);
       
       console.log('Firebase Admin SDK initialized successfully.');
       console.log('Firestore configured to ignore undefined properties.');
@@ -51,15 +56,9 @@ if (!admin.apps.length) {
   }
 } else {
   app = admin.apps[0]!;
+  db = getFirestore(app);
+  adminAuth = getAuth(app);
 }
 
-// Re-get firestore instance to ensure settings are applied if app was already initialized
-const db = getFirestore(app);
-if (admin.apps.length > 0) {
-    db.settings({
-        ignoreUndefinedProperties: true,
-    });
-}
-const adminAuth = getAuth(app);
-
+// @ts-ignore
 export { db, adminAuth };
