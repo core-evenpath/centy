@@ -6,7 +6,7 @@ import { FieldValue } from 'firebase-admin/firestore';
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
-const WEBHOOK_VERSION = 'v8-final-fix';
+const WEBHOOK_VERSION = 'v9-final-fix';
 
 async function logWebhookCall(payload: any, success: boolean, error?: string) {
   try {
@@ -151,12 +151,13 @@ export async function POST(request: Request) {
       console.log('📝 Updated conversation:', conversationId);
     }
     
-    // Build message data
+    // --- START: CORRECTED MESSAGE CONSTRUCTION ---
+
+    // 1. Create the base message object, valid for ALL messages
     const messageData: Record<string, any> = {
       conversationId,
       partnerId,
       senderId: `customer:${fromPhone}`,
-      type: 'text', // Default to text
       content: payload.Body || '',
       direction: 'inbound',
       platform: 'whatsapp',
@@ -164,16 +165,18 @@ export async function POST(request: Request) {
       createdAt: FieldValue.serverTimestamp(),
     };
 
-    const metadata: Record<string, any> = {
+    // 2. Create the base metadata object
+    const whatsappMetadata: Record<string, any> = {
       twilioSid: payload.MessageSid,
       twilioStatus: 'received',
       to: payload.To,
       from: payload.From,
     };
-    
-    if (payload.NumMedia && parseInt(payload.NumMedia) > 0 && payload.MediaUrl0) {
+
+    // 3. Conditionally add media fields if media exists
+    const numMedia = parseInt(payload.NumMedia || '0');
+    if (numMedia > 0 && payload.MediaUrl0) {
       messageData.type = payload.MediaContentType0?.startsWith('image') ? 'image' : 'file';
-      
       messageData.attachments = [{
         id: payload.MessageSid,
         type: messageData.type,
@@ -183,14 +186,23 @@ export async function POST(request: Request) {
         mimeType: payload.MediaContentType0 || 'application/octet-stream',
       }];
       
-      metadata.numMedia = parseInt(payload.NumMedia);
-      metadata.mediaUrls = [payload.MediaUrl0];
+      // Add media properties to metadata object
+      whatsappMetadata.numMedia = numMedia;
+      whatsappMetadata.mediaUrls = [payload.MediaUrl0]; // Only this field causes the error
+    } else {
+      messageData.type = 'text'; // It's a text message
     }
-    
-    messageData.whatsappMetadata = metadata;
-    
-    console.log('💾 Saving message with metadata:', messageData);
 
+    // 4. Assign the correctly formed metadata object
+    messageData.whatsappMetadata = whatsappMetadata;
+    
+    // --- END: CORRECTED MESSAGE CONSTRUCTION ---
+
+    console.log('💾 Saving message:', { 
+        type: messageData.type,
+        hasMedia: numMedia > 0
+    });
+    
     const messageRef = await db.collection('whatsappMessages').add(messageData);
     console.log('✅ Message saved:', messageRef.id);
 
@@ -208,8 +220,7 @@ export async function POST(request: Request) {
     console.error('❌ Webhook Error:', error.message);
     console.error('Stack:', error.stack);
     
-    const errorPayload = Object.keys(payload).length > 0 ? payload : { rawRequestError: "Could not parse form data" };
-    await logWebhookCall(errorPayload, false, error.message);
+    await logWebhookCall(payload, false, error.message);
     
     return NextResponse.json({ 
       success: false,
