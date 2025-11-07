@@ -93,6 +93,7 @@ export default function MessagingPage() {
   const [optimisticMessages, setOptimisticMessages] = useState<any[]>([]);
   const [notificationSound, setNotificationSound] = useState(true);
   const audioRef = useRef<HTMLAudioElement>(null);
+  const [isSending, setIsSending] = useState(false);
   
   const { 
     messages: dbMessages, 
@@ -169,6 +170,7 @@ export default function MessagingPage() {
     setOptimisticMessages(prev => [...prev, optimistic]);
     const messageText = messageInput;
     setMessageInput('');
+    setIsSending(true);
 
     try {
       let result;
@@ -202,6 +204,8 @@ export default function MessagingPage() {
         description: error.message 
       });
       setOptimisticMessages(prev => prev.filter(m => m.id !== optimistic.id));
+    } finally {
+        setIsSending(false);
     }
   };
 
