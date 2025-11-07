@@ -23,7 +23,7 @@ async function logWebhookCall(payload: any, success: boolean, error?: string) {
       to: payload.To || null,
       body: payload.Body || null,
       messageSid: payload.MessageSid || null,
-      version: 'v15-text-only-fallback'
+      version: 'v20-final-fix'
     });
   } catch (err) {
     console.error('Failed to log webhook call:', err);
@@ -35,7 +35,7 @@ export async function GET(request: NextRequest) {
     success: true,
     message: 'WhatsApp webhook active',
     timestamp: new Date().toISOString(),
-    version: 'v15-text-only-fallback'
+    version: 'v20-final-fix'
   });
 }
 
@@ -103,38 +103,77 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // --- Start of Simplified Message Creation ---
-
-    // Base object for a text message, with no optional fields.
-    const messageData: Partial<WhatsAppMessage> = {
-      conversationId,
-      partnerId,
-      senderId: `customer:${fromPhone}`,
-      type: 'text',
-      content: payload.Body || '',
-      direction: 'inbound',
-      platform: 'whatsapp',
-      isEdited: false,
-      createdAt: FieldValue.serverTimestamp(),
-      whatsappMetadata: {
-        twilioSid: payload.MessageSid,
-        twilioStatus: 'received' as const,
-        to: payload.To,
-        from: payload.From,
-        errorCode: null,
-        errorMessage: null,
-      },
-    };
+    // --- Definitive Fix: Separate logic for media vs. text ---
     
-    // --- End of Simplified Message Creation ---
+    const numMedia = parseInt(payload.NumMedia || '0');
+    let messageRef;
 
-    const messageRef = await db.collection('whatsappMessages').add(messageData);
+    if (numMedia > 0) {
+      // Logic for messages WITH media
+      const mediaUrl = payload.MediaUrl0;
+      const mediaType = payload.MediaContentType0 || 'application/octet-stream';
+      
+      const messageData: Partial<WhatsAppMessage> = {
+        conversationId,
+        partnerId,
+        senderId: `customer:${fromPhone}`,
+        type: mediaType.startsWith('image') ? 'image' : 'file',
+        content: payload.Body || '',
+        direction: 'inbound',
+        platform: 'whatsapp',
+        isEdited: false,
+        createdAt: FieldValue.serverTimestamp(),
+        attachments: [{
+          id: payload.MessageSid,
+          type: mediaType.startsWith('image') ? 'image' : 'file',
+          name: `media_attachment_${payload.MessageSid}`,
+          url: mediaUrl,
+          size: 0,
+          mimeType: mediaType,
+        }],
+        whatsappMetadata: {
+          twilioSid: payload.MessageSid,
+          twilioStatus: 'received' as const,
+          to: payload.To,
+          from: payload.From,
+          errorCode: null,
+          errorMessage: null,
+          numMedia: numMedia,
+          mediaUrls: [mediaUrl],
+        },
+      };
+      messageRef = await db.collection('whatsappMessages').add(messageData);
+
+    } else {
+      // Logic for text-only messages
+      const messageData: Partial<WhatsAppMessage> = {
+        conversationId,
+        partnerId,
+        senderId: `customer:${fromPhone}`,
+        type: 'text',
+        content: payload.Body || '',
+        direction: 'inbound',
+        platform: 'whatsapp',
+        isEdited: false,
+        createdAt: FieldValue.serverTimestamp(),
+        whatsappMetadata: {
+          twilioSid: payload.MessageSid,
+          twilioStatus: 'received' as const,
+          to: payload.To,
+          from: payload.From,
+          errorCode: null,
+          errorMessage: null,
+        },
+        // No 'attachments' or 'mediaUrls' fields are created
+      };
+      messageRef = await db.collection('whatsappMessages').add(messageData);
+    }
 
     await logWebhookCall(payload, true);
 
     return NextResponse.json({ 
       success: true, 
-      message: 'Text message received and saved',
+      message: 'Message processed',
       messageId: messageRef.id,
       conversationId: conversationId
     });

@@ -30,6 +30,7 @@ if (!admin.apps.length) {
       });
       
       const firestore = getFirestore(app);
+      // Ensure this setting is applied
       firestore.settings({
         ignoreUndefinedProperties: true,
       });
@@ -52,8 +53,13 @@ if (!admin.apps.length) {
   app = admin.apps[0]!;
 }
 
+// Re-get firestore instance to ensure settings are applied if app was already initialized
 const db = getFirestore(app);
+if (admin.apps.length > 0) {
+    db.settings({
+        ignoreUndefinedProperties: true,
+    });
+}
 const adminAuth = getAuth(app);
 
 export { db, adminAuth };
-// ← Removed duplicate db.settings() call
