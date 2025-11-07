@@ -1,4 +1,3 @@
-
 // src/lib/firebase-admin.ts
 import 'server-only';
 import admin from 'firebase-admin';
@@ -12,7 +11,6 @@ function formatPrivateKey(key: string) {
   return key.replace(/\\n/g, '\n');
 }
 
-// This pattern ensures that the SDK is initialized only once.
 if (!admin.apps.length) {
   try {
     const privateKey = process.env.FIREBASE_PRIVATE_KEY;
@@ -31,8 +29,6 @@ if (!admin.apps.length) {
         storageBucket,
       });
       
-      // ✅ CRITICAL FIX: Configure Firestore to ignore undefined properties
-      // This is a robust fallback for the entire application.
       const firestore = getFirestore(app);
       firestore.settings({
         ignoreUndefinedProperties: true,
@@ -60,3 +56,4 @@ const db = getFirestore(app);
 const adminAuth = getAuth(app);
 
 export { db, adminAuth };
+// ← Removed duplicate db.settings() call

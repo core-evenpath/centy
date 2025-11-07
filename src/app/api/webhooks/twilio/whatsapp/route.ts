@@ -2,11 +2,12 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/firebase-admin';
 import { FieldValue } from 'firebase-admin/firestore';
+import type { WhatsAppMessage } from '@/lib/types';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
-const WEBHOOK_VERSION = 'v10-final-fix';
+const WEBHOOK_VERSION = 'v11-definitive-fix';
 
 async function logWebhookCall(payload: any, success: boolean, error?: string) {
   try {
@@ -41,8 +42,7 @@ export async function GET() {
 
 export async function POST(request: Request) {
   console.log(`🔔 WhatsApp Webhook ${WEBHOOK_VERSION}`);
-  
-  const payload: Record<string, string> = {};
+  let payload: Record<string, string> = {};
   
   try {
     const formData = await request.formData();
@@ -87,7 +87,6 @@ export async function POST(request: Request) {
     let conversationId: string;
     
     if (convoQuery.empty) {
-      console.log('Creating new conversation');
       const convoRef = db.collection('whatsappConversations').doc();
       conversationId = convoRef.id;
       await convoRef.set({
@@ -114,60 +113,44 @@ export async function POST(request: Request) {
       console.log('📝 Updated conversation:', conversationId);
     }
 
-    let messageData: Record<string, any>;
     const numMedia = parseInt(payload.NumMedia || '0');
+    
+    // Construct base message data
+    const messageData: Partial<WhatsAppMessage> = {
+      conversationId,
+      partnerId,
+      senderId: `customer:${fromPhone}`,
+      content: payload.Body || '',
+      direction: 'inbound',
+      platform: 'whatsapp',
+      isEdited: false,
+      createdAt: FieldValue.serverTimestamp(),
+      whatsappMetadata: {
+        twilioSid: payload.MessageSid,
+        twilioStatus: 'received',
+        to: payload.To,
+        from: payload.From,
+        numMedia: numMedia,
+        mediaUrls: [], // Always initialize as an empty array
+      },
+    };
 
+    // Conditionally add media information
     if (numMedia > 0 && payload.MediaUrl0) {
-      // --- Message WITH Media ---
-      console.log('💾 Saving message with media');
-      messageData = {
-        conversationId,
-        partnerId,
-        senderId: `customer:${fromPhone}`,
+      messageData.type = 'image';
+      messageData.attachments = [{
+        id: payload.MessageSid,
         type: payload.MediaContentType0?.startsWith('image') ? 'image' : 'file',
-        content: payload.Body || '',
-        direction: 'inbound',
-        platform: 'whatsapp',
-        isEdited: false,
-        createdAt: FieldValue.serverTimestamp(),
-        attachments: [{
-          id: payload.MessageSid,
-          type: payload.MediaContentType0?.startsWith('image') ? 'image' : 'file',
-          name: 'whatsapp_media',
-          url: payload.MediaUrl0,
-          size: 0,
-          mimeType: payload.MediaContentType0 || 'application/octet-stream',
-        }],
-        whatsappMetadata: {
-          twilioSid: payload.MessageSid,
-          twilioStatus: 'received',
-          to: payload.To,
-          from: payload.From,
-          numMedia: numMedia,
-          mediaUrls: [payload.MediaUrl0]
-        },
-      };
-
+        name: 'whatsapp_media',
+        url: payload.MediaUrl0,
+        size: 0,
+        mimeType: payload.MediaContentType0 || 'application/octet-stream',
+      }];
+      if (messageData.whatsappMetadata) {
+        messageData.whatsappMetadata.mediaUrls = [payload.MediaUrl0];
+      }
     } else {
-      // --- Text-only Message ---
-      console.log('💾 Saving text-only message');
-      messageData = {
-        conversationId,
-        partnerId,
-        senderId: `customer:${fromPhone}`,
-        type: 'text',
-        content: payload.Body || '',
-        direction: 'inbound',
-        platform: 'whatsapp',
-        isEdited: false,
-        createdAt: FieldValue.serverTimestamp(),
-        whatsappMetadata: {
-          twilioSid: payload.MessageSid,
-          twilioStatus: 'received',
-          to: payload.To,
-          from: payload.From,
-        },
-      };
+      messageData.type = 'text';
     }
     
     const messageRef = await db.collection('whatsappMessages').add(messageData);

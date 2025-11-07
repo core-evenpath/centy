@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
@@ -23,6 +24,8 @@ import NewConversationForm from '@/components/partner/messaging/NewConversationF
 import EmptyState from '@/components/partner/messaging/EmptyState';
 import DiagnosticsView from '@/components/partner/messaging/DiagnosticsView';
 import ClientProfilePanel from '@/components/partner/messaging/ClientProfilePanel';
+import MessagesDiagnostic from '@/components/partner/messaging/MessagesDiagnostic';
+
 
 type Platform = 'sms' | 'whatsapp';
 
@@ -251,6 +254,7 @@ export default function MessagingPage() {
 
   return (
     <div className="flex h-screen bg-gray-50 overflow-hidden">
+      {partnerId && <MessagesDiagnostic partnerId={partnerId} />}
       <audio ref={audioRef} src="/notification.mp3" />
       
       <ConversationList
@@ -268,7 +272,7 @@ export default function MessagingPage() {
           {showDiagnostics ? (
             <DiagnosticsView 
               diagnostics={diagnostics}
-              onClose={() => setShowDiagnostics(false)}
+              onBack={() => setShowDiagnostics(false)}
             />
           ) : showNewConversation ? (
             <NewConversationForm
@@ -308,7 +312,7 @@ export default function MessagingPage() {
                 value={messageInput}
                 onChange={setMessageInput}
                 onSend={handleSendMessage}
-                isSending={false}
+                isSending={isSending}
                 platform={selectedConversation.platform}
               />
             </>
