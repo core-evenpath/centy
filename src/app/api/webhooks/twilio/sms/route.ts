@@ -1,3 +1,4 @@
+
 // src/app/api/webhooks/twilio/sms/route.ts
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
@@ -13,14 +14,15 @@ async function logWebhookCall(payload: any, success: boolean, error?: string) {
     
     await db.collection('webhookLogs').add({
       platform: 'sms',
-      payload: payload,
+      payload: payload, // Log the entire raw payload
       success: success,
       error: error || null,
       timestamp: FieldValue.serverTimestamp(),
       from: payload.From || null,
       to: payload.To || null,
       body: payload.Body || null,
-      messageSid: payload.MessageSid || null
+      messageSid: payload.MessageSid || null,
+      rawPayload: JSON.stringify(payload, null, 2) // Also store as a raw string
     });
   } catch (err) {
     console.error('Failed to log webhook call:', err);
@@ -55,7 +57,7 @@ export async function POST(request: NextRequest) {
     if (payload.MessageStatus) {
       console.log('🔄 Status update:', payload.MessageStatus);
       await handleStatusUpdate(payload);
-      await logWebhookCall(payload, true);
+      await logWebhookCall(payload, true, 'Status update processed.');
       return NextResponse.json({ success: true, message: 'Status updated' });
     }
     
@@ -68,9 +70,7 @@ export async function POST(request: NextRequest) {
         '<?xml version="1.0" encoding="UTF-8"?><Response></Response>',
         {
           status: 200,
-          headers: {
-            'Content-Type': 'text/xml',
-          },
+          headers: { 'Content-Type': 'text/xml' },
         }
       );
     }
@@ -82,9 +82,7 @@ export async function POST(request: NextRequest) {
       '<?xml version="1.0" encoding="UTF-8"?><Response></Response>',
       {
         status: 200,
-        headers: {
-          'Content-Type': 'text/xml',
-        },
+        headers: { 'Content-Type': 'text/xml' },
       }
     );
     
@@ -97,9 +95,7 @@ export async function POST(request: NextRequest) {
       '<?xml version="1.0" encoding="UTF-8"?><Response></Response>',
       {
         status: 200,
-        headers: {
-          'Content-Type': 'text/xml',
-        },
+        headers: { 'Content-Type': 'text/xml' },
       }
     );
   }
@@ -110,7 +106,7 @@ async function getPartnerIdFromPhone(toPhone: string): Promise<string> {
     
     console.log('🔍 Looking up partner for SMS phone:', toPhone);
     
-    // Try direct lookup first
+    // Direct lookup with the raw 'To' number
     let mappingDoc = await db.collection('twilioPhoneMappings').doc(toPhone).get();
     
     if (mappingDoc.exists) {
@@ -121,7 +117,7 @@ async function getPartnerIdFromPhone(toPhone: string): Promise<string> {
       }
     }
     
-    // Fallback: try with 'whatsapp:' prefix for consistency
+    // Fallback: try with 'whatsapp:' prefix for consistency, in case it was mapped that way
     const whatsappPrefixedPhone = `whatsapp:${toPhone}`;
     mappingDoc = await db.collection('twilioPhoneMappings').doc(whatsappPrefixedPhone).get();
 
