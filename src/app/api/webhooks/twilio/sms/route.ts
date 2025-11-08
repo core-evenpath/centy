@@ -110,22 +110,21 @@ async function getPartnerIdFromPhone(toPhone: string): Promise<string> {
   
   console.log('🔍 Looking up partner for SMS phone:', toPhone);
   
-  const toPhoneDigits = toPhone.replace(/\D/g, '');
-
-  // Method 1: Try twilioPhoneMappings collection with normalized number
-  try {
-    const doc = await db.collection('twilioPhoneMappings').doc(toPhone).get();
-    
-    if (doc.exists) {
-      const partnerId = doc.data()?.partnerId;
-      console.log('✅ Found partnerId via mapping:', partnerId);
+  // Method 1: Try direct lookup in twilioPhoneMappings collection
+  const mappingDocRef = db.collection('twilioPhoneMappings').doc(toPhone);
+  const mappingDoc = await mappingDocRef.get();
+  
+  if (mappingDoc.exists) {
+    const partnerId = mappingDoc.data()?.partnerId;
+    if (partnerId) {
+      console.log('✅ Found partnerId via direct mapping:', partnerId);
       return partnerId;
     }
-  } catch (err) {
-    console.log('No twilioPhoneMappings found, trying partners collection...');
   }
-  
-  // Method 2: Fallback to partners collection, comparing normalized numbers
+
+  // Method 2: Fallback to searching partners collection (less reliable)
+  console.log('⚠️ No direct mapping found. Falling back to searching `partners` collection...');
+  const toPhoneDigits = toPhone.replace(/\D/g, '');
   const partnersSnapshot = await db.collection('partners').get();
 
   if (partnersSnapshot.empty) {
@@ -140,16 +139,15 @@ async function getPartnerIdFromPhone(toPhone: string): Promise<string> {
       const storedPhoneDigits = storedPhone.replace(/\D/g, '');
       if (storedPhoneDigits === toPhoneDigits) {
         const partnerId = partnerDoc.id;
-        console.log('✅ Found partnerId via partners collection:', partnerId);
+        console.log('✅ Found partnerId via partners collection fallback:', partnerId);
         return partnerId;
       }
     }
   }
   
   console.error('❌ No partner found with phone matching:', toPhone);
-  throw new Error(`No partner mapping found for ${toPhone}. Add "phone" field to partner document or create a phone mapping.`);
+  throw new Error(`No partner mapping found for ${toPhone}. Please create a mapping.`);
 }
-
 
 async function handleIncomingMessage(payload: Record<string, string>) {
   if (!db) throw new Error('Database not configured');
