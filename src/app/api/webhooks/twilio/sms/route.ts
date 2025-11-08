@@ -27,11 +27,12 @@ async function logWebhookCall(payload: any, success: boolean, error?: string) {
 }
 
 export async function GET(request: NextRequest) {
-  console.log('GET /api/webhooks/twilio/sms');
+  console.log('GET /api/webhooks/twilio/sms - Health check');
   return NextResponse.json({ 
     success: true,
-    message: 'SMS webhook is active',
-    timestamp: new Date().toISOString()
+    message: 'SMS webhook is active and ready',
+    timestamp: new Date().toISOString(),
+    instructions: 'Configure this URL in Twilio Console under Phone Numbers > Messaging Configuration'
   });
 }
 
