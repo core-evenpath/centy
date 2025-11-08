@@ -110,7 +110,7 @@ async function getPartnerIdFromPhone(toPhone: string): Promise<string> {
   
   console.log('🔍 Looking up partner for SMS phone:', toPhone);
   
-  // Method 1: Try direct lookup in twilioPhoneMappings collection
+  // Use direct lookup as the primary, reliable method
   const mappingDocRef = db.collection('twilioPhoneMappings').doc(toPhone);
   const mappingDoc = await mappingDocRef.get();
   
@@ -122,29 +122,6 @@ async function getPartnerIdFromPhone(toPhone: string): Promise<string> {
     }
   }
 
-  // Method 2: Fallback to searching partners collection (less reliable)
-  console.log('⚠️ No direct mapping found. Falling back to searching `partners` collection...');
-  const toPhoneDigits = toPhone.replace(/\D/g, '');
-  const partnersSnapshot = await db.collection('partners').get();
-
-  if (partnersSnapshot.empty) {
-    throw new Error('No partners found in database');
-  }
-
-  for (const partnerDoc of partnersSnapshot.docs) {
-    const partnerData = partnerDoc.data();
-    const storedPhone = partnerData.phone;
-
-    if (storedPhone) {
-      const storedPhoneDigits = storedPhone.replace(/\D/g, '');
-      if (storedPhoneDigits === toPhoneDigits) {
-        const partnerId = partnerDoc.id;
-        console.log('✅ Found partnerId via partners collection fallback:', partnerId);
-        return partnerId;
-      }
-    }
-  }
-  
   console.error('❌ No partner found with phone matching:', toPhone);
   throw new Error(`No partner mapping found for ${toPhone}. Please create a mapping.`);
 }

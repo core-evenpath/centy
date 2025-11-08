@@ -358,7 +358,7 @@ export default function DebugSMSPage() {
                   <li>Navigate to <code className="bg-red-100 px-1 rounded">partners</code> collection</li>
                   <li>Find your partner document</li>
                   <li>Add field: <code className="bg-red-100 px-1 rounded">phone</code> = <code className="bg-red-100 px-1 rounded">{process.env.TWILIO_PHONE_NUMBER || 'your Twilio SMS number'}</code></li>
-                  <li>Save and run diagnostics again</li>
+                  <li>Save the document and run diagnostics again</li>
                 </ol>
               </div>
             </div>
