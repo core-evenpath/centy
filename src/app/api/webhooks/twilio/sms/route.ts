@@ -1,3 +1,4 @@
+// src/app/api/webhooks/twilio/sms/route.ts
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import { db } from '@/lib/firebase-admin';
@@ -109,7 +110,7 @@ async function getPartnerIdFromPhone(toPhone: string): Promise<string> {
   
   console.log('🔍 Looking up partner for SMS phone:', toPhone);
   
-  // METHOD 1: Try twilioPhoneMappings (same as WhatsApp)
+  // Method 1: Try twilioPhoneMappings collection
   try {
     const doc = await db.collection('twilioPhoneMappings').doc(toPhone).get();
     
@@ -122,7 +123,7 @@ async function getPartnerIdFromPhone(toPhone: string): Promise<string> {
     console.log('No twilioPhoneMappings found, trying partners collection...');
   }
   
-  // METHOD 2: Fallback to partners collection (legacy method)
+  // Method 2: Fallback to partners collection (legacy method)
   const toPhoneDigits = toPhone.replace(/\D/g, '');
   const partnersSnapshot = await db.collection('partners').get();
 
