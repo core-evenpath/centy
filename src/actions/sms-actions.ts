@@ -88,7 +88,7 @@ export async function sendSMSAction(input: SendSMSInput): Promise<SendSMSResult>
     const messageData: Partial<SMSMessage> = {
       id: messageRef.id,
       conversationId,
-      partnerId: input.partnerId, // ✅ CRITICAL: Added partnerId
+      partnerId: input.partnerId, // ✅ CRITICAL: Ensure partnerId is saved
       senderId: input.partnerId,
       type: input.mediaUrl ? 'image' : 'text',
       content: input.message,
@@ -148,7 +148,7 @@ export async function sendSMSAction(input: SendSMSInput): Promise<SendSMSResult>
 /**
  * Send SMS to multiple contacts (campaign)
  */
-export async function sendSMSCampaignAction(input: {
+export async function sendSmsCampaignAction(input: {
   partnerId: string;
   message: string;
   recipients: Array<{ id: string; name: string; type: 'contact' | 'group' }>;
@@ -215,7 +215,7 @@ export async function sendSMSCampaignAction(input: {
       message: `Campaign sent to ${successCount} of ${contactsToSend.length} recipient(s).`,
     };
   } catch (error: any) {
-    console.error('Error in sendSMSCampaignAction:', error);
+    console.error('Error in sendSmsCampaignAction:', error);
     return {
       success: false,
       message: `Failed to send campaign: ${error.message}`,

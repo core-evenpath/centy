@@ -89,7 +89,7 @@ export async function sendSMS(options: SendSMSOptions): Promise<TwilioMessageRes
     };
   } catch (error: any) {
     console.error('Error sending SMS:', error);
-    throw new Error(error.message || 'Failed to send SMS');
+    throw new Error(`Twilio SMS Error: ${error.message}`);
   }
 }
 
@@ -142,7 +142,7 @@ export async function sendWhatsAppMessage(options: SendWhatsAppMessageOptions): 
     };
   } catch (error: any) {
     console.error('Error sending WhatsApp message:', error);
-    throw new Error(error.message || 'Failed to send WhatsApp message');
+    throw new Error(`Twilio WhatsApp Error: ${error.message}`);
   }
 }
 
