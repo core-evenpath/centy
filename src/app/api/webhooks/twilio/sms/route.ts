@@ -110,7 +110,9 @@ async function getPartnerIdFromPhone(toPhone: string): Promise<string> {
   
   console.log('🔍 Looking up partner for SMS phone:', toPhone);
   
-  // Method 1: Try twilioPhoneMappings collection
+  const toPhoneDigits = toPhone.replace(/\D/g, '');
+
+  // Method 1: Try twilioPhoneMappings collection with normalized number
   try {
     const doc = await db.collection('twilioPhoneMappings').doc(toPhone).get();
     
@@ -123,8 +125,7 @@ async function getPartnerIdFromPhone(toPhone: string): Promise<string> {
     console.log('No twilioPhoneMappings found, trying partners collection...');
   }
   
-  // Method 2: Fallback to partners collection (legacy method)
-  const toPhoneDigits = toPhone.replace(/\D/g, '');
+  // Method 2: Fallback to partners collection, comparing normalized numbers
   const partnersSnapshot = await db.collection('partners').get();
 
   if (partnersSnapshot.empty) {
@@ -146,8 +147,9 @@ async function getPartnerIdFromPhone(toPhone: string): Promise<string> {
   }
   
   console.error('❌ No partner found with phone matching:', toPhone);
-  throw new Error(`No partner mapping found for ${toPhone}. Either add "phone" field to partner document or create a phone mapping.`);
+  throw new Error(`No partner mapping found for ${toPhone}. Add "phone" field to partner document or create a phone mapping.`);
 }
+
 
 async function handleIncomingMessage(payload: Record<string, string>) {
   if (!db) throw new Error('Database not configured');
