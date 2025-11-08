@@ -4,6 +4,7 @@ import type { NextRequest } from 'next/server';
 import { db } from '@/lib/firebase-admin';
 import { FieldValue } from 'firebase-admin/firestore';
 import type { WhatsAppMessage } from '@/lib/types';
+import { normalizePhoneNumber } from '@/utils/phone-utils';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -87,7 +88,7 @@ async function getPartnerIdFromPhone(toPhone: string): Promise<string> {
 async function handleIncomingMessage(payload: Record<string, string>) {
   if (!db) throw new Error('Database not configured');
 
-  const fromPhone = payload.From.replace('whatsapp:', '');
+  const fromPhone = normalizePhoneNumber(payload.From);
   const toPhone = payload.To;
   
   const partnerId = await getPartnerIdFromPhone(toPhone);

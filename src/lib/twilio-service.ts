@@ -2,6 +2,7 @@
 'use server';
 
 import twilio from 'twilio';
+import { normalizePhoneNumber } from '@/utils/phone-utils';
 
 const accountSid = process.env.TWILIO_ACCOUNT_SID;
 const authToken = process.env.TWILIO_AUTH_TOKEN;
@@ -54,9 +55,7 @@ export async function sendSMS(options: SendSMSOptions): Promise<TwilioMessageRes
   try {
     const client = getTwilioClient();
     
-    const formattedTo = options.to.startsWith('+') 
-      ? options.to 
-      : `+${options.to}`;
+    const formattedTo = normalizePhoneNumber(options.to);
     
     const messageParams: any = {
       to: formattedTo,
@@ -101,7 +100,8 @@ export async function sendWhatsAppMessage(options: SendWhatsAppMessageOptions): 
   try {
     const client = getTwilioClient();
     
-    const to = `whatsapp:${options.to.startsWith('+') ? options.to : '+' + options.to}`;
+    const normalizedPhoneNumber = normalizePhoneNumber(options.to);
+    const to = `whatsapp:${normalizedPhoneNumber}`;
     
     const messageParams: any = { to };
 
