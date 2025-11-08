@@ -27,12 +27,11 @@ async function logWebhookCall(payload: any, success: boolean, error?: string) {
 }
 
 export async function GET(request: NextRequest) {
-  console.log('GET /api/webhooks/twilio/sms - Health check');
+  console.log('GET /api/webhooks/twilio/sms');
   return NextResponse.json({ 
     success: true,
     message: 'SMS webhook is active and ready',
-    timestamp: new Date().toISOString(),
-    instructions: 'Configure this URL in Twilio Console under Phone Numbers > Messaging Configuration'
+    timestamp: new Date().toISOString()
   });
 }
 
@@ -108,8 +107,22 @@ export async function POST(request: NextRequest) {
 async function getPartnerIdFromPhone(toPhone: string): Promise<string> {
   if (!db) throw new Error('Database not configured');
   
-  console.log('🔍 Looking up partner for phone:', toPhone);
+  console.log('🔍 Looking up partner for SMS phone:', toPhone);
   
+  // METHOD 1: Try twilioPhoneMappings (same as WhatsApp)
+  try {
+    const doc = await db.collection('twilioPhoneMappings').doc(toPhone).get();
+    
+    if (doc.exists) {
+      const partnerId = doc.data()?.partnerId;
+      console.log('✅ Found partnerId via mapping:', partnerId);
+      return partnerId;
+    }
+  } catch (err) {
+    console.log('No twilioPhoneMappings found, trying partners collection...');
+  }
+  
+  // METHOD 2: Fallback to partners collection (legacy method)
   const toPhoneDigits = toPhone.replace(/\D/g, '');
   const partnersSnapshot = await db.collection('partners').get();
 
@@ -125,14 +138,14 @@ async function getPartnerIdFromPhone(toPhone: string): Promise<string> {
       const storedPhoneDigits = storedPhone.replace(/\D/g, '');
       if (storedPhoneDigits === toPhoneDigits) {
         const partnerId = partnerDoc.id;
-        console.log('✅ Found partnerId:', partnerId);
+        console.log('✅ Found partnerId via partners collection:', partnerId);
         return partnerId;
       }
     }
   }
   
   console.error('❌ No partner found with phone matching:', toPhone);
-  throw new Error(`No partner mapping found for ${toPhone}. Add "phone" field to partner document with value: ${toPhone}`);
+  throw new Error(`No partner mapping found for ${toPhone}. Either add "phone" field to partner document or create a phone mapping.`);
 }
 
 async function handleIncomingMessage(payload: Record<string, string>) {
@@ -168,12 +181,14 @@ async function handleIncomingMessage(payload: Record<string, string>) {
       createdAt: FieldValue.serverTimestamp(),
       lastMessageAt: FieldValue.serverTimestamp(),
     });
+    console.log('✅ Created new SMS conversation:', conversationId);
   } else {
     conversationId = conversationsSnapshot.docs[0].id;
     await conversationsSnapshot.docs[0].ref.update({
       lastMessageAt: FieldValue.serverTimestamp(),
       messageCount: FieldValue.increment(1),
     });
+    console.log('✅ Updated existing SMS conversation:', conversationId);
   }
 
   const messageData: any = {
