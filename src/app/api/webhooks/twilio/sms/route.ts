@@ -106,24 +106,35 @@ export async function POST(request: NextRequest) {
 }
 
 async function getPartnerIdFromPhone(toPhone: string): Promise<string> {
-  if (!db) throw new Error('Database not configured');
-  
-  console.log('🔍 Looking up partner for SMS phone:', toPhone);
-  
-  // Use direct lookup as the primary, reliable method
-  const mappingDocRef = db.collection('twilioPhoneMappings').doc(toPhone);
-  const mappingDoc = await mappingDocRef.get();
-  
-  if (mappingDoc.exists) {
-    const partnerId = mappingDoc.data()?.partnerId;
-    if (partnerId) {
-      console.log('✅ Found partnerId via direct mapping:', partnerId);
-      return partnerId;
+    if (!db) throw new Error('Database not configured');
+    
+    console.log('🔍 Looking up partner for SMS phone:', toPhone);
+    
+    // Try direct lookup first
+    let mappingDoc = await db.collection('twilioPhoneMappings').doc(toPhone).get();
+    
+    if (mappingDoc.exists) {
+      const partnerId = mappingDoc.data()?.partnerId;
+      if (partnerId) {
+        console.log('✅ Found partnerId via direct mapping:', partnerId);
+        return partnerId;
+      }
     }
-  }
+    
+    // Fallback: try with 'whatsapp:' prefix for consistency
+    const whatsappPrefixedPhone = `whatsapp:${toPhone}`;
+    mappingDoc = await db.collection('twilioPhoneMappings').doc(whatsappPrefixedPhone).get();
 
-  console.error('❌ No partner found with phone matching:', toPhone);
-  throw new Error(`No partner mapping found for ${toPhone}. Please create a mapping.`);
+    if (mappingDoc.exists) {
+        const partnerId = mappingDoc.data()?.partnerId;
+        if (partnerId) {
+          console.log('✅ Found partnerId via whatsapp-prefixed mapping:', partnerId);
+          return partnerId;
+        }
+    }
+
+    console.error('❌ No partner found with phone matching:', toPhone);
+    throw new Error(`No partner mapping found for ${toPhone}. Please create a mapping in the twilioPhoneMappings collection.`);
 }
 
 async function handleIncomingMessage(payload: Record<string, string>) {
