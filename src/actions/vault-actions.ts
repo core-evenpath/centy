@@ -333,7 +333,9 @@ export async function listVaultFiles(
         return {
             id: doc.id,
             ...data,
+            // Convert Firestore Timestamp to ISO string to make it serializable
             createdAt: data.createdAt?.toDate ? data.createdAt.toDate().toISOString() : new Date().toISOString(),
+            uploadedAt: data.uploadedAt || new Date().toISOString(), // Fallback for uploadedAt
         } as VaultFile
     });
 
@@ -343,6 +345,7 @@ export async function listVaultFiles(
     return { success: false, files: [] };
   }
 }
+
 
 export async function listFileSearchStores(
   partnerId: string
@@ -357,10 +360,16 @@ export async function listFileSearchStores(
       .orderBy('createdAt', 'desc')
       .get();
 
-    const stores: FileSearchStore[] = snapshot.docs.map((doc) => ({
-      id: doc.id,
-      ...doc.data(),
-    } as FileSearchStore));
+    const stores: FileSearchStore[] = snapshot.docs.map((doc) => {
+      const data = doc.data();
+      return {
+        id: doc.id,
+        ...data,
+        // Convert Firestore Timestamps to ISO strings
+        createdAt: data.createdAt?.toDate ? data.createdAt.toDate().toISOString() : new Date().toISOString(),
+        updatedAt: data.updatedAt?.toDate ? data.updatedAt.toDate().toISOString() : new Date().toISOString(),
+      } as FileSearchStore;
+    });
 
     return { success: true, stores };
   } catch (error: any) {

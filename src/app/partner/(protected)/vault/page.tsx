@@ -1,8 +1,8 @@
+
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { useAuth } from '@/hooks/use-auth';
-import { auth } from '@/lib/firebase';
+import { useMultiWorkspaceAuth } from '@/hooks/use-multi-workspace-auth';
 import PartnerHeader from '@/components/partner/PartnerHeader';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
@@ -20,9 +20,8 @@ import {
 } from '@/actions/vault-actions';
 
 export default function VaultPage() {
-  const { user, customClaims } = useAuth();
-  const [partnerId, setPartnerId] = useState<string | null>(null);
-  const [claimsLoaded, setClaimsLoaded] = useState(false);
+  const { user, currentWorkspace, loading: authLoading } = useMultiWorkspaceAuth();
+  const partnerId = currentWorkspace?.partnerId;
   
   const [files, setFiles] = useState<VaultFile[]>([]);
   const [stores, setStores] = useState<FileSearchStore[]>([]);
@@ -31,116 +30,55 @@ export default function VaultPage() {
   const [activeStore, setActiveStore] = useState<string | null>(null);
   const { toast } = useToast();
 
-  // Force load custom claims
   useEffect(() => {
-    const loadCustomClaims = async () => {
-      if (user && auth.currentUser) {
-        try {
-          console.log('🔄 Force refreshing ID token to get latest claims...');
-          const idTokenResult = await auth.currentUser.getIdTokenResult(true); // force refresh
-          console.log('✅ Token refreshed, claims:', idTokenResult.claims);
-          
-          const partnerIdFromClaims = idTokenResult.claims.partnerId as string;
-          
-          if (partnerIdFromClaims) {
-            console.log('✅ Found partnerId in claims:', partnerIdFromClaims);
-            setPartnerId(partnerIdFromClaims);
-          } else {
-            console.error('❌ No partnerId in claims:', idTokenResult.claims);
-          }
-          
-          setClaimsLoaded(true);
-        } catch (error) {
-          console.error('❌ Error loading claims:', error);
-          setClaimsLoaded(true);
-        }
-      }
-    };
-
-    if (user && !claimsLoaded) {
-      loadCustomClaims();
-    }
-  }, [user, claimsLoaded]);
-
-  useEffect(() => {
-    console.log('🔍 Vault Page - useEffect triggered');
-    console.log('📊 partnerId:', partnerId);
-    console.log('👤 user:', user?.uid);
-    console.log('🔐 customClaims from useAuth:', customClaims);
-    console.log('🔐 claimsLoaded:', claimsLoaded);
-    
-    if (partnerId && user && claimsLoaded) {
-      console.log('✅ Starting loadData...');
+    if (partnerId && user) {
       loadData();
-    } else {
-      console.log('❌ Waiting for auth data');
-      console.log('   partnerId:', partnerId);
-      console.log('   user:', user?.uid);
-      console.log('   claimsLoaded:', claimsLoaded);
-      
-      if (claimsLoaded && !partnerId) {
-        setIsLoading(false);
+    } else if (!authLoading) {
+      setIsLoading(false);
+      if (!partnerId) {
+        setLoadError('Could not identify your workspace. Please try refreshing the page.');
       }
     }
-  }, [partnerId, user, claimsLoaded]);
+  }, [partnerId, user, authLoading]);
 
   const loadData = async () => {
     if (!partnerId) {
-      console.error('❌ loadData called without partnerId');
       setLoadError('Partner ID not found. Please ensure you are logged in correctly.');
       setIsLoading(false);
       return;
     }
 
-    console.log('🔄 loadData starting for partnerId:', partnerId);
     setIsLoading(true);
     setLoadError(null);
     
     try {
-      console.log('📞 Calling listVaultFiles...');
-      const filesResult = await listVaultFiles(partnerId);
-      console.log('📁 Files result:', filesResult);
-
-      console.log('📞 Calling listFileSearchStores...');
-      const storesResult = await listFileSearchStores(partnerId);
-      console.log('🗄️ Stores result:', storesResult);
-
+      const [filesResult, storesResult] = await Promise.all([
+        listVaultFiles(partnerId),
+        listFileSearchStores(partnerId),
+      ]);
+      
       if (filesResult.success) {
-        console.log('✅ Files loaded:', filesResult.files.length);
         setFiles(filesResult.files);
       } else {
-        console.error('❌ Files failed to load');
+        throw new Error('Failed to load files.');
       }
 
       if (storesResult.success) {
-        console.log('✅ Stores loaded:', storesResult.stores.length);
         setStores(storesResult.stores);
         if (storesResult.stores.length > 0 && !activeStore) {
           setActiveStore(storesResult.stores[0].id);
-          console.log('📌 Set active store:', storesResult.stores[0].id);
         }
       } else {
-        console.error('❌ Stores failed to load');
+        throw new Error('Failed to load knowledge bases.');
       }
-      
-      console.log('✅ loadData completed successfully');
     } catch (error: any) {
-      console.error('💥 Error in loadData:', error);
-      console.error('Error details:', {
-        message: error.message,
-        code: error.code,
-        stack: error.stack,
-      });
-      
       setLoadError(error.message || 'Failed to load vault data');
-      
       toast({
         title: 'Error loading data',
         description: error.message || 'Failed to load vault data',
         variant: 'destructive',
       });
     } finally {
-      console.log('🏁 loadData finished, setting isLoading to false');
       setIsLoading(false);
     }
   };
@@ -204,99 +142,28 @@ export default function VaultPage() {
     }
   };
 
-  console.log('🎨 Rendering Vault Page');
-  console.log('   isLoading:', isLoading);
-  console.log('   partnerId:', partnerId);
-  console.log('   user:', user?.uid);
-  console.log('   loadError:', loadError);
-  console.log('   claimsLoaded:', claimsLoaded);
-
-  if (!claimsLoaded || isLoading) {
+  if (authLoading || isLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900 mx-auto mb-4"></div>
           <p className="text-gray-600">
-            {!claimsLoaded ? 'Loading authentication...' : 'Loading vault...'}
+            {authLoading ? 'Verifying access...' : 'Loading vault...'}
           </p>
         </div>
       </div>
     );
   }
 
-  if (!user) {
+  if (!user || !partnerId) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="text-center">
           <AlertCircle className="h-12 w-12 text-red-500 mx-auto mb-4" />
-          <p className="text-gray-900 font-semibold">Authentication Required</p>
-          <p className="text-gray-600 mt-2">Please log in to access the Vault.</p>
+          <p className="text-gray-900 font-semibold">Access Error</p>
+          <p className="text-gray-600 mt-2">{loadError || 'Could not load workspace. Please log in again.'}</p>
         </div>
       </div>
-    );
-  }
-
-  if (!partnerId) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="text-center">
-          <AlertCircle className="h-12 w-12 text-orange-500 mx-auto mb-4" />
-          <p className="text-gray-900 font-semibold">Partner ID Not Found</p>
-          <p className="text-gray-600 mt-2">Your account is not associated with a partner workspace.</p>
-          <div className="mt-4 text-left bg-gray-100 p-4 rounded max-w-md mx-auto">
-            <p className="text-sm text-gray-700 font-mono">User: {user.uid}</p>
-            <p className="text-sm text-gray-700 font-mono mt-2">
-              Claims from useAuth: {JSON.stringify(customClaims, null, 2)}
-            </p>
-          </div>
-          <Button 
-            onClick={() => window.location.reload()} 
-            className="mt-4"
-            variant="outline"
-          >
-            <RefreshCw className="h-4 w-4 mr-2" />
-            Reload Page
-          </Button>
-        </div>
-      </div>
-    );
-  }
-
-  if (loadError) {
-    return (
-      <>
-        <PartnerHeader
-          title="Vault"
-          subtitle="Upload and train AI on your documents with Gemini File Search"
-        />
-        <main className="flex-1 overflow-auto p-6">
-          <div className="max-w-7xl mx-auto">
-            <div className="bg-red-50 border border-red-200 rounded-lg p-6">
-              <div className="flex items-start gap-3">
-                <AlertCircle className="h-6 w-6 text-red-600 flex-shrink-0 mt-0.5" />
-                <div className="flex-1">
-                  <h3 className="text-red-900 font-semibold mb-2">Error Loading Vault</h3>
-                  <p className="text-red-800 mb-4">{loadError}</p>
-                  <Button onClick={loadData} variant="outline" size="sm">
-                    <RefreshCw className="h-4 w-4 mr-2" />
-                    Try Again
-                  </Button>
-                </div>
-              </div>
-            </div>
-            
-            <div className="mt-6 bg-blue-50 border border-blue-200 rounded-lg p-4">
-              <h4 className="text-sm font-medium text-blue-900 mb-2">Troubleshooting Tips:</h4>
-              <ul className="text-sm text-blue-800 space-y-1 list-disc list-inside">
-                <li>Check browser console (F12) for detailed errors</li>
-                <li>Verify Firestore rules are deployed: <code className="bg-blue-100 px-1">firebase deploy --only firestore:rules</code></li>
-                <li>Ensure GEMINI_API_KEY is set in environment variables</li>
-                <li>Partner ID: {partnerId}</li>
-              </ul>
-            </div>
-          </div>
-        </main>
-      </>
     );
   }
 
