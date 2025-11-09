@@ -1,4 +1,5 @@
 
+
 'use server';
 
 import { GoogleGenerativeAI } from '@google/generative-ai';
@@ -164,7 +165,7 @@ export async function createFileSearchStore(
   }
 
   try {
-    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash-latest' });
     
     const storeData: Omit<FileSearchStore, 'id'> = {
       name: `fileSearchStores/${partnerId}-${Date.now()}`,
@@ -276,7 +277,7 @@ export async function queryFileSearchStore(
     }));
 
     const model = genAI.getGenerativeModel({
-      model: 'gemini-1.5-flash',
+      model: 'gemini-1.5-flash-latest',
     });
 
     const result = await model.generateContent({
