@@ -1271,7 +1271,6 @@ export interface FileSearchStore {
   totalSizeBytes: number;
   state: 'ACTIVE' | 'PROCESSING' | 'FAILED';
 }
-
 export interface VaultQuery {
   id: string;
   query: string;
@@ -1284,5 +1283,18 @@ export interface VaultQuery {
   }>;
   partnerId: string;
   userId: string;
+  selectedFileIds?: string[]; // Add this line
   createdAt: string;
+}
+
+export interface GroundingChunk {
+  retrievedContext?: {
+    text?: string;
+  };
+}
+
+export interface ChatMessage {
+  role: 'user' | 'model';
+  parts: { text: string }[];
+  groundingChunks?: GroundingChunk[];
 }
