@@ -1,3 +1,4 @@
+
 'use server';
 
 import { GoogleGenerativeAI } from '@google/generative-ai';
@@ -327,10 +328,14 @@ export async function listVaultFiles(
       .orderBy('createdAt', 'desc')
       .get();
 
-    const files: VaultFile[] = snapshot.docs.map((doc) => ({
-      id: doc.id,
-      ...doc.data(),
-    } as VaultFile));
+    const files: VaultFile[] = snapshot.docs.map((doc) => {
+        const data = doc.data();
+        return {
+            id: doc.id,
+            ...data,
+            createdAt: data.createdAt?.toDate ? data.createdAt.toDate().toISOString() : new Date().toISOString(),
+        } as VaultFile
+    });
 
     return { success: true, files };
   } catch (error: any) {
