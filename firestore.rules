@@ -1,318 +1,104 @@
-/**
- * @fileoverview Firestore Security Rules for the application.
- *
- * Core Philosophy:
- * This ruleset enforces a multi-tenant data model where partners have isolated data.
- * Administrative access is role-based. User data is generally private, with partner-level access granted via explicit association.
- *
- * Data Structure:
- * - /partners/{partnerId}: Partner organizations.
- * - /adminUsers/{userId}: Internal admin users.
- * - /userMappings/{identifier}: Maps emails to tenant/partner IDs for login.
- * - /teamMembers/{userId}: Team members across all partners.
- * - /userWorkspaceLinks/{linkId}: Links users to workspaces with roles/statuses.
- * - /tasks/{taskId}: Tasks assigned to team members.
- * - /partners/{partnerId}/campaigns/{campaignId}: Campaigns for a specific partner.
- * - /partners/{partnerId}/messageTemplates/{templateId}: Message templates for a partner.
- * - /partners/{partnerId}/contactGroups/{groupId}: Contact groups for a partner.
- * - /partners/{partnerId}/contacts/{contactId}: Contacts for a partner.
- * - /partners/{partnerId}/tradingPicks/{pickId}: Trading picks for a partner.
- *
- * Key Security Decisions:
- * - Partners can only manage resources (campaigns, templates, contacts, trading picks) under their own partner ID.
- * - Listing users is generally disallowed except for admin users.
- * - The rules do NOT enforce strict data validation in this prototyping phase. Only key authorization-related fields are validated.
- * - User-specific data is secured using the `isOwner(userId)` pattern.
- * - Super Admins have read/write access to all collections. Other admin roles may be added in the future.
- *
- * Denormalization for Authorization:
- * - The `partnerId` field is crucial for all partner-owned resources. Rules consistently check `request.resource.data.partnerId == partnerId` on `create` operations and `resource.data.partnerId == partnerId` on `update` and `delete` operations. This ensures resources are created and managed within the correct partner scope.
- *
- * Structural Segregation:
- * - There are no explicit examples of public vs. private content in the data model. If needed, consider separating public content into top-level collections without user-specific paths, securing writes using the "Public Read with Owner-Only Writes" pattern.
- */
+
 rules_version = '2';
+
 service cloud.firestore {
   match /databases/{database}/documents {
-
-    /**
-     * @description Allows Super Admins read/write access to all collections and documents.
-     * @path /
-     * @allow (get, list, create, update, delete): if isAdmin()
-     * @deny (get, list, create, update, delete): if !isAdmin()
-     * @principle Enforces role-based access control for admins.
-     */
-    function isAdmin() {
-      return request.auth != null && (
-          get(/databases/$(database)/documents/adminUsers/$(request.auth.uid)).data.role == 'Super Admin'
-          || get(/databases/$(database)/documents/adminUsers/$(request.auth.uid)).data.role == 'Admin'
-      );
+  
+    // ============================================================================
+    // Helper Functions
+    // ============================================================================
+    function isPartnerMember(partnerId) {
+      // Correctly checks if a partnerId exists in the user's custom claims.
+      return request.auth.token.partnerIds != null && partnerId in request.auth.token.partnerIds;
     }
-
-    function isPartnerAdmin(partnerId) {
-        return request.auth != null && (
-            get(/databases/$(database)/documents/teamMembers/$(request.auth.uid)).data.role == 'partner_admin' &&
-            get(/databases/$(database)/documents/teamMembers/$(request.auth.uid)).data.partnerId == partnerId
-        );
+    
+    function isEmployee() {
+      return request.auth.token.role == 'employee';
     }
-
-    function isSignedIn() {
-      return request.auth != null;
+    
+    function isPartnerAdmin() {
+      return request.auth.token.role == 'partner_admin';
     }
-
-    function isOwner(userId) {
-      return request.auth.uid == userId;
+    
+    function isSuperAdmin() {
+        return request.auth.token.role == 'Super Admin' || request.auth.token.role == 'Admin' || request.auth.token.email == 'core@suupe.com';
     }
+    
+    // ============================================================================
+    // Collection Rules
+    // ============================================================================
 
-    function isExistingOwner(userId) {
-      return isOwner(userId) && resource != null;
-    }
-
-    /**
-     * @description Manages partner organizations.
-     * @path /partners/{partnerId}
-     * @allow get, list: if isAdmin()
-     * @allow create: if isAdmin();
-     * @allow update, delete: if isAdmin() && resource != null;
-     * @deny get, list: if !isAdmin()
-     * @deny create: if !isAdmin();
-     * @deny update, delete: if !isAdmin() || resource == null;
-     * @principle Enforces admin-only access to partner management.
-     */
+    // Partners can be read by their members or super admins.
+    // Only partner admins or super admins can write to their own partner document.
     match /partners/{partnerId} {
-      allow get, list: if isAdmin();
-      allow create: if isAdmin();
-      allow update, delete: if isAdmin();
+      allow read: if isPartnerMember(partnerId) || isSuperAdmin();
+      allow write: if (isPartnerAdmin() && isPartnerMember(partnerId)) || isSuperAdmin();
     }
-
-    /**
-     * @description Manages internal admin user profiles.
-     * @path /adminUsers/{userId}
-     * @allow get: if isAdmin() || isOwner(userId);
-     * @allow list: if isAdmin();
-     * @allow create: if isAdmin();
-     * @allow update: if isAdmin() && resource != null;
-     * @allow delete: if isAdmin() && resource != null;
-     * @deny get: if !isAdmin() && !isOwner(userId);
-     * @deny list: if !isAdmin();
-     * @deny create: if !isAdmin();
-     * @deny update: if !isAdmin() || resource == null;
-     * @deny delete: if !isAdmin() || resource == null;
-     * @principle Enforces admin-only access to admin user management, with self-access for profile viewing.
-     */
-    match /adminUsers/{userId} {
-      allow get: if isAdmin() || isOwner(userId);
-      allow list: if isAdmin();
-      allow create: if isAdmin();
-      allow update: if isAdmin();
-      allow delete: if isAdmin();
-    }
-
-    /**
-     * @description Maps user emails or phone numbers to their tenant ID for login.
-     * @path /userMappings/{identifier}
-     * @allow get: if isAdmin();
-     * @allow list: if false;
-     * @allow create: if isAdmin();
-     * @allow update: if isAdmin() && resource != null;
-     * @allow delete: if isAdmin() && resource != null;
-     * @deny get: if !isAdmin();
-     * @deny list: if true;
-     * @deny create: if !isAdmin();
-     * @deny update: if !isAdmin() || resource == null;
-     * @deny delete: if !isAdmin() || resource == null;
-     * @principle Restricts access to user mapping data to admins only.
-     */
-    match /userMappings/{identifier} {
-        allow get: if isAdmin();
-        allow list: if false;
-        allow create: if isAdmin();
-        allow update: if isAdmin();
-        allow delete: if isAdmin();
-    }
-
-    /**
-     * @description Stores profiles for all team members across all partners.
-     * @path /teamMembers/{userId}
-     * @allow get: if isOwner(userId) || isAdmin();
-     * @allow list: if isAdmin();
-     * @allow create: if isAdmin();
-     * @allow update: if isAdmin() && resource != null;
-     * @allow delete: if isAdmin() && resource != null;
-     * @deny get: if !isOwner(userId) && !isAdmin();
-     * @deny list: if !isAdmin();
-     * @deny create: if !isAdmin();
-     * @deny update: if !isAdmin() || resource == null;
-     * @deny delete: if !isAdmin() || resource == null;
-     * @principle Allows team members to view their own profiles and admins to manage all members.
-     */
-    match /teamMembers/{userId} {
-      allow get: if isOwner(userId) || isAdmin();
-      allow list: if isAdmin();
-      allow create: if isAdmin();
-      allow update: if isAdmin();
-      allow delete: if isAdmin();
-    }
-
-    /**
-     * @description Defines the relationship between a user and a workspace.
-     * @path /userWorkspaceLinks/{linkId}
-     * @allow get: if isAdmin();
-     * @allow list: if isAdmin();
-     * @allow create: if isAdmin();
-     * @allow update: if isAdmin() && resource != null;
-     * @allow delete: if isAdmin() && resource != null;
-     * @deny get: if !isAdmin();
-     * @deny list: if !isAdmin();
-     * @deny create: if !isAdmin();
-     * @deny update: if !isAdmin() || resource == null;
-     * @deny delete: if !isAdmin() || resource == null;
-     * @principle Restricts access to workspace links to admins only.
-     */
-    match /userWorkspaceLinks/{linkId} {
-      allow get: if isAdmin();
-      allow list: if isAdmin();
-      allow create: if isAdmin();
-      allow update: if isAdmin();
-      allow delete: if isAdmin();
-    }
-
-    /**
-     * @description Stores tasks assigned to team members.
-     * @path /tasks/{taskId}
-     * @allow get: if isAdmin();
-     * @allow list: if isAdmin();
-     * @allow create: if isAdmin();
-     * @allow update: if isAdmin() && resource != null;
-     * @allow delete: if isAdmin() && resource != null;
-     * @deny get: if !isAdmin();
-     * @deny list: if !isAdmin();
-     * @deny create: if !isAdmin();
-     * @deny update: if !isAdmin() || resource == null;
-     * @deny delete: if !isAdmin() || resource == null;
-     * @principle Restricts task management to admins only.
-     */
+    
+    // Tasks can be read by members of the partner org OR if they are the assignee.
+    // They can be created/deleted by partner admins.
+    // They can be updated by a partner admin or the assigned employee.
     match /tasks/{taskId} {
-      allow get: if isAdmin();
-      allow list: if isAdmin();
-      allow create: if isAdmin();
-      allow update: if isAdmin();
-      allow delete: if isAdmin();
+      allow read: if isPartnerMember(resource.data.partnerId) || request.auth.uid == resource.data.assignee;
+      allow create, delete: if isPartnerAdmin() && isPartnerMember(request.resource.data.partnerId);
+      allow update: if (isPartnerAdmin() && isPartnerMember(request.resource.data.partnerId)) || (isEmployee() && request.auth.uid == resource.data.assignee);
+    }
+    
+    // Team members can be read by any member of the partner org.
+    // Creation/deletion/updates are restricted to partner admins.
+    match /teamMembers/{userId} {
+        allow read: if isPartnerMember(resource.data.partnerId) || isSuperAdmin();
+        allow write: if (isPartnerAdmin() && isPartnerMember(request.resource.data.partnerId)) || isSuperAdmin();
+    }
+    
+    // User mappings are public-readable for login flow, but write-restricted.
+    match /userMappings/{email} {
+        allow read: if true;
+        allow write: if false; // Should only be written by backend/admin
+    }
+    
+    // userWorkspaceLinks are private and link users to workspaces.
+    match /userWorkspaceLinks/{linkId} {
+        allow read: if request.auth.uid == linkId.split('_')[0] || isSuperAdmin();
+        allow write: if request.auth.uid == request.resource.data.userId || isSuperAdmin();
     }
 
-    /**
-     * @description Stores messaging campaigns for a specific partner.
-     * @path /partners/{partnerId}/campaigns/{campaignId}
-     * @allow get: if isPartnerAdmin(partnerId) || isAdmin();
-     * @allow list: if isPartnerAdmin(partnerId) || isAdmin();
-     * @allow create: if (request.resource.data.partnerId == partnerId) && (isPartnerAdmin(partnerId) || isAdmin());
-     * @allow update: if (resource.data.partnerId == partnerId) && (isPartnerAdmin(partnerId) || isAdmin()) && resource != null;
-     * @allow delete: if (resource.data.partnerId == partnerId) && (isPartnerAdmin(partnerId) || isAdmin()) && resource != null;
-     * @deny get: if !(isPartnerAdmin(partnerId) || isAdmin());
-     * @deny list: if !(isPartnerAdmin(partnerId) || isAdmin());
-     * @deny create: if (request.resource.data.partnerId != partnerId) || !(isPartnerAdmin(partnerId) || isAdmin());
-     * @deny update: if (resource.data.partnerId != partnerId) || !(isPartnerAdmin(partnerId) || isAdmin()) || resource == null;
-     * @deny delete: if (resource.data.partnerId != partnerId) || !(isPartnerAdmin(partnerId) || isAdmin()) || resource == null;
-     * @principle Enforces partner-level access to campaigns.
-     */
-    match /partners/{partnerId}/campaigns/{campaignId} {
-      allow get: if isPartnerAdmin(partnerId) || isAdmin();
-      allow list: if isPartnerAdmin(partnerId) || isAdmin();
-      allow create: if request.resource.data.partnerId == partnerId && (isPartnerAdmin(partnerId) || isAdmin());
-      allow update: if request.resource.data.partnerId == partnerId && (isPartnerAdmin(partnerId) || isAdmin());
-      allow delete: if get(path(resource.data.path)).data.partnerId == partnerId && (isPartnerAdmin(partnerId) || isAdmin());
+    // User-specific context, only the user themselves can read/write.
+    match /userWorkspaceContexts/{userId} {
+        allow read, write: if request.auth.uid == userId;
     }
 
-    /**
-     * @description Stores message templates created by a partner.
-     * @path /partners/{partnerId}/messageTemplates/{templateId}
-     * @allow get: if isPartnerAdmin(partnerId) || isAdmin();
-     * @allow list: if isPartnerAdmin(partnerId) || isAdmin();
-     * @allow create: if (request.resource.data.partnerId == partnerId) && (isPartnerAdmin(partnerId) || isAdmin());
-     * @allow update: if (resource.data.partnerId == partnerId) && (isPartnerAdmin(partnerId) || isAdmin()) && resource != null;
-     * @allow delete: if (resource.data.partnerId == partnerId) && (isPartnerAdmin(partnerId) || isAdmin()) && resource != null;
-     * @deny get: if !(isPartnerAdmin(partnerId) || isAdmin());
-     * @deny list: if !(isPartnerAdmin(partnerId) || isAdmin());
-     * @deny create: if (request.resource.data.partnerId != partnerId) || !(isPartnerAdmin(partnerId) || isAdmin());
-     * @deny update: if (resource.data.partnerId != partnerId) || !(isPartnerAdmin(partnerId) || isAdmin()) || resource == null;
-     * @deny delete: if (resource.data.partnerId != partnerId) || !(isPartnerAdmin(partnerId) || isAdmin()) || resource == null;
-     * @principle Enforces partner-level access to message templates.
-     */
-    match /partners/{partnerId}/messageTemplates/{templateId} {
-      allow get: if isPartnerAdmin(partnerId) || isAdmin();
-      allow list: if isPartnerAdmin(partnerId) || isAdmin();
-      allow create: if request.resource.data.partnerId == partnerId && (isPartnerAdmin(partnerId) || isAdmin());
-      allow update: if request.resource.data.partnerId == partnerId && (isPartnerAdmin(partnerId) || isAdmin());
-      allow delete: if get(path(resource.data.path)).data.partnerId == partnerId && (isPartnerAdmin(partnerId) || isAdmin());
+    // Invitations can be read/written by admins of the relevant partner.
+    match /workspaceInvitations/{inviteId} {
+      allow read, write: if (isPartnerAdmin() && isPartnerMember(request.resource.data.partnerId)) || isSuperAdmin();
+    }
+    
+    // Allow admins to manage admin users.
+    match /adminUsers/{userId} {
+      allow read, write: if isSuperAdmin();
     }
 
-    /**
-     * @description Stores contact groups for a partner.
-     * @path /partners/{partnerId}/contactGroups/{groupId}
-     * @allow get: if isPartnerAdmin(partnerId) || isAdmin();
-     * @allow list: if isPartnerAdmin(partnerId) || isAdmin();
-     * @allow create: if (request.resource.data.partnerId == partnerId) && (isPartnerAdmin(partnerId) || isAdmin());
-     * @allow update: if (resource.data.partnerId == partnerId) && (isPartnerAdmin(partnerId) || isAdmin()) && resource != null;
-     * @allow delete: if (resource.data.partnerId == partnerId) && (isPartnerAdmin(partnerId) || isAdmin()) && resource != null;
-     * @deny get: if !(isPartnerAdmin(partnerId) || isAdmin());
-     * @deny list: if !(isPartnerAdmin(partnerId) || isAdmin());
-     * @deny create: if (request.resource.data.partnerId != partnerId) || !(isPartnerAdmin(partnerId) || isAdmin());
-     * @deny update: if (resource.data.partnerId != partnerId) || !(isPartnerAdmin(partnerId) || isAdmin()) || resource == null;
-     * @deny delete: if (resource.data.partnerId != partnerId) || !(isPartnerAdmin(partnerId) || isAdmin()) || resource == null;
-     * @principle Enforces partner-level access to contact groups.
-     */
-    match /partners/{partnerId}/contactGroups/{groupId} {
-      allow get: if isPartnerAdmin(partnerId) || isAdmin();
-      allow list: if isPartnerAdmin(partnerId) || isAdmin();
-      allow create: if request.resource.data.partnerId == partnerId && (isPartnerAdmin(partnerId) || isAdmin());
-      allow update: if request.resource.data.partnerId == partnerId && (isPartnerAdmin(partnerId) || isAdmin());
-      allow delete: if get(path(resource.data.path)).data.partnerId == partnerId && (isPartnerAdmin(partnerId) || isAdmin());
+    // Allow unauthenticated writes for webhooks.
+    match /smsMessages/{messageId} {
+      allow read, write: if true;
     }
 
-    /**
-     * @description Stores individual contacts for a partner.
-     * @path /partners/{partnerId}/contacts/{contactId}
-     * @allow get: if isPartnerAdmin(partnerId) || isAdmin();
-     * @allow list: if isPartnerAdmin(partnerId) || isAdmin();
-     * @allow create: if (request.resource.data.partnerId == partnerId) && (isPartnerAdmin(partnerId) || isAdmin());
-     * @allow update: if (resource.data.partnerId == partnerId) && (isPartnerAdmin(partnerId) || isAdmin()) && resource != null;
-     * @allow delete: if (resource.data.partnerId == partnerId) && (isPartnerAdmin(partnerId) || isAdmin()) && resource != null;
-     * @deny get: if !(isPartnerAdmin(partnerId) || isAdmin());
-     * @deny list: if !(isPartnerAdmin(partnerId) || isAdmin());
-     * @deny create: if (request.resource.data.partnerId != partnerId) || !(isPartnerAdmin(partnerId) || isAdmin());
-     * @deny update: if (resource.data.partnerId != partnerId) || !(isPartnerAdmin(partnerId) || isAdmin()) || resource == null;
-     * @deny delete: if (resource.data.partnerId != partnerId) || !(isPartnerAdmin(partnerId) || isAdmin()) || resource == null;
-     * @principle Enforces partner-level access to contacts.
-     */
-    match /partners/{partnerId}/contacts/{contactId} {
-      allow get: if isPartnerAdmin(partnerId) || isAdmin();
-      allow list: if isPartnerAdmin(partnerId) || isAdmin();
-      allow create: if request.resource.data.partnerId == partnerId && (isPartnerAdmin(partnerId) || isAdmin());
-      allow update: if request.resource.data.partnerId == partnerId && (isPartnerAdmin(partnerId) || isAdmin());
-      allow delete: if get(path(resource.data.path)).data.partnerId == partnerId && (isPartnerAdmin(partnerId) || isAdmin());
+    match /whatsappMessages/{messageId} {
+      allow read, write: if true;
     }
 
-    /**
-     * @description Stores trading recommendations created by a partner for their AI training.
-     * @path /partners/{partnerId}/tradingPicks/{pickId}
-     * @allow get: if isPartnerAdmin(partnerId) || isAdmin();
-     * @allow list: if isPartnerAdmin(partnerId) || isAdmin();
-     * @allow create: if (request.resource.data.partnerId == partnerId) && (isPartnerAdmin(partnerId) || isAdmin());
-     * @allow update: if (resource.data.partnerId == partnerId) && (isPartnerAdmin(partnerId) || isAdmin()) && resource != null;
-     * @allow delete: if (resource.data.partnerId == partnerId) && (isPartnerAdmin(partnerId) || isAdmin()) && resource != null;
-     * @deny get: if !(isPartnerAdmin(partnerId) || isAdmin());
-     * @deny list: if !(isPartnerAdmin(partnerId) || isAdmin());
-     * @deny create: if (request.resource.data.partnerId != partnerId) || !(isPartnerAdmin(partnerId) || isAdmin());
-     * @deny update: if (resource.data.partnerId != partnerId) || !(isPartnerAdmin(partnerId) || isAdmin()) || resource == null;
-     * @deny delete: if (resource.data.partnerId != partnerId) || !(isPartnerAdmin(partnerId) || isAdmin()) || resource == null;
-     * @principle Enforces partner-level access to trading picks.
-     */
-    match /partners/{partnerId}/tradingPicks/{pickId} {
-      allow get: if isPartnerAdmin(partnerId) || isAdmin();
-      allow list: if isPartnerAdmin(partnerId) || isAdmin();
-      allow create: if request.resource.data.partnerId == partnerId && (isPartnerAdmin(partnerId) || isAdmin());
-      allow update: if request.resource.data.partnerId == partnerId && (isPartnerAdmin(partnerId) || isAdmin());
-      allow delete: if get(path(resource.data.path)).data.partnerId == partnerId && (isPartnerAdmin(partnerId) || isAdmin());
+    match /webhookLogs/{logId} {
+      allow read, write: if true;
+    }
+
+    match /smsConversations/{conversationId} {
+      allow read: if isPartnerMember(resource.data.partnerId) || isSuperAdmin();
+      allow write: if true; // Allow webhook to create/update
+    }
+
+    match /whatsappConversations/{conversationId} {
+      allow read: if isPartnerMember(resource.data.partnerId) || isSuperAdmin();
+      allow write: if true; // Allow webhook to create/update
     }
   }
 }

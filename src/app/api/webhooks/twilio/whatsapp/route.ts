@@ -30,14 +30,6 @@ async function logWebhookCall(payload: any, success: boolean, error?: string) {
   }
 }
 
-export async function GET(request: NextRequest) {
-  return NextResponse.json({ 
-    success: true,
-    message: 'WhatsApp webhook active',
-    timestamp: new Date().toISOString()
-  });
-}
-
 export async function POST(request: NextRequest) {
   let payload: Record<string, string> = {};
   
@@ -47,7 +39,7 @@ export async function POST(request: NextRequest) {
     
     if (payload.MessageStatus) {
       await logWebhookCall(payload, true, 'Status update received, skipping processing.');
-      return NextResponse.json({ success: true, message: 'Status update received' });
+      return new NextResponse('<?xml version="1.0" encoding="UTF-8"?><Response></Response>', { status: 200, headers: { 'Content-Type': 'text/xml' } });
     }
     
     if ((payload.Body || (payload.NumMedia && parseInt(payload.NumMedia) > 0)) && payload.From && payload.To) {
@@ -68,21 +60,20 @@ export async function POST(request: NextRequest) {
 async function getPartnerIdFromPhone(toPhone: string): Promise<string> {
     if (!db) throw new Error('Database not configured');
     
-    console.log('🔍 Looking up partner for WhatsApp phone:', toPhone);
+    console.log('🔍 WhatsApp: Looking up partner for phone:', toPhone);
     
-    // The 'To' number for WhatsApp comes with 'whatsapp:' prefix
+    // The 'To' number for WhatsApp comes with 'whatsapp:' prefix, which is used as the document ID
     const mappingDoc = await db.collection('twilioPhoneMappings').doc(toPhone).get();
     
     if (mappingDoc.exists) {
       const partnerId = mappingDoc.data()?.partnerId;
       if (partnerId) {
-        console.log('✅ Found partnerId via direct mapping:', partnerId);
+        console.log('✅ WhatsApp: Found partnerId via direct mapping:', partnerId);
         return partnerId;
       }
     }
     
-    console.error('❌ No partner found with phone matching:', toPhone);
-    throw new Error(`No partner mapping found for ${toPhone}. Please run the create-phone-mapping script or check your twilioPhoneMappings collection in Firestore.`);
+    throw new Error(`No partner mapping found for ${toPhone}`);
 }
 
 async function handleIncomingMessage(payload: Record<string, string>) {
@@ -90,7 +81,6 @@ async function handleIncomingMessage(payload: Record<string, string>) {
 
   const fromPhone = normalizePhoneNumber(payload.From);
   const toPhone = payload.To;
-  
   const partnerId = await getPartnerIdFromPhone(toPhone);
 
   const convoQuery = await db.collection('whatsappConversations')
@@ -181,8 +171,6 @@ async function handleIncomingMessage(payload: Record<string, string>) {
         twilioStatus: 'received',
         to: payload.To,
         from: payload.From,
-        errorCode: null,
-        errorMessage: null,
       },
     };
     await db.collection('whatsappMessages').add(messageData);

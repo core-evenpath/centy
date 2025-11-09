@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import { db } from '@/lib/firebase-admin';
 import { FieldValue } from 'firebase-admin/firestore';
+import { normalizePhoneNumber } from '@/utils/phone-utils';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -28,14 +29,6 @@ async function logWebhookCall(payload: any, success: boolean, error?: string) {
   }
 }
 
-export async function GET(request: NextRequest) {
-  return NextResponse.json({ 
-    success: true,
-    message: 'SMS webhook is active and ready',
-    timestamp: new Date().toISOString()
-  });
-}
-
 export async function POST(request: NextRequest) {
   let payload: Record<string, string> = {};
   
@@ -45,7 +38,7 @@ export async function POST(request: NextRequest) {
     
     if (payload.MessageStatus) {
       await logWebhookCall(payload, true, 'Status update processed.');
-      return NextResponse.json({ success: true, message: 'Status updated' });
+      return new NextResponse('<?xml version="1.0" encoding="UTF-8"?><Response></Response>', { status: 200, headers: { 'Content-Type': 'text/xml' } });
     }
     
     if ((payload.Body || (payload.NumMedia && parseInt(payload.NumMedia) > 0)) && payload.From && payload.To) {
@@ -64,32 +57,39 @@ export async function POST(request: NextRequest) {
 }
 
 async function getPartnerIdFromPhone(toPhone: string): Promise<string> {
-    if (!db) throw new Error('Database not configured');
-    
-    console.log('🔍 Looking up partner for SMS phone:', toPhone);
-    
-    // Direct lookup with the raw 'To' number from Twilio (e.g., +1234567890)
-    const mappingRef = db.collection('twilioPhoneMappings').doc(toPhone);
-    const mappingDoc = await mappingRef.get();
-    
-    if (mappingDoc.exists) {
+  if (!db) throw new Error('Database not configured');
+
+  const normalizedPhone = normalizePhoneNumber(toPhone);
+  console.log(`🔍 SMS: Looking up partner for normalized phone: ${normalizedPhone}`);
+
+  // 1. Direct lookup in twilioPhoneMappings
+  const mappingDoc = await db.collection('twilioPhoneMappings').doc(normalizedPhone).get();
+  if (mappingDoc.exists) {
       const partnerId = mappingDoc.data()?.partnerId;
       if (partnerId) {
-        console.log('✅ Found partnerId via direct mapping:', partnerId);
-        return partnerId;
+          console.log(`✅ SMS: Found partnerId via direct mapping: ${partnerId}`);
+          return partnerId;
       }
-    }
-    
-    console.error('❌ No partner found with phone matching:', toPhone);
-    throw new Error(`No partner mapping found for ${toPhone}. Please run the create-phone-mapping script or check your twilioPhoneMappings collection in Firestore.`);
+  }
+
+  // 2. Fallback to searching the partners collection (less reliable)
+  const partnersSnapshot = await db.collection('partners').get();
+  for (const doc of partnersSnapshot.docs) {
+      const partner = doc.data();
+      if (partner.phone && normalizePhoneNumber(partner.phone) === normalizedPhone) {
+          console.log(`✅ SMS: Found partnerId via fallback search: ${doc.id}`);
+          return doc.id;
+      }
+  }
+
+  throw new Error(`No partner mapping found for ${toPhone}`);
 }
 
 async function handleIncomingMessage(payload: Record<string, string>) {
   if (!db) throw new Error('Database not configured');
 
-  const fromPhone = payload.From;
-  const toPhone = payload.To;
-
+  const fromPhone = normalizePhoneNumber(payload.From);
+  const toPhone = normalizePhoneNumber(payload.To);
   const partnerId = await getPartnerIdFromPhone(toPhone);
 
   let conversationId: string;
@@ -105,7 +105,7 @@ async function handleIncomingMessage(payload: Record<string, string>) {
     conversationId = conversationRef.id;
 
     await conversationRef.set({
-      partnerId: partnerId,
+      partnerId,
       type: 'direct',
       platform: 'sms',
       title: `SMS: ${fromPhone}`,
@@ -127,9 +127,9 @@ async function handleIncomingMessage(payload: Record<string, string>) {
 
   const messageData: any = {
     conversationId,
-    partnerId: partnerId,
+    partnerId,
     senderId: `customer:${fromPhone}`,
-    type: payload.NumMedia && parseInt(payload.NumMedia) > 0 ? 'image' : 'text',
+    type: (payload.NumMedia && parseInt(payload.NumMedia) > 0) ? 'image' : 'text',
     content: payload.Body || '',
     direction: 'inbound',
     platform: 'sms',

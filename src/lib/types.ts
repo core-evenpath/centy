@@ -1238,3 +1238,51 @@ export interface ResourceAccess {
   resource: string;
   action: 'read' | 'write' | 'delete' | 'admin';
 }
+
+
+// Vault & File Search Types
+export interface VaultFile {
+  id: string;
+  name: string;
+  displayName: string;
+  mimeType: string;
+  sizeBytes: number;
+  uri: string;
+  state: 'PROCESSING' | 'ACTIVE' | 'FAILED';
+  uploadedAt: string;
+  uploadedBy: string;
+  partnerId: string;
+  geminiFileUri?: string;
+  metadata?: {
+    description?: string;
+    tags?: string[];
+    category?: string;
+  };
+}
+
+export interface FileSearchStore {
+  id: string;
+  name: string;
+  displayName: string;
+  partnerId: string;
+  createdAt: string;
+  updatedAt: string;
+  fileCount: number;
+  totalSizeBytes: number;
+  state: 'ACTIVE' | 'PROCESSING' | 'FAILED';
+}
+
+export interface VaultQuery {
+  id: string;
+  query: string;
+  response: string;
+  citations?: Array<{
+    startIndex: number;
+    endIndex: number;
+    uri: string;
+    title: string;
+  }>;
+  partnerId: string;
+  userId: string;
+  createdAt: string;
+}
