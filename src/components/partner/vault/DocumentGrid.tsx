@@ -40,13 +40,13 @@ export default function DocumentGrid({
   const getStatusIcon = (state: string) => {
     switch (state) {
       case 'ACTIVE':
-        return <CheckCircle2 className="h-4 w-4 text-green-600" />;
+        return <CheckCircle2 className="h-3.5 w-3.5 text-green-600" />;
       case 'PROCESSING':
-        return <Clock className="h-4 w-4 text-blue-600 animate-pulse" />;
+        return <Clock className="h-3.5 w-3.5 text-blue-600 animate-pulse" />;
       case 'FAILED':
-        return <AlertCircle className="h-4 w-4 text-red-600" />;
+        return <AlertCircle className="h-3.5 w-3.5 text-red-600" />;
       default:
-        return <FileText className="h-4 w-4 text-gray-400" />;
+        return <FileText className="h-3.5 w-3.5 text-gray-400" />;
     }
   };
 
@@ -60,6 +60,19 @@ export default function DocumentGrid({
         return 'bg-red-50 text-red-700 border-red-200';
       default:
         return 'bg-gray-50 text-gray-700 border-gray-200';
+    }
+  };
+
+  const getStatusLabel = (state: string) => {
+    switch (state) {
+      case 'ACTIVE':
+        return 'Active';
+      case 'PROCESSING':
+        return 'Processing';
+      case 'FAILED':
+        return 'Failed';
+      default:
+        return 'Unknown';
     }
   };
 
@@ -92,175 +105,157 @@ export default function DocumentGrid({
 
   if (viewMode === 'list') {
     return (
-      <div className="p-6">
-        <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
-          <table className="w-full">
-            <thead className="bg-gray-50 border-b border-gray-200">
-              <tr>
-                <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase">
-                  Document
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase">
-                  Status
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase">
-                  Size
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase">
-                  Uploaded
-                </th>
-                <th className="px-6 py-3 text-right text-xs font-semibold text-gray-600 uppercase">
-                  Actions
-                </th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-200">
-              {files.map((file) => (
-                <tr
-                  key={file.id}
-                  onClick={() => onSelectFile(file)}
-                  className={`hover:bg-gray-50 cursor-pointer transition-colors ${
-                    selectedFile?.id === file.id ? 'bg-blue-50' : ''
-                  }`}
-                >
-                  <td className="px-6 py-4">
-                    <div className="flex items-center gap-3">
-                      <div className="flex-shrink-0 w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
-                        <FileText className="h-5 w-5 text-blue-600" />
-                      </div>
-                      <div>
-                        <p className="text-sm font-medium text-gray-900">
-                          {file.displayName}
-                        </p>
-                        <p className="text-xs text-gray-500">
-                          {file.mimeType}
-                        </p>
-                      </div>
-                    </div>
-                  </td>
-                  <td className="px-6 py-4">
-                    <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border ${getStatusColor(file.state)}`}>
-                      {getStatusIcon(file.state)}
-                      {file.state}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 text-sm text-gray-600">
-                    {(file.sizeBytes / 1024 / 1024).toFixed(2)} MB
-                  </td>
-                  <td className="px-6 py-4 text-sm text-gray-600">
-                    {formatDistanceToNow(new Date(file.uploadedAt), { addSuffix: true })}
-                  </td>
-                  <td className="px-6 py-4 text-right">
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <button 
-                          onClick={(e) => e.stopPropagation()}
-                          className="p-2 hover:bg-gray-100 rounded-lg"
-                        >
-                          <MoreVertical className="h-4 w-4 text-gray-600" />
-                        </button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem>
-                          <Download className="h-4 w-4 mr-2" />
-                          Download
-                        </DropdownMenuItem>
-                        <DropdownMenuItem
-                          className="text-red-600"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            onDeleteFile(file.id);
-                          }}
-                        >
-                          <Trash2 className="h-4 w-4 mr-2" />
-                          Delete
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div className="p-6">
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+      <div className="space-y-1">
         {files.map((file) => (
           <div
             key={file.id}
             onClick={() => onSelectFile(file)}
-            className={`group bg-white rounded-lg border-2 transition-all cursor-pointer hover:shadow-lg ${
+            className={`group flex items-center gap-3 px-3 py-2.5 bg-white rounded-lg border cursor-pointer transition-all hover:shadow-sm ${
               selectedFile?.id === file.id
-                ? 'border-blue-500 shadow-lg'
-                : 'border-gray-200 hover:border-blue-300'
+                ? 'border-blue-500 bg-blue-50'
+                : 'border-gray-200 hover:border-gray-300'
             }`}
           >
-            {/* Card Header */}
-            <div className="p-4 border-b border-gray-100">
-              <div className="flex items-start justify-between mb-3">
-                <div className="flex-shrink-0 w-12 h-12 bg-gradient-to-br from-blue-100 to-blue-200 rounded-xl flex items-center justify-center">
-                  <FileText className="h-6 w-6 text-blue-600" />
-                </div>
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <button 
-                      onClick={(e) => e.stopPropagation()}
-                      className="p-1.5 hover:bg-gray-100 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity"
-                    >
-                      <MoreVertical className="h-4 w-4 text-gray-600" />
-                    </button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    <DropdownMenuItem>
-                      <Download className="h-4 w-4 mr-2" />
-                      Download
-                    </DropdownMenuItem>
-                    <DropdownMenuItem
-                      className="text-red-600"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onDeleteFile(file.id);
-                      }}
-                    >
-                      <Trash2 className="h-4 w-4 mr-2" />
-                      Delete
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
+            {/* File Icon */}
+            <div className={`flex-shrink-0 w-9 h-9 rounded-lg flex items-center justify-center ${
+              file.state === 'ACTIVE' ? 'bg-blue-50' : 'bg-gray-50'
+            }`}>
+              <FileText className={`h-4 w-4 ${
+                file.state === 'ACTIVE' ? 'text-blue-600' : 'text-gray-400'
+              }`} />
+            </div>
+
+            {/* File Info */}
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 mb-0.5">
+                <h4 className="text-sm font-medium text-gray-900 truncate">
+                  {file.displayName}
+                </h4>
+                {file.state === 'ACTIVE' && (
+                  <Sparkles className="h-3 w-3 text-green-600 flex-shrink-0" />
+                )}
               </div>
-              
-              <h3 className="text-sm font-semibold text-gray-900 line-clamp-2 mb-1">
-                {file.displayName}
-              </h3>
               <p className="text-xs text-gray-500">
-                {(file.sizeBytes / 1024 / 1024).toFixed(2)} MB
+                {(file.sizeBytes / 1024 / 1024).toFixed(2)} MB • {file.createdAt ? formatDistanceToNow(new Date(file.createdAt), { addSuffix: true }) : 'Unknown date'}
               </p>
             </div>
 
-            {/* Card Body */}
-            <div className="p-4 space-y-3">
-              <div className="flex items-center justify-between">
-                <span className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-full text-xs font-medium border ${getStatusColor(file.state)}`}>
-                  {getStatusIcon(file.state)}
-                  {file.state}
-                </span>
-                {file.state === 'ACTIVE' && (
-                  <Sparkles className="h-4 w-4 text-purple-600" />
-                )}
-              </div>
-              
-              <div className="text-xs text-gray-500">
-                {formatDistanceToNow(new Date(file.uploadedAt), { addSuffix: true })}
-              </div>
+            {/* Status Badge */}
+            <div className={`flex-shrink-0 flex items-center gap-1.5 px-2 py-1 rounded-md border text-xs font-medium ${getStatusColor(file.state)}`}>
+              {getStatusIcon(file.state)}
+              {getStatusLabel(file.state)}
             </div>
+
+            {/* Actions Menu */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button
+                  onClick={(e) => e.stopPropagation()}
+                  className="flex-shrink-0 p-1.5 opacity-0 group-hover:opacity-100 hover:bg-gray-100 rounded transition-opacity"
+                >
+                  <MoreVertical className="h-4 w-4 text-gray-600" />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-40">
+                <DropdownMenuItem>
+                  <Download className="h-3.5 w-3.5 mr-2" />
+                  Download
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onDeleteFile(file.id);
+                  }}
+                  className="text-red-600"
+                >
+                  <Trash2 className="h-3.5 w-3.5 mr-2" />
+                  Delete
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         ))}
       </div>
+    );
+  }
+
+  // Grid View
+  return (
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+      {files.map((file) => (
+        <div
+          key={file.id}
+          onClick={() => onSelectFile(file)}
+          className={`group relative bg-white rounded-lg border p-3 cursor-pointer transition-all hover:shadow-md ${
+            selectedFile?.id === file.id
+              ? 'border-blue-500 ring-2 ring-blue-100'
+              : 'border-gray-200 hover:border-gray-300'
+          }`}
+        >
+          {/* Header */}
+          <div className="flex items-start justify-between mb-3">
+            <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
+              file.state === 'ACTIVE' ? 'bg-blue-50' : 'bg-gray-50'
+            }`}>
+              <FileText className={`h-5 w-5 ${
+                file.state === 'ACTIVE' ? 'text-blue-600' : 'text-gray-400'
+              }`} />
+            </div>
+
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button
+                  onClick={(e) => e.stopPropagation()}
+                  className="p-1.5 opacity-0 group-hover:opacity-100 hover:bg-gray-100 rounded transition-opacity"
+                >
+                  <MoreVertical className="h-4 w-4 text-gray-600" />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-40">
+                <DropdownMenuItem>
+                  <Download className="h-3.5 w-3.5 mr-2" />
+                  Download
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onDeleteFile(file.id);
+                  }}
+                  className="text-red-600"
+                >
+                  <Trash2 className="h-3.5 w-3.5 mr-2" />
+                  Delete
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+
+          {/* Content */}
+          <div className="mb-3">
+            <h4 className="text-sm font-medium text-gray-900 mb-1 line-clamp-2">
+              {file.displayName}
+            </h4>
+            <p className="text-xs text-gray-500">
+              {(file.sizeBytes / 1024 / 1024).toFixed(2)} MB
+            </p>
+          </div>
+
+          {/* Footer */}
+          <div className="flex items-center justify-between pt-3 border-t border-gray-100">
+            <div className={`flex items-center gap-1.5 px-2 py-0.5 rounded-md border text-xs font-medium ${getStatusColor(file.state)}`}>
+              {getStatusIcon(file.state)}
+              {getStatusLabel(file.state)}
+            </div>
+            {file.state === 'ACTIVE' && (
+              <Sparkles className="h-3.5 w-3.5 text-green-600" />
+            )}
+          </div>
+
+          <p className="text-[10px] text-gray-400 mt-2">
+            {file.createdAt ? formatDistanceToNow(new Date(file.createdAt), { addSuffix: true }) : 'Unknown date'}
+          </p>
+        </div>
+      ))}
     </div>
   );
 }
