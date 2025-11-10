@@ -125,20 +125,18 @@ export default function VaultPage() {
       const now = new Date();
       const cutoff = new Date();
       
-      if (filters.dateRange === '7days') {
+      if (filters.dateRange === 'today') {
+        cutoff.setHours(0, 0, 0, 0);
+      } else if (filters.dateRange === 'week') {
         cutoff.setDate(now.getDate() - 7);
-      } else if (filters.dateRange === '30days') {
+      } else if (filters.dateRange === 'month') {
         cutoff.setDate(now.getDate() - 30);
-      } else if (filters.dateRange === '90days') {
-        cutoff.setDate(now.getDate() - 90);
       }
 
-      if (filters.dateRange !== 'all') {
-        filtered = filtered.filter(f => {
-          const fileDate = f.createTime?.toDate() || new Date(0);
-          return fileDate >= cutoff;
-        });
-      }
+      filtered = filtered.filter(f => {
+        const fileDate = f.createdAt ? new Date(f.createdAt) : new Date(0);
+        return fileDate >= cutoff;
+      });
     }
 
     setFilteredFiles(filtered);
@@ -248,45 +246,37 @@ export default function VaultPage() {
                     {files.length} document{files.length !== 1 ? 's' : ''}
                   </span>
                 </div>
-                <div className="flex items-center gap-2">
-                  <Sparkles className="h-4 w-4 text-green-600" />
-                  <span className="text-gray-600">
-                    {activeFileCount} trained
-                  </span>
-                </div>
-              </div>
 
-              <div className="flex items-center gap-3">
-                <div className="relative">
+                <div className="relative flex-1 max-w-md">
                   <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
                   <Input
                     type="text"
                     placeholder="Search documents..."
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    className="pl-9 w-64 h-9"
+                    className="pl-9 h-9 text-sm"
                   />
                   {searchQuery && (
                     <button
                       onClick={() => setSearchQuery('')}
-                      className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                      className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
                     >
                       <X className="h-4 w-4" />
                     </button>
                   )}
                 </div>
 
-                <div className="flex border border-gray-200 rounded-lg">
+                <div className="flex items-center gap-1 bg-gray-100 rounded-md p-1">
                   <button
                     onClick={() => setViewMode('grid')}
-                    className={`p-2 ${viewMode === 'grid' ? 'bg-gray-100' : 'hover:bg-gray-50'}`}
+                    className={`p-2 rounded ${viewMode === 'grid' ? 'bg-white shadow-sm' : 'hover:bg-gray-50'}`}
                     title="Grid view"
                   >
                     <Grid3x3 className="h-4 w-4" />
                   </button>
                   <button
                     onClick={() => setViewMode('list')}
-                    className={`p-2 ${viewMode === 'list' ? 'bg-gray-100' : 'hover:bg-gray-50'}`}
+                    className={`p-2 rounded ${viewMode === 'list' ? 'bg-white shadow-sm' : 'hover:bg-gray-50'}`}
                     title="List view"
                   >
                     <List className="h-4 w-4" />

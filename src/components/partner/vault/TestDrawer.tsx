@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
@@ -14,25 +13,22 @@ import {
   Layers,
   AlertCircle,
   CheckCircle2,
-  ExternalLink
+  User,
+  Search,
+  Filter
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
+import { Input } from '@/components/ui/input';
+import { useToast } from '@/hooks/use-toast';
+import { generateExampleQuestions, listVaultFiles } from '@/actions/vault-actions';
+import type { VaultFile } from '@/lib/types';
+import ReactMarkdown from 'react-markdown';
 import {
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger,
 } from '@/components/ui/collapsible';
-import { useToast } from '@/hooks/use-toast';
-import { generateExampleQuestions, listVaultFiles } from '@/actions/vault-actions';
-import type { VaultFile } from '@/lib/types';
 
 interface Message {
   role: 'user' | 'assistant';
@@ -43,6 +39,7 @@ interface Message {
     documentName?: string;
   }>;
   timestamp: Date;
+  testedDocuments?: string[];
 }
 
 interface TestDrawerProps {
@@ -52,6 +49,40 @@ interface TestDrawerProps {
   userId: string;
   documentCount: number;
 }
+
+const FormattedMessage = ({ content }: { content: string }) => {
+  return (
+    <div className="prose prose-sm max-w-none text-inherit">
+      <ReactMarkdown
+        components={{
+          h1: ({ node, ...props }) => <h1 className="text-base font-bold mb-2 mt-3" {...props} />,
+          h2: ({ node, ...props }) => <h2 className="text-sm font-bold mb-1.5 mt-2" {...props} />,
+          h3: ({ node, ...props }) => <h3 className="text-sm font-semibold mb-1 mt-2" {...props} />,
+          p: ({ node, ...props }) => <p className="mb-2 leading-relaxed" {...props} />,
+          ul: ({ node, ...props }) => <ul className="list-disc pl-5 mb-2 space-y-1" {...props} />,
+          ol: ({ node, ...props }) => <ol className="list-decimal pl-5 mb-2 space-y-1" {...props} />,
+          li: ({ node, ...props }) => <li className="leading-relaxed" {...props} />,
+          strong: ({ node, ...props }) => <strong className="font-semibold" {...props} />,
+          em: ({ node, ...props }) => <em className="italic" {...props} />,
+          code: ({ node, inline, ...props }: any) =>
+            inline ? (
+              <code className="bg-white/20 px-1.5 py-0.5 rounded text-xs font-mono" {...props} />
+            ) : (
+              <code className="block bg-white/10 p-2 rounded text-xs font-mono overflow-x-auto my-2" {...props} />
+            ),
+          blockquote: ({ node, ...props }) => (
+            <blockquote className="border-l-2 border-white/30 pl-3 italic my-2" {...props} />
+          ),
+          a: ({ node, ...props }) => (
+            <a className="underline hover:no-underline" {...props} />
+          ),
+        }}
+      >
+        {content}
+      </ReactMarkdown>
+    </div>
+  );
+};
 
 export default function TestDrawer({ 
   isOpen, 
@@ -67,7 +98,8 @@ export default function TestDrawer({
   const [isLoadingExamples, setIsLoadingExamples] = useState(false);
   const [files, setFiles] = useState<VaultFile[]>([]);
   const [selectedFiles, setSelectedFiles] = useState<Set<string>>(new Set());
-  const [showGuide, setShowGuide] = useState(false);
+  const [showDocumentSelector, setShowDocumentSelector] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
   const chatEndRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
 
@@ -88,72 +120,104 @@ export default function TestDrawer({
       if (result.success) {
         const activeFiles = result.files.filter(f => f.state === 'ACTIVE');
         setFiles(activeFiles);
-        // Select all by default
         setSelectedFiles(new Set(activeFiles.map(f => f.id)));
       }
     } catch (error) {
-      console.error('Error loading files:', error);
+      console.error('Failed to load files:', error);
     }
   };
 
   const loadExampleQuestions = async () => {
     setIsLoadingExamples(true);
     try {
-      const result = await generateExampleQuestions(partnerId, 5);
-      if (result.success && result.questions) {
-        setExampleQuestions(result.questions);
-      }
+      const questions = await generateExampleQuestions(partnerId);
+      setExampleQuestions(questions);
     } catch (error) {
-      console.error('Error loading examples:', error);
+      console.error('Failed to load example questions:', error);
     } finally {
       setIsLoadingExamples(false);
     }
   };
 
+  const toggleFileSelection = (fileId: string) => {
+    const newSelection = new Set(selectedFiles);
+    if (newSelection.has(fileId)) {
+      newSelection.delete(fileId);
+    } else {
+      newSelection.add(fileId);
+    }
+    setSelectedFiles(newSelection);
+  };
+
+  const handleSelectAll = () => {
+    setSelectedFiles(new Set(files.map(f => f.id)));
+  };
+
+  const handleClearSelection = () => {
+    setSelectedFiles(new Set());
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!query.trim() || isQuerying || selectedFiles.size === 0) return;
+    if (!query.trim() || isQuerying) return;
+
+    if (selectedFiles.size === 0) {
+      toast({
+        title: 'No documents selected',
+        description: 'Please select at least one document to test',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    const testedDocs = Array.from(selectedFiles).map(id => {
+      const file = files.find(f => f.id === id);
+      return file?.displayName || 'Unknown';
+    });
 
     const userMessage: Message = {
       role: 'user',
       content: query,
       timestamp: new Date(),
+      testedDocuments: testedDocs,
     };
+
     setMessages(prev => [...prev, userMessage]);
     setQuery('');
     setIsQuerying(true);
 
     try {
-      const response = await fetch('/api/vault/query', {
+      const response = await fetch('/api/vault/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           partnerId,
-          query: query.trim(),
+          userId,
+          message: query.trim(),
           selectedFileIds: Array.from(selectedFiles),
         }),
       });
 
       const result = await response.json();
 
-      console.log('🔍 Query API Response:', result);
-
       if (result.success) {
+        const sources = result.groundingChunks?.map((chunk: any) => ({
+          text: chunk.retrievedContext?.text || '',
+          score: chunk.score,
+        })).filter((s: any) => s.text) || [];
+
         const assistantMessage: Message = {
           role: 'assistant',
-          content: result.answer,
-          sources: result.sources || result.groundingChunks || [],
+          content: result.response || '',
+          sources,
           timestamp: new Date(),
         };
-        
-        console.log('💬 Assistant message with sources:', assistantMessage);
-        
         setMessages(prev => [...prev, assistantMessage]);
 
-        if (result.warning) {
+        if (sources.length === 0) {
           toast({
-            title: 'Note',
-            description: result.warning,
+            title: 'No relevant information found',
+            description: `The selected document${testedDocs.length !== 1 ? 's' : ''} may not contain information about "${query.trim()}"`,
             variant: 'default',
           });
         }
@@ -161,7 +225,6 @@ export default function TestDrawer({
         throw new Error(result.message);
       }
     } catch (error: any) {
-      console.error('❌ Query error:', error);
       const errorMessage: Message = {
         role: 'assistant',
         content: 'Sorry, I encountered an error. Please try again.',
@@ -178,27 +241,20 @@ export default function TestDrawer({
     }
   };
 
-  const handleSelectAll = () => {
-    setSelectedFiles(new Set(files.map(f => f.id)));
-  };
-
-  const handleClearSelection = () => {
-    setSelectedFiles(new Set());
-  };
+  const filteredFiles = files.filter(file =>
+    file.displayName.toLowerCase().includes(searchQuery.toLowerCase())
+  );
 
   if (!isOpen) return null;
 
   return (
     <>
-      {/* Overlay */}
       <div 
         className="fixed inset-0 bg-black/20 z-40 transition-opacity"
         onClick={onClose}
       />
 
-      {/* Drawer */}
       <div className="fixed right-0 top-0 bottom-0 w-[600px] bg-white shadow-2xl z-50 flex flex-col animate-in slide-in-from-right duration-300">
-        {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 bg-gradient-to-r from-blue-50 to-indigo-50">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-600 to-indigo-600 flex items-center justify-center">
@@ -217,98 +273,108 @@ export default function TestDrawer({
           </button>
         </div>
 
-        {/* Document Selector */}
         <div className="px-6 py-3 bg-gray-50 border-b border-gray-200">
-          <div className="flex items-center gap-2">
-            <Select
-              value={selectedFiles.size === files.length ? 'all' : 'custom'}
-              onValueChange={(value) => {
-                if (value === 'all') {
-                  handleSelectAll();
-                }
-              }}
-            >
-              <SelectTrigger className="w-full h-9 text-sm">
-                <SelectValue>
-                  <div className="flex items-center gap-2">
-                    <Layers className="h-4 w-4" />
-                    <span>
-                      {selectedFiles.size === files.length 
-                        ? `All documents (${files.length})`
-                        : `${selectedFiles.size} of ${files.length} documents`}
-                    </span>
-                  </div>
-                </SelectValue>
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">
-                  <div className="flex items-center gap-2">
-                    <Check className="h-4 w-4" />
-                    All documents ({files.length})
-                  </div>
-                </SelectItem>
-                {files.map(file => (
-                  <SelectItem key={file.id} value={file.id}>
-                    <div className="flex items-center gap-2">
-                      {selectedFiles.has(file.id) && <Check className="h-4 w-4 text-blue-600" />}
-                      <FileText className="h-4 w-4 text-gray-500" />
-                      <span className="truncate max-w-[400px]">{file.displayName}</span>
-                    </div>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            {selectedFiles.size > 0 && selectedFiles.size < files.length && (
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={handleClearSelection}
-                className="text-xs"
-              >
-                Clear
-              </Button>
-            )}
-          </div>
-        </div>
+          <Collapsible open={showDocumentSelector} onOpenChange={setShowDocumentSelector}>
+            <div className="flex items-center justify-between">
+              <CollapsibleTrigger asChild>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-9 gap-2"
+                >
+                  <Layers className="h-4 w-4" />
+                  <span>
+                    {selectedFiles.size === files.length 
+                      ? `All documents (${files.length})`
+                      : `${selectedFiles.size} of ${files.length} documents`
+                    }
+                  </span>
+                  <ChevronDown className={`h-4 w-4 transition-transform ${showDocumentSelector ? 'rotate-180' : ''}`} />
+                </Button>
+              </CollapsibleTrigger>
 
-        {/* Collapsible Testing Guide */}
-        <Collapsible open={showGuide} onOpenChange={setShowGuide}>
-          <div className="border-b border-gray-200">
-            <CollapsibleTrigger asChild>
-              <button className="w-full px-6 py-3 flex items-center justify-between hover:bg-gray-50 transition-colors text-left">
-                <span className="text-sm font-medium text-gray-700">Testing Guide</span>
-                <ChevronDown className={`h-4 w-4 text-gray-500 transition-transform ${showGuide ? 'rotate-180' : ''}`} />
-              </button>
-            </CollapsibleTrigger>
-            <CollapsibleContent>
-              <div className="px-6 py-4 space-y-3 text-sm text-gray-600 bg-gray-50">
-                <div className="flex gap-3">
-                  <CheckCircle2 className="h-5 w-5 text-green-600 flex-shrink-0 mt-0.5" />
-                  <div>
-                    <p className="font-medium text-gray-900">Test Individual Documents</p>
-                    <p className="text-xs mt-1">Select one document to verify it was indexed correctly</p>
+              {selectedFiles.size !== files.length && (
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={handleSelectAll}
+                    className="h-8 text-xs"
+                  >
+                    Select All
+                  </Button>
+                  {selectedFiles.size > 0 && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={handleClearSelection}
+                      className="h-8 text-xs"
+                    >
+                      Clear
+                    </Button>
+                  )}
+                </div>
+              )}
+            </div>
+
+            <CollapsibleContent className="mt-3">
+              <div className="bg-white rounded-lg border border-gray-200 p-3 max-h-80 overflow-y-auto">
+                <div className="mb-3">
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                    <Input
+                      type="text"
+                      placeholder="Search documents..."
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      className="pl-9 h-9 text-sm"
+                    />
                   </div>
                 </div>
-                <div className="flex gap-3">
-                  <CheckCircle2 className="h-5 w-5 text-green-600 flex-shrink-0 mt-0.5" />
-                  <div>
-                    <p className="font-medium text-gray-900">Test Cross-Document Search</p>
-                    <p className="text-xs mt-1">Select multiple documents to test combined knowledge</p>
-                  </div>
-                </div>
-                <div className="flex gap-3">
-                  <CheckCircle2 className="h-5 w-5 text-green-600 flex-shrink-0 mt-0.5" />
-                  <div>
-                    <p className="font-medium text-gray-900">Check Source Citations</p>
-                    <p className="text-xs mt-1">Verify AI responses cite the correct documents</p>
-                  </div>
+
+                <div className="space-y-1">
+                  {filteredFiles.length === 0 ? (
+                    <div className="text-center py-6 text-gray-500 text-sm">
+                      No documents found
+                    </div>
+                  ) : (
+                    filteredFiles.map((file) => (
+                      <button
+                        key={file.id}
+                        onClick={() => toggleFileSelection(file.id)}
+                        className={`w-full flex items-center gap-3 px-3 py-2 rounded-md text-left transition-colors ${
+                          selectedFiles.has(file.id)
+                            ? 'bg-blue-50 border border-blue-200'
+                            : 'hover:bg-gray-50 border border-transparent'
+                        }`}
+                      >
+                        <div className={`flex-shrink-0 w-5 h-5 rounded border-2 flex items-center justify-center ${
+                          selectedFiles.has(file.id)
+                            ? 'bg-blue-600 border-blue-600'
+                            : 'border-gray-300'
+                        }`}>
+                          {selectedFiles.has(file.id) && (
+                            <Check className="h-3 w-3 text-white" />
+                          )}
+                        </div>
+                        <FileText className="h-4 w-4 text-gray-400 flex-shrink-0" />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-gray-900 truncate">
+                            {file.displayName}
+                          </p>
+                          <p className="text-xs text-gray-500">
+                            {(file.sizeBytes / 1024 / 1024).toFixed(2)} MB
+                          </p>
+                        </div>
+                      </button>
+                    ))
+                  )}
                 </div>
               </div>
             </CollapsibleContent>
-          </div>
-        </Collapsible>
+          </Collapsible>
+        </div>
 
-        {/* Messages Area */}
         <div className="flex-1 overflow-y-auto p-6 space-y-4">
           {messages.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-full text-center">
@@ -316,102 +382,109 @@ export default function TestDrawer({
                 <Bot className="h-16 w-16 text-blue-600 mx-auto" />
               </div>
               <h4 className="text-xl font-bold text-gray-900 mb-2">
-                Ready to chat with your documents
+                Ready to test your documents
               </h4>
-              <p className="text-gray-600 max-w-sm mb-6">
-                Ask questions and get answers from your knowledge base
+              <p className="text-gray-600 mb-6 max-w-md">
+                Ask questions about {selectedFiles.size === files.length 
+                  ? 'all your documents' 
+                  : `${selectedFiles.size} selected document${selectedFiles.size !== 1 ? 's' : ''}`
+                }
               </p>
-              
-              {isLoadingExamples ? (
-                <div className="flex items-center gap-2 text-gray-500">
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  <span className="text-sm">Loading suggestions...</span>
-                </div>
-              ) : exampleQuestions.length > 0 && (
-                <div className="space-y-2">
-                  <p className="text-sm font-medium text-gray-700">Try these questions:</p>
-                  <div className="flex flex-col gap-2">
-                    {exampleQuestions.slice(0, 3).map((question, idx) => (
-                      <button
-                        key={idx}
-                        onClick={() => setQuery(question)}
-                        className="text-sm bg-white hover:bg-blue-50 text-gray-700 hover:text-blue-700 px-4 py-2 rounded-lg border border-gray-200 hover:border-blue-300 transition-all text-left"
-                      >
-                        {question}
-                      </button>
-                    ))}
-                  </div>
+              {exampleQuestions.length > 0 && (
+                <div className="w-full max-w-md space-y-2">
+                  <p className="text-sm font-medium text-gray-700 mb-3">Try asking:</p>
+                  {exampleQuestions.slice(0, 3).map((question, idx) => (
+                    <button
+                      key={idx}
+                      onClick={() => setQuery(question)}
+                      className="w-full text-left px-4 py-3 bg-white border border-gray-200 rounded-lg hover:border-blue-300 hover:bg-blue-50 transition-colors text-sm text-gray-700"
+                    >
+                      {question}
+                    </button>
+                  ))}
                 </div>
               )}
             </div>
           ) : (
-            <>
-              {messages.map((message, index) => (
-                <div
-                  key={index}
-                  className={`flex gap-3 ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
-                >
-                  {message.role === 'assistant' && (
-                    <div className="flex-shrink-0 w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center">
-                      <Bot className="h-4 w-4 text-white" />
+            messages.map((message, idx) => (
+              <div key={idx} className={`flex gap-3 ${message.role === 'user' ? 'justify-end' : ''}`}>
+                {message.role === 'assistant' && (
+                  <div className="flex-shrink-0">
+                    <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-600 to-indigo-600 flex items-center justify-center">
+                      <Bot className="h-5 w-5 text-white" />
                     </div>
-                  )}
-
-                  <div
-                    className={`max-w-md rounded-2xl px-4 py-3 ${
-                      message.role === 'user'
-                        ? 'bg-blue-600 text-white'
-                        : 'bg-gray-100 text-gray-900'
-                    }`}
-                  >
-                    <p className="text-sm whitespace-pre-wrap">{message.content}</p>
-                    
-                    {message.role === 'assistant' && message.sources && message.sources.length > 0 && (
-                      <div className="mt-3 pt-3 border-t border-gray-300 space-y-2">
-                        <p className="text-xs font-semibold text-gray-600 uppercase flex items-center gap-1">
-                          <FileText className="h-3 w-3" />
-                          Sources ({message.sources.length}):
+                  </div>
+                )}
+                <div className={`flex-1 ${message.role === 'user' ? 'flex justify-end' : ''}`}>
+                  <div className={`max-w-[85%] rounded-lg px-4 py-3 ${
+                    message.role === 'user'
+                      ? 'bg-blue-600 text-white'
+                      : 'bg-gray-100 text-gray-900'
+                  }`}>
+                    {message.role === 'user' && message.testedDocuments && message.testedDocuments.length > 0 && (
+                      <div className="mb-2 pb-2 border-b border-blue-500/30">
+                        <p className="text-xs text-blue-100 mb-1">Testing documents:</p>
+                        <div className="flex flex-wrap gap-1">
+                          {message.testedDocuments.slice(0, 3).map((doc, i) => (
+                            <span key={i} className="text-xs bg-blue-500/30 px-2 py-0.5 rounded">
+                              {doc}
+                            </span>
+                          ))}
+                          {message.testedDocuments.length > 3 && (
+                            <span className="text-xs bg-blue-500/30 px-2 py-0.5 rounded">
+                              +{message.testedDocuments.length - 3} more
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                    <div className="text-sm">
+                      <FormattedMessage content={message.content} />
+                    </div>
+                    {message.sources && message.sources.length > 0 && (
+                      <div className="mt-3 pt-3 border-t border-gray-200">
+                        <p className="text-xs text-gray-600 mb-2 flex items-center gap-1">
+                          <CheckCircle2 className="h-3 w-3" />
+                          Found in {message.sources.length} source{message.sources.length !== 1 ? 's' : ''}
                         </p>
-                        {message.sources.slice(0, 3).map((source, idx) => (
-                          <div key={idx} className="text-xs bg-white rounded-lg p-2.5 border border-gray-200 shadow-sm">
-                            <p className="text-gray-700 line-clamp-3 mb-1.5">{source.text}</p>
-                            <div className="flex items-center justify-between">
-                              {source.documentName && (
-                                <p className="text-gray-500 flex items-center gap-1 font-medium">
-                                  <ExternalLink className="h-3 w-3" />
-                                  {source.documentName}
-                                </p>
-                              )}
-                              {source.score !== undefined && (
-                                <span className="text-gray-400 text-[10px]">
-                                  {(source.score * 100).toFixed(0)}% match
-                                </span>
-                              )}
-                            </div>
-                          </div>
-                        ))}
-                        {message.sources.length > 3 && (
-                          <p className="text-xs text-gray-500 italic">
-                            + {message.sources.length - 3} more source{message.sources.length - 3 !== 1 ? 's' : ''}
-                          </p>
-                        )}
                       </div>
                     )}
                   </div>
                 </div>
-              ))}
-              <div ref={chatEndRef} />
-            </>
+                {message.role === 'user' && (
+                  <div className="flex-shrink-0">
+                    <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center">
+                      <User className="h-5 w-5 text-gray-600" />
+                    </div>
+                  </div>
+                )}
+              </div>
+            ))
           )}
+          {isQuerying && (
+            <div className="flex gap-3">
+              <div className="flex-shrink-0">
+                <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-600 to-indigo-600 flex items-center justify-center">
+                  <Bot className="h-5 w-5 text-white" />
+                </div>
+              </div>
+              <div className="bg-gray-100 rounded-lg px-4 py-3">
+                <div className="flex items-center gap-2">
+                  <Loader2 className="h-4 w-4 animate-spin text-blue-600" />
+                  <span className="text-sm text-gray-600">Analyzing documents...</span>
+                </div>
+              </div>
+            </div>
+          )}
+          <div ref={chatEndRef} />
         </div>
 
-        {/* Input Area */}
-        <div className="border-t border-gray-200 bg-white p-4">
+        <div className="border-t border-gray-200 p-4 bg-white">
           {selectedFiles.size === 0 && (
-            <div className="mb-3 p-3 bg-red-50 border border-red-200 rounded-lg flex items-start gap-2">
-              <AlertCircle className="h-4 w-4 text-red-600 flex-shrink-0 mt-0.5" />
-              <p className="text-sm text-red-700">
-                Please select at least one document to start chatting
+            <div className="mb-3 p-3 bg-amber-50 border border-amber-200 rounded-lg flex items-start gap-2">
+              <AlertCircle className="h-4 w-4 text-amber-600 flex-shrink-0 mt-0.5" />
+              <p className="text-xs text-amber-800">
+                Please select at least one document to start testing
               </p>
             </div>
           )}
@@ -419,12 +492,11 @@ export default function TestDrawer({
             <Textarea
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder={
-                selectedFiles.size === 0 
-                  ? "Select documents above to start..." 
-                  : "Ask a question about your documents..."
+              placeholder={selectedFiles.size === 0 
+                ? "Select documents above to start..." 
+                : "Ask a question about your documents..."
               }
-              className="min-h-[60px] max-h-[120px] resize-none"
+              className="flex-1 min-h-[60px] max-h-[120px] resize-none"
               disabled={isQuerying || selectedFiles.size === 0}
               onKeyDown={(e) => {
                 if (e.key === 'Enter' && !e.shiftKey) {
@@ -436,7 +508,7 @@ export default function TestDrawer({
             <Button
               type="submit"
               disabled={isQuerying || !query.trim() || selectedFiles.size === 0}
-              className="self-end h-[60px] px-4 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700"
+              className="self-end h-[60px] px-6"
             >
               {isQuerying ? (
                 <Loader2 className="h-5 w-5 animate-spin" />

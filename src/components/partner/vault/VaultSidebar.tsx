@@ -30,8 +30,8 @@ export default function VaultSidebar({ filters, onFiltersChange, fileCount }: Va
   const typeOptions = [
     { value: 'all', label: 'All Types' },
     { value: 'pdf', label: 'PDF Documents' },
-    { value: 'text', label: 'Text Files' },
-    { value: 'markdown', label: 'Markdown' },
+    { value: 'txt', label: 'Text Files' },
+    { value: 'md', label: 'Markdown' },
   ];
 
   const dateOptions = [
@@ -50,7 +50,6 @@ export default function VaultSidebar({ filters, onFiltersChange, fileCount }: Va
         </h3>
       </div>
 
-      {/* Document Status */}
       <div className="p-3 border-b border-gray-100">
         <h4 className="text-[10px] font-semibold text-gray-500 uppercase mb-2">
           Document Status
@@ -85,7 +84,6 @@ export default function VaultSidebar({ filters, onFiltersChange, fileCount }: Va
         </div>
       </div>
 
-      {/* Document Type */}
       <div className="p-3 border-b border-gray-100">
         <h4 className="text-[10px] font-semibold text-gray-500 uppercase mb-2">
           Document Type
@@ -107,7 +105,6 @@ export default function VaultSidebar({ filters, onFiltersChange, fileCount }: Va
         </div>
       </div>
 
-      {/* Date Range */}
       <div className="p-3">
         <h4 className="text-[10px] font-semibold text-gray-500 uppercase mb-2">
           Date Range

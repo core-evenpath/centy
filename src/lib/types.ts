@@ -1283,7 +1283,10 @@ export interface VaultQuery {
   }>;
   partnerId: string;
   userId: string;
-  selectedFileIds?: string[]; // Add this line
+  selectedFileIds?: string[];
+  selectedFileNames?: string[];
+  chunksBeforeFilter?: number;
+  chunksAfterFilter?: number;
   createdAt: string;
 }
 

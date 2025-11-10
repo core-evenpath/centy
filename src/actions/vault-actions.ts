@@ -204,6 +204,60 @@ export async function deleteVaultFile(
     };
   }
 }
+
+async function filterGroundingChunksBySelectedFiles(
+  partnerId: string,
+  groundingChunks: any[],
+  selectedFileIds: string[]
+): Promise<any[]> {
+  if (!db || selectedFileIds.length === 0 || groundingChunks.length === 0) {
+    return groundingChunks;
+  }
+
+  try {
+    const selectedFileNames = new Set<string>();
+    
+    for (const fileId of selectedFileIds) {
+      const fileDoc = await db
+        .collection(`partners/${partnerId}/vaultFiles`)
+        .doc(fileId)
+        .get();
+      
+      if (fileDoc.exists) {
+        const data = fileDoc.data();
+        if (data?.displayName) {
+          selectedFileNames.add(data.displayName.toLowerCase());
+          selectedFileNames.add(data.name.toLowerCase());
+        }
+      }
+    }
+
+    if (selectedFileNames.size === 0) {
+      return groundingChunks;
+    }
+
+    const filteredChunks = groundingChunks.filter((chunk: any) => {
+      const title = chunk.retrievedContext?.title?.toLowerCase() || '';
+      const uri = chunk.retrievedContext?.uri?.toLowerCase() || '';
+      
+      for (const fileName of selectedFileNames) {
+        if (title.includes(fileName) || uri.includes(fileName)) {
+          return true;
+        }
+      }
+      
+      return false;
+    });
+
+    console.log(`🔍 Filtered chunks: ${groundingChunks.length} -> ${filteredChunks.length} based on ${selectedFileIds.length} selected files`);
+    
+    return filteredChunks;
+  } catch (error) {
+    console.error('Error filtering chunks:', error);
+    return groundingChunks;
+  }
+}
+
 export async function chatWithVault(
   partnerId: string,
   userId: string,
@@ -235,12 +289,10 @@ export async function chatWithVault(
 
     const ragStoreName = storesSnapshot.docs[0].data().name;
 
-    // If specific files are selected, add context to the query
     let enhancedMessage = message;
+    let fileNames: string[] = [];
+    
     if (selectedFileIds && selectedFileIds.length > 0 && selectedFileIds.length < 30) {
-      // Get the selected file names - fetch them individually to avoid documentId() issues
-      const fileNames: string[] = [];
-      
       for (const fileId of selectedFileIds) {
         const fileDoc = await db
           .collection(`partners/${partnerId}/vaultFiles`)
@@ -256,17 +308,15 @@ export async function chatWithVault(
       }
       
       if (fileNames.length > 0) {
-        enhancedMessage = `IMPORTANT: Only search and reference information from these specific documents: ${fileNames.join(', ')}. 
+        enhancedMessage = `Context: The user has selected specific documents to query: ${fileNames.join(', ')}.
 
-User question: ${message}
+User Question: ${message}
 
-CRITICAL INSTRUCTIONS:
-- DO NOT use information from any documents other than those listed above
-- If the answer cannot be found in these specific documents, clearly state that
-- Only cite sources from the documents listed above
-- Ignore all other documents in the knowledge base`;
+Instructions: Focus your answer primarily on information from the documents listed above. If relevant information exists in those specific documents, prioritize it in your response. If the selected documents don't contain relevant information, clearly state that.`;
       }
     }
+
+    console.log(`📊 Query initiated - Selected files: ${fileNames.length}, Message: "${message.substring(0, 50)}..."`);
 
     const response = await genAI.models.generateContent({
       model: 'gemini-2.5-flash',
@@ -282,8 +332,20 @@ CRITICAL INSTRUCTIONS:
       }
     });
 
-    const groundingChunks = response.candidates?.[0]?.groundingMetadata?.groundingChunks || [];
+    let groundingChunks = response.candidates?.[0]?.groundingMetadata?.groundingChunks || [];
     const responseText = response.text;
+
+    console.log(`📦 Raw response - Chunks before filtering: ${groundingChunks.length}`);
+
+    if (selectedFileIds && selectedFileIds.length > 0) {
+      groundingChunks = await filterGroundingChunksBySelectedFiles(
+        partnerId,
+        groundingChunks,
+        selectedFileIds
+      );
+      
+      console.log(`✅ Chunks after filtering: ${groundingChunks.length}`);
+    }
 
     await db.collection(`partners/${partnerId}/vaultQueries`).add({
       query: message,
@@ -291,6 +353,9 @@ CRITICAL INSTRUCTIONS:
       partnerId: partnerId,
       userId: userId,
       selectedFileIds: selectedFileIds || [],
+      selectedFileNames: fileNames,
+      chunksBeforeFilter: response.candidates?.[0]?.groundingMetadata?.groundingChunks?.length || 0,
+      chunksAfterFilter: groundingChunks.length,
       createdAt: FieldValue.serverTimestamp(),
     });
 
