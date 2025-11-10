@@ -15,8 +15,6 @@ import {
   Grid3x3,
   List,
   AlertCircle,
-  Zap,
-  MessageSquare,
   Database,
   TestTube2
 } from 'lucide-react';
@@ -57,7 +55,7 @@ export default function VaultPage() {
 
   useEffect(() => {
     if (partnerId && user) {
-      loadData();
+      loadData(true); // Show loading on initial load
     } else if (!authLoading) {
       setIsLoading(false);
       if (!partnerId) {
@@ -70,14 +68,16 @@ export default function VaultPage() {
     filterFiles();
   }, [files, searchQuery, filters]);
 
-  const loadData = async () => {
+  const loadData = async (showLoading = true) => {
     if (!partnerId) {
       setLoadError('Partner ID not found.');
       setIsLoading(false);
       return;
     }
 
-    setIsLoading(true);
+    if (showLoading) {
+      setIsLoading(true);
+    }
     setLoadError(null);
     
     try {
@@ -90,13 +90,17 @@ export default function VaultPage() {
       }
     } catch (error: any) {
       setLoadError(error.message || 'Failed to load vault data');
-      toast({
-        title: 'Error loading data',
-        description: error.message,
-        variant: 'destructive',
-      });
+      if (showLoading) {
+        toast({
+          title: 'Error loading data',
+          description: error.message,
+          variant: 'destructive',
+        });
+      }
     } finally {
-      setIsLoading(false);
+      if (showLoading) {
+        setIsLoading(false);
+      }
     }
   };
 
@@ -144,8 +148,8 @@ export default function VaultPage() {
   };
 
   const handleUploadComplete = () => {
-    loadData();
-    setIsUploadDialogOpen(false);
+    // Simply reload the file list without refreshing the page
+    loadData(false); // Don't show loading spinner
   };
 
   const handleTrain = async () => {
@@ -220,7 +224,7 @@ export default function VaultPage() {
                 
                 <Button 
                   variant="outline"
-                  onClick={loadData}
+                  onClick={() => loadData(false)} // Don't show loading spinner
                   disabled={isLoading}
                 >
                   <RefreshCw className={`h-4 w-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />

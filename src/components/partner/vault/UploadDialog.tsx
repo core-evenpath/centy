@@ -12,6 +12,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import { useUploadManager } from '@/hooks/use-upload-manager';
 
 interface UploadDialogProps {
   isOpen: boolean;
@@ -29,10 +30,11 @@ export default function UploadDialog({
   onUploadComplete,
 }: UploadDialogProps) {
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+  const { startUpload } = useUploadManager();
   const { toast } = useToast();
 
   const onDrop = useCallback((acceptedFiles: File[]) => {
-    setSelectedFiles(prev => [...prev, ...acceptedFiles]);
+    setSelectedFiles((prev) => [...prev, ...acceptedFiles]);
   }, []);
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
@@ -46,57 +48,39 @@ export default function UploadDialog({
   });
 
   const removeFile = (index: number) => {
-    setSelectedFiles(prev => prev.filter((_, i) => i !== index));
+    setSelectedFiles((prev) => prev.filter((_, i) => i !== index));
   };
 
   const handleUpload = async () => {
     if (selectedFiles.length === 0) return;
 
     // Close dialog immediately
-    onClose();
+    const filesToUpload = [...selectedFiles];
     setSelectedFiles([]);
+    onClose();
 
-    // Show background processing toast
+    // Show background processing notification
     toast({
       title: '📤 Upload started',
-      description: `Processing ${selectedFiles.length} document${selectedFiles.length > 1 ? 's' : ''} in the background...`,
+      description: `Processing ${filesToUpload.length} document${
+        filesToUpload.length > 1 ? 's' : ''
+      } in the background...`,
     });
 
-    // Process uploads in background
-    for (const file of selectedFiles) {
-      try {
-        const formData = new FormData();
-        formData.append('file', file);
-        formData.append('partnerId', partnerId);
-        formData.append('userId', userId);
-        formData.append('displayName', file.name);
-
-        const response = await fetch('/api/vault/upload', {
-          method: 'POST',
-          body: formData,
-        });
-
-        const result = await response.json();
-
-        if (result.success) {
-          toast({
-            title: '✅ Upload complete',
-            description: `${file.name} is ready in your knowledge base`,
-          });
-        } else {
-          throw new Error(result.message);
+    // Process uploads in background with individual toasts
+    let completedCount = 0;
+    for (const file of filesToUpload) {
+      startUpload(file, partnerId, userId, () => {
+        completedCount++;
+        if (completedCount === filesToUpload.length) {
+          // All uploads complete - refresh the file list
+          onUploadComplete();
         }
-      } catch (error: any) {
-        toast({
-          title: '❌ Upload failed',
-          description: `${file.name}: ${error.message}`,
-          variant: 'destructive',
-        });
-      }
-    }
+      });
 
-    // Refresh file list after all uploads
-    onUploadComplete();
+      // Stagger uploads slightly to avoid overwhelming the UI
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    }
   };
 
   return (
@@ -119,7 +103,11 @@ export default function UploadDialog({
             }`}
           >
             <input {...getInputProps()} />
-            <Upload className={`h-12 w-12 mx-auto mb-4 ${isDragActive ? 'text-blue-600' : 'text-gray-400'}`} />
+            <Upload
+              className={`h-12 w-12 mx-auto mb-4 ${
+                isDragActive ? 'text-blue-600' : 'text-gray-400'
+              }`}
+            />
             {isDragActive ? (
               <p className="text-blue-600 font-medium">Drop files here...</p>
             ) : (
@@ -177,7 +165,8 @@ export default function UploadDialog({
               disabled={selectedFiles.length === 0}
               className="bg-blue-600 hover:bg-blue-700"
             >
-              Upload {selectedFiles.length} Document{selectedFiles.length !== 1 ? 's' : ''}
+              Upload {selectedFiles.length} Document
+              {selectedFiles.length !== 1 ? 's' : ''}
             </Button>
           </div>
         </div>
