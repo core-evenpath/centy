@@ -1239,8 +1239,10 @@ export interface ResourceAccess {
   action: 'read' | 'write' | 'delete' | 'admin';
 }
 
+// ============================================================================
+// VAULT & FILE SEARCH TYPES
+// ============================================================================
 
-// Vault & File Search Types
 export interface VaultFile {
   id: string;
   name: string;
@@ -1253,6 +1255,9 @@ export interface VaultFile {
   uploadedBy: string;
   partnerId: string;
   geminiFileUri?: string;
+  createdAt: string;
+  errorMessage?: string;
+  firebaseStoragePath: string;
   metadata?: {
     description?: string;
     tags?: string[];
@@ -1271,6 +1276,7 @@ export interface FileSearchStore {
   totalSizeBytes: number;
   state: 'ACTIVE' | 'PROCESSING' | 'FAILED';
 }
+
 export interface VaultQuery {
   id: string;
   query: string;
@@ -1293,6 +1299,8 @@ export interface VaultQuery {
 export interface GroundingChunk {
   retrievedContext?: {
     text?: string;
+    title?: string;
+    uri?: string;
   };
 }
 
