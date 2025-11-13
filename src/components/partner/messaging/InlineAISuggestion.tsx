@@ -8,13 +8,12 @@ import {
   X, 
   ThumbsUp, 
   RefreshCw,
-  CheckCircle2,
   ChevronDown,
   ChevronUp,
   FileText,
   MessageSquare,
 } from 'lucide-react';
-import type { RAGSuggestion } from '@/lib/mock-rag-service';
+import type { RAGSuggestion } from '@/lib/types';
 
 interface InlineAISuggestionProps {
   suggestion: RAGSuggestion | null;
@@ -51,6 +50,10 @@ export default function InlineAISuggestion({
     return 'Low';
   };
 
+  // Count source types
+  const documentSources = suggestion?.sources?.filter(s => s.type === 'document').length || 0;
+  const conversationSources = suggestion?.sources?.filter(s => s.type === 'conversation').length || 0;
+
   return (
     <div className="border-t border-purple-200 bg-gradient-to-r from-purple-50 to-blue-50 animate-in slide-in-from-bottom duration-300">
       {/* Header */}
@@ -61,12 +64,27 @@ export default function InlineAISuggestion({
           </div>
           <span className="text-sm font-semibold text-gray-900">AI Suggestion</span>
           {suggestion && (
-            <Badge 
-              variant="outline" 
-              className={`text-xs px-2 py-0 ${getConfidenceColor(suggestion.confidence)}`}
-            >
-              {getConfidenceLabel(suggestion.confidence)} ({Math.round(suggestion.confidence * 100)}%)
-            </Badge>
+            <>
+              <Badge 
+                variant="outline" 
+                className={`text-xs px-2 py-0 ${getConfidenceColor(suggestion.confidence)}`}
+              >
+                {getConfidenceLabel(suggestion.confidence)} ({Math.round(suggestion.confidence * 100)}%)
+              </Badge>
+              {/* Source Type Indicators */}
+              {documentSources > 0 && (
+                <Badge variant="outline" className="text-xs px-2 py-0 bg-blue-50 border-blue-200 text-blue-700">
+                  <FileText className="h-3 w-3 mr-1" />
+                  {documentSources} Doc{documentSources > 1 ? 's' : ''}
+                </Badge>
+              )}
+              {conversationSources > 0 && (
+                <Badge variant="outline" className="text-xs px-2 py-0 bg-green-50 border-green-200 text-green-700">
+                  <MessageSquare className="h-3 w-3 mr-1" />
+                  {conversationSources} Convo{conversationSources > 1 ? 's' : ''}
+                </Badge>
+              )}
+            </>
           )}
         </div>
         <div className="flex items-center gap-1">
@@ -106,7 +124,7 @@ export default function InlineAISuggestion({
         <div className="p-4 text-center">
           <div className="inline-flex items-center gap-2 text-sm text-purple-700">
             <div className="animate-spin rounded-full h-4 w-4 border-2 border-purple-600 border-t-transparent"></div>
-            Analyzing conversation...
+            Analyzing documents and conversation history...
           </div>
         </div>
       )}
@@ -155,33 +173,49 @@ export default function InlineAISuggestion({
                 <p className="text-xs text-gray-600">{incomingMessage}</p>
               </div>
 
-              {/* Sources */}
-              <div>
-                <p className="text-xs font-semibold text-gray-700 mb-2">Sources ({suggestion.sources.length})</p>
-                <div className="space-y-1.5">
-                  {suggestion.sources.slice(0, 2).map((source, index) => (
-                    <div
-                      key={index}
-                      className="bg-white border border-gray-200 rounded-lg p-2 text-xs"
-                    >
-                      <div className="flex items-start gap-2">
-                        {source.type === 'conversation' ? (
-                          <MessageSquare className="h-3 w-3 text-blue-600 mt-0.5 shrink-0" />
-                        ) : (
-                          <FileText className="h-3 w-3 text-green-600 mt-0.5 shrink-0" />
-                        )}
-                        <div className="flex-1 min-w-0">
-                          <p className="font-semibold text-gray-900 truncate">{source.name}</p>
-                          <p className="text-gray-600 line-clamp-1 mt-0.5">{source.excerpt}</p>
+              {/* Sources - Grouped by Type */}
+              {suggestion.sources && suggestion.sources.length > 0 && (
+                <div>
+                  <p className="text-xs font-semibold text-gray-700 mb-2">
+                    Sources ({suggestion.sources.length}) - {documentSources} Document{documentSources !== 1 ? 's' : ''}, {conversationSources} Conversation{conversationSources !== 1 ? 's' : ''}
+                  </p>
+                  <div className="space-y-1.5">
+                    {suggestion.sources.slice(0, 4).map((source, index) => (
+                      <div
+                        key={index}
+                        className={`border rounded-lg p-2 text-xs ${
+                          source.type === 'conversation'
+                            ? 'bg-green-50 border-green-200'
+                            : 'bg-blue-50 border-blue-200'
+                        }`}
+                      >
+                        <div className="flex items-start gap-2">
+                          {source.type === 'conversation' ? (
+                            <MessageSquare className="h-3 w-3 text-green-600 mt-0.5 shrink-0" />
+                          ) : (
+                            <FileText className="h-3 w-3 text-blue-600 mt-0.5 shrink-0" />
+                          )}
+                          <div className="flex-1 min-w-0">
+                            <p className={`font-semibold truncate ${
+                              source.type === 'conversation' ? 'text-green-900' : 'text-blue-900'
+                            }`}>
+                              {source.type === 'conversation' ? 'Past Conversation' : source.name}
+                            </p>
+                            <p className={`line-clamp-2 mt-0.5 ${
+                              source.type === 'conversation' ? 'text-green-700' : 'text-blue-700'
+                            }`}>
+                              {source.excerpt}
+                            </p>
+                          </div>
+                          <span className="text-xs text-gray-500 shrink-0">
+                            {Math.round(source.relevance * 100)}%
+                          </span>
                         </div>
-                        <span className="text-xs text-gray-500 shrink-0">
-                          {Math.round(source.relevance * 100)}%
-                        </span>
                       </div>
-                    </div>
-                  ))}
+                    ))}
+                  </div>
                 </div>
-              </div>
+              )}
             </div>
           )}
         </div>

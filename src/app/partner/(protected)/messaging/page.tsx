@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { sendSMSAction } from '@/actions/sms-actions';
 import { sendWhatsAppMessageAction } from '@/actions/whatsapp-actions';
+import { chatWithVaultForConversation } from '@/actions/vault-actions';
 import { Timestamp } from 'firebase/firestore';
 
 import { useConversations } from '@/hooks/useConversations';
@@ -24,18 +25,19 @@ import DiagnosticsView from '@/components/partner/messaging/DiagnosticsView';
 import ClientProfilePanel from '@/components/partner/messaging/ClientProfilePanel';
 import InlineAISuggestion from '@/components/partner/messaging/InlineAISuggestion';
 
-import { getMockRAGSuggestion } from '@/lib/mock-rag-service';
-import type { RAGSuggestion } from '@/lib/mock-rag-service';
-
 type Platform = 'sms' | 'whatsapp';
 
-interface MessagingDiagnostics {
-  configOk: boolean;
-  accountSid: boolean;
-  authToken: boolean;
-  smsNumber: boolean;
-  whatsAppNumber: boolean;
-  baseUrl: string;
+interface RAGSuggestion {
+  suggestedReply: string;
+  confidence: number;
+  reasoning: string;
+  sources: Array<{
+    type: 'conversation' | 'document';
+    name: string;
+    excerpt: string;
+    relevance: number;
+  }>;
+  alternativeReplies?: string[];
 }
 
 interface SimpleConversation {
@@ -95,13 +97,11 @@ export default function MessagingPage() {
   const audioRef = useRef<HTMLAudioElement>(null);
   const [isSending, setIsSending] = useState(false);
   
-  // AI Suggestion state
   const [showAISuggestion, setShowAISuggestion] = useState(false);
   const [aiSuggestion, setAiSuggestion] = useState<RAGSuggestion | null>(null);
   const [isLoadingSuggestion, setIsLoadingSuggestion] = useState(false);
   const [pendingIncomingMessage, setPendingIncomingMessage] = useState('');
   
-  // Track processed messages to avoid duplicate AI triggers
   const processedMessageIds = useRef<Set<string>>(new Set());
   const lastSuggestionContext = useRef<string>('');
   
@@ -136,15 +136,6 @@ export default function MessagingPage() {
     );
   }, [simpleConversations, searchTerm]);
 
-  const [diagnostics, setDiagnostics] = useState<MessagingDiagnostics>({
-    configOk: false,
-    accountSid: false,
-    authToken: false,
-    smsNumber: false,
-    whatsAppNumber: false,
-    baseUrl: typeof window !== 'undefined' ? window.location.origin : ''
-  });
-
   useEffect(() => {
     const urlConversationId = searchParams.get('conversation');
     if (urlConversationId && simpleConversations.length > 0) {
@@ -155,53 +146,41 @@ export default function MessagingPage() {
     }
   }, [searchParams, simpleConversations]);
 
-  // Clear processed messages when switching conversations
   useEffect(() => {
     processedMessageIds.current.clear();
     lastSuggestionContext.current = '';
   }, [selectedConversation?.id]);
 
-  // Continuous AI suggestions - updates as conversation progresses
   useEffect(() => {
-    if (!selectedConversation) return;
+    if (!selectedConversation || !partnerId) return;
     if (dbMessages.length === 0) return;
     
-    // Get the most recent message
     const latestMessage = dbMessages[dbMessages.length - 1];
-    
-    // Check if it's an incoming message (from customer)
     const isIncomingMessage = latestMessage.direction === 'inbound';
     
-    if (!isIncomingMessage) return; // Only trigger on customer messages
+    if (!isIncomingMessage) return;
     
-    // Create conversation context from recent messages (last 5)
     const recentMessages = dbMessages.slice(-5);
     const conversationContext = recentMessages
       .map(m => `${m.direction}: ${m.content}`)
       .join(' | ');
     
-    // Check if context has changed (new information to analyze)
     if (conversationContext === lastSuggestionContext.current) return;
     
-    // Check if we've already processed this specific message
     if (processedMessageIds.current.has(latestMessage.id)) {
-      // But allow regeneration if conversation context changed significantly
       const contextChanged = conversationContext.length > lastSuggestionContext.current.length + 50;
       if (!contextChanged) return;
     }
     
     console.log('🤖 Generating AI suggestion for:', latestMessage.content);
-    console.log('📝 Conversation context:', conversationContext);
     
-    // Mark as processed
     processedMessageIds.current.add(latestMessage.id);
     lastSuggestionContext.current = conversationContext;
     
-    // Small delay to feel more natural
     setTimeout(() => {
       handleRequestAISuggestion(latestMessage.content);
     }, 500);
-  }, [dbMessages, selectedConversation]);
+  }, [dbMessages, selectedConversation, partnerId]);
 
   const handleSelectConversation = (conversation: SimpleConversation) => {
     setSelectedConversation(conversation);
@@ -209,7 +188,6 @@ export default function MessagingPage() {
     setShowDiagnostics(false);
     setShowClientProfile(false);
     setOptimisticMessages([]);
-    // Dismiss any open AI suggestions when switching conversations
     setShowAISuggestion(false);
     setAiSuggestion(null);
     setPendingIncomingMessage('');
@@ -233,8 +211,6 @@ export default function MessagingPage() {
     const messageText = messageInput;
     setMessageInput('');
     setIsSending(true);
-
-    // Dismiss AI suggestion after sending
     setShowAISuggestion(false);
     setAiSuggestion(null);
     setPendingIncomingMessage('');
@@ -278,7 +254,7 @@ export default function MessagingPage() {
   };
 
   const handleRequestAISuggestion = async (incomingMessage?: string) => {
-    if (!selectedConversation) return;
+    if (!selectedConversation || !partnerId) return;
     
     const messageToAnalyze = incomingMessage || pendingIncomingMessage || "Hello";
     
@@ -288,18 +264,56 @@ export default function MessagingPage() {
     setAiSuggestion(null);
 
     try {
-      const suggestion = await getMockRAGSuggestion(
-        selectedConversation.customerPhone,
+      console.log('🔍 Querying RAG for customer-specific suggestion...');
+      console.log('📝 Message:', messageToAnalyze.substring(0, 50));
+      console.log('💼 Partner:', partnerId);
+      console.log('💬 Conversation:', selectedConversation.id);
+      console.log('📱 Platform:', selectedConversation.platform);
+      console.log('👤 Customer:', selectedConversation.customerPhone);
+      
+      const result = await chatWithVaultForConversation(
+        partnerId,
+        selectedConversation.id,
+        selectedConversation.platform,
         messageToAnalyze
       );
-      setAiSuggestion(suggestion);
-    } catch (error) {
-      console.error('Failed to get AI suggestion:', error);
+
+      console.log('📦 RAG Result:', {
+        success: result.success,
+        hasReply: !!result.suggestedReply,
+        confidence: result.confidence,
+        sourcesCount: result.sources?.length || 0,
+      });
+
+      if (result.success && result.suggestedReply) {
+        const suggestion: RAGSuggestion = {
+          suggestedReply: result.suggestedReply,
+          confidence: result.confidence || 0.7,
+          reasoning: result.reasoning || 'Generated from available knowledge',
+          sources: result.sources || [],
+          alternativeReplies: result.alternativeReplies || [],
+        };
+
+        setAiSuggestion(suggestion);
+        console.log('✅ Customer-specific AI suggestion generated');
+      } else {
+        console.error('❌ RAG query failed:', result);
+        throw new Error(result.message || 'Failed to generate suggestion');
+      }
+    } catch (error: any) {
+      console.error('❌ Failed to get AI suggestion:', error);
+      
+      let errorMessage = 'Failed to generate suggestion';
+      if (error.message) {
+        errorMessage = error.message;
+      }
+      
       toast({
-        title: 'Error',
-        description: 'Failed to generate suggestion',
+        title: 'AI Suggestion Error',
+        description: errorMessage,
         variant: 'destructive',
       });
+      
       setShowAISuggestion(false);
     } finally {
       setIsLoadingSuggestion(false);
@@ -308,8 +322,6 @@ export default function MessagingPage() {
 
   const handleAcceptSuggestion = (text: string) => {
     setMessageInput(text);
-    // Keep suggestion visible so it can update with next message
-    // User can dismiss manually if they don't want continuous suggestions
   };
 
   const handleRegenerateSuggestion = () => {
@@ -340,7 +352,6 @@ export default function MessagingPage() {
       <audio ref={audioRef} src="/notification.mp3" preload="auto" />
       
       <div className="flex h-screen bg-gray-50 overflow-hidden">
-        {/* Conversation List Sidebar */}
         <ConversationList
           conversations={filteredConversations}
           selectedConversation={selectedConversation}
@@ -357,7 +368,6 @@ export default function MessagingPage() {
           isLoading={isLoadingConversations}
         />
 
-        {/* Main Chat Area */}
         <div className="flex-1 flex flex-col overflow-hidden">
           {showNewConversation && (
             <>
@@ -412,7 +422,6 @@ export default function MessagingPage() {
                 onViewProfile={() => setShowClientProfile(true)}
               />
 
-              {/* Messages List - with proper flex constraints */}
               <div className="flex-1 overflow-hidden">
                 <MessagesList
                   messages={allMessages}
@@ -423,7 +432,6 @@ export default function MessagingPage() {
                 />
               </div>
 
-              {/* Inline AI Suggestion - appears above message input */}
               <InlineAISuggestion
                 suggestion={aiSuggestion}
                 isLoading={isLoadingSuggestion}
@@ -434,7 +442,6 @@ export default function MessagingPage() {
                 incomingMessage={pendingIncomingMessage}
               />
 
-              {/* Message Input - always visible at bottom */}
               <MessageInput
                 value={messageInput}
                 onChange={setMessageInput}
@@ -445,7 +452,6 @@ export default function MessagingPage() {
           )}
         </div>
 
-        {/* Client Profile Panel */}
         {showClientProfile && selectedConversation && (
           <ClientProfilePanel
             conversation={selectedConversation as any}

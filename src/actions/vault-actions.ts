@@ -100,6 +100,7 @@ export async function uploadFileToVault(
       uploadedBy: userId,
       partnerId: partnerId,
       firebaseStoragePath: storagePath,
+      sourceType: 'upload',
       createdAt: FieldValue.serverTimestamp(),
     };
 
@@ -537,6 +538,11 @@ export async function listVaultFiles(
         errorMessage: data.errorMessage,
         firebaseStoragePath: data.firebaseStoragePath || data.uri || '',
         metadata: data.metadata,
+        sourceType: data.sourceType,
+        conversationId: data.conversationId,
+        conversationPlatform: data.conversationPlatform,
+        customerPhone: data.customerPhone,
+        customerName: data.customerName,
       } as VaultFile;
     });
 
@@ -579,5 +585,337 @@ export async function listFileSearchStores(
   } catch (error: any) {
     console.error('Error listing stores:', error);
     return { success: false, stores: [] };
+  }
+}
+
+// ============================================================================
+// CONVERSATION RAG INTEGRATION - SIMPLIFIED APPROACH
+// ============================================================================
+
+async function getConversationContext(
+  conversationId: string,
+  platform: 'sms' | 'whatsapp',
+  messageLimit: number = 10
+): Promise<string> {
+  if (!db) {
+    console.error('❌ Database not available in getConversationContext');
+    return '';
+  }
+
+  try {
+    const collectionName = platform === 'sms' ? 'smsMessages' : 'whatsappMessages';
+    console.log(`🔍 Fetching context from ${collectionName} for conversation ${conversationId}`);
+
+    const messagesSnapshot = await db
+      .collection(collectionName)
+      .where('conversationId', '==', conversationId)
+      .orderBy('createdAt', 'desc')
+      .limit(messageLimit)
+      .get();
+
+    if (messagesSnapshot.empty) {
+      console.log('⚠️ No messages found for conversation context');
+      return '';
+    }
+
+    const messages = messagesSnapshot.docs
+      .map(doc => doc.data())
+      .reverse();
+
+    const context = messages
+      .map(msg => `${msg.direction === 'inbound' ? 'Customer' : 'Partner'}: ${msg.content}`)
+      .join('\n');
+
+    console.log(`✅ Retrieved ${messages.length} messages for context`);
+    return context;
+  } catch (error) {
+    console.error('❌ Error getting conversation context:', error);
+    return '';
+  }
+}
+
+function calculateConfidence(response: string, sourceCount: number): number {
+  let confidence = 0.5;
+  confidence += Math.min(sourceCount * 0.15, 0.3);
+  if (response.length > 100) confidence += 0.1;
+  if (response.length > 200) confidence += 0.1;
+  const uncertaintyPhrases = ['not sure', 'might', 'possibly', 'unclear', 'don\'t know'];
+  if (uncertaintyPhrases.some(phrase => response.toLowerCase().includes(phrase))) {
+    confidence -= 0.2;
+  }
+  const specificIndicators = ['$', '%', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday', 'AM', 'PM'];
+  if (specificIndicators.some(indicator => response.includes(indicator))) {
+    confidence += 0.1;
+  }
+  return Math.max(0.3, Math.min(0.95, confidence));
+}
+
+function generateReasoning(response: string, sources: any[], conversationContext: string): string {
+  const parts: string[] = [];
+  if (conversationContext) {
+    parts.push('Based on the ongoing conversation');
+  }
+  if (sources.length > 0) {
+    const docSources = sources.filter(s => s.type === 'document').length;
+    const convoSources = sources.filter(s => s.type === 'conversation').length;
+    if (docSources > 0) parts.push(`${docSources} relevant document${docSources > 1 ? 's' : ''}`);
+    if (convoSources > 0) parts.push(`${convoSources} past conversation${convoSources > 1 ? 's' : ''}`);
+  }
+  if (parts.length === 0) {
+    return 'Generated response based on general knowledge';
+  }
+  return `Generated from ${parts.join(' and ')}`;
+}
+
+async function generateAlternativeReplies(
+  originalReply: string,
+  userMessage: string,
+  count: number = 2
+): Promise<string[]> {
+  try {
+    console.log('🔄 Generating alternative replies...');
+    const prompt = `Given this customer message: "${userMessage}"
+And this suggested reply: "${originalReply}"
+
+Generate ${count} alternative ways to respond that convey the same information but with different wording or tone.
+Return only the alternative responses, one per line, without numbering or additional text.`;
+
+    const response = await genAI.models.generateContent({
+      model: 'gemini-2.5-flash',
+      contents: prompt,
+    });
+
+    let text = '';
+    try {
+      text = response.text || '';
+    } catch (textError) {
+      if (response.candidates?.[0]?.content?.parts?.[0]?.text) {
+        text = response.candidates[0].content.parts[0].text;
+      }
+    }
+
+    if (!text || text.trim().length === 0) {
+      console.warn('⚠️ Empty response from alternatives generation');
+      return [];
+    }
+    
+    const alternatives = text
+      .split('\n')
+      .map(line => line.trim())
+      .filter(line => line.length > 0)
+      .slice(0, count);
+
+    console.log(`✅ Generated ${alternatives.length} alternatives`);
+    return alternatives;
+  } catch (error) {
+    console.error('❌ Error generating alternatives:', error);
+    return [];
+  }
+}
+
+async function filterOutOtherCustomers(
+  partnerId: string,
+  groundingChunks: any[],
+  currentCustomerPhone: string,
+  platform: 'sms' | 'whatsapp'
+): Promise<any[]> {
+  if (!db || groundingChunks.length === 0) {
+    return groundingChunks;
+  }
+
+  try {
+    console.log(`🔒 Filtering to exclude other customers' conversations...`);
+    
+    const conversationDocsSnapshot = await db
+      .collection(`partners/${partnerId}/vaultFiles`)
+      .where('sourceType', '==', 'conversation')
+      .where('state', '==', 'ACTIVE')
+      .get();
+
+    const otherCustomerIdentifiers = new Set<string>();
+    
+    conversationDocsSnapshot.docs.forEach(doc => {
+      const data = doc.data();
+      if (data.customerPhone !== currentCustomerPhone || data.conversationPlatform !== platform) {
+        if (data.displayName) otherCustomerIdentifiers.add(data.displayName.toLowerCase());
+        if (data.name) otherCustomerIdentifiers.add(data.name.toLowerCase());
+        if (data.firebaseStoragePath) otherCustomerIdentifiers.add(data.firebaseStoragePath.toLowerCase());
+        otherCustomerIdentifiers.add(doc.id.toLowerCase());
+      }
+    });
+
+    if (otherCustomerIdentifiers.size === 0) {
+      console.log('✅ No other customers to filter out');
+      return groundingChunks;
+    }
+
+    console.log(`🔍 Will exclude ${otherCustomerIdentifiers.size} other customer identifiers`);
+
+    const filteredChunks = groundingChunks.filter((chunk: any) => {
+      const title = chunk.retrievedContext?.title?.toLowerCase() || '';
+      const uri = chunk.retrievedContext?.uri?.toLowerCase() || '';
+      
+      for (const identifier of otherCustomerIdentifiers) {
+        if (title.includes(identifier) || uri.includes(identifier)) {
+          console.log(`❌ Filtered out other customer's conversation: ${title || uri}`);
+          return false;
+        }
+      }
+      
+      return true;
+    });
+
+    console.log(`✅ Kept ${filteredChunks.length} of ${groundingChunks.length} chunks after filtering`);
+    
+    return filteredChunks;
+
+  } catch (error) {
+    console.error('❌ Error filtering chunks:', error);
+    return groundingChunks;
+  }
+}
+
+export async function chatWithVaultForConversation(
+  partnerId: string,
+  conversationId: string,
+  platform: 'sms' | 'whatsapp',
+  message: string
+): Promise<{
+  success: boolean;
+  message: string;
+  suggestedReply?: string;
+  confidence?: number;
+  reasoning?: string;
+  sources?: any[];
+  alternativeReplies?: string[];
+}> {
+  console.log('🚀 Starting RAG query for conversation:', conversationId);
+  
+  if (!process.env.GEMINI_API_KEY || !db) {
+    return { success: false, message: 'Service not configured' };
+  }
+
+  try {
+    // Step 1: Get conversation details
+    const conversationCollection = platform === 'sms' ? 'smsConversations' : 'whatsappConversations';
+    const conversationDoc = await db.collection(conversationCollection).doc(conversationId).get();
+
+    if (!conversationDoc.exists) {
+      return { success: false, message: 'Conversation not found' };
+    }
+
+    const conversationData = conversationDoc.data();
+    const customerName = conversationData?.customerName || conversationData?.contactName || 'Customer';
+
+    // Step 2: Get RAG store (all vault documents are here)
+    const storesSnapshot = await db
+      .collection(`partners/${partnerId}/fileSearchStores`)
+      .where('state', '==', 'ACTIVE')
+      .limit(1)
+      .get();
+
+    if (storesSnapshot.empty) {
+      return { success: false, message: 'No documents found. Please upload documents to vault.' };
+    }
+
+    const ragStoreName = storesSnapshot.docs[0].data().name;
+    console.log('✅ Using RAG store:', ragStoreName);
+
+    // Step 3: Get THIS customer's conversation history from database (NOT from vault)
+    const conversationContext = await getConversationContext(conversationId, platform, 10);
+
+    // Step 4: Simple prompt - Gemini handles the document search automatically
+    const prompt = `You are helping respond to a customer message.
+
+Customer: ${customerName}
+
+Recent conversation history:
+${conversationContext || 'No previous conversation'}
+
+Customer's new message: "${message}"
+
+Instructions:
+- Use company documents to answer about policies, pricing, services
+- Use the conversation history above for context about THIS specific customer
+- Generate a helpful 2-3 sentence reply
+- Be professional and concise
+
+Reply:`;
+
+    console.log('📤 Querying Gemini with vault documents...');
+
+    // Step 5: Query Gemini - it automatically searches vault documents
+    const response = await genAI.models.generateContent({
+      model: 'gemini-2.5-flash',
+      contents: prompt,
+      config: {
+        tools: [{
+          fileSearch: {
+            fileSearchStoreNames: [ragStoreName],
+          },
+        }],
+        temperature: 0.7,
+        maxOutputTokens: 500,
+      },
+    });
+
+    // Step 6: Extract response
+    const responseText = response.text;
+    if (!responseText?.trim()) {
+      return { success: false, message: 'AI generated empty response' };
+    }
+
+    console.log('✅ Response:', responseText.substring(0, 100) + '...');
+
+    // Step 7: Get sources from grounding metadata
+    const groundingChunks = response.candidates?.[0]?.groundingMetadata?.groundingChunks || [];
+    
+    const sources = groundingChunks.slice(0, 5).map((chunk: any) => {
+      const title = chunk.retrievedContext?.title || 'Document';
+      const text = chunk.retrievedContext?.text || '';
+      
+      return {
+        type: 'document',
+        name: title,
+        excerpt: text.substring(0, 150),
+        relevance: 0.85,
+      };
+    });
+
+    console.log(`✅ Generated reply with ${sources.length} sources from vault`);
+
+    // Step 8: Calculate confidence
+    const confidence = Math.min(0.95, 0.5 + (sources.length * 0.1));
+    
+    const reasoning = sources.length > 0 
+      ? `Generated from ${sources.length} document${sources.length > 1 ? 's' : ''} and conversation history`
+      : 'Generated from conversation context';
+
+    // Step 9: Generate alternatives
+    let alternatives: string[] = [];
+    try {
+      alternatives = await generateAlternativeReplies(responseText, message, 2);
+    } catch (error) {
+      console.error('Failed to generate alternatives:', error);
+    }
+
+    console.log('✅ RAG query complete\n');
+
+    return {
+      success: true,
+      message: 'Success',
+      suggestedReply: responseText,
+      confidence,
+      reasoning,
+      sources,
+      alternativeReplies: alternatives,
+    };
+
+  } catch (error: any) {
+    console.error('❌ RAG query failed:', error);
+    return {
+      success: false,
+      message: error.message || 'Query failed',
+    };
   }
 }

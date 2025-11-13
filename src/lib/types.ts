@@ -1244,7 +1244,7 @@ export interface ResourceAccess {
 // ============================================================================
 
 export interface VaultFile {
-  id: string;
+  id?: string;
   name: string;
   displayName: string;
   mimeType: string;
@@ -1258,11 +1258,12 @@ export interface VaultFile {
   createdAt: string;
   errorMessage?: string;
   firebaseStoragePath: string;
-  metadata?: {
-    description?: string;
-    tags?: string[];
-    category?: string;
-  };
+  metadata?: any;
+  sourceType?: 'upload' | 'conversation';
+  conversationId?: string;
+  conversationPlatform?: 'sms' | 'whatsapp';
+  customerPhone?: string;
+  customerName?: string;
 }
 
 export interface FileSearchStore {
@@ -1308,4 +1309,57 @@ export interface ChatMessage {
   role: 'user' | 'model';
   parts: { text: string }[];
   groundingChunks?: GroundingChunk[];
+}
+
+// ============================================================================
+// CONVERSATION SYNC & RAG TYPES
+// ============================================================================
+
+export interface ConversationSyncConfig {
+  partnerId: string;
+  enabled: boolean;
+  strategy: 'immediate' | 'batched' | 'smart';
+  batchSize: number;
+  batchInterval: number;
+  vipCustomers: string[];
+  syncInactive: boolean;
+}
+
+export interface ConversationSyncJob {
+  id: string;
+  type: 'conversation-sync';
+  partnerId: string;
+  conversationId: string;
+  platform: 'sms' | 'whatsapp';
+  priority: number;
+  status: 'pending' | 'processing' | 'completed' | 'failed';
+  attempts: number;
+  createdAt: any;
+  processedAt?: any;
+  error?: string;
+}
+
+export interface RAGQueryResult {
+  success: boolean;
+  message: string;
+  response?: string;
+  confidence?: number;
+  reasoning?: string;
+  sources?: RAGSource[];
+  groundingChunks?: GroundingChunk[];
+}
+
+export interface RAGSource {
+  type: 'conversation' | 'document';
+  name: string;
+  excerpt: string;
+  relevance: number;
+}
+
+export interface GroundingChunk {
+  retrievedContext?: {
+    uri?: string;
+    title?: string;
+    text?: string;
+  };
 }
