@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
@@ -6,7 +5,6 @@ import { useSearchParams } from 'next/navigation';
 import { useMultiWorkspaceAuth } from '@/hooks/use-multi-workspace-auth';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
-import { Bell } from 'lucide-react';
 import { sendSMSAction } from '@/actions/sms-actions';
 import { sendWhatsAppMessageAction } from '@/actions/whatsapp-actions';
 import { Timestamp } from 'firebase/firestore';
@@ -24,8 +22,10 @@ import NewConversationForm from '@/components/partner/messaging/NewConversationF
 import EmptyState from '@/components/partner/messaging/EmptyState';
 import DiagnosticsView from '@/components/partner/messaging/DiagnosticsView';
 import ClientProfilePanel from '@/components/partner/messaging/ClientProfilePanel';
-import MessagesDiagnostic from '@/components/partner/messaging/MessagesDiagnostic';
+import InlineAISuggestion from '@/components/partner/messaging/InlineAISuggestion';
 
+import { getMockRAGSuggestion } from '@/lib/mock-rag-service';
+import type { RAGSuggestion } from '@/lib/mock-rag-service';
 
 type Platform = 'sms' | 'whatsapp';
 
@@ -95,6 +95,16 @@ export default function MessagingPage() {
   const audioRef = useRef<HTMLAudioElement>(null);
   const [isSending, setIsSending] = useState(false);
   
+  // AI Suggestion state
+  const [showAISuggestion, setShowAISuggestion] = useState(false);
+  const [aiSuggestion, setAiSuggestion] = useState<RAGSuggestion | null>(null);
+  const [isLoadingSuggestion, setIsLoadingSuggestion] = useState(false);
+  const [pendingIncomingMessage, setPendingIncomingMessage] = useState('');
+  
+  // Track processed messages to avoid duplicate AI triggers
+  const processedMessageIds = useRef<Set<string>>(new Set());
+  const lastSuggestionContext = useRef<string>('');
+  
   const { 
     messages: dbMessages, 
     isLoading: isLoadingMessages
@@ -145,12 +155,64 @@ export default function MessagingPage() {
     }
   }, [searchParams, simpleConversations]);
 
+  // Clear processed messages when switching conversations
+  useEffect(() => {
+    processedMessageIds.current.clear();
+    lastSuggestionContext.current = '';
+  }, [selectedConversation?.id]);
+
+  // Continuous AI suggestions - updates as conversation progresses
+  useEffect(() => {
+    if (!selectedConversation) return;
+    if (dbMessages.length === 0) return;
+    
+    // Get the most recent message
+    const latestMessage = dbMessages[dbMessages.length - 1];
+    
+    // Check if it's an incoming message (from customer)
+    const isIncomingMessage = latestMessage.direction === 'inbound';
+    
+    if (!isIncomingMessage) return; // Only trigger on customer messages
+    
+    // Create conversation context from recent messages (last 5)
+    const recentMessages = dbMessages.slice(-5);
+    const conversationContext = recentMessages
+      .map(m => `${m.direction}: ${m.content}`)
+      .join(' | ');
+    
+    // Check if context has changed (new information to analyze)
+    if (conversationContext === lastSuggestionContext.current) return;
+    
+    // Check if we've already processed this specific message
+    if (processedMessageIds.current.has(latestMessage.id)) {
+      // But allow regeneration if conversation context changed significantly
+      const contextChanged = conversationContext.length > lastSuggestionContext.current.length + 50;
+      if (!contextChanged) return;
+    }
+    
+    console.log('🤖 Generating AI suggestion for:', latestMessage.content);
+    console.log('📝 Conversation context:', conversationContext);
+    
+    // Mark as processed
+    processedMessageIds.current.add(latestMessage.id);
+    lastSuggestionContext.current = conversationContext;
+    
+    // Small delay to feel more natural
+    setTimeout(() => {
+      handleRequestAISuggestion(latestMessage.content);
+    }, 500);
+  }, [dbMessages, selectedConversation]);
+
   const handleSelectConversation = (conversation: SimpleConversation) => {
     setSelectedConversation(conversation);
     setShowNewConversation(false);
     setShowDiagnostics(false);
     setShowClientProfile(false);
     setOptimisticMessages([]);
+    // Dismiss any open AI suggestions when switching conversations
+    setShowAISuggestion(false);
+    setAiSuggestion(null);
+    setPendingIncomingMessage('');
   };
 
   const handleSendMessage = async () => {
@@ -171,6 +233,11 @@ export default function MessagingPage() {
     const messageText = messageInput;
     setMessageInput('');
     setIsSending(true);
+
+    // Dismiss AI suggestion after sending
+    setShowAISuggestion(false);
+    setAiSuggestion(null);
+    setPendingIncomingMessage('');
 
     try {
       let result;
@@ -200,156 +267,193 @@ export default function MessagingPage() {
       console.error('❌ Send error:', error);
       toast({ 
         variant: 'destructive', 
-        title: 'Failed to send', 
+        title: 'Failed to send message',
         description: error.message 
       });
       setOptimisticMessages(prev => prev.filter(m => m.id !== optimistic.id));
+      setMessageInput(messageText);
     } finally {
-        setIsSending(false);
+      setIsSending(false);
     }
   };
 
-  const handleNewConversation = () => {
-    setShowNewConversation(true);
-    setSelectedConversation(null);
-    setShowDiagnostics(false);
-    setShowClientProfile(false);
+  const handleRequestAISuggestion = async (incomingMessage?: string) => {
+    if (!selectedConversation) return;
+    
+    const messageToAnalyze = incomingMessage || pendingIncomingMessage || "Hello";
+    
+    setPendingIncomingMessage(messageToAnalyze);
+    setShowAISuggestion(true);
+    setIsLoadingSuggestion(true);
+    setAiSuggestion(null);
+
+    try {
+      const suggestion = await getMockRAGSuggestion(
+        selectedConversation.customerPhone,
+        messageToAnalyze
+      );
+      setAiSuggestion(suggestion);
+    } catch (error) {
+      console.error('Failed to get AI suggestion:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to generate suggestion',
+        variant: 'destructive',
+      });
+      setShowAISuggestion(false);
+    } finally {
+      setIsLoadingSuggestion(false);
+    }
   };
 
-  const handleConversationCreated = (conversationId: string, platform: Platform) => {
-    setShowNewConversation(false);
-    setTimeout(() => {
-      const newConvo = simpleConversations.find(c => c.id === conversationId);
-      if (newConvo) {
-        handleSelectConversation(newConvo);
-      }
-    }, 500);
+  const handleAcceptSuggestion = (text: string) => {
+    setMessageInput(text);
+    // Keep suggestion visible so it can update with next message
+    // User can dismiss manually if they don't want continuous suggestions
   };
 
-  const handleViewDiagnostics = () => {
-    setShowDiagnostics(true);
-    setSelectedConversation(null);
-    setShowNewConversation(false);
-    setShowClientProfile(false);
+  const handleRegenerateSuggestion = () => {
+    if (pendingIncomingMessage) {
+      handleRequestAISuggestion(pendingIncomingMessage);
+    }
   };
 
-  const handleToggleProfile = () => {
-    setShowClientProfile(prev => !prev);
+  const handleDismissSuggestion = () => {
+    setShowAISuggestion(false);
+    setAiSuggestion(null);
+    setPendingIncomingMessage('');
   };
 
-  const selectedForComponents = selectedConversation ? {
-    id: selectedConversation.id,
-    customerPhone: selectedConversation.customerPhone,
-    customerName: selectedConversation.customerName,
-    contactName: selectedConversation.contactName,
-    contactEmail: selectedConversation.contactEmail,
-    contactId: selectedConversation.contactId,
-    availablePlatforms: [selectedConversation.platform],
-    smsConversationId: selectedConversation.platform === 'sms' ? selectedConversation.id : undefined,
-    whatsappConversationId: selectedConversation.platform === 'whatsapp' ? selectedConversation.id : undefined,
-    lastMessageAt: selectedConversation.lastMessageAt,
-    messageCount: selectedConversation.messageCount,
-    recentMessages: [],
-    isActive: selectedConversation.isActive,
-    clientInfo: selectedConversation.clientInfo,
-    partnerId: selectedConversation.partnerId,
-    createdAt: selectedConversation.createdAt
-  } : null;
+  if (!user || !partnerId) {
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-gray-50">
+        <div className="text-center">
+          <p className="text-gray-900 font-semibold">Authentication Required</p>
+          <p className="text-gray-600 mt-2">Please log in to access messaging.</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="flex h-screen bg-gray-50 overflow-hidden">
-      {partnerId && <MessagesDiagnostic partnerId={partnerId} />}
-      <audio ref={audioRef} src="/notification.mp3" />
+    <>
+      <audio ref={audioRef} src="/notification.mp3" preload="auto" />
       
-      <ConversationList
-        conversations={filteredConversations}
-        selectedConversation={selectedForComponents}
-        searchTerm={searchTerm}
-        onSearchChange={setSearchTerm}
-        onSelectConversation={handleSelectConversation}
-        onNewConversation={handleNewConversation}
-        isLoading={isLoadingConversations || isLoadingContacts}
-      />
+      <div className="flex h-screen bg-gray-50 overflow-hidden">
+        {/* Conversation List Sidebar */}
+        <ConversationList
+          conversations={filteredConversations}
+          selectedConversation={selectedConversation}
+          searchTerm={searchTerm}
+          onSearchChange={setSearchTerm}
+          onSelectConversation={handleSelectConversation}
+          onNewConversation={() => {
+            setShowNewConversation(true);
+            setSelectedConversation(null);
+            setShowDiagnostics(false);
+            setShowClientProfile(false);
+            setShowAISuggestion(false);
+          }}
+          isLoading={isLoadingConversations}
+        />
 
-      <main className="flex-1 flex relative min-w-0">
-        <div className="flex-1 flex flex-col">
-          {showDiagnostics ? (
-            <DiagnosticsView 
-              diagnostics={diagnostics}
-              onBack={() => setShowDiagnostics(false)}
+        {/* Main Chat Area */}
+        <div className="flex-1 flex flex-col overflow-hidden">
+          {showNewConversation && (
+            <>
+              <div className="bg-white border-b border-gray-200 px-6 py-4">
+                <h2 className="text-lg font-semibold text-gray-900">New Conversation</h2>
+              </div>
+              <div className="flex-1 overflow-y-auto p-6">
+                <NewConversationForm
+                  partnerId={partnerId}
+                  onSuccess={(conversationId) => {
+                    setShowNewConversation(false);
+                    const conv = simpleConversations.find(c => c.id === conversationId);
+                    if (conv) handleSelectConversation(conv);
+                  }}
+                  onCancel={() => setShowNewConversation(false)}
+                />
+              </div>
+            </>
+          )}
+
+          {showDiagnostics && (
+            <>
+              <div className="bg-white border-b border-gray-200 px-6 py-4">
+                <h2 className="text-lg font-semibold text-gray-900">Diagnostics</h2>
+              </div>
+              <div className="flex-1 overflow-y-auto">
+                <DiagnosticsView partnerId={partnerId} />
+              </div>
+            </>
+          )}
+
+          {!selectedConversation && !showNewConversation && !showDiagnostics && (
+            <EmptyState
+              onNewConversation={() => {
+                setShowNewConversation(true);
+                setShowDiagnostics(false);
+              }}
+              onViewDiagnostics={() => {
+                setShowDiagnostics(true);
+                setShowNewConversation(false);
+              }}
+              hasNotifications={hasUnread}
+              notificationCount={notifications?.filter(n => !n.isRead).length || 0}
+              onViewNotifications={markAllAsRead}
             />
-          ) : showNewConversation ? (
-            <NewConversationForm
-              partnerId={partnerId}
-              onClose={() => setShowNewConversation(false)}
-              onConversationCreated={handleConversationCreated}
-            />
-          ) : selectedConversation ? (
+          )}
+
+          {selectedConversation && !showNewConversation && !showDiagnostics && (
             <>
               <ChatHeader
-                conversation={selectedForComponents!}
-                selectedPlatform={selectedConversation.platform}
-                onPlatformChange={() => {}}
-                onToggleProfile={handleToggleProfile}
+                conversation={selectedConversation}
+                onViewProfile={() => setShowClientProfile(true)}
               />
 
+              {/* Messages List - with proper flex constraints */}
               <div className="flex-1 overflow-hidden">
-                {isLoadingMessages ? (
-                  <div className="flex items-center justify-center h-full">
-                    <div className="text-center">
-                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-slate-600 mx-auto mb-4"></div>
-                      <p className="text-sm text-slate-600">Loading messages...</p>
-                    </div>
-                  </div>
-                ) : (
-                  <MessagesList
-                    messages={allMessages}
-                    isLoadingMore={false}
-                    allMessagesLoaded={true}
-                    onLoadMore={() => {}}
-                    partnerId={partnerId}
-                  />
-                )}
+                <MessagesList
+                  messages={allMessages}
+                  isLoadingMore={isLoadingMessages}
+                  allMessagesLoaded={true}
+                  onLoadMore={() => {}}
+                  partnerId={partnerId}
+                />
               </div>
 
+              {/* Inline AI Suggestion - appears above message input */}
+              <InlineAISuggestion
+                suggestion={aiSuggestion}
+                isLoading={isLoadingSuggestion}
+                isVisible={showAISuggestion}
+                onAccept={handleAcceptSuggestion}
+                onDismiss={handleDismissSuggestion}
+                onRegenerate={handleRegenerateSuggestion}
+                incomingMessage={pendingIncomingMessage}
+              />
+
+              {/* Message Input - always visible at bottom */}
               <MessageInput
                 value={messageInput}
                 onChange={setMessageInput}
                 onSend={handleSendMessage}
-                isSending={isSending}
-                platform={selectedConversation.platform}
+                disabled={isSending || !selectedConversation}
               />
             </>
-          ) : (
-            <EmptyState 
-              onNewConversation={handleNewConversation}
-              onViewDiagnostics={handleViewDiagnostics}
-            />
           )}
         </div>
 
+        {/* Client Profile Panel */}
         {showClientProfile && selectedConversation && (
-          <div className="w-96 border-l border-slate-200 bg-white">
-            <ClientProfilePanel
-              conversation={selectedForComponents!}
-              partnerId={partnerId}
-              onClose={() => setShowClientProfile(false)}
-            />
-          </div>
+          <ClientProfilePanel
+            conversation={selectedConversation as any}
+            onClose={() => setShowClientProfile(false)}
+            partnerId={partnerId}
+          />
         )}
-      </main>
-
-      {hasUnread && (
-        <div className="fixed bottom-4 right-4 z-50">
-          <Button
-            onClick={markAllAsRead}
-            className="bg-blue-600 hover:bg-blue-700 text-white shadow-lg"
-          >
-            <Bell className="w-4 h-4 mr-2" />
-            {notifications.filter(n => !n.isRead).length} new
-          </Button>
-        </div>
-      )}
-    </div>
+      </div>
+    </>
   );
 }
