@@ -216,7 +216,9 @@ export async function POST(request: NextRequest) {
     const formData = await request.formData();
     const body: TwilioSmsWebhookBody = {} as TwilioSmsWebhookBody;
     
+    console.log('🔍 DEBUG: Raw formData entries:');
     formData.forEach((value, key) => {
+      console.log(`  ${key}: ${value}`);
       body[key as keyof TwilioSmsWebhookBody] = value.toString();
       webhookLogData.payload[key] = value.toString();
     });
@@ -226,12 +228,17 @@ export async function POST(request: NextRequest) {
     webhookLogData.body = body.Body;
     webhookLogData.messageSid = body.MessageSid;
 
-    console.log('📦 Webhook Body:', {
+    console.log('📦 Parsed Webhook Body:', {
       MessageSid: body.MessageSid,
       From: body.From,
       To: body.To,
       Body: body.Body?.substring(0, 50),
       NumMedia: body.NumMedia,
+      hasFrom: !!body.From,
+      hasTo: !!body.To,
+      hasBody: !!body.Body,
+      bodyType: typeof body.Body,
+      bodyLength: body.Body?.length || 0,
     });
 
     const twilioSignature = request.headers.get('x-twilio-signature');
@@ -275,12 +282,15 @@ export async function POST(request: NextRequest) {
 
     if (!body.From || !body.To || !body.Body) {
       console.error('❌ Missing required fields');
-      webhookLogData.error = 'Missing required fields (From, To, or Body)';
+      console.error('   From:', body.From, '(exists:', !!body.From, ')');
+      console.error('   To:', body.To, '(exists:', !!body.To, ')');
+      console.error('   Body:', body.Body, '(exists:', !!body.Body, ', length:', body.Body?.length || 0, ')');
+      webhookLogData.error = `Missing required fields - From: ${!!body.From}, To: ${!!body.To}, Body: ${!!body.Body}`;
       if (db) {
         await db.collection('webhookLogs').add(webhookLogData);
       }
       return NextResponse.json(
-        { error: 'Missing required fields' },
+        { error: 'Missing required fields', details: { hasFrom: !!body.From, hasTo: !!body.To, hasBody: !!body.Body } },
         { status: 400 }
       );
     }
