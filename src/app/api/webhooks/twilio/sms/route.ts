@@ -213,15 +213,31 @@ export async function POST(request: NextRequest) {
   };
 
   try {
-    const formData = await request.formData();
-    const body: TwilioSmsWebhookBody = {} as TwilioSmsWebhookBody;
-    
-    console.log('🔍 DEBUG: Raw formData entries:');
-    formData.forEach((value, key) => {
-      console.log(`  ${key}: ${value}`);
-      body[key as keyof TwilioSmsWebhookBody] = value.toString();
-      webhookLogData.payload[key] = value.toString();
-    });
+    const contentType = request.headers.get('content-type') || '';
+    console.log('📋 Content-Type:', contentType);
+
+    let body: TwilioSmsWebhookBody;
+    let params: Record<string, string> = {};
+
+    if (contentType.includes('application/json')) {
+      console.log('🔧 Parsing as JSON');
+      const jsonBody = await request.json();
+      body = jsonBody as TwilioSmsWebhookBody;
+      params = jsonBody;
+      webhookLogData.payload = jsonBody;
+      
+      console.log('📦 JSON Body:', JSON.stringify(jsonBody, null, 2));
+    } else {
+      console.log('🔧 Parsing as FormData');
+      const formData = await request.formData();
+      body = {} as TwilioSmsWebhookBody;
+      
+      formData.forEach((value, key) => {
+        body[key as keyof TwilioSmsWebhookBody] = value.toString();
+        params[key] = value.toString();
+        webhookLogData.payload[key] = value.toString();
+      });
+    }
 
     webhookLogData.from = body.From;
     webhookLogData.to = body.To;
@@ -234,11 +250,6 @@ export async function POST(request: NextRequest) {
       To: body.To,
       Body: body.Body?.substring(0, 50),
       NumMedia: body.NumMedia,
-      hasFrom: !!body.From,
-      hasTo: !!body.To,
-      hasBody: !!body.Body,
-      bodyType: typeof body.Body,
-      bodyLength: body.Body?.length || 0,
     });
 
     const twilioSignature = request.headers.get('x-twilio-signature');
@@ -255,11 +266,6 @@ export async function POST(request: NextRequest) {
     }
 
     const url = request.url;
-    const params: Record<string, string> = {};
-    formData.forEach((value, key) => {
-      params[key] = value.toString();
-    });
-
     const isValidSignature = await validateTwilioSignature(
       twilioSignature,
       url,
@@ -282,15 +288,12 @@ export async function POST(request: NextRequest) {
 
     if (!body.From || !body.To || !body.Body) {
       console.error('❌ Missing required fields');
-      console.error('   From:', body.From, '(exists:', !!body.From, ')');
-      console.error('   To:', body.To, '(exists:', !!body.To, ')');
-      console.error('   Body:', body.Body, '(exists:', !!body.Body, ', length:', body.Body?.length || 0, ')');
       webhookLogData.error = `Missing required fields - From: ${!!body.From}, To: ${!!body.To}, Body: ${!!body.Body}`;
       if (db) {
         await db.collection('webhookLogs').add(webhookLogData);
       }
       return NextResponse.json(
-        { error: 'Missing required fields', details: { hasFrom: !!body.From, hasTo: !!body.To, hasBody: !!body.Body } },
+        { error: 'Missing required fields' },
         { status: 400 }
       );
     }
