@@ -1,4 +1,3 @@
-// src/lib/twilio-service.ts
 'use server';
 
 import twilio from 'twilio';
@@ -9,7 +8,6 @@ const authToken = process.env.TWILIO_AUTH_TOKEN;
 const messagingServiceSid = process.env.TWILIO_MESSAGING_SERVICE_SID;
 const twilioPhoneNumber = process.env.TWILIO_PHONE_NUMBER;
 const twilioWhatsAppNumber = process.env.TWILIO_WHATSAPP_NUMBER;
-
 
 let twilioClient: twilio.Twilio | null = null;
 
@@ -26,13 +24,13 @@ function getTwilioClient() {
 }
 
 export interface SendSMSOptions {
-  to: string; // Phone number in E.164 format (e.g., +1234567890)
+  to: string;
   body: string;
-  mediaUrl?: string; // Add mediaUrl for MMS
+  mediaUrl?: string;
 }
 
 export interface SendWhatsAppMessageOptions {
-  to: string; // Phone number in E.164 format (e.g., +1234567890)
+  to: string;
   body?: string;
   mediaUrl?: string;
 }
@@ -47,10 +45,6 @@ export interface TwilioMessageResponse {
   errorMessage?: string | null;
 }
 
-/**
- * Send an SMS message via Twilio.
- * Uses Messaging Service if configured, otherwise falls back to a 'from' number.
- */
 export async function sendSMS(options: SendSMSOptions): Promise<TwilioMessageResponse> {
   try {
     const client = getTwilioClient();
@@ -66,16 +60,24 @@ export async function sendSMS(options: SendSMSOptions): Promise<TwilioMessageRes
       messageParams.mediaUrl = [options.mediaUrl];
     }
 
-    // Use Messaging Service if available, otherwise use 'from' number
     if (messagingServiceSid) {
       messageParams.messagingServiceSid = messagingServiceSid;
+      console.log('📤 Sending SMS via Messaging Service:', messagingServiceSid);
     } else if (twilioPhoneNumber) {
       messageParams.from = twilioPhoneNumber;
+      console.log('📤 Sending SMS from number:', twilioPhoneNumber);
     } else {
       throw new Error('Neither TWILIO_MESSAGING_SERVICE_SID nor TWILIO_PHONE_NUMBER is configured for SMS.');
     }
 
     const message = await client.messages.create(messageParams);
+
+    console.log('✅ SMS sent:', {
+      sid: message.sid,
+      from: message.from,
+      to: message.to,
+      status: message.status,
+    });
 
     return {
       sid: message.sid,
@@ -92,10 +94,6 @@ export async function sendSMS(options: SendSMSOptions): Promise<TwilioMessageRes
   }
 }
 
-/**
- * Send a WhatsApp message via Twilio.
- * Uses Messaging Service if configured, otherwise falls back to a 'from' number.
- */
 export async function sendWhatsAppMessage(options: SendWhatsAppMessageOptions): Promise<TwilioMessageResponse> {
   try {
     const client = getTwilioClient();
@@ -105,14 +103,15 @@ export async function sendWhatsAppMessage(options: SendWhatsAppMessageOptions): 
     
     const messageParams: any = { to };
 
-    // Use Messaging Service if available, otherwise use 'from' number for WhatsApp
     if (messagingServiceSid) {
       messageParams.messagingServiceSid = messagingServiceSid;
+      console.log('📤 Sending WhatsApp via Messaging Service:', messagingServiceSid);
     } else if (twilioWhatsAppNumber) {
       const fromNumber = twilioWhatsAppNumber.startsWith('whatsapp:')
         ? twilioWhatsAppNumber
         : `whatsapp:${twilioWhatsAppNumber}`;
       messageParams.from = fromNumber;
+      console.log('📤 Sending WhatsApp from number:', fromNumber);
     } else {
       throw new Error('Neither TWILIO_MESSAGING_SERVICE_SID nor TWILIO_WHATSAPP_NUMBER is configured for WhatsApp.');
     }
@@ -131,6 +130,13 @@ export async function sendWhatsAppMessage(options: SendWhatsAppMessageOptions): 
 
     const message = await client.messages.create(messageParams);
 
+    console.log('✅ WhatsApp sent:', {
+      sid: message.sid,
+      from: message.from,
+      to: message.to,
+      status: message.status,
+    });
+
     return {
       sid: message.sid,
       status: message.status,
@@ -146,10 +152,6 @@ export async function sendWhatsAppMessage(options: SendWhatsAppMessageOptions): 
   }
 }
 
-
-/**
- * Get message status from Twilio
- */
 export async function getMessageStatus(messageSid: string): Promise<string> {
   try {
     const client = getTwilioClient();
@@ -161,16 +163,13 @@ export async function getMessageStatus(messageSid: string): Promise<string> {
   }
 }
 
-/**
- * Validate if a phone number is valid
- */
 export async function validatePhoneNumber(phoneNumber: string): Promise<boolean> {
   try {
     const client = getTwilioClient();
     const lookup = await client.lookups.v1.phoneNumbers(phoneNumber).fetch();
-    return !!lookup;
-  } catch (error) {
-    console.error('Error validating phone number:', error);
+    return !!lookup.phoneNumber;
+  } catch (error: any) {
+    console.error('Phone validation error:', error);
     return false;
   }
 }
