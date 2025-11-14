@@ -6,9 +6,8 @@ import { shouldSyncConversation, syncConversationToVault } from '@/actions/conve
 
 const accountSid = process.env.TWILIO_ACCOUNT_SID;
 const authToken = process.env.TWILIO_AUTH_TOKEN;
-const twilioPhoneNumber = process.env.TWILIO_PHONE_NUMBER;
 
-interface TwilioSmsWebhookBody {
+interface TwilioWebhookBody {
   MessageSid: string;
   From: string;
   To: string;
@@ -18,10 +17,8 @@ interface TwilioSmsWebhookBody {
   MediaContentType0?: string;
   AccountSid: string;
   MessagingServiceSid?: string;
-  FromCity?: string;
-  FromState?: string;
-  FromZip?: string;
-  FromCountry?: string;
+  ProfileName?: string;
+  WaId?: string;
 }
 
 async function validateTwilioSignature(
@@ -42,23 +39,24 @@ async function validateTwilioSignature(
   }
 }
 
-async function findPartnerIdByPhoneNumber(phoneNumber: string): Promise<string | null> {
+async function findPartnerIdByPhoneNumber(phoneNumber: string, isWhatsApp: boolean): Promise<string | null> {
   if (!db) {
     console.error('❌ Database not available');
     return null;
   }
 
   try {
-    console.log(`🔍 Looking up partner for phone: ${phoneNumber}`);
+    const fieldName = isWhatsApp ? 'twilioWhatsAppNumber' : 'twilioPhoneNumber';
+    console.log(`🔍 Looking up partner for ${isWhatsApp ? 'WhatsApp' : 'SMS'}: ${phoneNumber} using field: ${fieldName}`);
     
     const partnersSnapshot = await db
       .collection('partners')
-      .where('twilioPhoneNumber', '==', phoneNumber)
+      .where(fieldName, '==', phoneNumber)
       .limit(1)
       .get();
 
     if (partnersSnapshot.empty) {
-      console.error(`❌ No partner found for phone number: ${phoneNumber}`);
+      console.error(`❌ No partner found for ${fieldName}: ${phoneNumber}`);
       return null;
     }
 
@@ -73,17 +71,20 @@ async function findPartnerIdByPhoneNumber(phoneNumber: string): Promise<string |
 
 async function getOrCreateConversation(
   partnerId: string,
-  customerPhone: string
+  customerPhone: string,
+  platform: 'sms' | 'whatsapp',
+  profileName?: string
 ): Promise<string> {
   if (!db) {
     throw new Error('Database not available');
   }
 
   try {
-    console.log(`🔍 Looking for existing conversation: ${customerPhone}`);
+    const collectionName = platform === 'whatsapp' ? 'whatsappConversations' : 'smsConversations';
+    console.log(`🔍 Looking for existing ${platform} conversation: ${customerPhone}`);
     
     const conversationsSnapshot = await db
-      .collection('smsConversations')
+      .collection(collectionName)
       .where('partnerId', '==', partnerId)
       .where('customerPhone', '==', customerPhone)
       .limit(1)
@@ -93,20 +94,26 @@ async function getOrCreateConversation(
       const conversationId = conversationsSnapshot.docs[0].id;
       console.log(`✅ Found existing conversation: ${conversationId}`);
       
-      await db.collection('smsConversations').doc(conversationId).update({
+      const updateData: any = {
         lastMessageAt: FieldValue.serverTimestamp(),
         isActive: true,
         messageCount: FieldValue.increment(1),
-      });
+      };
+
+      if (profileName) {
+        updateData.customerName = profileName;
+      }
+
+      await db.collection(collectionName).doc(conversationId).update(updateData);
       
       return conversationId;
     }
 
-    console.log(`📝 Creating new conversation for ${customerPhone}`);
+    console.log(`📝 Creating new ${platform} conversation for ${customerPhone}`);
     
-    const newConversation = {
+    const newConversation: any = {
       partnerId,
-      platform: 'sms',
+      platform,
       customerPhone,
       lastMessageAt: FieldValue.serverTimestamp(),
       createdAt: FieldValue.serverTimestamp(),
@@ -117,11 +124,13 @@ async function getOrCreateConversation(
       syncStatus: 'pending',
     };
 
-    const conversationRef = await db
-      .collection('smsConversations')
-      .add(newConversation);
+    if (profileName) {
+      newConversation.customerName = profileName;
+    }
 
-    console.log(`✅ Created conversation: ${conversationRef.id}`);
+    const conversationRef = await db.collection(collectionName).add(newConversation);
+
+    console.log(`✅ Created ${platform} conversation: ${conversationRef.id}`);
     return conversationRef.id;
   } catch (error) {
     console.error('❌ Error in getOrCreateConversation:', error);
@@ -135,6 +144,8 @@ async function handleIncomingMessage(
   to: string,
   body: string,
   messageSid: string,
+  platform: 'sms' | 'whatsapp',
+  profileName?: string,
   mediaUrl?: string,
   mediaContentType?: string
 ): Promise<void> {
@@ -143,11 +154,12 @@ async function handleIncomingMessage(
   }
 
   try {
-    console.log(`📨 Processing incoming SMS from ${from}`);
+    console.log(`📨 Processing incoming ${platform.toUpperCase()} from ${from}`);
     
-    const conversationId = await getOrCreateConversation(partnerId, from);
+    const conversationId = await getOrCreateConversation(partnerId, from, platform, profileName);
 
-    const messageData = {
+    const collectionName = platform === 'whatsapp' ? 'whatsappMessages' : 'smsMessages';
+    const messageData: any = {
       conversationId,
       direction: 'inbound',
       from,
@@ -157,34 +169,39 @@ async function handleIncomingMessage(
       status: 'received',
       createdAt: FieldValue.serverTimestamp(),
       partnerId,
-      platform: 'sms',
+      platform,
       mediaUrl: mediaUrl || null,
       mediaContentType: mediaContentType || null,
     };
 
-    const messageRef = await db.collection('smsMessages').add(messageData);
-    console.log(`✅ Stored message: ${messageRef.id}`);
+    if (platform === 'whatsapp' && profileName) {
+      messageData.senderName = profileName;
+    }
+
+    const messageRef = await db.collection(collectionName).add(messageData);
+    console.log(`✅ Stored ${platform} message: ${messageRef.id}`);
 
     await db.collection('notifications').add({
       partnerId,
       conversationId,
       messageId: messageRef.id,
-      type: 'new_sms_message',
-      title: 'New SMS Message',
-      message: `New message from ${from}: ${body.substring(0, 50)}${body.length > 50 ? '...' : ''}`,
+      type: platform === 'whatsapp' ? 'new_whatsapp_message' : 'new_sms_message',
+      title: platform === 'whatsapp' ? 'New WhatsApp Message' : 'New SMS Message',
+      message: `New message from ${profileName || from}: ${body.substring(0, 50)}${body.length > 50 ? '...' : ''}`,
       isRead: false,
       createdAt: FieldValue.serverTimestamp(),
-      platform: 'sms',
+      platform,
       customerPhone: from,
+      customerName: profileName || null,
     });
 
     console.log(`✅ Created notification`);
 
     try {
-      const shouldSync = await shouldSyncConversation(conversationId, 'sms', partnerId);
+      const shouldSync = await shouldSyncConversation(conversationId, platform, partnerId);
       if (shouldSync) {
         console.log('🔄 Triggering background sync for conversation:', conversationId);
-        syncConversationToVault(conversationId, 'sms', partnerId).catch(err => 
+        syncConversationToVault(conversationId, platform, partnerId).catch(err => 
           console.error('Background sync error:', err)
         );
       }
@@ -192,16 +209,15 @@ async function handleIncomingMessage(
       console.error('Sync check error:', syncError);
     }
   } catch (error) {
-    console.error('❌ Error handling incoming message:', error);
+    console.error(`❌ Error handling incoming ${platform} message:`, error);
     throw error;
   }
 }
 
 export async function POST(request: NextRequest) {
-  console.log('\n🔔 ========== INCOMING SMS WEBHOOK ==========');
+  console.log('\n🔔 ========== INCOMING WEBHOOK ==========');
   
   const webhookLogData: any = {
-    platform: 'sms',
     timestamp: FieldValue.serverTimestamp(),
     success: false,
     error: null,
@@ -216,28 +232,32 @@ export async function POST(request: NextRequest) {
     const contentType = request.headers.get('content-type') || '';
     console.log('📋 Content-Type:', contentType);
 
-    let body: TwilioSmsWebhookBody;
+    let body: TwilioWebhookBody;
     let params: Record<string, string> = {};
 
     if (contentType.includes('application/json')) {
       console.log('🔧 Parsing as JSON');
       const jsonBody = await request.json();
-      body = jsonBody as TwilioSmsWebhookBody;
+      body = jsonBody as TwilioWebhookBody;
       params = jsonBody;
       webhookLogData.payload = jsonBody;
-      
-      console.log('📦 JSON Body:', JSON.stringify(jsonBody, null, 2));
     } else {
       console.log('🔧 Parsing as FormData');
       const formData = await request.formData();
-      body = {} as TwilioSmsWebhookBody;
+      body = {} as TwilioWebhookBody;
       
       formData.forEach((value, key) => {
-        body[key as keyof TwilioSmsWebhookBody] = value.toString();
+        body[key as keyof TwilioWebhookBody] = value.toString();
         params[key] = value.toString();
         webhookLogData.payload[key] = value.toString();
       });
     }
+
+    const isWhatsApp = body.To?.startsWith('whatsapp:') || body.From?.startsWith('whatsapp:');
+    const platform = isWhatsApp ? 'whatsapp' : 'sms';
+    webhookLogData.platform = platform;
+
+    console.log(`📱 Detected platform: ${platform.toUpperCase()}`);
 
     webhookLogData.from = body.From;
     webhookLogData.to = body.To;
@@ -245,11 +265,12 @@ export async function POST(request: NextRequest) {
     webhookLogData.messageSid = body.MessageSid;
 
     console.log('📦 Parsed Webhook Body:', {
+      Platform: platform,
       MessageSid: body.MessageSid,
       From: body.From,
       To: body.To,
       Body: body.Body?.substring(0, 50),
-      NumMedia: body.NumMedia,
+      ProfileName: body.ProfileName,
     });
 
     const twilioSignature = request.headers.get('x-twilio-signature');
@@ -259,18 +280,11 @@ export async function POST(request: NextRequest) {
       if (db) {
         await db.collection('webhookLogs').add(webhookLogData);
       }
-      return NextResponse.json(
-        { error: 'Missing signature' },
-        { status: 401 }
-      );
+      return NextResponse.json({ error: 'Missing signature' }, { status: 401 });
     }
 
     const url = request.url;
-    const isValidSignature = await validateTwilioSignature(
-      twilioSignature,
-      url,
-      params
-    );
+    const isValidSignature = await validateTwilioSignature(twilioSignature, url, params);
 
     if (!isValidSignature) {
       console.error('❌ Invalid Twilio signature');
@@ -278,10 +292,7 @@ export async function POST(request: NextRequest) {
       if (db) {
         await db.collection('webhookLogs').add(webhookLogData);
       }
-      return NextResponse.json(
-        { error: 'Invalid signature' },
-        { status: 401 }
-      );
+      return NextResponse.json({ error: 'Invalid signature' }, { status: 401 });
     }
 
     console.log('✅ Signature validated');
@@ -292,23 +303,17 @@ export async function POST(request: NextRequest) {
       if (db) {
         await db.collection('webhookLogs').add(webhookLogData);
       }
-      return NextResponse.json(
-        { error: 'Missing required fields' },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
     }
 
-    const partnerId = await findPartnerIdByPhoneNumber(body.To);
+    const partnerId = await findPartnerIdByPhoneNumber(body.To, isWhatsApp);
     if (!partnerId) {
-      console.error('❌ Partner not found for phone:', body.To);
-      webhookLogData.error = `Partner not found for phone number: ${body.To}`;
+      console.error(`❌ Partner not found for ${platform}:`, body.To);
+      webhookLogData.error = `Partner not found for ${platform}: ${body.To}`;
       if (db) {
         await db.collection('webhookLogs').add(webhookLogData);
       }
-      return NextResponse.json(
-        { error: 'Partner not found' },
-        { status: 404 }
-      );
+      return NextResponse.json({ error: 'Partner not found' }, { status: 404 });
     }
 
     await handleIncomingMessage(
@@ -317,6 +322,8 @@ export async function POST(request: NextRequest) {
       body.To,
       body.Body,
       body.MessageSid,
+      platform,
+      body.ProfileName,
       body.MediaUrl0,
       body.MediaContentType0
     );
@@ -326,20 +333,17 @@ export async function POST(request: NextRequest) {
       await db.collection('webhookLogs').add(webhookLogData);
     }
 
-    console.log('✅ ========== SMS WEBHOOK COMPLETE ==========\n');
+    console.log(`✅ ========== ${platform.toUpperCase()} WEBHOOK COMPLETE ==========\n`);
 
     const twiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response></Response>`;
 
     return new NextResponse(twiml, {
       status: 200,
-      headers: {
-        'Content-Type': 'text/xml',
-      },
+      headers: { 'Content-Type': 'text/xml' },
     });
   } catch (error: any) {
-    console.error('❌ SMS webhook error:', error);
-    console.error('Stack:', error.stack);
+    console.error('❌ Webhook error:', error);
     
     webhookLogData.error = error.message;
     if (db) {
@@ -354,11 +358,8 @@ export async function POST(request: NextRequest) {
 }
 
 export async function GET() {
-  return NextResponse.json(
-    { 
-      message: 'SMS webhook endpoint is active',
-      timestamp: new Date().toISOString(),
-    },
-    { status: 200 }
-  );
+  return NextResponse.json({ 
+    message: 'Unified SMS/WhatsApp webhook endpoint is active',
+    timestamp: new Date().toISOString(),
+  }, { status: 200 });
 }
