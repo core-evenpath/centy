@@ -189,12 +189,10 @@ async function handleIncomingWhatsAppMessage(
 
     console.log(`✅ Created notification`);
 
-    // Trigger background sync if needed
     try {
       const shouldSync = await shouldSyncConversation(conversationId, 'whatsapp', partnerId);
       if (shouldSync) {
         console.log('🔄 Triggering background sync for conversation:', conversationId);
-        // Fire and forget - don't wait for sync to complete
         syncConversationToVault(conversationId, 'whatsapp', partnerId).catch(err => 
           console.error('Background sync error:', err)
         );
@@ -211,13 +209,31 @@ async function handleIncomingWhatsAppMessage(
 export async function POST(request: NextRequest) {
   console.log('\n🔔 ========== INCOMING WHATSAPP WEBHOOK ==========');
   
+  const webhookLogData: any = {
+    platform: 'whatsapp',
+    timestamp: FieldValue.serverTimestamp(),
+    success: false,
+    error: null,
+    from: null,
+    to: null,
+    body: null,
+    messageSid: null,
+    payload: {},
+  };
+
   try {
     const formData = await request.formData();
     const body: TwilioWhatsAppWebhookBody = {} as TwilioWhatsAppWebhookBody;
     
     formData.forEach((value, key) => {
       body[key as keyof TwilioWhatsAppWebhookBody] = value.toString();
+      webhookLogData.payload[key] = value.toString();
     });
+
+    webhookLogData.from = body.From;
+    webhookLogData.to = body.To;
+    webhookLogData.body = body.Body;
+    webhookLogData.messageSid = body.MessageSid;
 
     console.log('📦 Webhook Body:', {
       MessageSid: body.MessageSid,
@@ -232,6 +248,10 @@ export async function POST(request: NextRequest) {
     const twilioSignature = request.headers.get('x-twilio-signature');
     if (!twilioSignature) {
       console.error('❌ Missing Twilio signature');
+      webhookLogData.error = 'Missing Twilio signature';
+      if (db) {
+        await db.collection('webhookLogs').add(webhookLogData);
+      }
       return NextResponse.json(
         { error: 'Missing signature' },
         { status: 401 }
@@ -252,6 +272,10 @@ export async function POST(request: NextRequest) {
 
     if (!isValidSignature) {
       console.error('❌ Invalid Twilio signature');
+      webhookLogData.error = 'Invalid Twilio signature';
+      if (db) {
+        await db.collection('webhookLogs').add(webhookLogData);
+      }
       return NextResponse.json(
         { error: 'Invalid signature' },
         { status: 401 }
@@ -262,6 +286,10 @@ export async function POST(request: NextRequest) {
 
     if (!body.From || !body.To || !body.Body) {
       console.error('❌ Missing required fields');
+      webhookLogData.error = 'Missing required fields (From, To, or Body)';
+      if (db) {
+        await db.collection('webhookLogs').add(webhookLogData);
+      }
       return NextResponse.json(
         { error: 'Missing required fields' },
         { status: 400 }
@@ -271,6 +299,10 @@ export async function POST(request: NextRequest) {
     const partnerId = await findPartnerIdByWhatsAppNumber(body.To);
     if (!partnerId) {
       console.error('❌ Partner not found for WhatsApp:', body.To);
+      webhookLogData.error = `Partner not found for WhatsApp number: ${body.To}`;
+      if (db) {
+        await db.collection('webhookLogs').add(webhookLogData);
+      }
       return NextResponse.json(
         { error: 'Partner not found' },
         { status: 404 }
@@ -288,6 +320,11 @@ export async function POST(request: NextRequest) {
       body.MediaContentType0
     );
 
+    webhookLogData.success = true;
+    if (db) {
+      await db.collection('webhookLogs').add(webhookLogData);
+    }
+
     console.log('✅ ========== WHATSAPP WEBHOOK COMPLETE ==========\n');
 
     const twiml = `<?xml version="1.0" encoding="UTF-8"?>
@@ -302,6 +339,11 @@ export async function POST(request: NextRequest) {
   } catch (error: any) {
     console.error('❌ WhatsApp webhook error:', error);
     console.error('Stack:', error.stack);
+    
+    webhookLogData.error = error.message;
+    if (db) {
+      await db.collection('webhookLogs').add(webhookLogData);
+    }
     
     return NextResponse.json(
       { error: 'Internal server error', details: error.message },
