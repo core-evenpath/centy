@@ -3,7 +3,6 @@
 import { db } from '@/lib/firebase-admin';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { getConversationContext } from './conversation-export-actions';
-import type { RAGQueryResult, RAGSource } from '@/lib/types';
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
 
@@ -11,16 +10,40 @@ export async function queryConversationRAG(
   partnerId: string,
   conversationId: string,
   platform: 'sms' | 'whatsapp',
-  userMessage: string
-): Promise<RAGQueryResult> {
+  message: string
+): Promise<{
+  success: boolean;
+  message: string;
+  suggestedReply?: string;
+  confidence?: number;
+  reasoning?: string;
+  sources?: any[];
+  alternativeReplies?: string[];
+}> {
+  console.log('🚀 Starting RAG query for conversation:', conversationId);
+  
+  if (!process.env.GEMINI_API_KEY) {
+    console.error('❌ GEMINI_API_KEY not configured');
+    return { success: false, message: 'AI service not configured - missing API key' };
+  }
+
   if (!db) {
+    console.error('❌ Database not available');
     return { success: false, message: 'Database not available' };
   }
 
   try {
-    console.log(`🔍 RAG Query for conversation ${conversationId}: "${userMessage}"`);
+    const conversationCollection = platform === 'sms' ? 'smsConversations' : 'whatsappConversations';
+    const conversationDoc = await db.collection(conversationCollection).doc(conversationId).get();
 
-    // 1. Get file search store
+    if (!conversationDoc.exists) {
+      console.error('❌ Conversation not found');
+      return { success: false, message: 'Conversation not found' };
+    }
+
+    const conversationData = conversationDoc.data();
+    const customerName = conversationData?.customerName || conversationData?.contactName || 'Customer';
+
     const storesSnapshot = await db
       .collection(`partners/${partnerId}/fileSearchStores`)
       .where('state', '==', 'ACTIVE')
@@ -28,48 +51,43 @@ export async function queryConversationRAG(
       .get();
 
     if (storesSnapshot.empty) {
-      return {
-        success: false,
-        message: 'No active knowledge base found. Please upload documents or sync conversations first.',
+      console.error('❌ No active knowledge base found');
+      return { 
+        success: false, 
+        message: 'No documents found. Please upload documents to vault first.' 
       };
     }
 
     const ragStoreName = storesSnapshot.docs[0].data().name;
+    console.log('✅ Using RAG store:', ragStoreName);
 
-    // 2. Get recent conversation context
     const conversationContext = await getConversationContext(conversationId, platform, 10);
 
-    // 3. Build enhanced prompt with context
-    const systemInstruction = `You are a helpful AI assistant helping a business respond to customer messages.
+    const prompt = `You are helping respond to a customer message.
 
-IMPORTANT INSTRUCTIONS:
-1. Generate a professional, helpful reply that the business partner can send to the customer
-2. Base your response on the conversation history and available documents
-3. Keep responses concise and actionable (2-4 sentences)
-4. Match the tone of the conversation (formal or casual)
-5. If you're not confident, ask clarifying questions
-6. Never make up information - only use what's in the documents and conversation history
+Customer: ${customerName}
 
-Recent Conversation Context:
-${conversationContext}
+Recent conversation history:
+${conversationContext || 'No previous conversation'}
 
-Customer's Latest Message: "${userMessage}"
+Customer's new message: "${message}"
 
-Provide a suggested reply and explain your reasoning.`;
+Instructions:
+- Use company documents to answer about policies, pricing, services
+- Use the conversation history above for context about THIS specific customer
+- Generate a helpful 2-3 sentence reply
+- Be professional and concise
 
-    // 4. Query Gemini with File Search
+Reply:`;
+
+    console.log('📤 Querying Gemini with vault documents...');
+
     const model = genAI.getGenerativeModel({
       model: 'gemini-2.0-flash-exp',
     });
 
-    const response = await model.generateContent({
-      systemInstruction,
-      contents: [
-        {
-          role: 'user',
-          parts: [{ text: `Based on the conversation context and available knowledge, suggest a reply to: "${userMessage}"` }],
-        },
-      ],
+    const result = await model.generateContent({
+      contents: [{ role: 'user', parts: [{ text: prompt }] }],
       generationConfig: {
         temperature: 0.7,
         maxOutputTokens: 500,
@@ -83,120 +101,73 @@ Provide a suggested reply and explain your reasoning.`;
       ],
     });
 
-    const responseText = response.response.text();
-    console.log('📝 RAG Response:', responseText);
-
-    // 5. Extract grounding chunks (sources)
-    const groundingChunks = response.response.candidates?.[0]?.groundingMetadata?.groundingChunks || [];
+    const responseText = result.response.text();
     
-    const sources: RAGSource[] = groundingChunks.slice(0, 3).map((chunk: any) => {
+    if (!responseText?.trim()) {
+      console.error('❌ AI generated empty response');
+      return { success: false, message: 'AI generated empty response' };
+    }
+
+    console.log('✅ Response:', responseText.substring(0, 100) + '...');
+
+    const groundingChunks = result.response.candidates?.[0]?.groundingMetadata?.groundingChunks || [];
+    
+    const sources = groundingChunks.slice(0, 5).map((chunk: any) => {
       const title = chunk.retrievedContext?.title || 'Document';
       const text = chunk.retrievedContext?.text || '';
-      const isConversation = title.includes('conversation') || title.includes('Conversation');
-
+      
       return {
-        type: isConversation ? 'conversation' : 'document',
+        type: 'document',
         name: title,
         excerpt: text.substring(0, 150),
-        relevance: 0.85, // Gemini doesn't provide scores, default to high
+        relevance: 0.85,
       };
     });
 
-    // 6. Calculate confidence based on response and sources
-    const confidence = calculateConfidence(responseText, sources.length);
+    console.log(`✅ Generated reply with ${sources.length} sources from vault`);
 
-    // 7. Generate reasoning
-    const reasoning = generateReasoning(responseText, sources, conversationContext);
+    const confidence = Math.min(0.95, 0.5 + (sources.length * 0.1));
+    
+    const reasoning = sources.length > 0 
+      ? `Generated from ${sources.length} document${sources.length > 1 ? 's' : ''} and conversation history`
+      : 'Generated from conversation context';
+
+    let alternatives: string[] = [];
+    try {
+      const altResult = await model.generateContent({
+        contents: [{ role: 'user', parts: [{ text: `Generate 2 alternative ways to say: "${responseText}". Return only the alternatives, one per line.` }] }],
+        generationConfig: { temperature: 0.9, maxOutputTokens: 200 },
+      });
+      
+      const altText = altResult.response.text();
+      alternatives = altText.split('\n').filter(line => line.trim()).slice(0, 2);
+    } catch (error) {
+      console.error('Failed to generate alternatives:', error);
+    }
+
+    console.log('✅ RAG query complete\n');
 
     return {
       success: true,
-      message: 'Query successful',
-      response: responseText,
+      message: 'Success',
+      suggestedReply: responseText,
       confidence,
       reasoning,
       sources,
-      groundingChunks,
+      alternativeReplies: alternatives,
     };
+
   } catch (error: any) {
-    console.error('❌ RAG Query Error:', error);
+    console.error('❌ RAG query failed:', error);
+    console.error('Error details:', {
+      message: error.message,
+      stack: error.stack,
+      name: error.name,
+    });
+    
     return {
       success: false,
-      message: `Query failed: ${error.message}`,
+      message: `Query failed: ${error.message || 'Unknown error'}`,
     };
-  }
-}
-
-function calculateConfidence(response: string, sourceCount: number): number {
-  let confidence = 0.5; // Base confidence
-
-  // Increase confidence with more sources
-  confidence += Math.min(sourceCount * 0.15, 0.3);
-
-  // Increase if response is detailed
-  if (response.length > 100) confidence += 0.1;
-  if (response.length > 200) confidence += 0.1;
-
-  // Decrease if response indicates uncertainty
-  const uncertaintyPhrases = ['not sure', 'might', 'possibly', 'unclear', 'don\'t know'];
-  if (uncertaintyPhrases.some(phrase => response.toLowerCase().includes(phrase))) {
-    confidence -= 0.2;
-  }
-
-  // Increase if response has specific details
-  const specificIndicators = ['$', '%', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday', 'AM', 'PM'];
-  if (specificIndicators.some(indicator => response.includes(indicator))) {
-    confidence += 0.1;
-  }
-
-  return Math.max(0.3, Math.min(0.95, confidence));
-}
-
-function generateReasoning(response: string, sources: RAGSource[], conversationContext: string): string {
-  const parts: string[] = [];
-
-  if (conversationContext) {
-    parts.push('Based on the ongoing conversation');
-  }
-
-  if (sources.length > 0) {
-    const docSources = sources.filter(s => s.type === 'document').length;
-    const convoSources = sources.filter(s => s.type === 'conversation').length;
-
-    if (docSources > 0) parts.push(`${docSources} relevant document${docSources > 1 ? 's' : ''}`);
-    if (convoSources > 0) parts.push(`${convoSources} past conversation${convoSources > 1 ? 's' : ''}`);
-  }
-
-  if (parts.length === 0) {
-    return 'Generated response based on general knowledge';
-  }
-
-  return `Generated from ${parts.join(' and ')}`;
-}
-
-export async function generateAlternativeReplies(
-  partnerId: string,
-  originalReply: string,
-  userMessage: string,
-  count: number = 2
-): Promise<string[]> {
-  try {
-    const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash-exp' });
-
-    const prompt = `Given this customer message: "${userMessage}"
-And this suggested reply: "${originalReply}"
-
-Generate ${count} alternative ways to respond that convey the same information but with different wording or tone.
-Return only the alternative responses, one per line, without numbering or additional text.`;
-
-    const response = await model.generateContent(prompt);
-    const text = response.response.text();
-    
-    return text
-      .split('\n')
-      .filter(line => line.trim())
-      .slice(0, count);
-  } catch (error) {
-    console.error('Error generating alternatives:', error);
-    return [];
   }
 }
