@@ -1,6 +1,7 @@
+// src/components/partner/vault/DocumentPreview.tsx
 'use client';
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   X, 
   FileText, 
@@ -10,7 +11,10 @@ import {
   Trash2,
   Download,
   Sparkles,
-  Database
+  Database,
+  Code,
+  Eye,
+  Edit
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import type { VaultFile } from '@/lib/types';
@@ -20,12 +24,47 @@ interface DocumentPreviewProps {
   file: VaultFile;
   onClose: () => void;
   onDelete: () => void;
+  onEdit?: (file: VaultFile) => void;
 }
 
-export default function DocumentPreview({ file, onClose, onDelete }: DocumentPreviewProps) {
+export default function DocumentPreview({ file, onClose, onDelete, onEdit }: DocumentPreviewProps) {
+  const [viewMode, setViewMode] = useState<'formatted' | 'raw'>('formatted');
+  const [content, setContent] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+
+  const isTrainingData = file.mimeType === 'text/markdown' && file.sourceType === 'training';
+
+  useEffect(() => {
+    if (isTrainingData) {
+      loadContent();
+    }
+  }, [file.id]);
+
+  const loadContent = async () => {
+    setIsLoading(true);
+    try {
+      const response = await fetch(`/api/vault/content?partnerId=${file.partnerId}&fileId=${file.id}`);
+      const data = await response.json();
+      if (data.success) {
+        setContent(data.content);
+      }
+    } catch (error) {
+      console.error('Failed to load content:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const parseJSONL = (jsonl: string) => {
+    try {
+      return jsonl.split('\n').filter(line => line.trim()).map(line => JSON.parse(line));
+    } catch {
+      return [];
+    }
+  };
+
   return (
     <div className="w-80 bg-white border-l border-gray-200 flex flex-col">
-      {/* Header */}
       <div className="flex items-center justify-between p-3 border-b border-gray-200">
         <h3 className="text-sm font-semibold text-gray-900">Document Details</h3>
         <button
@@ -36,9 +75,7 @@ export default function DocumentPreview({ file, onClose, onDelete }: DocumentPre
         </button>
       </div>
 
-      {/* Content */}
       <div className="flex-1 overflow-y-auto">
-        {/* Preview */}
         <div className="p-4 border-b border-gray-100">
           <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-lg p-6 flex items-center justify-center mb-3">
             <FileText className="h-16 w-16 text-blue-600" />
@@ -49,9 +86,56 @@ export default function DocumentPreview({ file, onClose, onDelete }: DocumentPre
           <p className="text-xs text-gray-500">
             {file.mimeType}
           </p>
+          {isTrainingData && (
+            <div className="mt-2 flex items-center gap-1 text-xs text-blue-600 bg-blue-50 px-2 py-1 rounded">
+              <Sparkles className="h-3 w-3" />
+              Training Data
+            </div>
+          )}
         </div>
 
-        {/* Metadata */}
+        {isTrainingData && content && (
+          <div className="p-4 border-b border-gray-100">
+            <div className="flex items-center justify-between mb-3">
+              <h5 className="text-[10px] font-semibold text-gray-500 uppercase">
+                Content Preview
+              </h5>
+              <div className="flex gap-1">
+                <button
+                  onClick={() => setViewMode('formatted')}
+                  className={`p-1.5 rounded text-xs ${viewMode === 'formatted' ? 'bg-blue-50 text-blue-600' : 'text-gray-500 hover:bg-gray-50'}`}
+                >
+                  <Eye className="h-3.5 w-3.5" />
+                </button>
+                <button
+                  onClick={() => setViewMode('raw')}
+                  className={`p-1.5 rounded text-xs ${viewMode === 'raw' ? 'bg-blue-50 text-blue-600' : 'text-gray-500 hover:bg-gray-50'}`}
+                >
+                  <Code className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            </div>
+
+            {viewMode === 'formatted' ? (
+              <div className="space-y-2 max-h-64 overflow-y-auto">
+                {parseJSONL(content).map((entry: any, idx: number) => (
+                  <div key={idx} className="bg-gray-50 rounded p-2 text-xs">
+                    <div className="text-gray-500 font-medium mb-1">Q: {entry.question}</div>
+                    <div className="text-gray-700">A: {entry.answer}</div>
+                    {entry.category && (
+                      <div className="text-blue-600 mt-1 text-[10px]">{entry.category}</div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="bg-gray-900 text-green-400 p-2 rounded text-[10px] font-mono max-h-64 overflow-auto">
+                <pre className="whitespace-pre-wrap break-words">{content}</pre>
+              </div>
+            )}
+          </div>
+        )}
+
         <div className="p-4 space-y-3 border-b border-gray-100">
           <h5 className="text-[10px] font-semibold text-gray-500 uppercase">
             Metadata
@@ -63,7 +147,7 @@ export default function DocumentPreview({ file, onClose, onDelete }: DocumentPre
               <div className="flex-1">
                 <p className="text-[10px] text-gray-500">Size</p>
                 <p className="text-xs font-medium text-gray-900">
-                  {(file.sizeBytes / 1024 / 1024).toFixed(2)} MB
+                  {(file.sizeBytes / 1024).toFixed(2)} KB
                 </p>
               </div>
             </div>
@@ -123,7 +207,6 @@ export default function DocumentPreview({ file, onClose, onDelete }: DocumentPre
           </div>
         </div>
 
-        {/* Storage Info */}
         <div className="p-4 space-y-3">
           <h5 className="text-[10px] font-semibold text-gray-500 uppercase">
             Storage
@@ -138,8 +221,17 @@ export default function DocumentPreview({ file, onClose, onDelete }: DocumentPre
         </div>
       </div>
 
-      {/* Actions */}
       <div className="p-3 border-t border-gray-200 space-y-2">
+        {isTrainingData && onEdit && (
+          <Button 
+            variant="outline" 
+            className="w-full justify-start h-9 text-xs"
+            onClick={() => onEdit(file)}
+          >
+            <Edit className="h-3.5 w-3.5 mr-2" />
+            Edit Training Data
+          </Button>
+        )}
         <Button variant="outline" className="w-full justify-start h-9 text-xs">
           <Download className="h-3.5 w-3.5 mr-2" />
           Download Document

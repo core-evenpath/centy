@@ -1,3 +1,4 @@
+// src/components/partner/vault/VaultSidebar.tsx
 'use client';
 
 import React from 'react';
@@ -6,7 +7,8 @@ import {
   CheckCircle2, 
   Clock, 
   AlertCircle,
-  Filter
+  Filter,
+  Sparkles
 } from 'lucide-react';
 
 interface VaultSidebarProps {
@@ -32,6 +34,7 @@ export default function VaultSidebar({ filters, onFiltersChange, fileCount }: Va
     { value: 'pdf', label: 'PDF Documents' },
     { value: 'txt', label: 'Text Files' },
     { value: 'md', label: 'Markdown' },
+    { value: 'jsonl', label: 'Training Data' },
   ];
 
   const dateOptions = [
@@ -93,12 +96,13 @@ export default function VaultSidebar({ filters, onFiltersChange, fileCount }: Va
             <button
               key={option.value}
               onClick={() => onFiltersChange({ ...filters, type: option.value })}
-              className={`w-full text-left px-2.5 py-1.5 rounded-md text-xs transition-colors ${
+              className={`w-full text-left px-2.5 py-1.5 rounded-md text-xs transition-colors flex items-center gap-2 ${
                 filters.type === option.value
                   ? 'bg-blue-50 text-blue-700 font-medium'
                   : 'text-gray-700 hover:bg-gray-50'
               }`}
             >
+              {option.value === 'jsonl' && <Sparkles className="h-3 w-3" />}
               {option.label}
             </button>
           ))}

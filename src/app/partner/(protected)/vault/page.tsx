@@ -1,3 +1,4 @@
+// src/app/partner/(protected)/vault/page.tsx (update DocumentPreview call)
 'use client';
 
 import React, { useState, useEffect } from 'react';
@@ -15,13 +16,15 @@ import {
   Grid3x3,
   List,
   AlertCircle,
-  Database
+  Database,
+  Brain
 } from 'lucide-react';
 import VaultSidebar from '@/components/partner/vault/VaultSidebar';
 import DocumentGrid from '@/components/partner/vault/DocumentGrid';
 import DocumentPreview from '@/components/partner/vault/DocumentPreview';
 import UploadDialog from '@/components/partner/vault/UploadDialog';
 import TestDrawer from '@/components/partner/vault/TestDrawer';
+import TrainingDataDialog from '@/components/partner/vault/TrainingDataDialog';
 import { useToast } from '@/hooks/use-toast';
 import type { VaultFile } from '@/lib/types';
 import {
@@ -39,6 +42,8 @@ export default function VaultPage() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [selectedFile, setSelectedFile] = useState<VaultFile | null>(null);
   const [isUploadDialogOpen, setIsUploadDialogOpen] = useState(false);
+  const [isTrainingDataDialogOpen, setIsTrainingDataDialogOpen] = useState(false);
+  const [editingFile, setEditingFile] = useState<VaultFile | null>(null);
   const [isTestDrawerOpen, setIsTestDrawerOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('list');
@@ -171,6 +176,16 @@ export default function VaultPage() {
     loadData(false);
   };
 
+  const handleEditFile = (file: VaultFile) => {
+    setEditingFile(file);
+    setIsTrainingDataDialogOpen(true);
+  };
+
+  const handleTrainingDialogClose = () => {
+    setEditingFile(null);
+    setIsTrainingDataDialogOpen(false);
+  };
+
   if (authLoading || isLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-gray-50">
@@ -216,6 +231,16 @@ export default function VaultPage() {
                   <Upload className="h-4 w-4 mr-2" />
                   Upload
                 </Button>
+
+                <Button 
+                  onClick={() => setIsTrainingDataDialogOpen(true)}
+                  size="sm"
+                  variant="outline"
+                  className="h-9"
+                >
+                  <Brain className="h-4 w-4 mr-2" />
+                  Add Training Data
+                </Button>
                 
                 <Button 
                   variant="outline"
@@ -247,19 +272,19 @@ export default function VaultPage() {
                   </span>
                 </div>
 
-                <div className="relative flex-1 max-w-md">
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
                   <Input
                     type="text"
                     placeholder="Search documents..."
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    className="pl-9 h-9 text-sm"
+                    className="pl-9 pr-9 h-9 w-64"
                   />
                   {searchQuery && (
                     <button
                       onClick={() => setSearchQuery('')}
-                      className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
                     >
                       <X className="h-4 w-4" />
                     </button>
@@ -314,6 +339,7 @@ export default function VaultPage() {
               file={selectedFile}
               onClose={() => setSelectedFile(null)}
               onDelete={() => handleDeleteFile(selectedFile.id)}
+              onEdit={handleEditFile}
             />
           )}
         </div>
@@ -338,6 +364,15 @@ export default function VaultPage() {
         partnerId={partnerId}
         userId={user.uid}
         onUploadComplete={handleUploadComplete}
+      />
+
+      <TrainingDataDialog
+        isOpen={isTrainingDataDialogOpen}
+        onClose={handleTrainingDialogClose}
+        partnerId={partnerId}
+        userId={user.uid}
+        onUploadComplete={handleUploadComplete}
+        existingFile={editingFile}
       />
 
       <TestDrawer

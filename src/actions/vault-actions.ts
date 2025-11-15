@@ -1,3 +1,4 @@
+// src/actions/vault-actions.ts
 'use server';
 
 import { GoogleGenAI } from '@google/genai';
@@ -65,6 +66,27 @@ async function getOrCreateRagStore(partnerId: string): Promise<string> {
     console.error('Error in getOrCreateRagStore:', error);
     throw error;
   }
+}
+
+function convertToMarkdown(datasetName: string, jsonlContent: string): string {
+  const lines = jsonlContent.split('\n').filter(line => line.trim());
+  const entries = lines.map(line => JSON.parse(line));
+  
+  let markdown = `# ${datasetName}\n\n`;
+  markdown += `*Training Data - ${entries.length} Q&A pairs*\n\n`;
+  markdown += `---\n\n`;
+  
+  entries.forEach((entry, index) => {
+    markdown += `## Entry ${index + 1}\n\n`;
+    markdown += `**Question:** ${entry.question}\n\n`;
+    markdown += `**Answer:** ${entry.answer}\n\n`;
+    if (entry.category) {
+      markdown += `**Category:** ${entry.category}\n\n`;
+    }
+    markdown += `---\n\n`;
+  });
+  
+  return markdown;
 }
 
 export async function uploadFileToVault(
@@ -214,6 +236,312 @@ export async function uploadFileToVault(
   }
 }
 
+export async function createTrainingDataFile(
+  partnerId: string,
+  userId: string,
+  datasetName: string,
+  jsonlContent: string
+): Promise<{ success: boolean; message: string; file?: VaultFile }> {
+  if (!db) {
+    return { success: false, message: 'Database not available' };
+  }
+
+  const storage = getStorage();
+  const bucket = storage.bucket();
+  const timestamp = Date.now();
+  const fileName = `${datasetName.replace(/[^a-z0-9]/gi, '_')}_${timestamp}.md`;
+  const storagePath = `vault/${partnerId}/${fileName}`;
+  let fileDocRef: FirebaseFirestore.DocumentReference | null = null;
+
+  try {
+    console.log('🔵 Converting Q&A pairs to Markdown');
+    const markdownContent = convertToMarkdown(datasetName, jsonlContent);
+    const buffer = Buffer.from(markdownContent, 'utf-8');
+
+    console.log('🔵 Creating file record');
+    const initialVaultFile = {
+      name: fileName,
+      displayName: `${datasetName}.md`,
+      mimeType: 'text/markdown',
+      sizeBytes: buffer.length,
+      uri: storagePath,
+      state: 'PROCESSING',
+      uploadedAt: new Date().toISOString(),
+      uploadedBy: userId,
+      partnerId: partnerId,
+      firebaseStoragePath: storagePath,
+      sourceType: 'training',
+      trainingData: jsonlContent,
+      createdAt: FieldValue.serverTimestamp(),
+    };
+
+    fileDocRef = await db
+      .collection(`partners/${partnerId}/vaultFiles`)
+      .add(initialVaultFile);
+
+    console.log('🔵 Uploading to Firebase Storage');
+    const file = bucket.file(storagePath);
+    await file.save(buffer, {
+      metadata: {
+        contentType: 'text/markdown',
+        metadata: {
+          partnerId,
+          uploadedBy: userId,
+          datasetName,
+          vaultFileId: fileDocRef.id,
+        }
+      }
+    });
+
+    console.log('🔵 Uploading to RAG store');
+    const ragStoreName = await getOrCreateRagStore(partnerId);
+
+    const blob = new Blob([buffer], { type: 'text/markdown' });
+    const uploadFile = new File([blob], fileName, { type: 'text/markdown' });
+
+    let op = await genAI.fileSearchStores.uploadToFileSearchStore({
+      fileSearchStoreName: ragStoreName,
+      file: uploadFile
+    });
+
+    let attempts = 0;
+    while (!op.done && attempts < 40) {
+      await delay(3000);
+      op = await genAI.operations.get({ operation: op });
+      attempts++;
+      
+      if (attempts % 5 === 0) {
+        console.log(`⏳ Processing (${attempts * 3}s)`);
+      }
+    }
+
+    if (!op.done) {
+      throw new Error('Upload timeout');
+    }
+
+    if (op.error) {
+      throw new Error(`Upload failed: ${op.error.message || 'Unknown error'}`);
+    }
+
+    await fileDocRef.update({
+      state: 'ACTIVE',
+      geminiFileUri: ragStoreName,
+    });
+
+    const finalFile = {
+      id: fileDocRef.id,
+      ...initialVaultFile,
+      state: 'ACTIVE' as const,
+      geminiFileUri: ragStoreName,
+      createdAt: new Date().toISOString(),
+    };
+
+    console.log('✅ Training data created successfully');
+
+    return {
+      success: true,
+      message: 'Training data created successfully',
+      file: finalFile,
+    };
+  } catch (error: any) {
+    console.error('❌ Failed to create training data:', error);
+    
+    if (fileDocRef) {
+      try {
+        await fileDocRef.update({
+          state: 'FAILED',
+          errorMessage: error.message || 'Creation failed',
+        });
+      } catch (updateError) {
+        console.error('Failed to update file state:', updateError);
+      }
+    }
+
+    if (storagePath) {
+      try {
+        await bucket.file(storagePath).delete();
+      } catch (cleanupError) {
+        console.warn('Could not clean up file:', cleanupError);
+      }
+    }
+    
+    return {
+      success: false,
+      message: `Failed to create training data: ${error.message}`,
+    };
+  }
+}
+
+export async function updateTrainingDataFile(
+  partnerId: string,
+  fileId: string,
+  userId: string,
+  datasetName: string,
+  jsonlContent: string
+): Promise<{ success: boolean; message: string; file?: VaultFile }> {
+  if (!db) {
+    return { success: false, message: 'Database not available' };
+  }
+
+  const storage = getStorage();
+  const bucket = storage.bucket();
+
+  try {
+    const fileDoc = await db
+      .collection(`partners/${partnerId}/vaultFiles`)
+      .doc(fileId)
+      .get();
+
+    if (!fileDoc.exists) {
+      return { success: false, message: 'File not found' };
+    }
+
+    const oldFileData = fileDoc.data();
+    const timestamp = Date.now();
+    const fileName = `${datasetName.replace(/[^a-z0-9]/gi, '_')}_${timestamp}.md`;
+    const storagePath = `vault/${partnerId}/${fileName}`;
+
+    console.log('🔵 Converting updated Q&A pairs to Markdown');
+    const markdownContent = convertToMarkdown(datasetName, jsonlContent);
+    const buffer = Buffer.from(markdownContent, 'utf-8');
+
+    console.log('🔵 Uploading to Firebase Storage');
+    await bucket.file(storagePath).save(buffer, {
+      metadata: {
+        contentType: 'text/markdown',
+        metadata: { partnerId, uploadedBy: userId, datasetName }
+      }
+    });
+
+    console.log('🔵 Uploading to RAG store');
+    const ragStoreName = await getOrCreateRagStore(partnerId);
+
+    const blob = new Blob([buffer], { type: 'text/markdown' });
+    const uploadFile = new File([blob], fileName, { type: 'text/markdown' });
+
+    let op = await genAI.fileSearchStores.uploadToFileSearchStore({
+      fileSearchStoreName: ragStoreName,
+      file: uploadFile
+    });
+
+    let attempts = 0;
+    while (!op.done && attempts < 40) {
+      await delay(3000);
+      op = await genAI.operations.get({ operation: op });
+      attempts++;
+    }
+
+    if (!op.done || op.error) {
+      throw new Error(op.error?.message || 'Upload failed');
+    }
+
+    console.log('🔵 Cleaning up old file');
+    if (oldFileData?.firebaseStoragePath) {
+      try {
+        await bucket.file(oldFileData.firebaseStoragePath).delete();
+      } catch (error) {
+        console.warn('Could not delete old file:', error);
+      }
+    }
+
+    await db
+      .collection(`partners/${partnerId}/vaultFiles`)
+      .doc(fileId)
+      .update({
+        name: fileName,
+        displayName: `${datasetName}.md`,
+        mimeType: 'text/markdown',
+        sizeBytes: buffer.length,
+        uri: storagePath,
+        firebaseStoragePath: storagePath,
+        geminiFileUri: ragStoreName,
+        state: 'ACTIVE',
+        trainingData: jsonlContent,
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+
+    const finalFile = {
+      id: fileId,
+      partnerId,
+      name: fileName,
+      displayName: `${datasetName}.md`,
+      mimeType: 'text/markdown',
+      sizeBytes: buffer.length,
+      uri: storagePath,
+      firebaseStoragePath: storagePath,
+      state: 'ACTIVE' as const,
+      geminiFileUri: ragStoreName,
+      uploadedBy: oldFileData?.uploadedBy || userId,
+      createdAt: oldFileData?.createdAt || new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+
+    console.log('✅ Training data updated successfully');
+
+    return {
+      success: true,
+      message: 'Training data updated successfully',
+      file: finalFile,
+    };
+  } catch (error: any) {
+    console.error('❌ Failed to update training data:', error);
+    return {
+      success: false,
+      message: `Failed to update training data: ${error.message}`,
+    };
+  }
+}
+
+export async function getVaultFileContent(
+  partnerId: string,
+  fileId: string
+): Promise<{ success: boolean; content?: string; message?: string }> {
+  if (!db) {
+    return { success: false, message: 'Database not available' };
+  }
+
+  try {
+    const fileDoc = await db
+      .collection(`partners/${partnerId}/vaultFiles`)
+      .doc(fileId)
+      .get();
+
+    if (!fileDoc.exists) {
+      return { success: false, message: 'File not found' };
+    }
+
+    const fileData = fileDoc.data();
+    
+    if (fileData?.trainingData) {
+      return {
+        success: true,
+        content: fileData.trainingData,
+      };
+    }
+    
+    if (!fileData?.firebaseStoragePath) {
+      return { success: false, message: 'File path not found' };
+    }
+
+    const storage = getStorage();
+    const bucket = storage.bucket();
+    const file = bucket.file(fileData.firebaseStoragePath);
+
+    const [content] = await file.download();
+    
+    return {
+      success: true,
+      content: content.toString('utf-8'),
+    };
+  } catch (error: any) {
+    console.error('Error fetching file content:', error);
+    return {
+      success: false,
+      message: `Failed to fetch content: ${error.message}`,
+    };
+  }
+}
+
 export async function deleteVaultFile(
   partnerId: string,
   fileId: string
@@ -327,10 +655,10 @@ async function filterGroundingChunksBySelectedFiles(
       return false;
     });
 
-    console.log(`🔍 Filtered chunks: ${groundingChunks.length} -> ${filteredChunks.length} (based on ${selectedFileIds.length} selected files)`);
+    console.log(`🔍 Filtered chunks: ${groundingChunks.length} -> ${filteredChunks.length}`);
     
     if (filteredChunks.length === 0 && groundingChunks.length > 0) {
-      console.log('⚠️ Filtering removed all chunks, returning original chunks to avoid empty response');
+      console.log('⚠️ Filtering removed all chunks, returning original');
       return groundingChunks;
     }
     
@@ -396,11 +724,11 @@ export async function chatWithVault(
 
 User Question: ${message}
 
-Instructions: Focus your answer primarily on information from the documents listed above. If relevant information exists in those specific documents, prioritize it in your response. If the selected documents don't contain relevant information, clearly state that.`;
+Instructions: Focus your answer primarily on information from the documents listed above.`;
       }
     }
 
-    console.log(`📊 Query initiated - Selected files: ${fileNames.length}, Message: "${message.substring(0, 50)}..."`);
+    console.log(`📊 Query initiated - Selected files: ${fileNames.length}`);
 
     const response = await genAI.models.generateContent({
       model: 'gemini-2.5-flash',
@@ -419,7 +747,7 @@ Instructions: Focus your answer primarily on information from the documents list
     let groundingChunks = response.candidates?.[0]?.groundingMetadata?.groundingChunks || [];
     const responseText = response.text;
 
-    console.log(`📦 Raw response - Chunks before filtering: ${groundingChunks.length}`);
+    console.log(`📦 Chunks before filtering: ${groundingChunks.length}`);
 
     if (selectedFileIds && selectedFileIds.length > 0) {
       groundingChunks = await filterGroundingChunksBySelectedFiles(
@@ -474,7 +802,7 @@ export async function generateExampleQuestions(partnerId: string): Promise<strin
 
     const response = await genAI.models.generateContent({
       model: 'gemini-2.5-flash',
-      contents: "Generate 4 short and practical example questions a user might ask about the uploaded documents. Return only a JSON array of question strings. Example: [\"question 1\", \"question 2\", \"question 3\", \"question 4\"]",
+      contents: "Generate 4 short and practical example questions a user might ask about the uploaded documents. Return only a JSON array of question strings.",
       config: {
         tools: [
           {
@@ -588,24 +916,16 @@ export async function listFileSearchStores(
   }
 }
 
-// ============================================================================
-// CONVERSATION RAG INTEGRATION - SIMPLIFIED APPROACH
-// ============================================================================
-
 async function getConversationContext(
   conversationId: string,
   platform: 'sms' | 'whatsapp',
   messageLimit: number = 10
 ): Promise<string> {
-  if (!db) {
-    console.error('❌ Database not available in getConversationContext');
-    return '';
-  }
+  if (!db) return '';
 
   try {
     const collectionName = platform === 'sms' ? 'smsMessages' : 'whatsappMessages';
-    console.log(`🔍 Fetching context from ${collectionName} for conversation ${conversationId}`);
-
+    
     const messagesSnapshot = await db
       .collection(collectionName)
       .where('conversationId', '==', conversationId)
@@ -613,58 +933,19 @@ async function getConversationContext(
       .limit(messageLimit)
       .get();
 
-    if (messagesSnapshot.empty) {
-      console.log('⚠️ No messages found for conversation context');
-      return '';
-    }
+    if (messagesSnapshot.empty) return '';
 
     const messages = messagesSnapshot.docs
       .map(doc => doc.data())
       .reverse();
 
-    const context = messages
+    return messages
       .map(msg => `${msg.direction === 'inbound' ? 'Customer' : 'Partner'}: ${msg.content}`)
       .join('\n');
-
-    console.log(`✅ Retrieved ${messages.length} messages for context`);
-    return context;
   } catch (error) {
-    console.error('❌ Error getting conversation context:', error);
+    console.error('Error getting conversation context:', error);
     return '';
   }
-}
-
-function calculateConfidence(response: string, sourceCount: number): number {
-  let confidence = 0.5;
-  confidence += Math.min(sourceCount * 0.15, 0.3);
-  if (response.length > 100) confidence += 0.1;
-  if (response.length > 200) confidence += 0.1;
-  const uncertaintyPhrases = ['not sure', 'might', 'possibly', 'unclear', 'don\'t know'];
-  if (uncertaintyPhrases.some(phrase => response.toLowerCase().includes(phrase))) {
-    confidence -= 0.2;
-  }
-  const specificIndicators = ['$', '%', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday', 'AM', 'PM'];
-  if (specificIndicators.some(indicator => response.includes(indicator))) {
-    confidence += 0.1;
-  }
-  return Math.max(0.3, Math.min(0.95, confidence));
-}
-
-function generateReasoning(response: string, sources: any[], conversationContext: string): string {
-  const parts: string[] = [];
-  if (conversationContext) {
-    parts.push('Based on the ongoing conversation');
-  }
-  if (sources.length > 0) {
-    const docSources = sources.filter(s => s.type === 'document').length;
-    const convoSources = sources.filter(s => s.type === 'conversation').length;
-    if (docSources > 0) parts.push(`${docSources} relevant document${docSources > 1 ? 's' : ''}`);
-    if (convoSources > 0) parts.push(`${convoSources} past conversation${convoSources > 1 ? 's' : ''}`);
-  }
-  if (parts.length === 0) {
-    return 'Generated response based on general knowledge';
-  }
-  return `Generated from ${parts.join(' and ')}`;
 }
 
 async function generateAlternativeReplies(
@@ -673,12 +954,11 @@ async function generateAlternativeReplies(
   count: number = 2
 ): Promise<string[]> {
   try {
-    console.log('🔄 Generating alternative replies...');
     const prompt = `Given this customer message: "${userMessage}"
 And this suggested reply: "${originalReply}"
 
 Generate ${count} alternative ways to respond that convey the same information but with different wording or tone.
-Return only the alternative responses, one per line, without numbering or additional text.`;
+Return only the alternative responses, one per line, without numbering.`;
 
     const response = await genAI.models.generateContent({
       model: 'gemini-2.5-flash',
@@ -688,90 +968,22 @@ Return only the alternative responses, one per line, without numbering or additi
     let text = '';
     try {
       text = response.text || '';
-    } catch (textError) {
+    } catch {
       if (response.candidates?.[0]?.content?.parts?.[0]?.text) {
         text = response.candidates[0].content.parts[0].text;
       }
     }
 
-    if (!text || text.trim().length === 0) {
-      console.warn('⚠️ Empty response from alternatives generation');
-      return [];
-    }
+    if (!text?.trim()) return [];
     
-    const alternatives = text
+    return text
       .split('\n')
       .map(line => line.trim())
       .filter(line => line.length > 0)
       .slice(0, count);
-
-    console.log(`✅ Generated ${alternatives.length} alternatives`);
-    return alternatives;
   } catch (error) {
-    console.error('❌ Error generating alternatives:', error);
+    console.error('Error generating alternatives:', error);
     return [];
-  }
-}
-
-async function filterOutOtherCustomers(
-  partnerId: string,
-  groundingChunks: any[],
-  currentCustomerPhone: string,
-  platform: 'sms' | 'whatsapp'
-): Promise<any[]> {
-  if (!db || groundingChunks.length === 0) {
-    return groundingChunks;
-  }
-
-  try {
-    console.log(`🔒 Filtering to exclude other customers' conversations...`);
-    
-    const conversationDocsSnapshot = await db
-      .collection(`partners/${partnerId}/vaultFiles`)
-      .where('sourceType', '==', 'conversation')
-      .where('state', '==', 'ACTIVE')
-      .get();
-
-    const otherCustomerIdentifiers = new Set<string>();
-    
-    conversationDocsSnapshot.docs.forEach(doc => {
-      const data = doc.data();
-      if (data.customerPhone !== currentCustomerPhone || data.conversationPlatform !== platform) {
-        if (data.displayName) otherCustomerIdentifiers.add(data.displayName.toLowerCase());
-        if (data.name) otherCustomerIdentifiers.add(data.name.toLowerCase());
-        if (data.firebaseStoragePath) otherCustomerIdentifiers.add(data.firebaseStoragePath.toLowerCase());
-        otherCustomerIdentifiers.add(doc.id.toLowerCase());
-      }
-    });
-
-    if (otherCustomerIdentifiers.size === 0) {
-      console.log('✅ No other customers to filter out');
-      return groundingChunks;
-    }
-
-    console.log(`🔍 Will exclude ${otherCustomerIdentifiers.size} other customer identifiers`);
-
-    const filteredChunks = groundingChunks.filter((chunk: any) => {
-      const title = chunk.retrievedContext?.title?.toLowerCase() || '';
-      const uri = chunk.retrievedContext?.uri?.toLowerCase() || '';
-      
-      for (const identifier of otherCustomerIdentifiers) {
-        if (title.includes(identifier) || uri.includes(identifier)) {
-          console.log(`❌ Filtered out other customer's conversation: ${title || uri}`);
-          return false;
-        }
-      }
-      
-      return true;
-    });
-
-    console.log(`✅ Kept ${filteredChunks.length} of ${groundingChunks.length} chunks after filtering`);
-    
-    return filteredChunks;
-
-  } catch (error) {
-    console.error('❌ Error filtering chunks:', error);
-    return groundingChunks;
   }
 }
 
@@ -789,14 +1001,11 @@ export async function chatWithVaultForConversation(
   sources?: any[];
   alternativeReplies?: string[];
 }> {
-  console.log('🚀 Starting RAG query for conversation:', conversationId);
-  
   if (!process.env.GEMINI_API_KEY || !db) {
     return { success: false, message: 'Service not configured' };
   }
 
   try {
-    // Step 1: Get conversation details
     const conversationCollection = platform === 'sms' ? 'smsConversations' : 'whatsappConversations';
     const conversationDoc = await db.collection(conversationCollection).doc(conversationId).get();
 
@@ -807,7 +1016,6 @@ export async function chatWithVaultForConversation(
     const conversationData = conversationDoc.data();
     const customerName = conversationData?.customerName || conversationData?.contactName || 'Customer';
 
-    // Step 2: Get RAG store (all vault documents are here)
     const storesSnapshot = await db
       .collection(`partners/${partnerId}/fileSearchStores`)
       .where('state', '==', 'ACTIVE')
@@ -819,12 +1027,8 @@ export async function chatWithVaultForConversation(
     }
 
     const ragStoreName = storesSnapshot.docs[0].data().name;
-    console.log('✅ Using RAG store:', ragStoreName);
-
-    // Step 3: Get THIS customer's conversation history from database (NOT from vault)
     const conversationContext = await getConversationContext(conversationId, platform, 10);
 
-    // Step 4: Simple prompt - Gemini handles the document search automatically
     const prompt = `You are helping respond to a customer message.
 
 Customer: ${customerName}
@@ -836,15 +1040,12 @@ Customer's new message: "${message}"
 
 Instructions:
 - Use company documents to answer about policies, pricing, services
-- Use the conversation history above for context about THIS specific customer
+- Use conversation history for context about THIS customer
 - Generate a helpful 2-3 sentence reply
 - Be professional and concise
 
 Reply:`;
 
-    console.log('📤 Querying Gemini with vault documents...');
-
-    // Step 5: Query Gemini - it automatically searches vault documents
     const response = await genAI.models.generateContent({
       model: 'gemini-2.5-flash',
       contents: prompt,
@@ -859,47 +1060,31 @@ Reply:`;
       },
     });
 
-    // Step 6: Extract response
     const responseText = response.text;
     if (!responseText?.trim()) {
       return { success: false, message: 'AI generated empty response' };
     }
 
-    console.log('✅ Response:', responseText.substring(0, 100) + '...');
-
-    // Step 7: Get sources from grounding metadata
     const groundingChunks = response.candidates?.[0]?.groundingMetadata?.groundingChunks || [];
     
-    const sources = groundingChunks.slice(0, 5).map((chunk: any) => {
-      const title = chunk.retrievedContext?.title || 'Document';
-      const text = chunk.retrievedContext?.text || '';
-      
-      return {
-        type: 'document',
-        name: title,
-        excerpt: text.substring(0, 150),
-        relevance: 0.85,
-      };
-    });
+    const sources = groundingChunks.slice(0, 5).map((chunk: any) => ({
+      type: 'document',
+      name: chunk.retrievedContext?.title || 'Document',
+      excerpt: (chunk.retrievedContext?.text || '').substring(0, 150),
+      relevance: 0.85,
+    }));
 
-    console.log(`✅ Generated reply with ${sources.length} sources from vault`);
-
-    // Step 8: Calculate confidence
     const confidence = Math.min(0.95, 0.5 + (sources.length * 0.1));
-    
     const reasoning = sources.length > 0 
       ? `Generated from ${sources.length} document${sources.length > 1 ? 's' : ''} and conversation history`
       : 'Generated from conversation context';
 
-    // Step 9: Generate alternatives
     let alternatives: string[] = [];
     try {
       alternatives = await generateAlternativeReplies(responseText, message, 2);
     } catch (error) {
       console.error('Failed to generate alternatives:', error);
     }
-
-    console.log('✅ RAG query complete\n');
 
     return {
       success: true,
@@ -910,9 +1095,8 @@ Reply:`;
       sources,
       alternativeReplies: alternatives,
     };
-
   } catch (error: any) {
-    console.error('❌ RAG query failed:', error);
+    console.error('RAG query failed:', error);
     return {
       success: false,
       message: error.message || 'Query failed',
