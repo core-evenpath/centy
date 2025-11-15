@@ -1219,17 +1219,10 @@ export interface VaultFile {
   partnerId: string;
   geminiFileUri?: string;
   geminiFileName?: string;
-  geminiUploadedAt?: string;
   createdAt: string;
   errorMessage?: string;
   firebaseStoragePath: string;
-  metadata?: {
-    fileId?: string;
-    partnerId?: string;
-    uploadTimestamp?: number;
-    originalFileName?: string;
-    displayName?: string;
-  };
+  metadata?: any;
   sourceType?: 'upload' | 'conversation' | 'training';
   conversationId?: string;
   conversationPlatform?: 'sms' | 'whatsapp';
@@ -1237,7 +1230,16 @@ export interface VaultFile {
   customerName?: string;
   processingStep?: number;
   processingDescription?: string;
-  trainingData?: string;
+  ragMetadata?: {
+    estimatedChunks?: number;
+    chunkSize?: number;
+    chunkOverlap?: number;
+    embeddingModel?: string;
+    embeddingDimension?: number;
+    indexedAt?: string;
+    processingTimeMs?: number;
+    extractedTextLength?: number;
+  };
 }
 
 export interface FileSearchStore {

@@ -127,10 +127,14 @@ export async function uploadFileToVault(
   const storagePath = `vault/${partnerId}/${timestamp}_${sanitizedName}`;
   let fileDocRef: FirebaseFirestore.DocumentReference | null = null;
   let geminiFileNameToCleanup: string | null = null;
+  const processingStartTime = Date.now();
 
   try {
     console.log('🔵 Step 1: Converting base64 to buffer');
     const buffer = Buffer.from(fileData.base64Data, 'base64');
+
+    const estimatedChunks = Math.ceil(buffer.length / 2048);
+    console.log(`📊 File size: ${buffer.length} bytes, estimated chunks: ${estimatedChunks}`);
 
     console.log('🔵 Step 2: Creating file record with PROCESSING state');
     
@@ -148,6 +152,13 @@ export async function uploadFileToVault(
       partnerId: partnerId,
       firebaseStoragePath: storagePath,
       sourceType: 'upload',
+      ragMetadata: {
+        chunkSize: 2048,
+        chunkOverlap: 128,
+        embeddingModel: 'text-embedding-004',
+        embeddingDimension: 768,
+        estimatedChunks: estimatedChunks,
+      },
       createdAt: FieldValue.serverTimestamp(),
     };
 
@@ -159,8 +170,8 @@ export async function uploadFileToVault(
 
     await updateFileProgress(fileDocRef, 2, 'Uploading to storage...');
     console.log('🔵 Step 2: Uploading to Firebase Storage');
-    
     const file = bucket.file(storagePath);
+    
     await file.save(buffer, {
       metadata: {
         contentType: fileData.mimeType,
@@ -168,8 +179,6 @@ export async function uploadFileToVault(
           partnerId: partnerId,
           uploadedBy: userId,
           vaultFileId: fileDocRef.id,
-          originalName: fileData.name,
-          displayName: fileData.displayName,
         }
       }
     });
@@ -181,16 +190,16 @@ export async function uploadFileToVault(
 
     await updateFileProgress(fileDocRef, 4, 'RAG processing (AI indexing)...');
     console.log('🔵 Step 4: Creating File object for Gemini upload');
-    
     const blob = new Blob([buffer], { type: fileData.mimeType });
     const uploadFile = new File([blob], fileData.name, { type: fileData.mimeType });
 
     console.log('🔵 Step 5: Uploading to RAG store');
+    const ragProcessingStart = Date.now();
     let op = await genAI.fileSearchStores.uploadToFileSearchStore({
       fileSearchStoreName: ragStoreName,
       file: uploadFile
     });
-    console.log('⏳ Upload operation started:', op.name);
+    console.log('⏳ Upload operation started');
 
     let attempts = 0;
     while (!op.done && attempts < 40) {
@@ -213,64 +222,47 @@ export async function uploadFileToVault(
     }
 
     if (op.error) {
-      console.error('❌ Gemini operation error:', op.error);
       throw new Error(`Gemini upload failed: ${op.error.message || 'Unknown error'}`);
     }
 
-    let uploadedFileName: string;
-    let geminiFileUri: string;
-
-    if (op.response && typeof op.response === 'object') {
-      const responseData = op.response as any;
-      
-      uploadedFileName = responseData.file?.name || 
-                        responseData.fileName || 
-                        responseData.name ||
-                        fileData.name;
-      
-      geminiFileUri = responseData.file?.uri || 
-                     responseData.uri || 
-                     ragStoreName;
-      
-      console.log('✅ Extracted from response:', { uploadedFileName, geminiFileUri });
-    } else {
-      console.warn('⚠️ Unexpected response format, using fallback');
-      uploadedFileName = fileData.name;
-      geminiFileUri = ragStoreName;
-    }
+    const uploadedFileName = (op.response as any)?.file?.name || fileData.name;
+    const ragProcessingTime = Date.now() - ragProcessingStart;
+    console.log('✅ File uploaded to Gemini successfully:', uploadedFileName);
+    console.log(`⏱️ RAG processing took: ${ragProcessingTime}ms`);
 
     geminiFileNameToCleanup = uploadedFileName;
-    console.log('✅ File uploaded to Gemini successfully:', uploadedFileName);
 
     await updateFileProgress(fileDocRef, 5, 'Ready to query!');
     console.log('🔵 Step 6: Updating file record to ACTIVE');
+    
+    const totalProcessingTime = Date.now() - processingStartTime;
     
     await fileDocRef.update({
       state: 'ACTIVE',
       processingStep: 5,
       processingDescription: 'Ready to query',
-      geminiFileUri: geminiFileUri,
+      geminiFileUri: ragStoreName,
       geminiFileName: uploadedFileName,
-      geminiUploadedAt: FieldValue.serverTimestamp(),
-      metadata: {
-        fileId: fileDocRef.id,
-        partnerId: partnerId,
-        uploadTimestamp: timestamp,
-        originalFileName: fileData.name,
-        displayName: fileData.displayName,
-      }
+      'ragMetadata.indexedAt': new Date().toISOString(),
+      'ragMetadata.processingTimeMs': totalProcessingTime,
     });
 
     const finalFile = {
       id: fileDocRef.id,
       ...initialVaultFile,
       state: 'ACTIVE' as const,
-      geminiFileUri: geminiFileUri,
+      geminiFileUri: ragStoreName,
       geminiFileName: uploadedFileName,
       createdAt: new Date().toISOString(),
+      ragMetadata: {
+        ...initialVaultFile.ragMetadata,
+        indexedAt: new Date().toISOString(),
+        processingTimeMs: totalProcessingTime,
+      }
     };
 
     console.log('✅ SUCCESS! File ID:', fileDocRef.id);
+    console.log(`⏱️ Total processing time: ${totalProcessingTime}ms`);
 
     return {
       success: true,
@@ -322,6 +314,374 @@ export async function uploadFileToVault(
   }
 }
 
+export async function createTrainingDataFile(
+  partnerId: string,
+  userId: string,
+  datasetName: string,
+  jsonlContent: string
+): Promise<{ success: boolean; message: string; file?: VaultFile }> {
+  if (!db) {
+    return { success: false, message: 'Database not available' };
+  }
+
+  const storage = getStorage();
+  const bucket = storage.bucket();
+  const timestamp = Date.now();
+  const fileName = `${datasetName.replace(/[^a-z0-9]/gi, '_')}_${timestamp}.md`;
+  const storagePath = `vault/${partnerId}/${fileName}`;
+  let fileDocRef: FirebaseFirestore.DocumentReference | null = null;
+  const processingStartTime = Date.now();
+
+  try {
+    console.log('🔵 Converting Q&A pairs to Markdown');
+    const markdownContent = convertToMarkdown(datasetName, jsonlContent);
+    const buffer = Buffer.from(markdownContent, 'utf-8');
+
+    const estimatedChunks = Math.ceil(buffer.length / 2048);
+
+    console.log('🔵 Creating file record');
+    const initialVaultFile = {
+      name: fileName,
+      displayName: `${datasetName}.md`,
+      mimeType: 'text/markdown',
+      sizeBytes: buffer.length,
+      uri: storagePath,
+      state: 'PROCESSING',
+      uploadedAt: new Date().toISOString(),
+      uploadedBy: userId,
+      partnerId: partnerId,
+      firebaseStoragePath: storagePath,
+      sourceType: 'training',
+      trainingData: jsonlContent,
+      ragMetadata: {
+        chunkSize: 2048,
+        chunkOverlap: 128,
+        embeddingModel: 'text-embedding-004',
+        embeddingDimension: 768,
+        estimatedChunks: estimatedChunks,
+        extractedTextLength: buffer.length,
+      },
+      createdAt: FieldValue.serverTimestamp(),
+    };
+
+    fileDocRef = await db
+      .collection(`partners/${partnerId}/vaultFiles`)
+      .add(initialVaultFile);
+
+    console.log('🔵 Uploading to Firebase Storage');
+    const file = bucket.file(storagePath);
+    await file.save(buffer, {
+      metadata: {
+        contentType: 'text/markdown',
+        metadata: {
+          partnerId,
+          uploadedBy: userId,
+          datasetName,
+          vaultFileId: fileDocRef.id,
+        }
+      }
+    });
+
+    console.log('🔵 Uploading to RAG store');
+    const ragStoreName = await getOrCreateRagStore(partnerId);
+
+    const blob = new Blob([buffer], { type: 'text/markdown' });
+    const uploadFile = new File([blob], fileName, { type: 'text/markdown' });
+
+    let op = await genAI.fileSearchStores.uploadToFileSearchStore({
+      fileSearchStoreName: ragStoreName,
+      file: uploadFile
+    });
+
+    let attempts = 0;
+    while (!op.done && attempts < 40) {
+      await delay(3000);
+      op = await genAI.operations.get({ operation: op });
+      attempts++;
+      
+      if (attempts % 5 === 0) {
+        console.log(`⏳ Processing (${attempts * 3}s)`);
+      }
+    }
+
+    if (!op.done) {
+      throw new Error('Upload timeout');
+    }
+
+    if (op.error) {
+      throw new Error(`Upload failed: ${op.error.message || 'Unknown error'}`);
+    }
+
+    const uploadedFileName = (op.response as any)?.file?.name || fileName;
+    const totalProcessingTime = Date.now() - processingStartTime;
+
+    await fileDocRef.update({
+      state: 'ACTIVE',
+      geminiFileUri: ragStoreName,
+      geminiFileName: uploadedFileName,
+      'ragMetadata.indexedAt': new Date().toISOString(),
+      'ragMetadata.processingTimeMs': totalProcessingTime,
+    });
+
+    const finalFile = {
+      id: fileDocRef.id,
+      ...initialVaultFile,
+      state: 'ACTIVE' as const,
+      geminiFileUri: ragStoreName,
+      geminiFileName: uploadedFileName,
+      createdAt: new Date().toISOString(),
+      ragMetadata: {
+        ...initialVaultFile.ragMetadata,
+        indexedAt: new Date().toISOString(),
+        processingTimeMs: totalProcessingTime,
+      }
+    };
+
+    console.log('✅ Training data created successfully');
+
+    return {
+      success: true,
+      message: 'Training data created successfully',
+      file: finalFile,
+    };
+  } catch (error: any) {
+    console.error('❌ Failed to create training data:', error);
+    
+    if (fileDocRef) {
+      try {
+        await fileDocRef.update({
+          state: 'FAILED',
+          errorMessage: error.message || 'Creation failed',
+        });
+      } catch (updateError) {
+        console.error('Failed to update file state:', updateError);
+      }
+    }
+
+    if (storagePath) {
+      try {
+        await bucket.file(storagePath).delete();
+      } catch (cleanupError) {
+        console.warn('Could not clean up file:', cleanupError);
+      }
+    }
+    
+    return {
+      success: false,
+      message: `Failed to create training data: ${error.message}`,
+    };
+  }
+}
+
+export async function updateTrainingDataFile(
+  partnerId: string,
+  fileId: string,
+  userId: string,
+  datasetName: string,
+  jsonlContent: string
+): Promise<{ success: boolean; message: string; file?: VaultFile }> {
+  if (!db) {
+    return { success: false, message: 'Database not available' };
+  }
+
+  const storage = getStorage();
+  const bucket = storage.bucket();
+  const processingStartTime = Date.now();
+
+  try {
+    const fileDoc = await db
+      .collection(`partners/${partnerId}/vaultFiles`)
+      .doc(fileId)
+      .get();
+
+    if (!fileDoc.exists) {
+      return { success: false, message: 'File not found' };
+    }
+
+    const oldFileData = fileDoc.data();
+    const timestamp = Date.now();
+    const fileName = `${datasetName.replace(/[^a-z0-9]/gi, '_')}_${timestamp}.md`;
+    const storagePath = `vault/${partnerId}/${fileName}`;
+
+    console.log('🔵 Converting updated Q&A pairs to Markdown');
+    const markdownContent = convertToMarkdown(datasetName, jsonlContent);
+    const buffer = Buffer.from(markdownContent, 'utf-8');
+
+    const estimatedChunks = Math.ceil(buffer.length / 2048);
+
+    console.log('🔵 Uploading to Firebase Storage');
+    await bucket.file(storagePath).save(buffer, {
+      metadata: {
+        contentType: 'text/markdown',
+        metadata: { partnerId, uploadedBy: userId, datasetName }
+      }
+    });
+
+    console.log('🔵 Uploading to RAG store');
+    const ragStoreName = await getOrCreateRagStore(partnerId);
+
+    const blob = new Blob([buffer], { type: 'text/markdown' });
+    const uploadFile = new File([blob], fileName, { type: 'text/markdown' });
+
+    let op = await genAI.fileSearchStores.uploadToFileSearchStore({
+      fileSearchStoreName: ragStoreName,
+      file: uploadFile
+    });
+
+    let attempts = 0;
+    while (!op.done && attempts < 40) {
+      await delay(3000);
+      op = await genAI.operations.get({ operation: op });
+      attempts++;
+    }
+
+    if (!op.done || op.error) {
+      throw new Error(op.error?.message || 'Upload failed');
+    }
+
+    const uploadedFileName = (op.response as any)?.file?.name || fileName;
+
+    console.log('🔵 Cleaning up old RAG file');
+    if (oldFileData?.geminiFileName && oldFileData?.geminiFileUri) {
+      try {
+        await genAI.files.delete({ name: oldFileData.geminiFileName });
+        console.log('✅ Deleted old RAG file:', oldFileData.geminiFileName);
+      } catch (ragError) {
+        console.warn('Could not delete old RAG file:', ragError);
+      }
+    }
+
+    console.log('🔵 Cleaning up old storage file');
+    if (oldFileData?.firebaseStoragePath) {
+      try {
+        await bucket.file(oldFileData.firebaseStoragePath).delete();
+      } catch (error) {
+        console.warn('Could not delete old file:', error);
+      }
+    }
+
+    const totalProcessingTime = Date.now() - processingStartTime;
+
+    await db
+      .collection(`partners/${partnerId}/vaultFiles`)
+      .doc(fileId)
+      .update({
+        name: fileName,
+        displayName: `${datasetName}.md`,
+        mimeType: 'text/markdown',
+        sizeBytes: buffer.length,
+        uri: storagePath,
+        firebaseStoragePath: storagePath,
+        geminiFileUri: ragStoreName,
+        geminiFileName: uploadedFileName,
+        state: 'ACTIVE',
+        trainingData: jsonlContent,
+        ragMetadata: {
+          chunkSize: 2048,
+          chunkOverlap: 128,
+          embeddingModel: 'text-embedding-004',
+          embeddingDimension: 768,
+          estimatedChunks: estimatedChunks,
+          extractedTextLength: buffer.length,
+          indexedAt: new Date().toISOString(),
+          processingTimeMs: totalProcessingTime,
+        },
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+
+    const finalFile = {
+      id: fileId,
+      partnerId,
+      name: fileName,
+      displayName: `${datasetName}.md`,
+      mimeType: 'text/markdown',
+      sizeBytes: buffer.length,
+      uri: storagePath,
+      firebaseStoragePath: storagePath,
+      state: 'ACTIVE' as const,
+      geminiFileUri: ragStoreName,
+      geminiFileName: uploadedFileName,
+      uploadedBy: oldFileData?.uploadedBy || userId,
+      createdAt: oldFileData?.createdAt || new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      ragMetadata: {
+        chunkSize: 2048,
+        chunkOverlap: 128,
+        embeddingModel: 'text-embedding-004',
+        embeddingDimension: 768,
+        estimatedChunks: estimatedChunks,
+        extractedTextLength: buffer.length,
+        indexedAt: new Date().toISOString(),
+        processingTimeMs: totalProcessingTime,
+      }
+    };
+
+    console.log('✅ Training data updated successfully');
+
+    return {
+      success: true,
+      message: 'Training data updated successfully',
+      file: finalFile,
+    };
+  } catch (error: any) {
+    console.error('❌ Failed to update training data:', error);
+    return {
+      success: false,
+      message: `Failed to update training data: ${error.message}`,
+    };
+  }
+}
+
+export async function getVaultFileContent(
+  partnerId: string,
+  fileId: string
+): Promise<{ success: boolean; content?: string; message?: string }> {
+  if (!db) {
+    return { success: false, message: 'Database not available' };
+  }
+
+  try {
+    const fileDoc = await db
+      .collection(`partners/${partnerId}/vaultFiles`)
+      .doc(fileId)
+      .get();
+
+    if (!fileDoc.exists) {
+      return { success: false, message: 'File not found' };
+    }
+
+    const fileData = fileDoc.data();
+    
+    if (fileData?.trainingData) {
+      return {
+        success: true,
+        content: fileData.trainingData,
+      };
+    }
+    
+    if (!fileData?.firebaseStoragePath) {
+      return { success: false, message: 'File path not found' };
+    }
+
+    const storage = getStorage();
+    const bucket = storage.bucket();
+    const file = bucket.file(fileData.firebaseStoragePath);
+
+    const [content] = await file.download();
+    
+    return {
+      success: true,
+      content: content.toString('utf-8'),
+    };
+  } catch (error: any) {
+    console.error('Error fetching file content:', error);
+    return {
+      success: false,
+      message: `Failed to fetch content: ${error.message}`,
+    };
+  }
+}
+
 export async function deleteVaultFile(
   partnerId: string,
   fileId: string
@@ -349,10 +709,10 @@ export async function deleteVaultFile(
         await genAI.files.delete({ name: fileData.geminiFileName });
         console.log('✅ Deleted file from RAG store:', fileData.geminiFileName);
       } catch (ragError: any) {
-        console.warn('⚠️ Could not delete from RAG store:', ragError.message);
+        console.warn('⚠️  Could not delete from RAG store:', ragError.message);
       }
     } else {
-      console.log('⚠️ No Gemini file name found, skipping RAG cleanup');
+      console.log('⚠️  No Gemini file name found, skipping RAG cleanup');
     }
 
     console.log('🔵 Step 3: Deleting from Firebase Storage');
@@ -365,7 +725,7 @@ export async function deleteVaultFile(
         await file.delete();
         console.log('✅ Deleted file from storage');
       } catch (error) {
-        console.warn('⚠️ Could not delete from storage:', error);
+        console.warn('⚠️  Could not delete from storage:', error);
       }
     }
 
@@ -376,7 +736,7 @@ export async function deleteVaultFile(
       .delete();
 
     console.log('✅ File deleted successfully');
-    
+
     clearRagStoreCache(partnerId);
 
     return { success: true, message: 'File deleted successfully' };
@@ -581,40 +941,46 @@ async function filterGroundingChunksBySelectedFiles(
     
     const fileDocs = await Promise.all(fileDocsPromises);
     
-    const selectedFileIdentifiers = new Set<string>();
+    const selectedFileNames = new Set<string>();
+    const selectedDisplayNames = new Set<string>();
+    const selectedStoragePaths = new Set<string>();
     
     fileDocs.forEach(fileDoc => {
       if (fileDoc.exists) {
         const data = fileDoc.data();
         if (data?.displayName) {
-          selectedFileIdentifiers.add(data.displayName.toLowerCase());
+          selectedFileNames.add(data.displayName.toLowerCase());
+          selectedDisplayNames.add(data.displayName.toLowerCase());
         }
         if (data?.name) {
-          selectedFileIdentifiers.add(data.name.toLowerCase());
-        }
-        if (data?.geminiFileName) {
-          selectedFileIdentifiers.add(data.geminiFileName.toLowerCase());
+          selectedFileNames.add(data.name.toLowerCase());
         }
         if (data?.firebaseStoragePath) {
-          selectedFileIdentifiers.add(data.firebaseStoragePath.toLowerCase());
+          selectedStoragePaths.add(data.firebaseStoragePath.toLowerCase());
         }
-        selectedFileIdentifiers.add(fileDoc.id.toLowerCase());
+        selectedFileNames.add(fileDoc.id.toLowerCase());
       }
     });
 
-    if (selectedFileIdentifiers.size === 0) {
-      console.log('⚠️ No valid file identifiers found, returning all chunks');
+    if (selectedFileNames.size === 0) {
+      console.log('⚠️ No valid file names found for filtering, returning all chunks');
       return groundingChunks;
     }
 
-    console.log(`🔍 Filtering with ${selectedFileIdentifiers.size} unique identifiers`);
+    console.log(`🔍 Filtering with ${selectedFileNames.size} unique identifiers`);
 
     const filteredChunks = groundingChunks.filter((chunk: any) => {
       const title = chunk.retrievedContext?.title?.toLowerCase() || '';
       const uri = chunk.retrievedContext?.uri?.toLowerCase() || '';
       
-      for (const identifier of selectedFileIdentifiers) {
+      for (const identifier of selectedFileNames) {
         if (title.includes(identifier) || uri.includes(identifier)) {
+          return true;
+        }
+      }
+      
+      for (const path of selectedStoragePaths) {
+        if (uri.includes(path)) {
           return true;
         }
       }
@@ -691,12 +1057,7 @@ export async function chatWithVault(
 
 User Question: ${message}
 
-CRITICAL INSTRUCTIONS: 
-1. ONLY use information from the documents listed above
-2. If the answer is not in these specific documents, say "I don't see that information in the selected documents"
-3. DO NOT mix information from other documents in the knowledge base
-
-Answer:`;
+Instructions: Focus your answer primarily on information from the documents listed above.`;
       }
     }
 
@@ -704,10 +1065,8 @@ Answer:`;
 
     const response = await genAI.models.generateContent({
       model: 'gemini-2.5-flash',
-      contents: enhancedMessage,
+      contents: enhancedMessage + " DO NOT ASK THE USER TO READ THE DOCUMENT, pinpoint the relevant sections in the response itself.",
       config: {
-        temperature: 0.3,
-        maxOutputTokens: 800,
         tools: [
           {
             fileSearch: {
@@ -756,322 +1115,6 @@ Answer:`;
     return {
       success: false,
       message: `Query failed: ${error.message}`,
-    };
-  }
-}
-
-export async function createTrainingDataFile(
-  partnerId: string,
-  userId: string,
-  datasetName: string,
-  jsonlContent: string
-): Promise<{ success: boolean; message: string; file?: VaultFile }> {
-  if (!db) {
-    return { success: false, message: 'Database not available' };
-  }
-
-  const storage = getStorage();
-  const bucket = storage.bucket();
-  const timestamp = Date.now();
-  const fileName = `${datasetName.replace(/[^a-z0-9]/gi, '_')}_${timestamp}.md`;
-  const storagePath = `vault/${partnerId}/${fileName}`;
-  
-  let fileDocRef: FirebaseFirestore.DocumentReference | null = null;
-
-  try {
-    console.log('🔵 Converting Q&A pairs to Markdown');
-    const markdownContent = convertToMarkdown(datasetName, jsonlContent);
-    const buffer = Buffer.from(markdownContent, 'utf-8');
-
-    console.log('🔵 Creating file record');
-    const initialVaultFile = {
-      name: fileName,
-      displayName: `${datasetName}.md`,
-      mimeType: 'text/markdown',
-      sizeBytes: buffer.length,
-      uri: storagePath,
-      state: 'PROCESSING',
-      uploadedAt: new Date().toISOString(),
-      uploadedBy: userId,
-      partnerId: partnerId,
-      firebaseStoragePath: storagePath,
-      sourceType: 'training',
-      trainingData: jsonlContent,
-      createdAt: FieldValue.serverTimestamp(),
-    };
-
-    fileDocRef = await db
-      .collection(`partners/${partnerId}/vaultFiles`)
-      .add(initialVaultFile);
-
-    console.log('🔵 Uploading to Firebase Storage');
-    await bucket.file(storagePath).save(buffer, {
-      metadata: {
-        contentType: 'text/markdown',
-        metadata: { 
-          partnerId, 
-          uploadedBy: userId, 
-          datasetName,
-          vaultFileId: fileDocRef.id,
-        }
-      }
-    });
-
-    console.log('🔵 Uploading to RAG store');
-    const ragStoreName = await getOrCreateRagStore(partnerId);
-
-    const blob = new Blob([buffer], { type: 'text/markdown' });
-    const uploadFile = new File([blob], fileName, { type: 'text/markdown' });
-
-    let op = await genAI.fileSearchStores.uploadToFileSearchStore({
-      fileSearchStoreName: ragStoreName,
-      file: uploadFile
-    });
-
-    let attempts = 0;
-    while (!op.done && attempts < 40) {
-      await delay(3000);
-      op = await genAI.operations.get({ operation: op });
-      attempts++;
-    }
-
-    if (!op.done || op.error) {
-      throw new Error(op.error?.message || 'Upload failed');
-    }
-
-    const uploadedFileName = (op.response as any)?.file?.name || fileName;
-
-    await fileDocRef.update({
-      state: 'ACTIVE',
-      geminiFileUri: ragStoreName,
-      geminiFileName: uploadedFileName,
-    });
-
-    const finalFile = {
-      id: fileDocRef.id,
-      ...initialVaultFile,
-      state: 'ACTIVE' as const,
-      geminiFileUri: ragStoreName,
-      geminiFileName: uploadedFileName,
-      createdAt: new Date().toISOString(),
-    };
-
-    console.log('✅ Training data created successfully');
-
-    return {
-      success: true,
-      message: 'Training data created successfully',
-      file: finalFile,
-    };
-  } catch (error: any) {
-    console.error('❌ Failed to create training data:', error);
-    
-    if (fileDocRef) {
-      try {
-        await fileDocRef.update({
-          state: 'FAILED',
-          errorMessage: error.message || 'Creation failed',
-        });
-      } catch (updateError) {
-        console.error('Failed to update file state:', updateError);
-      }
-    }
-
-    if (storagePath) {
-      try {
-        await bucket.file(storagePath).delete();
-      } catch (cleanupError) {
-        console.warn('Could not clean up file:', cleanupError);
-      }
-    }
-    
-    return {
-      success: false,
-      message: `Failed to create training data: ${error.message}`,
-    };
-  }
-}
-
-export async function updateTrainingDataFile(
-  partnerId: string,
-  fileId: string,
-  userId: string,
-  datasetName: string,
-  jsonlContent: string
-): Promise<{ success: boolean; message: string; file?: VaultFile }> {
-  if (!db) {
-    return { success: false, message: 'Database not available' };
-  }
-
-  const storage = getStorage();
-  const bucket = storage.bucket();
-
-  try {
-    const fileDoc = await db
-      .collection(`partners/${partnerId}/vaultFiles`)
-      .doc(fileId)
-      .get();
-
-    if (!fileDoc.exists) {
-      return { success: false, message: 'File not found' };
-    }
-
-    const oldFileData = fileDoc.data();
-    const timestamp = Date.now();
-    const fileName = `${datasetName.replace(/[^a-z0-9]/gi, '_')}_${timestamp}.md`;
-    const storagePath = `vault/${partnerId}/${fileName}`;
-
-    console.log('🔵 Converting updated Q&A pairs to Markdown');
-    const markdownContent = convertToMarkdown(datasetName, jsonlContent);
-    const buffer = Buffer.from(markdownContent, 'utf-8');
-
-    console.log('🔵 Uploading to Firebase Storage');
-    await bucket.file(storagePath).save(buffer, {
-      metadata: {
-        contentType: 'text/markdown',
-        metadata: { partnerId, uploadedBy: userId, datasetName }
-      }
-    });
-
-    console.log('🔵 Uploading to RAG store');
-    const ragStoreName = await getOrCreateRagStore(partnerId);
-
-    const blob = new Blob([buffer], { type: 'text/markdown' });
-    const uploadFile = new File([blob], fileName, { type: 'text/markdown' });
-
-    let op = await genAI.fileSearchStores.uploadToFileSearchStore({
-      fileSearchStoreName: ragStoreName,
-      file: uploadFile
-    });
-
-    let attempts = 0;
-    while (!op.done && attempts < 40) {
-      await delay(3000);
-      op = await genAI.operations.get({ operation: op });
-      attempts++;
-    }
-
-    if (!op.done || op.error) {
-      throw new Error(op.error?.message || 'Upload failed');
-    }
-
-    const uploadedFileName = (op.response as any)?.file?.name || fileName;
-
-    console.log('🔵 Cleaning up old RAG file');
-    if (oldFileData?.geminiFileName) {
-      try {
-        await genAI.files.delete({ name: oldFileData.geminiFileName });
-        console.log('✅ Deleted old RAG file:', oldFileData.geminiFileName);
-      } catch (ragError) {
-        console.warn('Could not delete old RAG file:', ragError);
-      }
-    }
-
-    console.log('🔵 Cleaning up old storage file');
-    if (oldFileData?.firebaseStoragePath) {
-      try {
-        await bucket.file(oldFileData.firebaseStoragePath).delete();
-      } catch (error) {
-        console.warn('Could not delete old file:', error);
-      }
-    }
-
-    await db
-      .collection(`partners/${partnerId}/vaultFiles`)
-      .doc(fileId)
-      .update({
-        name: fileName,
-        displayName: `${datasetName}.md`,
-        mimeType: 'text/markdown',
-        sizeBytes: buffer.length,
-        uri: storagePath,
-        firebaseStoragePath: storagePath,
-        geminiFileUri: ragStoreName,
-        geminiFileName: uploadedFileName,
-        state: 'ACTIVE',
-        trainingData: jsonlContent,
-        updatedAt: FieldValue.serverTimestamp(),
-      });
-
-    const finalFile = {
-      id: fileId,
-      partnerId,
-      name: fileName,
-      displayName: `${datasetName}.md`,
-      mimeType: 'text/markdown',
-      sizeBytes: buffer.length,
-      uri: storagePath,
-      firebaseStoragePath: storagePath,
-      state: 'ACTIVE' as const,
-      geminiFileUri: ragStoreName,
-      geminiFileName: uploadedFileName,
-      uploadedBy: oldFileData?.uploadedBy || userId,
-      createdAt: oldFileData?.createdAt || new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
-
-    console.log('✅ Training data updated successfully');
-
-    return {
-      success: true,
-      message: 'Training data updated successfully',
-      file: finalFile,
-    };
-  } catch (error: any) {
-    console.error('❌ Failed to update training data:', error);
-    return {
-      success: false,
-      message: `Failed to update training data: ${error.message}`,
-    };
-  }
-}
-
-export async function getVaultFileContent(
-  partnerId: string,
-  fileId: string
-): Promise<{ success: boolean; content?: string; message?: string }> {
-  if (!db) {
-    return { success: false, message: 'Database not available' };
-  }
-
-  try {
-    const fileDoc = await db
-      .collection(`partners/${partnerId}/vaultFiles`)
-      .doc(fileId)
-      .get();
-
-    if (!fileDoc.exists) {
-      return { success: false, message: 'File not found' };
-    }
-
-    const fileData = fileDoc.data();
-    
-    if (fileData?.trainingData) {
-      return {
-        success: true,
-        content: fileData.trainingData,
-      };
-    }
-    
-    if (!fileData?.firebaseStoragePath) {
-      return { success: false, message: 'File path not found' };
-    }
-
-    const storage = getStorage();
-    const bucket = storage.bucket();
-    const file = bucket.file(fileData.firebaseStoragePath);
-
-    const [content] = await file.download();
-    
-    return {
-      success: true,
-      content: content.toString('utf-8'),
-    };
-  } catch (error: any) {
-    console.error('Error fetching file content:', error);
-    return {
-      success: false,
-      message: `Failed to fetch content: ${error.message}`,
     };
   }
 }
@@ -1162,6 +1205,9 @@ export async function listVaultFiles(
         conversationPlatform: data.conversationPlatform,
         customerPhone: data.customerPhone,
         customerName: data.customerName,
+        processingStep: data.processingStep,
+        processingDescription: data.processingDescription,
+        ragMetadata: data.ragMetadata,
       } as VaultFile;
     });
 
@@ -1207,44 +1253,6 @@ export async function listFileSearchStores(
   }
 }
 
-export async function getVaultFileStatus(
-  partnerId: string,
-  fileId: string
-): Promise<{ 
-  success: boolean; 
-  state?: 'PROCESSING' | 'ACTIVE' | 'FAILED';
-  processingStep?: number;
-  processingDescription?: string;
-  errorMessage?: string;
-}> {
-  if (!db) {
-    return { success: false };
-  }
-
-  try {
-    const fileDoc = await db
-      .collection(`partners/${partnerId}/vaultFiles`)
-      .doc(fileId)
-      .get();
-
-    if (!fileDoc.exists) {
-      return { success: false };
-    }
-
-    const data = fileDoc.data();
-    return {
-      success: true,
-      state: data?.state,
-      processingStep: data?.processingStep || 1,
-      processingDescription: data?.processingDescription || 'Processing...',
-      errorMessage: data?.errorMessage,
-    };
-  } catch (error) {
-    console.error('Error getting file status:', error);
-    return { success: false };
-  }
-}
-
 async function getConversationContext(
   conversationId: string,
   platform: 'sms' | 'whatsapp',
@@ -1268,24 +1276,62 @@ async function getConversationContext(
     const messages = messagesSnapshot.docs
       .map(doc => {
         const data = doc.data();
-        return `${data.direction === 'inbound' ? 'Customer' : 'You'}: ${data.content}`;
+        return `${data.direction === 'inbound' ? 'Customer' : 'Partner'}: ${data.content}`;
       })
-      .reverse()
-      .join('\n');
+      .reverse();
 
-    return messages;
+    return messages.join('\n');
   } catch (error) {
     console.error('Error getting conversation context:', error);
     return '';
   }
 }
 
-export async function queryConversationRAGFast(
+async function generateAlternativeReplies(
+  originalReply: string,
+  userMessage: string,
+  count: number = 2
+): Promise<string[]> {
+  try {
+    const prompt = `Given this customer message: "${userMessage}"
+And this suggested reply: "${originalReply}"
+
+Generate ${count} alternative ways to respond that convey the same information but with different wording or tone.
+Return only the alternative responses, one per line, without numbering.`;
+
+    const response = await genAI.models.generateContent({
+      model: 'gemini-2.5-flash',
+      contents: prompt,
+    });
+
+    let text = '';
+    try {
+      text = response.text || '';
+    } catch {
+      if (response.candidates?.[0]?.content?.parts?.[0]?.text) {
+        text = response.candidates[0].content.parts[0].text;
+      }
+    }
+
+    if (!text?.trim()) return [];
+    
+    return text
+      .split('\n')
+      .map(line => line.trim())
+      .filter(line => line.length > 0)
+      .slice(0, count);
+  } catch (error) {
+    console.error('Error generating alternatives:', error);
+    return [];
+  }
+}
+
+export async function chatWithVaultForConversation(
   partnerId: string,
   conversationId: string,
   platform: 'sms' | 'whatsapp',
   message: string,
-  options: {
+  options?: {
     includeAlternatives?: boolean;
   }
 ): Promise<{
@@ -1313,7 +1359,7 @@ export async function queryConversationRAGFast(
       getConversationContext(conversationId, platform, 5)
     ]);
 
-    console.log(`⏱️ Data: ${Date.now() - startTime}ms`);
+    console.log(`⏱️  Data: ${Date.now() - startTime}ms`);
 
     if (!conversationDoc.exists) {
       return { success: false, message: 'Conversation not found' };
@@ -1354,7 +1400,7 @@ Reply:`;
       },
     });
 
-    console.log(`⏱️ Gemini: ${Date.now() - queryStart}ms`);
+    console.log(`⏱️  Gemini: ${Date.now() - queryStart}ms`);
 
     let responseText = '';
     
@@ -1362,7 +1408,7 @@ Reply:`;
       responseText = response.text || '';
       console.log('✅ Got via response.text');
     } catch (textError: any) {
-      console.warn('⚠️ Trying manual');
+      console.warn('⚠️  Trying manual');
       
       try {
         const parts = response.candidates?.[0]?.content?.parts;
@@ -1489,5 +1535,43 @@ Reply:`;
       success: false,
       message: `Error: ${error.message}`,
     };
+  }
+}
+
+export async function getVaultFileStatus(
+  partnerId: string,
+  fileId: string
+): Promise<{ 
+  success: boolean; 
+  state?: 'PROCESSING' | 'ACTIVE' | 'FAILED';
+  processingStep?: number;
+  processingDescription?: string;
+  errorMessage?: string;
+}> {
+  if (!db) {
+    return { success: false };
+  }
+
+  try {
+    const fileDoc = await db
+      .collection(`partners/${partnerId}/vaultFiles`)
+      .doc(fileId)
+      .get();
+
+    if (!fileDoc.exists) {
+      return { success: false };
+    }
+
+    const data = fileDoc.data();
+    return {
+      success: true,
+      state: data?.state,
+      processingStep: data?.processingStep || 1,
+      processingDescription: data?.processingDescription || 'Processing...',
+      errorMessage: data?.errorMessage,
+    };
+  } catch (error) {
+    console.error('Error getting file status:', error);
+    return { success: false };
   }
 }
