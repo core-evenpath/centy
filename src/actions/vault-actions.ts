@@ -5,7 +5,7 @@ import { db } from '@/lib/firebase-admin';
 import { getStorage } from 'firebase-admin/storage';
 import { FieldValue } from 'firebase-admin/firestore';
 import type { VaultFile, FileSearchStore, VaultQuery, GroundingChunk } from '@/lib/types';
-import { getCachedRagStore } from '@/lib/rag-cache';
+import { getCachedRagStore, clearRagStoreCache } from '@/lib/rag-cache';
 
 const genAI = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || '' });
 
@@ -89,6 +89,23 @@ function convertToMarkdown(datasetName: string, jsonlContent: string): string {
   return markdown;
 }
 
+async function updateFileProgress(
+  fileDocRef: FirebaseFirestore.DocumentReference,
+  step: number,
+  description: string
+) {
+  try {
+    await fileDocRef.update({
+      processingStep: step,
+      processingDescription: description,
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+    console.log(`📊 Progress: Step ${step} - ${description}`);
+  } catch (error) {
+    console.warn('Failed to update progress:', error);
+  }
+}
+
 export async function uploadFileToVault(
   partnerId: string,
   userId: string,
@@ -105,8 +122,11 @@ export async function uploadFileToVault(
 
   const storage = getStorage();
   const bucket = storage.bucket();
-  const storagePath = `vault/${partnerId}/${Date.now()}_${fileData.name}`;
+  const timestamp = Date.now();
+  const sanitizedName = fileData.name.replace(/[^a-zA-Z0-9.-]/g, '_');
+  const storagePath = `vault/${partnerId}/${timestamp}_${sanitizedName}`;
   let fileDocRef: FirebaseFirestore.DocumentReference | null = null;
+  let geminiFileNameToCleanup: string | null = null;
 
   try {
     console.log('🔵 Step 1: Converting base64 to buffer');
@@ -137,11 +157,10 @@ export async function uploadFileToVault(
     
     console.log('✅ File record created with ID:', fileDocRef.id);
 
-    // Step 2: Upload to Storage
     await updateFileProgress(fileDocRef, 2, 'Uploading to storage...');
     console.log('🔵 Step 2: Uploading to Firebase Storage');
-    const file = bucket.file(storagePath);
     
+    const file = bucket.file(storagePath);
     await file.save(buffer, {
       metadata: {
         contentType: fileData.mimeType,
@@ -149,19 +168,20 @@ export async function uploadFileToVault(
           partnerId: partnerId,
           uploadedBy: userId,
           vaultFileId: fileDocRef.id,
+          originalName: fileData.name,
+          displayName: fileData.displayName,
         }
       }
     });
     console.log('✅ File saved to storage');
 
-    // Step 3: Get RAG Store
     await updateFileProgress(fileDocRef, 3, 'Storing in vault...');
     console.log('🔵 Step 3: Getting/Creating RAG store');
     const ragStoreName = await getOrCreateRagStore(partnerId);
 
-    // Step 4: RAG Processing
     await updateFileProgress(fileDocRef, 4, 'RAG processing (AI indexing)...');
     console.log('🔵 Step 4: Creating File object for Gemini upload');
+    
     const blob = new Blob([buffer], { type: fileData.mimeType });
     const uploadFile = new File([blob], fileData.name, { type: fileData.mimeType });
 
@@ -170,7 +190,7 @@ export async function uploadFileToVault(
       fileSearchStoreName: ragStoreName,
       file: uploadFile
     });
-    console.log('⏳ Upload operation started');
+    console.log('⏳ Upload operation started:', op.name);
 
     let attempts = 0;
     while (!op.done && attempts < 40) {
@@ -193,28 +213,59 @@ export async function uploadFileToVault(
     }
 
     if (op.error) {
+      console.error('❌ Gemini operation error:', op.error);
       throw new Error(`Gemini upload failed: ${op.error.message || 'Unknown error'}`);
     }
 
-    const uploadedFileName = (op.response as any)?.file?.name || fileData.name;
+    let uploadedFileName: string;
+    let geminiFileUri: string;
+
+    if (op.response && typeof op.response === 'object') {
+      const responseData = op.response as any;
+      
+      uploadedFileName = responseData.file?.name || 
+                        responseData.fileName || 
+                        responseData.name ||
+                        fileData.name;
+      
+      geminiFileUri = responseData.file?.uri || 
+                     responseData.uri || 
+                     ragStoreName;
+      
+      console.log('✅ Extracted from response:', { uploadedFileName, geminiFileUri });
+    } else {
+      console.warn('⚠️ Unexpected response format, using fallback');
+      uploadedFileName = fileData.name;
+      geminiFileUri = ragStoreName;
+    }
+
+    geminiFileNameToCleanup = uploadedFileName;
     console.log('✅ File uploaded to Gemini successfully:', uploadedFileName);
 
-    // Step 5: Complete
     await updateFileProgress(fileDocRef, 5, 'Ready to query!');
     console.log('🔵 Step 6: Updating file record to ACTIVE');
+    
     await fileDocRef.update({
       state: 'ACTIVE',
       processingStep: 5,
       processingDescription: 'Ready to query',
-      geminiFileUri: ragStoreName,
+      geminiFileUri: geminiFileUri,
       geminiFileName: uploadedFileName,
+      geminiUploadedAt: FieldValue.serverTimestamp(),
+      metadata: {
+        fileId: fileDocRef.id,
+        partnerId: partnerId,
+        uploadTimestamp: timestamp,
+        originalFileName: fileData.name,
+        displayName: fileData.displayName,
+      }
     });
 
     const finalFile = {
       id: fileDocRef.id,
       ...initialVaultFile,
       state: 'ACTIVE' as const,
-      geminiFileUri: ragStoreName,
+      geminiFileUri: geminiFileUri,
       geminiFileName: uploadedFileName,
       createdAt: new Date().toISOString(),
     };
@@ -244,6 +295,16 @@ export async function uploadFileToVault(
       }
     }
 
+    if (geminiFileNameToCleanup) {
+      try {
+        console.log('🧹 Attempting to clean up failed Gemini upload');
+        await genAI.files.delete({ name: geminiFileNameToCleanup });
+        console.log('✅ Cleaned up Gemini file after failure');
+      } catch (cleanupError) {
+        console.warn('Could not clean up Gemini file:', cleanupError);
+      }
+    }
+
     if (storagePath) {
       try {
         const file = bucket.file(storagePath);
@@ -257,6 +318,444 @@ export async function uploadFileToVault(
     return {
       success: false,
       message: `Failed to upload: ${error.message}`,
+    };
+  }
+}
+
+export async function deleteVaultFile(
+  partnerId: string,
+  fileId: string
+): Promise<{ success: boolean; message: string }> {
+  if (!db) {
+    return { success: false, message: 'Database not available' };
+  }
+
+  try {
+    console.log('🔵 Step 1: Fetching file record');
+    const fileDoc = await db
+      .collection(`partners/${partnerId}/vaultFiles`)
+      .doc(fileId)
+      .get();
+
+    if (!fileDoc.exists) {
+      return { success: false, message: 'File not found' };
+    }
+
+    const fileData = fileDoc.data();
+    
+    console.log('🔵 Step 2: Deleting from Gemini RAG store');
+    if (fileData?.geminiFileName) {
+      try {
+        await genAI.files.delete({ name: fileData.geminiFileName });
+        console.log('✅ Deleted file from RAG store:', fileData.geminiFileName);
+      } catch (ragError: any) {
+        console.warn('⚠️ Could not delete from RAG store:', ragError.message);
+      }
+    } else {
+      console.log('⚠️ No Gemini file name found, skipping RAG cleanup');
+    }
+
+    console.log('🔵 Step 3: Deleting from Firebase Storage');
+    if (fileData?.firebaseStoragePath) {
+      const storage = getStorage();
+      const bucket = storage.bucket();
+      const file = bucket.file(fileData.firebaseStoragePath);
+      
+      try {
+        await file.delete();
+        console.log('✅ Deleted file from storage');
+      } catch (error) {
+        console.warn('⚠️ Could not delete from storage:', error);
+      }
+    }
+
+    console.log('🔵 Step 4: Deleting Firestore record');
+    await db
+      .collection(`partners/${partnerId}/vaultFiles`)
+      .doc(fileId)
+      .delete();
+
+    console.log('✅ File deleted successfully');
+    
+    clearRagStoreCache(partnerId);
+
+    return { success: true, message: 'File deleted successfully' };
+  } catch (error: any) {
+    console.error('❌ Error deleting vault file:', error);
+    return {
+      success: false,
+      message: `Failed to delete file: ${error.message}`,
+    };
+  }
+}
+
+export async function cleanupOrphanedRagFiles(
+  partnerId: string
+): Promise<{ 
+  success: boolean; 
+  message: string; 
+  cleanedCount?: number;
+  errors?: string[];
+}> {
+  if (!db) {
+    return { success: false, message: 'Database not available' };
+  }
+
+  try {
+    console.log('🔍 Starting orphaned RAG file cleanup for partner:', partnerId);
+
+    const storesSnapshot = await db
+      .collection(`partners/${partnerId}/fileSearchStores`)
+      .where('state', '==', 'ACTIVE')
+      .limit(1)
+      .get();
+
+    if (storesSnapshot.empty) {
+      return { success: true, message: 'No RAG store found', cleanedCount: 0 };
+    }
+
+    const ragStoreName = storesSnapshot.docs[0].data().name;
+    console.log('📦 RAG Store:', ragStoreName);
+
+    const vaultFilesSnapshot = await db
+      .collection(`partners/${partnerId}/vaultFiles`)
+      .get();
+
+    const activeGeminiFileNames = new Set<string>();
+    vaultFilesSnapshot.docs.forEach(doc => {
+      const data = doc.data();
+      if (data.geminiFileName && data.state === 'ACTIVE') {
+        activeGeminiFileNames.add(data.geminiFileName);
+      }
+    });
+
+    console.log(`📊 Active files in Firestore: ${activeGeminiFileNames.size}`);
+
+    let geminiFiles: any[] = [];
+    try {
+      const listResponse = await genAI.files.list();
+      geminiFiles = listResponse.files || [];
+      console.log(`📊 Files in Gemini: ${geminiFiles.length}`);
+    } catch (listError: any) {
+      console.warn('⚠️ Could not list Gemini files:', listError.message);
+      return { success: false, message: 'Could not list Gemini files' };
+    }
+
+    const orphanedFiles = geminiFiles.filter(
+      file => !activeGeminiFileNames.has(file.name)
+    );
+
+    console.log(`🗑️ Found ${orphanedFiles.length} orphaned files`);
+
+    const errors: string[] = [];
+    let cleanedCount = 0;
+
+    for (const file of orphanedFiles) {
+      try {
+        await genAI.files.delete({ name: file.name });
+        console.log(`✅ Deleted orphaned file: ${file.name}`);
+        cleanedCount++;
+      } catch (deleteError: any) {
+        const errorMsg = `Failed to delete ${file.name}: ${deleteError.message}`;
+        console.error('❌', errorMsg);
+        errors.push(errorMsg);
+      }
+    }
+
+    const message = `Cleanup complete: ${cleanedCount} files removed${errors.length > 0 ? `, ${errors.length} errors` : ''}`;
+    console.log('✅', message);
+
+    return {
+      success: true,
+      message,
+      cleanedCount,
+      errors: errors.length > 0 ? errors : undefined,
+    };
+
+  } catch (error: any) {
+    console.error('❌ Cleanup failed:', error);
+    return {
+      success: false,
+      message: `Cleanup failed: ${error.message}`,
+    };
+  }
+}
+
+export async function verifyRagFileIntegrity(
+  partnerId: string
+): Promise<{
+  success: boolean;
+  message: string;
+  firestoreCount?: number;
+  geminiCount?: number;
+  missingInGemini?: string[];
+  orphanedInGemini?: string[];
+}> {
+  if (!db) {
+    return { success: false, message: 'Database not available' };
+  }
+
+  try {
+    console.log('🔍 Verifying RAG file integrity for partner:', partnerId);
+
+    const vaultFilesSnapshot = await db
+      .collection(`partners/${partnerId}/vaultFiles`)
+      .where('state', '==', 'ACTIVE')
+      .get();
+
+    const firestoreFiles = new Map<string, string>();
+    vaultFilesSnapshot.docs.forEach(doc => {
+      const data = doc.data();
+      if (data.geminiFileName) {
+        firestoreFiles.set(data.geminiFileName, doc.id);
+      }
+    });
+
+    console.log(`📊 Active files in Firestore: ${firestoreFiles.size}`);
+
+    let geminiFiles: any[] = [];
+    try {
+      const listResponse = await genAI.files.list();
+      geminiFiles = listResponse.files || [];
+      console.log(`📊 Files in Gemini: ${geminiFiles.length}`);
+    } catch (listError: any) {
+      console.warn('⚠️ Could not list Gemini files:', listError.message);
+      return { 
+        success: false, 
+        message: 'Could not list Gemini files',
+        firestoreCount: firestoreFiles.size,
+      };
+    }
+
+    const geminiFileNames = new Set(geminiFiles.map(f => f.name));
+
+    const missingInGemini = Array.from(firestoreFiles.keys()).filter(
+      name => !geminiFileNames.has(name)
+    );
+
+    const orphanedInGemini = Array.from(geminiFileNames).filter(
+      name => !firestoreFiles.has(name)
+    );
+
+    console.log(`⚠️ Missing in Gemini: ${missingInGemini.length}`);
+    console.log(`⚠️ Orphaned in Gemini: ${orphanedInGemini.length}`);
+
+    if (missingInGemini.length > 0) {
+      console.log('Files in Firestore but not in Gemini:', missingInGemini);
+    }
+    if (orphanedInGemini.length > 0) {
+      console.log('Files in Gemini but not in Firestore:', orphanedInGemini);
+    }
+
+    return {
+      success: true,
+      message: 'Verification complete',
+      firestoreCount: firestoreFiles.size,
+      geminiCount: geminiFiles.length,
+      missingInGemini: missingInGemini.length > 0 ? missingInGemini : undefined,
+      orphanedInGemini: orphanedInGemini.length > 0 ? orphanedInGemini : undefined,
+    };
+
+  } catch (error: any) {
+    console.error('❌ Verification failed:', error);
+    return {
+      success: false,
+      message: `Verification failed: ${error.message}`,
+    };
+  }
+}
+
+async function filterGroundingChunksBySelectedFiles(
+  partnerId: string,
+  groundingChunks: any[],
+  selectedFileIds: string[]
+): Promise<any[]> {
+  if (!db || selectedFileIds.length === 0 || groundingChunks.length === 0) {
+    return groundingChunks;
+  }
+
+  try {
+    const fileDocsPromises = selectedFileIds.map(fileId =>
+      db!.collection(`partners/${partnerId}/vaultFiles`).doc(fileId).get()
+    );
+    
+    const fileDocs = await Promise.all(fileDocsPromises);
+    
+    const selectedFileIdentifiers = new Set<string>();
+    
+    fileDocs.forEach(fileDoc => {
+      if (fileDoc.exists) {
+        const data = fileDoc.data();
+        if (data?.displayName) {
+          selectedFileIdentifiers.add(data.displayName.toLowerCase());
+        }
+        if (data?.name) {
+          selectedFileIdentifiers.add(data.name.toLowerCase());
+        }
+        if (data?.geminiFileName) {
+          selectedFileIdentifiers.add(data.geminiFileName.toLowerCase());
+        }
+        if (data?.firebaseStoragePath) {
+          selectedFileIdentifiers.add(data.firebaseStoragePath.toLowerCase());
+        }
+        selectedFileIdentifiers.add(fileDoc.id.toLowerCase());
+      }
+    });
+
+    if (selectedFileIdentifiers.size === 0) {
+      console.log('⚠️ No valid file identifiers found, returning all chunks');
+      return groundingChunks;
+    }
+
+    console.log(`🔍 Filtering with ${selectedFileIdentifiers.size} unique identifiers`);
+
+    const filteredChunks = groundingChunks.filter((chunk: any) => {
+      const title = chunk.retrievedContext?.title?.toLowerCase() || '';
+      const uri = chunk.retrievedContext?.uri?.toLowerCase() || '';
+      
+      for (const identifier of selectedFileIdentifiers) {
+        if (title.includes(identifier) || uri.includes(identifier)) {
+          return true;
+        }
+      }
+      
+      return false;
+    });
+
+    console.log(`🔍 Filtered chunks: ${groundingChunks.length} -> ${filteredChunks.length}`);
+    
+    if (filteredChunks.length === 0 && groundingChunks.length > 0) {
+      console.log('⚠️ Filtering removed all chunks, returning original');
+      return groundingChunks;
+    }
+    
+    return filteredChunks;
+  } catch (error) {
+    console.error('Error filtering chunks:', error);
+    return groundingChunks;
+  }
+}
+
+export async function chatWithVault(
+  partnerId: string,
+  userId: string,
+  message: string,
+  selectedFileIds?: string[]
+): Promise<{
+  success: boolean;
+  message: string;
+  response?: string;
+  groundingChunks?: GroundingChunk[];
+}> {
+  if (!db) {
+    return { success: false, message: 'Database not available' };
+  }
+
+  try {
+    const storesSnapshot = await db
+      .collection(`partners/${partnerId}/fileSearchStores`)
+      .where('state', '==', 'ACTIVE')
+      .limit(1)
+      .get();
+
+    if (storesSnapshot.empty) {
+      return { 
+        success: false, 
+        message: 'No documents uploaded yet. Please upload documents first.' 
+      };
+    }
+
+    const ragStoreName = storesSnapshot.docs[0].data().name;
+
+    let enhancedMessage = message;
+    let fileNames: string[] = [];
+    
+    if (selectedFileIds && selectedFileIds.length > 0 && selectedFileIds.length < 30) {
+      const fileDocsPromises = selectedFileIds.map(fileId =>
+        db!.collection(`partners/${partnerId}/vaultFiles`).doc(fileId).get()
+      );
+      
+      const fileDocs = await Promise.all(fileDocsPromises);
+      
+      fileDocs.forEach(fileDoc => {
+        if (fileDoc.exists) {
+          const data = fileDoc.data();
+          if (data?.displayName) {
+            fileNames.push(data.displayName);
+          }
+        }
+      });
+      
+      if (fileNames.length > 0) {
+        enhancedMessage = `Context: The user has selected specific documents to query: ${fileNames.join(', ')}.
+
+User Question: ${message}
+
+CRITICAL INSTRUCTIONS: 
+1. ONLY use information from the documents listed above
+2. If the answer is not in these specific documents, say "I don't see that information in the selected documents"
+3. DO NOT mix information from other documents in the knowledge base
+
+Answer:`;
+      }
+    }
+
+    console.log(`📊 Query initiated - Selected files: ${fileNames.length}`);
+
+    const response = await genAI.models.generateContent({
+      model: 'gemini-2.5-flash',
+      contents: enhancedMessage,
+      config: {
+        temperature: 0.3,
+        maxOutputTokens: 800,
+        tools: [
+          {
+            fileSearch: {
+              fileSearchStoreNames: [ragStoreName],
+            }
+          }
+        ]
+      }
+    });
+
+    let groundingChunks = response.candidates?.[0]?.groundingMetadata?.groundingChunks || [];
+    const responseText = response.text;
+
+    console.log(`📦 Chunks before filtering: ${groundingChunks.length}`);
+
+    if (selectedFileIds && selectedFileIds.length > 0) {
+      groundingChunks = await filterGroundingChunksBySelectedFiles(
+        partnerId,
+        groundingChunks,
+        selectedFileIds
+      );
+      
+      console.log(`✅ Chunks after filtering: ${groundingChunks.length}`);
+    }
+
+    await db.collection(`partners/${partnerId}/vaultQueries`).add({
+      query: message,
+      response: responseText,
+      partnerId: partnerId,
+      userId: userId,
+      selectedFileIds: selectedFileIds || [],
+      selectedFileNames: fileNames,
+      chunksBeforeFilter: response.candidates?.[0]?.groundingMetadata?.groundingChunks?.length || 0,
+      chunksAfterFilter: groundingChunks.length,
+      createdAt: FieldValue.serverTimestamp(),
+    });
+
+    return {
+      success: true,
+      message: 'Query successful',
+      response: responseText,
+      groundingChunks: groundingChunks,
+    };
+  } catch (error: any) {
+    console.error('Error querying vault:', error);
+    return {
+      success: false,
+      message: `Query failed: ${error.message}`,
     };
   }
 }
@@ -276,6 +775,7 @@ export async function createTrainingDataFile(
   const timestamp = Date.now();
   const fileName = `${datasetName.replace(/[^a-z0-9]/gi, '_')}_${timestamp}.md`;
   const storagePath = `vault/${partnerId}/${fileName}`;
+  
   let fileDocRef: FirebaseFirestore.DocumentReference | null = null;
 
   try {
@@ -305,13 +805,12 @@ export async function createTrainingDataFile(
       .add(initialVaultFile);
 
     console.log('🔵 Uploading to Firebase Storage');
-    const file = bucket.file(storagePath);
-    await file.save(buffer, {
+    await bucket.file(storagePath).save(buffer, {
       metadata: {
         contentType: 'text/markdown',
-        metadata: {
-          partnerId,
-          uploadedBy: userId,
+        metadata: { 
+          partnerId, 
+          uploadedBy: userId, 
           datasetName,
           vaultFileId: fileDocRef.id,
         }
@@ -334,18 +833,10 @@ export async function createTrainingDataFile(
       await delay(3000);
       op = await genAI.operations.get({ operation: op });
       attempts++;
-      
-      if (attempts % 5 === 0) {
-        console.log(`⏳ Processing (${attempts * 3}s)`);
-      }
     }
 
-    if (!op.done) {
-      throw new Error('Upload timeout');
-    }
-
-    if (op.error) {
-      throw new Error(`Upload failed: ${op.error.message || 'Unknown error'}`);
+    if (!op.done || op.error) {
+      throw new Error(op.error?.message || 'Upload failed');
     }
 
     const uploadedFileName = (op.response as any)?.file?.name || fileName;
@@ -467,7 +958,7 @@ export async function updateTrainingDataFile(
     const uploadedFileName = (op.response as any)?.file?.name || fileName;
 
     console.log('🔵 Cleaning up old RAG file');
-    if (oldFileData?.geminiFileName && oldFileData?.geminiFileUri) {
+    if (oldFileData?.geminiFileName) {
       try {
         await genAI.files.delete({ name: oldFileData.geminiFileName });
         console.log('✅ Deleted old RAG file:', oldFileData.geminiFileName);
@@ -581,265 +1072,6 @@ export async function getVaultFileContent(
     return {
       success: false,
       message: `Failed to fetch content: ${error.message}`,
-    };
-  }
-}
-
-export async function deleteVaultFile(
-  partnerId: string,
-  fileId: string
-): Promise<{ success: boolean; message: string }> {
-  if (!db) {
-    return { success: false, message: 'Database not available' };
-  }
-
-  try {
-    console.log('🔵 Step 1: Fetching file record');
-    const fileDoc = await db
-      .collection(`partners/${partnerId}/vaultFiles`)
-      .doc(fileId)
-      .get();
-
-    if (!fileDoc.exists) {
-      return { success: false, message: 'File not found' };
-    }
-
-    const fileData = fileDoc.data();
-    
-    console.log('🔵 Step 2: Deleting from Gemini RAG store');
-    if (fileData?.geminiFileName) {
-      try {
-        await genAI.files.delete({ name: fileData.geminiFileName });
-        console.log('✅ Deleted file from RAG store:', fileData.geminiFileName);
-      } catch (ragError: any) {
-        console.warn('⚠️  Could not delete from RAG store:', ragError.message);
-      }
-    } else {
-      console.log('⚠️  No Gemini file name found, skipping RAG cleanup');
-    }
-
-    console.log('🔵 Step 3: Deleting from Firebase Storage');
-    if (fileData?.firebaseStoragePath) {
-      const storage = getStorage();
-      const bucket = storage.bucket();
-      const file = bucket.file(fileData.firebaseStoragePath);
-      
-      try {
-        await file.delete();
-        console.log('✅ Deleted file from storage');
-      } catch (error) {
-        console.warn('⚠️  Could not delete from storage:', error);
-      }
-    }
-
-    console.log('🔵 Step 4: Deleting Firestore record');
-    await db
-      .collection(`partners/${partnerId}/vaultFiles`)
-      .doc(fileId)
-      .delete();
-
-    console.log('✅ File deleted successfully');
-
-    return { success: true, message: 'File deleted successfully' };
-  } catch (error: any) {
-    console.error('❌ Error deleting vault file:', error);
-    return {
-      success: false,
-      message: `Failed to delete file: ${error.message}`,
-    };
-  }
-}
-
-async function filterGroundingChunksBySelectedFiles(
-  partnerId: string,
-  groundingChunks: any[],
-  selectedFileIds: string[]
-): Promise<any[]> {
-  if (!db || selectedFileIds.length === 0 || groundingChunks.length === 0) {
-    return groundingChunks;
-  }
-
-  try {
-    const fileDocsPromises = selectedFileIds.map(fileId =>
-      db!.collection(`partners/${partnerId}/vaultFiles`).doc(fileId).get()
-    );
-    
-    const fileDocs = await Promise.all(fileDocsPromises);
-    
-    const selectedFileNames = new Set<string>();
-    const selectedDisplayNames = new Set<string>();
-    const selectedStoragePaths = new Set<string>();
-    
-    fileDocs.forEach(fileDoc => {
-      if (fileDoc.exists) {
-        const data = fileDoc.data();
-        if (data?.displayName) {
-          selectedFileNames.add(data.displayName.toLowerCase());
-          selectedDisplayNames.add(data.displayName.toLowerCase());
-        }
-        if (data?.name) {
-          selectedFileNames.add(data.name.toLowerCase());
-        }
-        if (data?.firebaseStoragePath) {
-          selectedStoragePaths.add(data.firebaseStoragePath.toLowerCase());
-        }
-        selectedFileNames.add(fileDoc.id.toLowerCase());
-      }
-    });
-
-    if (selectedFileNames.size === 0) {
-      console.log('⚠️ No valid file names found for filtering, returning all chunks');
-      return groundingChunks;
-    }
-
-    console.log(`🔍 Filtering with ${selectedFileNames.size} unique identifiers`);
-
-    const filteredChunks = groundingChunks.filter((chunk: any) => {
-      const title = chunk.retrievedContext?.title?.toLowerCase() || '';
-      const uri = chunk.retrievedContext?.uri?.toLowerCase() || '';
-      
-      for (const identifier of selectedFileNames) {
-        if (title.includes(identifier) || uri.includes(identifier)) {
-          return true;
-        }
-      }
-      
-      for (const path of selectedStoragePaths) {
-        if (uri.includes(path)) {
-          return true;
-        }
-      }
-      
-      return false;
-    });
-
-    console.log(`🔍 Filtered chunks: ${groundingChunks.length} -> ${filteredChunks.length}`);
-    
-    if (filteredChunks.length === 0 && groundingChunks.length > 0) {
-      console.log('⚠️ Filtering removed all chunks, returning original');
-      return groundingChunks;
-    }
-    
-    return filteredChunks;
-  } catch (error) {
-    console.error('Error filtering chunks:', error);
-    return groundingChunks;
-  }
-}
-
-export async function chatWithVault(
-  partnerId: string,
-  userId: string,
-  message: string,
-  selectedFileIds?: string[]
-): Promise<{
-  success: boolean;
-  message: string;
-  response?: string;
-  groundingChunks?: GroundingChunk[];
-}> {
-  if (!db) {
-    return { success: false, message: 'Database not available' };
-  }
-
-  try {
-    const storesSnapshot = await db
-      .collection(`partners/${partnerId}/fileSearchStores`)
-      .where('state', '==', 'ACTIVE')
-      .limit(1)
-      .get();
-
-    if (storesSnapshot.empty) {
-      return { 
-        success: false, 
-        message: 'No documents uploaded yet. Please upload documents first.' 
-      };
-    }
-
-    const ragStoreName = storesSnapshot.docs[0].data().name;
-
-    let enhancedMessage = message;
-    let fileNames: string[] = [];
-    
-    if (selectedFileIds && selectedFileIds.length > 0 && selectedFileIds.length < 30) {
-      const fileDocsPromises = selectedFileIds.map(fileId =>
-        db!.collection(`partners/${partnerId}/vaultFiles`).doc(fileId).get()
-      );
-      
-      const fileDocs = await Promise.all(fileDocsPromises);
-      
-      fileDocs.forEach(fileDoc => {
-        if (fileDoc.exists) {
-          const data = fileDoc.data();
-          if (data?.displayName) {
-            fileNames.push(data.displayName);
-          }
-        }
-      });
-      
-      if (fileNames.length > 0) {
-        enhancedMessage = `Context: The user has selected specific documents to query: ${fileNames.join(', ')}.
-
-User Question: ${message}
-
-Instructions: Focus your answer primarily on information from the documents listed above.`;
-      }
-    }
-
-    console.log(`📊 Query initiated - Selected files: ${fileNames.length}`);
-
-    const response = await genAI.models.generateContent({
-      model: 'gemini-2.5-flash',
-      contents: enhancedMessage + " DO NOT ASK THE USER TO READ THE DOCUMENT, pinpoint the relevant sections in the response itself.",
-      config: {
-        tools: [
-          {
-            fileSearch: {
-              fileSearchStoreNames: [ragStoreName],
-            }
-          }
-        ]
-      }
-    });
-
-    let groundingChunks = response.candidates?.[0]?.groundingMetadata?.groundingChunks || [];
-    const responseText = response.text;
-
-    console.log(`📦 Chunks before filtering: ${groundingChunks.length}`);
-
-    if (selectedFileIds && selectedFileIds.length > 0) {
-      groundingChunks = await filterGroundingChunksBySelectedFiles(
-        partnerId,
-        groundingChunks,
-        selectedFileIds
-      );
-      
-      console.log(`✅ Chunks after filtering: ${groundingChunks.length}`);
-    }
-
-    await db.collection(`partners/${partnerId}/vaultQueries`).add({
-      query: message,
-      response: responseText,
-      partnerId: partnerId,
-      userId: userId,
-      selectedFileIds: selectedFileIds || [],
-      selectedFileNames: fileNames,
-      chunksBeforeFilter: response.candidates?.[0]?.groundingMetadata?.groundingChunks?.length || 0,
-      chunksAfterFilter: groundingChunks.length,
-      createdAt: FieldValue.serverTimestamp(),
-    });
-
-    return {
-      success: true,
-      message: 'Query successful',
-      response: responseText,
-      groundingChunks: groundingChunks,
-    };
-  } catch (error: any) {
-    console.error('Error querying vault:', error);
-    return {
-      success: false,
-      message: `Query failed: ${error.message}`,
     };
   }
 }
@@ -975,6 +1207,44 @@ export async function listFileSearchStores(
   }
 }
 
+export async function getVaultFileStatus(
+  partnerId: string,
+  fileId: string
+): Promise<{ 
+  success: boolean; 
+  state?: 'PROCESSING' | 'ACTIVE' | 'FAILED';
+  processingStep?: number;
+  processingDescription?: string;
+  errorMessage?: string;
+}> {
+  if (!db) {
+    return { success: false };
+  }
+
+  try {
+    const fileDoc = await db
+      .collection(`partners/${partnerId}/vaultFiles`)
+      .doc(fileId)
+      .get();
+
+    if (!fileDoc.exists) {
+      return { success: false };
+    }
+
+    const data = fileDoc.data();
+    return {
+      success: true,
+      state: data?.state,
+      processingStep: data?.processingStep || 1,
+      processingDescription: data?.processingDescription || 'Processing...',
+      errorMessage: data?.errorMessage,
+    };
+  } catch (error) {
+    console.error('Error getting file status:', error);
+    return { success: false };
+  }
+}
+
 async function getConversationContext(
   conversationId: string,
   platform: 'sms' | 'whatsapp',
@@ -998,62 +1268,24 @@ async function getConversationContext(
     const messages = messagesSnapshot.docs
       .map(doc => {
         const data = doc.data();
-        return `${data.direction === 'inbound' ? 'Customer' : 'Partner'}: ${data.content}`;
+        return `${data.direction === 'inbound' ? 'Customer' : 'You'}: ${data.content}`;
       })
-      .reverse();
+      .reverse()
+      .join('\n');
 
-    return messages.join('\n');
+    return messages;
   } catch (error) {
     console.error('Error getting conversation context:', error);
     return '';
   }
 }
 
-async function generateAlternativeReplies(
-  originalReply: string,
-  userMessage: string,
-  count: number = 2
-): Promise<string[]> {
-  try {
-    const prompt = `Given this customer message: "${userMessage}"
-And this suggested reply: "${originalReply}"
-
-Generate ${count} alternative ways to respond that convey the same information but with different wording or tone.
-Return only the alternative responses, one per line, without numbering.`;
-
-    const response = await genAI.models.generateContent({
-      model: 'gemini-2.5-flash',
-      contents: prompt,
-    });
-
-    let text = '';
-    try {
-      text = response.text || '';
-    } catch {
-      if (response.candidates?.[0]?.content?.parts?.[0]?.text) {
-        text = response.candidates[0].content.parts[0].text;
-      }
-    }
-
-    if (!text?.trim()) return [];
-    
-    return text
-      .split('\n')
-      .map(line => line.trim())
-      .filter(line => line.length > 0)
-      .slice(0, count);
-  } catch (error) {
-    console.error('Error generating alternatives:', error);
-    return [];
-  }
-}
-
-export async function chatWithVaultForConversation(
+export async function queryConversationRAGFast(
   partnerId: string,
   conversationId: string,
   platform: 'sms' | 'whatsapp',
   message: string,
-  options?: {
+  options: {
     includeAlternatives?: boolean;
   }
 ): Promise<{
@@ -1081,7 +1313,7 @@ export async function chatWithVaultForConversation(
       getConversationContext(conversationId, platform, 5)
     ]);
 
-    console.log(`⏱️  Data: ${Date.now() - startTime}ms`);
+    console.log(`⏱️ Data: ${Date.now() - startTime}ms`);
 
     if (!conversationDoc.exists) {
       return { success: false, message: 'Conversation not found' };
@@ -1122,7 +1354,7 @@ Reply:`;
       },
     });
 
-    console.log(`⏱️  Gemini: ${Date.now() - queryStart}ms`);
+    console.log(`⏱️ Gemini: ${Date.now() - queryStart}ms`);
 
     let responseText = '';
     
@@ -1130,7 +1362,7 @@ Reply:`;
       responseText = response.text || '';
       console.log('✅ Got via response.text');
     } catch (textError: any) {
-      console.warn('⚠️  Trying manual');
+      console.warn('⚠️ Trying manual');
       
       try {
         const parts = response.candidates?.[0]?.content?.parts;
@@ -1257,60 +1489,5 @@ Reply:`;
       success: false,
       message: `Error: ${error.message}`,
     };
-  }
-}
-export async function getVaultFileStatus(
-  partnerId: string,
-  fileId: string
-): Promise<{ 
-  success: boolean; 
-  state?: 'PROCESSING' | 'ACTIVE' | 'FAILED';
-  processingStep?: number;
-  processingDescription?: string;
-  errorMessage?: string;
-}> {
-  if (!db) {
-    return { success: false };
-  }
-
-  try {
-    const fileDoc = await db
-      .collection(`partners/${partnerId}/vaultFiles`)
-      .doc(fileId)
-      .get();
-
-    if (!fileDoc.exists) {
-      return { success: false };
-    }
-
-    const data = fileDoc.data();
-    return {
-      success: true,
-      state: data?.state,
-      processingStep: data?.processingStep || 1,
-      processingDescription: data?.processingDescription || 'Processing...',
-      errorMessage: data?.errorMessage,
-    };
-  } catch (error) {
-    console.error('Error getting file status:', error);
-    return { success: false };
-  }
-}
-
-
-async function updateFileProgress(
-  fileDocRef: FirebaseFirestore.DocumentReference,
-  step: number,
-  description: string
-) {
-  try {
-    await fileDocRef.update({
-      processingStep: step,
-      processingDescription: description,
-      updatedAt: FieldValue.serverTimestamp(),
-    });
-    console.log(`📊 Progress: Step ${step} - ${description}`);
-  } catch (error) {
-    console.warn('Failed to update progress:', error);
   }
 }

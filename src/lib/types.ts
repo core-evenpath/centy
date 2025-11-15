@@ -534,10 +534,6 @@ export interface Campaign {
   sentAt?: any;
 }
 
-// ============================================================================
-// UPDATED CONTACT INTERFACE WITH GENERIC CRM FIELDS
-// ============================================================================
-
 export interface Contact {
   id: string;
   partnerId: string;
@@ -1223,15 +1219,25 @@ export interface VaultFile {
   partnerId: string;
   geminiFileUri?: string;
   geminiFileName?: string;
+  geminiUploadedAt?: string;
   createdAt: string;
   errorMessage?: string;
   firebaseStoragePath: string;
-  metadata?: any;
+  metadata?: {
+    fileId?: string;
+    partnerId?: string;
+    uploadTimestamp?: number;
+    originalFileName?: string;
+    displayName?: string;
+  };
   sourceType?: 'upload' | 'conversation' | 'training';
   conversationId?: string;
   conversationPlatform?: 'sms' | 'whatsapp';
   customerPhone?: string;
   customerName?: string;
+  processingStep?: number;
+  processingDescription?: string;
+  trainingData?: string;
 }
 
 export interface FileSearchStore {
