@@ -94,7 +94,7 @@ export async function uploadFileToVault(
   userId: string,
   fileData: {
     name: string;
-    buffer: Buffer;
+    base64Data: string;
     mimeType: string;
     displayName: string;
   }
@@ -109,15 +109,20 @@ export async function uploadFileToVault(
   let fileDocRef: FirebaseFirestore.DocumentReference | null = null;
 
   try {
-    console.log('🔵 Step 1: Creating file record with PROCESSING state');
+    console.log('🔵 Step 1: Converting base64 to buffer');
+    const buffer = Buffer.from(fileData.base64Data, 'base64');
+
+    console.log('🔵 Step 2: Creating file record with PROCESSING state');
     
     const initialVaultFile = {
       name: fileData.name,
       displayName: fileData.displayName,
       mimeType: fileData.mimeType,
-      sizeBytes: fileData.buffer.length,
+      sizeBytes: buffer.length,
       uri: storagePath,
       state: 'PROCESSING',
+      processingStep: 1,
+      processingDescription: 'Creating record...',
       uploadedAt: new Date().toISOString(),
       uploadedBy: userId,
       partnerId: partnerId,
@@ -132,10 +137,12 @@ export async function uploadFileToVault(
     
     console.log('✅ File record created with ID:', fileDocRef.id);
 
+    // Step 2: Upload to Storage
+    await updateFileProgress(fileDocRef, 2, 'Uploading to storage...');
     console.log('🔵 Step 2: Uploading to Firebase Storage');
     const file = bucket.file(storagePath);
     
-    await file.save(fileData.buffer, {
+    await file.save(buffer, {
       metadata: {
         contentType: fileData.mimeType,
         metadata: {
@@ -147,11 +154,15 @@ export async function uploadFileToVault(
     });
     console.log('✅ File saved to storage');
 
+    // Step 3: Get RAG Store
+    await updateFileProgress(fileDocRef, 3, 'Storing in vault...');
     console.log('🔵 Step 3: Getting/Creating RAG store');
     const ragStoreName = await getOrCreateRagStore(partnerId);
 
+    // Step 4: RAG Processing
+    await updateFileProgress(fileDocRef, 4, 'RAG processing (AI indexing)...');
     console.log('🔵 Step 4: Creating File object for Gemini upload');
-    const blob = new Blob([fileData.buffer], { type: fileData.mimeType });
+    const blob = new Blob([buffer], { type: fileData.mimeType });
     const uploadFile = new File([blob], fileData.name, { type: fileData.mimeType });
 
     console.log('🔵 Step 5: Uploading to RAG store');
@@ -169,6 +180,11 @@ export async function uploadFileToVault(
       
       if (attempts % 5 === 0) {
         console.log(`⏳ Still processing (${attempts * 3}s)`);
+        await updateFileProgress(
+          fileDocRef, 
+          4, 
+          `RAG processing... (${attempts * 3}s)`
+        );
       }
     }
 
@@ -180,12 +196,18 @@ export async function uploadFileToVault(
       throw new Error(`Gemini upload failed: ${op.error.message || 'Unknown error'}`);
     }
 
-    console.log('✅ File uploaded to Gemini successfully');
+    const uploadedFileName = (op.response as any)?.file?.name || fileData.name;
+    console.log('✅ File uploaded to Gemini successfully:', uploadedFileName);
 
+    // Step 5: Complete
+    await updateFileProgress(fileDocRef, 5, 'Ready to query!');
     console.log('🔵 Step 6: Updating file record to ACTIVE');
     await fileDocRef.update({
       state: 'ACTIVE',
+      processingStep: 5,
+      processingDescription: 'Ready to query',
       geminiFileUri: ragStoreName,
+      geminiFileName: uploadedFileName,
     });
 
     const finalFile = {
@@ -193,6 +215,7 @@ export async function uploadFileToVault(
       ...initialVaultFile,
       state: 'ACTIVE' as const,
       geminiFileUri: ragStoreName,
+      geminiFileName: uploadedFileName,
       createdAt: new Date().toISOString(),
     };
 
@@ -211,6 +234,8 @@ export async function uploadFileToVault(
       try {
         await fileDocRef.update({
           state: 'FAILED',
+          processingStep: -1,
+          processingDescription: 'Upload failed',
           errorMessage: error.message || 'Upload failed',
         });
         console.log('📝 Updated file record to FAILED state');
@@ -323,9 +348,12 @@ export async function createTrainingDataFile(
       throw new Error(`Upload failed: ${op.error.message || 'Unknown error'}`);
     }
 
+    const uploadedFileName = (op.response as any)?.file?.name || fileName;
+
     await fileDocRef.update({
       state: 'ACTIVE',
       geminiFileUri: ragStoreName,
+      geminiFileName: uploadedFileName,
     });
 
     const finalFile = {
@@ -333,6 +361,7 @@ export async function createTrainingDataFile(
       ...initialVaultFile,
       state: 'ACTIVE' as const,
       geminiFileUri: ragStoreName,
+      geminiFileName: uploadedFileName,
       createdAt: new Date().toISOString(),
     };
 
@@ -435,7 +464,19 @@ export async function updateTrainingDataFile(
       throw new Error(op.error?.message || 'Upload failed');
     }
 
-    console.log('🔵 Cleaning up old file');
+    const uploadedFileName = (op.response as any)?.file?.name || fileName;
+
+    console.log('🔵 Cleaning up old RAG file');
+    if (oldFileData?.geminiFileName && oldFileData?.geminiFileUri) {
+      try {
+        await genAI.files.delete({ name: oldFileData.geminiFileName });
+        console.log('✅ Deleted old RAG file:', oldFileData.geminiFileName);
+      } catch (ragError) {
+        console.warn('Could not delete old RAG file:', ragError);
+      }
+    }
+
+    console.log('🔵 Cleaning up old storage file');
     if (oldFileData?.firebaseStoragePath) {
       try {
         await bucket.file(oldFileData.firebaseStoragePath).delete();
@@ -455,6 +496,7 @@ export async function updateTrainingDataFile(
         uri: storagePath,
         firebaseStoragePath: storagePath,
         geminiFileUri: ragStoreName,
+        geminiFileName: uploadedFileName,
         state: 'ACTIVE',
         trainingData: jsonlContent,
         updatedAt: FieldValue.serverTimestamp(),
@@ -471,6 +513,7 @@ export async function updateTrainingDataFile(
       firebaseStoragePath: storagePath,
       state: 'ACTIVE' as const,
       geminiFileUri: ragStoreName,
+      geminiFileName: uploadedFileName,
       uploadedBy: oldFileData?.uploadedBy || userId,
       createdAt: oldFileData?.createdAt || new Date().toISOString(),
       updatedAt: new Date().toISOString(),
@@ -551,6 +594,7 @@ export async function deleteVaultFile(
   }
 
   try {
+    console.log('🔵 Step 1: Fetching file record');
     const fileDoc = await db
       .collection(`partners/${partnerId}/vaultFiles`)
       .doc(fileId)
@@ -562,6 +606,19 @@ export async function deleteVaultFile(
 
     const fileData = fileDoc.data();
     
+    console.log('🔵 Step 2: Deleting from Gemini RAG store');
+    if (fileData?.geminiFileName) {
+      try {
+        await genAI.files.delete({ name: fileData.geminiFileName });
+        console.log('✅ Deleted file from RAG store:', fileData.geminiFileName);
+      } catch (ragError: any) {
+        console.warn('⚠️  Could not delete from RAG store:', ragError.message);
+      }
+    } else {
+      console.log('⚠️  No Gemini file name found, skipping RAG cleanup');
+    }
+
+    console.log('🔵 Step 3: Deleting from Firebase Storage');
     if (fileData?.firebaseStoragePath) {
       const storage = getStorage();
       const bucket = storage.bucket();
@@ -571,20 +628,21 @@ export async function deleteVaultFile(
         await file.delete();
         console.log('✅ Deleted file from storage');
       } catch (error) {
-        console.warn('Could not delete from storage:', error);
+        console.warn('⚠️  Could not delete from storage:', error);
       }
     }
 
+    console.log('🔵 Step 4: Deleting Firestore record');
     await db
       .collection(`partners/${partnerId}/vaultFiles`)
       .doc(fileId)
       .delete();
 
-    console.log('✅ Deleted file record from Firestore');
+    console.log('✅ File deleted successfully');
 
     return { success: true, message: 'File deleted successfully' };
   } catch (error: any) {
-    console.error('Error deleting vault file:', error);
+    console.error('❌ Error deleting vault file:', error);
     return {
       success: false,
       message: `Failed to delete file: ${error.message}`,
@@ -862,6 +920,7 @@ export async function listVaultFiles(
         uploadedBy: data.uploadedBy || '',
         partnerId: data.partnerId || partnerId,
         geminiFileUri: data.geminiFileUri,
+        geminiFileName: data.geminiFileName,
         createdAt: data.createdAt?.toDate ? data.createdAt.toDate().toISOString() : new Date().toISOString(),
         errorMessage: data.errorMessage,
         firebaseStoragePath: data.firebaseStoragePath || data.uri || '',
@@ -1198,5 +1257,60 @@ Reply:`;
       success: false,
       message: `Error: ${error.message}`,
     };
+  }
+}
+export async function getVaultFileStatus(
+  partnerId: string,
+  fileId: string
+): Promise<{ 
+  success: boolean; 
+  state?: 'PROCESSING' | 'ACTIVE' | 'FAILED';
+  processingStep?: number;
+  processingDescription?: string;
+  errorMessage?: string;
+}> {
+  if (!db) {
+    return { success: false };
+  }
+
+  try {
+    const fileDoc = await db
+      .collection(`partners/${partnerId}/vaultFiles`)
+      .doc(fileId)
+      .get();
+
+    if (!fileDoc.exists) {
+      return { success: false };
+    }
+
+    const data = fileDoc.data();
+    return {
+      success: true,
+      state: data?.state,
+      processingStep: data?.processingStep || 1,
+      processingDescription: data?.processingDescription || 'Processing...',
+      errorMessage: data?.errorMessage,
+    };
+  } catch (error) {
+    console.error('Error getting file status:', error);
+    return { success: false };
+  }
+}
+
+
+async function updateFileProgress(
+  fileDocRef: FirebaseFirestore.DocumentReference,
+  step: number,
+  description: string
+) {
+  try {
+    await fileDocRef.update({
+      processingStep: step,
+      processingDescription: description,
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+    console.log(`📊 Progress: Step ${step} - ${description}`);
+  } catch (error) {
+    console.warn('Failed to update progress:', error);
   }
 }

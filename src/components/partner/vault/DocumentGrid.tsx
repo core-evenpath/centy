@@ -9,7 +9,8 @@ import {
   CheckCircle2,
   Clock,
   AlertCircle,
-  Sparkles
+  Sparkles,
+  Loader2
 } from 'lucide-react';
 import type { VaultFile } from '@/lib/types';
 import { formatDistanceToNow } from 'date-fns';
@@ -37,42 +38,34 @@ export default function DocumentGrid({
   onDeleteFile,
   isLoading,
 }: DocumentGridProps) {
-  const getStatusIcon = (state: string) => {
-    switch (state) {
+  const getStatusBadge = (file: VaultFile) => {
+    switch (file.state) {
       case 'ACTIVE':
-        return <CheckCircle2 className="h-3.5 w-3.5 text-green-600" />;
+        return (
+          <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-green-50 border border-green-200">
+              <CheckCircle2 className="h-3.5 w-3.5 text-green-600" />
+              <span className="text-xs font-medium text-green-700">Ready to Query</span>
+            </div>
+            <Sparkles className="h-4 w-4 text-green-600" />
+          </div>
+        );
       case 'PROCESSING':
-        return <Clock className="h-3.5 w-3.5 text-blue-600 animate-pulse" />;
+        return (
+          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-blue-50 border border-blue-200">
+            <Loader2 className="h-3.5 w-3.5 text-blue-600 animate-spin" />
+            <span className="text-xs font-medium text-blue-700">Processing RAG...</span>
+          </div>
+        );
       case 'FAILED':
-        return <AlertCircle className="h-3.5 w-3.5 text-red-600" />;
+        return (
+          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-red-50 border border-red-200">
+            <AlertCircle className="h-3.5 w-3.5 text-red-600" />
+            <span className="text-xs font-medium text-red-700">Failed</span>
+          </div>
+        );
       default:
-        return <FileText className="h-3.5 w-3.5 text-gray-400" />;
-    }
-  };
-
-  const getStatusColor = (state: string) => {
-    switch (state) {
-      case 'ACTIVE':
-        return 'bg-green-50 text-green-700 border-green-200';
-      case 'PROCESSING':
-        return 'bg-blue-50 text-blue-700 border-blue-200';
-      case 'FAILED':
-        return 'bg-red-50 text-red-700 border-red-200';
-      default:
-        return 'bg-gray-50 text-gray-700 border-gray-200';
-    }
-  };
-
-  const getStatusLabel = (state: string) => {
-    switch (state) {
-      case 'ACTIVE':
-        return 'Active';
-      case 'PROCESSING':
-        return 'Processing';
-      case 'FAILED':
-        return 'Failed';
-      default:
-        return 'Unknown';
+        return null;
     }
   };
 
@@ -81,7 +74,7 @@ export default function DocumentGrid({
       <div className="flex items-center justify-center h-full">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading documents...</p>
+          <p className="text-sm text-gray-600">Loading documents...</p>
         </div>
       </div>
     );
@@ -89,86 +82,78 @@ export default function DocumentGrid({
 
   if (files.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center h-full text-center p-8">
-        <div className="bg-gray-100 rounded-full p-6 mb-4">
-          <FileText className="h-12 w-12 text-gray-400" />
+      <div className="flex items-center justify-center h-full">
+        <div className="text-center">
+          <FileText className="h-16 w-16 text-gray-300 mx-auto mb-4" />
+          <h3 className="text-lg font-medium text-gray-900 mb-2">No documents yet</h3>
+          <p className="text-sm text-gray-600 mb-4">Upload your first document to get started</p>
         </div>
-        <h3 className="text-lg font-semibold text-gray-900 mb-2">
-          No documents found
-        </h3>
-        <p className="text-gray-600 max-w-sm">
-          Upload your first document to start building your AI knowledge base
-        </p>
       </div>
     );
   }
 
   if (viewMode === 'list') {
     return (
-      <div className="space-y-1">
+      <div className="space-y-2">
         {files.map((file) => (
           <div
             key={file.id}
             onClick={() => onSelectFile(file)}
-            className={`group flex items-center gap-3 px-3 py-2.5 bg-white rounded-lg border cursor-pointer transition-all hover:shadow-sm ${
+            className={`flex items-center gap-4 p-4 rounded-lg border transition-all cursor-pointer ${
               selectedFile?.id === file.id
-                ? 'border-blue-500 bg-blue-50'
-                : 'border-gray-200 hover:border-gray-300'
+                ? 'border-blue-500 bg-blue-50 shadow-sm'
+                : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
             }`}
           >
-            {/* File Icon */}
-            <div className={`flex-shrink-0 w-9 h-9 rounded-lg flex items-center justify-center ${
-              file.state === 'ACTIVE' ? 'bg-blue-50' : 'bg-gray-50'
+            <div className={`w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 ${
+              file.state === 'ACTIVE' 
+                ? 'bg-gradient-to-br from-blue-500 to-indigo-600' 
+                : file.state === 'PROCESSING'
+                ? 'bg-gradient-to-br from-blue-400 to-blue-500'
+                : 'bg-gradient-to-br from-gray-400 to-gray-500'
             }`}>
-              <FileText className={`h-4 w-4 ${
-                file.state === 'ACTIVE' ? 'text-blue-600' : 'text-gray-400'
-              }`} />
+              <FileText className="h-5 w-5 text-white" />
             </div>
 
-            {/* File Info */}
             <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2 mb-0.5">
-                <h4 className="text-sm font-medium text-gray-900 truncate">
+              <div className="flex items-center gap-2 mb-1.5">
+                <h3 className="text-sm font-medium text-gray-900 truncate">
                   {file.displayName}
-                </h4>
-                {file.state === 'ACTIVE' && (
-                  <Sparkles className="h-3 w-3 text-green-600 flex-shrink-0" />
+                </h3>
+                {getStatusBadge(file)}
+              </div>
+              <div className="flex items-center gap-3 text-xs text-gray-500">
+                <span>{(file.sizeBytes / 1024).toFixed(2)} KB</span>
+                <span>•</span>
+                <span>{formatDistanceToNow(new Date(file.uploadedAt), { addSuffix: true })}</span>
+                {file.errorMessage && (
+                  <>
+                    <span>•</span>
+                    <span className="text-red-600 truncate max-w-xs">{file.errorMessage}</span>
+                  </>
                 )}
               </div>
-              <p className="text-xs text-gray-500">
-                {(file.sizeBytes / 1024 / 1024).toFixed(2)} MB • {file.createdAt ? formatDistanceToNow(new Date(file.createdAt), { addSuffix: true }) : 'Unknown date'}
-              </p>
             </div>
 
-            {/* Status Badge */}
-            <div className={`flex-shrink-0 flex items-center gap-1.5 px-2 py-1 rounded-md border text-xs font-medium ${getStatusColor(file.state)}`}>
-              {getStatusIcon(file.state)}
-              {getStatusLabel(file.state)}
-            </div>
-
-            {/* Actions Menu */}
             <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <button
-                  onClick={(e) => e.stopPropagation()}
-                  className="flex-shrink-0 p-1.5 opacity-0 group-hover:opacity-100 hover:bg-gray-100 rounded transition-opacity"
-                >
+              <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+                <button className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
                   <MoreVertical className="h-4 w-4 text-gray-600" />
                 </button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-40">
-                <DropdownMenuItem>
-                  <Download className="h-3.5 w-3.5 mr-2" />
-                  Download
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => onSelectFile(file)}>
+                  <FileText className="h-4 w-4 mr-2" />
+                  View Details
                 </DropdownMenuItem>
-                <DropdownMenuItem
+                <DropdownMenuItem 
                   onClick={(e) => {
                     e.stopPropagation();
-                    onDeleteFile(file.id);
+                    if (file.id) onDeleteFile(file.id);
                   }}
                   className="text-red-600"
                 >
-                  <Trash2 className="h-3.5 w-3.5 mr-2" />
+                  <Trash2 className="h-4 w-4 mr-2" />
                   Delete
                 </DropdownMenuItem>
               </DropdownMenuContent>
@@ -179,81 +164,76 @@ export default function DocumentGrid({
     );
   }
 
-  // Grid View
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
       {files.map((file) => (
         <div
           key={file.id}
           onClick={() => onSelectFile(file)}
-          className={`group relative bg-white rounded-lg border p-3 cursor-pointer transition-all hover:shadow-md ${
+          className={`group relative p-4 rounded-lg border transition-all cursor-pointer ${
             selectedFile?.id === file.id
-              ? 'border-blue-500 ring-2 ring-blue-100'
-              : 'border-gray-200 hover:border-gray-300'
+              ? 'border-blue-500 bg-blue-50 shadow-md'
+              : 'border-gray-200 hover:border-gray-300 hover:shadow-sm'
           }`}
         >
-          {/* Header */}
           <div className="flex items-start justify-between mb-3">
-            <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
-              file.state === 'ACTIVE' ? 'bg-blue-50' : 'bg-gray-50'
+            <div className={`w-12 h-12 rounded-lg flex items-center justify-center flex-shrink-0 ${
+              file.state === 'ACTIVE' 
+                ? 'bg-gradient-to-br from-blue-500 to-indigo-600' 
+                : file.state === 'PROCESSING'
+                ? 'bg-gradient-to-br from-blue-400 to-blue-500'
+                : 'bg-gradient-to-br from-gray-400 to-gray-500'
             }`}>
-              <FileText className={`h-5 w-5 ${
-                file.state === 'ACTIVE' ? 'text-blue-600' : 'text-gray-400'
-              }`} />
+              <FileText className="h-6 w-6 text-white" />
             </div>
-
             <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <button
-                  onClick={(e) => e.stopPropagation()}
-                  className="p-1.5 opacity-0 group-hover:opacity-100 hover:bg-gray-100 rounded transition-opacity"
-                >
+              <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+                <button className="opacity-0 group-hover:opacity-100 p-1.5 hover:bg-gray-100 rounded transition-all">
                   <MoreVertical className="h-4 w-4 text-gray-600" />
                 </button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-40">
-                <DropdownMenuItem>
-                  <Download className="h-3.5 w-3.5 mr-2" />
-                  Download
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => onSelectFile(file)}>
+                  <FileText className="h-4 w-4 mr-2" />
+                  View Details
                 </DropdownMenuItem>
-                <DropdownMenuItem
+                <DropdownMenuItem 
                   onClick={(e) => {
                     e.stopPropagation();
-                    onDeleteFile(file.id);
+                    if (file.id) onDeleteFile(file.id);
                   }}
                   className="text-red-600"
                 >
-                  <Trash2 className="h-3.5 w-3.5 mr-2" />
+                  <Trash2 className="h-4 w-4 mr-2" />
                   Delete
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
 
-          {/* Content */}
+          <h3 className="text-sm font-medium text-gray-900 mb-2 truncate" title={file.displayName}>
+            {file.displayName}
+          </h3>
+
           <div className="mb-3">
-            <h4 className="text-sm font-medium text-gray-900 mb-1 line-clamp-2">
-              {file.displayName}
-            </h4>
-            <p className="text-xs text-gray-500">
-              {(file.sizeBytes / 1024 / 1024).toFixed(2)} MB
-            </p>
+            {getStatusBadge(file)}
           </div>
 
-          {/* Footer */}
-          <div className="flex items-center justify-between pt-3 border-t border-gray-100">
-            <div className={`flex items-center gap-1.5 px-2 py-0.5 rounded-md border text-xs font-medium ${getStatusColor(file.state)}`}>
-              {getStatusIcon(file.state)}
-              {getStatusLabel(file.state)}
+          <div className="space-y-1 text-xs text-gray-500">
+            <div className="flex items-center gap-2">
+              <span className="font-medium">Size:</span>
+              <span>{(file.sizeBytes / 1024).toFixed(2)} KB</span>
             </div>
-            {file.state === 'ACTIVE' && (
-              <Sparkles className="h-3.5 w-3.5 text-green-600" />
+            <div className="flex items-center gap-2">
+              <span className="font-medium">Uploaded:</span>
+              <span>{formatDistanceToNow(new Date(file.uploadedAt), { addSuffix: true })}</span>
+            </div>
+            {file.errorMessage && (
+              <div className="text-red-600 text-xs mt-2 truncate" title={file.errorMessage}>
+                Error: {file.errorMessage}
+              </div>
             )}
           </div>
-
-          <p className="text-[10px] text-gray-400 mt-2">
-            {file.createdAt ? formatDistanceToNow(new Date(file.createdAt), { addSuffix: true }) : 'Unknown date'}
-          </p>
         </div>
       ))}
     </div>

@@ -12,7 +12,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { useUploadManager } from '@/hooks/use-upload-manager';
+import { uploadFileToVault, getVaultFileStatus } from '@/actions/vault-actions';
 
 interface UploadDialogProps {
   isOpen: boolean;
@@ -20,6 +20,10 @@ interface UploadDialogProps {
   partnerId: string;
   userId: string;
   onUploadComplete: () => void;
+  onUploadStart?: (id: string, fileName: string) => void;
+  onUploadProgress?: (id: string, step: number, description: string) => void;
+  onUploadSuccess?: (id: string) => void;
+  onUploadError?: (id: string, error: string) => void;
 }
 
 export default function UploadDialog({
@@ -28,9 +32,13 @@ export default function UploadDialog({
   partnerId,
   userId,
   onUploadComplete,
+  onUploadStart,
+  onUploadProgress,
+  onUploadSuccess,
+  onUploadError,
 }: UploadDialogProps) {
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
-  const { startUpload } = useUploadManager();
+  const [isUploading, setIsUploading] = useState(false);
   const { toast } = useToast();
 
   const onDrop = useCallback((acceptedFiles: File[]) => {
@@ -51,36 +59,123 @@ export default function UploadDialog({
     setSelectedFiles((prev) => prev.filter((_, i) => i !== index));
   };
 
+  const fileToBase64 = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const base64 = (reader.result as string).split(',')[1];
+        resolve(base64);
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  };
+
+  const pollFileStatus = async (
+    uploadId: string,
+    fileId: string,
+    partnerId: string
+  ) => {
+    const maxAttempts = 60; // 3 minutes max
+    let attempts = 0;
+    
+    const poll = async (): Promise<void> => {
+      if (attempts >= maxAttempts) {
+        onUploadError?.(uploadId, 'Upload timeout - please refresh to check status');
+        return;
+      }
+  
+      attempts++;
+  
+      try {
+        const status = await getVaultFileStatus(partnerId, fileId);
+        
+        if (!status.success) {
+          await new Promise(resolve => setTimeout(resolve, 3000));
+          return poll();
+        }
+  
+        const { state, processingStep, processingDescription, errorMessage } = status;
+  
+        if (state === 'PROCESSING') {
+          // Update with REAL backend progress
+          onUploadProgress?.(
+            uploadId, 
+            processingStep || 1, 
+            processingDescription || 'Processing...'
+          );
+          
+          await new Promise(resolve => setTimeout(resolve, 2000));
+          return poll();
+        } else if (state === 'ACTIVE') {
+          onUploadProgress?.(uploadId, 5, 'Complete! Ready to query.');
+          onUploadSuccess?.(uploadId);
+          return;
+        } else if (state === 'FAILED') {
+          onUploadError?.(uploadId, errorMessage || 'Upload failed');
+          return;
+        }
+      } catch (error) {
+        console.error('Error polling status:', error);
+        await new Promise(resolve => setTimeout(resolve, 3000));
+        return poll();
+      }
+    };
+  
+    poll();
+  };
+
   const handleUpload = async () => {
     if (selectedFiles.length === 0) return;
 
-    // Close dialog immediately
+    setIsUploading(true);
     const filesToUpload = [...selectedFiles];
     setSelectedFiles([]);
-    onClose();
 
-    // Show background processing notification
-    toast({
-      title: '📤 Upload started',
-      description: `Processing ${filesToUpload.length} document${
-        filesToUpload.length > 1 ? 's' : ''
-      } in the background...`,
-    });
-
-    // Process uploads in background with individual toasts
-    let completedCount = 0;
     for (const file of filesToUpload) {
-      startUpload(file, partnerId, userId, () => {
-        completedCount++;
-        if (completedCount === filesToUpload.length) {
-          // All uploads complete - refresh the file list
-          onUploadComplete();
-        }
-      });
+      const uploadId = `upload-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+      
+      try {
+        // Step 1: Start upload
+        onUploadStart?.(uploadId, file.name);
+        onUploadProgress?.(uploadId, 1, 'Preparing file...');
 
-      // Stagger uploads slightly to avoid overwhelming the UI
+        // Convert file to base64
+        const base64Data = await fileToBase64(file);
+
+        onUploadProgress?.(uploadId, 2, 'Uploading to server...');
+
+        // Step 2: Call server action
+        const result = await uploadFileToVault(partnerId, userId, {
+          name: file.name,
+          base64Data: base64Data,
+          mimeType: file.type,
+          displayName: file.name,
+        });
+
+        if (result.success && result.file?.id) {
+          // Step 3: Poll for status updates
+          onUploadProgress?.(uploadId, 3, 'Processing...');
+          pollFileStatus(uploadId, result.file.id, partnerId);
+          onUploadComplete();
+        } else {
+          throw new Error(result.message);
+        }
+      } catch (error: any) {
+        console.error('Upload error:', error);
+        onUploadError?.(uploadId, error.message || 'Upload failed');
+        toast({
+          title: 'Upload failed',
+          description: `${file.name}: ${error.message}`,
+          variant: 'destructive',
+        });
+      }
+
       await new Promise((resolve) => setTimeout(resolve, 100));
     }
+
+    setIsUploading(false);
+    onClose();
   };
 
   return (
@@ -99,24 +194,20 @@ export default function UploadDialog({
             className={`border-2 border-dashed rounded-xl p-12 text-center cursor-pointer transition-all ${
               isDragActive
                 ? 'border-blue-500 bg-blue-50'
-                : 'border-gray-300 hover:border-blue-400 hover:bg-gray-50'
+                : 'border-gray-300 hover:border-gray-400 hover:bg-gray-50'
             }`}
           >
             <input {...getInputProps()} />
-            <Upload
-              className={`h-12 w-12 mx-auto mb-4 ${
-                isDragActive ? 'text-blue-600' : 'text-gray-400'
-              }`}
-            />
+            <Upload className="h-12 w-12 text-gray-400 mx-auto mb-4" />
             {isDragActive ? (
-              <p className="text-blue-600 font-medium">Drop files here...</p>
+              <p className="text-sm text-blue-600 font-medium">Drop files here...</p>
             ) : (
               <>
-                <p className="text-gray-700 font-medium mb-2">
-                  Drag & drop files here
+                <p className="text-sm text-gray-600 mb-2">
+                  Drag and drop files here, or click to browse
                 </p>
-                <p className="text-sm text-gray-500">
-                  or click to browse • PDF, TXT, MD • Max 100MB
+                <p className="text-xs text-gray-500">
+                  Supported: PDF, TXT, MD (max 100MB)
                 </p>
               </>
             )}
@@ -124,7 +215,7 @@ export default function UploadDialog({
 
           {selectedFiles.length > 0 && (
             <div className="space-y-2">
-              <h4 className="text-sm font-semibold text-gray-700">
+              <h4 className="text-sm font-medium text-gray-700">
                 Selected Files ({selectedFiles.length})
               </h4>
               <div className="max-h-48 overflow-y-auto space-y-2">
@@ -140,13 +231,14 @@ export default function UploadDialog({
                           {file.name}
                         </p>
                         <p className="text-xs text-gray-500">
-                          {(file.size / 1024 / 1024).toFixed(2)} MB
+                          {(file.size / 1024).toFixed(2)} KB
                         </p>
                       </div>
                     </div>
                     <button
                       onClick={() => removeFile(index)}
-                      className="p-1 hover:bg-gray-200 rounded"
+                      className="p-1 hover:bg-gray-200 rounded transition-colors"
+                      disabled={isUploading}
                     >
                       <X className="h-4 w-4 text-gray-600" />
                     </button>
@@ -157,16 +249,14 @@ export default function UploadDialog({
           )}
 
           <div className="flex justify-end gap-3 pt-4">
-            <Button variant="outline" onClick={onClose}>
+            <Button variant="outline" onClick={onClose} disabled={isUploading}>
               Cancel
             </Button>
             <Button
               onClick={handleUpload}
-              disabled={selectedFiles.length === 0}
-              className="bg-blue-600 hover:bg-blue-700"
+              disabled={selectedFiles.length === 0 || isUploading}
             >
-              Upload {selectedFiles.length} Document
-              {selectedFiles.length !== 1 ? 's' : ''}
+              {isUploading ? 'Uploading...' : `Upload ${selectedFiles.length} file${selectedFiles.length !== 1 ? 's' : ''}`}
             </Button>
           </div>
         </div>

@@ -1,4 +1,3 @@
-// src/app/partner/(protected)/vault/page.tsx (update DocumentPreview call)
 'use client';
 
 import React, { useState, useEffect } from 'react';
@@ -25,7 +24,9 @@ import DocumentPreview from '@/components/partner/vault/DocumentPreview';
 import UploadDialog from '@/components/partner/vault/UploadDialog';
 import TestDrawer from '@/components/partner/vault/TestDrawer';
 import TrainingDataDialog from '@/components/partner/vault/TrainingDataDialog';
+import UploadProgressPanel from '@/components/partner/vault/UploadProgressPanel';
 import { useToast } from '@/hooks/use-toast';
+import { useUploadProgress } from '@/hooks/use-upload-progress';
 import type { VaultFile } from '@/lib/types';
 import {
   listVaultFiles,
@@ -48,12 +49,22 @@ export default function VaultPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('list');
   const [showFilters, setShowFilters] = useState(true);
+  const [showUploadProgress, setShowUploadProgress] = useState(false);
   const [filters, setFilters] = useState({
     status: 'all',
     type: 'all',
     dateRange: 'all'
   });
   const { toast } = useToast();
+  const {
+    uploads,
+    startUpload,
+    updateUploadStep,
+    completeUpload,
+    failUpload,
+    clearCompleted,
+    clearAll,
+  } = useUploadProgress();
 
   useEffect(() => {
     if (partnerId && user) {
@@ -69,6 +80,25 @@ export default function VaultPage() {
   useEffect(() => {
     filterFiles();
   }, [files, searchQuery, filters]);
+
+  useEffect(() => {
+    if (!partnerId) return;
+
+    const hasProcessingFiles = files.some(f => f.state === 'PROCESSING');
+    if (!hasProcessingFiles) return;
+
+    const pollInterval = setInterval(() => {
+      loadData(false);
+    }, 5000);
+
+    return () => clearInterval(pollInterval);
+  }, [partnerId, files]);
+
+  useEffect(() => {
+    if (uploads.length > 0) {
+      setShowUploadProgress(true);
+    }
+  }, [uploads]);
 
   const loadData = async (showLoading = true) => {
     if (!partnerId) {
@@ -186,6 +216,25 @@ export default function VaultPage() {
     setIsTrainingDataDialogOpen(false);
   };
 
+  const handleUploadStart = (id: string, fileName: string) => {
+    startUpload(fileName);
+  };
+
+  const handleUploadProgress = (id: string, step: number, description: string) => {
+    updateUploadStep(id, step, description);
+  };
+
+  const handleUploadSuccess = (id: string) => {
+    completeUpload(id);
+    setTimeout(() => {
+      loadData(false);
+    }, 1000);
+  };
+
+  const handleUploadError = (id: string, error: string) => {
+    failUpload(id, error);
+  };
+
   if (authLoading || isLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-gray-50">
@@ -210,6 +259,7 @@ export default function VaultPage() {
   }
 
   const activeFileCount = files.filter(f => f.state === 'ACTIVE').length;
+  const processingFileCount = files.filter(f => f.state === 'PROCESSING').length;
 
   return (
     <>
@@ -270,6 +320,11 @@ export default function VaultPage() {
                   <span className="text-gray-600">
                     {files.length} document{files.length !== 1 ? 's' : ''}
                   </span>
+                  {processingFileCount > 0 && (
+                    <span className="text-blue-600 font-medium">
+                      • {processingFileCount} processing
+                    </span>
+                  )}
                 </div>
 
                 <div className="relative">
@@ -338,7 +393,7 @@ export default function VaultPage() {
             <DocumentPreview
               file={selectedFile}
               onClose={() => setSelectedFile(null)}
-              onDelete={() => handleDeleteFile(selectedFile.id)}
+              onDelete={() => handleDeleteFile(selectedFile.id!)}
               onEdit={handleEditFile}
             />
           )}
@@ -358,12 +413,24 @@ export default function VaultPage() {
         </button>
       )}
 
+      {showUploadProgress && (
+        <UploadProgressPanel
+          uploads={uploads}
+          onClose={() => setShowUploadProgress(false)}
+          onClearCompleted={clearCompleted}
+        />
+      )}
+
       <UploadDialog
         isOpen={isUploadDialogOpen}
         onClose={() => setIsUploadDialogOpen(false)}
         partnerId={partnerId}
         userId={user.uid}
         onUploadComplete={handleUploadComplete}
+        onUploadStart={handleUploadStart}
+        onUploadProgress={handleUploadProgress}
+        onUploadSuccess={handleUploadSuccess}
+        onUploadError={handleUploadError}
       />
 
       <TrainingDataDialog

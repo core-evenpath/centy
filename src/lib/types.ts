@@ -19,7 +19,7 @@ export interface FirebaseAuthUser extends Partial<UserInfo> {
   phoneNumber: string | null;
   emailVerified: boolean;
   customClaims?: {
-    [key: string]: any; // Allow any custom claims
+    [key: string]: any;
     role?: 'Super Admin' | 'Admin' | 'partner_admin' | 'employee';
     partnerId?: string;
   };
@@ -36,8 +36,8 @@ export interface AuthState {
 }
 
 export interface AdminUser {
-  id: string; // This is the UID from Firebase Auth
-  uid?: string; // UID can be optional during creation
+  id: string;
+  uid?: string;
   name: string;
   email: string;
   role: 'Super Admin' | 'Admin';
@@ -551,41 +551,8 @@ export interface Contact {
   updatedAt?: Date | Timestamp;
   isActive?: boolean;
   status?: 'active' | 'inactive';
-  
-  // ===================================================================
-  // GENERIC CRM FIELDS - Applicable to any business type
-  // ===================================================================
-  
-  /**
-   * Lifetime Value - Customer's total value/worth
-   * Examples by industry:
-   * - Financial Services: "$2.4M", "$500K"
-   * - SaaS: "$50K ARR", "$100K"
-   * - Real Estate: "$5M Portfolio", "$1.2M"
-   * - E-commerce: "$10K LTV", "VIP"
-   * - Professional Services: "$250K/year", "High Value"
-   */
   lifetimeValue?: string;
-  
-  /**
-   * Company - Customer's company or organization
-   * Examples:
-   * - "Acme Corp"
-   * - "Tech Solutions Inc"
-   * - "Goldman Sachs"
-   * - "Shopify"
-   */
   company?: string;
-  
-  /**
-   * Category - Customer tier, plan type, or membership level
-   * Examples by industry:
-   * - Financial Services: "Individual Brokerage", "IRA", "Family Trust"
-   * - SaaS: "Enterprise", "Professional", "Starter"
-   * - Real Estate: "Investor", "First-Time Buyer", "Commercial"
-   * - E-commerce: "Premium Member", "Regular", "Wholesale"
-   * - Professional Services: "Retainer", "Project-Based", "Hourly"
-   */
   category?: string;
 }
 
@@ -1255,11 +1222,12 @@ export interface VaultFile {
   uploadedBy: string;
   partnerId: string;
   geminiFileUri?: string;
+  geminiFileName?: string;
   createdAt: string;
   errorMessage?: string;
   firebaseStoragePath: string;
   metadata?: any;
-  sourceType?: 'upload' | 'conversation';
+  sourceType?: 'upload' | 'conversation' | 'training';
   conversationId?: string;
   conversationPlatform?: 'sms' | 'whatsapp';
   customerPhone?: string;
@@ -1305,12 +1273,6 @@ export interface GroundingChunk {
   };
 }
 
-export interface ChatMessage {
-  role: 'user' | 'model';
-  parts: { text: string }[];
-  groundingChunks?: GroundingChunk[];
-}
-
 // ============================================================================
 // CONVERSATION SYNC & RAG TYPES
 // ============================================================================
@@ -1354,12 +1316,4 @@ export interface RAGSource {
   name: string;
   excerpt: string;
   relevance: number;
-}
-
-export interface GroundingChunk {
-  retrievedContext?: {
-    uri?: string;
-    title?: string;
-    text?: string;
-  };
 }
