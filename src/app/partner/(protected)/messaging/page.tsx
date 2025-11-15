@@ -104,6 +104,7 @@ export default function MessagingPage() {
   
   const processedMessageIds = useRef<Set<string>>(new Set());
   const lastSuggestionContext = useRef<string>('');
+  const suggestionDebounceTimer = useRef<NodeJS.Timeout | null>(null);
   
   const { 
     messages: dbMessages, 
@@ -120,69 +121,62 @@ export default function MessagingPage() {
 
   const allMessages = useMemo(() => {
     return [...dbMessages, ...optimisticMessages].sort((a, b) => {
-      const aTime = a.createdAt?.toMillis?.() || a.createdAt?.seconds * 1000 || 0;
-      const bTime = b.createdAt?.toMillis?.() || b.createdAt?.seconds * 1000 || 0;
+      const aTime = a.createdAt?.toMillis?.() || a.createdAt?.getTime?.() || 0;
+      const bTime = b.createdAt?.toMillis?.() || b.createdAt?.getTime?.() || 0;
       return aTime - bTime;
     });
   }, [dbMessages, optimisticMessages]);
 
   const filteredConversations = useMemo(() => {
-    if (!searchTerm) return simpleConversations;
-    const term = searchTerm.toLowerCase();
+    if (!searchTerm.trim()) return simpleConversations;
+    const lower = searchTerm.toLowerCase();
     return simpleConversations.filter(conv => 
-      conv.contactName?.toLowerCase().includes(term) ||
-      conv.customerName?.toLowerCase().includes(term) ||
-      conv.customerPhone.includes(term)
+      conv.customerPhone?.toLowerCase().includes(lower) ||
+      conv.customerName?.toLowerCase().includes(lower) ||
+      conv.contactName?.toLowerCase().includes(lower) ||
+      conv.contactEmail?.toLowerCase().includes(lower)
     );
   }, [simpleConversations, searchTerm]);
 
   useEffect(() => {
-    const urlConversationId = searchParams.get('conversation');
-    if (urlConversationId && simpleConversations.length > 0) {
-      const conv = simpleConversations.find(c => c.id === urlConversationId);
+    const convIdFromQuery = searchParams.get('conversationId');
+    if (convIdFromQuery && simpleConversations.length > 0) {
+      const conv = simpleConversations.find(c => c.id === convIdFromQuery);
       if (conv) {
-        handleSelectConversation(conv);
+        setSelectedConversation(conv);
+        setShowNewConversation(false);
+        setShowDiagnostics(false);
       }
     }
   }, [searchParams, simpleConversations]);
 
   useEffect(() => {
-    processedMessageIds.current.clear();
-    lastSuggestionContext.current = '';
-  }, [selectedConversation?.id]);
+    if (!selectedConversation || dbMessages.length === 0) return;
 
-  useEffect(() => {
-    if (!selectedConversation || !partnerId) return;
-    if (dbMessages.length === 0) return;
-    
     const latestMessage = dbMessages[dbMessages.length - 1];
-    const isIncomingMessage = latestMessage.direction === 'inbound';
-    
-    if (!isIncomingMessage) return;
-    
-    const recentMessages = dbMessages.slice(-5);
-    const conversationContext = recentMessages
-      .map(m => `${m.direction}: ${m.content}`)
-      .join(' | ');
-    
-    if (conversationContext === lastSuggestionContext.current) return;
-    
-    if (processedMessageIds.current.has(latestMessage.id)) {
-      const contextChanged = conversationContext.length > lastSuggestionContext.current.length + 50;
-      if (!contextChanged) return;
+    if (!latestMessage || latestMessage.direction !== 'inbound') return;
+
+    const messageId = latestMessage.id;
+    if (processedMessageIds.current.has(messageId)) return;
+
+    const currentContext = `${selectedConversation.id}-${latestMessage.content}`;
+    if (lastSuggestionContext.current === currentContext) return;
+
+    console.log('🔔 New inbound message detected');
+    processedMessageIds.current.add(messageId);
+    lastSuggestionContext.current = currentContext;
+
+    if (suggestionDebounceTimer.current) {
+      clearTimeout(suggestionDebounceTimer.current);
     }
-    
-    console.log('🤖 Generating AI suggestion for:', latestMessage.content);
-    
-    processedMessageIds.current.add(latestMessage.id);
-    lastSuggestionContext.current = conversationContext;
-    
-    setTimeout(() => {
+
+    suggestionDebounceTimer.current = setTimeout(() => {
       handleRequestAISuggestion(latestMessage.content);
-    }, 500);
-  }, [dbMessages, selectedConversation, partnerId]);
+    }, 200);
+  }, [dbMessages, selectedConversation]);
 
   const handleSelectConversation = (conversation: SimpleConversation) => {
+    console.log('📱 Selecting conversation:', conversation.id);
     setSelectedConversation(conversation);
     setShowNewConversation(false);
     setShowDiagnostics(false);
@@ -191,20 +185,24 @@ export default function MessagingPage() {
     setShowAISuggestion(false);
     setAiSuggestion(null);
     setPendingIncomingMessage('');
+    processedMessageIds.current.clear();
+    lastSuggestionContext.current = '';
+    
+    if (suggestionDebounceTimer.current) {
+      clearTimeout(suggestionDebounceTimer.current);
+    }
   };
 
   const handleSendMessage = async () => {
-    if (!messageInput.trim()) return;
-    if (!partnerId || !selectedConversation) return;
+    if (!selectedConversation || !messageInput.trim() || isSending) return;
 
     const optimistic = {
       id: `optimistic-${Date.now()}`,
       conversationId: selectedConversation.id,
-      direction: 'outbound',
+      direction: 'outbound' as const,
       content: messageInput,
-      status: 'pending',
       createdAt: Timestamp.now(),
-      senderId: user?.uid
+      status: 'sending',
     };
 
     setOptimisticMessages(prev => [...prev, optimistic]);
@@ -264,69 +262,105 @@ export default function MessagingPage() {
     setAiSuggestion(null);
 
     try {
-      console.log('🔍 Querying RAG for customer-specific suggestion...');
-      console.log('📝 Message:', messageToAnalyze.substring(0, 50));
-      console.log('💼 Partner:', partnerId);
-      console.log('💬 Conversation:', selectedConversation.id);
-      console.log('📱 Platform:', selectedConversation.platform);
-      console.log('👤 Customer:', selectedConversation.customerPhone);
+      console.log('⚡ Ultra-fast RAG starting...');
+      const startTime = Date.now();
       
       const result = await chatWithVaultForConversation(
         partnerId,
         selectedConversation.id,
         selectedConversation.platform,
-        messageToAnalyze
+        messageToAnalyze,
+        {
+          includeAlternatives: false
+        }
       );
 
-      console.log('📦 RAG Result:', {
-        success: result.success,
-        hasReply: !!result.suggestedReply,
-        confidence: result.confidence,
-        sourcesCount: result.sources?.length || 0,
-      });
+      console.log(`⚡ RAG completed in ${Date.now() - startTime}ms`);
 
       if (result.success && result.suggestedReply) {
-        const suggestion: RAGSuggestion = {
+        setAiSuggestion({
           suggestedReply: result.suggestedReply,
-          confidence: result.confidence || 0.7,
-          reasoning: result.reasoning || 'Generated from available knowledge',
+          confidence: result.confidence || 0.5,
+          reasoning: result.reasoning || 'Generated from available context',
           sources: result.sources || [],
-          alternativeReplies: result.alternativeReplies || [],
-        };
-
-        setAiSuggestion(suggestion);
-        console.log('✅ Customer-specific AI suggestion generated');
+          alternativeReplies: result.alternativeReplies || []
+        });
       } else {
-        console.error('❌ RAG query failed:', result);
         throw new Error(result.message || 'Failed to generate suggestion');
       }
     } catch (error: any) {
-      console.error('❌ Failed to get AI suggestion:', error);
-      
-      let errorMessage = 'Failed to generate suggestion';
-      if (error.message) {
-        errorMessage = error.message;
-      }
-      
+      console.error('❌ AI suggestion error:', error);
       toast({
-        title: 'AI Suggestion Error',
-        description: errorMessage,
         variant: 'destructive',
+        title: 'AI suggestion failed',
+        description: error.message
       });
-      
       setShowAISuggestion(false);
     } finally {
       setIsLoadingSuggestion(false);
     }
   };
 
-  const handleAcceptSuggestion = (text: string) => {
+  const handleEditSuggestion = (text: string) => {
     setMessageInput(text);
+    setShowAISuggestion(false);
+    setAiSuggestion(null);
+    setPendingIncomingMessage('');
   };
 
-  const handleRegenerateSuggestion = () => {
-    if (pendingIncomingMessage) {
-      handleRequestAISuggestion(pendingIncomingMessage);
+  const handleSendSuggestion = async (text: string) => {
+    if (!selectedConversation || !text.trim()) return;
+
+    setShowAISuggestion(false);
+    setAiSuggestion(null);
+    setPendingIncomingMessage('');
+
+    const optimistic = {
+      id: `optimistic-${Date.now()}`,
+      conversationId: selectedConversation.id,
+      direction: 'outbound' as const,
+      content: text,
+      createdAt: Timestamp.now(),
+      status: 'sending',
+    };
+
+    setOptimisticMessages(prev => [...prev, optimistic]);
+    setIsSending(true);
+
+    try {
+      let result;
+      
+      if (selectedConversation.platform === 'sms') {
+        result = await sendSMSAction({
+          partnerId,
+          to: selectedConversation.customerPhone,
+          message: text,
+          conversationId: selectedConversation.id,
+        });
+      } else {
+        result = await sendWhatsAppMessageAction({
+          partnerId,
+          to: selectedConversation.customerPhone,
+          message: text,
+          conversationId: selectedConversation.id,
+        });
+      }
+
+      if (result.success) {
+        setOptimisticMessages(prev => prev.filter(m => m.id !== optimistic.id));
+      } else {
+        throw new Error(result.message || 'Failed to send');
+      }
+    } catch (error: any) {
+      console.error('❌ Send error:', error);
+      toast({ 
+        variant: 'destructive', 
+        title: 'Failed to send message',
+        description: error.message 
+      });
+      setOptimisticMessages(prev => prev.filter(m => m.id !== optimistic.id));
+    } finally {
+      setIsSending(false);
     }
   };
 
@@ -336,13 +370,14 @@ export default function MessagingPage() {
     setPendingIncomingMessage('');
   };
 
-  if (!user || !partnerId) {
+  const handleRegenerateSuggestion = () => {
+    handleRequestAISuggestion(pendingIncomingMessage);
+  };
+
+  if (!partnerId) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-gray-50">
-        <div className="text-center">
-          <p className="text-gray-900 font-semibold">Authentication Required</p>
-          <p className="text-gray-600 mt-2">Please log in to access messaging.</p>
-        </div>
+      <div className="flex items-center justify-center h-screen">
+        <p className="text-muted-foreground">Loading workspace...</p>
       </div>
     );
   }
@@ -351,38 +386,38 @@ export default function MessagingPage() {
     <>
       <audio ref={audioRef} src="/notification.mp3" preload="auto" />
       
-      <div className="flex h-screen bg-gray-50 overflow-hidden">
-        <ConversationList
-          conversations={filteredConversations}
-          selectedConversation={selectedConversation}
-          searchTerm={searchTerm}
-          onSearchChange={setSearchTerm}
-          onSelectConversation={handleSelectConversation}
-          onNewConversation={() => {
-            setShowNewConversation(true);
-            setSelectedConversation(null);
-            setShowDiagnostics(false);
-            setShowClientProfile(false);
-            setShowAISuggestion(false);
-          }}
-          isLoading={isLoadingConversations}
-        />
+      <div className="grid grid-cols-[380px_1fr] h-screen bg-gray-50">
+        <div className="border-r border-gray-200 bg-white flex flex-col overflow-hidden">
+          <ConversationList
+            conversations={filteredConversations}
+            selectedConversation={selectedConversation}
+            searchTerm={searchTerm}
+            onSearchChange={setSearchTerm}
+            onSelectConversation={handleSelectConversation}
+            onNewConversation={() => {
+              setShowNewConversation(true);
+              setSelectedConversation(null);
+              setShowDiagnostics(false);
+            }}
+            isLoading={isLoadingConversations || isLoadingContacts}
+          />
+        </div>
 
-        <div className="flex-1 flex flex-col overflow-hidden">
+        <div className="flex flex-col overflow-hidden">
           {showNewConversation && (
             <>
-              <div className="bg-white border-b border-gray-200 px-6 py-4">
+              <div className="bg-white border-b border-gray-200 px-6 py-4 shrink-0">
                 <h2 className="text-lg font-semibold text-gray-900">New Conversation</h2>
               </div>
               <div className="flex-1 overflow-y-auto p-6">
                 <NewConversationForm
                   partnerId={partnerId}
-                  onSuccess={(conversationId) => {
+                  onClose={() => setShowNewConversation(false)}
+                  onConversationCreated={(conversationId, platform) => {
                     setShowNewConversation(false);
                     const conv = simpleConversations.find(c => c.id === conversationId);
                     if (conv) handleSelectConversation(conv);
                   }}
-                  onCancel={() => setShowNewConversation(false)}
                 />
               </div>
             </>
@@ -390,7 +425,7 @@ export default function MessagingPage() {
 
           {showDiagnostics && (
             <>
-              <div className="bg-white border-b border-gray-200 px-6 py-4">
+              <div className="bg-white border-b border-gray-200 px-6 py-4 shrink-0">
                 <h2 className="text-lg font-semibold text-gray-900">Diagnostics</h2>
               </div>
               <div className="flex-1 overflow-y-auto">
@@ -409,18 +444,17 @@ export default function MessagingPage() {
                 setShowDiagnostics(true);
                 setShowNewConversation(false);
               }}
-              hasNotifications={hasUnread}
-              notificationCount={notifications?.filter(n => !n.isRead).length || 0}
-              onViewNotifications={markAllAsRead}
             />
           )}
 
           {selectedConversation && !showNewConversation && !showDiagnostics && (
             <>
-              <ChatHeader
-                conversation={selectedConversation}
-                onViewProfile={() => setShowClientProfile(true)}
-              />
+              <div className="shrink-0">
+                <ChatHeader
+                  conversation={selectedConversation}
+                  onViewProfile={() => setShowClientProfile(true)}
+                />
+              </div>
 
               <div className="flex-1 overflow-hidden">
                 <MessagesList
@@ -432,32 +466,39 @@ export default function MessagingPage() {
                 />
               </div>
 
-              <InlineAISuggestion
-                suggestion={aiSuggestion}
-                isLoading={isLoadingSuggestion}
-                isVisible={showAISuggestion}
-                onAccept={handleAcceptSuggestion}
-                onDismiss={handleDismissSuggestion}
-                onRegenerate={handleRegenerateSuggestion}
-                incomingMessage={pendingIncomingMessage}
-              />
+              <div className="shrink-0">
+                <InlineAISuggestion
+                  suggestion={aiSuggestion}
+                  isLoading={isLoadingSuggestion}
+                  isVisible={showAISuggestion}
+                  onEdit={handleEditSuggestion}
+                  onSend={handleSendSuggestion}
+                  onDismiss={handleDismissSuggestion}
+                  onRegenerate={handleRegenerateSuggestion}
+                  incomingMessage={pendingIncomingMessage}
+                />
+              </div>
 
-              <MessageInput
-                value={messageInput}
-                onChange={setMessageInput}
-                onSend={handleSendMessage}
-                disabled={isSending || !selectedConversation}
-              />
+              <div className="shrink-0">
+                <MessageInput
+                  value={messageInput}
+                  onChange={setMessageInput}
+                  onSend={handleSendMessage}
+                  disabled={isSending || !selectedConversation}
+                />
+              </div>
             </>
           )}
         </div>
 
         {showClientProfile && selectedConversation && (
-          <ClientProfilePanel
-            conversation={selectedConversation as any}
-            onClose={() => setShowClientProfile(false)}
-            partnerId={partnerId}
-          />
+          <div className="fixed inset-0 z-50">
+            <ClientProfilePanel
+              conversation={selectedConversation as any}
+              onClose={() => setShowClientProfile(false)}
+              partnerId={partnerId}
+            />
+          </div>
         )}
       </div>
     </>

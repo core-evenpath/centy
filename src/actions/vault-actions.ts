@@ -1,4 +1,3 @@
-// src/actions/vault-actions.ts
 'use server';
 
 import { GoogleGenAI } from '@google/genai';
@@ -6,6 +5,7 @@ import { db } from '@/lib/firebase-admin';
 import { getStorage } from 'firebase-admin/storage';
 import { FieldValue } from 'firebase-admin/firestore';
 import type { VaultFile, FileSearchStore, VaultQuery, GroundingChunk } from '@/lib/types';
+import { getCachedRagStore } from '@/lib/rag-cache';
 
 const genAI = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || '' });
 
@@ -919,7 +919,7 @@ export async function listFileSearchStores(
 async function getConversationContext(
   conversationId: string,
   platform: 'sms' | 'whatsapp',
-  messageLimit: number = 10
+  messageLimit: number = 5
 ): Promise<string> {
   if (!db) return '';
 
@@ -931,17 +931,19 @@ async function getConversationContext(
       .where('conversationId', '==', conversationId)
       .orderBy('createdAt', 'desc')
       .limit(messageLimit)
+      .select('direction', 'content')
       .get();
 
     if (messagesSnapshot.empty) return '';
 
     const messages = messagesSnapshot.docs
-      .map(doc => doc.data())
+      .map(doc => {
+        const data = doc.data();
+        return `${data.direction === 'inbound' ? 'Customer' : 'Partner'}: ${data.content}`;
+      })
       .reverse();
 
-    return messages
-      .map(msg => `${msg.direction === 'inbound' ? 'Customer' : 'Partner'}: ${msg.content}`)
-      .join('\n');
+    return messages.join('\n');
   } catch (error) {
     console.error('Error getting conversation context:', error);
     return '';
@@ -991,7 +993,10 @@ export async function chatWithVaultForConversation(
   partnerId: string,
   conversationId: string,
   platform: 'sms' | 'whatsapp',
-  message: string
+  message: string,
+  options?: {
+    includeAlternatives?: boolean;
+  }
 ): Promise<{
   success: boolean;
   message: string;
@@ -1001,13 +1006,23 @@ export async function chatWithVaultForConversation(
   sources?: any[];
   alternativeReplies?: string[];
 }> {
+  console.log('⚡ Fast RAG starting');
+  const startTime = Date.now();
+  
   if (!process.env.GEMINI_API_KEY || !db) {
     return { success: false, message: 'Service not configured' };
   }
 
   try {
     const conversationCollection = platform === 'sms' ? 'smsConversations' : 'whatsappConversations';
-    const conversationDoc = await db.collection(conversationCollection).doc(conversationId).get();
+
+    const [conversationDoc, ragStoreName, conversationContext] = await Promise.all([
+      db.collection(conversationCollection).doc(conversationId).get(),
+      getCachedRagStore(partnerId, db),
+      getConversationContext(conversationId, platform, 5)
+    ]);
+
+    console.log(`⏱️  Data: ${Date.now() - startTime}ms`);
 
     if (!conversationDoc.exists) {
       return { success: false, message: 'Conversation not found' };
@@ -1016,35 +1031,22 @@ export async function chatWithVaultForConversation(
     const conversationData = conversationDoc.data();
     const customerName = conversationData?.customerName || conversationData?.contactName || 'Customer';
 
-    const storesSnapshot = await db
-      .collection(`partners/${partnerId}/fileSearchStores`)
-      .where('state', '==', 'ACTIVE')
-      .limit(1)
-      .get();
+    const contextSection = conversationContext 
+      ? `\nRecent messages:\n${conversationContext}\n` 
+      : '';
 
-    if (storesSnapshot.empty) {
-      return { success: false, message: 'No documents found. Please upload documents to vault.' };
-    }
+    const prompt = `Help ${customerName}.${contextSection}
+Question: "${message}"
 
-    const ragStoreName = storesSnapshot.docs[0].data().name;
-    const conversationContext = await getConversationContext(conversationId, platform, 10);
-
-    const prompt = `You are helping respond to a customer message.
-
-Customer: ${customerName}
-
-Recent conversation history:
-${conversationContext || 'No previous conversation'}
-
-Customer's new message: "${message}"
-
-Instructions:
-- Use company documents to answer about policies, pricing, services
-- Use conversation history for context about THIS customer
-- Generate a helpful 2-3 sentence reply
-- Be professional and concise
+Task:
+- Check documents for info
+- Reply in 1-2 sentences
+- Be clear and professional
 
 Reply:`;
+
+    console.log('📤 Gemini');
+    const queryStart = Date.now();
 
     const response = await genAI.models.generateContent({
       model: 'gemini-2.5-flash',
@@ -1056,35 +1058,128 @@ Reply:`;
           },
         }],
         temperature: 0.7,
-        maxOutputTokens: 500,
+        maxOutputTokens: 400,
+        topP: 0.9,
       },
     });
 
-    const responseText = response.text;
-    if (!responseText?.trim()) {
-      return { success: false, message: 'AI generated empty response' };
+    console.log(`⏱️  Gemini: ${Date.now() - queryStart}ms`);
+
+    let responseText = '';
+    
+    try {
+      responseText = response.text || '';
+      console.log('✅ Got via response.text');
+    } catch (textError: any) {
+      console.warn('⚠️  Trying manual');
+      
+      try {
+        const parts = response.candidates?.[0]?.content?.parts;
+        if (parts && parts.length > 0 && parts[0].text) {
+          responseText = parts[0].text;
+          console.log('✅ Got via manual');
+        }
+      } catch (extractError: any) {
+        console.error('❌ Manual failed:', extractError.message);
+      }
     }
+
+    if (!responseText || !responseText.trim()) {
+      const finishReason = response.candidates?.[0]?.finishReason;
+      
+      console.error('❌ Empty response');
+      console.error('Reason:', finishReason);
+      
+      if (finishReason === 'SAFETY') {
+        return {
+          success: false,
+          message: 'Content blocked by safety filters. Please rephrase.',
+        };
+      }
+      
+      if (finishReason === 'MAX_TOKENS') {
+        console.log('🔄 Retrying with higher token limit...');
+        
+        try {
+          const retryResponse = await genAI.models.generateContent({
+            model: 'gemini-2.5-flash',
+            contents: prompt,
+            config: {
+              tools: [{
+                fileSearch: {
+                  fileSearchStoreNames: [ragStoreName],
+                },
+              }],
+              temperature: 0.7,
+              maxOutputTokens: 600,
+              topP: 0.9,
+            },
+          });
+          
+          responseText = retryResponse.text;
+          console.log('✅ Retry succeeded');
+        } catch (retryError) {
+          console.error('❌ Retry failed:', retryError);
+        }
+      }
+      
+      if (!responseText || !responseText.trim()) {
+        console.log('🔄 Fallback without RAG');
+        try {
+          const fallbackResponse = await genAI.models.generateContent({
+            model: 'gemini-2.5-flash',
+            contents: `${customerName} asks: "${message}". Give brief professional reply (2 sentences).`,
+            config: {
+              temperature: 0.7,
+              maxOutputTokens: 300,
+            },
+          });
+          
+          const fallbackText = fallbackResponse.text;
+          if (fallbackText && fallbackText.trim()) {
+            console.log('✅ Fallback succeeded');
+            return {
+              success: true,
+              message: 'Success',
+              suggestedReply: fallbackText.trim(),
+              confidence: 0.5,
+              reasoning: 'Generated without document search',
+              sources: [],
+              alternativeReplies: [],
+            };
+          }
+        } catch (fallbackError) {
+          console.error('❌ Fallback failed:', fallbackError);
+        }
+        
+        return { 
+          success: false, 
+          message: 'Unable to generate. Please rephrase or check documents.' 
+        };
+      }
+    }
+
+    responseText = responseText.trim();
+    responseText = responseText.replace(/\n\n+/g, ' ');
+    responseText = responseText.replace(/\s+/g, ' ');
+    
+    console.log('✅ Response:', responseText.substring(0, 100));
 
     const groundingChunks = response.candidates?.[0]?.groundingMetadata?.groundingChunks || [];
     
-    const sources = groundingChunks.slice(0, 5).map((chunk: any) => ({
-      type: 'document',
+    const sources = groundingChunks.slice(0, 4).map((chunk: any) => ({
+      type: 'document' as const,
       name: chunk.retrievedContext?.title || 'Document',
-      excerpt: (chunk.retrievedContext?.text || '').substring(0, 150),
+      excerpt: (chunk.retrievedContext?.text || '').substring(0, 120),
       relevance: 0.85,
     }));
 
-    const confidence = Math.min(0.95, 0.5 + (sources.length * 0.1));
+    const confidence = Math.min(0.95, 0.5 + (sources.length * 0.12));
     const reasoning = sources.length > 0 
-      ? `Generated from ${sources.length} document${sources.length > 1 ? 's' : ''} and conversation history`
-      : 'Generated from conversation context';
+      ? `Found in ${sources.length} document${sources.length > 1 ? 's' : ''}`
+      : 'Based on conversation';
 
-    let alternatives: string[] = [];
-    try {
-      alternatives = await generateAlternativeReplies(responseText, message, 2);
-    } catch (error) {
-      console.error('Failed to generate alternatives:', error);
-    }
+    console.log(`✅ Total: ${Date.now() - startTime}ms`);
 
     return {
       success: true,
@@ -1093,13 +1188,15 @@ Reply:`;
       confidence,
       reasoning,
       sources,
-      alternativeReplies: alternatives,
+      alternativeReplies: [],
     };
+
   } catch (error: any) {
-    console.error('RAG query failed:', error);
+    console.error('❌ RAG failed:', error);
+    
     return {
       success: false,
-      message: error.message || 'Query failed',
+      message: `Error: ${error.message}`,
     };
   }
 }
