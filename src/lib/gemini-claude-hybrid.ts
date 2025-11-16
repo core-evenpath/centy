@@ -107,7 +107,6 @@ export async function queryWithHybridRAG(
     console.log(`🤖 Using model: ${modelChoice}`);
     console.log('🔵 Step 1: Get Gemini RAG store');
     
-    // Get RAG store inline
     let ragStoreName: string | null = null;
     
     if (db) {
@@ -232,18 +231,21 @@ export async function queryWithHybridRAG(
     let modelUsed: string;
 
     const systemPrompt = chunksUsed > 0 
-      ? `You are a helpful AI assistant. Answer questions using ONLY the information in the sources below.
+      ? `You are a helpful AI assistant with access to company knowledge base documents.
 
-CRITICAL RULES:
-1. Use ONLY information from the sources provided
-2. If the answer is not in the sources, say: "I don't see that information in the provided sources"
-3. Cite which source(s) you're using (e.g., "According to Source 1...")
-4. Be accurate and precise
-5. Do not use external knowledge
+RULES FOR USING SOURCES:
+- If sources contain relevant information, USE IT and cite it naturally
+- Be specific and detailed when you have the information
+- Don't be overly cautious - if the information is in the sources, share it confidently
+- Variations in names/spelling are okay (e.g., "Star Nest" = "StarNest Realty")
+- Only say you don't have information if it's truly not in the sources
+- When answering questions about companies, people, or entities, use the exact information from the sources
 
-SOURCES:
-${chunksContext}` 
-      : `You are a helpful AI assistant for customer service. Provide a professional, helpful response to the customer's message. Be concise (1-2 sentences) and friendly.`;
+SOURCES AVAILABLE:
+${chunksContext}
+
+Provide a natural, helpful response based on these sources.` 
+      : `You are a helpful customer service AI. Provide a brief, professional, and friendly response. Keep it to 1-2 sentences.`;
 
     if (modelChoice === 'gemini-2.5-pro') {
       console.log('🔵 Using Gemini 2.5 Flash for generation');
@@ -271,6 +273,8 @@ ${chunksContext}`
           message: 'OpenAI API key not configured',
         };
       }
+
+      console.log('🔵 Using GPT-4o Mini for generation');
 
       const openaiResponse = await fetch('https://api.openai.com/v1/chat/completions', {
         method: 'POST',
@@ -316,6 +320,7 @@ ${chunksContext}`
       };
 
       const claudeModel = modelMap[modelChoice as 'haiku' | 'sonnet-3.5' | 'sonnet-4.5'];
+      console.log(`🔵 Using ${claudeModel} for generation`);
 
       const systemTokens = estimateTokens(systemPrompt);
       const questionTokens = estimateTokens(question);

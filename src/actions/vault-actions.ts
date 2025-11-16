@@ -1169,20 +1169,15 @@ export async function chatWithVaultForConversation(
     const customerName = conversationData?.customerName || conversationData?.contactName || 'Customer';
 
     const contextSection = conversationContext 
-      ? `\nRecent conversation history:\n${conversationContext}\n` 
+      ? `\nRecent conversation:\n${conversationContext}\n` 
       : '';
 
-    const enhancedQuestion = `You are helping ${customerName} respond to their question. ${contextSection}
+    // IMPROVED: Simpler, more direct question format
+    const enhancedQuestion = `${contextSection}
 
-Customer's question: "${message}"
+Customer asks: "${message}"
 
-Instructions:
-1. Search the knowledge base for relevant information
-2. Provide a helpful, professional response in 1-2 sentences
-3. Be concise and conversational
-4. If the information isn't in the knowledge base, give a brief helpful response anyway
-
-Generate a suggested reply:`;
+Provide a helpful 1-2 sentence response based on the company knowledge base. Be professional and conversational.`;
 
     console.log('📤 Querying with hybrid RAG...');
     const queryStart = Date.now();
@@ -1192,9 +1187,9 @@ Generate a suggested reply:`;
       enhancedQuestion,
       modelChoice,
       {
-        maxChunks: 3,
-        maxChunkChars: 2000,
-        allowEmptyChunks: true, // CRITICAL: Allow responses without documents
+        maxChunks: 5, // Increased from 3 to get more context
+        maxChunkChars: 3000, // Increased from 2000 for better coverage
+        allowEmptyChunks: true,
       }
     );
 
@@ -1210,20 +1205,22 @@ Generate a suggested reply:`;
     const responseText = result.response.trim();
     const chunksUsed = result.geminiChunks?.length || 0;
     
-    const confidence = chunksUsed > 0 ? 0.85 : 0.70;
+    // Higher confidence when using knowledge base
+    const confidence = chunksUsed > 0 ? 0.90 : 0.65;
     const reasoning = chunksUsed > 0
-      ? `Based on ${chunksUsed} relevant chunk${chunksUsed > 1 ? 's' : ''} from knowledge base (${result.modelUsed})`
-      : `General response without knowledge base (${result.modelUsed})`;
+      ? `Based on ${chunksUsed} source${chunksUsed > 1 ? 's' : ''} from knowledge base (${result.modelUsed})`
+      : `General response (${result.modelUsed})`;
 
     const sources = result.geminiChunks?.slice(0, 3).map(chunk => ({
       type: 'document' as const,
       name: chunk.source || 'Knowledge Base',
-      excerpt: chunk.content.substring(0, 120),
+      excerpt: chunk.content.substring(0, 150),
       relevance: chunk.score || 0.85,
     })) || [];
 
     console.log(`✅ Total time: ${Date.now() - startTime}ms`);
-    console.log(`💰 Tokens used: ${result.usage?.input_tokens || result.usage?.prompt_tokens || 0} input, ${result.usage?.output_tokens || result.usage?.completion_tokens || 0} output`);
+    console.log(`💰 Tokens: ${result.usage?.input_tokens || result.usage?.prompt_tokens || 0} in, ${result.usage?.output_tokens || result.usage?.completion_tokens || 0} out`);
+    console.log(`📚 Sources used: ${chunksUsed}`);
 
     return {
       success: true,
@@ -1244,6 +1241,7 @@ Generate a suggested reply:`;
     };
   }
 }
+
 export async function generateExampleQuestions(partnerId: string): Promise<string[]> {
   if (!db) return [];
 
