@@ -5,7 +5,9 @@ import { db } from '@/lib/firebase-admin';
 import { getStorage } from 'firebase-admin/storage';
 import { FieldValue } from 'firebase-admin/firestore';
 import type { VaultFile, FileSearchStore, VaultQuery, GroundingChunk } from '@/lib/types';
-import { getCachedRagStore, clearRagStoreCache } from '@/lib/rag-cache';
+import { queryVaultWithClaude, estimateDocumentTokens } from '@/lib/claude-rag';
+import { queryWithHybridRAG } from '@/lib/gemini-claude-hybrid';
+import { getPartnerAIConfig } from '@/actions/partner-settings-actions';
 
 const genAI = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || '' });
 
@@ -17,6 +19,17 @@ interface UploadFileResult {
 
 async function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function extractPDFText(buffer: Buffer): Promise<string | null> {
+  try {
+    const pdfParse = (await import('pdf-parse')).default;
+    const data = await pdfParse(buffer);
+    return data.text;
+  } catch (error) {
+    console.error('PDF extraction failed:', error);
+    return null;
+  }
 }
 
 async function getOrCreateRagStore(partnerId: string): Promise<string> {
@@ -136,6 +149,17 @@ export async function uploadFileToVault(
     const estimatedChunks = Math.ceil(buffer.length / 2048);
     console.log(`📊 File size: ${buffer.length} bytes, estimated chunks: ${estimatedChunks}`);
 
+    let extractedText: string | null = null;
+    if (fileData.mimeType === 'application/pdf') {
+      console.log('📄 Extracting text from PDF...');
+      extractedText = await extractPDFText(buffer);
+      if (extractedText) {
+        console.log(`✅ Extracted ${extractedText.length} characters from PDF`);
+      } else {
+        console.warn('⚠️ PDF text extraction failed, will store without text');
+      }
+    }
+
     console.log('🔵 Step 2: Creating file record with PROCESSING state');
     
     const initialVaultFile = {
@@ -152,12 +176,14 @@ export async function uploadFileToVault(
       partnerId: partnerId,
       firebaseStoragePath: storagePath,
       sourceType: 'upload',
+      extractedText: extractedText || undefined,
       ragMetadata: {
         chunkSize: 2048,
         chunkOverlap: 128,
         embeddingModel: 'text-embedding-004',
         embeddingDimension: 768,
         estimatedChunks: estimatedChunks,
+        extractedTextLength: extractedText?.length || 0,
       },
       createdAt: FieldValue.serverTimestamp(),
     };
@@ -737,8 +763,6 @@ export async function deleteVaultFile(
 
     console.log('✅ File deleted successfully');
 
-    clearRagStoreCache(partnerId);
-
     return { success: true, message: 'File deleted successfully' };
   } catch (error: any) {
     console.error('❌ Error deleting vault file:', error);
@@ -925,83 +949,6 @@ export async function verifyRagFileIntegrity(
   }
 }
 
-async function filterGroundingChunksBySelectedFiles(
-  partnerId: string,
-  groundingChunks: any[],
-  selectedFileIds: string[]
-): Promise<any[]> {
-  if (!db || selectedFileIds.length === 0 || groundingChunks.length === 0) {
-    return groundingChunks;
-  }
-
-  try {
-    const fileDocsPromises = selectedFileIds.map(fileId =>
-      db!.collection(`partners/${partnerId}/vaultFiles`).doc(fileId).get()
-    );
-    
-    const fileDocs = await Promise.all(fileDocsPromises);
-    
-    const selectedFileNames = new Set<string>();
-    const selectedDisplayNames = new Set<string>();
-    const selectedStoragePaths = new Set<string>();
-    
-    fileDocs.forEach(fileDoc => {
-      if (fileDoc.exists) {
-        const data = fileDoc.data();
-        if (data?.displayName) {
-          selectedFileNames.add(data.displayName.toLowerCase());
-          selectedDisplayNames.add(data.displayName.toLowerCase());
-        }
-        if (data?.name) {
-          selectedFileNames.add(data.name.toLowerCase());
-        }
-        if (data?.firebaseStoragePath) {
-          selectedStoragePaths.add(data.firebaseStoragePath.toLowerCase());
-        }
-        selectedFileNames.add(fileDoc.id.toLowerCase());
-      }
-    });
-
-    if (selectedFileNames.size === 0) {
-      console.log('⚠️ No valid file names found for filtering, returning all chunks');
-      return groundingChunks;
-    }
-
-    console.log(`🔍 Filtering with ${selectedFileNames.size} unique identifiers`);
-
-    const filteredChunks = groundingChunks.filter((chunk: any) => {
-      const title = chunk.retrievedContext?.title?.toLowerCase() || '';
-      const uri = chunk.retrievedContext?.uri?.toLowerCase() || '';
-      
-      for (const identifier of selectedFileNames) {
-        if (title.includes(identifier) || uri.includes(identifier)) {
-          return true;
-        }
-      }
-      
-      for (const path of selectedStoragePaths) {
-        if (uri.includes(path)) {
-          return true;
-        }
-      }
-      
-      return false;
-    });
-
-    console.log(`🔍 Filtered chunks: ${groundingChunks.length} -> ${filteredChunks.length}`);
-    
-    if (filteredChunks.length === 0 && groundingChunks.length > 0) {
-      console.log('⚠️ Filtering removed all chunks, returning original');
-      return groundingChunks;
-    }
-    
-    return filteredChunks;
-  } catch (error) {
-    console.error('Error filtering chunks:', error);
-    return groundingChunks;
-  }
-}
-
 export async function chatWithVault(
   partnerId: string,
   userId: string,
@@ -1012,109 +959,287 @@ export async function chatWithVault(
   message: string;
   response?: string;
   groundingChunks?: GroundingChunk[];
+  usage?: any;
 }> {
   if (!db) {
     return { success: false, message: 'Database not available' };
   }
 
-  try {
-    const storesSnapshot = await db
-      .collection(`partners/${partnerId}/fileSearchStores`)
-      .where('state', '==', 'ACTIVE')
-      .limit(1)
-      .get();
+  if (!selectedFileIds || selectedFileIds.length === 0) {
+    return {
+      success: false,
+      message: 'Please select at least one document to query',
+    };
+  }
 
-    if (storesSnapshot.empty) {
-      return { 
-        success: false, 
-        message: 'No documents uploaded yet. Please upload documents first.' 
+  try {
+    console.log(`📊 Query initiated - Selected files: ${selectedFileIds.length}`);
+
+    const result = await queryVaultWithClaude(
+      partnerId,
+      selectedFileIds,
+      message
+    );
+
+    if (!result.success) {
+      return {
+        success: false,
+        message: result.message || 'Query failed',
       };
     }
 
-    const ragStoreName = storesSnapshot.docs[0].data().name;
-
-    let enhancedMessage = message;
-    let fileNames: string[] = [];
-    
-    if (selectedFileIds && selectedFileIds.length > 0 && selectedFileIds.length < 30) {
-      const fileDocsPromises = selectedFileIds.map(fileId =>
-        db!.collection(`partners/${partnerId}/vaultFiles`).doc(fileId).get()
-      );
-      
-      const fileDocs = await Promise.all(fileDocsPromises);
-      
-      fileDocs.forEach(fileDoc => {
-        if (fileDoc.exists) {
-          const data = fileDoc.data();
-          if (data?.displayName) {
-            fileNames.push(data.displayName);
-          }
-        }
-      });
-      
-      if (fileNames.length > 0) {
-        enhancedMessage = `Context: The user has selected specific documents to query: ${fileNames.join(', ')}.
-
-User Question: ${message}
-
-Instructions: Focus your answer primarily on information from the documents listed above.`;
-      }
-    }
-
-    console.log(`📊 Query initiated - Selected files: ${fileNames.length}`);
-
-    const response = await genAI.models.generateContent({
-      model: 'gemini-2.5-flash',
-      contents: enhancedMessage + " DO NOT ASK THE USER TO READ THE DOCUMENT, pinpoint the relevant sections in the response itself.",
-      config: {
-        tools: [
-          {
-            fileSearch: {
-              fileSearchStoreNames: [ragStoreName],
-            }
-          }
-        ]
-      }
-    });
-
-    let groundingChunks = response.candidates?.[0]?.groundingMetadata?.groundingChunks || [];
-    const responseText = response.text;
-
-    console.log(`📦 Chunks before filtering: ${groundingChunks.length}`);
-
-    if (selectedFileIds && selectedFileIds.length > 0) {
-      groundingChunks = await filterGroundingChunksBySelectedFiles(
-        partnerId,
-        groundingChunks,
-        selectedFileIds
-      );
-      
-      console.log(`✅ Chunks after filtering: ${groundingChunks.length}`);
-    }
+    const fileNames = result.documents?.map(d => d.fileName) || [];
 
     await db.collection(`partners/${partnerId}/vaultQueries`).add({
       query: message,
-      response: responseText,
+      response: result.response,
       partnerId: partnerId,
       userId: userId,
-      selectedFileIds: selectedFileIds || [],
+      selectedFileIds: selectedFileIds,
       selectedFileNames: fileNames,
-      chunksBeforeFilter: response.candidates?.[0]?.groundingMetadata?.groundingChunks?.length || 0,
-      chunksAfterFilter: groundingChunks.length,
+      provider: 'claude',
+      usage: result.usage,
+      inputTokens: result.usage?.input_tokens || 0,
+      outputTokens: result.usage?.output_tokens || 0,
+      cacheReadTokens: result.usage?.cache_read_input_tokens || 0,
+      cacheCreationTokens: result.usage?.cache_creation_input_tokens || 0,
       createdAt: FieldValue.serverTimestamp(),
     });
 
     return {
       success: true,
       message: 'Query successful',
-      response: responseText,
-      groundingChunks: groundingChunks,
+      response: result.response,
+      groundingChunks: [],
+      usage: result.usage,
     };
   } catch (error: any) {
     console.error('Error querying vault:', error);
     return {
       success: false,
       message: `Query failed: ${error.message}`,
+    };
+  }
+}
+
+export async function chatWithVaultHybrid(
+  partnerId: string,
+  userId: string,
+  message: string
+): Promise<{
+  success: boolean;
+  message: string;
+  response?: string;
+  geminiChunks?: any[];
+  usage?: any;
+  retrievalTime?: number;
+  generationTime?: number;
+  modelUsed?: string;
+}> {
+  if (!db) {
+    return { success: false, message: 'Database not available' };
+  }
+
+  try {
+    const modelChoice = await getPartnerAIConfig(partnerId);
+    console.log(`📊 Hybrid query initiated - Using partner's model: ${modelChoice}`);
+
+    const result = await queryWithHybridRAG(partnerId, message, modelChoice);
+
+    if (!result.success) {
+      return {
+        success: false,
+        message: result.message || 'Query failed',
+      };
+    }
+
+    const sourceFileNames = result.geminiChunks?.map(c => c.source) || [];
+
+    await db.collection(`partners/${partnerId}/vaultQueries`).add({
+      query: message,
+      response: result.response,
+      partnerId: partnerId,
+      userId: userId,
+      provider: `gemini-rag-${modelChoice}`,
+      modelUsed: result.modelUsed,
+      geminiChunks: result.geminiChunks?.length || 0,
+      sources: sourceFileNames,
+      usage: result.usage,
+      inputTokens: result.usage?.input_tokens || result.usage?.prompt_tokens || 0,
+      outputTokens: result.usage?.output_tokens || result.usage?.completion_tokens || 0,
+      retrievalTimeMs: result.retrievalTime,
+      generationTimeMs: result.generationTime,
+      createdAt: FieldValue.serverTimestamp(),
+    });
+
+    return {
+      success: true,
+      message: 'Query successful',
+      response: result.response,
+      geminiChunks: result.geminiChunks,
+      usage: result.usage,
+      retrievalTime: result.retrievalTime,
+      generationTime: result.generationTime,
+      modelUsed: result.modelUsed,
+    };
+  } catch (error: any) {
+    console.error('Error querying vault:', error);
+    return {
+      success: false,
+      message: `Query failed: ${error.message}`,
+    };
+  }
+}
+
+async function getConversationContext(
+  conversationId: string,
+  platform: 'sms' | 'whatsapp',
+  messageLimit: number = 5
+): Promise<string> {
+  if (!db) return '';
+
+  try {
+    const collectionName = platform === 'sms' ? 'smsMessages' : 'whatsappMessages';
+    
+    const messagesSnapshot = await db
+      .collection(collectionName)
+      .where('conversationId', '==', conversationId)
+      .orderBy('createdAt', 'desc')
+      .limit(messageLimit)
+      .select('direction', 'content')
+      .get();
+
+    if (messagesSnapshot.empty) return '';
+
+    const messages = messagesSnapshot.docs
+      .map(doc => {
+        const data = doc.data();
+        return `${data.direction === 'inbound' ? 'Customer' : 'Partner'}: ${data.content}`;
+      })
+      .reverse();
+
+    return messages.join('\n');
+  } catch (error) {
+    console.error('Error getting conversation context:', error);
+    return '';
+  }
+}
+
+export async function chatWithVaultForConversation(
+  partnerId: string,
+  conversationId: string,
+  platform: 'sms' | 'whatsapp',
+  message: string,
+  options?: {
+    includeAlternatives?: boolean;
+  }
+): Promise<{
+  success: boolean;
+  message: string;
+  suggestedReply?: string;
+  confidence?: number;
+  reasoning?: string;
+  sources?: any[];
+  alternativeReplies?: string[];
+}> {
+  console.log('⚡ Hybrid RAG starting for messaging');
+  const startTime = Date.now();
+  
+  if (!db) {
+    return { success: false, message: 'Service not configured' };
+  }
+
+  try {
+    const conversationCollection = platform === 'sms' ? 'smsConversations' : 'whatsappConversations';
+
+    const [conversationDoc, conversationContext, modelChoice] = await Promise.all([
+      db.collection(conversationCollection).doc(conversationId).get(),
+      getConversationContext(conversationId, platform, 5),
+      getPartnerAIConfig(partnerId)
+    ]);
+
+    console.log(`⏱️ Data loaded: ${Date.now() - startTime}ms`);
+    console.log(`🤖 Using model: ${modelChoice}`);
+
+    if (!conversationDoc.exists) {
+      return { success: false, message: 'Conversation not found' };
+    }
+
+    const conversationData = conversationDoc.data();
+    const customerName = conversationData?.customerName || conversationData?.contactName || 'Customer';
+
+    const contextSection = conversationContext 
+      ? `\nRecent conversation history:\n${conversationContext}\n` 
+      : '';
+
+    const enhancedQuestion = `You are helping ${customerName} respond to their question. ${contextSection}
+
+Customer's question: "${message}"
+
+Instructions:
+1. Search the knowledge base for relevant information
+2. Provide a helpful, professional response in 1-2 sentences
+3. Be concise and conversational
+4. If the information isn't in the knowledge base, give a brief helpful response anyway
+
+Generate a suggested reply:`;
+
+    console.log('📤 Querying with hybrid RAG...');
+    const queryStart = Date.now();
+
+    const result = await queryWithHybridRAG(
+      partnerId,
+      enhancedQuestion,
+      modelChoice,
+      {
+        maxChunks: 3,
+        maxChunkChars: 2000,
+      }
+    );
+
+    console.log(`⏱️ Hybrid query: ${Date.now() - queryStart}ms`);
+
+    if (!result.success || !result.response) {
+      return {
+        success: false,
+        message: result.message || 'Failed to generate response',
+      };
+    }
+
+    const responseText = result.response.trim();
+    const chunksUsed = result.geminiChunks?.length || 0;
+    
+    const confidence = chunksUsed > 0 ? 0.85 : 0.70;
+    const reasoning = chunksUsed > 0
+      ? `Based on ${chunksUsed} relevant chunk${chunksUsed > 1 ? 's' : ''} from knowledge base (${result.modelUsed})`
+      : `General response (${result.modelUsed})`;
+
+    const sources = result.geminiChunks?.slice(0, 3).map(chunk => ({
+      type: 'document' as const,
+      name: chunk.source || 'Knowledge Base',
+      excerpt: chunk.content.substring(0, 120),
+      relevance: chunk.score || 0.85,
+    })) || [];
+
+    console.log(`✅ Total time: ${Date.now() - startTime}ms`);
+    console.log(`💰 Tokens used: ${result.usage?.input_tokens || result.usage?.prompt_tokens || 0} input, ${result.usage?.output_tokens || result.usage?.completion_tokens || 0} output`);
+
+    return {
+      success: true,
+      message: 'Success',
+      suggestedReply: responseText,
+      confidence,
+      reasoning,
+      sources,
+      alternativeReplies: [],
+    };
+
+  } catch (error: any) {
+    console.error('❌ Hybrid RAG failed for messaging:', error);
+    
+    return {
+      success: false,
+      message: `Error: ${error.message}`,
     };
   }
 }
@@ -1208,6 +1333,8 @@ export async function listVaultFiles(
         processingStep: data.processingStep,
         processingDescription: data.processingDescription,
         ragMetadata: data.ragMetadata,
+        extractedText: data.extractedText,
+        trainingData: data.trainingData,
       } as VaultFile;
     });
 
@@ -1253,291 +1380,6 @@ export async function listFileSearchStores(
   }
 }
 
-async function getConversationContext(
-  conversationId: string,
-  platform: 'sms' | 'whatsapp',
-  messageLimit: number = 5
-): Promise<string> {
-  if (!db) return '';
-
-  try {
-    const collectionName = platform === 'sms' ? 'smsMessages' : 'whatsappMessages';
-    
-    const messagesSnapshot = await db
-      .collection(collectionName)
-      .where('conversationId', '==', conversationId)
-      .orderBy('createdAt', 'desc')
-      .limit(messageLimit)
-      .select('direction', 'content')
-      .get();
-
-    if (messagesSnapshot.empty) return '';
-
-    const messages = messagesSnapshot.docs
-      .map(doc => {
-        const data = doc.data();
-        return `${data.direction === 'inbound' ? 'Customer' : 'Partner'}: ${data.content}`;
-      })
-      .reverse();
-
-    return messages.join('\n');
-  } catch (error) {
-    console.error('Error getting conversation context:', error);
-    return '';
-  }
-}
-
-async function generateAlternativeReplies(
-  originalReply: string,
-  userMessage: string,
-  count: number = 2
-): Promise<string[]> {
-  try {
-    const prompt = `Given this customer message: "${userMessage}"
-And this suggested reply: "${originalReply}"
-
-Generate ${count} alternative ways to respond that convey the same information but with different wording or tone.
-Return only the alternative responses, one per line, without numbering.`;
-
-    const response = await genAI.models.generateContent({
-      model: 'gemini-2.5-flash',
-      contents: prompt,
-    });
-
-    let text = '';
-    try {
-      text = response.text || '';
-    } catch {
-      if (response.candidates?.[0]?.content?.parts?.[0]?.text) {
-        text = response.candidates[0].content.parts[0].text;
-      }
-    }
-
-    if (!text?.trim()) return [];
-    
-    return text
-      .split('\n')
-      .map(line => line.trim())
-      .filter(line => line.length > 0)
-      .slice(0, count);
-  } catch (error) {
-    console.error('Error generating alternatives:', error);
-    return [];
-  }
-}
-
-export async function chatWithVaultForConversation(
-  partnerId: string,
-  conversationId: string,
-  platform: 'sms' | 'whatsapp',
-  message: string,
-  options?: {
-    includeAlternatives?: boolean;
-  }
-): Promise<{
-  success: boolean;
-  message: string;
-  suggestedReply?: string;
-  confidence?: number;
-  reasoning?: string;
-  sources?: any[];
-  alternativeReplies?: string[];
-}> {
-  console.log('⚡ Fast RAG starting');
-  const startTime = Date.now();
-  
-  if (!process.env.GEMINI_API_KEY || !db) {
-    return { success: false, message: 'Service not configured' };
-  }
-
-  try {
-    const conversationCollection = platform === 'sms' ? 'smsConversations' : 'whatsappConversations';
-
-    const [conversationDoc, ragStoreName, conversationContext] = await Promise.all([
-      db.collection(conversationCollection).doc(conversationId).get(),
-      getCachedRagStore(partnerId, db),
-      getConversationContext(conversationId, platform, 5)
-    ]);
-
-    console.log(`⏱️  Data: ${Date.now() - startTime}ms`);
-
-    if (!conversationDoc.exists) {
-      return { success: false, message: 'Conversation not found' };
-    }
-
-    const conversationData = conversationDoc.data();
-    const customerName = conversationData?.customerName || conversationData?.contactName || 'Customer';
-
-    const contextSection = conversationContext 
-      ? `\nRecent messages:\n${conversationContext}\n` 
-      : '';
-
-    const prompt = `Help ${customerName}.${contextSection}
-Question: "${message}"
-
-Task:
-- Check documents for info
-- Reply in 1-2 sentences
-- Be clear and professional
-
-Reply:`;
-
-    console.log('📤 Gemini');
-    const queryStart = Date.now();
-
-    const response = await genAI.models.generateContent({
-      model: 'gemini-2.5-flash',
-      contents: prompt,
-      config: {
-        tools: [{
-          fileSearch: {
-            fileSearchStoreNames: [ragStoreName],
-          },
-        }],
-        temperature: 0.7,
-        maxOutputTokens: 400,
-        topP: 0.9,
-      },
-    });
-
-    console.log(`⏱️  Gemini: ${Date.now() - queryStart}ms`);
-
-    let responseText = '';
-    
-    try {
-      responseText = response.text || '';
-      console.log('✅ Got via response.text');
-    } catch (textError: any) {
-      console.warn('⚠️  Trying manual');
-      
-      try {
-        const parts = response.candidates?.[0]?.content?.parts;
-        if (parts && parts.length > 0 && parts[0].text) {
-          responseText = parts[0].text;
-          console.log('✅ Got via manual');
-        }
-      } catch (extractError: any) {
-        console.error('❌ Manual failed:', extractError.message);
-      }
-    }
-
-    if (!responseText || !responseText.trim()) {
-      const finishReason = response.candidates?.[0]?.finishReason;
-      
-      console.error('❌ Empty response');
-      console.error('Reason:', finishReason);
-      
-      if (finishReason === 'SAFETY') {
-        return {
-          success: false,
-          message: 'Content blocked by safety filters. Please rephrase.',
-        };
-      }
-      
-      if (finishReason === 'MAX_TOKENS') {
-        console.log('🔄 Retrying with higher token limit...');
-        
-        try {
-          const retryResponse = await genAI.models.generateContent({
-            model: 'gemini-2.5-flash',
-            contents: prompt,
-            config: {
-              tools: [{
-                fileSearch: {
-                  fileSearchStoreNames: [ragStoreName],
-                },
-              }],
-              temperature: 0.7,
-              maxOutputTokens: 600,
-              topP: 0.9,
-            },
-          });
-          
-          responseText = retryResponse.text;
-          console.log('✅ Retry succeeded');
-        } catch (retryError) {
-          console.error('❌ Retry failed:', retryError);
-        }
-      }
-      
-      if (!responseText || !responseText.trim()) {
-        console.log('🔄 Fallback without RAG');
-        try {
-          const fallbackResponse = await genAI.models.generateContent({
-            model: 'gemini-2.5-flash',
-            contents: `${customerName} asks: "${message}". Give brief professional reply (2 sentences).`,
-            config: {
-              temperature: 0.7,
-              maxOutputTokens: 300,
-            },
-          });
-          
-          const fallbackText = fallbackResponse.text;
-          if (fallbackText && fallbackText.trim()) {
-            console.log('✅ Fallback succeeded');
-            return {
-              success: true,
-              message: 'Success',
-              suggestedReply: fallbackText.trim(),
-              confidence: 0.5,
-              reasoning: 'Generated without document search',
-              sources: [],
-              alternativeReplies: [],
-            };
-          }
-        } catch (fallbackError) {
-          console.error('❌ Fallback failed:', fallbackError);
-        }
-        
-        return { 
-          success: false, 
-          message: 'Unable to generate. Please rephrase or check documents.' 
-        };
-      }
-    }
-
-    responseText = responseText.trim();
-    responseText = responseText.replace(/\n\n+/g, ' ');
-    responseText = responseText.replace(/\s+/g, ' ');
-    
-    console.log('✅ Response:', responseText.substring(0, 100));
-
-    const groundingChunks = response.candidates?.[0]?.groundingMetadata?.groundingChunks || [];
-    
-    const sources = groundingChunks.slice(0, 4).map((chunk: any) => ({
-      type: 'document' as const,
-      name: chunk.retrievedContext?.title || 'Document',
-      excerpt: (chunk.retrievedContext?.text || '').substring(0, 120),
-      relevance: 0.85,
-    }));
-
-    const confidence = Math.min(0.95, 0.5 + (sources.length * 0.12));
-    const reasoning = sources.length > 0 
-      ? `Found in ${sources.length} document${sources.length > 1 ? 's' : ''}`
-      : 'Based on conversation';
-
-    console.log(`✅ Total: ${Date.now() - startTime}ms`);
-
-    return {
-      success: true,
-      message: 'Success',
-      suggestedReply: responseText,
-      confidence,
-      reasoning,
-      sources,
-      alternativeReplies: [],
-    };
-
-  } catch (error: any) {
-    console.error('❌ RAG failed:', error);
-    
-    return {
-      success: false,
-      message: `Error: ${error.message}`,
-    };
-  }
-}
-
 export async function getVaultFileStatus(
   partnerId: string,
   fileId: string
@@ -1573,5 +1415,183 @@ export async function getVaultFileStatus(
   } catch (error) {
     console.error('Error getting file status:', error);
     return { success: false };
+  }
+}
+
+export async function getDocumentTokenEstimate(
+  partnerId: string,
+  fileIds: string[]
+): Promise<{
+  success: boolean;
+  totalTokens?: number;
+  documents?: Array<{ fileId: string; fileName: string; tokens: number }>;
+  message?: string;
+  withinLimit?: boolean;
+}> {
+  const result = await estimateDocumentTokens(partnerId, fileIds);
+  
+  if (result.success && result.totalTokens) {
+    return {
+      ...result,
+      withinLimit: result.totalTokens <= 180000,
+    };
+  }
+  
+  return result;
+}
+
+export async function getExtractedTextPreview(
+  partnerId: string,
+  fileId: string
+): Promise<{
+  success: boolean;
+  fileName?: string;
+  hasText?: boolean;
+  textLength?: number;
+  preview?: string;
+  searchSample?: string;
+}> {
+  if (!db) {
+    return { success: false };
+  }
+
+  try {
+    const fileDoc = await db
+      .collection(`partners/${partnerId}/vaultFiles`)
+      .doc(fileId)
+      .get();
+
+    if (!fileDoc.exists) {
+      return { success: false };
+    }
+
+    const data = fileDoc.data()!;
+    const text = data.extractedText || data.trainingData || '';
+
+    return {
+      success: true,
+      fileName: data.displayName || data.name,
+      hasText: text.length > 0,
+      textLength: text.length,
+      preview: text.substring(0, 1000),
+      searchSample: text.toLowerCase().includes('ceo') 
+        ? text.substring(text.toLowerCase().indexOf('ceo') - 100, text.toLowerCase().indexOf('ceo') + 400)
+        : 'Search term not found in extracted text',
+    };
+  } catch (error: any) {
+    console.error('Error:', error);
+    return { success: false };
+  }
+}
+
+export async function debugVaultFile(
+  partnerId: string,
+  fileId: string
+): Promise<{
+  success: boolean;
+  debug?: {
+    hasExtractedText: boolean;
+    extractedTextLength: number;
+    extractedTextPreview: string;
+    mimeType: string;
+    fileName: string;
+    state: string;
+  };
+  message?: string;
+}> {
+  if (!db) {
+    return { success: false, message: 'Database not available' };
+  }
+
+  try {
+    const fileDoc = await db
+      .collection(`partners/${partnerId}/vaultFiles`)
+      .doc(fileId)
+      .get();
+
+    if (!fileDoc.exists) {
+      return { success: false, message: 'File not found' };
+    }
+
+    const data = fileDoc.data()!;
+
+    return {
+      success: true,
+      debug: {
+        hasExtractedText: !!data.extractedText,
+        extractedTextLength: data.extractedText?.length || 0,
+        extractedTextPreview: data.extractedText?.substring(0, 500) || 'NO TEXT EXTRACTED',
+        mimeType: data.mimeType,
+        fileName: data.displayName || data.name,
+        state: data.state,
+      },
+    };
+  } catch (error: any) {
+    console.error('Debug failed:', error);
+    return { success: false, message: error.message };
+  }
+}
+
+export async function searchInDocument(
+  partnerId: string,
+  fileId: string,
+  searchTerm: string
+): Promise<{
+  success: boolean;
+  found?: boolean;
+  occurrences?: number;
+  excerpts?: string[];
+  message?: string;
+}> {
+  if (!db) {
+    return { success: false, message: 'Database not available' };
+  }
+
+  try {
+    const fileDoc = await db
+      .collection(`partners/${partnerId}/vaultFiles`)
+      .doc(fileId)
+      .get();
+
+    if (!fileDoc.exists) {
+      return { success: false, message: 'File not found' };
+    }
+
+    const data = fileDoc.data()!;
+    const text = data.extractedText || data.trainingData || '';
+
+    if (!text) {
+      return { 
+        success: false, 
+        message: 'No text content available for this file' 
+      };
+    }
+
+    const lowerText = text.toLowerCase();
+    const lowerSearch = searchTerm.toLowerCase();
+    
+    const indices: number[] = [];
+    let index = lowerText.indexOf(lowerSearch);
+    
+    while (index !== -1) {
+      indices.push(index);
+      index = lowerText.indexOf(lowerSearch, index + 1);
+    }
+
+    const excerpts = indices.slice(0, 5).map(idx => {
+      const start = Math.max(0, idx - 100);
+      const end = Math.min(text.length, idx + searchTerm.length + 100);
+      return text.substring(start, end);
+    });
+
+    return {
+      success: true,
+      found: indices.length > 0,
+      occurrences: indices.length,
+      excerpts,
+    };
+  } catch (error: any) {
+    console.error('Search failed:', error);
+    return { success: false, message: error.message };
   }
 }

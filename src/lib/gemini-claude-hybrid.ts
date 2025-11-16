@@ -1,0 +1,416 @@
+'use server';
+
+import { GoogleGenAI } from '@google/genai';
+import Anthropic from '@anthropic-ai/sdk';
+import { db } from '@/lib/firebase-admin';
+import type { AIModelChoice } from '@/lib/types';
+
+const genAI = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || '' });
+const anthropic = new Anthropic({
+  apiKey: process.env.ANTHROPIC_API_KEY!,
+});
+
+interface HybridQueryResult {
+  success: boolean;
+  response?: string;
+  geminiChunks?: Array<{
+    content: string;
+    score: number;
+    source?: string;
+  }>;
+  usage?: {
+    input_tokens?: number;
+    output_tokens?: number;
+    cache_read_input_tokens?: number;
+    prompt_tokens?: number;
+    completion_tokens?: number;
+  };
+  message?: string;
+  retrievalTime?: number;
+  generationTime?: number;
+  chunksUsed?: number;
+  estimatedTokens?: number;
+  modelUsed?: string;
+}
+
+async function getRagStoreName(partnerId: string): Promise<string | null> {
+  if (!db) return null;
+
+  try {
+    const storesSnapshot = await db
+      .collection(`partners/${partnerId}/fileSearchStores`)
+      .where('state', '==', 'ACTIVE')
+      .limit(1)
+      .get();
+
+    if (storesSnapshot.empty) {
+      return null;
+    }
+
+    return storesSnapshot.docs[0].data().name;
+  } catch (error) {
+    console.error('Error getting RAG store:', error);
+    return null;
+  }
+}
+
+function truncateChunk(content: string, maxChars: number = 3000): string {
+  if (content.length <= maxChars) return content;
+  return content.substring(0, maxChars) + '... [truncated]';
+}
+
+function estimateTokens(text: string): number {
+  return Math.ceil(text.length / 4);
+}
+
+async function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function callClaudeWithRetry(
+  params: any,
+  maxRetries: number = 3
+): Promise<any> {
+  let lastError: any;
+  
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    try {
+      const response = await anthropic.messages.create(params);
+      
+      if (attempt > 0) {
+        console.log(`✅ Retry ${attempt} succeeded`);
+      }
+      
+      return { response, retryCount: attempt };
+    } catch (error: any) {
+      lastError = error;
+      
+      const isRateLimitError = 
+        error.status === 429 || 
+        error.error?.type === 'rate_limit_error' ||
+        error.message?.includes('rate_limit');
+      
+      const isOverloadedError = 
+        error.status === 529 || 
+        error.error?.type === 'overloaded_error';
+      
+      if (isRateLimitError || isOverloadedError) {
+        const waitTime = Math.min(Math.pow(2, attempt) * 2000, 60000);
+        const errorType = isRateLimitError ? 'Rate limit' : 'Overloaded';
+        
+        console.log(`⏳ ${errorType} error. Waiting ${waitTime/1000}s before retry ${attempt + 1}/${maxRetries}...`);
+        await delay(waitTime);
+        continue;
+      }
+      
+      throw error;
+    }
+  }
+  
+  throw lastError;
+}
+
+export async function queryWithHybridRAG(
+  partnerId: string,
+  question: string,
+  modelChoice: AIModelChoice,
+  options?: {
+    maxChunks?: number;
+    maxChunkChars?: number;
+  }
+): Promise<HybridQueryResult> {
+  const maxChunks = options?.maxChunks || 5;
+  const maxChunkChars = options?.maxChunkChars || 3000;
+
+  try {
+    console.log(`🤖 Using model: ${modelChoice}`);
+    console.log('🔵 Step 1: Get Gemini RAG store');
+    const ragStoreName = await getRagStoreName(partnerId);
+
+    if (!ragStoreName) {
+      return {
+        success: false,
+        message: 'No documents uploaded yet. Please upload documents first.',
+      };
+    }
+
+    console.log('🔵 Step 2: Query Gemini to retrieve relevant chunks');
+    console.log('📦 RAG Store:', ragStoreName);
+    const retrievalStart = Date.now();
+
+    // CORRECTED: Use exact same structure as working code in vault-actions.ts
+    const geminiResponse = await genAI.models.generateContent({
+      model: 'gemini-2.0-flash-exp',
+      contents: question,
+      config: {
+        temperature: 0.1,
+        tools: [
+          {
+            fileSearch: {
+              fileSearchStoreNames: [ragStoreName],
+            }
+          }
+        ]
+      }
+    });
+
+    const retrievalTime = Date.now() - retrievalStart;
+    console.log(`✅ Gemini retrieval completed in ${retrievalTime}ms`);
+
+    const groundingMetadata = geminiResponse.groundingMetadata;
+    const groundingChunks = groundingMetadata?.groundingChunks || [];
+
+    console.log('🔍 Debug - groundingMetadata:', JSON.stringify(groundingMetadata, null, 2));
+    console.log('🔍 Debug - groundingChunks count:', groundingChunks.length);
+
+    if (groundingChunks.length === 0) {
+      return {
+        success: false,
+        message: 'No relevant information found in your documents for this query.',
+        retrievalTime,
+      };
+    }
+
+    console.log(`📊 Retrieved ${groundingChunks.length} chunks from Gemini, will use top ${maxChunks}`);
+
+    const chunks = groundingChunks.slice(0, maxChunks).map((chunk: any, idx: number) => {
+      const rawContent = chunk.retrievedContext?.text || chunk.web?.title || 'No content';
+      const truncatedContent = truncateChunk(rawContent, maxChunkChars);
+      const score = chunk.score || 0;
+      const source = chunk.retrievedContext?.uri || chunk.web?.uri || 'Unknown source';
+      
+      console.log(`  Chunk ${idx + 1}: ${rawContent.length} chars → ${truncatedContent.length} chars (score: ${score})`);
+      
+      return {
+        content: truncatedContent,
+        score,
+        source,
+      };
+    });
+
+    let chunksContext = '';
+    let chunksUsed = 0;
+    const maxContextTokens = 150000;
+    let currentTokens = 0;
+
+    for (const chunk of chunks) {
+      const chunkText = `[Source ${chunksUsed + 1}]\n${chunk.content}\n\n---\n\n`;
+      const chunkTokens = estimateTokens(chunkText);
+      
+      if (currentTokens + chunkTokens > maxContextTokens) {
+        console.log(`⚠️ Stopping at ${chunksUsed} chunks to stay under token limit`);
+        break;
+      }
+      
+      chunksContext += chunkText;
+      currentTokens += chunkTokens;
+      chunksUsed++;
+    }
+
+    const estimatedTokens = estimateTokens(chunksContext);
+    console.log(`📊 Final context: ${chunksContext.length} chars (~${estimatedTokens} tokens) from ${chunksUsed} chunks`);
+
+    if (estimatedTokens > 180000) {
+      return {
+        success: false,
+        message: `Retrieved chunks are still too large (${estimatedTokens.toLocaleString()} tokens). Try a more specific question.`,
+        estimatedTokens,
+        chunksUsed,
+      };
+    }
+
+    console.log(`🔵 Step 3: Send chunks to ${modelChoice} for answer generation`);
+    const generationStart = Date.now();
+
+    let responseText: string;
+    let usage: any;
+    let modelUsed: string;
+
+    if (modelChoice === 'gemini-2.5-pro') {
+      // Use Gemini for generation (no file search, just text generation)
+      console.log('🔵 Using Gemini 2.0 Flash for generation');
+
+      const systemInstructions = `You are a helpful AI assistant. Answer questions using ONLY the information in the sources below.
+
+CRITICAL RULES:
+1. Use ONLY information from the sources provided
+2. If the answer is not in the sources, say: "I don't see that information in the provided sources"
+3. Cite which source(s) you're using (e.g., "According to Source 1...")
+4. Be accurate and precise
+5. Do not use external knowledge
+
+SOURCES:
+${chunksContext}`;
+
+      // Call without file search tools for generation
+      const genResponse = await genAI.models.generateContent({
+        model: 'gemini-2.0-flash-exp',
+        contents: `${systemInstructions}\n\nUSER QUESTION: ${question}\n\nYOUR ANSWER:`,
+        config: {
+          temperature: 0.3,
+          maxOutputTokens: 4096,
+        }
+      });
+
+      responseText = genResponse.text || '';
+      usage = {
+        prompt_tokens: genResponse.usageMetadata?.promptTokenCount || 0,
+        completion_tokens: genResponse.usageMetadata?.candidatesTokenCount || 0,
+      };
+      modelUsed = 'gemini-2.0-flash-exp';
+
+    } else if (modelChoice === 'gpt-4o-mini') {
+      // Use OpenAI GPT-4o Mini
+      if (!process.env.OPENAI_API_KEY) {
+        return {
+          success: false,
+          message: 'OpenAI API key not configured',
+        };
+      }
+
+      const openaiResponse = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
+        },
+        body: JSON.stringify({
+          model: 'gpt-4o-mini',
+          messages: [
+            {
+              role: 'system',
+              content: `You are a helpful AI assistant. Answer questions using ONLY the information in the sources below. Cite sources when answering.
+
+SOURCES:
+${chunksContext}`,
+            },
+            {
+              role: 'user',
+              content: question,
+            }
+          ],
+          temperature: 0.3,
+          max_tokens: 4096,
+        }),
+      });
+
+      if (!openaiResponse.ok) {
+        const errorText = await openaiResponse.text();
+        throw new Error(`OpenAI API error: ${openaiResponse.status} - ${errorText}`);
+      }
+
+      const openaiData = await openaiResponse.json();
+      responseText = openaiData.choices[0]?.message?.content || '';
+      usage = {
+        prompt_tokens: openaiData.usage?.prompt_tokens || 0,
+        completion_tokens: openaiData.usage?.completion_tokens || 0,
+      };
+      modelUsed = 'gpt-4o-mini';
+
+    } else {
+      // Use Claude (haiku, sonnet-3.5, or sonnet-4.5)
+      const modelMap = {
+        'haiku': 'claude-3-5-haiku-20241022',
+        'sonnet-3.5': 'claude-3-5-sonnet-20241022',
+        'sonnet-4.5': 'claude-sonnet-4-5-20250929',
+      };
+
+      const claudeModel = modelMap[modelChoice as 'haiku' | 'sonnet-3.5' | 'sonnet-4.5'];
+
+      const systemPrompt = `You are a helpful AI assistant. Answer the user's question using ONLY the information provided in the sources below.
+
+CRITICAL RULES:
+1. Use ONLY information from the sources provided
+2. If the answer is not in the sources, say: "I don't see that information in the provided sources"
+3. Cite which source(s) you're using (e.g., "According to Source 1...")
+4. Be accurate and precise
+5. Do not use external knowledge
+
+SOURCES:
+${chunksContext}`;
+
+      const systemTokens = estimateTokens(systemPrompt);
+      const questionTokens = estimateTokens(question);
+      const totalInputTokens = systemTokens + questionTokens;
+
+      console.log(`📊 Total input tokens: ${totalInputTokens} (system: ${systemTokens}, question: ${questionTokens})`);
+
+      if (totalInputTokens > 190000) {
+        return {
+          success: false,
+          message: `Context too large (${totalInputTokens.toLocaleString()} tokens). Please ask a more specific question.`,
+          estimatedTokens: totalInputTokens,
+        };
+      }
+
+      const { response, retryCount } = await callClaudeWithRetry({
+        model: claudeModel,
+        max_tokens: 4096,
+        temperature: 0.3,
+        system: systemPrompt,
+        messages: [
+          {
+            role: 'user',
+            content: question,
+          }
+        ],
+      });
+
+      responseText = response.content[0].type === 'text' 
+        ? response.content[0].text 
+        : '';
+      
+      usage = response.usage;
+      modelUsed = claudeModel;
+
+      if (retryCount > 0) {
+        console.log(`🔄 Query succeeded after ${retryCount} retry(s)`);
+      }
+    }
+
+    const generationTime = Date.now() - generationStart;
+    console.log(`✅ ${modelChoice} generation completed in ${generationTime}ms`);
+    console.log('💰 Token usage:', usage);
+    console.log(`⏱️ Total time: ${retrievalTime + generationTime}ms (retrieval: ${retrievalTime}ms, generation: ${generationTime}ms)`);
+
+    return {
+      success: true,
+      response: responseText,
+      geminiChunks: chunks.slice(0, chunksUsed),
+      usage,
+      retrievalTime,
+      generationTime,
+      chunksUsed,
+      estimatedTokens,
+      modelUsed,
+    };
+
+  } catch (error: any) {
+    console.error('❌ Hybrid query failed:', error);
+    console.error('❌ Error name:', error.name);
+    console.error('❌ Error message:', error.message);
+    console.error('❌ Error stack:', error.stack);
+    
+    // Log the full error object
+    if (error.error) {
+      console.error('❌ Error.error:', JSON.stringify(error.error, null, 2));
+    }
+    
+    const isRateLimitError = 
+      error.status === 429 || 
+      error.error?.type === 'rate_limit_error' ||
+      error.message?.includes('rate_limit');
+    
+    if (isRateLimitError) {
+      return {
+        success: false,
+        message: 'Rate limit reached. Please wait 60 seconds and try again.',
+      };
+    }
+    
+    return {
+      success: false,
+      message: `Query failed: ${error.message || 'Unknown error'}`,
+    };
+  }
+}

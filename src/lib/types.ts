@@ -1255,19 +1255,24 @@ export interface FileSearchStore {
 }
 
 export interface VaultQuery {
-  id: string;
+  id?: string;
   query: string;
   response: string;
-  citations?: Array<{
-    startIndex: number;
-    endIndex: number;
-    uri: string;
-    title: string;
-  }>;
   partnerId: string;
   userId: string;
   selectedFileIds?: string[];
   selectedFileNames?: string[];
+  provider?: 'gemini' | 'claude'; // Updated
+  usage?: {
+    input_tokens?: number;
+    output_tokens?: number;
+    cache_read_input_tokens?: number;
+    cache_creation_input_tokens?: number;
+  };
+  inputTokens?: number;
+  outputTokens?: number;
+  cacheReadTokens?: number;
+  cacheCreationTokens?: number;
   chunksBeforeFilter?: number;
   chunksAfterFilter?: number;
   createdAt: string;
@@ -1325,3 +1330,61 @@ export interface RAGSource {
   excerpt: string;
   relevance: number;
 }
+
+// Add to existing types.ts file
+
+export type AIModelChoice = 
+  | 'haiku' 
+  | 'sonnet-3.5' 
+  | 'sonnet-4.5' 
+  | 'gpt-4o-mini' 
+  | 'gemini-2.5-pro';
+
+export interface PartnerAIConfig {
+  responseModel: AIModelChoice;
+  updatedAt: string;
+  updatedBy: string;
+}
+
+export const AI_MODEL_OPTIONS = [
+  {
+    value: 'haiku' as const,
+    label: 'Claude Haiku 3.5',
+    description: 'Fastest, Cheapest',
+    costPer1000: '$0.001',
+    speed: '1-2s',
+    provider: 'Anthropic',
+  },
+  {
+    value: 'sonnet-3.5' as const,
+    label: 'Claude Sonnet 3.5',
+    description: 'Better Quality',
+    costPer1000: '$0.005',
+    speed: '2-3s',
+    provider: 'Anthropic',
+  },
+  {
+    value: 'sonnet-4.5' as const,
+    label: 'Claude Sonnet 4.5',
+    description: 'Best Quality',
+    costPer1000: '$0.015',
+    speed: '3-5s',
+    provider: 'Anthropic',
+  },
+  {
+    value: 'gpt-4o-mini' as const,
+    label: 'GPT-4o Mini',
+    description: 'Alternative',
+    costPer1000: '$0.002',
+    speed: '1-2s',
+    provider: 'OpenAI',
+  },
+  {
+    value: 'gemini-2.5-pro' as const,
+    label: 'Gemini 2.5 Pro',
+    description: 'High Quality, Free',
+    costPer1000: 'Free',
+    speed: '2-3s',
+    provider: 'Google',
+  },
+] as const;
