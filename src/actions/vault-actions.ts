@@ -1194,6 +1194,7 @@ Generate a suggested reply:`;
       {
         maxChunks: 3,
         maxChunkChars: 2000,
+        allowEmptyChunks: true, // CRITICAL: Allow responses without documents
       }
     );
 
@@ -1212,7 +1213,7 @@ Generate a suggested reply:`;
     const confidence = chunksUsed > 0 ? 0.85 : 0.70;
     const reasoning = chunksUsed > 0
       ? `Based on ${chunksUsed} relevant chunk${chunksUsed > 1 ? 's' : ''} from knowledge base (${result.modelUsed})`
-      : `General response (${result.modelUsed})`;
+      : `General response without knowledge base (${result.modelUsed})`;
 
     const sources = result.geminiChunks?.slice(0, 3).map(chunk => ({
       type: 'document' as const,
@@ -1243,7 +1244,6 @@ Generate a suggested reply:`;
     };
   }
 }
-
 export async function generateExampleQuestions(partnerId: string): Promise<string[]> {
   if (!db) return [];
 

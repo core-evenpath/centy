@@ -33,27 +33,6 @@ interface HybridQueryResult {
   modelUsed?: string;
 }
 
-async function getRagStoreName(partnerId: string): Promise<string | null> {
-  if (!db) return null;
-
-  try {
-    const storesSnapshot = await db
-      .collection(`partners/${partnerId}/fileSearchStores`)
-      .where('state', '==', 'ACTIVE')
-      .limit(1)
-      .get();
-
-    if (storesSnapshot.empty) {
-      return null;
-    }
-
-    return storesSnapshot.docs[0].data().name;
-  } catch (error) {
-    console.error('Error getting RAG store:', error);
-    return null;
-  }
-}
-
 function truncateChunk(content: string, maxChars: number = 3000): string {
   if (content.length <= maxChars) return content;
   return content.substring(0, maxChars) + '... [truncated]';
@@ -117,61 +96,87 @@ export async function queryWithHybridRAG(
   options?: {
     maxChunks?: number;
     maxChunkChars?: number;
+    allowEmptyChunks?: boolean;
   }
 ): Promise<HybridQueryResult> {
   const maxChunks = options?.maxChunks || 5;
   const maxChunkChars = options?.maxChunkChars || 3000;
+  const allowEmptyChunks = options?.allowEmptyChunks ?? false;
 
   try {
     console.log(`🤖 Using model: ${modelChoice}`);
     console.log('🔵 Step 1: Get Gemini RAG store');
-    const ragStoreName = await getRagStoreName(partnerId);
+    
+    // Get RAG store inline
+    let ragStoreName: string | null = null;
+    
+    if (db) {
+      try {
+        const storesSnapshot = await db
+          .collection(`partners/${partnerId}/fileSearchStores`)
+          .where('state', '==', 'ACTIVE')
+          .limit(1)
+          .get();
+
+        if (!storesSnapshot.empty) {
+          ragStoreName = storesSnapshot.docs[0].data().name;
+        }
+      } catch (error) {
+        console.error('Error getting RAG store:', error);
+      }
+    }
 
     if (!ragStoreName) {
-      return {
-        success: false,
-        message: 'No documents uploaded yet. Please upload documents first.',
-      };
+      if (!allowEmptyChunks) {
+        return {
+          success: false,
+          message: 'No documents uploaded yet. Please upload documents first.',
+        };
+      }
+      console.log('⚠️ No RAG store found, continuing with empty context');
     }
 
-    console.log('🔵 Step 2: Query Gemini to retrieve relevant chunks');
-    console.log('📦 RAG Store:', ragStoreName);
-    const retrievalStart = Date.now();
+    let groundingChunks: any[] = [];
+    let retrievalTime = 0;
 
-    // CORRECTED: Use exact same structure as working code in vault-actions.ts
-    const geminiResponse = await genAI.models.generateContent({
-      model: 'gemini-2.0-flash-exp',
-      contents: question,
-      config: {
-        temperature: 0.1,
-        tools: [
-          {
-            fileSearch: {
-              fileSearchStoreNames: [ragStoreName],
+    if (ragStoreName) {
+      console.log('🔵 Step 2: Query Gemini to retrieve relevant chunks');
+      console.log('📦 RAG Store:', ragStoreName);
+      const retrievalStart = Date.now();
+
+      const geminiResponse = await genAI.models.generateContent({
+        model: 'gemini-2.5-flash',
+        contents: question,
+        config: {
+          tools: [
+            {
+              fileSearch: {
+                fileSearchStoreNames: [ragStoreName],
+              }
             }
-          }
-        ]
-      }
-    });
+          ]
+        }
+      });
 
-    const retrievalTime = Date.now() - retrievalStart;
-    console.log(`✅ Gemini retrieval completed in ${retrievalTime}ms`);
+      retrievalTime = Date.now() - retrievalStart;
+      console.log(`✅ Gemini retrieval completed in ${retrievalTime}ms`);
 
-    const groundingMetadata = geminiResponse.groundingMetadata;
-    const groundingChunks = groundingMetadata?.groundingChunks || [];
-
-    console.log('🔍 Debug - groundingMetadata:', JSON.stringify(groundingMetadata, null, 2));
-    console.log('🔍 Debug - groundingChunks count:', groundingChunks.length);
+      const groundingMetadata = geminiResponse.groundingMetadata;
+      groundingChunks = groundingMetadata?.groundingChunks || [];
+      
+      console.log(`📊 Retrieved ${groundingChunks.length} chunks from Gemini`);
+    }
 
     if (groundingChunks.length === 0) {
-      return {
-        success: false,
-        message: 'No relevant information found in your documents for this query.',
-        retrievalTime,
-      };
+      if (!allowEmptyChunks) {
+        return {
+          success: false,
+          message: 'No relevant information found in your documents for this query.',
+          retrievalTime,
+        };
+      }
+      console.log('⚠️ No chunks found, will generate response without document context');
     }
-
-    console.log(`📊 Retrieved ${groundingChunks.length} chunks from Gemini, will use top ${maxChunks}`);
 
     const chunks = groundingChunks.slice(0, maxChunks).map((chunk: any, idx: number) => {
       const rawContent = chunk.retrievedContext?.text || chunk.web?.title || 'No content';
@@ -226,11 +231,8 @@ export async function queryWithHybridRAG(
     let usage: any;
     let modelUsed: string;
 
-    if (modelChoice === 'gemini-2.5-pro') {
-      // Use Gemini for generation (no file search, just text generation)
-      console.log('🔵 Using Gemini 2.0 Flash for generation');
-
-      const systemInstructions = `You are a helpful AI assistant. Answer questions using ONLY the information in the sources below.
+    const systemPrompt = chunksUsed > 0 
+      ? `You are a helpful AI assistant. Answer questions using ONLY the information in the sources below.
 
 CRITICAL RULES:
 1. Use ONLY information from the sources provided
@@ -240,12 +242,15 @@ CRITICAL RULES:
 5. Do not use external knowledge
 
 SOURCES:
-${chunksContext}`;
+${chunksContext}` 
+      : `You are a helpful AI assistant for customer service. Provide a professional, helpful response to the customer's message. Be concise (1-2 sentences) and friendly.`;
 
-      // Call without file search tools for generation
+    if (modelChoice === 'gemini-2.5-pro') {
+      console.log('🔵 Using Gemini 2.5 Flash for generation');
+
       const genResponse = await genAI.models.generateContent({
-        model: 'gemini-2.0-flash-exp',
-        contents: `${systemInstructions}\n\nUSER QUESTION: ${question}\n\nYOUR ANSWER:`,
+        model: 'gemini-2.5-flash',
+        contents: `${systemPrompt}\n\nUSER QUESTION: ${question}\n\nYOUR ANSWER:`,
         config: {
           temperature: 0.3,
           maxOutputTokens: 4096,
@@ -257,10 +262,9 @@ ${chunksContext}`;
         prompt_tokens: genResponse.usageMetadata?.promptTokenCount || 0,
         completion_tokens: genResponse.usageMetadata?.candidatesTokenCount || 0,
       };
-      modelUsed = 'gemini-2.0-flash-exp';
+      modelUsed = 'gemini-2.5-flash';
 
     } else if (modelChoice === 'gpt-4o-mini') {
-      // Use OpenAI GPT-4o Mini
       if (!process.env.OPENAI_API_KEY) {
         return {
           success: false,
@@ -279,10 +283,7 @@ ${chunksContext}`;
           messages: [
             {
               role: 'system',
-              content: `You are a helpful AI assistant. Answer questions using ONLY the information in the sources below. Cite sources when answering.
-
-SOURCES:
-${chunksContext}`,
+              content: systemPrompt,
             },
             {
               role: 'user',
@@ -308,7 +309,6 @@ ${chunksContext}`,
       modelUsed = 'gpt-4o-mini';
 
     } else {
-      // Use Claude (haiku, sonnet-3.5, or sonnet-4.5)
       const modelMap = {
         'haiku': 'claude-3-5-haiku-20241022',
         'sonnet-3.5': 'claude-3-5-sonnet-20241022',
@@ -316,18 +316,6 @@ ${chunksContext}`,
       };
 
       const claudeModel = modelMap[modelChoice as 'haiku' | 'sonnet-3.5' | 'sonnet-4.5'];
-
-      const systemPrompt = `You are a helpful AI assistant. Answer the user's question using ONLY the information provided in the sources below.
-
-CRITICAL RULES:
-1. Use ONLY information from the sources provided
-2. If the answer is not in the sources, say: "I don't see that information in the provided sources"
-3. Cite which source(s) you're using (e.g., "According to Source 1...")
-4. Be accurate and precise
-5. Do not use external knowledge
-
-SOURCES:
-${chunksContext}`;
 
       const systemTokens = estimateTokens(systemPrompt);
       const questionTokens = estimateTokens(question);
@@ -387,14 +375,6 @@ ${chunksContext}`;
 
   } catch (error: any) {
     console.error('❌ Hybrid query failed:', error);
-    console.error('❌ Error name:', error.name);
-    console.error('❌ Error message:', error.message);
-    console.error('❌ Error stack:', error.stack);
-    
-    // Log the full error object
-    if (error.error) {
-      console.error('❌ Error.error:', JSON.stringify(error.error, null, 2));
-    }
     
     const isRateLimitError = 
       error.status === 429 || 
