@@ -1,8 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { chatWithVault } from '@/actions/vault-actions';
+import { chatWithVaultHybrid } from '@/actions/vault-actions';
+
+export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
 
 export async function POST(request: NextRequest) {
   try {
+    console.log('API Route called');
+    
     const body = await request.json();
     const { partnerId, userId, message, selectedFileIds } = body;
 
@@ -13,13 +18,18 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const result = await chatWithVault(partnerId, userId, message, selectedFileIds);
+    const result = await chatWithVaultHybrid(
+      partnerId,
+      userId,
+      message,
+      selectedFileIds
+    );
 
     return NextResponse.json(result);
   } catch (error: any) {
-    console.error('Error in chat API route:', error);
+    console.error('API error:', error);
     return NextResponse.json(
-      { success: false, message: error.message || 'Internal server error' },
+      { success: false, message: error.message },
       { status: 500 }
     );
   }

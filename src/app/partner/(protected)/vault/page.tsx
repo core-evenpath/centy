@@ -19,6 +19,7 @@ import {
   Brain
 } from 'lucide-react';
 import VaultSidebar from '@/components/partner/vault/VaultSidebar';
+import CleanupButton from '@/components/partner/vault/CleanupButton';
 import DocumentGrid from '@/components/partner/vault/DocumentGrid';
 import DocumentPreview from '@/components/partner/vault/DocumentPreview';
 import UploadDialog from '@/components/partner/vault/UploadDialog';
@@ -345,6 +346,32 @@ export default function VaultPage() {
                     </button>
                   )}
                 </div>
+
+                <Button 
+  onClick={() => setIsTrainingDataDialogOpen(true)}
+  size="sm"
+  variant="outline"
+  className="h-9"
+>
+  <Brain className="h-4 w-4 mr-2" />
+  Add Training Data
+</Button>
+
+<CleanupButton 
+  partnerId={partnerId}
+  onCleanupComplete={() => loadData(true)}
+/>
+
+<Button 
+  variant="outline"
+  size="sm"
+  onClick={() => loadData(false)}
+  disabled={isLoading}
+  className="h-9"
+>
+  <RefreshCw className={`h-4 w-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
+  Sync
+</Button>
 
                 <div className="flex items-center gap-1 bg-gray-100 rounded-md p-1">
                   <button

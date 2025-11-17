@@ -32,6 +32,14 @@ async function extractPDFText(buffer: Buffer): Promise<string | null> {
   }
 }
 
+function formatBytes(bytes: number): string {
+  if (bytes === 0) return '0 Bytes';
+  const k = 1024;
+  const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
+}
+
 async function getOrCreateRagStore(partnerId: string): Promise<string> {
   if (!db) {
     throw new Error('Database not available');
@@ -141,9 +149,17 @@ export async function uploadFileToVault(
   let fileDocRef: FirebaseFirestore.DocumentReference | null = null;
   let geminiFileNameToCleanup: string | null = null;
   const processingStartTime = Date.now();
+  const processingStartedAt = new Date().toISOString();
 
   try {
-    console.log('🔵 Step 1: Converting base64 to buffer');
+    console.log('🚀 Starting file upload process');
+    console.log('📊 File details:', {
+      name: fileData.displayName,
+      mimeType: fileData.mimeType,
+      size: `${Math.round(fileData.base64Data.length * 0.75)} bytes`,
+    });
+
+    console.log('🔵 Step 1: Decoding base64 and preparing file');
     const buffer = Buffer.from(fileData.base64Data, 'base64');
 
     const estimatedChunks = Math.ceil(buffer.length / 2048);
@@ -158,9 +174,22 @@ export async function uploadFileToVault(
       } else {
         console.warn('⚠️ PDF text extraction failed, will store without text');
       }
+    } else if (fileData.mimeType.startsWith('text/')) {
+      extractedText = buffer.toString('utf-8');
     }
 
-    console.log('🔵 Step 2: Creating file record with PROCESSING state');
+    console.log('🔵 Step 2: Getting user information');
+    let uploadedByEmail = 'unknown@example.com';
+    try {
+      const userDoc = await db.collection('users').doc(userId).get();
+      if (userDoc.exists) {
+        uploadedByEmail = userDoc.data()?.email || uploadedByEmail;
+      }
+    } catch (error) {
+      console.warn('⚠️ Could not fetch user email:', error);
+    }
+
+    console.log('🔵 Step 3: Creating file record with PROCESSING state');
     
     const initialVaultFile = {
       name: fileData.name,
@@ -171,8 +200,9 @@ export async function uploadFileToVault(
       state: 'PROCESSING',
       processingStep: 1,
       processingDescription: 'Creating record...',
-      uploadedAt: new Date().toISOString(),
+      uploadedAt: processingStartedAt,
       uploadedBy: userId,
+      uploadedByEmail: uploadedByEmail,
       partnerId: partnerId,
       firebaseStoragePath: storagePath,
       sourceType: 'upload',
@@ -184,8 +214,9 @@ export async function uploadFileToVault(
         embeddingDimension: 768,
         estimatedChunks: estimatedChunks,
         extractedTextLength: extractedText?.length || 0,
+        processingStartedAt: processingStartedAt,
         hasMetadata: true,
-        metadataKeys: ['fileId', 'fileName', 'partnerId', 'uploadedAt', 'sourceType'],
+        metadataKeys: ['fileId', 'fileName', 'partnerId', 'uploadedAt', 'uploadedBy', 'uploadedByEmail', 'sourceType'],
       },
       createdAt: FieldValue.serverTimestamp(),
     };
@@ -197,7 +228,7 @@ export async function uploadFileToVault(
     console.log('✅ File record created with ID:', fileDocRef.id);
 
     await updateFileProgress(fileDocRef, 2, 'Uploading to storage...');
-    console.log('🔵 Step 2: Uploading to Firebase Storage');
+    console.log('🔵 Step 4: Uploading to Firebase Storage');
     const file = bucket.file(storagePath);
     
     await file.save(buffer, {
@@ -206,22 +237,25 @@ export async function uploadFileToVault(
         metadata: {
           partnerId: partnerId,
           uploadedBy: userId,
+          uploadedByEmail: uploadedByEmail,
           vaultFileId: fileDocRef.id,
+          uploadedAt: processingStartedAt,
         }
       }
     });
     console.log('✅ File saved to storage');
 
     await updateFileProgress(fileDocRef, 3, 'Storing in vault...');
-    console.log('🔵 Step 3: Getting/Creating RAG store');
+    console.log('🔵 Step 5: Getting/Creating RAG store');
     const ragStoreName = await getOrCreateRagStore(partnerId);
+    console.log('✅ RAG store ready:', ragStoreName);
 
-    await updateFileProgress(fileDocRef, 4, 'RAG processing (AI indexing)...');
-    console.log('🔵 Step 4: Creating File object for Gemini upload');
+    await updateFileProgress(fileDocRef, 4, 'Creating embeddings...');
+    console.log('🔵 Step 6: Uploading to Gemini File Search');
+
     const blob = new Blob([buffer], { type: fileData.mimeType });
     const uploadFile = new File([blob], fileData.name, { type: fileData.mimeType });
 
-    console.log('🔵 Step 5: Uploading to RAG store');
     const ragProcessingStart = Date.now();
     let op = await genAI.fileSearchStores.uploadToFileSearchStore({
       fileSearchStoreName: ragStoreName,
@@ -232,13 +266,15 @@ export async function uploadFileToVault(
           { key: 'fileId', stringValue: fileDocRef.id },
           { key: 'fileName', stringValue: fileData.displayName },
           { key: 'partnerId', stringValue: partnerId },
-          { key: 'uploadedAt', stringValue: new Date().toISOString() },
+          { key: 'uploadedBy', stringValue: userId },
+          { key: 'uploadedByEmail', stringValue: uploadedByEmail },
+          { key: 'uploadedAt', stringValue: processingStartedAt },
           { key: 'sourceType', stringValue: 'upload' },
         ]
       }
     });
-    console.log('⏳ Upload operation started');
 
+    console.log('📤 Upload operation started, polling for completion...');
     let attempts = 0;
     while (!op.done && attempts < 40) {
       await delay(3000);
@@ -265,25 +301,72 @@ export async function uploadFileToVault(
 
     const uploadedFileName = (op.response as any)?.file?.name || fileData.name;
     const ragProcessingTime = Date.now() - ragProcessingStart;
-    console.log('✅ File uploaded to Gemini successfully:', uploadedFileName);
+    console.log('✅ File uploaded to Gemini:', uploadedFileName);
     console.log(`⏱️ RAG processing took: ${ragProcessingTime}ms`);
 
     geminiFileNameToCleanup = uploadedFileName;
 
-    await updateFileProgress(fileDocRef, 5, 'Ready to query!');
-    console.log('🔵 Step 6: Updating file record to ACTIVE');
+    await updateFileProgress(fileDocRef, 5, 'Retrieving embedding metadata...');
+    console.log('🔵 Step 7: Getting actual embedding count from Gemini');
     
+    let actualChunks = estimatedChunks;
+    let actualEmbeddings = estimatedChunks;
+    
+    try {
+      const fileInfo = await genAI.files.get({ name: uploadedFileName });
+      console.log('📊 Gemini file info:', fileInfo);
+      
+      if (fileInfo.metadata) {
+        actualChunks = fileInfo.metadata.chunkCount || estimatedChunks;
+        actualEmbeddings = fileInfo.metadata.embeddingCount || estimatedChunks;
+      }
+      
+      console.log(`✅ Actual embeddings: ${actualEmbeddings}, chunks: ${actualChunks}`);
+    } catch (metadataError) {
+      console.warn('⚠️ Could not retrieve embedding metadata:', metadataError);
+    }
+
+    const processingCompletedAt = new Date().toISOString();
     const totalProcessingTime = Date.now() - processingStartTime;
-    
-    await fileDocRef.update({
-      state: 'ACTIVE',
-      processingStep: 5,
-      processingDescription: 'Ready to query',
-      geminiFileUri: ragStoreName,
-      geminiFileName: uploadedFileName,
-      'ragMetadata.indexedAt': new Date().toISOString(),
-      'ragMetadata.processingTimeMs': totalProcessingTime,
-    });
+
+    console.log('🔵 Step 8: Updating file record to ACTIVE');
+    await db
+      .collection(`partners/${partnerId}/vaultFiles`)
+      .doc(fileDocRef.id)
+      .update({
+        state: 'ACTIVE',
+        geminiFileUri: ragStoreName,
+        geminiFileName: uploadedFileName,
+        processingStep: 6,
+        processingDescription: 'Ready',
+        ragMetadata: {
+          chunkSize: 2048,
+          chunkOverlap: 128,
+          embeddingModel: 'text-embedding-004',
+          embeddingDimension: 768,
+          estimatedChunks: estimatedChunks,
+          actualChunks: actualChunks,
+          actualEmbeddings: actualEmbeddings,
+          extractedTextLength: extractedText?.length || 0,
+          indexedAt: processingCompletedAt,
+          processingTimeMs: totalProcessingTime,
+          processingStartedAt: processingStartedAt,
+          processingCompletedAt: processingCompletedAt,
+          hasMetadata: true,
+          metadataKeys: ['fileId', 'fileName', 'partnerId', 'uploadedBy', 'uploadedByEmail', 'uploadedAt', 'sourceType'],
+        },
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+
+    console.log('✅ Upload complete!');
+    console.log('📊 Final statistics:');
+    console.log(`   Size: ${formatBytes(buffer.length)}`);
+    console.log(`   Estimated chunks: ${estimatedChunks}`);
+    console.log(`   Actual chunks: ${actualChunks}`);
+    console.log(`   Actual embeddings: ${actualEmbeddings}`);
+    console.log(`   Processing time: ${(totalProcessingTime / 1000).toFixed(2)}s`);
+    console.log(`   Uploaded by: ${uploadedByEmail}`);
+    console.log(`   Uploaded at: ${processingStartedAt}`);
 
     const finalFile = {
       id: fileDocRef.id,
@@ -291,35 +374,46 @@ export async function uploadFileToVault(
       state: 'ACTIVE' as const,
       geminiFileUri: ragStoreName,
       geminiFileName: uploadedFileName,
-      createdAt: new Date().toISOString(),
+      createdAt: processingStartedAt,
       ragMetadata: {
-        ...initialVaultFile.ragMetadata,
-        indexedAt: new Date().toISOString(),
+        chunkSize: 2048,
+        chunkOverlap: 128,
+        embeddingModel: 'text-embedding-004',
+        embeddingDimension: 768,
+        estimatedChunks: estimatedChunks,
+        actualChunks: actualChunks,
+        actualEmbeddings: actualEmbeddings,
+        extractedTextLength: extractedText?.length || 0,
+        indexedAt: processingCompletedAt,
         processingTimeMs: totalProcessingTime,
-      }
+        processingStartedAt: processingStartedAt,
+        processingCompletedAt: processingCompletedAt,
+        hasMetadata: true,
+        metadataKeys: ['fileId', 'fileName', 'partnerId', 'uploadedBy', 'uploadedByEmail', 'uploadedAt', 'sourceType'],
+      },
     };
-
-    console.log('✅ SUCCESS! File ID:', fileDocRef.id);
-    console.log(`⏱️ Total processing time: ${totalProcessingTime}ms`);
 
     return {
       success: true,
       message: 'File uploaded successfully',
-      file: finalFile,
+      file: finalFile as VaultFile,
     };
+
   } catch (error: any) {
-    console.error('❌ UPLOAD FAILED:', error.message);
-    console.error('Full error:', error);
-    
+    console.error('❌ Upload failed:', error);
+
     if (fileDocRef) {
       try {
-        await fileDocRef.update({
-          state: 'FAILED',
-          processingStep: -1,
-          processingDescription: 'Upload failed',
-          errorMessage: error.message || 'Upload failed',
-        });
-        console.log('📝 Updated file record to FAILED state');
+        await db
+          .collection(`partners/${partnerId}/vaultFiles`)
+          .doc(fileDocRef.id)
+          .update({
+            state: 'FAILED',
+            errorMessage: error.message,
+            processingStep: 0,
+            processingDescription: 'Failed',
+            updatedAt: FieldValue.serverTimestamp(),
+          });
       } catch (updateError) {
         console.error('Failed to update file state:', updateError);
       }
@@ -1371,6 +1465,7 @@ export async function listVaultFiles(
         state: data.state || 'PROCESSING',
         uploadedAt: data.uploadedAt || new Date().toISOString(),
         uploadedBy: data.uploadedBy || '',
+        uploadedByEmail: data.uploadedByEmail || '',
         partnerId: data.partnerId || partnerId,
         geminiFileUri: data.geminiFileUri,
         geminiFileName: data.geminiFileName,
@@ -1646,5 +1741,156 @@ export async function searchInDocument(
   } catch (error: any) {
     console.error('Search failed:', error);
     return { success: false, message: error.message };
+  }
+}
+
+export async function cleanupAllVaultData(
+  partnerId: string
+): Promise<{
+  success: boolean;
+  message: string;
+  details?: {
+    firestoreFilesDeleted: number;
+    geminiFilesDeleted: number;
+    storeDeleted: boolean;
+    queriesDeleted: number;
+    errors: string[];
+  };
+}> {
+  if (!db) {
+    return { success: false, message: 'Database not available' };
+  }
+
+  console.log('🧹 Starting complete vault cleanup for partner:', partnerId);
+
+  const details = {
+    firestoreFilesDeleted: 0,
+    geminiFilesDeleted: 0,
+    storeDeleted: false,
+    queriesDeleted: 0,
+    errors: [] as string[],
+  };
+
+  try {
+    console.log('📋 Step 1: Listing all Firestore vault files...');
+    const vaultFilesSnapshot = await db
+      .collection(`partners/${partnerId}/vaultFiles`)
+      .get();
+
+    console.log(`📊 Found ${vaultFilesSnapshot.size} vault files in Firestore`);
+
+    console.log('📋 Step 2: Deleting Gemini files...');
+    for (const doc of vaultFilesSnapshot.docs) {
+      const data = doc.data();
+      
+      if (data.geminiFileName) {
+        try {
+          await genAI.files.delete({ name: data.geminiFileName });
+          details.geminiFilesDeleted++;
+          console.log(`✅ Deleted Gemini file: ${data.geminiFileName}`);
+        } catch (error: any) {
+          const errorMsg = `Failed to delete Gemini file ${data.geminiFileName}: ${error.message}`;
+          console.warn('⚠️', errorMsg);
+          details.errors.push(errorMsg);
+        }
+      }
+
+      if (data.firebaseStoragePath) {
+        try {
+          const storage = getStorage();
+          const bucket = storage.bucket();
+          await bucket.file(data.firebaseStoragePath).delete();
+          console.log(`✅ Deleted storage file: ${data.firebaseStoragePath}`);
+        } catch (error: any) {
+          const errorMsg = `Failed to delete storage file ${data.firebaseStoragePath}: ${error.message}`;
+          console.warn('⚠️', errorMsg);
+          details.errors.push(errorMsg);
+        }
+      }
+    }
+
+    console.log('📋 Step 3: Deleting Firestore vault files...');
+    const batch = db.batch();
+    vaultFilesSnapshot.docs.forEach(doc => {
+      batch.delete(doc.ref);
+    });
+    await batch.commit();
+    details.firestoreFilesDeleted = vaultFilesSnapshot.size;
+    console.log(`✅ Deleted ${details.firestoreFilesDeleted} Firestore records`);
+
+    console.log('📋 Step 4: Deleting vault queries...');
+    const queriesSnapshot = await db
+      .collection(`partners/${partnerId}/vaultQueries`)
+      .get();
+    
+    if (!queriesSnapshot.empty) {
+      const queryBatch = db.batch();
+      queriesSnapshot.docs.forEach(doc => {
+        queryBatch.delete(doc.ref);
+      });
+      await queryBatch.commit();
+      details.queriesDeleted = queriesSnapshot.size;
+      console.log(`✅ Deleted ${details.queriesDeleted} query records`);
+    }
+
+    console.log('📋 Step 5: Deleting file search store...');
+    const storeSnapshot = await db
+      .collection(`partners/${partnerId}/fileSearchStores`)
+      .get();
+
+    if (!storeSnapshot.empty) {
+      const storeBatch = db.batch();
+      storeSnapshot.docs.forEach(doc => {
+        storeBatch.delete(doc.ref);
+      });
+      await storeBatch.commit();
+      details.storeDeleted = true;
+      console.log('✅ Deleted file search store records');
+    }
+
+    console.log('📋 Step 6: Cleaning up orphaned Gemini files...');
+    try {
+      const listResponse = await genAI.files.list();
+      const allGeminiFiles = listResponse.files || [];
+      
+      for (const file of allGeminiFiles) {
+        try {
+          await genAI.files.delete({ name: file.name });
+          console.log(`✅ Deleted orphaned Gemini file: ${file.name}`);
+          details.geminiFilesDeleted++;
+        } catch (error: any) {
+          console.warn(`⚠️ Could not delete ${file.name}:`, error.message);
+        }
+      }
+    } catch (error: any) {
+      const errorMsg = `Failed to clean orphaned files: ${error.message}`;
+      console.warn('⚠️', errorMsg);
+      details.errors.push(errorMsg);
+    }
+
+    const summary = `
+✅ Cleanup Complete:
+- Firestore files: ${details.firestoreFilesDeleted}
+- Gemini embeddings: ${details.geminiFilesDeleted}
+- Query history: ${details.queriesDeleted}
+- Store deleted: ${details.storeDeleted ? 'Yes' : 'No'}
+${details.errors.length > 0 ? `\n⚠️ ${details.errors.length} errors occurred` : ''}
+    `.trim();
+
+    console.log(summary);
+
+    return {
+      success: true,
+      message: summary,
+      details,
+    };
+
+  } catch (error: any) {
+    console.error('❌ Cleanup failed:', error);
+    return {
+      success: false,
+      message: `Cleanup failed: ${error.message}`,
+      details,
+    };
   }
 }

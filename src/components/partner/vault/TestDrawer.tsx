@@ -16,7 +16,8 @@ import {
   User,
   Search,
   Clock,
-  Zap
+  Zap,
+  Brain
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -95,6 +96,32 @@ const FormattedMessage = ({ content }: { content: string }) => {
       </ReactMarkdown>
     </div>
   );
+};
+
+const getModelDisplayName = (modelUsed?: string): string => {
+  if (!modelUsed) return 'Unknown';
+  
+  const modelMap: Record<string, string> = {
+    'claude-3-5-haiku-20241022': 'Claude Haiku 3.5',
+    'claude-3-5-sonnet-20241022': 'Claude Sonnet 3.5',
+    'claude-sonnet-4-20250514': 'Claude Sonnet 4.5',
+    'gpt-4o-mini': 'GPT-4o Mini',
+    'gemini-2.5-pro': 'Gemini 2.5 Pro',
+  };
+  
+  return modelMap[modelUsed] || modelUsed;
+};
+
+const getModelBadgeColor = (modelUsed?: string): string => {
+  if (!modelUsed) return 'bg-gray-100 text-gray-700';
+  
+  if (modelUsed.includes('haiku')) return 'bg-blue-100 text-blue-700';
+  if (modelUsed.includes('sonnet-4')) return 'bg-purple-100 text-purple-700';
+  if (modelUsed.includes('sonnet-3')) return 'bg-indigo-100 text-indigo-700';
+  if (modelUsed.includes('gpt')) return 'bg-green-100 text-green-700';
+  if (modelUsed.includes('gemini')) return 'bg-orange-100 text-orange-700';
+  
+  return 'bg-gray-100 text-gray-700';
 };
 
 export default function TestDrawer({ 
@@ -226,9 +253,7 @@ export default function TestDrawer({
       console.log('═══════════════════════════════════════');
       console.log('📊 Response keys:', Object.keys(result));
       console.log('🔍 geminiChunks:', result.geminiChunks);
-      console.log('🔍 groundingChunks:', result.groundingChunks);
-      console.log('🔍 sources:', result.sources);
-      console.log('🔍 retrievalContext:', result.retrievalContext);
+      console.log('🔍 modelUsed:', result.modelUsed);
       console.log('═══════════════════════════════════════');
 
       if (result.success) {
@@ -244,33 +269,7 @@ export default function TestDrawer({
             });
             return {
               content: chunk.content || chunk.text || '',
-              source: chunk.source || chunk.documentName || 'Unknown',
-              score: chunk.score,
-            };
-          }).filter((s: any) => s.content);
-        }
-        else if (result.groundingChunks && Array.isArray(result.groundingChunks)) {
-          console.log('✅ Using groundingChunks format, count:', result.groundingChunks.length);
-          sources = result.groundingChunks.map((chunk: any, idx: number) => {
-            console.log(`  Chunk ${idx}:`, {
-              text: chunk.retrievedContext?.text?.substring(0, 50),
-              documentName: chunk.documentName,
-              score: chunk.score,
-            });
-            return {
-              content: chunk.retrievedContext?.text || chunk.text || chunk.content || '',
-              source: chunk.documentName || chunk.source || 'Unknown',
-              score: chunk.score,
-            };
-          }).filter((s: any) => s.content);
-        }
-        else if (result.sources && Array.isArray(result.sources)) {
-          console.log('✅ Using sources format, count:', result.sources.length);
-          sources = result.sources.map((chunk: any, idx: number) => {
-            console.log(`  Source ${idx}:`, chunk);
-            return {
-              content: chunk.content || chunk.text || '',
-              source: chunk.source || chunk.documentName || 'Unknown',
+              source: chunk.source || chunk.documentName || 'Unknown Document',
               score: chunk.score,
             };
           }).filter((s: any) => s.content);
@@ -319,6 +318,7 @@ export default function TestDrawer({
         content: 'Sorry, I encountered an error. Please try again.',
         timestamp: new Date(),
       };
+      
       setMessages(prev => [...prev, errorMessage]);
       
       toast({
@@ -331,163 +331,143 @@ export default function TestDrawer({
     }
   };
 
-  const filteredFiles = files.filter(file =>
-    file.displayName.toLowerCase().includes(searchQuery.toLowerCase())
+  const handleExampleClick = (question: string) => {
+    setQuery(question);
+  };
+
+  const filteredFiles = files.filter(f =>
+    f.displayName.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   if (!isOpen) return null;
 
   return (
     <>
-      <div 
-        className="fixed inset-0 bg-black/20 z-40 transition-opacity"
-        onClick={onClose}
-      />
-
-      <div className="fixed right-0 top-0 bottom-0 w-[600px] bg-white shadow-2xl z-50 flex flex-col animate-in slide-in-from-right duration-300">
-        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 bg-gradient-to-r from-blue-50 to-indigo-50">
+      <div className="fixed inset-0 bg-black/50 z-50" onClick={onClose} />
+      
+      <div className="fixed inset-y-0 right-0 w-full md:w-[600px] bg-white shadow-2xl z-50 flex flex-col">
+        <div className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white p-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-600 to-indigo-600 flex items-center justify-center">
-              <Sparkles className="h-5 w-5 text-white" />
+            <div className="p-2 bg-white/20 rounded-lg">
+              <Sparkles className="h-5 w-5" />
             </div>
             <div>
-              <h3 className="text-lg font-semibold text-gray-900">Vault Chat</h3>
-              <p className="text-sm text-gray-600">Ask questions about your documents</p>
+              <h2 className="text-lg font-semibold">Vault Chat</h2>
+              <p className="text-sm text-blue-100">
+                {documentCount} document{documentCount !== 1 ? 's' : ''} • {selectedFiles.size} selected
+              </p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="p-2 hover:bg-white rounded-lg transition-colors"
+            className="p-2 hover:bg-white/20 rounded-lg transition-colors"
           >
-            <X className="h-5 w-5 text-gray-600" />
+            <X className="h-5 w-5" />
           </button>
         </div>
 
-        <div className="px-6 py-3 bg-gray-50 border-b border-gray-200">
-          <Collapsible open={showDocumentSelector} onOpenChange={setShowDocumentSelector}>
-            <div className="flex items-center justify-between">
-              <CollapsibleTrigger asChild>
+        <div className="border-b border-gray-200 bg-gray-50 p-3">
+          <button
+            onClick={() => setShowDocumentSelector(!showDocumentSelector)}
+            className="w-full flex items-center justify-between px-4 py-2 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+          >
+            <div className="flex items-center gap-2">
+              <Layers className="h-4 w-4 text-gray-600" />
+              <span className="text-sm font-medium text-gray-700">
+                {selectedFiles.size === files.length
+                  ? 'All documents selected'
+                  : `${selectedFiles.size} of ${files.length} documents`}
+              </span>
+            </div>
+            <ChevronDown
+              className={`h-4 w-4 text-gray-600 transition-transform ${
+                showDocumentSelector ? 'rotate-180' : ''
+              }`}
+            />
+          </button>
+
+          {showDocumentSelector && (
+            <div className="mt-3 bg-white border border-gray-200 rounded-lg p-3 max-h-64 overflow-y-auto">
+              <div className="flex items-center gap-2 mb-3">
+                <div className="relative flex-1">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                  <Input
+                    type="text"
+                    placeholder="Search documents..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="pl-9 h-8 text-sm"
+                  />
+                </div>
                 <Button
                   variant="outline"
                   size="sm"
-                  className="h-9 gap-2"
+                  onClick={handleSelectAll}
+                  className="text-xs h-8"
                 >
-                  <Layers className="h-4 w-4" />
-                  <span>
-                    {selectedFiles.size === files.length 
-                      ? `All documents (${files.length})`
-                      : `${selectedFiles.size} of ${files.length} documents`
-                    }
-                  </span>
-                  <ChevronDown className={`h-4 w-4 transition-transform ${showDocumentSelector ? 'rotate-180' : ''}`} />
+                  All
                 </Button>
-              </CollapsibleTrigger>
-
-              {selectedFiles.size !== files.length && (
-                <div className="flex items-center gap-2">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={handleSelectAll}
-                    className="h-8 text-xs"
-                  >
-                    Select All
-                  </Button>
-                  {selectedFiles.size > 0 && (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={handleClearSelection}
-                      className="h-8 text-xs"
-                    >
-                      Clear
-                    </Button>
-                  )}
-                </div>
-              )}
-            </div>
-
-            <CollapsibleContent className="mt-3">
-              <div className="bg-white rounded-lg border border-gray-200 p-3 max-h-80 overflow-y-auto">
-                <div className="mb-3">
-                  <div className="relative">
-                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-                    <Input
-                      type="text"
-                      placeholder="Search documents..."
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                      className="pl-9 h-9 text-sm"
-                    />
-                  </div>
-                </div>
-
-                <div className="space-y-1">
-                  {filteredFiles.length === 0 ? (
-                    <div className="text-center py-6 text-gray-500 text-sm">
-                      No documents found
-                    </div>
-                  ) : (
-                    filteredFiles.map((file) => (
-                      <button
-                        key={file.id}
-                        onClick={() => toggleFileSelection(file.id)}
-                        className={`w-full flex items-center gap-3 px-3 py-2 rounded-md text-left transition-colors ${
-                          selectedFiles.has(file.id)
-                            ? 'bg-blue-50 border border-blue-200'
-                            : 'hover:bg-gray-50 border border-transparent'
-                        }`}
-                      >
-                        <div className={`flex-shrink-0 w-5 h-5 rounded border-2 flex items-center justify-center ${
-                          selectedFiles.has(file.id)
-                            ? 'bg-blue-600 border-blue-600'
-                            : 'border-gray-300'
-                        }`}>
-                          {selectedFiles.has(file.id) && (
-                            <Check className="h-3 w-3 text-white" />
-                          )}
-                        </div>
-                        <FileText className="h-4 w-4 text-gray-400 flex-shrink-0" />
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium text-gray-900 truncate">
-                            {file.displayName}
-                          </p>
-                          <p className="text-xs text-gray-500">
-                            {(file.sizeBytes / 1024 / 1024).toFixed(2)} MB
-                          </p>
-                        </div>
-                      </button>
-                    ))
-                  )}
-                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleClearSelection}
+                  className="text-xs h-8"
+                >
+                  None
+                </Button>
               </div>
-            </CollapsibleContent>
-          </Collapsible>
+
+              <div className="space-y-1">
+                {filteredFiles.map((file) => (
+                  <label
+                    key={file.id}
+                    className="flex items-center gap-2 p-2 hover:bg-gray-50 rounded cursor-pointer"
+                  >
+                    <div className="relative flex items-center justify-center">
+                      <input
+                        type="checkbox"
+                        checked={selectedFiles.has(file.id)}
+                        onChange={() => toggleFileSelection(file.id)}
+                        className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                      />
+                      {selectedFiles.has(file.id) && (
+                        <Check className="absolute h-3 w-3 text-white pointer-events-none" />
+                      )}
+                    </div>
+                    <FileText className="h-4 w-4 text-gray-400 flex-shrink-0" />
+                    <span className="text-sm text-gray-700 truncate flex-1">
+                      {file.displayName}
+                    </span>
+                  </label>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
 
-        <div className="flex-1 overflow-y-auto p-6 space-y-4">
-          {messages.length === 0 ? (
-            <div className="flex flex-col items-center justify-center h-full text-center">
-              <div className="bg-gradient-to-br from-blue-100 to-indigo-100 rounded-2xl p-8 mb-6">
-                <Bot className="h-16 w-16 text-blue-600 mx-auto" />
+        <div className="flex-1 overflow-y-auto p-4 space-y-4">
+          {messages.length === 0 && (
+            <div className="text-center py-8">
+              <div className="inline-flex p-4 bg-gradient-to-br from-blue-50 to-indigo-50 rounded-full mb-4">
+                <Bot className="h-8 w-8 text-blue-600" />
               </div>
-              <h4 className="text-xl font-bold text-gray-900 mb-2">
-                Ready to test your documents
-              </h4>
-              <p className="text-gray-600 mb-6 max-w-md">
-                Ask questions about {selectedFiles.size === files.length 
-                  ? 'all your documents' 
-                  : `${selectedFiles.size} selected document${selectedFiles.size !== 1 ? 's' : ''}`
-                }
+              <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                Start a conversation
+              </h3>
+              <p className="text-gray-600 text-sm mb-6">
+                Ask questions about your documents
               </p>
+
               {exampleQuestions.length > 0 && (
-                <div className="w-full max-w-md space-y-2">
-                  <p className="text-sm font-medium text-gray-700 mb-3">Try asking:</p>
-                  {exampleQuestions.slice(0, 3).map((question, idx) => (
+                <div className="space-y-2">
+                  <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-3">
+                    Try asking:
+                  </p>
+                  {exampleQuestions.map((question, idx) => (
                     <button
                       key={idx}
-                      onClick={() => setQuery(question)}
-                      className="w-full text-left px-4 py-3 bg-white border border-gray-200 rounded-lg hover:border-blue-300 hover:bg-blue-50 transition-colors text-sm text-gray-700"
+                      onClick={() => handleExampleClick(question)}
+                      className="block w-full text-left px-4 py-3 bg-white border border-gray-200 rounded-lg hover:border-blue-300 hover:bg-blue-50 transition-colors text-sm text-gray-700"
                     >
                       {question}
                     </button>
@@ -495,264 +475,216 @@ export default function TestDrawer({
                 </div>
               )}
             </div>
-          ) : (
-            messages.map((message, idx) => (
-              <div key={idx} className={`flex gap-3 ${message.role === 'user' ? 'justify-end' : ''}`}>
-                {message.role === 'assistant' && (
-                  <div className="flex-shrink-0">
-                    <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-600 to-indigo-600 flex items-center justify-center">
-                      <Bot className="h-5 w-5 text-white" />
-                    </div>
+          )}
+
+          {messages.map((message, idx) => (
+            <div
+              key={idx}
+              className={`flex gap-3 ${
+                message.role === 'user' ? 'justify-end' : 'justify-start'
+              }`}
+            >
+              {message.role === 'assistant' && (
+                <div className="flex-shrink-0">
+                  <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center">
+                    <Bot className="h-5 w-5 text-white" />
                   </div>
-                )}
-                <div className={`flex-1 ${message.role === 'user' ? 'flex justify-end' : ''}`}>
-                  <div className={`max-w-[85%] rounded-lg px-4 py-3 ${
+                </div>
+              )}
+
+              <div
+                className={`flex-1 max-w-[85%] ${
+                  message.role === 'user' ? 'flex justify-end' : ''
+                }`}
+              >
+                <div
+                  className={`rounded-lg px-4 py-3 ${
                     message.role === 'user'
                       ? 'bg-blue-600 text-white'
                       : 'bg-gray-100 text-gray-900'
-                  }`}>
-                    {message.role === 'user' && message.testedDocuments && message.testedDocuments.length > 0 && (
-                      <div className="mb-2 pb-2 border-b border-blue-500/30">
-                        <p className="text-xs text-blue-100 mb-1">Testing documents:</p>
-                        <div className="flex flex-wrap gap-1">
-                          {message.testedDocuments.slice(0, 3).map((doc, i) => (
-                            <span key={i} className="text-xs bg-blue-500/30 px-2 py-0.5 rounded">
-                              {doc}
-                            </span>
-                          ))}
-                          {message.testedDocuments.length > 3 && (
-                            <span className="text-xs bg-blue-500/30 px-2 py-0.5 rounded">
-                              +{message.testedDocuments.length - 3} more
-                            </span>
-                          )}
+                  }`}
+                >
+                  {message.role === 'user' ? (
+                    <>
+                      <p className="text-sm leading-relaxed">{message.content}</p>
+                      {message.testedDocuments && message.testedDocuments.length > 0 && (
+                        <div className="mt-2 pt-2 border-t border-white/20">
+                          <p className="text-xs text-blue-100 mb-1">Testing with:</p>
+                          <div className="flex flex-wrap gap-1">
+                            {message.testedDocuments.map((doc, i) => (
+                              <span
+                                key={i}
+                                className="text-xs bg-white/20 px-2 py-0.5 rounded"
+                              >
+                                {doc}
+                              </span>
+                            ))}
+                          </div>
                         </div>
+                      )}
+                    </>
+                  ) : (
+                    <>
+                      <div className="flex items-center gap-2 mb-2">
+                        {message.modelUsed && (
+                          <div className={`flex items-center gap-1.5 px-2 py-1 rounded-full text-xs font-medium ${getModelBadgeColor(message.modelUsed)}`}>
+                            <Brain className="h-3 w-3" />
+                            {getModelDisplayName(message.modelUsed)}
+                          </div>
+                        )}
                       </div>
-                    )}
-                    
-                    <div className="text-sm">
                       <FormattedMessage content={message.content} />
-                    </div>
-                    
-                    {message.role === 'assistant' && (
-                      <div className="mt-4 pt-3 border-t border-gray-200 space-y-3">
-                        
-                        {(message.modelUsed || message.retrievalTime || message.generationTime || message.usage) && (
-                          <div className="space-y-2">
-                            {message.modelUsed && (
-                              <div className="flex items-center gap-2 text-xs text-gray-600">
-                                <Sparkles className="h-3 w-3" />
-                                <span>
-                                  Query Model: <strong className="font-semibold">{message.modelUsed}</strong>
-                                </span>
-                              </div>
-                            )}
-                            
-                            {(message.retrievalTime !== undefined || message.generationTime !== undefined) && (
-                              <div className="flex items-center gap-4 text-xs text-gray-600">
-                                {message.retrievalTime !== undefined && (
-                                  <div className="flex items-center gap-1">
-                                    <Clock className="h-3 w-3" />
-                                    <span>Retrieval: {formatTime(message.retrievalTime)}</span>
-                                  </div>
-                                )}
-                                {message.generationTime !== undefined && (
-                                  <div className="flex items-center gap-1">
-                                    <Zap className="h-3 w-3" />
-                                    <span>Generation: {formatTime(message.generationTime)}</span>
-                                  </div>
-                                )}
-                              </div>
-                            )}
 
-                            {message.usage && (
-                              <div className="flex items-center gap-3 text-xs text-gray-600">
-                                <span>Tokens: {message.usage.input_tokens || 0} in / {message.usage.output_tokens || 0} out</span>
-                                {message.usage.cache_read_input_tokens !== undefined && message.usage.cache_read_input_tokens > 0 && (
-                                  <Badge variant="secondary" className="text-xs">
-                                    {message.usage.cache_read_input_tokens} cached
-                                  </Badge>
-                                )}
-                              </div>
-                            )}
-                          </div>
-                        )}
-
-                        {message.sources && message.sources.length > 0 && (
-                          <div>
-                            <h4 className="text-xs font-semibold text-gray-600 mb-2 flex items-center gap-1">
-                              <FileText className="h-3 w-3" />
-                              Sources:
-                            </h4>
-                            <div className="space-y-2">
-                              {message.sources.map((source, sourceIndex) => (
-                                <button
-                                  key={sourceIndex}
-                                  onClick={() => setModalSource({ source, index: sourceIndex + 1 })}
-                                  className="w-full text-left bg-white hover:bg-gray-50 border border-gray-300 px-3 py-2 rounded-md transition-colors"
-                                  title={`Click to view full text from ${source.source}`}
-                                >
-                                  <div className="flex items-center justify-between gap-2">
-                                    <div className="flex items-center gap-2 flex-1 min-w-0">
-                                      <div className="flex-shrink-0 w-6 h-6 rounded-full bg-blue-100 flex items-center justify-center">
-                                        <span className="text-xs font-bold text-blue-600">{sourceIndex + 1}</span>
-                                      </div>
-                                      <div className="flex-1 min-w-0">
-                                        <p className="text-xs font-medium text-gray-900 truncate">{source.source}</p>
-                                        <p className="text-xs text-gray-500 line-clamp-1">{source.content.substring(0, 60)}...</p>
-                                      </div>
+                      {message.usage && (
+                        <div className="mt-3 pt-3 border-t border-gray-200">
+                          <Collapsible>
+                            <CollapsibleTrigger className="flex items-center gap-2 text-xs text-gray-600 hover:text-gray-900 w-full">
+                              <ChevronDown className="h-3 w-3" />
+                              <span>Performance Details</span>
+                            </CollapsibleTrigger>
+                            <CollapsibleContent className="mt-2 space-y-2">
+                              {(message.retrievalTime !== undefined || message.generationTime !== undefined) && (
+                                <div className="flex items-center gap-4 text-xs text-gray-600">
+                                  {message.retrievalTime !== undefined && (
+                                    <div className="flex items-center gap-1">
+                                      <Clock className="h-3 w-3" />
+                                      <span>Retrieval: {formatTime(message.retrievalTime)}</span>
                                     </div>
-                                    {source.score && (
-                                      <Badge variant="secondary" className="text-xs flex-shrink-0">
-                                        {(source.score * 100).toFixed(0)}%
-                                      </Badge>
-                                    )}
+                                  )}
+                                  {message.generationTime !== undefined && (
+                                    <div className="flex items-center gap-1">
+                                      <Zap className="h-3 w-3" />
+                                      <span>Generation: {formatTime(message.generationTime)}</span>
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+
+                              {message.usage && (
+                                <div className="flex items-center gap-3 text-xs text-gray-600">
+                                  <span>Tokens: {message.usage.input_tokens || 0} in / {message.usage.output_tokens || 0} out</span>
+                                  {message.usage.cache_read_input_tokens !== undefined && message.usage.cache_read_input_tokens > 0 && (
+                                    <Badge variant="secondary" className="text-xs">
+                                      {message.usage.cache_read_input_tokens} cached
+                                    </Badge>
+                                  )}
+                                </div>
+                              )}
+                            </CollapsibleContent>
+                          </Collapsible>
+                        </div>
+                      )}
+
+                      {message.sources && message.sources.length > 0 && (
+                        <div className="mt-3 pt-3 border-t border-gray-200">
+                          <h4 className="text-xs font-semibold text-gray-600 mb-2 flex items-center gap-1">
+                            <FileText className="h-3 w-3" />
+                            Sources ({message.sources.length})
+                          </h4>
+                          <div className="space-y-2">
+                            {message.sources.map((source, sourceIdx) => (
+                              <div
+                                key={sourceIdx}
+                                className="bg-white rounded-lg p-3 border border-gray-200 hover:border-blue-300 transition-colors"
+                              >
+                                <div className="flex items-start justify-between gap-2 mb-1">
+                                  <div className="flex items-center gap-2 flex-1 min-w-0">
+                                    <FileText className="h-3 w-3 text-blue-600 flex-shrink-0" />
+                                    <span className="text-xs font-medium text-gray-900 truncate">
+                                      {source.source}
+                                    </span>
                                   </div>
-                                </button>
-                              ))}
-                            </div>
+                                  {source.score !== undefined && (
+                                    <Badge variant="outline" className="text-xs flex-shrink-0">
+                                      {(source.score * 100).toFixed(0)}%
+                                    </Badge>
+                                  )}
+                                </div>
+                                <p className="text-xs text-gray-600 line-clamp-2">
+                                  {source.content}
+                                </p>
+                              </div>
+                            ))}
                           </div>
-                        )}
-                      </div>
-                    )}
+                        </div>
+                      )}
+                    </>
+                  )}
+                </div>
+
+                <div className="flex items-center gap-2 mt-1 px-1">
+                  <span className="text-xs text-gray-500">
+                    {message.timestamp.toLocaleTimeString([], {
+                      hour: '2-digit',
+                      minute: '2-digit',
+                    })}
+                  </span>
+                </div>
+              </div>
+
+              {message.role === 'user' && (
+                <div className="flex-shrink-0">
+                  <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center">
+                    <User className="h-5 w-5 text-gray-600" />
                   </div>
                 </div>
-                {message.role === 'user' && (
-                  <div className="flex-shrink-0">
-                    <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center">
-                      <User className="h-5 w-5 text-gray-600" />
-                    </div>
-                  </div>
-                )}
-              </div>
-            ))
-          )}
+              )}
+            </div>
+          ))}
+
           {isQuerying && (
             <div className="flex gap-3">
               <div className="flex-shrink-0">
-                <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-600 to-indigo-600 flex items-center justify-center">
+                <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center">
                   <Bot className="h-5 w-5 text-white" />
                 </div>
               </div>
-              <div className="bg-gray-100 rounded-lg px-4 py-3">
-                <div className="flex items-center gap-2">
-                  <Loader2 className="h-4 w-4 animate-spin text-blue-600" />
-                  <span className="text-sm text-gray-600">Analyzing documents...</span>
+              <div className="flex-1">
+                <div className="bg-gray-100 rounded-lg px-4 py-3">
+                  <div className="flex items-center gap-2">
+                    <Loader2 className="h-4 w-4 animate-spin text-blue-600" />
+                    <span className="text-sm text-gray-600">Thinking...</span>
+                  </div>
                 </div>
               </div>
             </div>
           )}
+
           <div ref={chatEndRef} />
         </div>
 
-        <div className="border-t border-gray-200 p-4 bg-white">
-          {selectedFiles.size === 0 && (
-            <div className="mb-3 p-3 bg-amber-50 border border-amber-200 rounded-lg flex items-start gap-2">
-              <AlertCircle className="h-4 w-4 text-amber-600 flex-shrink-0 mt-0.5" />
-              <p className="text-xs text-amber-800">
-                Please select at least one document to start testing
-              </p>
-            </div>
-          )}
+        <div className="border-t border-gray-200 bg-white p-4">
           <form onSubmit={handleSubmit} className="flex gap-2">
             <Textarea
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder={selectedFiles.size === 0 
-                ? "Select documents above to start..." 
-                : "Ask a question about your documents..."
-              }
+              placeholder="Ask a question about your documents..."
               className="flex-1 min-h-[60px] max-h-[120px] resize-none"
-              disabled={isQuerying || selectedFiles.size === 0}
               onKeyDown={(e) => {
                 if (e.key === 'Enter' && !e.shiftKey) {
                   e.preventDefault();
                   handleSubmit(e);
                 }
               }}
+              disabled={isQuerying}
             />
             <Button
               type="submit"
-              disabled={isQuerying || !query.trim() || selectedFiles.size === 0}
-              className="self-end h-[60px] px-6"
+              disabled={!query.trim() || isQuerying}
+              className="self-end bg-blue-600 hover:bg-blue-700"
             >
               {isQuerying ? (
-                <Loader2 className="h-5 w-5 animate-spin" />
+                <Loader2 className="h-4 w-4 animate-spin" />
               ) : (
-                <Send className="h-5 w-5" />
+                <Send className="h-4 w-4" />
               )}
             </Button>
           </form>
+          <p className="text-xs text-gray-500 mt-2">
+            Press Enter to send, Shift+Enter for new line
+          </p>
         </div>
       </div>
-
-      {modalSource && (
-        <div
-          className="fixed inset-0 bg-black/60 flex items-center justify-center z-[60] p-4"
-          onClick={() => setModalSource(null)}
-        >
-          <div
-            className="bg-white rounded-lg shadow-xl w-full max-w-4xl max-h-[85vh] flex flex-col"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="p-6">
-              <div className="flex items-start justify-between mb-4">
-                <div className="flex-1">
-                  <div className="flex items-center gap-3 mb-2">
-                    <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0">
-                      <span className="text-sm font-bold text-blue-600">{modalSource.index}</span>
-                    </div>
-                    <h3 className="text-xl font-bold text-gray-900">
-                      Source {modalSource.index}
-                    </h3>
-                  </div>
-                  <div className="flex items-center gap-3 text-sm text-gray-600 flex-wrap pl-11">
-                    <div className="flex items-center gap-2">
-                      <FileText className="h-4 w-4 text-blue-600" />
-                      <span className="font-medium">{modalSource.source.source}</span>
-                    </div>
-                    {modalSource.source.score && (
-                      <Badge variant="secondary">
-                        {(modalSource.source.score * 100).toFixed(0)}% relevance
-                      </Badge>
-                    )}
-                    <div className="text-xs text-gray-500">
-                      {modalSource.source.content.length.toLocaleString()} characters
-                    </div>
-                  </div>
-                </div>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setModalSource(null)}
-                >
-                  <X className="h-4 w-4" />
-                </Button>
-              </div>
-
-              <div className="bg-blue-50 border border-blue-200 rounded-md p-3 mb-4">
-                <p className="text-xs text-blue-800">
-                  💡 <strong>This is the exact text chunk</strong> retrieved from <strong>{modalSource.source.source}</strong> that was used to generate the answer above.
-                </p>
-              </div>
-
-              <div className="max-h-[50vh] overflow-y-auto border border-gray-200 rounded-lg p-4 bg-gray-50">
-                <div className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">
-                  {modalSource.source.content}
-                </div>
-              </div>
-
-              <div className="flex justify-end mt-4">
-                <Button
-                  onClick={() => setModalSource(null)}
-                  className="bg-blue-600 hover:bg-blue-700"
-                >
-                  Close
-                </Button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
     </>
   );
 }

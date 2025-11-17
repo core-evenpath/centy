@@ -1205,7 +1205,6 @@ export interface ResourceAccess {
 // ============================================================================
 // VAULT & FILE SEARCH TYPES
 // ============================================================================
-
 export interface VaultFile {
   id: string;
   name: string;
@@ -1216,6 +1215,7 @@ export interface VaultFile {
   state: 'PROCESSING' | 'ACTIVE' | 'FAILED';
   uploadedAt: string;
   uploadedBy: string;
+  uploadedByEmail?: string;
   partnerId: string;
   geminiFileUri?: string;
   geminiFileName?: string;
@@ -1236,9 +1236,13 @@ export interface VaultFile {
     embeddingModel?: string;
     embeddingDimension?: number;
     estimatedChunks?: number;
+    actualChunks?: number;
+    actualEmbeddings?: number;
     extractedTextLength?: number;
     indexedAt?: string;
     processingTimeMs?: number;
+    processingStartedAt?: string;
+    processingCompletedAt?: string;
     hasMetadata?: boolean;
     metadataKeys?: string[];
   };

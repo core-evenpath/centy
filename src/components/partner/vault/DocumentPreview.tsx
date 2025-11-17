@@ -1,247 +1,278 @@
-// src/components/partner/vault/DocumentPreview.tsx
 'use client';
 
-import React, { useState, useEffect } from 'react';
-import { 
-  X, 
-  FileText, 
-  Calendar, 
-  HardDrive,
-  User,
-  Trash2,
-  Download,
-  Sparkles,
-  Database,
-  Code,
-  Eye,
-  Edit
-} from 'lucide-react';
+import React from 'react';
+import { X, Download, Trash2, Edit, FileText, Calendar, User, Database } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import type { VaultFile } from '@/lib/types';
-import { format } from 'date-fns';
 
 interface DocumentPreviewProps {
   file: VaultFile;
   onClose: () => void;
   onDelete: () => void;
-  onEdit?: (file: VaultFile) => void;
+  onEdit: (file: VaultFile) => void;
+}
+
+function formatBytes(bytes: number): string {
+  if (bytes === 0) return '0 Bytes';
+  const k = 1024;
+  const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
 }
 
 export default function DocumentPreview({ file, onClose, onDelete, onEdit }: DocumentPreviewProps) {
-  const [viewMode, setViewMode] = useState<'formatted' | 'raw'>('formatted');
-  const [content, setContent] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
-
-  const isTrainingData = file.mimeType === 'text/markdown' && file.sourceType === 'training';
-
-  useEffect(() => {
-    if (isTrainingData) {
-      loadContent();
-    }
-  }, [file.id]);
-
-  const loadContent = async () => {
-    setIsLoading(true);
-    try {
-      const response = await fetch(`/api/vault/content?partnerId=${file.partnerId}&fileId=${file.id}`);
-      const data = await response.json();
-      if (data.success) {
-        setContent(data.content);
-      }
-    } catch (error) {
-      console.error('Failed to load content:', error);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const parseJSONL = (jsonl: string) => {
-    try {
-      return jsonl.split('\n').filter(line => line.trim()).map(line => JSON.parse(line));
-    } catch {
-      return [];
-    }
+  const handleDownload = async () => {
+    console.log('Download clicked for:', file.displayName);
   };
 
   return (
-    <div className="w-80 bg-white border-l border-gray-200 flex flex-col">
-      <div className="flex items-center justify-between p-3 border-b border-gray-200">
-        <h3 className="text-sm font-semibold text-gray-900">Document Details</h3>
+    <div className="w-96 bg-white border-l border-gray-200 flex flex-col">
+      <div className="flex items-center justify-between p-4 border-b border-gray-200">
+        <h2 className="text-lg font-semibold text-gray-900">Document Details</h2>
         <button
           onClick={onClose}
-          className="p-1.5 hover:bg-gray-100 rounded-md transition-colors"
+          className="text-gray-400 hover:text-gray-600 transition-colors"
         >
-          <X className="h-4 w-4 text-gray-600" />
+          <X className="h-5 w-5" />
         </button>
       </div>
 
-      <div className="flex-1 overflow-y-auto">
-        <div className="p-4 border-b border-gray-100">
-          <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-lg p-6 flex items-center justify-center mb-3">
-            <FileText className="h-16 w-16 text-blue-600" />
+      <div className="flex-1 overflow-y-auto p-4 space-y-4">
+        <div className="flex items-start gap-3">
+          <div className="p-3 bg-blue-50 rounded-lg">
+            <FileText className="h-6 w-6 text-blue-600" />
           </div>
-          <h4 className="text-sm font-semibold text-gray-900 mb-1 break-words">
-            {file.displayName}
-          </h4>
-          <p className="text-xs text-gray-500">
-            {file.mimeType}
-          </p>
-          {isTrainingData && (
-            <div className="mt-2 flex items-center gap-1 text-xs text-blue-600 bg-blue-50 px-2 py-1 rounded">
-              <Sparkles className="h-3 w-3" />
-              Training Data
-            </div>
+          <div className="flex-1 min-w-0">
+            <h3 className="font-medium text-gray-900 break-words">{file.displayName}</h3>
+            <p className="text-sm text-gray-500 mt-1">{file.mimeType}</p>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <Badge
+            variant={
+              file.state === 'ACTIVE'
+                ? 'default'
+                : file.state === 'FAILED'
+                ? 'destructive'
+                : 'secondary'
+            }
+          >
+            {file.state}
+          </Badge>
+          {file.sourceType && (
+            <Badge variant="outline">
+              {file.sourceType}
+            </Badge>
           )}
         </div>
 
-        {isTrainingData && content && (
-          <div className="p-4 border-b border-gray-100">
-            <div className="flex items-center justify-between mb-3">
-              <h5 className="text-[10px] font-semibold text-gray-500 uppercase">
-                Content Preview
-              </h5>
-              <div className="flex gap-1">
-                <button
-                  onClick={() => setViewMode('formatted')}
-                  className={`p-1.5 rounded text-xs ${viewMode === 'formatted' ? 'bg-blue-50 text-blue-600' : 'text-gray-500 hover:bg-gray-50'}`}
-                >
-                  <Eye className="h-3.5 w-3.5" />
-                </button>
-                <button
-                  onClick={() => setViewMode('raw')}
-                  className={`p-1.5 rounded text-xs ${viewMode === 'raw' ? 'bg-blue-50 text-blue-600' : 'text-gray-500 hover:bg-gray-50'}`}
-                >
-                  <Code className="h-3.5 w-3.5" />
-                </button>
-              </div>
-            </div>
-
-            {viewMode === 'formatted' ? (
-              <div className="space-y-2 max-h-64 overflow-y-auto">
-                {parseJSONL(content).map((entry: any, idx: number) => (
-                  <div key={idx} className="bg-gray-50 rounded p-2 text-xs">
-                    <div className="text-gray-500 font-medium mb-1">Q: {entry.question}</div>
-                    <div className="text-gray-700">A: {entry.answer}</div>
-                    {entry.category && (
-                      <div className="text-blue-600 mt-1 text-[10px]">{entry.category}</div>
-                    )}
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="bg-gray-900 text-green-400 p-2 rounded text-[10px] font-mono max-h-64 overflow-auto">
-                <pre className="whitespace-pre-wrap break-words">{content}</pre>
-              </div>
-            )}
+        {file.errorMessage && (
+          <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+            <p className="text-sm text-red-600">{file.errorMessage}</p>
           </div>
         )}
 
-        <div className="p-4 space-y-3 border-b border-gray-100">
-          <h5 className="text-[10px] font-semibold text-gray-500 uppercase">
-            Metadata
-          </h5>
-          
-          <div className="space-y-2.5">
-            <div className="flex items-start gap-2.5">
-              <HardDrive className="h-3.5 w-3.5 text-gray-400 mt-0.5" />
-              <div className="flex-1">
-                <p className="text-[10px] text-gray-500">Size</p>
-                <p className="text-xs font-medium text-gray-900">
-                  {(file.sizeBytes / 1024).toFixed(2)} KB
-                </p>
+        {file.ragMetadata && (
+          <div className="space-y-3">
+            <h3 className="text-sm font-semibold text-gray-900">Processing Details</h3>
+            
+            <div className="grid grid-cols-2 gap-3 text-sm">
+              <div className="bg-blue-50 rounded-lg p-3">
+                <div className="text-xs text-gray-600 mb-1">File Size</div>
+                <div className="font-semibold text-gray-900">
+                  {formatBytes(file.sizeBytes)}
+                </div>
               </div>
-            </div>
 
-            <div className="flex items-start gap-2.5">
-              <Calendar className="h-3.5 w-3.5 text-gray-400 mt-0.5" />
-              <div className="flex-1">
-                <p className="text-[10px] text-gray-500">Uploaded</p>
-                <p className="text-xs font-medium text-gray-900">
-                  {file.createdAt ? format(new Date(file.createdAt), 'MMM d, yyyy') : 'Unknown'}
-                </p>
-              </div>
-            </div>
-
-            <div className="flex items-start gap-2.5">
-              <User className="h-3.5 w-3.5 text-gray-400 mt-0.5" />
-              <div className="flex-1">
-                <p className="text-[10px] text-gray-500">Uploaded By</p>
-                <p className="text-xs font-medium text-gray-900 truncate">
-                  {file.uploadedBy || 'Unknown'}
-                </p>
-              </div>
-            </div>
-
-            <div className="flex items-start gap-2.5">
-              <Sparkles className="h-3.5 w-3.5 text-gray-400 mt-0.5" />
-              <div className="flex-1">
-                <p className="text-[10px] text-gray-500">AI Status</p>
-                {file.state === 'ACTIVE' ? (
-                  <span className="text-xs text-green-600 font-medium flex items-center gap-1 mt-0.5">
-                    <div className="h-1.5 w-1.5 bg-green-600 rounded-full"></div>
-                    Synced
-                  </span>
-                ) : (
-                  <span className="text-xs text-gray-400 font-medium mt-0.5 block">
-                    Pending
-                  </span>
-                )}
-              </div>
-            </div>
-
-            {file.geminiFileUri && (
-              <div className="bg-blue-50 border border-blue-200 rounded-md p-2.5 mt-3">
-                <div className="flex items-start gap-2">
-                  <Database className="h-3.5 w-3.5 text-blue-600 mt-0.5" />
-                  <div>
-                    <p className="text-[10px] font-medium text-blue-900">
-                      Knowledge Base ID
-                    </p>
-                    <p className="text-[10px] text-blue-700 mt-0.5 font-mono break-all">
-                      {file.geminiFileUri.split('/').pop() || 'N/A'}
-                    </p>
+              {file.ragMetadata.actualEmbeddings !== undefined && (
+                <div className="bg-green-50 rounded-lg p-3">
+                  <div className="text-xs text-gray-600 mb-1">Embeddings Created</div>
+                  <div className="font-semibold text-gray-900">
+                    {file.ragMetadata.actualEmbeddings.toLocaleString()}
                   </div>
+                </div>
+              )}
+
+              {file.ragMetadata.actualChunks !== undefined && (
+                <div className="bg-purple-50 rounded-lg p-3">
+                  <div className="text-xs text-gray-600 mb-1">Text Chunks</div>
+                  <div className="font-semibold text-gray-900">
+                    {file.ragMetadata.actualChunks.toLocaleString()}
+                  </div>
+                </div>
+              )}
+
+              {file.ragMetadata.processingTimeMs && (
+                <div className="bg-orange-50 rounded-lg p-3">
+                  <div className="text-xs text-gray-600 mb-1">Processing Time</div>
+                  <div className="font-semibold text-gray-900">
+                    {(file.ragMetadata.processingTimeMs / 1000).toFixed(2)}s
+                  </div>
+                </div>
+              )}
+
+              {file.ragMetadata.extractedTextLength > 0 && (
+                <div className="bg-indigo-50 rounded-lg p-3">
+                  <div className="text-xs text-gray-600 mb-1">Text Extracted</div>
+                  <div className="font-semibold text-gray-900">
+                    {file.ragMetadata.extractedTextLength.toLocaleString()} chars
+                  </div>
+                </div>
+              )}
+
+              {file.ragMetadata.embeddingModel && (
+                <div className="bg-pink-50 rounded-lg p-3">
+                  <div className="text-xs text-gray-600 mb-1">Embedding Model</div>
+                  <div className="font-semibold text-gray-900 text-xs">
+                    {file.ragMetadata.embeddingModel}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="border-t pt-3 space-y-2">
+              <div className="flex justify-between text-sm">
+                <span className="text-gray-600">Uploaded By:</span>
+                <span className="font-medium text-gray-900 truncate ml-2">
+                  {file.uploadedByEmail || file.uploadedBy}
+                </span>
+              </div>
+              
+              <div className="flex justify-between text-sm">
+                <span className="text-gray-600">Upload Date:</span>
+                <span className="font-medium text-gray-900">
+                  {new Date(file.uploadedAt).toLocaleString()}
+                </span>
+              </div>
+
+              {file.ragMetadata.processingCompletedAt && (
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-600">Indexed At:</span>
+                  <span className="font-medium text-gray-900">
+                    {new Date(file.ragMetadata.processingCompletedAt).toLocaleString()}
+                  </span>
+                </div>
+              )}
+
+              {file.ragMetadata.chunkSize && (
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-600">Chunk Size:</span>
+                  <span className="font-medium text-gray-900">
+                    {file.ragMetadata.chunkSize} chars
+                  </span>
+                </div>
+              )}
+
+              {file.ragMetadata.embeddingDimension && (
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-600">Embedding Dimension:</span>
+                  <span className="font-medium text-gray-900">
+                    {file.ragMetadata.embeddingDimension}
+                  </span>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        <div className="space-y-2">
+          <h3 className="text-sm font-semibold text-gray-900">File Information</h3>
+          
+          <div className="space-y-2 text-sm">
+            <div className="flex items-start gap-2">
+              <Database className="h-4 w-4 text-gray-400 mt-0.5 flex-shrink-0" />
+              <div className="flex-1 min-w-0">
+                <div className="text-gray-600">File ID</div>
+                <div className="font-mono text-xs text-gray-900 break-all">{file.id}</div>
+              </div>
+            </div>
+
+            <div className="flex items-start gap-2">
+              <User className="h-4 w-4 text-gray-400 mt-0.5 flex-shrink-0" />
+              <div className="flex-1 min-w-0">
+                <div className="text-gray-600">Uploaded By</div>
+                <div className="text-gray-900 break-all">{file.uploadedByEmail || file.uploadedBy}</div>
+              </div>
+            </div>
+
+            <div className="flex items-start gap-2">
+              <Calendar className="h-4 w-4 text-gray-400 mt-0.5 flex-shrink-0" />
+              <div className="flex-1 min-w-0">
+                <div className="text-gray-600">Created</div>
+                <div className="text-gray-900">{new Date(file.uploadedAt).toLocaleString()}</div>
+              </div>
+            </div>
+
+            {file.geminiFileName && (
+              <div className="flex items-start gap-2">
+                <FileText className="h-4 w-4 text-gray-400 mt-0.5 flex-shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <div className="text-gray-600">Gemini File ID</div>
+                  <div className="font-mono text-xs text-gray-900 break-all">{file.geminiFileName}</div>
                 </div>
               </div>
             )}
           </div>
         </div>
 
-        <div className="p-4 space-y-3">
-          <h5 className="text-[10px] font-semibold text-gray-500 uppercase">
-            Storage
-          </h5>
-          
-          <div className="bg-gray-50 rounded-md p-2.5">
-            <p className="text-[10px] text-gray-600 mb-1">File Path</p>
-            <p className="text-[10px] font-mono text-gray-900 break-all">
-              {file.uri}
-            </p>
+        {file.metadata && Object.keys(file.metadata).length > 0 && (
+          <div className="space-y-2">
+            <h3 className="text-sm font-semibold text-gray-900">Additional Metadata</h3>
+            <div className="bg-gray-50 rounded-lg p-3">
+              <pre className="text-xs text-gray-700 whitespace-pre-wrap break-all">
+                {JSON.stringify(file.metadata, null, 2)}
+              </pre>
+            </div>
           </div>
-        </div>
+        )}
+
+        {file.conversationId && (
+          <div className="space-y-2">
+            <h3 className="text-sm font-semibold text-gray-900">Conversation Context</h3>
+            <div className="space-y-1 text-sm">
+              {file.customerName && (
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Customer:</span>
+                  <span className="font-medium text-gray-900">{file.customerName}</span>
+                </div>
+              )}
+              {file.customerPhone && (
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Phone:</span>
+                  <span className="font-medium text-gray-900">{file.customerPhone}</span>
+                </div>
+              )}
+              {file.conversationPlatform && (
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Platform:</span>
+                  <span className="font-medium text-gray-900 uppercase">{file.conversationPlatform}</span>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
       </div>
 
-      <div className="p-3 border-t border-gray-200 space-y-2">
-        {isTrainingData && onEdit && (
-          <Button 
-            variant="outline" 
-            className="w-full justify-start h-9 text-xs"
+      <div className="border-t border-gray-200 p-4 space-y-2">
+        {file.sourceType === 'training' && file.state === 'ACTIVE' && (
+          <Button
             onClick={() => onEdit(file)}
+            variant="outline"
+            className="w-full"
           >
-            <Edit className="h-3.5 w-3.5 mr-2" />
+            <Edit className="h-4 w-4 mr-2" />
             Edit Training Data
           </Button>
         )}
-        <Button variant="outline" className="w-full justify-start h-9 text-xs">
-          <Download className="h-3.5 w-3.5 mr-2" />
-          Download Document
-        </Button>
-        <Button 
-          variant="outline" 
-          className="w-full justify-start text-red-600 hover:bg-red-50 hover:text-red-700 border-red-200 h-9 text-xs"
+
+        <Button
           onClick={onDelete}
+          variant="destructive"
+          className="w-full"
         >
-          <Trash2 className="h-3.5 w-3.5 mr-2" />
+          <Trash2 className="h-4 w-4 mr-2" />
           Delete Document
         </Button>
       </div>
