@@ -171,87 +171,71 @@ export async function queryWithHybridRAG(
         return {
           success: false,
           message: 'No relevant information found in your documents for this query.',
-          retrievalTime,
         };
       }
-      console.log('⚠️ No chunks found, will generate response without document context');
+      console.log('⚠️ No chunks retrieved, generating response without context');
     }
 
-    const chunks = groundingChunks.slice(0, maxChunks).map((chunk: any, idx: number) => {
-      const rawContent = chunk.retrievedContext?.text || chunk.web?.title || 'No content';
-      const truncatedContent = truncateChunk(rawContent, maxChunkChars);
-      const score = chunk.score || 0;
-      const source = chunk.retrievedContext?.uri || chunk.web?.uri || 'Unknown source';
-      
-      console.log(`  Chunk ${idx + 1}: ${rawContent.length} chars → ${truncatedContent.length} chars (score: ${score})`);
-      
+    const chunks = groundingChunks.map((chunk: any) => {
+      const retrievedContext = chunk.retrievedContext;
+      const content = retrievedContext?.text || '';
+      const source = retrievedContext?.title || 'Knowledge Base';
+      const score = 0.9;
       return {
-        content: truncatedContent,
-        score,
+        content: truncateChunk(content, maxChunkChars),
         source,
+        score,
       };
-    });
+    }).slice(0, maxChunks);
 
-    let chunksContext = '';
-    let chunksUsed = 0;
-    const maxContextTokens = 150000;
-    let currentTokens = 0;
+    const chunksUsed = chunks.length;
+    console.log(`📊 Using ${chunksUsed} chunks for generation`);
 
-    for (const chunk of chunks) {
-      const chunkText = `[Source ${chunksUsed + 1}]\n${chunk.content}\n\n---\n\n`;
-      const chunkTokens = estimateTokens(chunkText);
-      
-      if (currentTokens + chunkTokens > maxContextTokens) {
-        console.log(`⚠️ Stopping at ${chunksUsed} chunks to stay under token limit`);
-        break;
-      }
-      
-      chunksContext += chunkText;
-      currentTokens += chunkTokens;
-      chunksUsed++;
-    }
+    const chunksText = chunks.length > 0
+      ? chunks.map((c, i) => 
+          `[SOURCE ${i + 1}: ${c.source}]\n${c.content}\n`
+        ).join('\n---\n\n')
+      : 'No specific context available - use general knowledge.';
 
-    const estimatedTokens = estimateTokens(chunksContext);
-    console.log(`📊 Final context: ${chunksContext.length} chars (~${estimatedTokens} tokens) from ${chunksUsed} chunks`);
+    const systemPrompt = `You are a helpful AI assistant that answers questions using the company's knowledge base.
 
-    if (estimatedTokens > 180000) {
-      return {
-        success: false,
-        message: `Retrieved chunks are still too large (${estimatedTokens.toLocaleString()} tokens). Try a more specific question.`,
-        estimatedTokens,
-        chunksUsed,
-      };
-    }
+${chunks.length > 0 ? `IMPORTANT: The information below contains the answer to the question. Your job is to find it and use it.
 
-    console.log(`🔵 Step 3: Send chunks to ${modelChoice} for answer generation`);
+COMPANY KNOWLEDGE BASE:
+${chunksText}
+
+CRITICAL INSTRUCTIONS:
+1. The information you need IS in the knowledge base above - find it and use it confidently
+2. Search thoroughly through ALL sources provided - the answer is there
+3. When information is present in the sources, answer directly and confidently
+4. Quote relevant sections and cite which source they're from
+5. Consider synonyms and related terms (e.g., "price" = "cost", "fee", "rate")
+6. ONLY if after exhaustive search you find NOTHING related, then say you don't have that information
+
+RESPONSE FORMAT:
+- Be professional and conversational
+- Keep responses to 1-3 sentences
+- Be direct and confident when you have the information
+- Cite your source briefly (e.g., "According to [source name]...")` 
+: `Note: No specific company documents are available, so provide a general helpful response based on common knowledge.`}`;
+
+    let responseText = '';
+    let usage: any = {};
+    let modelUsed = '';
     const generationStart = Date.now();
 
-    let responseText: string;
-    let usage: any;
-    let modelUsed: string;
+    console.log('🔵 Step 3: Generate response with chosen model');
 
-    const systemPrompt = chunksUsed > 0 
-      ? `You are a helpful AI assistant with access to company knowledge base documents.
-
-RULES FOR USING SOURCES:
-- If sources contain relevant information, USE IT and cite it naturally
-- Be specific and detailed when you have the information
-- Don't be overly cautious - if the information is in the sources, share it confidently
-- Variations in names/spelling are okay (e.g., "Star Nest" = "StarNest Realty")
-- Only say you don't have information if it's truly not in the sources
-- When answering questions about companies, people, or entities, use the exact information from the sources
-
-SOURCES AVAILABLE:
-${chunksContext}
-
-Provide a natural, helpful response based on these sources.` 
-      : `You are a helpful customer service AI. Provide a brief, professional, and friendly response. Keep it to 1-2 sentences.`;
+    const systemTokens = estimateTokens(systemPrompt);
+    const questionTokens = estimateTokens(question);
+    const estimatedTokens = systemTokens + questionTokens;
+    console.log(`📊 Estimated tokens: ${estimatedTokens} (system: ${systemTokens}, question: ${questionTokens})`);
 
     if (modelChoice === 'gemini-2.5-pro') {
-      console.log('🔵 Using Gemini 2.5 Flash for generation');
+      console.log('🔵 Using Gemini 2.5 Flash Lite for generation');
 
       const genResponse = await genAI.models.generateContent({
-        model: 'gemini-2.5-flash',
+        model: 'gemini-2.5-flash-lite',
         contents: `${systemPrompt}\n\nUSER QUESTION: ${question}\n\nYOUR ANSWER:`,
         config: {
           temperature: 0.3,
@@ -264,7 +248,7 @@ Provide a natural, helpful response based on these sources.`
         prompt_tokens: genResponse.usageMetadata?.promptTokenCount || 0,
         completion_tokens: genResponse.usageMetadata?.candidatesTokenCount || 0,
       };
-      modelUsed = 'gemini-2.5-flash';
+      modelUsed = 'gemini-2.5-flash-lite';
 
     } else if (modelChoice === 'gpt-4o-mini') {
       if (!process.env.OPENAI_API_KEY) {
@@ -316,17 +300,13 @@ Provide a natural, helpful response based on these sources.`
       const modelMap = {
         'haiku': 'claude-3-5-haiku-20241022',
         'sonnet-3.5': 'claude-3-5-sonnet-20241022',
-        'sonnet-4.5': 'claude-sonnet-4-5-20250929',
+        'sonnet-4.5': 'claude-sonnet-4-20250514',
       };
 
       const claudeModel = modelMap[modelChoice as 'haiku' | 'sonnet-3.5' | 'sonnet-4.5'];
       console.log(`🔵 Using ${claudeModel} for generation`);
 
-      const systemTokens = estimateTokens(systemPrompt);
-      const questionTokens = estimateTokens(question);
       const totalInputTokens = systemTokens + questionTokens;
-
-      console.log(`📊 Total input tokens: ${totalInputTokens} (system: ${systemTokens}, question: ${questionTokens})`);
 
       if (totalInputTokens > 190000) {
         return {

@@ -975,10 +975,15 @@ export async function chatWithVault(
   try {
     console.log(`📊 Query initiated - Selected files: ${selectedFileIds.length}`);
 
+    const modelChoice = await getPartnerAIConfig(partnerId);
+    console.log(`🤖 Using partner's chosen model: ${modelChoice}`);
+
     const result = await queryVaultWithClaude(
       partnerId,
       selectedFileIds,
-      message
+      message,
+      undefined,
+      modelChoice
     );
 
     if (!result.success) {
@@ -998,6 +1003,7 @@ export async function chatWithVault(
       selectedFileIds: selectedFileIds,
       selectedFileNames: fileNames,
       provider: 'claude',
+      modelUsed: modelChoice,
       usage: result.usage,
       inputTokens: result.usage?.input_tokens || 0,
       outputTokens: result.usage?.output_tokens || 0,
@@ -1172,12 +1178,11 @@ export async function chatWithVaultForConversation(
       ? `\nRecent conversation:\n${conversationContext}\n` 
       : '';
 
-    // IMPROVED: Simpler, more direct question format
     const enhancedQuestion = `${contextSection}
 
-Customer asks: "${message}"
+Customer question: "${message}"
 
-Provide a helpful 1-2 sentence response based on the company knowledge base. Be professional and conversational.`;
+Generate a helpful, professional response (1-3 sentences) using the knowledge base. The information you need is in the documents - find it and use it. Be confident and direct in your answer.`;
 
     console.log('📤 Querying with hybrid RAG...');
     const queryStart = Date.now();
@@ -1187,8 +1192,8 @@ Provide a helpful 1-2 sentence response based on the company knowledge base. Be 
       enhancedQuestion,
       modelChoice,
       {
-        maxChunks: 5, // Increased from 3 to get more context
-        maxChunkChars: 3000, // Increased from 2000 for better coverage
+        maxChunks: 5,
+        maxChunkChars: 3000,
         allowEmptyChunks: true,
       }
     );
@@ -1205,7 +1210,6 @@ Provide a helpful 1-2 sentence response based on the company knowledge base. Be 
     const responseText = result.response.trim();
     const chunksUsed = result.geminiChunks?.length || 0;
     
-    // Higher confidence when using knowledge base
     const confidence = chunksUsed > 0 ? 0.90 : 0.65;
     const reasoning = chunksUsed > 0
       ? `Based on ${chunksUsed} source${chunksUsed > 1 ? 's' : ''} from knowledge base (${result.modelUsed})`
