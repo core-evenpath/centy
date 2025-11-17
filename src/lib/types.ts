@@ -1207,7 +1207,7 @@ export interface ResourceAccess {
 // ============================================================================
 
 export interface VaultFile {
-  id?: string;
+  id: string;
   name: string;
   displayName: string;
   mimeType: string;
@@ -1222,8 +1222,8 @@ export interface VaultFile {
   createdAt: string;
   errorMessage?: string;
   firebaseStoragePath: string;
-  metadata?: any;
-  sourceType?: 'upload' | 'conversation' | 'training';
+  metadata?: Record<string, any>;
+  sourceType?: 'upload' | 'training' | 'conversation';
   conversationId?: string;
   conversationPlatform?: 'sms' | 'whatsapp';
   customerPhone?: string;
@@ -1231,15 +1231,19 @@ export interface VaultFile {
   processingStep?: number;
   processingDescription?: string;
   ragMetadata?: {
-    estimatedChunks?: number;
     chunkSize?: number;
     chunkOverlap?: number;
     embeddingModel?: string;
     embeddingDimension?: number;
+    estimatedChunks?: number;
+    extractedTextLength?: number;
     indexedAt?: string;
     processingTimeMs?: number;
-    extractedTextLength?: number;
+    hasMetadata?: boolean;
+    metadataKeys?: string[];
   };
+  extractedText?: string;
+  trainingData?: string;
 }
 
 export interface FileSearchStore {
@@ -1251,18 +1255,18 @@ export interface FileSearchStore {
   updatedAt: string;
   fileCount: number;
   totalSizeBytes: number;
-  state: 'ACTIVE' | 'PROCESSING' | 'FAILED';
+  state: 'ACTIVE' | 'INACTIVE';
 }
 
 export interface VaultQuery {
-  id?: string;
+  id: string;
   query: string;
   response: string;
   partnerId: string;
   userId: string;
   selectedFileIds?: string[];
   selectedFileNames?: string[];
-  provider?: 'gemini' | 'claude'; // Updated
+  provider?: 'gemini' | 'claude' | 'gemini-rag-haiku' | 'gemini-rag-sonnet-3.5' | 'gemini-rag-sonnet-4.5';
   usage?: {
     input_tokens?: number;
     output_tokens?: number;
@@ -1275,6 +1279,7 @@ export interface VaultQuery {
   cacheCreationTokens?: number;
   chunksBeforeFilter?: number;
   chunksAfterFilter?: number;
+  metadataFilterUsed?: string;
   createdAt: string;
 }
 
@@ -1285,10 +1290,6 @@ export interface GroundingChunk {
     uri?: string;
   };
 }
-
-// ============================================================================
-// CONVERSATION SYNC & RAG TYPES
-// ============================================================================
 
 export interface ConversationSyncConfig {
   partnerId: string;
@@ -1330,8 +1331,6 @@ export interface RAGSource {
   excerpt: string;
   relevance: number;
 }
-
-// Add to existing types.ts file
 
 export type AIModelChoice = 
   | 'haiku' 

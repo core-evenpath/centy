@@ -184,6 +184,8 @@ export async function uploadFileToVault(
         embeddingDimension: 768,
         estimatedChunks: estimatedChunks,
         extractedTextLength: extractedText?.length || 0,
+        hasMetadata: true,
+        metadataKeys: ['fileId', 'fileName', 'partnerId', 'uploadedAt', 'sourceType'],
       },
       createdAt: FieldValue.serverTimestamp(),
     };
@@ -223,7 +225,17 @@ export async function uploadFileToVault(
     const ragProcessingStart = Date.now();
     let op = await genAI.fileSearchStores.uploadToFileSearchStore({
       fileSearchStoreName: ragStoreName,
-      file: uploadFile
+      file: uploadFile,
+      config: {
+        displayName: fileData.displayName,
+        customMetadata: [
+          { key: 'fileId', stringValue: fileDocRef.id },
+          { key: 'fileName', stringValue: fileData.displayName },
+          { key: 'partnerId', stringValue: partnerId },
+          { key: 'uploadedAt', stringValue: new Date().toISOString() },
+          { key: 'sourceType', stringValue: 'upload' },
+        ]
+      }
     });
     console.log('⏳ Upload operation started');
 
@@ -385,7 +397,9 @@ export async function createTrainingDataFile(
         embeddingModel: 'text-embedding-004',
         embeddingDimension: 768,
         estimatedChunks: estimatedChunks,
-        extractedTextLength: buffer.length,
+        extractedTextLength: markdownContent.length,
+        hasMetadata: true,
+        metadataKeys: ['fileId', 'fileName', 'partnerId', 'uploadedAt', 'sourceType'],
       },
       createdAt: FieldValue.serverTimestamp(),
     };
@@ -416,7 +430,17 @@ export async function createTrainingDataFile(
 
     let op = await genAI.fileSearchStores.uploadToFileSearchStore({
       fileSearchStoreName: ragStoreName,
-      file: uploadFile
+      file: uploadFile,
+      config: {
+        displayName: `${datasetName}.md`,
+        customMetadata: [
+          { key: 'fileId', stringValue: fileDocRef.id },
+          { key: 'fileName', stringValue: `${datasetName}.md` },
+          { key: 'partnerId', stringValue: partnerId },
+          { key: 'uploadedAt', stringValue: new Date().toISOString() },
+          { key: 'sourceType', stringValue: 'training' },
+        ]
+      }
     });
 
     let attempts = 0;
@@ -551,7 +575,17 @@ export async function updateTrainingDataFile(
 
     let op = await genAI.fileSearchStores.uploadToFileSearchStore({
       fileSearchStoreName: ragStoreName,
-      file: uploadFile
+      file: uploadFile,
+      config: {
+        displayName: `${datasetName}.md`,
+        customMetadata: [
+          { key: 'fileId', stringValue: fileId },
+          { key: 'fileName', stringValue: `${datasetName}.md` },
+          { key: 'partnerId', stringValue: partnerId },
+          { key: 'uploadedAt', stringValue: new Date().toISOString() },
+          { key: 'sourceType', stringValue: 'training' },
+        ]
+      }
     });
 
     let attempts = 0;
@@ -608,7 +642,9 @@ export async function updateTrainingDataFile(
           embeddingModel: 'text-embedding-004',
           embeddingDimension: 768,
           estimatedChunks: estimatedChunks,
-          extractedTextLength: buffer.length,
+          extractedTextLength: markdownContent.length,
+          hasMetadata: true,
+          metadataKeys: ['fileId', 'fileName', 'partnerId', 'uploadedAt', 'sourceType'],
           indexedAt: new Date().toISOString(),
           processingTimeMs: totalProcessingTime,
         },
@@ -636,7 +672,9 @@ export async function updateTrainingDataFile(
         embeddingModel: 'text-embedding-004',
         embeddingDimension: 768,
         estimatedChunks: estimatedChunks,
-        extractedTextLength: buffer.length,
+        extractedTextLength: markdownContent.length,
+        hasMetadata: true,
+        metadataKeys: ['fileId', 'fileName', 'partnerId', 'uploadedAt', 'sourceType'],
         indexedAt: new Date().toISOString(),
         processingTimeMs: totalProcessingTime,
       }
@@ -1031,7 +1069,8 @@ export async function chatWithVault(
 export async function chatWithVaultHybrid(
   partnerId: string,
   userId: string,
-  message: string
+  message: string,
+  selectedFileIds?: string[]
 ): Promise<{
   success: boolean;
   message: string;
@@ -1050,7 +1089,17 @@ export async function chatWithVaultHybrid(
     const modelChoice = await getPartnerAIConfig(partnerId);
     console.log(`📊 Hybrid query initiated - Using partner's model: ${modelChoice}`);
 
-    const result = await queryWithHybridRAG(partnerId, message, modelChoice);
+    const result = await queryWithHybridRAG(
+      partnerId, 
+      message, 
+      modelChoice,
+      {
+        maxChunks: 5,
+        maxChunkChars: 3000,
+        allowEmptyChunks: true,
+        selectedFileIds: selectedFileIds,
+      }
+    );
 
     if (!result.success) {
       return {
@@ -1066,6 +1115,7 @@ export async function chatWithVaultHybrid(
       response: result.response,
       partnerId: partnerId,
       userId: userId,
+      selectedFileIds: selectedFileIds || [],
       provider: `gemini-rag-${modelChoice}`,
       modelUsed: result.modelUsed,
       geminiChunks: result.geminiChunks?.length || 0,
@@ -1075,6 +1125,7 @@ export async function chatWithVaultHybrid(
       outputTokens: result.usage?.output_tokens || result.usage?.completion_tokens || 0,
       retrievalTimeMs: result.retrievalTime,
       generationTimeMs: result.generationTime,
+      metadataFilterUsed: result.metadataFilter,
       createdAt: FieldValue.serverTimestamp(),
     });
 

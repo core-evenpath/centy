@@ -31,6 +31,7 @@ interface HybridQueryResult {
   chunksUsed?: number;
   estimatedTokens?: number;
   modelUsed?: string;
+  metadataFilter?: string;
 }
 
 function truncateChunk(content: string, maxChars: number = 3000): string {
@@ -97,281 +98,200 @@ export async function queryWithHybridRAG(
     maxChunks?: number;
     maxChunkChars?: number;
     allowEmptyChunks?: boolean;
+    selectedFileIds?: string[];
   }
 ): Promise<HybridQueryResult> {
   const maxChunks = options?.maxChunks || 5;
   const maxChunkChars = options?.maxChunkChars || 3000;
   const allowEmptyChunks = options?.allowEmptyChunks ?? false;
+  const selectedFileIds = options?.selectedFileIds;
+
+  console.log('🔍 Hybrid RAG Query Starting');
+  console.log(`📊 Selected files: ${selectedFileIds?.length || 'ALL'}`);
+
+  const startTime = Date.now();
+
+  if (!db) {
+    return {
+      success: false,
+      message: 'Database not available',
+    };
+  }
 
   try {
-    console.log(`🤖 Using model: ${modelChoice}`);
-    console.log('🔵 Step 1: Get Gemini RAG store');
-    
-    let ragStoreName: string | null = null;
-    
-    if (db) {
-      try {
-        const storesSnapshot = await db
-          .collection(`partners/${partnerId}/fileSearchStores`)
-          .where('state', '==', 'ACTIVE')
-          .limit(1)
-          .get();
+    const storesSnapshot = await db
+      .collection(`partners/${partnerId}/fileSearchStores`)
+      .where('state', '==', 'ACTIVE')
+      .limit(1)
+      .get();
 
-        if (!storesSnapshot.empty) {
-          ragStoreName = storesSnapshot.docs[0].data().name;
-        }
-      } catch (error) {
-        console.error('Error getting RAG store:', error);
-      }
-    }
-
-    if (!ragStoreName) {
-      if (!allowEmptyChunks) {
-        return {
-          success: false,
-          message: 'No documents uploaded yet. Please upload documents first.',
-        };
-      }
-      console.log('⚠️ No RAG store found, continuing with empty context');
-    }
-
-    let groundingChunks: any[] = [];
-    let retrievalTime = 0;
-
-    if (ragStoreName) {
-      console.log('🔵 Step 2: Query Gemini to retrieve relevant chunks');
-      console.log('📦 RAG Store:', ragStoreName);
-      const retrievalStart = Date.now();
-
-      const geminiResponse = await genAI.models.generateContent({
-        model: 'gemini-2.5-flash',
-        contents: question,
-        config: {
-          tools: [
-            {
-              fileSearch: {
-                fileSearchStoreNames: [ragStoreName],
-              }
-            }
-          ]
-        }
-      });
-
-      retrievalTime = Date.now() - retrievalStart;
-      console.log(`✅ Gemini retrieval completed in ${retrievalTime}ms`);
-
-      const groundingMetadata = geminiResponse.groundingMetadata;
-      groundingChunks = groundingMetadata?.groundingChunks || [];
-      
-      console.log(`📊 Retrieved ${groundingChunks.length} chunks from Gemini`);
-    }
-
-    if (groundingChunks.length === 0) {
-      if (!allowEmptyChunks) {
-        return {
-          success: false,
-          message: 'No relevant information found in your documents for this query.',
-        };
-      }
-      console.log('⚠️ No chunks retrieved, generating response without context');
-    }
-
-    const chunks = groundingChunks.map((chunk: any) => {
-      const retrievedContext = chunk.retrievedContext;
-      const content = retrievedContext?.text || '';
-      const source = retrievedContext?.title || 'Knowledge Base';
-      const score = 0.9;
+    if (storesSnapshot.empty) {
       return {
-        content: truncateChunk(content, maxChunkChars),
-        source,
-        score,
+        success: false,
+        message: 'No active File Search store found',
       };
-    }).slice(0, maxChunks);
+    }
 
-    const chunksUsed = chunks.length;
-    console.log(`📊 Using ${chunksUsed} chunks for generation`);
+    const ragStoreName = storesSnapshot.docs[0].data().name;
+    console.log(`📦 Using RAG store: ${ragStoreName}`);
 
-    const chunksText = chunks.length > 0
-      ? chunks.map((c, i) => 
-          `[SOURCE ${i + 1}: ${c.source}]\n${c.content}\n`
-        ).join('\n---\n\n')
-      : 'No specific context available - use general knowledge.';
+    let metadataFilter: string | undefined;
+    if (selectedFileIds && selectedFileIds.length > 0) {
+      metadataFilter = selectedFileIds
+        .map(id => `fileId="${id}"`)
+        .join(' OR ');
+      
+      console.log(`🔍 Metadata filter: ${metadataFilter}`);
+    } else {
+      console.log(`🔍 No filter - searching ALL documents`);
+    }
 
-    const systemPrompt = `You are a helpful AI assistant that answers questions using the company's knowledge base.
+    console.log('📤 Step 1: Gemini retrieval...');
+    const retrievalStart = Date.now();
 
-${chunks.length > 0 ? `IMPORTANT: The information below contains the answer to the question. Your job is to find it and use it.
+    const geminiResponse = await genAI.models.generateContent({
+      model: 'gemini-2.5-flash',
+      contents: question,
+      config: {
+        tools: [
+          {
+            fileSearch: {
+              fileSearchStoreNames: [ragStoreName],
+              metadataFilter: metadataFilter,
+            }
+          }
+        ]
+      }
+    });
 
-COMPANY KNOWLEDGE BASE:
-${chunksText}
+    const retrievalTime = Date.now() - retrievalStart;
+    console.log(`⏱️ Gemini retrieval: ${retrievalTime}ms`);
 
-CRITICAL INSTRUCTIONS:
-1. The information you need IS in the knowledge base above - find it and use it confidently
-2. Search thoroughly through ALL sources provided - the answer is there
-3. When information is present in the sources, answer directly and confidently
-4. Quote relevant sections and cite which source they're from
-5. Consider synonyms and related terms (e.g., "price" = "cost", "fee", "rate")
-6. ONLY if after exhaustive search you find NOTHING related, then say you don't have that information
+    const groundingChunks = geminiResponse.candidates?.[0]?.groundingMetadata?.groundingChunks || [];
+    console.log(`📚 Retrieved ${groundingChunks.length} chunks from Gemini`);
 
-RESPONSE FORMAT:
-- Be professional and conversational
-- Keep responses to 1-3 sentences
-- Be direct and confident when you have the information
-- Cite your source briefly (e.g., "According to [source name]...")` 
-: `Note: No specific company documents are available, so provide a general helpful response based on common knowledge.`}`;
+    const chunks = groundingChunks
+      .slice(0, maxChunks)
+      .map((chunk: any, index: number) => {
+        const text = chunk.retrievedContext?.text || '';
+        const title = chunk.retrievedContext?.title || `Document ${index + 1}`;
+        
+        return {
+          content: truncateChunk(text, maxChunkChars),
+          score: 0.85,
+          source: title,
+        };
+      })
+      .filter(chunk => allowEmptyChunks || chunk.content.trim().length > 0);
 
-    let responseText = '';
-    let usage: any = {};
-    let modelUsed = '';
+    console.log(`📊 Using ${chunks.length} chunks for generation`);
+
+    if (chunks.length === 0 && !allowEmptyChunks) {
+      return {
+        success: true,
+        response: "I couldn't find relevant information in the selected documents to answer your question. Please try rephrasing or selecting different documents.",
+        geminiChunks: [],
+        retrievalTime,
+        generationTime: 0,
+        chunksUsed: 0,
+        modelUsed: modelChoice,
+        metadataFilter,
+      };
+    }
+
+    const contextText = chunks.length > 0
+      ? chunks.map((chunk, i) => `[Source ${i + 1}: ${chunk.source}]\n${chunk.content}`).join('\n\n---\n\n')
+      : '';
+
+    const estimatedContextTokens = estimateTokens(contextText);
+    console.log(`💰 Estimated context tokens: ${estimatedContextTokens}`);
+
+    console.log('🤖 Step 2: LLM generation...');
     const generationStart = Date.now();
 
-    console.log('🔵 Step 3: Generate response with chosen model');
+    let response: string;
+    let usage: any = {};
 
-    const systemTokens = estimateTokens(systemPrompt);
-    const questionTokens = estimateTokens(question);
-    const estimatedTokens = systemTokens + questionTokens;
-    console.log(`📊 Estimated tokens: ${estimatedTokens} (system: ${systemTokens}, question: ${questionTokens})`);
+    const modelMap: Record<AIModelChoice, string> = {
+      'haiku': 'claude-3-5-haiku-20241022',
+      'sonnet-3.5': 'claude-3-5-sonnet-20241022',
+      'sonnet-4.5': 'claude-sonnet-4-20250514',
+      'gpt-4o-mini': 'gpt-4o-mini',
+      'gemini-2.5-pro': 'gemini-2.5-pro',
+    };
+
+    const modelName = modelMap[modelChoice];
 
     if (modelChoice === 'gemini-2.5-pro') {
-      console.log('🔵 Using Gemini 2.5 Flash Lite for generation');
+      const geminiGenResponse = await genAI.models.generateContent({
+        model: 'gemini-2.5-pro',
+        contents: `Based on the following context, answer the user's question. If the context doesn't contain relevant information, say so clearly.
 
-      const genResponse = await genAI.models.generateContent({
-        model: 'gemini-2.5-flash-lite',
-        contents: `${systemPrompt}\n\nUSER QUESTION: ${question}\n\nYOUR ANSWER:`,
-        config: {
-          temperature: 0.3,
-          maxOutputTokens: 4096,
-        }
+Context:
+${contextText}
+
+Question: ${question}
+
+Answer:`,
       });
 
-      responseText = genResponse.text || '';
+      response = geminiGenResponse.text;
       usage = {
-        prompt_tokens: genResponse.usageMetadata?.promptTokenCount || 0,
-        completion_tokens: genResponse.usageMetadata?.candidatesTokenCount || 0,
+        prompt_tokens: estimatedContextTokens,
+        completion_tokens: estimateTokens(response),
       };
-      modelUsed = 'gemini-2.5-flash-lite';
+    } else if (modelChoice.startsWith('sonnet') || modelChoice === 'haiku') {
+      const systemPrompt = chunks.length > 0
+        ? `You are a helpful assistant. Answer the user's question based on the provided context. If the context doesn't contain the answer, say so clearly. Be concise and direct.`
+        : `You are a helpful assistant. The document search returned no results. Politely inform the user that you couldn't find relevant information.`;
 
-    } else if (modelChoice === 'gpt-4o-mini') {
-      if (!process.env.OPENAI_API_KEY) {
-        return {
-          success: false,
-          message: 'OpenAI API key not configured',
-        };
-      }
+      const userPrompt = chunks.length > 0
+        ? `Context from documents:\n\n${contextText}\n\nQuestion: ${question}`
+        : `Question: ${question}`;
 
-      console.log('🔵 Using GPT-4o Mini for generation');
-
-      const openaiResponse = await fetch('https://api.openai.com/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
-        },
-        body: JSON.stringify({
-          model: 'gpt-4o-mini',
-          messages: [
-            {
-              role: 'system',
-              content: systemPrompt,
-            },
-            {
-              role: 'user',
-              content: question,
-            }
-          ],
-          temperature: 0.3,
-          max_tokens: 4096,
-        }),
-      });
-
-      if (!openaiResponse.ok) {
-        const errorText = await openaiResponse.text();
-        throw new Error(`OpenAI API error: ${openaiResponse.status} - ${errorText}`);
-      }
-
-      const openaiData = await openaiResponse.json();
-      responseText = openaiData.choices[0]?.message?.content || '';
-      usage = {
-        prompt_tokens: openaiData.usage?.prompt_tokens || 0,
-        completion_tokens: openaiData.usage?.completion_tokens || 0,
-      };
-      modelUsed = 'gpt-4o-mini';
-
-    } else {
-      const modelMap = {
-        'haiku': 'claude-3-5-haiku-20241022',
-        'sonnet-3.5': 'claude-3-5-sonnet-20241022',
-        'sonnet-4.5': 'claude-sonnet-4-20250514',
-      };
-
-      const claudeModel = modelMap[modelChoice as 'haiku' | 'sonnet-3.5' | 'sonnet-4.5'];
-      console.log(`🔵 Using ${claudeModel} for generation`);
-
-      const totalInputTokens = systemTokens + questionTokens;
-
-      if (totalInputTokens > 190000) {
-        return {
-          success: false,
-          message: `Context too large (${totalInputTokens.toLocaleString()} tokens). Please ask a more specific question.`,
-          estimatedTokens: totalInputTokens,
-        };
-      }
-
-      const { response, retryCount } = await callClaudeWithRetry({
-        model: claudeModel,
-        max_tokens: 4096,
+      const { response: claudeResponse } = await callClaudeWithRetry({
+        model: modelName,
+        max_tokens: 2048,
         temperature: 0.3,
         system: systemPrompt,
         messages: [
           {
             role: 'user',
-            content: question,
+            content: userPrompt,
           }
         ],
       });
 
-      responseText = response.content[0].type === 'text' 
-        ? response.content[0].text 
+      response = claudeResponse.content[0].type === 'text' 
+        ? claudeResponse.content[0].text 
         : '';
-      
-      usage = response.usage;
-      modelUsed = claudeModel;
-
-      if (retryCount > 0) {
-        console.log(`🔄 Query succeeded after ${retryCount} retry(s)`);
-      }
+      usage = claudeResponse.usage;
+    } else {
+      return {
+        success: false,
+        message: `Model ${modelChoice} not yet implemented`,
+      };
     }
 
     const generationTime = Date.now() - generationStart;
-    console.log(`✅ ${modelChoice} generation completed in ${generationTime}ms`);
-    console.log('💰 Token usage:', usage);
-    console.log(`⏱️ Total time: ${retrievalTime + generationTime}ms (retrieval: ${retrievalTime}ms, generation: ${generationTime}ms)`);
+    console.log(`⏱️ LLM generation: ${generationTime}ms`);
+    console.log(`✅ Total time: ${Date.now() - startTime}ms`);
 
     return {
       success: true,
-      response: responseText,
-      geminiChunks: chunks.slice(0, chunksUsed),
+      response,
+      geminiChunks: chunks,
       usage,
       retrievalTime,
       generationTime,
-      chunksUsed,
-      estimatedTokens,
-      modelUsed,
+      chunksUsed: chunks.length,
+      estimatedTokens: estimatedContextTokens,
+      modelUsed: modelName,
+      metadataFilter,
     };
 
   } catch (error: any) {
-    console.error('❌ Hybrid query failed:', error);
-    
-    const isRateLimitError = 
-      error.status === 429 || 
-      error.error?.type === 'rate_limit_error' ||
-      error.message?.includes('rate_limit');
-    
-    if (isRateLimitError) {
-      return {
-        success: false,
-        message: 'Rate limit reached. Please wait 60 seconds and try again.',
-      };
-    }
+    console.error('❌ Hybrid RAG query failed:', error);
     
     return {
       success: false,
