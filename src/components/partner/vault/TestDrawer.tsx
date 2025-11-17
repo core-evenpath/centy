@@ -15,11 +15,13 @@ import {
   CheckCircle2,
   User,
   Search,
-  Filter
+  Clock,
+  Zap
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
+import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { generateExampleQuestions, listVaultFiles } from '@/actions/vault-actions';
 import type { VaultFile } from '@/lib/types';
@@ -33,13 +35,24 @@ import {
 interface Message {
   role: 'user' | 'assistant';
   content: string;
-  sources?: Array<{
-    text: string;
-    score?: number;
-    documentName?: string;
-  }>;
+  sources?: SourceChunk[];
   timestamp: Date;
   testedDocuments?: string[];
+  modelUsed?: string;
+  usage?: {
+    input_tokens?: number;
+    output_tokens?: number;
+    cache_read_input_tokens?: number;
+    cache_creation_input_tokens?: number;
+  };
+  retrievalTime?: number;
+  generationTime?: number;
+}
+
+interface SourceChunk {
+  content: string;
+  source: string;
+  score?: number;
 }
 
 interface TestDrawerProps {
@@ -100,6 +113,7 @@ export default function TestDrawer({
   const [selectedFiles, setSelectedFiles] = useState<Set<string>>(new Set());
   const [showDocumentSelector, setShowDocumentSelector] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [modalSource, setModalSource] = useState<{ source: SourceChunk; index: number } | null>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
 
@@ -157,6 +171,11 @@ export default function TestDrawer({
     setSelectedFiles(new Set());
   };
 
+  const formatTime = (ms?: number) => {
+    if (!ms) return 'N/A';
+    return ms < 1000 ? `${ms}ms` : `${(ms / 1000).toFixed(2)}s`;
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!query.trim() || isQuerying) return;
@@ -187,6 +206,8 @@ export default function TestDrawer({
     setIsQuerying(true);
 
     try {
+      console.log('🔍 Sending query to vault API...');
+      
       const response = await fetch('/api/vault/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -200,24 +221,90 @@ export default function TestDrawer({
 
       const result = await response.json();
 
+      console.log('═══════════════════════════════════════');
+      console.log('📦 FULL API RESPONSE:', JSON.stringify(result, null, 2));
+      console.log('═══════════════════════════════════════');
+      console.log('📊 Response keys:', Object.keys(result));
+      console.log('🔍 geminiChunks:', result.geminiChunks);
+      console.log('🔍 groundingChunks:', result.groundingChunks);
+      console.log('🔍 sources:', result.sources);
+      console.log('🔍 retrievalContext:', result.retrievalContext);
+      console.log('═══════════════════════════════════════');
+
       if (result.success) {
-        const sources = result.groundingChunks?.map((chunk: any) => ({
-          text: chunk.retrievedContext?.text || '',
-          score: chunk.score,
-        })).filter((s: any) => s.text) || [];
+        let sources: SourceChunk[] = [];
+        
+        if (result.geminiChunks && Array.isArray(result.geminiChunks)) {
+          console.log('✅ Using geminiChunks format, count:', result.geminiChunks.length);
+          sources = result.geminiChunks.map((chunk: any, idx: number) => {
+            console.log(`  Chunk ${idx}:`, {
+              content: chunk.content?.substring(0, 50),
+              source: chunk.source,
+              score: chunk.score,
+            });
+            return {
+              content: chunk.content || chunk.text || '',
+              source: chunk.source || chunk.documentName || 'Unknown',
+              score: chunk.score,
+            };
+          }).filter((s: any) => s.content);
+        }
+        else if (result.groundingChunks && Array.isArray(result.groundingChunks)) {
+          console.log('✅ Using groundingChunks format, count:', result.groundingChunks.length);
+          sources = result.groundingChunks.map((chunk: any, idx: number) => {
+            console.log(`  Chunk ${idx}:`, {
+              text: chunk.retrievedContext?.text?.substring(0, 50),
+              documentName: chunk.documentName,
+              score: chunk.score,
+            });
+            return {
+              content: chunk.retrievedContext?.text || chunk.text || chunk.content || '',
+              source: chunk.documentName || chunk.source || 'Unknown',
+              score: chunk.score,
+            };
+          }).filter((s: any) => s.content);
+        }
+        else if (result.sources && Array.isArray(result.sources)) {
+          console.log('✅ Using sources format, count:', result.sources.length);
+          sources = result.sources.map((chunk: any, idx: number) => {
+            console.log(`  Source ${idx}:`, chunk);
+            return {
+              content: chunk.content || chunk.text || '',
+              source: chunk.source || chunk.documentName || 'Unknown',
+              score: chunk.score,
+            };
+          }).filter((s: any) => s.content);
+        }
+
+        console.log('✅ Final parsed sources:', sources.length);
+        sources.forEach((s, idx) => {
+          console.log(`  Source ${idx + 1}:`, {
+            source: s.source,
+            contentLength: s.content.length,
+            score: s.score,
+          });
+        });
 
         const assistantMessage: Message = {
           role: 'assistant',
           content: result.response || '',
           sources,
+          modelUsed: result.modelUsed,
+          usage: result.usage,
+          retrievalTime: result.retrievalTime,
+          generationTime: result.generationTime,
           timestamp: new Date(),
         };
+
+        console.log('💬 Assistant message created with', assistantMessage.sources?.length, 'sources');
+
         setMessages(prev => [...prev, assistantMessage]);
 
         if (sources.length === 0) {
+          console.warn('⚠️ No sources found in response');
           toast({
-            title: 'No relevant information found',
-            description: `The selected document${testedDocs.length !== 1 ? 's' : ''} may not contain information about "${query.trim()}"`,
+            title: 'No sources found',
+            description: 'The response was generated but no source citations were returned',
             variant: 'default',
           });
         }
@@ -225,12 +312,15 @@ export default function TestDrawer({
         throw new Error(result.message);
       }
     } catch (error: any) {
+      console.error('❌ Query failed:', error);
+      
       const errorMessage: Message = {
         role: 'assistant',
         content: 'Sorry, I encountered an error. Please try again.',
         timestamp: new Date(),
       };
       setMessages(prev => [...prev, errorMessage]);
+      
       toast({
         title: 'Query failed',
         description: error.message,
@@ -438,15 +528,90 @@ export default function TestDrawer({
                         </div>
                       </div>
                     )}
+                    
                     <div className="text-sm">
                       <FormattedMessage content={message.content} />
                     </div>
-                    {message.sources && message.sources.length > 0 && (
-                      <div className="mt-3 pt-3 border-t border-gray-200">
-                        <p className="text-xs text-gray-600 mb-2 flex items-center gap-1">
-                          <CheckCircle2 className="h-3 w-3" />
-                          Found in {message.sources.length} source{message.sources.length !== 1 ? 's' : ''}
-                        </p>
+                    
+                    {message.role === 'assistant' && (
+                      <div className="mt-4 pt-3 border-t border-gray-200 space-y-3">
+                        
+                        {(message.modelUsed || message.retrievalTime || message.generationTime || message.usage) && (
+                          <div className="space-y-2">
+                            {message.modelUsed && (
+                              <div className="flex items-center gap-2 text-xs text-gray-600">
+                                <Sparkles className="h-3 w-3" />
+                                <span>
+                                  Query Model: <strong className="font-semibold">{message.modelUsed}</strong>
+                                </span>
+                              </div>
+                            )}
+                            
+                            {(message.retrievalTime !== undefined || message.generationTime !== undefined) && (
+                              <div className="flex items-center gap-4 text-xs text-gray-600">
+                                {message.retrievalTime !== undefined && (
+                                  <div className="flex items-center gap-1">
+                                    <Clock className="h-3 w-3" />
+                                    <span>Retrieval: {formatTime(message.retrievalTime)}</span>
+                                  </div>
+                                )}
+                                {message.generationTime !== undefined && (
+                                  <div className="flex items-center gap-1">
+                                    <Zap className="h-3 w-3" />
+                                    <span>Generation: {formatTime(message.generationTime)}</span>
+                                  </div>
+                                )}
+                              </div>
+                            )}
+
+                            {message.usage && (
+                              <div className="flex items-center gap-3 text-xs text-gray-600">
+                                <span>Tokens: {message.usage.input_tokens || 0} in / {message.usage.output_tokens || 0} out</span>
+                                {message.usage.cache_read_input_tokens !== undefined && message.usage.cache_read_input_tokens > 0 && (
+                                  <Badge variant="secondary" className="text-xs">
+                                    {message.usage.cache_read_input_tokens} cached
+                                  </Badge>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        )}
+
+                        {message.sources && message.sources.length > 0 && (
+                          <div>
+                            <h4 className="text-xs font-semibold text-gray-600 mb-2 flex items-center gap-1">
+                              <FileText className="h-3 w-3" />
+                              Sources:
+                            </h4>
+                            <div className="space-y-2">
+                              {message.sources.map((source, sourceIndex) => (
+                                <button
+                                  key={sourceIndex}
+                                  onClick={() => setModalSource({ source, index: sourceIndex + 1 })}
+                                  className="w-full text-left bg-white hover:bg-gray-50 border border-gray-300 px-3 py-2 rounded-md transition-colors"
+                                  title={`Click to view full text from ${source.source}`}
+                                >
+                                  <div className="flex items-center justify-between gap-2">
+                                    <div className="flex items-center gap-2 flex-1 min-w-0">
+                                      <div className="flex-shrink-0 w-6 h-6 rounded-full bg-blue-100 flex items-center justify-center">
+                                        <span className="text-xs font-bold text-blue-600">{sourceIndex + 1}</span>
+                                      </div>
+                                      <div className="flex-1 min-w-0">
+                                        <p className="text-xs font-medium text-gray-900 truncate">{source.source}</p>
+                                        <p className="text-xs text-gray-500 line-clamp-1">{source.content.substring(0, 60)}...</p>
+                                      </div>
+                                    </div>
+                                    {source.score && (
+                                      <Badge variant="secondary" className="text-xs flex-shrink-0">
+                                        {(source.score * 100).toFixed(0)}%
+                                      </Badge>
+                                    )}
+                                  </div>
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
@@ -519,6 +684,75 @@ export default function TestDrawer({
           </form>
         </div>
       </div>
+
+      {modalSource && (
+        <div
+          className="fixed inset-0 bg-black/60 flex items-center justify-center z-[60] p-4"
+          onClick={() => setModalSource(null)}
+        >
+          <div
+            className="bg-white rounded-lg shadow-xl w-full max-w-4xl max-h-[85vh] flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="p-6">
+              <div className="flex items-start justify-between mb-4">
+                <div className="flex-1">
+                  <div className="flex items-center gap-3 mb-2">
+                    <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0">
+                      <span className="text-sm font-bold text-blue-600">{modalSource.index}</span>
+                    </div>
+                    <h3 className="text-xl font-bold text-gray-900">
+                      Source {modalSource.index}
+                    </h3>
+                  </div>
+                  <div className="flex items-center gap-3 text-sm text-gray-600 flex-wrap pl-11">
+                    <div className="flex items-center gap-2">
+                      <FileText className="h-4 w-4 text-blue-600" />
+                      <span className="font-medium">{modalSource.source.source}</span>
+                    </div>
+                    {modalSource.source.score && (
+                      <Badge variant="secondary">
+                        {(modalSource.source.score * 100).toFixed(0)}% relevance
+                      </Badge>
+                    )}
+                    <div className="text-xs text-gray-500">
+                      {modalSource.source.content.length.toLocaleString()} characters
+                    </div>
+                  </div>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setModalSource(null)}
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+
+              <div className="bg-blue-50 border border-blue-200 rounded-md p-3 mb-4">
+                <p className="text-xs text-blue-800">
+                  💡 <strong>This is the exact text chunk</strong> retrieved from <strong>{modalSource.source.source}</strong> that was used to generate the answer above.
+                </p>
+              </div>
+
+              <div className="max-h-[50vh] overflow-y-auto border border-gray-200 rounded-lg p-4 bg-gray-50">
+                <div className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">
+                  {modalSource.source.content}
+                </div>
+              </div>
+
+              <div className="flex justify-end mt-4">
+                <Button
+                  onClick={() => setModalSource(null)}
+                  className="bg-blue-600 hover:bg-blue-700"
+                >
+                  Close
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }
