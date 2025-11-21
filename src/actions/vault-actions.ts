@@ -6,7 +6,7 @@ import { getStorage } from 'firebase-admin/storage';
 import { FieldValue } from 'firebase-admin/firestore';
 import type { VaultFile, FileSearchStore, VaultQuery, GroundingChunk } from '@/lib/types';
 import { queryVaultWithClaude, estimateDocumentTokens } from '@/lib/claude-rag';
-import { queryWithHybridRAG } from '@/lib/gemini-claude-hybrid';
+import { queryWithGeminiRAG } from '@/lib/gemini-rag';
 import { getPartnerAIConfig } from '@/actions/partner-settings-actions';
 
 const genAI = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || '' });
@@ -1293,7 +1293,7 @@ export async function chatWithVaultForConversation(
   sources?: any[];
   alternativeReplies?: string[];
 }> {
-  console.log('⚡ Hybrid RAG starting for messaging');
+  console.log('⚡ Gemini 3 RAG starting for messaging');
   const startTime = Date.now();
   
   if (!db) {
@@ -1303,14 +1303,12 @@ export async function chatWithVaultForConversation(
   try {
     const conversationCollection = platform === 'sms' ? 'smsConversations' : 'whatsappConversations';
 
-    const [conversationDoc, conversationContext, modelChoice] = await Promise.all([
+    const [conversationDoc, conversationContext] = await Promise.all([
       db.collection(conversationCollection).doc(conversationId).get(),
       getConversationContext(conversationId, platform, 5),
-      getPartnerAIConfig(partnerId)
     ]);
 
     console.log(`⏱️ Data loaded: ${Date.now() - startTime}ms`);
-    console.log(`🤖 Using model: ${modelChoice}`);
 
     if (!conversationDoc.exists) {
       return { success: false, message: 'Conversation not found' };
@@ -1329,21 +1327,18 @@ Customer question: "${message}"
 
 Generate a helpful, professional response (1-3 sentences) using the knowledge base. The information you need is in the documents - find it and use it. Be confident and direct in your answer.`;
 
-    console.log('📤 Querying with hybrid RAG...');
+    console.log('📤 Querying with Gemini 3 RAG...');
     const queryStart = Date.now();
 
-    const result = await queryWithHybridRAG(
+    const result = await queryWithGeminiRAG(
       partnerId,
       enhancedQuestion,
-      modelChoice,
       {
         maxChunks: 5,
-        maxChunkChars: 3000,
-        allowEmptyChunks: true,
       }
     );
 
-    console.log(`⏱️ Hybrid query: ${Date.now() - queryStart}ms`);
+    console.log(`⏱️ Gemini 3 query: ${Date.now() - queryStart}ms`);
 
     if (!result.success || !result.response) {
       return {
@@ -1357,8 +1352,8 @@ Generate a helpful, professional response (1-3 sentences) using the knowledge ba
     
     const confidence = chunksUsed > 0 ? 0.90 : 0.65;
     const reasoning = chunksUsed > 0
-      ? `Based on ${chunksUsed} source${chunksUsed > 1 ? 's' : ''} from knowledge base (${result.modelUsed})`
-      : `General response (${result.modelUsed})`;
+      ? `Based on ${chunksUsed} source${chunksUsed > 1 ? 's' : ''} from knowledge base (Gemini 3)`
+      : `General response (Gemini 3)`;
 
     const sources = result.geminiChunks?.slice(0, 3).map(chunk => ({
       type: 'document' as const,
@@ -1368,7 +1363,6 @@ Generate a helpful, professional response (1-3 sentences) using the knowledge ba
     })) || [];
 
     console.log(`✅ Total time: ${Date.now() - startTime}ms`);
-    console.log(`💰 Tokens: ${result.usage?.input_tokens || result.usage?.prompt_tokens || 0} in, ${result.usage?.output_tokens || result.usage?.completion_tokens || 0} out`);
     console.log(`📚 Sources used: ${chunksUsed}`);
 
     return {
@@ -1382,7 +1376,7 @@ Generate a helpful, professional response (1-3 sentences) using the knowledge ba
     };
 
   } catch (error: any) {
-    console.error('❌ Hybrid RAG failed for messaging:', error);
+    console.error('❌ Gemini 3 RAG failed for messaging:', error);
     
     return {
       success: false,
@@ -1406,7 +1400,7 @@ export async function generateExampleQuestions(partnerId: string): Promise<strin
     const ragStoreName = storesSnapshot.docs[0].data().name;
 
     const response = await genAI.models.generateContent({
-      model: 'gemini-2.5-flash',
+      model: 'gemini-3-pro-preview',
       contents: "Generate 4 short and practical example questions a user might ask about the uploaded documents. Return only a JSON array of question strings.",
       config: {
         tools: [
@@ -1415,7 +1409,8 @@ export async function generateExampleQuestions(partnerId: string): Promise<strin
               fileSearchStoreNames: [ragStoreName],
             }
           }
-        ]
+        ],
+        thinkingLevel: 'low',
       }
     });
     

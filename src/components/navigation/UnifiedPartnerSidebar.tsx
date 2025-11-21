@@ -1,13 +1,9 @@
-
-// src/components/navigation/UnifiedPartnerSidebar.tsx
 "use client";
 
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { 
-  LayoutDashboard, 
-  ListTodo, 
   Settings, 
   ChevronDown,
   LogOut,
@@ -16,16 +12,13 @@ import {
   Bell,
   HelpCircle,
   Layers,
-  Send,
   Users,
-  FileText,
-  Radio,
-  Zap,  // <-- ADDED for Mission Control icon
+  Database,
+  Puzzle,
 } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
 import { Avatar, AvatarFallback } from '../ui/avatar';
-import { Separator } from '../ui/separator';
 import { ScrollArea } from '../ui/scroll-area';
 import {
   DropdownMenu,
@@ -102,55 +95,47 @@ export default function UnifiedPartnerSidebar() {
 
   const allMenuItems: MenuItem[] = [
     { 
-      icon: Zap, 
-      label: 'Mission Control', 
-      href: '/partner/mission-control',
-      badge: null,
-      description: 'AI Knowledge Base & Monitoring'
-    },
-    { 
-      icon: FileText, 
-      label: 'Ideabox', 
-      href: '/partner/ideabox',
-      badge: null,
-      description: 'Create and manage ideas'
-    },
-    { 
       icon: MessageSquare, 
-      label: 'Conversations', 
+      label: 'Messaging', 
       href: '/partner/messaging',
       badge: stats?.unreadMessages || null,
-      description: 'Direct & Group Chat'
+      description: 'SMS & WhatsApp conversations'
+    },
+    { 
+      icon: Database, 
+      label: 'Vault', 
+      href: '/partner/vault',
+      badge: null,
+      description: 'Document storage & AI search'
     },
     { 
       icon: Users, 
       label: 'Contacts', 
       href: '/partner/contacts',
       badge: null,
-      description: 'Contact Management'
+      description: 'Contact management'
     },
     { 
-      icon: ListTodo, 
-      label: 'Tasks', 
-      href: '/partner/tasks',
-      badge: stats?.pendingTasks || null
+      icon: Puzzle, 
+      label: 'Integrations', 
+      href: '/partner/apps',
+      badge: null,
+      description: 'Connected apps & services'
     },
     { 
       icon: Settings, 
       label: 'Settings', 
       href: '/partner/settings',
-      badge: null 
+      badge: null,
+      description: 'Workspace settings'
     },
   ];
   
   const menuItems = partner?.isActivePlanUser === false
-    ? allMenuItems.filter(item => item.label === 'Tasks' || item.label === 'Settings')
+    ? allMenuItems.filter(item => item.label === 'Settings')
     : allMenuItems;
 
-
-  // Load sidebar stats
   useEffect(() => {
-    // Placeholder for fetching real stats
     setStats({
       pendingTasks: 0,
       unreadMessages: 0,

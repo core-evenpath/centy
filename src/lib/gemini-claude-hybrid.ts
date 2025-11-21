@@ -1,85 +1,48 @@
-'use server';
-
-import { GoogleGenAI } from '@google/genai';
 import Anthropic from '@anthropic-ai/sdk';
+import { GoogleGenAI } from '@google/genai';
 import { db } from '@/lib/firebase-admin';
-import type { AIModelChoice } from '@/lib/types';
 
 const genAI = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || '' });
+
 const anthropic = new Anthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY!,
+  apiKey: process.env.ANTHROPIC_API_KEY || '',
 });
 
 interface HybridQueryResult {
   success: boolean;
+  message: string;
   response?: string;
   geminiChunks?: Array<{
     content: string;
-    score: number;
     source: string;
+    score?: number;
   }>;
-  usage?: {
-    input_tokens?: number;
-    output_tokens?: number;
-    cache_read_input_tokens?: number;
-    prompt_tokens?: number;
-    completion_tokens?: number;
-  };
-  message?: string;
+  usage?: any;
   retrievalTime?: number;
   generationTime?: number;
-  chunksUsed?: number;
   estimatedTokens?: number;
   modelUsed?: string;
   metadataFilter?: string;
 }
 
-function truncateChunk(content: string, maxChars: number = 3000): string {
-  if (content.length <= maxChars) return content;
-  return content.substring(0, maxChars) + '... [truncated]';
-}
-
-function estimateTokens(text: string): number {
-  return Math.ceil(text.length / 4);
-}
-
-async function delay(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
 async function callClaudeWithRetry(
   params: any,
-  maxRetries: number = 3
-): Promise<any> {
+  maxRetries: number = 3,
+  baseDelay: number = 1000
+): Promise<{ response: any; retryCount: number }> {
   let lastError: any;
   
   for (let attempt = 0; attempt < maxRetries; attempt++) {
     try {
       const response = await anthropic.messages.create(params);
-      
-      if (attempt > 0) {
-        console.log(`✅ Retry ${attempt} succeeded`);
-      }
-      
       return { response, retryCount: attempt };
     } catch (error: any) {
       lastError = error;
       
-      const isRateLimitError = 
-        error.status === 429 || 
-        error.error?.type === 'rate_limit_error' ||
-        error.message?.includes('rate_limit');
-      
-      const isOverloadedError = 
-        error.status === 529 || 
-        error.error?.type === 'overloaded_error';
-      
-      if (isRateLimitError || isOverloadedError) {
-        const waitTime = Math.min(Math.pow(2, attempt) * 2000, 60000);
-        const errorType = isRateLimitError ? 'Rate limit' : 'Overloaded';
-        
-        console.log(`⏳ ${errorType} error. Waiting ${waitTime/1000}s before retry ${attempt + 1}/${maxRetries}...`);
-        await delay(waitTime);
+      if (error.status === 529) {
+        const delay = baseDelay * Math.pow(2, attempt);
+        console.log(`⚠️ Overloaded (attempt ${attempt + 1}/${maxRetries}), waiting ${delay}ms...`);
+        await new Promise(resolve => setTimeout(resolve, delay));
         continue;
       }
       
@@ -93,7 +56,7 @@ async function callClaudeWithRetry(
 export async function queryWithHybridRAG(
   partnerId: string,
   question: string,
-  modelChoice: AIModelChoice,
+  modelChoice: 'haiku' | 'sonnet-3.5' | 'sonnet-4.5' | 'openai' = 'haiku',
   options?: {
     maxChunks?: number;
     maxChunkChars?: number;
@@ -170,29 +133,25 @@ export async function queryWithHybridRAG(
 
     console.log('🔵 Step 2: Preparing metadata filter');
     
-    // CRITICAL: Try WITHOUT metadata filter first
     if (selectedFileIds && selectedFileIds.length > 0) {
       console.log('⚠️ TEMPORARILY DISABLING METADATA FILTER FOR TESTING');
       console.log('   This will search ALL documents to verify retrieval works');
-      // metadataFilter = selectedFileIds
-      //   .map(id => `fileId="${id}"`)
-      //   .join(' OR ');
-      // console.log(`🔍 Metadata filter: ${metadataFilter}`);
     } else {
       console.log(`🔍 No filter - searching ALL documents`);
     }
 
-    console.log('🔵 Step 3: Calling Gemini 2.5 Flash for retrieval');
+    console.log('🔵 Step 3: Calling Gemini 3 Pro Preview for retrieval');
     console.log(`📤 RAG Store: ${ragStoreName}`);
     console.log(`📤 Question: "${question}"`);
-    console.log(`📤 Model: gemini-2.5-flash`);
+    console.log(`📤 Model: gemini-3-pro-preview`);
+    console.log(`📤 Thinking Level: low (optimized for retrieval speed)`);
     console.log(`📤 Filter: ${metadataFilter || 'NONE (searching all docs)'}`);
     
     const retrievalStart = Date.now();
 
     try {
       const geminiConfig: any = {
-        model: 'gemini-2.5-flash',
+        model: 'gemini-3-pro-preview',
         contents: question,
         config: {
           tools: [
@@ -201,24 +160,23 @@ export async function queryWithHybridRAG(
                 fileSearchStoreNames: [ragStoreName],
               }
             }
-          ]
+          ],
+          thinkingLevel: 'low',
         }
       };
 
-      // Only add metadata filter if it exists
       if (metadataFilter) {
         geminiConfig.config.tools[0].fileSearch.metadataFilter = metadataFilter;
       }
 
-      console.log('📤 Sending Gemini request with config:', JSON.stringify(geminiConfig, null, 2));
+      console.log('📤 Sending Gemini 3 request with config:', JSON.stringify(geminiConfig, null, 2));
 
       const geminiResponse = await genAI.models.generateContent(geminiConfig);
 
       retrievalTime = Date.now() - retrievalStart;
-      console.log(`✅ Gemini response received in ${retrievalTime}ms`);
+      console.log(`✅ Gemini 3 response received in ${retrievalTime}ms`);
 
-      // Debug the full response structure
-      console.log('📊 Gemini response structure:', {
+      console.log('📊 Gemini 3 response structure:', {
         hasCandidates: !!geminiResponse.candidates,
         candidatesLength: geminiResponse.candidates?.length || 0,
         firstCandidate: geminiResponse.candidates?.[0] ? 'exists' : 'missing',
@@ -245,11 +203,11 @@ export async function queryWithHybridRAG(
         }
       }
       
-      console.log(`📚 Retrieved ${groundingChunks.length} chunks from Gemini`);
+      console.log(`📚 Retrieved ${groundingChunks.length} chunks from Gemini 3`);
 
       if (groundingChunks.length === 0) {
         console.error('═══════════════════════════════════════');
-        console.error('❌ NO CHUNKS RETRIEVED FROM GEMINI!');
+        console.error('❌ NO CHUNKS RETRIEVED FROM GEMINI 3!');
         console.error('═══════════════════════════════════════');
         console.error('Possible causes:');
         console.error('1. Files not properly indexed in RAG store');
@@ -267,126 +225,95 @@ export async function queryWithHybridRAG(
           const ctx = chunk.retrievedContext;
           console.log(`  📄 Chunk ${i + 1}:`, {
             hasContext: !!ctx,
-            title: ctx?.title || 'NO TITLE',
-            uri: ctx?.uri?.substring(0, 60) || 'NO URI',
+            hasText: !!ctx?.text,
             textLength: ctx?.text?.length || 0,
-            textPreview: ctx?.text?.substring(0, 100) || 'NO TEXT'
+            hasTitle: !!ctx?.title,
+            title: ctx?.title || 'No title',
           });
         });
       }
 
     } catch (geminiError: any) {
-      console.error('❌ Gemini retrieval failed:', geminiError);
-      console.error('Error details:', {
-        message: geminiError.message,
-        status: geminiError.status,
-        stack: geminiError.stack,
-      });
-      throw geminiError;
-    }
-
-    const chunks = groundingChunks
-      .slice(0, maxChunks)
-      .map((chunk: any, index: number) => {
-        const retrievedContext = chunk.retrievedContext;
-        const text = retrievedContext?.text || '';
-        const title = retrievedContext?.title || 
-                     retrievedContext?.uri?.split('/').pop() || 
-                     `Document ${index + 1}`;
-        
-        return {
-          content: truncateChunk(text, maxChunkChars),
-          source: title,
-          score: 0.85,
-        };
-      })
-      .filter(chunk => allowEmptyChunks || chunk.content.trim().length > 0);
-
-    const chunksUsed = chunks.length;
-    console.log(`📊 Using ${chunksUsed} chunks for generation`);
-
-    if (chunksUsed === 0) {
-      console.warn('⚠️ No chunks available for generation');
+      console.error('❌ Gemini 3 retrieval failed:', geminiError);
       return {
-        success: true,
-        response: "I couldn't find relevant information in the documents to answer your question. Please try:\n1. Rephrasing your question\n2. Being more specific\n3. Checking if the document contains this information",
-        geminiChunks: [],
-        usage: { prompt_tokens: 0, completion_tokens: 0 },
-        retrievalTime,
-        generationTime: 0,
-        chunksUsed: 0,
-        modelUsed: modelChoice,
-        metadataFilter,
+        success: false,
+        message: `Gemini 3 retrieval failed: ${geminiError.message}`,
       };
     }
 
-    const chunksText = chunks
-      .map((c, i) => `[SOURCE ${i + 1}: ${c.source}]\n${c.content}\n`)
-      .join('\n---\n\n');
+    console.log('🔵 Step 4: Processing and filtering chunks');
+    
+    const processedChunks = groundingChunks
+      .map((chunk: any) => {
+        const ctx = chunk.retrievedContext;
+        if (!ctx) return null;
 
-    const systemPrompt = `You are a helpful AI assistant. Answer the question based on the provided context.
+        let content = ctx.text || '';
+        let source = ctx.title || 'Unknown Source';
+        
+        if (ctx.uri) {
+          const match = ctx.uri.match(/files\/([^\/]+)/);
+          if (match) {
+            source = match[1];
+          }
+        }
 
-CONTEXT FROM DOCUMENTS:
-${chunksText}
+        if (content.length > maxChunkChars) {
+          content = content.substring(0, maxChunkChars) + '...';
+        }
 
-INSTRUCTIONS:
-- Answer based ONLY on the context above
-- Be specific and cite sources
-- Keep responses concise (2-4 sentences)
-- If the context doesn't answer the question, say so clearly`;
+        return {
+          content,
+          source,
+          score: 0.85,
+        };
+      })
+      .filter((chunk): chunk is NonNullable<typeof chunk> => chunk !== null)
+      .slice(0, maxChunks);
 
+    console.log(`✅ Processed ${processedChunks.length} chunks for Claude`);
+
+    if (processedChunks.length === 0 && !allowEmptyChunks) {
+      return {
+        success: false,
+        message: 'No relevant content found in documents',
+        retrievalTime,
+      };
+    }
+
+    console.log('🔵 Step 5: Building context for Claude');
+
+    const contextText = processedChunks.length > 0
+      ? processedChunks
+          .map((chunk, i) => `[Source ${i + 1}: ${chunk.source}]\n${chunk.content}`)
+          .join('\n\n---\n\n')
+      : 'No specific document content retrieved.';
+
+    const estimatedTokens = Math.ceil(contextText.length / 4) + Math.ceil(question.length / 4);
+    console.log(`📊 Estimated total tokens: ${estimatedTokens.toLocaleString()}`);
+
+    console.log('🔵 Step 6: Generating response with LLM');
+    
+    const systemPrompt = processedChunks.length > 0
+      ? `You are a helpful assistant that answers questions based on the provided document context.
+
+DOCUMENT CONTEXT:
+${contextText}
+
+Instructions:
+- Answer the question using ONLY the information from the document context above
+- Be direct and concise
+- If the documents don't contain the answer, say "I don't have that information in the provided documents"
+- Cite which source you're using when relevant`
+      : `You are a helpful assistant. The document search did not return specific results, so provide a general, helpful response based on your knowledge.`;
+
+    const generationStart = Date.now();
     let responseText = '';
     let usage: any = {};
     let modelUsed = '';
-    const generationStart = Date.now();
 
-    const systemTokens = estimateTokens(systemPrompt);
-    const questionTokens = estimateTokens(question);
-    const estimatedTokens = systemTokens + questionTokens;
-    
-    console.log('🔵 Step 4: Generating response');
-    console.log(`📊 Input tokens (estimated): ${estimatedTokens}`);
-    console.log(`📊 Model: ${modelChoice}`);
-
-    if (modelChoice === 'gemini-2.5-pro') {
-      console.log('🤖 Using Gemini 2.5 Flash for generation');
-
-      const genResponse = await genAI.models.generateContent({
-        model: 'gemini-2.5-flash',
-        contents: `${systemPrompt}\n\nQUESTION: ${question}\n\nANSWER:`,
-        config: {
-          temperature: 0.3,
-          maxOutputTokens: 4096,
-        }
-      });
-
-      responseText = genResponse.text || '';
-      
-      const usageMeta = genResponse.usageMetadata;
-      if (usageMeta) {
-        usage = {
-          prompt_tokens: usageMeta.promptTokenCount || 0,
-          completion_tokens: usageMeta.candidatesTokenCount || 0,
-          total_tokens: usageMeta.totalTokenCount || 0,
-        };
-      } else {
-        usage = {
-          prompt_tokens: estimateTokens(systemPrompt + question),
-          completion_tokens: estimateTokens(responseText),
-        };
-      }
-      
-      modelUsed = 'gemini-2.5-flash';
-
-    } else if (modelChoice === 'gpt-4o-mini') {
-      if (!process.env.OPENAI_API_KEY) {
-        return {
-          success: false,
-          message: 'OpenAI API key not configured',
-        };
-      }
-
-      console.log('🤖 Using GPT-4o Mini for generation');
+    if (modelChoice === 'openai') {
+      console.log('🤖 Using GPT-4o-mini for generation');
 
       const openaiResponse = await fetch('https://api.openai.com/v1/chat/completions', {
         method: 'POST',
@@ -449,67 +376,51 @@ INSTRUCTIONS:
       responseText = response.content[0].type === 'text' 
         ? response.content[0].text 
         : '';
-      
       usage = response.usage;
       modelUsed = claudeModel;
 
       if (retryCount > 0) {
-        console.log(`🔄 Succeeded after ${retryCount} retry(s)`);
+        console.log(`✅ Succeeded after ${retryCount} retries`);
       }
     }
 
     const generationTime = Date.now() - generationStart;
-    const totalTime = Date.now() - startTime;
+    console.log(`✅ Response generated in ${generationTime}ms`);
 
+    const totalTime = Date.now() - startTime;
     console.log('═══════════════════════════════════════');
-    console.log('✅ QUERY COMPLETED SUCCESSFULLY');
+    console.log('✅ HYBRID RAG QUERY COMPLETE');
     console.log('═══════════════════════════════════════');
-    console.log(`⏱️ Retrieval: ${retrievalTime}ms`);
-    console.log(`⏱️ Generation: ${generationTime}ms`);
-    console.log(`⏱️ Total: ${totalTime}ms`);
-    console.log(`📚 Chunks used: ${chunksUsed}`);
-    console.log(`🤖 Model: ${modelUsed}`);
-    console.log(`💰 Tokens: ${usage.prompt_tokens || usage.input_tokens || 0} in / ${usage.completion_tokens || usage.output_tokens || 0} out`);
-    console.log(`📝 Response length: ${responseText.length} chars`);
-    console.log(`📄 Response preview: ${responseText.substring(0, 200)}...`);
+    console.log(`⏱️ Total time: ${totalTime}ms`);
+    console.log(`⏱️ Retrieval (Gemini 3): ${retrievalTime}ms`);
+    console.log(`⏱️ Generation (${modelUsed}): ${generationTime}ms`);
+    console.log(`📚 Chunks used: ${processedChunks.length}`);
+    console.log(`💰 Tokens: ${usage.input_tokens || usage.prompt_tokens || 0} in, ${usage.output_tokens || usage.completion_tokens || 0} out`);
     console.log('═══════════════════════════════════════');
 
     return {
       success: true,
+      message: 'Query successful',
       response: responseText,
-      geminiChunks: chunks,
+      geminiChunks: processedChunks,
       usage,
       retrievalTime,
       generationTime,
-      chunksUsed,
-      estimatedTokens,
       modelUsed,
       metadataFilter,
     };
 
   } catch (error: any) {
     console.error('═══════════════════════════════════════');
-    console.error('❌ HYBRID QUERY FAILED');
+    console.error('❌ HYBRID RAG QUERY FAILED');
     console.error('═══════════════════════════════════════');
     console.error('Error:', error.message);
     console.error('Stack:', error.stack);
     console.error('═══════════════════════════════════════');
-    
-    const isRateLimitError = 
-      error.status === 429 || 
-      error.error?.type === 'rate_limit_error' ||
-      error.message?.includes('rate_limit');
-    
-    if (isRateLimitError) {
-      return {
-        success: false,
-        message: 'Rate limit reached. Please wait a moment and try again.',
-      };
-    }
-    
+
     return {
       success: false,
-      message: `Query failed: ${error.message || 'Unknown error'}`,
+      message: `Query failed: ${error.message}`,
     };
   }
 }
