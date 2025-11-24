@@ -114,6 +114,30 @@ export default function WhatsAppBusinessSettingsPage() {
         }
     };
 
+    const handleDisconnect = async () => {
+        if (!currentPartnerId) return;
+
+        if (!confirm('Are you sure you want to disconnect? This will stop message processing.')) {
+            return;
+        }
+
+        setSaving(true);
+        try {
+            const result = await disconnectMetaWhatsApp(currentPartnerId);
+            if (result.success) {
+                setSuccess('Disconnected successfully. You can now re-connect.');
+                setConfig(null); // This will show the connect form again
+                setFormData(prev => ({ ...prev, accessToken: '' }));
+            } else {
+                setError(result.message);
+            }
+        } catch (err: any) {
+            setError(err.message);
+        } finally {
+            setSaving(false);
+        }
+    };
+
     const copyToClipboard = (text: string) => {
         navigator.clipboard.writeText(text);
     };
@@ -291,11 +315,30 @@ export default function WhatsAppBusinessSettingsPage() {
                             </div>
 
                             {isPending && (
-                                <Button onClick={handleActivate} className="w-full">
+                                <Button onClick={handleActivate} className="w-full mb-2">
                                     <CheckCircle2 className="w-4 h-4 mr-2" />
                                     Activate Connection
                                 </Button>
                             )}
+
+                            <div className="pt-4 border-t">
+                                <Button
+                                    variant="destructive"
+                                    onClick={handleDisconnect}
+                                    disabled={saving}
+                                    className="w-full"
+                                >
+                                    {saving ? (
+                                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                    ) : (
+                                        <XCircle className="w-4 h-4 mr-2" />
+                                    )}
+                                    Disconnect & Reset Configuration
+                                </Button>
+                                <p className="text-xs text-gray-500 text-center mt-2">
+                                    This will allow you to re-enter your credentials.
+                                </p>
+                            </div>
                         </CardContent>
                     </Card>
                 </>

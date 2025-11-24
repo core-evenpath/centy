@@ -20,7 +20,9 @@ export async function GET(request: NextRequest) {
 
     console.log('🔔 Meta Webhook Verification Request:', {
         mode,
-        tokenMatch: token === globalVerifyToken
+        token,
+        expectedToken: globalVerifyToken,
+        match: token === globalVerifyToken
     });
 
     if (mode === 'subscribe' && token === globalVerifyToken) {
