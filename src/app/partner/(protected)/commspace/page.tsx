@@ -24,6 +24,16 @@ import Link from 'next/link';
 import type { MetaWhatsAppConversation, MetaWhatsAppMessage } from '@/lib/types-meta-whatsapp';
 import { format } from 'date-fns';
 
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogHeader,
+    DialogTitle,
+    DialogTrigger,
+} from "@/components/ui/dialog"
+import { Label } from "@/components/ui/label"
+
 export default function CommSpacePage() {
     const { currentWorkspace, loading: authLoading } = useMultiWorkspaceAuth();
     const currentPartnerId = currentWorkspace?.partnerId;
@@ -35,6 +45,11 @@ export default function CommSpacePage() {
     const [sending, setSending] = useState(false);
     const [isConnected, setIsConnected] = useState<boolean | null>(null);
     const [mobileShowChat, setMobileShowChat] = useState(false);
+
+    // New Chat State
+    const [newChatOpen, setNewChatOpen] = useState(false);
+    const [newChatPhone, setNewChatPhone] = useState('');
+    const [newChatName, setNewChatName] = useState('');
 
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const { messages, loading: msgsLoading } = useMetaMessages(selectedConversation?.id);
@@ -100,6 +115,32 @@ export default function CommSpacePage() {
         }
     };
 
+    const handleStartNewChat = async () => {
+        if (!newChatPhone || !currentPartnerId) return;
+
+        // Create a temporary conversation object to select immediately
+        const tempConv: MetaWhatsAppConversation = {
+            id: 'temp_' + Date.now(),
+            partnerId: currentPartnerId,
+            platform: 'meta_whatsapp',
+            customerPhone: newChatPhone,
+            customerName: newChatName || newChatPhone,
+            phoneNumberId: '', // Will be filled by backend
+            type: 'direct',
+            isActive: true,
+            messageCount: 0,
+            unreadCount: 0,
+            lastMessageAt: { toDate: () => new Date() } as any,
+            createdAt: { toDate: () => new Date() } as any,
+        };
+
+        setSelectedConversation(tempConv);
+        setNewChatOpen(false);
+        setNewChatPhone('');
+        setNewChatName('');
+        setMobileShowChat(true);
+    };
+
     const selectConversation = (conv: MetaWhatsAppConversation) => {
         setSelectedConversation(conv);
         setMobileShowChat(true);
@@ -146,6 +187,48 @@ export default function CommSpacePage() {
                 <div className="p-4 border-b">
                     <div className="flex items-center justify-between mb-4">
                         <h1 className="text-xl font-semibold">Messages</h1>
+                        <Dialog open={newChatOpen} onOpenChange={setNewChatOpen}>
+                            <DialogTrigger asChild>
+                                <Button size="icon" variant="ghost">
+                                    <Plus className="w-5 h-5" />
+                                </Button>
+                            </DialogTrigger>
+                            <DialogContent>
+                                <DialogHeader>
+                                    <DialogTitle>New Message</DialogTitle>
+                                    <DialogDescription>
+                                        Enter a phone number to start a new conversation.
+                                    </DialogDescription>
+                                </DialogHeader>
+                                <div className="space-y-4 py-4">
+                                    <div className="space-y-2">
+                                        <Label htmlFor="phone">Phone Number</Label>
+                                        <Input
+                                            id="phone"
+                                            placeholder="+1234567890"
+                                            value={newChatPhone}
+                                            onChange={(e) => setNewChatPhone(e.target.value)}
+                                        />
+                                    </div>
+                                    <div className="space-y-2">
+                                        <Label htmlFor="name">Customer Name (Optional)</Label>
+                                        <Input
+                                            id="name"
+                                            placeholder="John Doe"
+                                            value={newChatName}
+                                            onChange={(e) => setNewChatName(e.target.value)}
+                                        />
+                                    </div>
+                                    <Button
+                                        className="w-full"
+                                        onClick={handleStartNewChat}
+                                        disabled={!newChatPhone}
+                                    >
+                                        Start Conversation
+                                    </Button>
+                                </div>
+                            </DialogContent>
+                        </Dialog>
                     </div>
 
                     <div className="relative">

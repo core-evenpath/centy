@@ -582,34 +582,32 @@ service cloud.firestore {
     // Meta Phone Mappings - read-only for webhooks, write by authenticated partners
     match /metaPhoneMappings/{phoneNumberId} {
       allow read: if true; // Webhooks need to read this
-      allow write: if request.auth != null && 
-        request.resource.data.partnerId == request.auth.token.partnerId;
+      allow write: if canModifyPartner(request.resource.data.partnerId);
     }
 
     // Meta WhatsApp Conversations - partner-scoped access
     match /metaWhatsAppConversations/{conversationId} {
-      allow read, write: if request.auth != null && 
-        resource.data.partnerId == request.auth.token.partnerId;
-      allow create: if request.auth != null && 
-        request.resource.data.partnerId == request.auth.token.partnerId;
+      allow read: if canAccessPartner(resource.data.partnerId);
+      allow list: if belongsToAnyPartner();
+      allow create: if belongsToPartner(request.resource.data.partnerId);
+      allow update: if canAccessPartner(resource.data.partnerId);
+      allow delete: if canModifyPartner(resource.data.partnerId);
     }
 
     // Meta WhatsApp Messages - partner-scoped access
     match /metaWhatsAppMessages/{messageId} {
-      allow read: if request.auth != null && 
-        resource.data.partnerId == request.auth.token.partnerId;
-      allow create: if request.auth != null && 
-        request.resource.data.partnerId == request.auth.token.partnerId;
-      allow update: if request.auth != null && 
-        resource.data.partnerId == request.auth.token.partnerId;
+      allow read: if canAccessPartner(resource.data.partnerId);
+      allow list: if belongsToAnyPartner();
+      allow create: if belongsToPartner(request.resource.data.partnerId);
+      allow update: if canAccessPartner(resource.data.partnerId);
     }
 
     // Meta Message Templates - partner-scoped access
     match /metaMessageTemplates/{templateId} {
-      allow read, write: if request.auth != null && 
-        resource.data.partnerId == request.auth.token.partnerId;
-      allow create: if request.auth != null && 
-        request.resource.data.partnerId == request.auth.token.partnerId;
+      allow read: if canAccessPartner(resource.data.partnerId);
+      allow list: if belongsToAnyPartner();
+      allow create: if belongsToPartner(request.resource.data.partnerId);
+      allow update: if canModifyPartner(resource.data.partnerId);
     }
 
     // Webhook Logs - admin only or server-side
