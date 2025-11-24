@@ -139,7 +139,14 @@ export default function WhatsAppBusinessSettingsPage() {
     };
 
     const copyToClipboard = (text: string) => {
-        navigator.clipboard.writeText(text);
+        if (navigator.clipboard) {
+            navigator.clipboard.writeText(text);
+            setSuccess('Copied to clipboard!');
+            setTimeout(() => setSuccess(null), 2000);
+        } else {
+            // Fallback or just alert user
+            alert('Copying to clipboard is not supported in this context. Please copy manually.');
+        }
     };
 
     if (authLoading || loading) {
