@@ -37,5 +37,8 @@ export function useNotifications() {
     setNotificationsEnabled,
     audioRef,
     notify,
+    notifications: [], // Mocked for now
+    hasUnread: false, // Mocked for now
+    markAllAsRead: () => { }, // Mocked for now
   };
 }

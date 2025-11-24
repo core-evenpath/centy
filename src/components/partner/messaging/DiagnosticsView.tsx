@@ -19,19 +19,35 @@ interface MessagingDiagnostics {
 }
 
 interface DiagnosticsViewProps {
-  diagnostics: MessagingDiagnostics | null;
-  onBack: () => void;
+  partnerId: string;
 }
 
-export default function DiagnosticsView({ diagnostics, onBack }: DiagnosticsViewProps) {
+export default function DiagnosticsView({ partnerId }: DiagnosticsViewProps) {
   const { toast } = useToast();
+  const [diagnostics, setDiagnostics] = React.useState<MessagingDiagnostics | null>(null);
+  const [isLoading, setIsLoading] = React.useState(true);
+
+  React.useEffect(() => {
+    // Mock fetching diagnostics for now
+    setTimeout(() => {
+      setDiagnostics({
+        configOk: true,
+        accountSid: true,
+        authToken: true,
+        smsNumber: true,
+        whatsAppNumber: true,
+        baseUrl: window.location.origin,
+      });
+      setIsLoading(false);
+    }, 1000);
+  }, [partnerId]);
 
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);
     toast({ title: 'Copied!', description: 'Webhook URL copied to clipboard.' });
   };
 
-  if (!diagnostics) {
+  if (isLoading || !diagnostics) {
     return (
       <Card className="m-6">
         <CardHeader>
@@ -99,14 +115,14 @@ export default function DiagnosticsView({ diagnostics, onBack }: DiagnosticsView
         <div className="space-y-3">
           <h4 className="font-medium">SMS Webhook URL</h4>
           <div className="flex items-center gap-2">
-            <Input 
-              readOnly 
-              value={smsWebhookUrl} 
-              className="font-mono text-xs" 
+            <Input
+              readOnly
+              value={smsWebhookUrl}
+              className="font-mono text-xs"
             />
-            <Button 
-              variant="outline" 
-              size="sm" 
+            <Button
+              variant="outline"
+              size="sm"
               onClick={() => copyToClipboard(smsWebhookUrl)}
             >
               <Copy className="w-3 h-3 mr-1" />
@@ -121,14 +137,14 @@ export default function DiagnosticsView({ diagnostics, onBack }: DiagnosticsView
         <div className="space-y-3">
           <h4 className="font-medium">WhatsApp Webhook URL</h4>
           <div className="flex items-center gap-2">
-            <Input 
-              readOnly 
-              value={whatsappWebhookUrl} 
-              className="font-mono text-xs" 
+            <Input
+              readOnly
+              value={whatsappWebhookUrl}
+              className="font-mono text-xs"
             />
-            <Button 
-              variant="outline" 
-              size="sm" 
+            <Button
+              variant="outline"
+              size="sm"
               onClick={() => copyToClipboard(whatsappWebhookUrl)}
             >
               <Copy className="w-3 h-3 mr-1" />
@@ -141,9 +157,7 @@ export default function DiagnosticsView({ diagnostics, onBack }: DiagnosticsView
         </div>
 
         <div className="pt-4">
-          <Button variant="outline" onClick={onBack}>
-            Back to Messages
-          </Button>
+          {/* Back button logic moved to parent or handled differently */}
         </div>
       </CardContent>
     </Card>

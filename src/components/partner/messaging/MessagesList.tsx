@@ -16,6 +16,12 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import dynamic from 'next/dynamic';
+
+const ReactMarkdown = dynamic(() => import('react-markdown'), {
+  loading: () => <span className="animate-pulse">Loading...</span>,
+  ssr: false
+});
 
 interface MessagesListProps {
   messages: UnifiedMessage[];
@@ -75,7 +81,7 @@ export default function MessagesList({
 
   const handleScroll = () => {
     if (!scrollContainerRef.current) return;
-    
+
     const nearBottom = isNearBottom();
     setShowScrollButton(!nearBottom);
 
@@ -108,14 +114,14 @@ export default function MessagesList({
       previousMessageCountRef.current = messages.length;
     } else if (messages.length > previousMessageCountRef.current) {
       const wasNearBottom = isNearBottom();
-      
+
       if (wasNearBottom || !userHasScrolled) {
         console.log('📍 New messages - user at bottom, scrolling');
         setTimeout(() => scrollToBottom('smooth'), 50);
       } else {
         console.log('📍 New messages - user scrolled up, not auto-scrolling');
       }
-      
+
       previousMessageCountRef.current = messages.length;
     }
   }, [messages.length]);
@@ -124,7 +130,7 @@ export default function MessagesList({
     if (!timestamp) return '';
     try {
       const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
-      
+
       if (isToday(date)) {
         return format(date, 'h:mm a');
       } else if (isYesterday(date)) {
@@ -142,7 +148,7 @@ export default function MessagesList({
     if (!timestamp) return '';
     try {
       const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
-      
+
       if (isToday(date)) return 'Today';
       if (isYesterday(date)) return 'Yesterday';
       if (isThisWeek(date)) return format(date, 'EEEE');
@@ -154,7 +160,7 @@ export default function MessagesList({
 
   const shouldShowDateDivider = (currentMessage: any, previousMessage: any) => {
     if (!previousMessage) return true;
-    
+
     try {
       const currentDate = currentMessage.createdAt?.toDate?.() || new Date();
       const previousDate = previousMessage.createdAt?.toDate?.() || new Date();
@@ -189,16 +195,16 @@ export default function MessagesList({
 
   const getStatusIcon = (message: UnifiedMessage) => {
     if (message.direction === 'inbound') return null;
-    
+
     const isOptimistic = message.id.startsWith('optimistic-');
     if (isOptimistic) {
       return <Loader2 className="w-3 h-3 animate-spin text-blue-300" />;
     }
-    
-    const status = 'smsMetadata' in message 
-      ? message.smsMetadata?.twilioStatus 
+
+    const status = 'smsMetadata' in message
+      ? message.smsMetadata?.twilioStatus
       : ('whatsappMetadata' in message ? message.whatsappMetadata?.twilioStatus : undefined);
-    
+
     if (status === 'delivered') return <CheckCheck className="w-3 h-3 text-blue-500" />;
     if (status === 'sent') return <Check className="w-3 h-3 text-gray-400" />;
     if (status === 'failed') return <ArrowDown className="w-3 h-3 text-red-500" />;
@@ -207,20 +213,20 @@ export default function MessagesList({
 
   const renderMessageContent = (message: UnifiedMessage) => {
     const attachments = message.attachments || [];
-    
+
     if (attachments.length > 0) {
       return (
         <div className="space-y-2">
           {attachments.map((attachment, index) => {
             const attachmentUrl = attachment.url || '';
             const attachmentType = attachment.type || '';
-            
+
             if (attachmentType.startsWith('image/')) {
               return (
-                <img 
+                <img
                   key={index}
-                  src={attachmentUrl} 
-                  alt="attachment" 
+                  src={attachmentUrl}
+                  alt="attachment"
                   className="max-w-xs rounded-lg shadow-md hover:shadow-lg transition-shadow cursor-pointer"
                   onClick={() => window.open(attachmentUrl, '_blank')}
                 />
@@ -229,13 +235,61 @@ export default function MessagesList({
             return null;
           })}
           {message.content && (
-            <p className="text-sm whitespace-pre-wrap break-words">{message.content}</p>
+            <div className="text-sm break-words markdown-content">
+              <ReactMarkdown
+                components={{
+                  p: ({ children }) => <p className="mb-1 last:mb-0 whitespace-pre-wrap">{children}</p>,
+                  a: ({ href, children }) => (
+                    <a
+                      href={href}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="underline hover:opacity-80"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      {children}
+                    </a>
+                  ),
+                  ul: ({ children }) => <ul className="list-disc ml-4 mb-2">{children}</ul>,
+                  ol: ({ children }) => <ol className="list-decimal ml-4 mb-2">{children}</ol>,
+                  li: ({ children }) => <li className="mb-0.5">{children}</li>,
+                  strong: ({ children }) => <span className="font-bold">{children}</span>,
+                }}
+              >
+                {message.content}
+              </ReactMarkdown>
+            </div>
           )}
         </div>
       );
     }
-    
-    return <p className="text-sm whitespace-pre-wrap break-words">{message.content}</p>;
+
+    return (
+      <div className="text-sm break-words markdown-content">
+        <ReactMarkdown
+          components={{
+            p: ({ children }) => <p className="mb-1 last:mb-0 whitespace-pre-wrap">{children}</p>,
+            a: ({ href, children }) => (
+              <a
+                href={href}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="underline hover:opacity-80"
+                onClick={(e) => e.stopPropagation()}
+              >
+                {children}
+              </a>
+            ),
+            ul: ({ children }) => <ul className="list-disc ml-4 mb-2">{children}</ul>,
+            ol: ({ children }) => <ol className="list-decimal ml-4 mb-2">{children}</ol>,
+            li: ({ children }) => <li className="mb-0.5">{children}</li>,
+            strong: ({ children }) => <span className="font-bold">{children}</span>,
+          }}
+        >
+          {message.content || ''}
+        </ReactMarkdown>
+      </div>
+    );
   };
 
   if (messages.length === 0) {
@@ -293,21 +347,20 @@ export default function MessagesList({
                     </div>
                   )}
 
-                  <div 
+                  <div
                     className={`flex ${isOutbound ? 'justify-end' : 'justify-start'} mb-1 group`}
                     onMouseEnter={() => canDelete && setHoveredMessageId(message.id)}
                     onMouseLeave={() => setHoveredMessageId(null)}
                   >
                     <div className={`relative max-w-[75%] ${isOutbound ? 'mr-2' : 'ml-2'}`}>
                       <div
-                        className={`rounded-2xl px-4 py-2 shadow-sm ${
-                          isOutbound
-                            ? 'bg-blue-600 text-white rounded-br-sm'
-                            : 'bg-white text-slate-900 rounded-bl-sm border border-slate-200'
-                        }`}
+                        className={`rounded-2xl px-4 py-2 shadow-sm ${isOutbound
+                          ? 'bg-blue-600 text-white rounded-br-sm'
+                          : 'bg-white text-slate-900 rounded-bl-sm border border-slate-200'
+                          }`}
                       >
                         {renderMessageContent(message)}
-                        
+
                         <div className={`flex items-center gap-1 mt-1 ${isOutbound ? 'justify-end' : 'justify-start'}`}>
                           <span className={`text-[10px] ${isOutbound ? 'text-blue-100' : 'text-slate-500'}`}>
                             {formatTime(message.createdAt)}
