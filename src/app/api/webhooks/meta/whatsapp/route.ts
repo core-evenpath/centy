@@ -1,0 +1,304 @@
+import { NextRequest, NextResponse } from 'next/server';
+import { db } from '@/lib/firebase-admin';
+import { FieldValue } from 'firebase-admin/firestore';
+import { findPartnerByPhoneNumberId } from '@/lib/meta-whatsapp-service';
+import type {
+    MetaWebhookPayload,
+    MetaWebhookMessage,
+    MetaWebhookStatus,
+    MetaWhatsAppMessage,
+    MetaWhatsAppConversation
+} from '@/lib/types-meta-whatsapp';
+
+const globalVerifyToken = process.env.META_WHATSAPP_VERIFY_TOKEN;
+
+export async function GET(request: NextRequest) {
+    const searchParams = request.nextUrl.searchParams;
+    const mode = searchParams.get('hub.mode');
+    const token = searchParams.get('hub.verify_token');
+    const challenge = searchParams.get('hub.challenge');
+
+    console.log('🔔 Meta Webhook Verification Request:', {
+        mode,
+        tokenMatch: token === globalVerifyToken
+    });
+
+    if (mode === 'subscribe' && token === globalVerifyToken) {
+        console.log('✅ Webhook verified successfully');
+        return new NextResponse(challenge, {
+            status: 200,
+            headers: { 'Content-Type': 'text/plain' }
+        });
+    }
+
+    console.error('❌ Webhook verification failed');
+    return NextResponse.json({ error: 'Verification failed' }, { status: 403 });
+}
+
+export async function POST(request: NextRequest) {
+    console.log('\n🔔 ========== META WHATSAPP WEBHOOK ==========');
+    const startTime = Date.now();
+
+    const webhookLogData: any = {
+        timestamp: FieldValue.serverTimestamp(),
+        platform: 'meta_whatsapp',
+        success: false,
+        error: null,
+        payload: {},
+        processingTimeMs: 0,
+    };
+
+    try {
+        const payload: MetaWebhookPayload = await request.json();
+        webhookLogData.payload = JSON.parse(JSON.stringify(payload));
+
+        console.log('📦 Webhook payload received');
+
+        if (payload.object !== 'whatsapp_business_account') {
+            console.log('⚠️ Not a WhatsApp Business webhook, ignoring');
+            return NextResponse.json({ status: 'ignored' }, { status: 200 });
+        }
+
+        for (const entry of payload.entry) {
+            for (const change of entry.changes) {
+                if (change.field !== 'messages') continue;
+
+                const value = change.value;
+                const phoneNumberId = value.metadata.phone_number_id;
+                const displayPhoneNumber = value.metadata.display_phone_number;
+
+                console.log(`📱 Phone Number ID: ${phoneNumberId}`);
+                console.log(`📱 Display Number: ${displayPhoneNumber}`);
+
+                const partnerId = await findPartnerByPhoneNumberId(phoneNumberId);
+
+                if (!partnerId) {
+                    console.error(`❌ No partner found for phoneNumberId: ${phoneNumberId}`);
+                    webhookLogData.error = `Partner not found for phoneNumberId: ${phoneNumberId}`;
+                    continue;
+                }
+
+                console.log(`✅ Found partner: ${partnerId}`);
+                webhookLogData.partnerId = partnerId;
+
+                if (value.statuses) {
+                    for (const status of value.statuses) {
+                        await handleStatusUpdate(partnerId, status);
+                    }
+                }
+
+                if (value.messages && value.contacts) {
+                    for (let i = 0; i < value.messages.length; i++) {
+                        const message = value.messages[i];
+                        const contact = value.contacts[i] || value.contacts[0];
+
+                        await handleIncomingMessage(
+                            partnerId,
+                            phoneNumberId,
+                            message,
+                            contact.profile.name,
+                            contact.wa_id
+                        );
+                    }
+                }
+            }
+        }
+
+        webhookLogData.success = true;
+        webhookLogData.processingTimeMs = Date.now() - startTime;
+
+        if (db) {
+            await db.collection('webhookLogs').add(webhookLogData);
+        }
+
+        console.log(`✅ ========== META WEBHOOK COMPLETE (${webhookLogData.processingTimeMs}ms) ==========\n`);
+        return NextResponse.json({ status: 'ok' }, { status: 200 });
+
+    } catch (error: any) {
+        console.error('❌ Meta webhook error:', error);
+        webhookLogData.error = error.message;
+        webhookLogData.processingTimeMs = Date.now() - startTime;
+
+        if (db) {
+            await db.collection('webhookLogs').add(webhookLogData);
+        }
+
+        return NextResponse.json(
+            { error: 'Internal server error', details: error.message },
+            { status: 500 }
+        );
+    }
+}
+
+async function getOrCreateConversation(
+    partnerId: string,
+    phoneNumberId: string,
+    customerWaId: string,
+    customerName?: string
+): Promise<string> {
+    if (!db) {
+        throw new Error('Database not available');
+    }
+
+    const customerPhone = `+${customerWaId}`;
+
+    const existingConvSnapshot = await db
+        .collection('metaWhatsAppConversations')
+        .where('partnerId', '==', partnerId)
+        .where('customerWaId', '==', customerWaId)
+        .limit(1)
+        .get();
+
+    if (!existingConvSnapshot.empty) {
+        const convDoc = existingConvSnapshot.docs[0];
+        console.log(`📋 Found existing conversation: ${convDoc.id}`);
+
+        if (customerName && customerName !== convDoc.data().customerName) {
+            await convDoc.ref.update({
+                customerName,
+                updatedAt: FieldValue.serverTimestamp()
+            });
+        }
+
+        return convDoc.id;
+    }
+
+    const newConvRef = db.collection('metaWhatsAppConversations').doc();
+    const newConversation: Omit<MetaWhatsAppConversation, 'id'> = {
+        partnerId,
+        platform: 'meta_whatsapp',
+        customerPhone,
+        customerWaId,
+        customerName: customerName || customerPhone,
+        phoneNumberId,
+        type: 'direct',
+        title: `WhatsApp: ${customerName || customerPhone}`,
+        isActive: true,
+        messageCount: 0,
+        unreadCount: 0,
+        lastMessageAt: FieldValue.serverTimestamp(),
+        createdAt: FieldValue.serverTimestamp(),
+    };
+
+    await newConvRef.set({ id: newConvRef.id, ...newConversation });
+    console.log(`✨ Created new conversation: ${newConvRef.id}`);
+
+    return newConvRef.id;
+}
+
+async function handleIncomingMessage(
+    partnerId: string,
+    phoneNumberId: string,
+    message: MetaWebhookMessage,
+    customerName: string,
+    customerWaId: string
+): Promise<void> {
+    if (!db) {
+        throw new Error('Database not available');
+    }
+
+    console.log(`📨 Processing ${message.type} message from ${customerWaId}`);
+
+    const conversationId = await getOrCreateConversation(
+        partnerId,
+        phoneNumberId,
+        customerWaId,
+        customerName
+    );
+
+    let content = '';
+
+    switch (message.type) {
+        case 'text':
+            content = message.text?.body || '';
+            break;
+        case 'image':
+        case 'document':
+        case 'audio':
+        case 'video':
+        case 'sticker':
+            content = `[${message.type.toUpperCase()}]`;
+            break;
+        case 'location':
+            if (message.location) {
+                const loc = message.location;
+                content = `📍 Location: ${loc.name || ''} (${loc.latitude}, ${loc.longitude})`.trim();
+            }
+            break;
+        case 'contacts':
+            if (message.contacts) {
+                const names = message.contacts.map(c => c.name.formatted_name).join(', ');
+                content = `👤 Shared contact${message.contacts.length > 1 ? 's' : ''}: ${names}`;
+            }
+            break;
+        default:
+            content = `[${message.type.toUpperCase()}]`;
+    }
+
+    const messageRef = db.collection('metaWhatsAppMessages').doc();
+    const messageData: Omit<MetaWhatsAppMessage, 'id'> = {
+        conversationId,
+        senderId: customerWaId,
+        partnerId,
+        type: message.type as any,
+        content,
+        direction: 'inbound',
+        platform: 'meta_whatsapp',
+        metaMetadata: {
+            messageId: message.id,
+            phoneNumberId,
+            waId: customerWaId,
+            timestamp: message.timestamp,
+        },
+        createdAt: FieldValue.serverTimestamp(),
+    };
+
+    await messageRef.set({ id: messageRef.id, ...messageData });
+    console.log(`✅ Saved message: ${messageRef.id}`);
+
+    const messagePreview = content.length > 50
+        ? content.substring(0, 50) + '...'
+        : content;
+
+    await db.collection('metaWhatsAppConversations').doc(conversationId).update({
+        lastMessageAt: FieldValue.serverTimestamp(),
+        lastMessagePreview: messagePreview,
+        messageCount: FieldValue.increment(1),
+        unreadCount: FieldValue.increment(1),
+        isActive: true,
+        customerName: customerName || undefined,
+        updatedAt: FieldValue.serverTimestamp(),
+    });
+}
+
+async function handleStatusUpdate(
+    partnerId: string,
+    status: MetaWebhookStatus
+): Promise<void> {
+    if (!db) return;
+
+    console.log(`📊 Status update: ${status.id} -> ${status.status}`);
+
+    const messagesSnapshot = await db
+        .collection('metaWhatsAppMessages')
+        .where('metaMetadata.messageId', '==', status.id)
+        .limit(1)
+        .get();
+
+    if (!messagesSnapshot.empty) {
+        const messageDoc = messagesSnapshot.docs[0];
+        const updateData: any = {
+            'metaMetadata.status': status.status,
+            updatedAt: FieldValue.serverTimestamp(),
+        };
+
+        if (status.errors?.length) {
+            console.error('❌ Message delivery errors:', status.errors);
+            updateData['metaMetadata.errorCode'] = status.errors[0].code;
+            updateData['metaMetadata.errorMessage'] = status.errors[0].message;
+        }
+
+        await messageDoc.ref.update(updateData);
+        console.log(`✅ Updated message status: ${messageDoc.id} -> ${status.status}`);
+    }
+}
