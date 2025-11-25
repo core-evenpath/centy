@@ -34,26 +34,34 @@ export async function connectMetaWhatsApp(
     try {
         console.log(`🔗 Connecting Meta WhatsApp for partner: ${partnerId}`);
 
-        const testResponse = await fetch(
-            `https://graph.facebook.com/v18.0/${config.phoneNumberId}`,
-            {
-                headers: {
-                    'Authorization': `Bearer ${config.accessToken}`,
-                },
+        let displayPhoneNumber = config.displayPhoneNumber;
+
+        // Only validate phone number if phoneNumberId is provided and not 'pending'
+        if (config.phoneNumberId && config.phoneNumberId !== 'pending') {
+            const testResponse = await fetch(
+                `https://graph.facebook.com/v18.0/${config.phoneNumberId}`,
+                {
+                    headers: {
+                        'Authorization': `Bearer ${config.accessToken}`,
+                    },
+                }
+            );
+
+            if (!testResponse.ok) {
+                const errorData = await testResponse.json();
+                console.error('❌ Meta API validation failed:', errorData);
+                return {
+                    success: false,
+                    message: `Invalid credentials: ${errorData.error?.message || 'Unknown error'}`
+                };
             }
-        );
 
-        if (!testResponse.ok) {
-            const errorData = await testResponse.json();
-            console.error('❌ Meta API validation failed:', errorData);
-            return {
-                success: false,
-                message: `Invalid credentials: ${errorData.error?.message || 'Unknown error'}`
-            };
+            const phoneData = await testResponse.json();
+            console.log('✅ Meta API credentials validated:', phoneData.display_phone_number);
+            displayPhoneNumber = config.displayPhoneNumber || phoneData.display_phone_number;
+        } else {
+            console.log('⚠️ Skipping phone number validation (phoneNumberId not yet available)');
         }
-
-        const phoneData = await testResponse.json();
-        console.log('✅ Meta API credentials validated:', phoneData.display_phone_number);
 
         const encryptedAccessToken = encrypt(config.accessToken);
         const verifyToken = generateVerifyToken();
@@ -63,7 +71,7 @@ export async function connectMetaWhatsApp(
             wabaId: config.wabaId,
             encryptedAccessToken,
             verifyToken,
-            displayPhoneNumber: config.displayPhoneNumber || phoneData.display_phone_number,
+            displayPhoneNumber,
             businessName: config.businessName,
             webhookConfigured: false,
             status: 'pending',
@@ -76,15 +84,18 @@ export async function connectMetaWhatsApp(
             updatedAt: FieldValue.serverTimestamp(),
         });
 
-        const phoneMappingData: MetaPhoneMapping = {
-            phoneNumberId: config.phoneNumberId,
-            partnerId,
-            displayPhoneNumber: metaConfig.displayPhoneNumber,
-            wabaId: config.wabaId,
-            createdAt: FieldValue.serverTimestamp(),
-        };
+        // Only create phone mapping if phoneNumberId is valid
+        if (config.phoneNumberId && config.phoneNumberId !== 'pending') {
+            const phoneMappingData: MetaPhoneMapping = {
+                phoneNumberId: config.phoneNumberId,
+                partnerId,
+                displayPhoneNumber: metaConfig.displayPhoneNumber,
+                wabaId: config.wabaId,
+                createdAt: FieldValue.serverTimestamp(),
+            };
 
-        await db.collection('metaPhoneMappings').doc(config.phoneNumberId).set(phoneMappingData);
+            await db.collection('metaPhoneMappings').doc(config.phoneNumberId).set(phoneMappingData);
+        }
 
         console.log('✅ Meta WhatsApp configuration saved');
 
@@ -336,5 +347,70 @@ export async function markConversationAsRead(
         return { success: true };
     } catch {
         return { success: false };
+    }
+}
+
+export async function subscribeToWebhookFields(
+    partnerId: string,
+    appId: string
+): Promise<{ success: boolean; message: string }> {
+    if (!db) {
+        return { success: false, message: 'Database not available' };
+    }
+
+    try {
+        const config = await getPartnerMetaConfig(partnerId);
+
+        if (!config) {
+            return {
+                success: false,
+                message: 'Meta WhatsApp configuration not found'
+            };
+        }
+
+        const { encryptedAccessToken, verifyToken } = config;
+        const accessToken = require('@/lib/encryption').decrypt(encryptedAccessToken);
+        const callbackUrl = process.env.NEXT_PUBLIC_APP_URL
+            ? `${process.env.NEXT_PUBLIC_APP_URL}/api/webhooks/meta/whatsapp`
+            : 'https://www.centy.dev/api/webhooks/meta/whatsapp';
+
+        // Subscribe to webhook fields
+        const response = await fetch(
+            `https://graph.facebook.com/v18.0/${appId}/subscriptions`,
+            {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: new URLSearchParams({
+                    object: 'whatsapp_business_account',
+                    callback_url: callbackUrl,
+                    fields: 'messages,message_template_status_update',
+                    verify_token: verifyToken,
+                    access_token: accessToken
+                }).toString()
+            }
+        );
+
+        const data = await response.json();
+
+        if (!response.ok) {
+            console.error('❌ Webhook subscription failed:', data);
+            return {
+                success: false,
+                message: data.error?.message || 'Failed to subscribe to webhook fields'
+            };
+        }
+
+        console.log('✅ Webhook subscribed successfully:', data);
+
+        return {
+            success: true,
+            message: 'Successfully subscribed to webhook fields (messages, message_template_status_update)'
+        };
+
+    } catch (error: any) {
+        console.error('❌ Error subscribing to webhook:', error);
+        return { success: false, message: error.message };
     }
 }
