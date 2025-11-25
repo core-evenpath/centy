@@ -5,6 +5,7 @@ export interface MetaWhatsAppConfig {
     verifyToken: string;
     displayPhoneNumber: string;
     businessName?: string;
+    appId?: string;
     webhookConfigured: boolean;
     status: 'pending' | 'active' | 'disconnected' | 'error';
     lastVerifiedAt?: string;

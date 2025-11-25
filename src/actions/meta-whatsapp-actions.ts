@@ -25,6 +25,7 @@ export async function connectMetaWhatsApp(
         accessToken: string;
         displayPhoneNumber: string;
         businessName?: string;
+        appId?: string;
     }
 ): Promise<{ success: boolean; message: string; verifyToken?: string }> {
     if (!db) {
@@ -73,6 +74,7 @@ export async function connectMetaWhatsApp(
             verifyToken,
             displayPhoneNumber,
             businessName: config.businessName,
+            appId: config.appId,
             webhookConfigured: false,
             status: 'pending',
             createdAt: new Date().toISOString(),

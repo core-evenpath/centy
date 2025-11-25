@@ -2,6 +2,7 @@
 
 import { db } from '@/lib/firebase-admin';
 import { decrypt } from '@/lib/encryption';
+import { refreshMetaAccessToken } from '@/actions/meta-whatsapp-config-actions';
 import type { MetaWhatsAppConfig } from '@/lib/types-meta-whatsapp';
 
 const META_API_VERSION = 'v18.0';
@@ -66,7 +67,39 @@ export async function sendMetaTextMessage(
 
     if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.error?.message || `Meta API error: ${response.status}`);
+        const errorMsg = errorData.error?.message || `Meta API error: ${response.status}`;
+        // If token expired, attempt a refresh and retry once
+        if (errorMsg.toLowerCase().includes('session has expired')) {
+            try {
+                const newToken = await refreshMetaAccessToken(partnerId);
+                // Retry with new token
+                const retryResp = await fetch(
+                    `${META_API_BASE}/${config.phoneNumberId}/messages`,
+                    {
+                        method: 'POST',
+                        headers: {
+                            'Authorization': `Bearer ${newToken}`,
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            messaging_product: 'whatsapp',
+                            recipient_type: 'individual',
+                            to: normalizedTo,
+                            type: 'text',
+                            text: { body, preview_url: true },
+                        }),
+                    }
+                );
+                if (!retryResp.ok) {
+                    const retryError = await retryResp.json();
+                    throw new Error(retryError.error?.message || `Meta API error after refresh: ${retryResp.status}`);
+                }
+                return retryResp.json();
+            } catch (refreshErr: any) {
+                throw new Error(`Failed to refresh Meta token: ${refreshErr.message}`);
+            }
+        }
+        throw new Error(errorMsg);
     }
 
     return response.json();

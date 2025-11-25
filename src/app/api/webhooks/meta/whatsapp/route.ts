@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/firebase-admin';
 import { FieldValue } from 'firebase-admin/firestore';
 import { findPartnerByPhoneNumberId } from '@/lib/meta-whatsapp-service';
+import { getPlatformMetaConfig, getDecryptedAppSecret } from '@/actions/admin-platform-actions';
+import crypto from 'crypto';
 import type {
     MetaWebhookPayload,
     MetaWebhookMessage,
@@ -10,7 +12,8 @@ import type {
     MetaWhatsAppConversation
 } from '@/lib/types-meta-whatsapp';
 
-const globalVerifyToken = process.env.META_WHATSAPP_VERIFY_TOKEN;
+// Fallback to env var if platform config is not set
+const ENV_VERIFY_TOKEN = process.env.META_WHATSAPP_VERIFY_TOKEN;
 
 export async function GET(request: NextRequest) {
     const searchParams = request.nextUrl.searchParams;
@@ -18,14 +21,18 @@ export async function GET(request: NextRequest) {
     const token = searchParams.get('hub.verify_token');
     const challenge = searchParams.get('hub.challenge');
 
+    // Fetch platform config
+    const platformConfig = await getPlatformMetaConfig();
+    const expectedToken = platformConfig?.verifyToken || ENV_VERIFY_TOKEN;
+
     console.log('🔔 Meta Webhook Verification Request:', {
         mode,
         token,
-        expectedToken: globalVerifyToken,
-        match: token === globalVerifyToken
+        expectedToken: expectedToken ? '***' : 'not_set',
+        match: token === expectedToken
     });
 
-    if (mode === 'subscribe' && token === globalVerifyToken) {
+    if (mode === 'subscribe' && token === expectedToken) {
         console.log('✅ Webhook verified successfully');
         return new NextResponse(challenge, {
             status: 200,
@@ -41,6 +48,28 @@ export async function POST(request: NextRequest) {
     console.log('\n🔔 ========== META WHATSAPP WEBHOOK ==========');
     const startTime = Date.now();
 
+    // 1. Get Raw Body for Signature Verification
+    const rawBody = await request.text();
+    const signature = request.headers.get('x-hub-signature-256');
+
+    // 2. Verify Signature if App Secret is configured
+    const appSecret = await getDecryptedAppSecret();
+
+    if (appSecret && signature) {
+        const expectedSignature = 'sha256=' + crypto
+            .createHmac('sha256', appSecret)
+            .update(rawBody)
+            .digest('hex');
+
+        if (signature !== expectedSignature) {
+            console.error('❌ Invalid Webhook Signature');
+            return NextResponse.json({ error: 'Invalid signature' }, { status: 401 });
+        }
+        console.log('🔐 Webhook Signature Verified');
+    } else if (!appSecret) {
+        console.warn('⚠️ App Secret not configured in Admin - skipping signature verification');
+    }
+
     const webhookLogData: any = {
         timestamp: FieldValue.serverTimestamp(),
         platform: 'meta_whatsapp',
@@ -51,8 +80,8 @@ export async function POST(request: NextRequest) {
     };
 
     try {
-        const payload: MetaWebhookPayload = await request.json();
-        webhookLogData.payload = JSON.parse(JSON.stringify(payload));
+        const payload: MetaWebhookPayload = JSON.parse(rawBody);
+        webhookLogData.payload = payload;
 
         console.log('📦 Webhook payload received');
 

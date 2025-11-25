@@ -26,6 +26,10 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { CheckCircle2, XCircle, Loader2, Copy, AlertCircle, Edit, RefreshCw } from 'lucide-react';
 import type { MetaWhatsAppConfig } from '@/lib/types-meta-whatsapp';
 
+import Diagnostics from '@/components/whatsapp/Diagnostics';
+import SetupGuide from '@/components/whatsapp/SetupGuide';
+import WhatsAppTroubleshooting from '@/components/whatsapp/Troubleshooting';
+
 export default function WhatsAppBusinessSettingsPage() {
     const { currentWorkspace, loading: authLoading } = useMultiWorkspaceAuth();
     const currentPartnerId = currentWorkspace?.partnerId;
@@ -98,20 +102,19 @@ export default function WhatsAppBusinessSettingsPage() {
 
         try {
             const result = await connectMetaWhatsApp(currentPartnerId, {
-                phoneNumberId: formData.phoneNumberId.trim() || 'pending', // Use 'pending' if not yet available
-                wabaId: formData.wabaId.trim(),
-                accessToken: formData.accessToken.trim(),
-                displayPhoneNumber: formData.displayPhoneNumber.trim(),
-                businessName: formData.businessName.trim() || undefined,
+                phoneNumberId: formData.phoneNumberId,
+                wabaId: formData.wabaId,
+                accessToken: formData.accessToken,
+                displayPhoneNumber: formData.displayPhoneNumber,
+                businessName: formData.businessName,
+                appId: formData.appId,
             });
 
             if (result.success) {
-                if (!formData.phoneNumberId.trim()) {
-                    setSuccess(result.message + ' Note: Add Phone Number ID after verifying your number.');
-                } else {
-                    setSuccess(result.message);
+                setSuccess(result.message);
+                if (result.verifyToken) {
+                    setVerifyToken(result.verifyToken);
                 }
-                setVerifyToken(result.verifyToken || null);
                 const status = await getMetaWhatsAppStatus(currentPartnerId);
                 setConfig(status.config);
                 setFormData(prev => ({ ...prev, accessToken: '' }));
@@ -407,21 +410,16 @@ export default function WhatsAppBusinessSettingsPage() {
                 </CardContent>
             </Card>
 
+            <Diagnostics config={config} />
+
+            <SetupGuide
+                currentStatus={config?.status || 'disconnected'}
+                hasPhoneNumberId={!!config?.phoneNumberId && config.phoneNumberId !== 'pending'}
+                hasAppId={!!config?.appId}
+            />
+
             {!config || config.status === 'disconnected' ? (
                 <>
-                    <Alert className="mb-6 border-blue-200 bg-blue-50">
-                        <AlertCircle className="h-4 w-4 text-blue-600" />
-                        <AlertTitle className="text-blue-800">Setup Sequence</AlertTitle>
-                        <AlertDescription className="text-blue-700">
-                            <ol className="list-decimal list-inside space-y-1 mt-2 text-sm">
-                                <li>Connect with WABA ID, Phone Number, and Access Token</li>
-                                <li>Verify your phone number (use verification card below)</li>
-                                <li>After verification, edit config to add Phone Number ID</li>
-                                <li>Add Meta App ID and subscribe to webhooks</li>
-                                <li>Click "Activate Connection" to go live</li>
-                            </ol>
-                        </AlertDescription>
-                    </Alert>
                     <Card>
                         <CardHeader>
                             <CardTitle>Connect WhatsApp Business</CardTitle>
@@ -826,50 +824,35 @@ export default function WhatsAppBusinessSettingsPage() {
                                         <p className="text-sm text-gray-600">
                                             Choose how you'd like to receive your verification code:
                                         </p>
-                                        <div className="flex gap-3">
+                                        <div className="flex gap-4">
                                             <Button
+                                                variant="outline"
                                                 onClick={() => handleRequestCode('SMS')}
                                                 disabled={requestingCode}
-                                                variant="outline"
                                                 className="flex-1"
                                             >
                                                 {requestingCode ? (
                                                     <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                                                ) : null}
-                                                Send via SMS
+                                                ) : (
+                                                    'Send via SMS'
+                                                )}
                                             </Button>
                                             <Button
+                                                variant="outline"
                                                 onClick={() => handleRequestCode('VOICE')}
                                                 disabled={requestingCode}
-                                                variant="outline"
                                                 className="flex-1"
                                             >
                                                 {requestingCode ? (
                                                     <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                                                ) : null}
-                                                Send via Voice Call
+                                                ) : (
+                                                    'Send via Voice Call'
+                                                )}
                                             </Button>
                                         </div>
 
-                                        {/* Curl command for testing */}
-                                        <div className="mt-6 p-4 bg-gray-50 rounded-lg border">
-                                            <div className="flex items-center justify-between mb-2">
-                                                <Label className="text-xs font-semibold text-gray-700">🧪 Test with cURL (SMS)</Label>
-                                                <Button
-                                                    size="sm"
-                                                    variant="ghost"
-                                                    onClick={() => {
-                                                        const curlCommand = `curl -X POST "https://graph.facebook.com/v18.0/${config.phoneNumberId}/request_code" \\
-  -H "Content-Type: application/json" \\
-  -d '{"code_method":"SMS","language":"en"}' \\
-  -H "Authorization: Bearer YOUR_ACCESS_TOKEN"`;
-                                                        copyToClipboard(curlCommand);
-                                                    }}
-                                                >
-                                                    <Copy className="w-3 h-3 mr-1" />
-                                                    Copy
-                                                </Button>
-                                            </div>
+                                        <div className="mt-4 p-4 bg-gray-50 rounded-lg border border-gray-200">
+                                            <p className="text-sm text-gray-600 font-semibold mb-2">🧪 Test with cURL:</p>
                                             <pre className="text-xs bg-gray-900 text-green-400 p-3 rounded overflow-x-auto">
                                                 {`curl -X POST "https://graph.facebook.com/v18.0/${config.phoneNumberId}/request_code" \\
   -H "Content-Type: application/json" \\
@@ -877,11 +860,10 @@ export default function WhatsAppBusinessSettingsPage() {
   -H "Authorization: Bearer YOUR_ACCESS_TOKEN"`}
                                             </pre>
                                             <p className="text-xs text-gray-500 mt-2">
-                                                ⚠️ Replace <code className="bg-gray-200 px-1 rounded">YOUR_ACCESS_TOKEN</code> with your actual Access Token
+                                                Replace <code className="bg-gray-200 px-1 rounded">YOUR_ACCESS_TOKEN</code> with your actual token.
                                             </p>
                                         </div>
 
-                                        {/* Phone status check */}
                                         <div className="mt-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
                                             <p className="text-sm text-blue-800 font-semibold mb-2">📋 Check Phone Status First:</p>
                                             <pre className="text-xs bg-gray-900 text-green-400 p-3 rounded overflow-x-auto">
@@ -899,71 +881,49 @@ export default function WhatsAppBusinessSettingsPage() {
                                             <Label htmlFor="verificationCode">Verification Code</Label>
                                             <Input
                                                 id="verificationCode"
-                                                type="text"
                                                 placeholder="Enter 6-digit code"
                                                 value={verificationCode}
                                                 onChange={(e) => setVerificationCode(e.target.value)}
-                                                maxLength={6}
                                                 required
-                                                className="text-center text-2xl tracking-widest"
+                                                maxLength={6}
                                             />
                                         </div>
                                         <div className="flex gap-3">
-                                            <Button
-                                                type="submit"
-                                                disabled={verifying || verificationCode.length !== 6}
-                                                className="flex-1"
-                                            >
+                                            <Button type="submit" disabled={verifying} className="flex-1">
                                                 {verifying ? (
                                                     <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                                                 ) : (
-                                                    <CheckCircle2 className="w-4 h-4 mr-2" />
+                                                    'Verify Code'
                                                 )}
-                                                Verify Code
                                             </Button>
                                             <Button
                                                 type="button"
-                                                variant="outline"
-                                                onClick={() => {
-                                                    setShowVerification(false);
-                                                    setVerificationCode('');
-                                                }}
+                                                variant="ghost"
+                                                onClick={() => setShowVerification(false)}
                                             >
                                                 Cancel
                                             </Button>
                                         </div>
-                                        <Button
-                                            type="button"
-                                            variant="ghost"
-                                            size="sm"
-                                            onClick={() => handleRequestCode('SMS')}
-                                            disabled={requestingCode}
-                                            className="w-full"
-                                        >
-                                            Resend Code
-                                        </Button>
                                     </form>
                                 )}
                             </CardContent>
                         </Card>
                     ) : config && config.phoneNumberId === 'pending' ? (
-                        <Card className="mb-6">
-                            <CardHeader>
-                                <CardTitle>Discover Your Phone Numbers</CardTitle>
-                                <CardDescription>
-                                    Find and select phone numbers from your WhatsApp Business Account
-                                </CardDescription>
-                            </CardHeader>
-                            <CardContent>
-                                {!showPhoneDiscovery ? (
-                                    <div className="space-y-4">
-                                        <p className="text-sm text-gray-600">
-                                            Click the button below to automatically fetch all phone numbers from your WABA and see their verification status.
-                                        </p>
+                        <>
+                            {/* Phone Discovery Card */}
+                            <Card className="mb-6 border-blue-200 bg-blue-50/30">
+                                <CardHeader>
+                                    <CardTitle className="text-blue-900">Discover Your Phone Numbers</CardTitle>
+                                    <CardDescription className="text-blue-700">
+                                        We can automatically find phone numbers associated with your WhatsApp Business Account.
+                                    </CardDescription>
+                                </CardHeader>
+                                <CardContent>
+                                    {!showPhoneDiscovery ? (
                                         <Button
                                             onClick={handleDiscoverPhones}
                                             disabled={discoveringPhones}
-                                            className="w-full"
+                                            className="w-full bg-blue-600 hover:bg-blue-700"
                                         >
                                             {discoveringPhones ? (
                                                 <Loader2 className="w-4 h-4 mr-2 animate-spin" />
@@ -972,128 +932,93 @@ export default function WhatsAppBusinessSettingsPage() {
                                             )}
                                             Discover Phone Numbers
                                         </Button>
-                                    </div>
-                                ) : (
-                                    <div className="space-y-4">
-                                        <div className="flex items-center justify-between">
-                                            <p className="text-sm font-semibold">Available Phone Numbers:</p>
-                                            <Button
-                                                variant="ghost"
-                                                size="sm"
-                                                onClick={handleDiscoverPhones}
-                                                disabled={discoveringPhones}
-                                            >
-                                                <RefreshCw className="w-3 h-3 mr-1" />
-                                                Refresh
-                                            </Button>
-                                        </div>
-                                        {discoveredPhones.length === 0 ? (
-                                            <p className="text-sm text-gray-500">No phone numbers found in this WABA.</p>
-                                        ) : (
-                                            <div className="space-y-2">
+                                    ) : (
+                                        <div className="space-y-4">
+                                            <div className="grid gap-3">
                                                 {discoveredPhones.map((phone) => (
                                                     <div
                                                         key={phone.id}
-                                                        className="border rounded-lg p-4 hover:border-blue-300 transition-colors"
+                                                        className="flex items-center justify-between p-3 bg-white rounded-lg border border-blue-100 shadow-sm"
                                                     >
-                                                        <div className="flex items-start justify-between">
-                                                            <div className="flex-1">
-                                                                <div className="flex items-center gap-2 mb-1">
-                                                                    <p className="font-semibold">{phone.display_phone_number}</p>
-                                                                    {phone.code_verification_status === 'VERIFIED' ? (
-                                                                        <Badge className="bg-green-500">Verified</Badge>
-                                                                    ) : (
-                                                                        <Badge variant="outline" className="border-amber-500 text-amber-700">
-                                                                            Not Verified
-                                                                        </Badge>
-                                                                    )}
-                                                                </div>
-                                                                <p className="text-xs text-gray-500 mb-1">
-                                                                    Name: {phone.verified_name}
-                                                                </p>
-                                                                <p className="text-xs text-gray-500 mb-1">
-                                                                    Phone ID: <span className="font-mono">{phone.id}</span>
-                                                                </p>
-                                                                <p className="text-xs text-gray-500">
-                                                                    Quality: {phone.quality_rating}
-                                                                </p>
+                                                        <div>
+                                                            <p className="font-semibold text-gray-900">{phone.display_phone_number}</p>
+                                                            <div className="flex items-center gap-2 mt-1">
+                                                                <Badge variant={phone.code_verification_status === 'VERIFIED' ? 'default' : 'secondary'} className="text-xs">
+                                                                    {phone.code_verification_status || 'UNKNOWN'}
+                                                                </Badge>
+                                                                <span className="text-xs text-gray-500">ID: {phone.id}</span>
                                                             </div>
-                                                            <Button
-                                                                size="sm"
-                                                                onClick={() => handleSelectPhone(phone.id, phone.display_phone_number)}
-                                                                disabled={saving}
-                                                            >
-                                                                {saving ? (
-                                                                    <Loader2 className="w-3 h-3 mr-1 animate-spin" />
-                                                                ) : null}
-                                                                Select
-                                                            </Button>
+                                                            <p className="text-xs text-gray-500 mt-1">Quality: {phone.quality_rating}</p>
                                                         </div>
+                                                        <Button
+                                                            size="sm"
+                                                            onClick={() => handleSelectPhone(phone.id, phone.display_phone_number)}
+                                                            disabled={saving}
+                                                        >
+                                                            Select
+                                                        </Button>
                                                     </div>
                                                 ))}
                                             </div>
-                                        )}
+                                            <Button
+                                                variant="ghost"
+                                                size="sm"
+                                                onClick={() => setShowPhoneDiscovery(false)}
+                                                className="w-full text-blue-600"
+                                            >
+                                                Cancel
+                                            </Button>
+                                        </div>
+                                    )}
+                                </CardContent>
+                            </Card>
+
+                            <Card className="mb-6 border-amber-200 bg-amber-50">
+                                <CardHeader>
+                                    <CardTitle className="text-amber-900">Phone Number Verification Required</CardTitle>
+                                    <CardDescription className="text-amber-800">
+                                        You haven't added a Phone Number ID yet. You need to verify your phone number in Meta Business Manager first.
+                                    </CardDescription>
+                                </CardHeader>
+                                <CardContent>
+                                    <ol className="list-decimal list-inside space-y-2 text-sm text-amber-900">
+                                        <li>Go to <a href="https://business.facebook.com/" target="_blank" rel="noopener noreferrer" className="underline font-semibold">Meta Business Suite</a></li>
+                                        <li>Navigate to WhatsApp Manager &gt; Phone Numbers</li>
+                                        <li>Click "Add Phone Number" if you haven't already</li>
+                                        <li>Complete the SMS/Voice verification process there</li>
+                                        <li>Once verified, copy the <strong>Phone Number ID</strong></li>
+                                        <li>Come back here, click "Edit", and paste the ID</li>
+                                    </ol>
+                                </CardContent>
+                            </Card>
+                        </>
+                    ) : null}
+
+                    {/* Connection Actions */}
+                    <Card className="border-red-100">
+                        <CardHeader>
+                            <CardTitle className="text-red-900">Danger Zone</CardTitle>
+                            <CardDescription className="text-red-700">
+                                Manage your connection state
+                            </CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                            <div className="space-y-4">
+                                {isPending && (
+                                    <div className="p-4 bg-yellow-50 rounded-lg border border-yellow-200 mb-4">
+                                        <h4 className="font-semibold text-yellow-900 mb-2">Activate Connection</h4>
+                                        <p className="text-sm text-yellow-800 mb-4">
+                                            Once you have configured the webhook in Meta, click here to activate the connection.
+                                        </p>
                                         <Button
-                                            variant="outline"
-                                            onClick={() => setShowPhoneDiscovery(false)}
-                                            className="w-full"
+                                            onClick={handleActivate}
+                                            className="w-full bg-yellow-600 hover:bg-yellow-700 text-white"
                                         >
-                                            Cancel
+                                            Activate Connection
                                         </Button>
                                     </div>
                                 )}
-                            </CardContent>
-                        </Card>
-                    ) : null}
 
-                    <Card className="mb-6">
-                        <CardHeader>
-                            <CardTitle>Webhook Configuration</CardTitle>
-                            <CardDescription>
-                                Configure in Meta Business Suite
-                            </CardDescription>
-                        </CardHeader>
-                        <CardContent className="space-y-4">
-                            <div>
-                                <Label>Callback URL</Label>
-                                <div className="flex items-center gap-2 mt-1">
-                                    <code className="flex-1 p-2 bg-gray-100 rounded text-sm break-all">
-                                        {webhookUrl}
-                                    </code>
-                                    <Button
-                                        variant="outline"
-                                        size="icon"
-                                        onClick={() => copyToClipboard(webhookUrl)}
-                                    >
-                                        <Copy className="w-4 h-4" />
-                                    </Button>
-                                </div>
-                            </div>
-
-                            <div>
-                                <Label>Verify Token</Label>
-                                <div className="flex items-center gap-2 mt-1">
-                                    <code className="flex-1 p-2 bg-gray-100 rounded text-sm font-mono">
-                                        {verifyToken || config.verifyToken}
-                                    </code>
-                                    <Button
-                                        variant="outline"
-                                        size="icon"
-                                        onClick={() => copyToClipboard(verifyToken || config.verifyToken || '')}
-                                    >
-                                        <Copy className="w-4 h-4" />
-                                    </Button>
-                                </div>
-                            </div>
-
-                            {isPending && (
-                                <Button onClick={handleActivate} className="w-full mb-2">
-                                    <CheckCircle2 className="w-4 h-4 mr-2" />
-                                    Activate Connection
-                                </Button>
-                            )}
-
-                            <div className="pt-4 border-t">
                                 <Button
                                     variant="destructive"
                                     onClick={handleDisconnect}
@@ -1115,6 +1040,7 @@ export default function WhatsAppBusinessSettingsPage() {
                     </Card>
                 </>
             )}
+            <WhatsAppTroubleshooting />
         </div>
     );
 }

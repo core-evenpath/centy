@@ -9,11 +9,11 @@ export default function TemplatesPage() {
     return (
         <div className="container max-w-4xl py-8">
             <Link
-                href="/partner/settings/whatsapp-business"
+                href="/partner/apps/whatsapp"
                 className="text-sm text-gray-500 hover:text-gray-700 flex items-center gap-1 mb-4"
             >
                 <ArrowLeft className="w-4 h-4" />
-                Back to Settings
+                Back to Configuration
             </Link>
 
             <div className="mb-8">

@@ -26,24 +26,22 @@ export default function LoginPage() {
     setIsLoading(true);
 
     try {
-      // For admin login, we don't need tenant logic.
-      // Ensure the auth instance has no tenantId set.
-      auth.tenantId = null; 
+      // For admin login, we don't need tenant logic. 
 
       await signInWithEmailAndPassword(auth, email, password);
-      
+
       toast({ title: "Login Successful", description: "Redirecting to the admin dashboard..." });
       // Direct navigation to the admin page upon successful login.
       router.push('/admin');
 
     } catch (error: any) {
       console.error("Firebase Admin Login Error:", error);
-      
+
       let errorMessage = "An unknown error occurred.";
       if (error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password' || error.code === 'auth/invalid-credential') {
-          errorMessage = "Invalid email or password. Please try again.";
+        errorMessage = "Invalid email or password. Please try again.";
       } else if (error.code === 'auth/invalid-email') {
-          errorMessage = "Please enter a valid email address.";
+        errorMessage = "Please enter a valid email address.";
       }
 
       toast({
@@ -52,7 +50,7 @@ export default function LoginPage() {
         description: errorMessage,
       });
     } finally {
-        setIsLoading(false);
+      setIsLoading(false);
     }
   };
 
@@ -66,11 +64,11 @@ export default function LoginPage() {
         <CardContent className="grid gap-4">
           <div className="grid gap-2">
             <Label htmlFor="email">Email</Label>
-            <Input 
-              id="email" 
-              type="email" 
-              placeholder="m@example.com" 
-              required 
+            <Input
+              id="email"
+              type="email"
+              placeholder="m@example.com"
+              required
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               disabled={isLoading}
@@ -78,10 +76,10 @@ export default function LoginPage() {
           </div>
           <div className="grid gap-2">
             <Label htmlFor="password">Password</Label>
-            <Input 
-              id="password" 
-              type="password" 
-              required 
+            <Input
+              id="password"
+              type="password"
+              required
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               disabled={isLoading}
