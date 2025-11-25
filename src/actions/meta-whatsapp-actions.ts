@@ -261,13 +261,50 @@ export async function sendMetaWhatsAppMessageAction(
 
         const messagePreview = input.message.substring(0, 50);
 
-        await db.collection('metaWhatsAppConversations').doc(conversationId).update({
-            lastMessageAt: FieldValue.serverTimestamp(),
-            lastMessagePreview: messagePreview,
-            messageCount: FieldValue.increment(1),
-            isActive: true,
-            updatedAt: FieldValue.serverTimestamp(),
-        });
+        // Check if conversation exists (handle temp conversations)
+        const conversationRef = db.collection('metaWhatsAppConversations').doc(conversationId);
+        const conversationDoc = await conversationRef.get();
+
+        if (!conversationDoc.exists || conversationId.startsWith('temp_')) {
+            // Create new conversation if it doesn't exist or is temporary
+            const newConversation: Omit<MetaWhatsAppConversation, 'id'> = {
+                partnerId: input.partnerId,
+                platform: 'meta_whatsapp',
+                customerPhone: `+${waId}`,
+                customerWaId: waId,
+                phoneNumberId: config.phoneNumberId,
+                type: 'direct',
+                title: `WhatsApp: +${waId}`,
+                isActive: true,
+                messageCount: 1,
+                unreadCount: 0,
+                lastMessageAt: FieldValue.serverTimestamp(),
+                lastMessagePreview: messagePreview,
+                createdAt: FieldValue.serverTimestamp(),
+                updatedAt: FieldValue.serverTimestamp(),
+            };
+
+            // Use a new ID if the current one is temporary
+            if (conversationId.startsWith('temp_')) {
+                const newConvRef = db.collection('metaWhatsAppConversations').doc();
+                await newConvRef.set({ id: newConvRef.id, ...newConversation });
+                conversationId = newConvRef.id;
+
+                // Update the message with the real conversation ID
+                await messageRef.update({ conversationId: newConvRef.id });
+            } else {
+                await conversationRef.set({ id: conversationId, ...newConversation });
+            }
+        } else {
+            // Update existing conversation
+            await conversationRef.update({
+                lastMessageAt: FieldValue.serverTimestamp(),
+                lastMessagePreview: messagePreview,
+                messageCount: FieldValue.increment(1),
+                isActive: true,
+                updatedAt: FieldValue.serverTimestamp(),
+            });
+        }
 
         return {
             success: true,
