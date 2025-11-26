@@ -2,7 +2,8 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { useMultiWorkspaceAuth } from '@/hooks/use-multi-workspace-auth';
-import { useMetaConversations, useMetaMessages } from '@/hooks/useMetaWhatsApp';
+import { useEnrichedMetaConversations, EnrichedMetaConversation } from '@/hooks/useEnrichedMetaConversations';
+import { useMetaMessages } from '@/hooks/useMetaWhatsApp';
 import { sendMetaWhatsAppMessageAction, getMetaWhatsAppStatus, deleteMetaConversation, deleteMetaMessage } from '@/actions/meta-whatsapp-actions';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -24,7 +25,10 @@ import {
     Paperclip,
     Image as ImageIcon,
     FileText,
-    Video
+    Video,
+    User,
+    Building2,
+    Mail
 } from 'lucide-react';
 import Link from 'next/link';
 import type { MetaWhatsAppConversation, MetaWhatsAppMessage } from '@/lib/types-meta-whatsapp';
@@ -33,6 +37,7 @@ import { MessageBubble } from '@/components/partner/commspace/MessageBubble';
 import { storage } from '@/lib/firebase';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { toast } from 'sonner';
+import AddContactModal from '@/components/partner/contacts/AddContactModal';
 
 import {
     Dialog,
@@ -54,9 +59,9 @@ import { Label } from "@/components/ui/label"
 export default function CommSpacePage() {
     const { currentWorkspace, loading: authLoading } = useMultiWorkspaceAuth();
     const currentPartnerId = currentWorkspace?.partnerId;
-    const { conversations, loading: convsLoading, markAsRead } = useMetaConversations(currentPartnerId);
+    const { conversations, loading: convsLoading, markAsRead } = useEnrichedMetaConversations(currentPartnerId);
 
-    const [selectedConversation, setSelectedConversation] = useState<MetaWhatsAppConversation | null>(null);
+    const [selectedConversation, setSelectedConversation] = useState<EnrichedMetaConversation | null>(null);
     const [searchTerm, setSearchTerm] = useState('');
     const [messageInput, setMessageInput] = useState('');
     const [sending, setSending] = useState(false);
@@ -71,6 +76,9 @@ export default function CommSpacePage() {
     // File Upload State
     const [isUploading, setIsUploading] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
+
+    // Contact Modal State
+    const [isAddContactModalOpen, setIsAddContactModalOpen] = useState(false);
 
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const { messages, loading: msgsLoading } = useMetaMessages(selectedConversation?.id);
@@ -101,7 +109,10 @@ export default function CommSpacePage() {
         return (
             conv.customerName?.toLowerCase().includes(search) ||
             conv.customerPhone.includes(search) ||
-            conv.lastMessagePreview?.toLowerCase().includes(search)
+            conv.lastMessagePreview?.toLowerCase().includes(search) ||
+            conv.contactName?.toLowerCase().includes(search) ||
+            conv.contactEmail?.toLowerCase().includes(search) ||
+            conv.contactCompany?.toLowerCase().includes(search)
         );
     });
 
@@ -218,7 +229,7 @@ export default function CommSpacePage() {
         if (!newChatPhone || !currentPartnerId) return;
 
         // Create a temporary conversation object to select immediately
-        const tempConv: MetaWhatsAppConversation = {
+        const tempConv: EnrichedMetaConversation = {
             id: 'temp_' + Date.now(),
             partnerId: currentPartnerId,
             platform: 'meta_whatsapp',
@@ -242,7 +253,7 @@ export default function CommSpacePage() {
         setMobileShowChat(true);
     };
 
-    const selectConversation = (conv: MetaWhatsAppConversation) => {
+    const selectConversation = (conv: EnrichedMetaConversation) => {
         setSelectedConversation(conv);
         setMobileShowChat(true);
     };
@@ -357,17 +368,17 @@ export default function CommSpacePage() {
                                     <div className="flex items-start gap-3">
                                         <Avatar className="w-12 h-12 border-2 border-white shadow-sm">
                                             <AvatarImage
-                                                src={conv.customerProfilePicture || `https://api.dicebear.com/7.x/initials/svg?seed=${conv.customerName || conv.customerPhone}`}
+                                                src={conv.customerProfilePicture || `https://api.dicebear.com/7.x/initials/svg?seed=${conv.contactName || conv.customerName || conv.customerPhone}`}
                                                 referrerPolicy="no-referrer"
                                             />
                                             <AvatarFallback className="bg-gradient-to-br from-blue-500 to-purple-600 text-white">
-                                                {(conv.customerName || conv.customerPhone).charAt(0).toUpperCase()}
+                                                {(conv.contactName || conv.customerName || conv.customerPhone).charAt(0).toUpperCase()}
                                             </AvatarFallback>
                                         </Avatar>
                                         <div className="flex-1 min-w-0">
                                             <div className="flex items-center justify-between mb-1">
                                                 <p className="font-semibold text-gray-900 truncate">
-                                                    {conv.customerName || conv.customerPhone}
+                                                    {conv.contactName || conv.customerName || conv.customerPhone}
                                                 </p>
                                                 {conv.unreadCount > 0 && (
                                                     <Badge variant="default" className="ml-2 bg-green-500 hover:bg-green-600 h-5 px-1.5 min-w-[1.25rem]">
@@ -375,9 +386,43 @@ export default function CommSpacePage() {
                                                     </Badge>
                                                 )}
                                             </div>
+                                            {/* Contact Info Subtitle */}
+                                            {conv.contact ? (
+                                                <div className="flex items-center gap-1 text-xs text-gray-500 mb-1">
+                                                    {conv.contactCompany && (
+                                                        <span className="flex items-center gap-0.5">
+                                                            <Building2 className="w-3 h-3" />
+                                                            {conv.contactCompany}
+                                                        </span>
+                                                    )}
+                                                    {conv.contactEmail && (
+                                                        <span className="flex items-center gap-0.5 ml-1">
+                                                            <Mail className="w-3 h-3" />
+                                                            {conv.contactEmail}
+                                                        </span>
+                                                    )}
+                                                </div>
+                                            ) : null}
+
                                             <p className="text-sm text-gray-500 truncate">
                                                 {conv.lastMessagePreview || 'No messages'}
                                             </p>
+
+                                            {/* Tags */}
+                                            {conv.contactTags && conv.contactTags.length > 0 && (
+                                                <div className="flex flex-wrap gap-1 mt-1">
+                                                    {conv.contactTags.slice(0, 2).map(tag => (
+                                                        <span key={tag} className="text-[10px] bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded-full">
+                                                            {tag}
+                                                        </span>
+                                                    ))}
+                                                    {conv.contactTags.length > 2 && (
+                                                        <span className="text-[10px] bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded-full">
+                                                            +{conv.contactTags.length - 2}
+                                                        </span>
+                                                    )}
+                                                </div>
+                                            )}
                                         </div>
                                     </div>
                                 </button>
@@ -403,21 +448,34 @@ export default function CommSpacePage() {
                             </Button>
                             <Avatar className="w-10 h-10">
                                 <AvatarImage
-                                    src={selectedConversation.customerProfilePicture || `https://api.dicebear.com/7.x/initials/svg?seed=${selectedConversation.customerName || selectedConversation.customerPhone}`}
+                                    src={selectedConversation.customerProfilePicture || `https://api.dicebear.com/7.x/initials/svg?seed=${selectedConversation.contactName || selectedConversation.customerName || selectedConversation.customerPhone}`}
                                     referrerPolicy="no-referrer"
                                 />
                                 <AvatarFallback className="bg-gradient-to-br from-blue-500 to-purple-600 text-white">
-                                    {(selectedConversation.customerName || selectedConversation.customerPhone).charAt(0).toUpperCase()}
+                                    {(selectedConversation.contactName || selectedConversation.customerName || selectedConversation.customerPhone).charAt(0).toUpperCase()}
                                 </AvatarFallback>
                             </Avatar>
                             <div className="flex-1">
-                                <h2 className="font-semibold text-gray-900">
-                                    {selectedConversation.customerName || selectedConversation.customerPhone}
+                                <h2 className="font-semibold text-gray-900 flex items-center gap-2">
+                                    {selectedConversation.contactName || selectedConversation.customerName || selectedConversation.customerPhone}
+                                    {selectedConversation.contact && (
+                                        <Badge variant="outline" className="text-[10px] h-5 px-1.5 font-normal bg-blue-50 text-blue-600 border-blue-100">
+                                            Contact
+                                        </Badge>
+                                    )}
                                 </h2>
-                                <p className="text-xs text-gray-500 flex items-center gap-1">
-                                    <Phone className="w-3 h-3" />
-                                    {selectedConversation.customerPhone}
-                                </p>
+                                <div className="flex flex-col">
+                                    <p className="text-xs text-gray-500 flex items-center gap-1">
+                                        <Phone className="w-3 h-3" />
+                                        {selectedConversation.customerPhone}
+                                    </p>
+                                    {selectedConversation.contactEmail && (
+                                        <p className="text-xs text-gray-500 flex items-center gap-1">
+                                            <Mail className="w-3 h-3" />
+                                            {selectedConversation.contactEmail}
+                                        </p>
+                                    )}
+                                </div>
                             </div>
 
                             <DropdownMenu>
@@ -427,6 +485,19 @@ export default function CommSpacePage() {
                                     </Button>
                                 </DropdownMenuTrigger>
                                 <DropdownMenuContent align="end">
+                                    {selectedConversation.contact ? (
+                                        <DropdownMenuItem asChild>
+                                            <Link href={`/partner/contacts?search=${selectedConversation.customerPhone}`} className="flex items-center">
+                                                <User className="w-4 h-4 mr-2" />
+                                                View Contact
+                                            </Link>
+                                        </DropdownMenuItem>
+                                    ) : (
+                                        <DropdownMenuItem onClick={() => setIsAddContactModalOpen(true)}>
+                                            <User className="w-4 h-4 mr-2" />
+                                            Add to Contacts
+                                        </DropdownMenuItem>
+                                    )}
                                     <DropdownMenuItem onClick={handleDeleteConversation} className="text-red-600 focus:text-red-600">
                                         <Trash2 className="w-4 h-4 mr-2" />
                                         Delete Conversation
@@ -530,6 +601,19 @@ export default function CommSpacePage() {
                     </div>
                 )}
             </div>
+
+            {/* Add Contact Modal */}
+            {currentPartnerId && selectedConversation && (
+                <AddContactModal
+                    isOpen={isAddContactModalOpen}
+                    onClose={() => setIsAddContactModalOpen(false)}
+                    partnerId={currentPartnerId}
+                    initialData={{
+                        name: selectedConversation.customerName || '',
+                        phone: selectedConversation.customerPhone
+                    }}
+                />
+            )}
         </div>
     );
 }

@@ -494,3 +494,25 @@ export async function deleteMetaMessage(
         return { success: false, message: error.message };
     }
 }
+
+export async function getMetaWhatsAppTemplatesAction(partnerId: string): Promise<{ success: boolean; data?: any; message?: string }> {
+    try {
+        const { getMetaTemplates } = await import('@/lib/meta-whatsapp-service');
+        const data = await getMetaTemplates(partnerId);
+        return { success: true, data };
+    } catch (error: any) {
+        console.error('❌ Error fetching templates:', error);
+        return { success: false, message: error.message };
+    }
+}
+
+export async function createMetaWhatsAppTemplateAction(partnerId: string, templateData: any): Promise<{ success: boolean; data?: any; message?: string }> {
+    try {
+        const { createMetaTemplate } = await import('@/lib/meta-whatsapp-service');
+        const data = await createMetaTemplate(partnerId, templateData);
+        return { success: true, data };
+    } catch (error: any) {
+        console.error('❌ Error creating template:', error);
+        return { success: false, message: error.message };
+    }
+}

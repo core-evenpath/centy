@@ -64,4 +64,4 @@ if (!admin.apps.length) {
 }
 
 // @ts-ignore
-export { db, adminAuth, adminStorage };
+export { db, adminAuth, adminStorage, adminStorage as storage };

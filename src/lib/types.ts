@@ -1336,11 +1336,11 @@ export interface RAGSource {
   relevance: number;
 }
 
-export type AIModelChoice = 
-  | 'haiku' 
-  | 'sonnet-3.5' 
-  | 'sonnet-4.5' 
-  | 'gpt-4o-mini' 
+export type AIModelChoice =
+  | 'haiku'
+  | 'sonnet-3.5'
+  | 'sonnet-4.5'
+  | 'gpt-4o-mini'
   | 'gemini-2.5-pro';
 
 export interface PartnerAIConfig {
@@ -1391,3 +1391,42 @@ export const AI_MODEL_OPTIONS = [
     provider: 'Google',
   },
 ] as const;
+
+// ============================================================================
+// AI WORKFLOW TYPES
+// ============================================================================
+
+export const SuggestWorkflowStepsInputSchema = z.object({
+  workflowDescription: z.string(),
+});
+
+export type SuggestWorkflowStepsInput = z.infer<typeof SuggestWorkflowStepsInputSchema>;
+
+// Recursive step schema for conditional branches
+const BaseStepSchema = z.object({
+  type: z.enum(['ai_agent', 'human_input', 'api_call', 'notification', 'conditional_branch']),
+  name: z.string(),
+  description: z.string(),
+});
+
+export type WorkflowStep = z.infer<typeof BaseStepSchema> & {
+  branches?: {
+    condition: string;
+    steps: WorkflowStep[];
+  }[];
+};
+
+export const WorkflowStepSchema: z.ZodType<WorkflowStep> = BaseStepSchema.extend({
+  branches: z.array(z.object({
+    condition: z.string(),
+    steps: z.lazy(() => z.array(WorkflowStepSchema)),
+  })).optional(),
+});
+
+export const SuggestWorkflowStepsOutputSchema = z.object({
+  name: z.string(),
+  description: z.string(),
+  steps: z.array(WorkflowStepSchema),
+});
+
+export type SuggestWorkflowStepsOutput = z.infer<typeof SuggestWorkflowStepsOutputSchema>;

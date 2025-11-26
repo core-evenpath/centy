@@ -17,26 +17,39 @@ interface AddContactModalProps {
   isOpen: boolean;
   onClose: () => void;
   partnerId: string;
+  initialData?: {
+    name?: string;
+    phone?: string;
+  };
 }
 
 export default function AddContactModal({
   isOpen,
   onClose,
   partnerId,
+  initialData
 }: AddContactModalProps) {
-  const [name, setName] = useState('');
+  const [name, setName] = useState(initialData?.name || '');
   const [email, setEmail] = useState('');
-  const [phone, setPhone] = useState('');
+  const [phone, setPhone] = useState(initialData?.phone || '');
   const [status, setStatus] = useState<'active' | 'inactive'>('active');
-  
+
   // Generic CRM fields
   const [company, setCompany] = useState('');
   const [category, setCategory] = useState('');
   const [lifetimeValue, setLifetimeValue] = useState('');
   const [notes, setNotes] = useState('');
-  
+
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { toast } = useToast();
+
+  // Update state when initialData changes or modal opens
+  React.useEffect(() => {
+    if (isOpen && initialData) {
+      if (initialData.name) setName(initialData.name);
+      if (initialData.phone) setPhone(initialData.phone);
+    }
+  }, [isOpen, initialData]);
 
   const resetAndClose = () => {
     setName('');
