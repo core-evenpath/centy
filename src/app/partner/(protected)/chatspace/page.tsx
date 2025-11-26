@@ -294,7 +294,10 @@ export default function ChatSpacePage() {
             <div className={`w-full md:w-80 lg:w-96 border-r flex flex-col ${mobileShowChat ? 'hidden md:flex' : 'flex'}`}>
                 <div className="p-4 border-b bg-gray-50/50">
                     <div className="flex items-center justify-between mb-4">
-                        <h1 className="text-xl font-bold text-gray-900">Messages</h1>
+                        <div>
+                            <h1 className="text-xl font-bold text-gray-900">ChatSpace</h1>
+                            <p className="text-sm text-gray-600">All your partner conversations, one place</p>
+                        </div>
                         <Dialog open={newChatOpen} onOpenChange={setNewChatOpen}>
                             <DialogTrigger asChild>
                                 <Button size="icon" variant="ghost" className="hover:bg-gray-200 rounded-full">
