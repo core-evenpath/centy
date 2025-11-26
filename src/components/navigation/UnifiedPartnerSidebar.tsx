@@ -3,8 +3,8 @@
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { 
-  Settings, 
+import {
+  Settings,
   ChevronDown,
   LogOut,
   Building2,
@@ -61,12 +61,12 @@ export default function UnifiedPartnerSidebar() {
   const router = useRouter();
   const { toast } = useToast();
   const auth = getAuth(app);
-  
-  const { 
-    user, 
-    currentWorkspace, 
+
+  const {
+    user,
+    currentWorkspace,
     availableWorkspaces,
-    switchWorkspace 
+    switchWorkspace
   } = useMultiWorkspaceAuth();
 
   const [stats, setStats] = useState<SidebarStats>({});
@@ -75,62 +75,62 @@ export default function UnifiedPartnerSidebar() {
 
   useEffect(() => {
     async function fetchPartnerProfile() {
-        if (!currentWorkspace?.partnerId) return;
+      if (!currentWorkspace?.partnerId) return;
 
-        try {
-            const result = await getPartnerProfileAction(currentWorkspace.partnerId);
-            
-            if (result.success && result.partner) {
-                setPartner(result.partner);
-            } else {
-                console.error("Could not fetch partner profile for sidebar:", result.message)
-            }
-        } catch (err: any) {
-            console.error('Error fetching partner profile for sidebar:', err);
+      try {
+        const result = await getPartnerProfileAction(currentWorkspace.partnerId);
+
+        if (result.success && result.partner) {
+          setPartner(result.partner);
+        } else {
+          console.error("Could not fetch partner profile for sidebar:", result.message)
         }
+      } catch (err: any) {
+        console.error('Error fetching partner profile for sidebar:', err);
+      }
     }
 
     fetchPartnerProfile();
   }, [currentWorkspace?.partnerId]);
 
   const allMenuItems: MenuItem[] = [
-    { 
-      icon: MessageSquare, 
-      label: 'Messaging', 
-      href: '/partner/messaging',
+    {
+      icon: MessageSquare,
+      label: 'Chat Space',
+      href: '/partner/chatspace',
       badge: stats?.unreadMessages || null,
       description: 'SMS & WhatsApp conversations'
     },
-    { 
-      icon: Database, 
-      label: 'Vault', 
+    {
+      icon: Database,
+      label: 'Vault',
       href: '/partner/vault',
       badge: null,
       description: 'Document storage & AI search'
     },
-    { 
-      icon: Users, 
-      label: 'Contacts', 
+    {
+      icon: Users,
+      label: 'Contacts',
       href: '/partner/contacts',
       badge: null,
       description: 'Contact management'
     },
-    { 
-      icon: Puzzle, 
-      label: 'Integrations', 
+    {
+      icon: Puzzle,
+      label: 'Integrations',
       href: '/partner/apps',
       badge: null,
       description: 'Connected apps & services'
     },
-    { 
-      icon: Settings, 
-      label: 'Settings', 
+    {
+      icon: Settings,
+      label: 'Settings',
       href: '/partner/settings',
       badge: null,
       description: 'Workspace settings'
     },
   ];
-  
+
   const menuItems = partner?.isActivePlanUser === false
     ? allMenuItems.filter(item => item.label === 'Settings')
     : allMenuItems;
@@ -152,7 +152,7 @@ export default function UnifiedPartnerSidebar() {
     });
 
     const success = await switchWorkspace(workspace.partnerId);
-    
+
     if (success) {
       window.location.reload();
     } else {
@@ -219,7 +219,7 @@ export default function UnifiedPartnerSidebar() {
             {menuItems.map((item) => {
               const Icon = item.icon;
               const isActive = pathname.startsWith(item.href);
-              
+
               return (
                 <SidebarMenuItem key={item.href}>
                   <SidebarMenuButton
@@ -227,7 +227,7 @@ export default function UnifiedPartnerSidebar() {
                     isActive={isActive}
                     tooltip={item.description || item.label}
                   >
-                    <Link 
+                    <Link
                       href={item.href}
                       className="flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors"
                     >
@@ -250,8 +250,8 @@ export default function UnifiedPartnerSidebar() {
       <SidebarFooter className="border-t p-4">
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button 
-              variant="ghost" 
+            <Button
+              variant="ghost"
               className="w-full justify-start gap-3 h-auto p-3 hover:bg-accent"
             >
               <Avatar className="w-9 h-9">
