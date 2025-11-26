@@ -211,7 +211,16 @@ export async function sendMetaWhatsAppMessageAction(
         }
 
         let metaResponse;
-        if (input.mediaUrl && input.mediaType) {
+        if (input.templateName) {
+            const { sendMetaTemplateMessage } = await import('@/lib/meta-whatsapp-service');
+            metaResponse = await sendMetaTemplateMessage(
+                input.partnerId,
+                normalizedPhone,
+                input.templateName,
+                input.templateLanguage || 'en_US',
+                input.templateComponents || []
+            );
+        } else if (input.mediaUrl && input.mediaType) {
             metaResponse = await sendMetaMediaMessage(
                 input.partnerId,
                 normalizedPhone,

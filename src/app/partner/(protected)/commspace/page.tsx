@@ -38,6 +38,7 @@ import { storage } from '@/lib/firebase';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { toast } from 'sonner';
 import AddContactModal from '@/components/partner/contacts/AddContactModal';
+import { SendTemplateDialog } from '@/components/partner/commspace/SendTemplateDialog';
 
 import {
     Dialog,
@@ -79,6 +80,9 @@ export default function CommSpacePage() {
 
     // Contact Modal State
     const [isAddContactModalOpen, setIsAddContactModalOpen] = useState(false);
+
+    // Template Dialog State
+    const [isTemplateDialogOpen, setIsTemplateDialogOpen] = useState(false);
 
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const { messages, loading: msgsLoading } = useMetaMessages(selectedConversation?.id);
@@ -554,6 +558,16 @@ export default function CommSpacePage() {
                                     {isUploading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Paperclip className="w-5 h-5" />}
                                 </Button>
 
+                                <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="text-gray-500 hover:text-gray-700 hover:bg-gray-100"
+                                    onClick={() => setIsTemplateDialogOpen(true)}
+                                    title="Send Template Message"
+                                >
+                                    <FileText className="w-5 h-5" />
+                                </Button>
+
                                 <div className="flex-1 bg-gray-100 rounded-2xl flex items-center px-4 py-2 focus-within:ring-1 focus-within:ring-blue-500 focus-within:bg-white transition-all">
                                     <textarea
                                         placeholder="Type a message..."
@@ -612,6 +626,17 @@ export default function CommSpacePage() {
                         name: selectedConversation.customerName || '',
                         phone: selectedConversation.customerPhone
                     }}
+                />
+            )}
+
+            {/* Send Template Dialog */}
+            {currentPartnerId && selectedConversation && (
+                <SendTemplateDialog
+                    open={isTemplateDialogOpen}
+                    onOpenChange={setIsTemplateDialogOpen}
+                    partnerId={currentPartnerId}
+                    recipientPhone={selectedConversation.customerPhone}
+                    conversationId={selectedConversation.id}
                 />
             )}
         </div>

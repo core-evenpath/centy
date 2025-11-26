@@ -472,3 +472,78 @@ export async function deleteMetaTemplate(partnerId: string, templateName: string
 
     return response.json();
 }
+
+export async function sendMetaTemplateMessage(
+    partnerId: string,
+    to: string,
+    templateName: string,
+    languageCode: string,
+    components: any[] = []
+): Promise<any> {
+    const config = await getPartnerMetaConfig(partnerId);
+
+    if (!config || config.status !== 'active') {
+        throw new Error('Meta WhatsApp not configured or inactive');
+    }
+
+    const accessToken = await getDecryptedAccessToken(partnerId);
+    const normalizedTo = to.replace(/\D/g, '');
+
+    const body = {
+        messaging_product: 'whatsapp',
+        recipient_type: 'individual',
+        to: normalizedTo,
+        type: 'template',
+        template: {
+            name: templateName,
+            language: {
+                code: languageCode
+            },
+            components: components
+        }
+    };
+
+    const response = await fetch(
+        `${META_API_BASE}/${config.phoneNumberId}/messages`,
+        {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${accessToken}`,
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(body),
+        }
+    );
+
+    if (!response.ok) {
+        const errorData = await response.json();
+        const errorMsg = errorData.error?.message || `Meta API error: ${response.status}`;
+
+        if (errorMsg.toLowerCase().includes('session has expired')) {
+            try {
+                const newToken = await refreshMetaAccessToken(partnerId);
+                const retryResp = await fetch(
+                    `${META_API_BASE}/${config.phoneNumberId}/messages`,
+                    {
+                        method: 'POST',
+                        headers: {
+                            'Authorization': `Bearer ${newToken}`,
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify(body),
+                    }
+                );
+                if (!retryResp.ok) {
+                    const retryError = await retryResp.json();
+                    throw new Error(retryError.error?.message || `Meta API error after refresh: ${retryResp.status}`);
+                }
+                return retryResp.json();
+            } catch (refreshErr: any) {
+                throw new Error(`Failed to refresh Meta token: ${refreshErr.message}`);
+            }
+        }
+        throw new Error(errorMsg);
+    }
+
+    return response.json();
+}
