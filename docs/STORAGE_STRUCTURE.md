@@ -15,7 +15,7 @@ WhatsApp communication media files, organized by partner.
   - Metadata includes: partnerId, mediaId, source, uploadedAt
   
 - **`outgoing/`** - Media sent by partner to customers
-  - Images, videos, documents, audio sent from CommSpace
+  - Images, videos, documents, audio sent from ChatSpace
   - Naming: `{timestamp}_{filename}`
   - Used for rich media messages
 

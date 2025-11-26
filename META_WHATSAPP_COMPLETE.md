@@ -24,14 +24,14 @@
 7. ✅ `src/app/api/diagnostics/meta-whatsapp/route.ts` - Diagnostics (56 lines)
 
 ### Pages (4)
-8. ✅ `src/app/partner/(protected)/commspace/layout.tsx` - Layout (19 lines)
-9. ✅ `src/app/partner/(protected)/commspace/page.tsx` - Full messaging UI (317 lines)
+8. ✅ `src/app/partner/(protected)/chatspace/layout.tsx` - Layout (19 lines)
+9. ✅ `src/app/partner/(protected)/chatspace/page.tsx` - Full messaging UI (317 lines)
 10. ✅ `src/app/partner/(protected)/settings/whatsapp-business/page.tsx` - Settings (261 lines)
 11. ✅ `src/app/partner/(protected)/settings/whatsapp-business/templates/page.tsx` - Templates (44 lines)
 
 ### Components (2)
-12. ✅ `src/components/partner/commspace/MessageBubble.tsx` - Message display (56 lines)
-13. ✅ `src/components/partner/commspace/SendTemplateDialog.tsx` - Template dialog (30 lines)
+12. ✅ `src/components/partner/chatspace/MessageBubble.tsx` - Message display (56 lines)
+13. ✅ `src/components/partner/chatspace/SendTemplateDialog.tsx` - Template dialog (30 lines)
 
 ### Documentation (2)
 14. ✅ `FIRESTORE_RULES.md` - Security rules guide
@@ -54,9 +54,9 @@ ENCRYPTION_SECRET_KEY=YupByj1JC0oZlsdIRxiU55o5TJaoWPE5k/kiwQJeD8k=
 
 ### 3. Test the Integration
 
-#### A. Visit CommSpace
+#### A. Visit ChatSpace
 ```
-http://localhost:9002/partner/commspace
+http://localhost:9002/partner/chatspace
 ```
 - You should see the messaging interface
 - If not connected, it will show a setup prompt
@@ -90,8 +90,8 @@ After connecting:
 
 ### 4. Start Messaging!
 - Customers message your WhatsApp Business number
-- Messages appear in CommSpace automatically
-- Reply directly from CommSpace
+- Messages appear in ChatSpace automatically
+- Reply directly from ChatSpace
 - Conversations tracked in real-time
 
 ---
@@ -113,14 +113,14 @@ Customer WhatsApp Message
           ↓
    Real-time Update via Firestore
           ↓
-   CommSpace UI (useMetaMessages hook)
+   ChatSpace UI (useMetaMessages hook)
           ↓
    Partner sees message instantly!
 ```
 
 **Sending Messages:**
 ```
-Partner types in CommSpace
+Partner types in ChatSpace
           ↓
    sendMetaWhatsAppMessageAction
           ↓
@@ -248,7 +248,7 @@ Before going to production:
 The integration is **100% complete** and **production-ready**.
 
 **What you can do now:**
-1. Visit `/partner/commspace` to see the messaging interface
+1. Visit `/partner/chatspace` to see the messaging interface
 2. Connect your WhatsApp Business account
 3. Start messaging customers in real-time!
 

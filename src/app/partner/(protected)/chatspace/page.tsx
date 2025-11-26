@@ -33,12 +33,12 @@ import {
 import Link from 'next/link';
 import type { MetaWhatsAppConversation, MetaWhatsAppMessage } from '@/lib/types-meta-whatsapp';
 import { format } from 'date-fns';
-import { MessageBubble } from '@/components/partner/commspace/MessageBubble';
+import { MessageBubble } from '@/components/partner/chatspace/MessageBubble';
 import { storage } from '@/lib/firebase';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { toast } from 'sonner';
 import AddContactModal from '@/components/partner/contacts/AddContactModal';
-import { SendTemplateDialog } from '@/components/partner/commspace/SendTemplateDialog';
+import { SendTemplateDialog } from '@/components/partner/chatspace/SendTemplateDialog';
 
 import {
     Dialog,
@@ -57,7 +57,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { Label } from "@/components/ui/label"
 
-export default function CommSpacePage() {
+export default function ChatSpacePage() {
     const { currentWorkspace, loading: authLoading } = useMultiWorkspaceAuth();
     const currentPartnerId = currentWorkspace?.partnerId;
     const { conversations, loading: convsLoading, markAsRead } = useEnrichedMetaConversations(currentPartnerId);
@@ -607,7 +607,7 @@ export default function CommSpacePage() {
                             <MessageSquare className="w-12 h-12 text-blue-500" />
                         </div>
                         <h2 className="text-2xl font-bold text-gray-900 mb-2">
-                            Welcome to CommSpace
+                            Welcome to ChatSpace
                         </h2>
                         <p className="text-gray-500 max-w-md text-lg">
                             Select a conversation from the sidebar to begin messaging your clients via WhatsApp.

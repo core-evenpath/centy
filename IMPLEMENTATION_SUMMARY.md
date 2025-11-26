@@ -26,14 +26,14 @@
 **Lines:** 175  
 **Purpose:** Real-time conversation and message hooks
 
-### 5. CommSpace Layout
-**File:** `src/app/partner/(protected)/commspace/layout.tsx`  
+### 5. ChatSpace Layout
+**File:** `src/app/partner/(protected)/chatspace/layout.tsx`  
 **Status:** ✅ Complete  
 **Lines:** 19  
 **Purpose:** Page layout wrapper
 
-### 6. CommSpace Page (Placeholder)
-**File:** `src/app/partner/(protected)/commspace/page.tsx`  
+### 6. ChatSpace Page (Placeholder)
+**File:** `src/app/partner/(protected)/chatspace/page.tsx`  
 **Status:** ⚠️  Placeholder (functional but limited)  
 **Lines:** 145  
 **Purpose:** Currently shows setup instructions
@@ -64,9 +64,9 @@ I'll create each remaining file individually in our conversation:
 2. ❌ `src/app/api/webhooks/meta/whatsapp/route.ts` (~350 lines)
 3. ❌ `src/app/partner/(protected)/settings/whatsapp-business/page.tsx` (~500 lines)
 4. ❌ `src/app/partner/(protected)/settings/whatsapp-business/templates/page.tsx` (~400 lines)
-5. ❌ `src/components/partner/commspace/MessageBubble.tsx` (~200 lines)
-6. ❌ `src/components/partner/commspace/SendTemplateDialog.tsx` (~300 lines)
-7. ❌ Full `src/app/partner/(protected)/commspace/page.tsx` (~400 lines)
+5. ❌ `src/components/partner/chatspace/MessageBubble.tsx` (~200 lines)
+6. ❌ `src/components/partner/chatspace/SendTemplateDialog.tsx` (~300 lines)
+7. ❌ Full `src/app/partner/(protected)/chatspace/page.tsx` (~400 lines)
 8. ❌ `src/app/api/diagnostics/meta-whatsapp/route.ts` (~100 lines)
 9. ❌ Firestore security rules additions
 
@@ -85,16 +85,16 @@ Given the size of the codebase, I suggest **Path B** with a twist:
 **Let me create the 3 most critical files** right now:
 1. **Server Actions** - Connects/sends messages
 2. **Webhook Handler** - Receives incoming messages  
-3. **Full CommSpace UI** - The actual messaging interface
+3. **Full ChatSpace UI** - The actual messaging interface
 
-These 3 files will make CommSpace functional. The remaining files (settings, templates, components) can be added later for full features.
+These 3 files will make ChatSpace functional. The remaining files (settings, templates, components) can be added later for full features.
 
 ---
 
 ## 💡 WHAT YOU CAN DO NOW
 
 With just the 6 files already created, you can:
-- [x] Visit `/partner/commspace` (shows placeholder)
+- [x] Visit `/partner/chatspace` (shows placeholder)
 - [x] See project structure is ready
 - [x] Understand the architecture
 

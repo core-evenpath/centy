@@ -1,11 +1,11 @@
 import { Metadata } from 'next';
 
 export const metadata: Metadata = {
-    title: 'CommSpace - WhatsApp Business Messaging',
+    title: 'ChatSpace - WhatsApp Business Messaging',
     description: 'Manage your WhatsApp Business conversations',
 };
 
-export default function CommSpaceLayout({
+export default function ChatSpaceLayout({
     children,
 }: {
     children: React.ReactNode;

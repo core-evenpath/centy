@@ -1,7 +1,7 @@
-# CommSpace v2.0 - Implementation Plan
+# ChatSpace v2.0 - Implementation Plan
 
 ## Overview
-Redesign `/partner/commspace` with design principles from `/partner/messaging` and integrate with contacts and group chat functionality.
+Redesign `/partner/chatspace` with design principles from `/partner/messaging` and integrate with contacts and group chat functionality.
 
 ## Phase 1: Contacts Integration (PRIORITY)
 
@@ -9,7 +9,7 @@ Redesign `/partner/commspace` with design principles from `/partner/messaging` a
 - **Link conversations to contacts**:
   - Add `contactId` field to `MetaWhatsAppConversation`
   - Auto-match conversations to existing contacts by phone number
-  - Create `useEnrichedConversations` hook for CommSpace (like messaging)
+  - Create `useEnrichedConversations` hook for ChatSpace (like messaging)
 
 ### 1.2 UI Enhancements
 - **Contact enrichment in conversation list**:
@@ -104,7 +104,7 @@ interface MetaWhatsAppGroup {
 
 ### 3.3 Component Structure
 ```
-CommSpacePage
+ChatSpacePage
 ├── ConversationList (Sidebar)
 │   ├── SearchBar
 │   ├── FilterTabs (All | Groups | Direct)

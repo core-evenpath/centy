@@ -162,7 +162,7 @@ export default function SetupGuide({ currentStatus, hasPhoneNumberId, hasAppId }
             substeps: [
                 'Send a message from Centy to your phone',
                 'Send a message from your phone to the business number',
-                'Both should appear in /partner/commspace',
+                'Both should appear in /partner/chatspace',
                 'Use curl command to simulate incoming message (optional)',
                 '✅ Integration complete!',
             ],

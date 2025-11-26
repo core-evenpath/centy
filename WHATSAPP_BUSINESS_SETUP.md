@@ -74,7 +74,7 @@ I can provide complete documentation and you can copy-paste files as needed. Rep
    - Unread counters
 
 6. **UI Components**
-   - CommSpace main interface
+   - ChatSpace main interface
    - Settings/onboarding pages
    - Template management
    - Message bubble with media support
@@ -144,7 +144,7 @@ match /webhookLogs/{logId} {
 3. System validates and encrypts token
 4. Partner configures webhook in Meta Business Suite
 5. Partner activates connection
-6. Ready to message via `/partner/commspace`
+6. Ready to message via `/partner/chatspace`
 
 ## WhatsApp Business Rules
 
