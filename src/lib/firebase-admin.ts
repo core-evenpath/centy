@@ -9,6 +9,7 @@ import { getStorage } from 'firebase-admin/storage';
 let app: admin.app.App;
 let db: admin.firestore.Firestore;
 let adminAuth: admin.auth.Auth;
+let adminStorage: admin.storage.Storage;
 
 function formatPrivateKey(key: string) {
   return key.replace(/\\n/g, '\n');
@@ -39,7 +40,8 @@ if (!admin.apps.length) {
       });
 
       adminAuth = getAuth(app);
-      
+      adminStorage = getStorage(app);
+
       console.log('Firebase Admin SDK initialized successfully.');
       console.log('Firestore configured to ignore undefined properties.');
     } else {
@@ -48,7 +50,7 @@ if (!admin.apps.length) {
       if (!clientEmail) missingVars.push('FIREBASE_CLIENT_EMAIL');
       if (!projectId) missingVars.push('NEXT_PUBLIC_FIREBASE_PROJECT_ID');
       if (!storageBucket) missingVars.push('NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET');
-      
+
       console.error(`CRITICAL: Firebase Admin credentials incomplete. Missing: ${missingVars.join(', ')}`);
     }
   } catch (error: any) {
@@ -58,7 +60,8 @@ if (!admin.apps.length) {
   app = admin.apps[0]!;
   db = getFirestore(app);
   adminAuth = getAuth(app);
+  adminStorage = getStorage(app);
 }
 
 // @ts-ignore
-export { db, adminAuth };
+export { db, adminAuth, adminStorage };

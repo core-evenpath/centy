@@ -5,6 +5,7 @@ import { FieldValue } from 'firebase-admin/firestore';
 import { encrypt, generateVerifyToken } from '@/lib/encryption';
 import {
     sendMetaTextMessage,
+    sendMetaMediaMessage,
     getPartnerMetaConfig,
     findPartnerByPhoneNumberId
 } from '@/lib/meta-whatsapp-service';
@@ -205,15 +206,27 @@ export async function sendMetaWhatsAppMessageAction(
 
         const normalizedPhone = input.to.replace(/\D/g, '');
 
-        if (!input.message) {
-            return { success: false, message: 'No message content provided' };
+        if (!input.message && !input.mediaUrl) {
+            return { success: false, message: 'No message content or media provided' };
         }
 
-        const metaResponse = await sendMetaTextMessage(
-            input.partnerId,
-            normalizedPhone,
-            input.message
-        );
+        let metaResponse;
+        if (input.mediaUrl && input.mediaType) {
+            metaResponse = await sendMetaMediaMessage(
+                input.partnerId,
+                normalizedPhone,
+                input.mediaType,
+                input.mediaUrl,
+                input.message, // caption
+                input.filename
+            );
+        } else {
+            metaResponse = await sendMetaTextMessage(
+                input.partnerId,
+                normalizedPhone,
+                input.message || ''
+            );
+        }
 
         const metaMessageId = metaResponse.messages[0]?.id;
         const waId = metaResponse.contacts[0]?.wa_id;
@@ -256,8 +269,8 @@ export async function sendMetaWhatsAppMessageAction(
             conversationId,
             senderId: input.partnerId,
             partnerId: input.partnerId,
-            type: 'text',
-            content: input.message,
+            type: input.mediaType || 'text',
+            content: input.message || (input.mediaType ? `[${input.mediaType}]` : ''),
             direction: 'outbound',
             platform: 'meta_whatsapp',
             metaMetadata: {
@@ -266,13 +279,18 @@ export async function sendMetaWhatsAppMessageAction(
                 waId,
                 status: 'sent',
                 timestamp: new Date().toISOString(),
+                mediaUrl: input.mediaUrl,
+                mimeType: input.mediaType,
+                filename: input.filename
             },
             createdAt: FieldValue.serverTimestamp(),
         };
 
         await messageRef.set({ id: messageRef.id, ...messageData });
 
-        const messagePreview = input.message.substring(0, 50);
+        const messagePreview = input.mediaType
+            ? `📷 ${input.mediaType}`
+            : (input.message?.substring(0, 50) || 'Media message');
 
         // Check if conversation exists (handle temp conversations)
         const conversationRef = db.collection('metaWhatsAppConversations').doc(conversationId);
@@ -413,6 +431,66 @@ export async function subscribeToWebhookFields(
 
     } catch (error: any) {
         console.error('❌ Error subscribing to webhook:', error);
+        return { success: false, message: error.message };
+    }
+}
+
+export async function deleteMetaConversation(
+    partnerId: string,
+    conversationId: string
+): Promise<{ success: boolean; message: string }> {
+    if (!db) {
+        return { success: false, message: 'Database not available' };
+    }
+
+    try {
+        // Verify ownership
+        const convDoc = await db.collection('metaWhatsAppConversations').doc(conversationId).get();
+        if (!convDoc.exists) {
+            return { success: false, message: 'Conversation not found' };
+        }
+
+        const convData = convDoc.data();
+        if (convData?.partnerId !== partnerId) {
+            return { success: false, message: 'Unauthorized' };
+        }
+
+        // Delete conversation
+        await db.collection('metaWhatsAppConversations').doc(conversationId).delete();
+
+        return { success: true, message: 'Conversation deleted successfully' };
+    } catch (error: any) {
+        console.error('❌ Error deleting conversation:', error);
+        return { success: false, message: error.message };
+    }
+}
+
+export async function deleteMetaMessage(
+    partnerId: string,
+    messageId: string
+): Promise<{ success: boolean; message: string }> {
+    if (!db) {
+        return { success: false, message: 'Database not available' };
+    }
+
+    try {
+        // Verify ownership
+        const msgDoc = await db.collection('metaWhatsAppMessages').doc(messageId).get();
+        if (!msgDoc.exists) {
+            return { success: false, message: 'Message not found' };
+        }
+
+        const msgData = msgDoc.data();
+        if (msgData?.partnerId !== partnerId) {
+            return { success: false, message: 'Unauthorized' };
+        }
+
+        // Delete message
+        await db.collection('metaWhatsAppMessages').doc(messageId).delete();
+
+        return { success: true, message: 'Message deleted successfully' };
+    } catch (error: any) {
+        console.error('❌ Error deleting message:', error);
         return { success: false, message: error.message };
     }
 }

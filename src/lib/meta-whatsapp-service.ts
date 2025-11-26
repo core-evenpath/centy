@@ -134,3 +134,155 @@ export async function findPartnerByPhoneNumberId(
 
     return mappingDoc.data()?.partnerId || null;
 }
+
+export async function sendMetaMediaMessage(
+    partnerId: string,
+    to: string,
+    type: 'image' | 'video' | 'document' | 'audio',
+    mediaUrl: string,
+    caption?: string,
+    filename?: string
+): Promise<any> {
+    const config = await getPartnerMetaConfig(partnerId);
+
+    if (!config || config.status !== 'active') {
+        throw new Error('Meta WhatsApp not configured or inactive');
+    }
+
+    const accessToken = await getDecryptedAccessToken(partnerId);
+    const normalizedTo = to.replace(/\D/g, '');
+
+    const body: any = {
+        messaging_product: 'whatsapp',
+        recipient_type: 'individual',
+        to: normalizedTo,
+        type: type,
+    };
+
+    if (type === 'image') {
+        body.image = { link: mediaUrl, caption };
+    } else if (type === 'video') {
+        body.video = { link: mediaUrl, caption };
+    } else if (type === 'document') {
+        body.document = { link: mediaUrl, caption, filename };
+    } else if (type === 'audio') {
+        body.audio = { link: mediaUrl };
+    }
+
+    const response = await fetch(
+        `${META_API_BASE}/${config.phoneNumberId}/messages`,
+        {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${accessToken}`,
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(body),
+        }
+    );
+
+    if (!response.ok) {
+        const errorData = await response.json();
+        const errorMsg = errorData.error?.message || `Meta API error: ${response.status}`;
+
+        if (errorMsg.toLowerCase().includes('session has expired')) {
+            try {
+                const newToken = await refreshMetaAccessToken(partnerId);
+                // Retry with new token
+                const retryResp = await fetch(
+                    `${META_API_BASE}/${config.phoneNumberId}/messages`,
+                    {
+                        method: 'POST',
+                        headers: {
+                            'Authorization': `Bearer ${newToken}`,
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify(body),
+                    }
+                );
+                if (!retryResp.ok) {
+                    const retryError = await retryResp.json();
+                    throw new Error(retryError.error?.message || `Meta API error after refresh: ${retryResp.status}`);
+                }
+                return retryResp.json();
+            } catch (refreshErr: any) {
+                throw new Error(`Failed to refresh Meta token: ${refreshErr.message}`);
+            }
+        }
+        throw new Error(errorMsg);
+    }
+
+    return response.json();
+}
+
+export async function processAndUploadMedia(
+    partnerId: string,
+    mediaId: string
+): Promise<string | null> {
+    try {
+        const config = await getPartnerMetaConfig(partnerId);
+        if (!config) return null;
+
+        const accessToken = await getDecryptedAccessToken(partnerId);
+
+        // 1. Get Media Info from Meta
+        const mediaResponse = await fetch(`${META_API_BASE}/${mediaId}`, {
+            headers: { 'Authorization': `Bearer ${accessToken}` }
+        });
+
+        if (!mediaResponse.ok) {
+            console.error('Failed to fetch media info:', await mediaResponse.text());
+            return null;
+        }
+
+        const mediaData = await mediaResponse.json();
+        const mediaUrl = mediaData.url;
+        const mimeType = mediaData.mime_type;
+
+        if (!mediaUrl) return null;
+
+        // 2. Download Media Binary from Meta
+        const binaryResponse = await fetch(mediaUrl, {
+            headers: { 'Authorization': `Bearer ${accessToken}` }
+        });
+
+        if (!binaryResponse.ok) {
+            console.error('Failed to download media binary');
+            return null;
+        }
+
+        const arrayBuffer = await binaryResponse.arrayBuffer();
+        const buffer = Buffer.from(arrayBuffer);
+
+        // 3. Upload to Firebase Storage using firebase-admin
+        const { adminStorage } = await import('@/lib/firebase-admin');
+        const bucket = adminStorage.bucket();
+        const extension = mimeType.split('/')[1] || 'bin';
+        const timestamp = Date.now();
+        const filename = `chat/${partnerId}/whatsapp/incoming/${timestamp}_${mediaId}.${extension}`;
+        const file = bucket.file(filename);
+
+        await file.save(buffer, {
+            metadata: {
+                contentType: mimeType,
+                customMetadata: {
+                    partnerId,
+                    mediaId,
+                    source: 'whatsapp_incoming',
+                    uploadedAt: new Date().toISOString()
+                }
+            },
+        });
+
+        // Make file public and get URL
+        await file.makePublic();
+        const publicUrl = `https://storage.googleapis.com/${bucket.name}/${filename}`;
+
+        console.log(`✅ Media uploaded successfully: ${publicUrl}`);
+        return publicUrl;
+
+    } catch (error) {
+        console.error('❌ Error processing media:', error);
+        return null;
+    }
+}

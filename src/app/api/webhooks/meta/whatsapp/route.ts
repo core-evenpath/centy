@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/firebase-admin';
 import { FieldValue } from 'firebase-admin/firestore';
-import { findPartnerByPhoneNumberId } from '@/lib/meta-whatsapp-service';
+import { findPartnerByPhoneNumberId, processAndUploadMedia } from '@/lib/meta-whatsapp-service';
 import { getPlatformMetaConfig, getDecryptedAppSecret } from '@/actions/admin-platform-actions';
 import crypto from 'crypto';
 import type {
@@ -236,19 +236,41 @@ async function handleIncomingMessage(
         customerWaId,
         customerName
     );
-
     let content = '';
+    let mediaUrl = '';
+    let mimeType = '';
+    let filename = '';
+    let mediaId = '';
 
     switch (message.type) {
         case 'text':
             content = message.text?.body || '';
             break;
         case 'image':
+            content = message.image?.caption || '[IMAGE]';
+            mediaId = message.image?.id || '';
+            mimeType = message.image?.mime_type || '';
+            break;
         case 'document':
+            content = message.document?.caption || '[DOCUMENT]';
+            mediaId = message.document?.id || '';
+            mimeType = message.document?.mime_type || '';
+            filename = message.document?.filename || '';
+            break;
         case 'audio':
+            content = '[AUDIO]';
+            mediaId = message.audio?.id || '';
+            mimeType = message.audio?.mime_type || '';
+            break;
         case 'video':
+            content = message.video?.caption || '[VIDEO]';
+            mediaId = message.video?.id || '';
+            mimeType = message.video?.mime_type || '';
+            break;
         case 'sticker':
-            content = `[${message.type.toUpperCase()}]`;
+            content = '[STICKER]';
+            mediaId = message.sticker?.id || '';
+            mimeType = message.sticker?.mime_type || '';
             break;
         case 'location':
             if (message.location) {
@@ -266,6 +288,22 @@ async function handleIncomingMessage(
             content = `[${message.type.toUpperCase()}]`;
     }
 
+    // Process Media if mediaId exists
+    if (mediaId) {
+        console.log(`📸 Processing ${message.type} media with ID: ${mediaId}`);
+        try {
+            const uploadedUrl = await processAndUploadMedia(partnerId, mediaId);
+            if (uploadedUrl) {
+                mediaUrl = uploadedUrl;
+                console.log(`✅ Media URL stored: ${uploadedUrl.substring(0, 50)}...`);
+            } else {
+                console.error(`❌ Failed to upload media for ID: ${mediaId}`);
+            }
+        } catch (err) {
+            console.error(`❌ Error processing media:`, err);
+        }
+    }
+
     const messageRef = db.collection('metaWhatsAppMessages').doc();
     const messageData: Omit<MetaWhatsAppMessage, 'id'> = {
         conversationId,
@@ -280,6 +318,10 @@ async function handleIncomingMessage(
             phoneNumberId,
             waId: customerWaId,
             timestamp: message.timestamp,
+            mediaUrl: mediaUrl || undefined,
+            mimeType: mimeType || undefined,
+            filename: filename || undefined,
+            mediaId: mediaId || undefined,
         },
         createdAt: FieldValue.serverTimestamp(),
     };
