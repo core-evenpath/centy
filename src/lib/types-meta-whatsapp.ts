@@ -208,6 +208,7 @@ export interface MetaWhatsAppConversation {
     customerPhone: string;
     customerWaId: string;
     customerName?: string;
+    customerProfilePicture?: string;
     phoneNumberId: string;
     type: 'direct';
     title: string;

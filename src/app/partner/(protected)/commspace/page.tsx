@@ -357,7 +357,7 @@ export default function CommSpacePage() {
                                     <div className="flex items-start gap-3">
                                         <Avatar className="w-12 h-12 border-2 border-white shadow-sm">
                                             <AvatarImage
-                                                src={`https://api.dicebear.com/7.x/initials/svg?seed=${conv.customerName || conv.customerPhone}`}
+                                                src={conv.customerProfilePicture || `https://api.dicebear.com/7.x/initials/svg?seed=${conv.customerName || conv.customerPhone}`}
                                                 referrerPolicy="no-referrer"
                                             />
                                             <AvatarFallback className="bg-gradient-to-br from-blue-500 to-purple-600 text-white">
@@ -403,7 +403,7 @@ export default function CommSpacePage() {
                             </Button>
                             <Avatar className="w-10 h-10">
                                 <AvatarImage
-                                    src={`https://api.dicebear.com/7.x/initials/svg?seed=${selectedConversation.customerName || selectedConversation.customerPhone}`}
+                                    src={selectedConversation.customerProfilePicture || `https://api.dicebear.com/7.x/initials/svg?seed=${selectedConversation.customerName || selectedConversation.customerPhone}`}
                                     referrerPolicy="no-referrer"
                                 />
                                 <AvatarFallback className="bg-gradient-to-br from-blue-500 to-purple-600 text-white">

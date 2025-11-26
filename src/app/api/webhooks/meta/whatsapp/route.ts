@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/firebase-admin';
 import { FieldValue } from 'firebase-admin/firestore';
-import { findPartnerByPhoneNumberId, processAndUploadMedia } from '@/lib/meta-whatsapp-service';
+import { findPartnerByPhoneNumberId, processAndUploadMedia, getWhatsAppProfilePicture } from '@/lib/meta-whatsapp-service';
 import { getPlatformMetaConfig, getDecryptedAppSecret } from '@/actions/admin-platform-actions';
 import crypto from 'crypto';
 import type {
@@ -195,6 +195,15 @@ async function getOrCreateConversation(
     }
 
     const newConvRef = db.collection('metaWhatsAppConversations').doc();
+
+    // Fetch profile picture
+    let profilePictureUrl: string | undefined;
+    try {
+        profilePictureUrl = await getWhatsAppProfilePicture(partnerId, customerWaId) || undefined;
+    } catch (err) {
+        console.log('Could not fetch profile picture, using default');
+    }
+
     const newConversation: Omit<MetaWhatsAppConversation, 'id'> = {
         partnerId,
         platform: 'meta_whatsapp',
@@ -209,6 +218,7 @@ async function getOrCreateConversation(
         unreadCount: 0,
         lastMessageAt: FieldValue.serverTimestamp(),
         createdAt: FieldValue.serverTimestamp(),
+        customerProfilePicture: profilePictureUrl,
     };
 
     await newConvRef.set({ id: newConvRef.id, ...newConversation });

@@ -286,3 +286,68 @@ export async function processAndUploadMedia(
         return null;
     }
 }
+
+export async function getWhatsAppProfilePicture(
+    partnerId: string,
+    waId: string
+): Promise<string | null> {
+    try {
+        const config = await getPartnerMetaConfig(partnerId);
+        if (!config) return null;
+
+        const accessToken = await getDecryptedAccessToken(partnerId);
+
+        // Fetch profile picture URL from Meta
+        const response = await fetch(
+            `${META_API_BASE}/${waId}/profile_picture`,
+            {
+                headers: { 'Authorization': `Bearer ${accessToken}` }
+            }
+        );
+
+        if (!response.ok) {
+            console.log(`No profile picture found for ${waId}`);
+            return null;
+        }
+
+        const data = await response.json();
+        const profilePicUrl = data.data?.url;
+
+        if (!profilePicUrl) return null;
+
+        // Download profile picture
+        const imageResponse = await fetch(profilePicUrl);
+        if (!imageResponse.ok) return null;
+
+        const arrayBuffer = await imageResponse.arrayBuffer();
+        const buffer = Buffer.from(arrayBuffer);
+
+        // Upload to Firebase Storage
+        const { adminStorage } = await import('@/lib/firebase-admin');
+        const bucket = adminStorage.bucket();
+        const filename = `chat/${partnerId}/whatsapp/profile-pictures/${waId}.jpg`;
+        const file = bucket.file(filename);
+
+        await file.save(buffer, {
+            metadata: {
+                contentType: 'image/jpeg',
+                customMetadata: {
+                    partnerId,
+                    waId,
+                    source: 'whatsapp_profile_picture',
+                    uploadedAt: new Date().toISOString()
+                }
+            },
+        });
+
+        await file.makePublic();
+        const publicUrl = `https://storage.googleapis.com/${bucket.name}/${filename}`;
+
+        console.log(`✅ Profile picture stored: ${waId}`);
+        return publicUrl;
+
+    } catch (error) {
+        console.error('❌ Error fetching profile picture:', error);
+        return null;
+    }
+}
