@@ -516,3 +516,14 @@ export async function createMetaWhatsAppTemplateAction(partnerId: string, templa
         return { success: false, message: error.message };
     }
 }
+
+export async function deleteMetaWhatsAppTemplateAction(partnerId: string, templateName: string): Promise<{ success: boolean; data?: any; message?: string }> {
+    try {
+        const { deleteMetaTemplate } = await import('@/lib/meta-whatsapp-service');
+        const data = await deleteMetaTemplate(partnerId, templateName);
+        return { success: true, data };
+    } catch (error: any) {
+        console.error('❌ Error deleting template:', error);
+        return { success: false, message: error.message };
+    }
+}

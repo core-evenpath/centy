@@ -9,10 +9,10 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
-import { FileText, ArrowLeft, Plus, Loader2, RefreshCw, CheckCircle2, XCircle, Clock } from 'lucide-react';
+import { FileText, ArrowLeft, Plus, Loader2, RefreshCw, CheckCircle2, XCircle, Clock, Trash2 } from 'lucide-react';
 import Link from 'next/link';
 import { useMultiWorkspaceAuth } from '@/hooks/use-multi-workspace-auth';
-import { getMetaWhatsAppTemplatesAction, createMetaWhatsAppTemplateAction } from '@/actions/meta-whatsapp-actions';
+import { getMetaWhatsAppTemplatesAction, createMetaWhatsAppTemplateAction, deleteMetaWhatsAppTemplateAction } from '@/actions/meta-whatsapp-actions';
 import { toast } from 'sonner';
 import { MetaTemplateCreateRequest } from '@/lib/types-meta-whatsapp';
 
@@ -24,6 +24,8 @@ export default function TemplatesPage() {
     const [loading, setLoading] = useState(true);
     const [isCreateOpen, setIsCreateOpen] = useState(false);
     const [creating, setCreating] = useState(false);
+    const [templateToDelete, setTemplateToDelete] = useState<any>(null);
+    const [deleting, setDeleting] = useState(false);
 
     // Form State
     const [name, setName] = useState('');
@@ -108,6 +110,28 @@ export default function TemplatesPage() {
             toast.error(`Error: ${error.message}`);
         } finally {
             setCreating(false);
+        }
+    };
+
+
+
+    const handleDeleteTemplate = async () => {
+        if (!partnerId || !templateToDelete) return;
+
+        setDeleting(true);
+        try {
+            const result = await deleteMetaWhatsAppTemplateAction(partnerId, templateToDelete.name);
+            if (result.success) {
+                toast.success('Template deleted successfully');
+                setTemplateToDelete(null);
+                fetchTemplates();
+            } else {
+                toast.error(`Failed to delete template: ${result.message}`);
+            }
+        } catch (error: any) {
+            toast.error(`Error: ${error.message}`);
+        } finally {
+            setDeleting(false);
         }
     };
 
@@ -296,12 +320,38 @@ export default function TemplatesPage() {
                                 </div>
                                 <div className="mt-4 flex justify-between items-center text-xs text-gray-500">
                                     <span>ID: {template.id}</span>
+                                    <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        className="h-8 w-8 p-0 text-red-500 hover:text-red-600 hover:bg-red-50"
+                                        onClick={() => setTemplateToDelete(template)}
+                                    >
+                                        <Trash2 className="w-4 h-4" />
+                                    </Button>
                                 </div>
                             </CardContent>
                         </Card>
                     ))}
                 </div>
             )}
+
+            <Dialog open={!!templateToDelete} onOpenChange={(open) => !open && setTemplateToDelete(null)}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>Delete Template</DialogTitle>
+                        <DialogDescription>
+                            Are you sure you want to delete the template "{templateToDelete?.name}"? This action cannot be undone.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <DialogFooter>
+                        <Button variant="outline" onClick={() => setTemplateToDelete(null)}>Cancel</Button>
+                        <Button variant="destructive" onClick={handleDeleteTemplate} disabled={deleting}>
+                            {deleting && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                            Delete
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
         </div>
     );
 }

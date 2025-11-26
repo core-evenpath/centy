@@ -1,17 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import admin from 'firebase-admin';
-
-if (!admin.apps.length) {
-  admin.initializeApp({
-    credential: admin.credential.cert({
-      projectId: process.env.FIREBASE_PROJECT_ID,
-      clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-      privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
-    }),
-  });
-}
-
-const db = admin.firestore();
+import { db } from '@/lib/firebase-admin';
+import { FieldValue } from 'firebase-admin/firestore';
 
 export async function POST(request: NextRequest) {
   try {
@@ -25,7 +14,7 @@ export async function POST(request: NextRequest) {
       platform: 'sms-v2',
       payload,
       success: true,
-      timestamp: admin.firestore.Timestamp.now(),
+      timestamp: FieldValue.serverTimestamp(),
     });
 
     return NextResponse.json({ success: true, message: 'SMS V2 received', payload });

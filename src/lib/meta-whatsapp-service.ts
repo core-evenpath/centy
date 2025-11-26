@@ -431,3 +431,44 @@ export async function createMetaTemplate(partnerId: string, templateData: any): 
 
     return response.json();
 }
+
+export async function deleteMetaTemplate(partnerId: string, templateName: string): Promise<any> {
+    const config = await getPartnerMetaConfig(partnerId);
+    if (!config || config.status !== 'active') throw new Error('Meta WhatsApp not configured');
+
+    const accessToken = await getDecryptedAccessToken(partnerId);
+
+    const response = await fetch(`${META_API_BASE}/${config.wabaId}/message_templates?name=${templateName}`, {
+        method: 'DELETE',
+        headers: {
+            'Authorization': `Bearer ${accessToken}`
+        }
+    });
+
+    if (!response.ok) {
+        const errorData = await response.json();
+        const errorMsg = errorData.error?.message || `Meta API error: ${response.status}`;
+
+        if (errorMsg.toLowerCase().includes('session has expired')) {
+            try {
+                const newToken = await refreshMetaAccessToken(partnerId);
+                const retryResp = await fetch(`${META_API_BASE}/${config.wabaId}/message_templates?name=${templateName}`, {
+                    method: 'DELETE',
+                    headers: {
+                        'Authorization': `Bearer ${newToken}`
+                    }
+                });
+                if (!retryResp.ok) {
+                    const retryError = await retryResp.json();
+                    throw new Error(retryError.error?.message || `Meta API error after refresh: ${retryResp.status}`);
+                }
+                return retryResp.json();
+            } catch (refreshErr: any) {
+                throw new Error(`Failed to refresh Meta token: ${refreshErr.message}`);
+            }
+        }
+        throw new Error(errorMsg);
+    }
+
+    return response.json();
+}
