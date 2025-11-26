@@ -54,7 +54,9 @@ export function MessageBubble({ message, onDelete }: MessageBubbleProps) {
                         className="rounded-lg max-w-full h-auto object-cover"
                         style={{ maxHeight: '300px' }}
                     />
-                    {message.content && <p className="mt-1 text-sm">{message.content}</p>}
+                    {message.content && !message.content.includes('[IMAGE]') && (
+                        <p className="mt-2 text-sm">{message.content}</p>
+                    )}
                 </div>
             );
         }
@@ -68,7 +70,9 @@ export function MessageBubble({ message, onDelete }: MessageBubbleProps) {
                         className="rounded-lg max-w-full h-auto"
                         style={{ maxHeight: '300px' }}
                     />
-                    {message.content && <p className="mt-1 text-sm">{message.content}</p>}
+                    {message.content && !message.content.includes('[VIDEO]') && (
+                        <p className="mt-2 text-sm">{message.content}</p>
+                    )}
                 </div>
             );
         }
@@ -88,11 +92,16 @@ export function MessageBubble({ message, onDelete }: MessageBubbleProps) {
             );
         }
 
-        return (
-            <p className="text-[15px] text-gray-900 whitespace-pre-wrap break-words">
-                {message.content}
-            </p>
-        );
+        // For text messages or media without URL
+        if (message.content && !message.content.match(/^\[(IMAGE|VIDEO|DOCUMENT|AUDIO|STICKER)\]$/)) {
+            return (
+                <p className="text-[15px] text-gray-900 whitespace-pre-wrap break-words">
+                    {message.content}
+                </p>
+            );
+        }
+
+        return null;
     };
 
     return (
