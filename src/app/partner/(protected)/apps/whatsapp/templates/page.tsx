@@ -67,19 +67,40 @@ export default function TemplatesPage() {
 
         setCreating(true);
         try {
-            const components: any[] = [
-                {
-                    type: 'BODY',
-                    text: bodyText
-                }
-            ];
+            const extractVariables = (text: string) => {
+                const matches = text.match(/{{\s*(\d+)\s*}}/g);
+                if (!matches) return 0;
+                const indices = matches.map(m => parseInt(m.replace(/\D/g, '')));
+                return Math.max(...indices, 0);
+            };
+
+            const bodyComponent: any = {
+                type: 'BODY',
+                text: bodyText
+            };
+
+            const bodyVarCount = extractVariables(bodyText);
+            if (bodyVarCount > 0) {
+                const examples = Array.from({ length: bodyVarCount }, (_, i) => `Example ${i + 1}`);
+                bodyComponent.example = { body_text: [examples] };
+            }
+
+            const components: any[] = [bodyComponent];
 
             if (headerText) {
-                components.push({
+                const headerComponent: any = {
                     type: 'HEADER',
                     format: 'TEXT',
                     text: headerText
-                });
+                };
+
+                const headerVarCount = extractVariables(headerText);
+                if (headerVarCount > 0) {
+                    const examples = Array.from({ length: headerVarCount }, (_, i) => `Header ${i + 1}`);
+                    headerComponent.example = { header_text: examples };
+                }
+
+                components.push(headerComponent);
             }
 
             if (footerText) {
@@ -90,7 +111,7 @@ export default function TemplatesPage() {
             }
 
             const templateData: MetaTemplateCreateRequest = {
-                name: name.toLowerCase().replace(/\s+/g, '_'), // Meta requires snake_case
+                name: name.toLowerCase().replace(/\s+/g, '_'),
                 category,
                 language,
                 components
