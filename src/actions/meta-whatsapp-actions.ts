@@ -195,13 +195,21 @@ export async function sendMetaWhatsAppMessageAction(
     }
 
     try {
+        console.log('sendMetaWhatsAppMessageAction started', { partnerId: input.partnerId, to: input.to });
         const config = await getPartnerMetaConfig(input.partnerId);
+        console.log('Partner Meta Config:', config ? { status: config.status, phoneNumberId: config.phoneNumberId } : 'null');
 
         if (!config || config.status !== 'active') {
+            console.error('Meta WhatsApp not configured or inactive');
             return {
                 success: false,
                 message: 'Meta WhatsApp not configured or inactive'
             };
+        }
+
+        if (!input.to) {
+            console.error('No recipient phone number provided');
+            return { success: false, message: 'No recipient phone number provided' };
         }
 
         const normalizedPhone = input.to.replace(/\D/g, '');

@@ -46,25 +46,25 @@ async function getOrCreateRagStore(partnerId: string): Promise<string> {
   }
 
   const storeRef = db.collection(`partners/${partnerId}/fileSearchStores`).doc('primary');
-  
+
   try {
     const storeDoc = await db.runTransaction(async (transaction) => {
       const doc = await transaction.get(storeRef);
-      
+
       if (doc.exists && doc.data()?.state === 'ACTIVE') {
         return doc;
       }
-      
+
       console.log('📦 Creating new RAG store with transaction lock');
       const displayName = `${partnerId}-vault`;
-      const ragStore = await genAI.fileSearchStores.create({ 
-        config: { displayName } 
+      const ragStore = await genAI.fileSearchStores.create({
+        config: { displayName }
       });
-      
+
       if (!ragStore.name) {
         throw new Error('Failed to create RAG store: name is missing');
       }
-      
+
       transaction.set(storeRef, {
         name: ragStore.name,
         displayName: displayName,
@@ -75,14 +75,14 @@ async function getOrCreateRagStore(partnerId: string): Promise<string> {
         totalSizeBytes: 0,
         state: 'ACTIVE',
       });
-      
+
       return { exists: true, data: () => ({ name: ragStore.name }) } as any;
     });
-    
+
     const ragStoreName = storeDoc.data()?.name;
     console.log('✅ Using RAG store:', ragStoreName);
     return ragStoreName;
-    
+
   } catch (error: any) {
     console.error('Error in getOrCreateRagStore:', error);
     throw error;
@@ -92,11 +92,11 @@ async function getOrCreateRagStore(partnerId: string): Promise<string> {
 function convertToMarkdown(datasetName: string, jsonlContent: string): string {
   const lines = jsonlContent.split('\n').filter(line => line.trim());
   const entries = lines.map(line => JSON.parse(line));
-  
+
   let markdown = `# ${datasetName}\n\n`;
   markdown += `*Training Data - ${entries.length} Q&A pairs*\n\n`;
   markdown += `---\n\n`;
-  
+
   entries.forEach((entry, index) => {
     markdown += `## Entry ${index + 1}\n\n`;
     markdown += `**Question:** ${entry.question}\n\n`;
@@ -106,7 +106,7 @@ function convertToMarkdown(datasetName: string, jsonlContent: string): string {
     }
     markdown += `---\n\n`;
   });
-  
+
   return markdown;
 }
 
@@ -190,7 +190,7 @@ export async function uploadFileToVault(
     }
 
     console.log('🔵 Step 3: Creating file record with PROCESSING state');
-    
+
     const initialVaultFile = {
       name: fileData.name,
       displayName: fileData.displayName,
@@ -224,13 +224,13 @@ export async function uploadFileToVault(
     fileDocRef = await db
       .collection(`partners/${partnerId}/vaultFiles`)
       .add(initialVaultFile);
-    
+
     console.log('✅ File record created with ID:', fileDocRef.id);
 
     await updateFileProgress(fileDocRef, 2, 'Uploading to storage...');
     console.log('🔵 Step 4: Uploading to Firebase Storage');
     const file = bucket.file(storagePath);
-    
+
     await file.save(buffer, {
       metadata: {
         contentType: fileData.mimeType,
@@ -280,12 +280,12 @@ export async function uploadFileToVault(
       await delay(3000);
       op = await genAI.operations.get({ operation: op });
       attempts++;
-      
+
       if (attempts % 5 === 0) {
         console.log(`⏳ Still processing (${attempts * 3}s)`);
         await updateFileProgress(
-          fileDocRef, 
-          4, 
+          fileDocRef,
+          4,
           `RAG processing... (${attempts * 3}s)`
         );
       }
@@ -308,19 +308,19 @@ export async function uploadFileToVault(
 
     await updateFileProgress(fileDocRef, 5, 'Retrieving embedding metadata...');
     console.log('🔵 Step 7: Getting actual embedding count from Gemini');
-    
+
     let actualChunks = estimatedChunks;
     let actualEmbeddings = estimatedChunks;
-    
+
     try {
       const fileInfo = await genAI.files.get({ name: uploadedFileName });
       console.log('📊 Gemini file info:', fileInfo);
-      
+
       if (fileInfo.metadata) {
         actualChunks = fileInfo.metadata.chunkCount || estimatedChunks;
         actualEmbeddings = fileInfo.metadata.embeddingCount || estimatedChunks;
       }
-      
+
       console.log(`✅ Actual embeddings: ${actualEmbeddings}, chunks: ${actualChunks}`);
     } catch (metadataError) {
       console.warn('⚠️ Could not retrieve embedding metadata:', metadataError);
@@ -438,7 +438,7 @@ export async function uploadFileToVault(
         console.warn('Could not clean up storage file:', cleanupError);
       }
     }
-    
+
     return {
       success: false,
       message: `Failed to upload: ${error.message}`,
@@ -542,7 +542,7 @@ export async function createTrainingDataFile(
       await delay(3000);
       op = await genAI.operations.get({ operation: op });
       attempts++;
-      
+
       if (attempts % 5 === 0) {
         console.log(`⏳ Processing (${attempts * 3}s)`);
       }
@@ -590,7 +590,7 @@ export async function createTrainingDataFile(
     };
   } catch (error: any) {
     console.error('❌ Failed to create training data:', error);
-    
+
     if (fileDocRef) {
       try {
         await fileDocRef.update({
@@ -609,7 +609,7 @@ export async function createTrainingDataFile(
         console.warn('Could not clean up file:', cleanupError);
       }
     }
-    
+
     return {
       success: false,
       message: `Failed to create training data: ${error.message}`,
@@ -809,14 +809,14 @@ export async function getVaultFileContent(
     }
 
     const fileData = fileDoc.data();
-    
+
     if (fileData?.trainingData) {
       return {
         success: true,
         content: fileData.trainingData,
       };
     }
-    
+
     if (!fileData?.firebaseStoragePath) {
       return { success: false, message: 'File path not found' };
     }
@@ -826,7 +826,7 @@ export async function getVaultFileContent(
     const file = bucket.file(fileData.firebaseStoragePath);
 
     const [content] = await file.download();
-    
+
     return {
       success: true,
       content: content.toString('utf-8'),
@@ -860,7 +860,7 @@ export async function deleteVaultFile(
     }
 
     const fileData = fileDoc.data();
-    
+
     console.log('🔵 Step 2: Deleting from Gemini RAG store');
     if (fileData?.geminiFileName) {
       try {
@@ -878,7 +878,7 @@ export async function deleteVaultFile(
       const storage = getStorage();
       const bucket = storage.bucket();
       const file = bucket.file(fileData.firebaseStoragePath);
-      
+
       try {
         await file.delete();
         console.log('✅ Deleted file from storage');
@@ -907,9 +907,9 @@ export async function deleteVaultFile(
 
 export async function cleanupOrphanedRagFiles(
   partnerId: string
-): Promise<{ 
-  success: boolean; 
-  message: string; 
+): Promise<{
+  success: boolean;
+  message: string;
   cleanedCount?: number;
   errors?: string[];
 }> {
@@ -1036,8 +1036,8 @@ export async function verifyRagFileIntegrity(
       console.log(`📊 Files in Gemini: ${geminiFiles.length}`);
     } catch (listError: any) {
       console.warn('⚠️ Could not list Gemini files:', listError.message);
-      return { 
-        success: false, 
+      return {
+        success: false,
         message: 'Could not list Gemini files',
         firestoreCount: firestoreFiles.size,
       };
@@ -1183,14 +1183,11 @@ export async function chatWithVaultHybrid(
     const modelChoice = await getPartnerAIConfig(partnerId);
     console.log(`📊 Hybrid query initiated - Using partner's model: ${modelChoice}`);
 
-    const result = await queryWithHybridRAG(
-      partnerId, 
-      message, 
-      modelChoice,
+    const result = await queryWithGeminiRAG(
+      partnerId,
+      message,
       {
         maxChunks: 5,
-        maxChunkChars: 3000,
-        allowEmptyChunks: true,
         selectedFileIds: selectedFileIds,
       }
     );
@@ -1251,7 +1248,7 @@ async function getConversationContext(
 
   try {
     const collectionName = platform === 'sms' ? 'smsMessages' : 'whatsappMessages';
-    
+
     const messagesSnapshot = await db
       .collection(collectionName)
       .where('conversationId', '==', conversationId)
@@ -1295,7 +1292,7 @@ export async function chatWithVaultForConversation(
 }> {
   console.log('⚡ Gemini 3 RAG starting for messaging');
   const startTime = Date.now();
-  
+
   if (!db) {
     return { success: false, message: 'Service not configured' };
   }
@@ -1317,8 +1314,8 @@ export async function chatWithVaultForConversation(
     const conversationData = conversationDoc.data();
     const customerName = conversationData?.customerName || conversationData?.contactName || 'Customer';
 
-    const contextSection = conversationContext 
-      ? `\nRecent conversation:\n${conversationContext}\n` 
+    const contextSection = conversationContext
+      ? `\nRecent conversation:\n${conversationContext}\n`
       : '';
 
     const enhancedQuestion = `${contextSection}
@@ -1349,7 +1346,7 @@ Generate a helpful, professional response (1-3 sentences) using the knowledge ba
 
     const responseText = result.response.trim();
     const chunksUsed = result.geminiChunks?.length || 0;
-    
+
     const confidence = chunksUsed > 0 ? 0.90 : 0.65;
     const reasoning = chunksUsed > 0
       ? `Based on ${chunksUsed} source${chunksUsed > 1 ? 's' : ''} from knowledge base (Gemini 3)`
@@ -1377,7 +1374,7 @@ Generate a helpful, professional response (1-3 sentences) using the knowledge ba
 
   } catch (error: any) {
     console.error('❌ Gemini 3 RAG failed for messaging:', error);
-    
+
     return {
       success: false,
       message: `Error: ${error.message}`,
@@ -1413,10 +1410,10 @@ export async function generateExampleQuestions(partnerId: string): Promise<strin
         thinkingLevel: 'low',
       }
     });
-    
+
     let jsonText = response.text.trim();
     const jsonMatch = jsonText.match(/```json\n([\s\S]*?)\n```/);
-    
+
     if (jsonMatch && jsonMatch[1]) {
       jsonText = jsonMatch[1];
     } else {
@@ -1426,7 +1423,7 @@ export async function generateExampleQuestions(partnerId: string): Promise<strin
         jsonText = jsonText.substring(firstBracket, lastBracket + 1);
       }
     }
-    
+
     const parsedData = JSON.parse(jsonText);
     return Array.isArray(parsedData) ? parsedData.filter(q => typeof q === 'string') : [];
   } catch (error) {
@@ -1526,8 +1523,8 @@ export async function listFileSearchStores(
 export async function getVaultFileStatus(
   partnerId: string,
   fileId: string
-): Promise<{ 
-  success: boolean; 
+): Promise<{
+  success: boolean;
   state?: 'PROCESSING' | 'ACTIVE' | 'FAILED';
   processingStep?: number;
   processingDescription?: string;
@@ -1572,14 +1569,14 @@ export async function getDocumentTokenEstimate(
   withinLimit?: boolean;
 }> {
   const result = await estimateDocumentTokens(partnerId, fileIds);
-  
+
   if (result.success && result.totalTokens) {
     return {
       ...result,
       withinLimit: result.totalTokens <= 180000,
     };
   }
-  
+
   return result;
 }
 
@@ -1617,7 +1614,7 @@ export async function getExtractedTextPreview(
       hasText: text.length > 0,
       textLength: text.length,
       preview: text.substring(0, 1000),
-      searchSample: text.toLowerCase().includes('ceo') 
+      searchSample: text.toLowerCase().includes('ceo')
         ? text.substring(text.toLowerCase().indexOf('ceo') - 100, text.toLowerCase().indexOf('ceo') + 400)
         : 'Search term not found in extracted text',
     };
@@ -1704,18 +1701,18 @@ export async function searchInDocument(
     const text = data.extractedText || data.trainingData || '';
 
     if (!text) {
-      return { 
-        success: false, 
-        message: 'No text content available for this file' 
+      return {
+        success: false,
+        message: 'No text content available for this file'
       };
     }
 
     const lowerText = text.toLowerCase();
     const lowerSearch = searchTerm.toLowerCase();
-    
+
     const indices: number[] = [];
     let index = lowerText.indexOf(lowerSearch);
-    
+
     while (index !== -1) {
       indices.push(index);
       index = lowerText.indexOf(lowerSearch, index + 1);
@@ -1777,7 +1774,7 @@ export async function cleanupAllVaultData(
     console.log('📋 Step 2: Deleting Gemini files...');
     for (const doc of vaultFilesSnapshot.docs) {
       const data = doc.data();
-      
+
       if (data.geminiFileName) {
         try {
           await genAI.files.delete({ name: data.geminiFileName });
@@ -1817,7 +1814,7 @@ export async function cleanupAllVaultData(
     const queriesSnapshot = await db
       .collection(`partners/${partnerId}/vaultQueries`)
       .get();
-    
+
     if (!queriesSnapshot.empty) {
       const queryBatch = db.batch();
       queriesSnapshot.docs.forEach(doc => {
@@ -1847,7 +1844,7 @@ export async function cleanupAllVaultData(
     try {
       const listResponse = await genAI.files.list();
       const allGeminiFiles = listResponse.files || [];
-      
+
       for (const file of allGeminiFiles) {
         try {
           await genAI.files.delete({ name: file.name });

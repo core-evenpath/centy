@@ -17,6 +17,15 @@ import {
 import { createTrainingDataFile, updateTrainingDataFile, getVaultFileContent } from '@/actions/vault-actions';
 import type { VaultFile } from '@/lib/types';
 
+// Cross-browser compatible UUID generator
+const generateUUID = (): string => {
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+    const r = Math.random() * 16 | 0;
+    const v = c === 'x' ? r : (r & 0x3 | 0x8);
+    return v.toString(16);
+  });
+};
+
 interface TrainingDataDialogProps {
   isOpen: boolean;
   onClose: () => void;
@@ -42,7 +51,7 @@ export default function TrainingDataDialog({
 }: TrainingDataDialogProps) {
   const [datasetName, setDatasetName] = useState('');
   const [entries, setEntries] = useState<TrainingEntry[]>([
-    { id: crypto.randomUUID(), question: '', answer: '' }
+    { id: generateUUID(), question: '', answer: '' }
   ]);
   const [isUploading, setIsUploading] = useState(false);
   const [isLoadingExisting, setIsLoadingExisting] = useState(false);
@@ -68,7 +77,7 @@ export default function TrainingDataDialog({
           try {
             const data = JSON.parse(line);
             return {
-              id: crypto.randomUUID(),
+              id: generateUUID(),
               question: data.question,
               answer: data.answer,
             };
@@ -95,11 +104,11 @@ export default function TrainingDataDialog({
 
   const resetForm = () => {
     setDatasetName('');
-    setEntries([{ id: crypto.randomUUID(), question: '', answer: '' }]);
+    setEntries([{ id: generateUUID(), question: '', answer: '' }]);
   };
 
   const addEntry = () => {
-    setEntries([...entries, { id: crypto.randomUUID(), question: '', answer: '' }]);
+    setEntries([...entries, { id: generateUUID(), question: '', answer: '' }]);
   };
 
   const removeEntry = (id: string) => {
@@ -146,7 +155,7 @@ export default function TrainingDataDialog({
     try {
       const jsonlContent = generateJSONL();
       let result;
-      
+
       if (existingFile) {
         result = await updateTrainingDataFile(
           partnerId,
@@ -169,7 +178,7 @@ export default function TrainingDataDialog({
           title: existingFile ? 'Updated' : 'Created',
           description: `${datasetName}.md with ${validEntries.length} entries`,
         });
-        
+
         resetForm();
         onClose();
         onUploadComplete();
@@ -194,78 +203,109 @@ export default function TrainingDataDialog({
 
   return (
     <Dialog open={isOpen} onOpenChange={handleClose}>
-      <DialogContent className="max-w-3xl max-h-[90vh] flex flex-col">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <Sparkles className="h-5 w-5 text-blue-600" />
-            {existingFile ? 'Edit Training Data' : 'Add Training Data'}
-          </DialogTitle>
-          <DialogDescription>
-            Create Q&A pairs - saved as .md for RAG
-          </DialogDescription>
-        </DialogHeader>
+      <DialogContent className="max-w-5xl max-h-[95vh] flex flex-col p-0 gap-0 border-0 bg-white shadow-2xl">
+        {/* Header */}
+        <div className="px-8 pt-8 pb-6 border-b border-slate-200/60 bg-gradient-to-b from-slate-50/50 to-white">
+          <div className="flex items-start justify-between">
+            <div className="flex-1">
+              <DialogTitle className="text-3xl font-semibold text-slate-900 mb-2 tracking-tight">
+                {existingFile ? 'Edit Training Dataset' : 'New Training Dataset'}
+              </DialogTitle>
+              <DialogDescription className="text-base text-slate-600 leading-relaxed">
+                Create question-answer pairs to train your AI assistant. Each entry helps improve response accuracy.
+              </DialogDescription>
+            </div>
+            <Sparkles className="h-8 w-8 text-blue-500 opacity-60" />
+          </div>
+        </div>
 
         {isLoadingExisting ? (
-          <div className="flex-1 flex items-center justify-center">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+          <div className="flex-1 flex items-center justify-center min-h-[500px]">
+            <div className="text-center">
+              <div className="inline-flex items-center justify-center w-14 h-14 mb-4">
+                <div className="animate-spin rounded-full h-14 w-14 border-3 border-slate-200 border-t-blue-500"></div>
+              </div>
+              <p className="text-sm text-slate-500 font-medium">Loading dataset...</p>
+            </div>
           </div>
         ) : (
-          <div className="flex-1 overflow-y-auto">
-            <div className="space-y-4 pr-2">
+          <div className="flex-1 overflow-y-auto px-8 py-6">
+            <div className="max-w-4xl mx-auto space-y-8">
+              {/* Dataset Name */}
               <div>
-                <label className="text-sm font-medium text-gray-700 mb-1.5 block">
+                <label className="block text-sm font-semibold text-slate-900 mb-3">
                   Dataset Name
                 </label>
                 <Input
-                  placeholder="e.g., Product FAQ"
+                  placeholder="e.g., Product Support FAQ"
                   value={datasetName}
                   onChange={(e) => setDatasetName(e.target.value)}
+                  className="h-14 text-base px-4 border-slate-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 rounded-xl transition-all"
                 />
               </div>
 
-              <div className="flex items-center justify-between">
-                <label className="text-sm font-medium text-gray-700">
-                  Q&A Pairs ({entries.filter(e => e.question.trim() && e.answer.trim()).length})
-                </label>
-                <Button onClick={addEntry} size="sm" variant="outline">
-                  <Plus className="h-4 w-4 mr-2" />
-                  Add Entry
+              {/* Section Header */}
+              <div className="flex items-center justify-between pt-2">
+                <div>
+                  <h3 className="text-lg font-semibold text-slate-900">Question & Answer Pairs</h3>
+                  <p className="text-sm text-slate-500 mt-0.5">
+                    {entries.filter(e => e.question.trim() && e.answer.trim()).length} of {entries.length} complete
+                  </p>
+                </div>
+                <Button
+                  onClick={addEntry}
+                  className="h-11 px-6 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-medium transition-all hover:shadow-lg hover:shadow-blue-500/25"
+                >
+                  <Plus className="h-5 w-5 mr-2" />
+                  Add Pair
                 </Button>
               </div>
 
-              <div className="space-y-3 max-h-[50vh] overflow-y-auto pr-2">
+              {/* Entries */}
+              <div className="space-y-5">
                 {entries.map((entry, index) => (
-                  <div key={entry.id} className="border border-gray-200 rounded-lg p-4 bg-gray-50">
-                    <div className="flex items-center justify-between mb-3">
-                      <span className="text-xs font-semibold text-gray-500">
-                        Entry #{index + 1}
-                      </span>
+                  <div
+                    key={entry.id}
+                    className="group relative border border-slate-200 rounded-2xl p-7 bg-white hover:border-slate-300 hover:shadow-lg hover:shadow-slate-200/50 transition-all duration-300"
+                  >
+                    {/* Entry Header */}
+                    <div className="flex items-center justify-between mb-6">
+                      <div className="flex items-center gap-3">
+                        <div className="flex items-center justify-center w-9 h-9 rounded-lg bg-slate-100 text-slate-700 font-semibold text-sm">
+                          {index + 1}
+                        </div>
+                        <span className="text-sm font-medium text-slate-600">
+                          Pair #{index + 1}
+                        </span>
+                      </div>
                       {entries.length > 1 && (
                         <button
                           onClick={() => removeEntry(entry.id)}
-                          className="text-red-600 hover:text-red-700 p-1"
+                          className="opacity-0 group-hover:opacity-100 p-2.5 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 transition-all"
+                          aria-label="Remove pair"
                         >
-                          <Trash2 className="h-4 w-4" />
+                          <Trash2 className="h-5 w-5" />
                         </button>
                       )}
                     </div>
 
-                    <div className="space-y-3">
+                    {/* Fields */}
+                    <div className="space-y-5">
                       <div>
-                        <label className="text-xs font-medium text-gray-700 mb-1 block">
+                        <label className="block text-sm font-medium text-slate-700 mb-2.5">
                           Question
                         </label>
                         <Textarea
-                          placeholder="What should the AI be asked?"
+                          placeholder="What should users ask?"
                           value={entry.question}
                           onChange={(e) => updateEntry(entry.id, 'question', e.target.value)}
                           rows={2}
-                          className="resize-none"
+                          className="resize-none text-base px-4 py-3 border-slate-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 rounded-xl transition-all"
                         />
                       </div>
 
                       <div>
-                        <label className="text-xs font-medium text-gray-700 mb-1 block">
+                        <label className="block text-sm font-medium text-slate-700 mb-2.5">
                           Answer
                         </label>
                         <Textarea
@@ -273,7 +313,7 @@ export default function TrainingDataDialog({
                           value={entry.answer}
                           onChange={(e) => updateEntry(entry.id, 'answer', e.target.value)}
                           rows={3}
-                          className="resize-none"
+                          className="resize-none text-base px-4 py-3 border-slate-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 rounded-xl transition-all"
                         />
                       </div>
                     </div>
@@ -284,21 +324,35 @@ export default function TrainingDataDialog({
           </div>
         )}
 
-        <div className="flex justify-between items-center pt-4 border-t">
-          <div className="text-sm text-gray-600">
-            Will be saved as {datasetName || 'dataset'}.md
-          </div>
-          <div className="flex gap-3">
-            <Button variant="outline" onClick={handleClose}>
-              Cancel
-            </Button>
-            <Button
-              onClick={handleSave}
-              disabled={isUploading || !datasetName.trim() || isLoadingExisting}
-              className="bg-blue-600 hover:bg-blue-700"
-            >
-              {isUploading ? (existingFile ? 'Updating...' : 'Creating...') : (existingFile ? 'Update' : 'Create')}
-            </Button>
+        {/* Footer */}
+        <div className="px-8 py-6 border-t border-slate-200/60 bg-gradient-to-t from-slate-50/50 to-white">
+          <div className="max-w-4xl mx-auto flex items-center justify-between">
+            <div className="text-sm text-slate-600">
+              Will be saved as <span className="font-semibold text-slate-900">{datasetName || 'untitled'}.md</span>
+            </div>
+            <div className="flex gap-3">
+              <Button
+                variant="outline"
+                onClick={handleClose}
+                className="h-11 px-6 border-slate-300 hover:bg-slate-50 rounded-xl font-medium transition-all"
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={handleSave}
+                disabled={isUploading || !datasetName.trim() || isLoadingExisting}
+                className="h-11 px-8 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-medium transition-all hover:shadow-lg hover:shadow-blue-500/25 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isUploading ? (
+                  <span className="flex items-center gap-2.5">
+                    <div className="animate-spin rounded-full h-4 w-4 border-2 border-white/30 border-t-white"></div>
+                    {existingFile ? 'Updating...' : 'Creating...'}
+                  </span>
+                ) : (
+                  existingFile ? 'Save Changes' : 'Create Dataset'
+                )}
+              </Button>
+            </div>
           </div>
         </div>
       </DialogContent>

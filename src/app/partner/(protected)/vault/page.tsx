@@ -2,21 +2,26 @@
 
 import React, { useState, useEffect } from 'react';
 import { useMultiWorkspaceAuth } from '@/hooks/use-multi-workspace-auth';
-import PartnerHeader from '@/components/partner/PartnerHeader';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { 
-  Upload, 
-  RefreshCw, 
-  Sparkles, 
-  Search, 
+import {
+  Upload,
+  RefreshCw,
+  Sparkles,
+  Search,
   Filter,
   X,
   Grid3x3,
   List,
   AlertCircle,
   Database,
-  Brain
+  Brain,
+  FileText,
+  CheckCircle,
+  Clock,
+  TrendingUp,
+  Zap,
+  BarChart3
 } from 'lucide-react';
 import VaultSidebar from '@/components/partner/vault/VaultSidebar';
 import CleanupButton from '@/components/partner/vault/CleanupButton';
@@ -37,7 +42,7 @@ import {
 export default function VaultPage() {
   const { user, currentWorkspace, loading: authLoading } = useMultiWorkspaceAuth();
   const partnerId = currentWorkspace?.partnerId;
-  
+
   const [files, setFiles] = useState<VaultFile[]>([]);
   const [filteredFiles, setFilteredFiles] = useState<VaultFile[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -48,7 +53,7 @@ export default function VaultPage() {
   const [editingFile, setEditingFile] = useState<VaultFile | null>(null);
   const [isTestDrawerOpen, setIsTestDrawerOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  const [viewMode, setViewMode] = useState<'grid' | 'list'>('list');
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [showFilters, setShowFilters] = useState(true);
   const [showUploadProgress, setShowUploadProgress] = useState(false);
   const [filters, setFilters] = useState({
@@ -112,10 +117,10 @@ export default function VaultPage() {
       setIsLoading(true);
     }
     setLoadError(null);
-    
+
     try {
       const filesResult = await listVaultFiles(partnerId);
-      
+
       if (filesResult.success) {
         setFiles(filesResult.files);
       } else {
@@ -160,7 +165,7 @@ export default function VaultPage() {
     if (filters.dateRange !== 'all') {
       const now = new Date();
       const cutoff = new Date();
-      
+
       if (filters.dateRange === 'today') {
         cutoff.setHours(0, 0, 0, 0);
       } else if (filters.dateRange === 'week') {
@@ -183,7 +188,7 @@ export default function VaultPage() {
 
     try {
       const result = await deleteVaultFile(partnerId, fileId);
-      
+
       if (result.success) {
         setFiles(prev => prev.filter(f => f.id !== fileId));
         setSelectedFile(null);
@@ -238,10 +243,10 @@ export default function VaultPage() {
 
   if (authLoading || isLoading) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-gray-50">
+      <div className="flex items-center justify-center min-h-screen bg-slate-50">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading vault...</p>
+          <div className="animate-spin rounded-full h-12 w-12 border-4 border-slate-200 border-t-blue-600 mx-auto mb-4"></div>
+          <p className="text-slate-600 font-medium">Loading vault...</p>
         </div>
       </div>
     );
@@ -249,11 +254,13 @@ export default function VaultPage() {
 
   if (!user || !partnerId) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-gray-50">
-        <div className="text-center">
-          <AlertCircle className="h-12 w-12 text-red-500 mx-auto mb-4" />
-          <p className="text-gray-900 font-semibold">Access Error</p>
-          <p className="text-gray-600 mt-2">{loadError || 'Please log in again.'}</p>
+      <div className="flex items-center justify-center min-h-screen bg-slate-50">
+        <div className="text-center bg-white border border-slate-200 rounded-2xl p-12 shadow-sm max-w-md">
+          <div className="bg-red-50 rounded-full w-16 h-16 flex items-center justify-center mx-auto mb-6">
+            <AlertCircle className="h-8 w-8 text-red-600" />
+          </div>
+          <h3 className="text-xl font-semibold text-slate-900 mb-2">Access Denied</h3>
+          <p className="text-slate-600">{loadError || 'Please log in to access your vault.'}</p>
         </div>
       </div>
     );
@@ -261,185 +268,174 @@ export default function VaultPage() {
 
   const activeFileCount = files.filter(f => f.state === 'ACTIVE').length;
   const processingFileCount = files.filter(f => f.state === 'PROCESSING').length;
+  const totalEmbeddings = files
+    .filter(f => f.state === 'ACTIVE' && f.ragMetadata?.actualEmbeddings)
+    .reduce((sum, f) => sum + (f.ragMetadata?.actualEmbeddings || 0), 0);
 
   return (
-    <>
-      <PartnerHeader
-        title="Vault"
-        subtitle="Manage your documents and AI knowledge base"
-      />
+    <div className="min-h-screen bg-slate-50/50">
+      {/* Header Section */}
+      <div className="bg-white border-b border-slate-200 sticky top-0 z-10">
+        <div className="px-8 py-6">
+          <div className="flex items-center justify-between mb-6">
+            <div className="flex items-center gap-4">
+              <div className="bg-blue-600 rounded-xl p-3 shadow-lg shadow-blue-600/20">
+                <Database className="h-6 w-6 text-white" />
+              </div>
+              <div>
+                <h1 className="text-2xl font-bold text-slate-900">Document Vault</h1>
+                <p className="text-slate-500 text-sm">Manage your AI knowledge base</p>
+              </div>
+            </div>
 
-      <main className="flex-1 bg-gray-50 overflow-hidden">
-        <div className="bg-white border-b border-gray-200">
-          <div className="px-6 py-3">
-            <div className="flex items-center justify-between gap-4">
-              <div className="flex items-center gap-2">
-                <Button 
-                  onClick={() => setIsUploadDialogOpen(true)}
-                  size="sm"
-                  className="bg-blue-600 hover:bg-blue-700 h-9"
-                >
-                  <Upload className="h-4 w-4 mr-2" />
-                  Upload
-                </Button>
+            <div className="flex items-center gap-3">
+              <Button
+                onClick={() => setIsTestDrawerOpen(true)}
+                className="bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 hover:text-slate-900 shadow-sm"
+              >
+                <Sparkles className="h-4 w-4 mr-2 text-blue-600" />
+                Vault Chat
+              </Button>
+              <Button
+                onClick={() => setIsTrainingDataDialogOpen(true)}
+                className="bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 hover:text-slate-900 shadow-sm"
+              >
+                <Brain className="h-4 w-4 mr-2 text-purple-600" />
+                Training Data
+              </Button>
+              <Button
+                onClick={() => setIsUploadDialogOpen(true)}
+                className="bg-blue-600 hover:bg-blue-700 text-white shadow-md shadow-blue-600/20"
+              >
+                <Upload className="h-4 w-4 mr-2" />
+                Upload Document
+              </Button>
+            </div>
+          </div>
 
-                <Button 
-                  onClick={() => setIsTrainingDataDialogOpen(true)}
-                  size="sm"
-                  variant="outline"
-                  className="h-9"
-                >
-                  <Brain className="h-4 w-4 mr-2" />
-                  Add Training Data
-                </Button>
-                
-                <Button 
-                  variant="outline"
-                  size="sm"
-                  onClick={() => loadData(false)}
-                  disabled={isLoading}
-                  className="h-9"
-                >
-                  <RefreshCw className={`h-4 w-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
-                  Sync
-                </Button>
-
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setShowFilters(!showFilters)}
-                  className={`h-9 ${showFilters ? 'bg-gray-100' : ''}`}
-                >
-                  <Filter className="h-4 w-4 mr-2" />
-                  Filters
-                </Button>
+          {/* Stats & Controls */}
+          <div className="flex items-center justify-between gap-6">
+            <div className="flex items-center gap-6">
+              <div className="flex items-center gap-3 px-4 py-2 bg-slate-50 rounded-lg border border-slate-100">
+                <FileText className="h-4 w-4 text-slate-400" />
+                <div className="flex flex-col">
+                  <span className="text-xs text-slate-500 font-medium uppercase tracking-wider">Documents</span>
+                  <span className="text-lg font-bold text-slate-900 leading-none">{files.length}</span>
+                </div>
               </div>
 
-              <div className="flex items-center gap-4 text-sm">
-                <div className="flex items-center gap-2">
-                  <Database className="h-4 w-4 text-gray-500" />
-                  <span className="text-gray-600">
-                    {files.length} document{files.length !== 1 ? 's' : ''}
-                  </span>
-                  {processingFileCount > 0 && (
-                    <span className="text-blue-600 font-medium">
-                      • {processingFileCount} processing
-                    </span>
-                  )}
+              <div className="flex items-center gap-3 px-4 py-2 bg-slate-50 rounded-lg border border-slate-100">
+                <CheckCircle className="h-4 w-4 text-emerald-500" />
+                <div className="flex flex-col">
+                  <span className="text-xs text-slate-500 font-medium uppercase tracking-wider">Active</span>
+                  <span className="text-lg font-bold text-slate-900 leading-none">{activeFileCount}</span>
                 </div>
+              </div>
 
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-                  <Input
-                    type="text"
-                    placeholder="Search documents..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className="pl-9 pr-9 h-9 w-64"
-                  />
-                  {searchQuery && (
-                    <button
-                      onClick={() => setSearchQuery('')}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                    >
-                      <X className="h-4 w-4" />
-                    </button>
-                  )}
+              {processingFileCount > 0 && (
+                <div className="flex items-center gap-3 px-4 py-2 bg-amber-50 rounded-lg border border-amber-100">
+                  <Clock className="h-4 w-4 text-amber-500 animate-pulse" />
+                  <div className="flex flex-col">
+                    <span className="text-xs text-amber-600 font-medium uppercase tracking-wider">Processing</span>
+                    <span className="text-lg font-bold text-amber-700 leading-none">{processingFileCount}</span>
+                  </div>
                 </div>
+              )}
 
-                <Button 
-  onClick={() => setIsTrainingDataDialogOpen(true)}
-  size="sm"
-  variant="outline"
-  className="h-9"
->
-  <Brain className="h-4 w-4 mr-2" />
-  Add Training Data
-</Button>
-
-<CleanupButton 
-  partnerId={partnerId}
-  onCleanupComplete={() => loadData(true)}
-/>
-
-<Button 
-  variant="outline"
-  size="sm"
-  onClick={() => loadData(false)}
-  disabled={isLoading}
-  className="h-9"
->
-  <RefreshCw className={`h-4 w-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
-  Sync
-</Button>
-
-                <div className="flex items-center gap-1 bg-gray-100 rounded-md p-1">
-                  <button
-                    onClick={() => setViewMode('grid')}
-                    className={`p-2 rounded ${viewMode === 'grid' ? 'bg-white shadow-sm' : 'hover:bg-gray-50'}`}
-                    title="Grid view"
-                  >
-                    <Grid3x3 className="h-4 w-4" />
-                  </button>
-                  <button
-                    onClick={() => setViewMode('list')}
-                    className={`p-2 rounded ${viewMode === 'list' ? 'bg-white shadow-sm' : 'hover:bg-gray-50'}`}
-                    title="List view"
-                  >
-                    <List className="h-4 w-4" />
-                  </button>
+              <div className="flex items-center gap-3 px-4 py-2 bg-slate-50 rounded-lg border border-slate-100">
+                <Zap className="h-4 w-4 text-purple-500" />
+                <div className="flex flex-col">
+                  <span className="text-xs text-slate-500 font-medium uppercase tracking-wider">Embeddings</span>
+                  <span className="text-lg font-bold text-slate-900 leading-none">{totalEmbeddings.toLocaleString()}</span>
                 </div>
               </div>
             </div>
+
+            <div className="flex items-center gap-3">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                <Input
+                  type="text"
+                  placeholder="Search documents..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pl-9 w-64 h-10 bg-slate-50 border-slate-200 focus:bg-white transition-all"
+                />
+              </div>
+
+              <div className="h-8 w-px bg-slate-200 mx-1"></div>
+
+              <div className="flex bg-slate-100 p-1 rounded-lg border border-slate-200">
+                <button
+                  onClick={() => setViewMode('grid')}
+                  className={`p-1.5 rounded-md transition-all ${viewMode === 'grid' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                >
+                  <Grid3x3 className="h-4 w-4" />
+                </button>
+                <button
+                  onClick={() => setViewMode('list')}
+                  className={`p-1.5 rounded-md transition-all ${viewMode === 'list' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                >
+                  <List className="h-4 w-4" />
+                </button>
+              </div>
+
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => loadData(false)}
+                className="h-10 w-10 text-slate-500 hover:text-blue-600 hover:bg-blue-50"
+              >
+                <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
+              </Button>
+
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => setShowFilters(!showFilters)}
+                className={`h-10 w-10 ${showFilters ? 'text-blue-600 bg-blue-50' : 'text-slate-500 hover:text-blue-600 hover:bg-blue-50'}`}
+              >
+                <Filter className="h-4 w-4" />
+              </Button>
+            </div>
           </div>
         </div>
+      </div>
 
-        <div className="flex h-[calc(100vh-14rem)]">
-          {showFilters && (
+      {/* Main Content */}
+      <main className="flex">
+        {showFilters && (
+          <div className="w-64 flex-shrink-0 border-r border-slate-200 bg-white min-h-[calc(100vh-180px)]">
             <VaultSidebar
               filters={filters}
               onFiltersChange={setFilters}
               fileCount={files.length}
             />
-          )}
-
-          <div className="flex-1 overflow-auto">
-            <div className="p-6">
-              <DocumentGrid
-                files={filteredFiles}
-                viewMode={viewMode}
-                selectedFile={selectedFile}
-                onSelectFile={setSelectedFile}
-                onDeleteFile={handleDeleteFile}
-                isLoading={false}
-              />
-            </div>
           </div>
+        )}
 
-          {selectedFile && (
-            <DocumentPreview
-              file={selectedFile}
-              onClose={() => setSelectedFile(null)}
-              onDelete={() => handleDeleteFile(selectedFile.id!)}
-              onEdit={handleEditFile}
-            />
-          )}
+        <div className="flex-1 p-8">
+          <DocumentGrid
+            files={filteredFiles}
+            viewMode={viewMode}
+            selectedFile={selectedFile}
+            onSelectFile={setSelectedFile}
+            onDeleteFile={handleDeleteFile}
+            isLoading={false}
+          />
         </div>
       </main>
 
-      {activeFileCount > 0 && (
-        <button
-          onClick={() => setIsTestDrawerOpen(true)}
-          className="fixed bottom-8 right-8 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-full shadow-lg hover:shadow-xl transition-all px-6 py-3 flex items-center gap-3 group z-40"
-        >
-          <Sparkles className="h-5 w-5" />
-          <span className="font-medium">Vault Chat</span>
-          <div className="bg-white/20 px-2.5 py-0.5 rounded-full text-xs font-medium">
-            {activeFileCount} ready
-          </div>
-        </button>
+      {selectedFile && (
+        <DocumentPreview
+          file={selectedFile}
+          onClose={() => setSelectedFile(null)}
+          onDelete={() => handleDeleteFile(selectedFile.id!)}
+          onEdit={handleEditFile}
+        />
       )}
 
+      {/* Upload Progress Panel */}
       {showUploadProgress && (
         <UploadProgressPanel
           uploads={uploads}
@@ -448,6 +444,7 @@ export default function VaultPage() {
         />
       )}
 
+      {/* Dialogs */}
       <UploadDialog
         isOpen={isUploadDialogOpen}
         onClose={() => setIsUploadDialogOpen(false)}
@@ -476,6 +473,6 @@ export default function VaultPage() {
         userId={user.uid}
         documentCount={activeFileCount}
       />
-    </>
+    </div>
   );
 }

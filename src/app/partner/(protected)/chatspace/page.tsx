@@ -121,16 +121,26 @@ export default function ChatSpacePage() {
     });
 
     const handleSendMessage = async () => {
-        if (!messageInput.trim() || !selectedConversation || !currentPartnerId) return;
+        console.log('handleSendMessage called', { messageInput, selectedConversation, currentPartnerId });
+        if (!messageInput.trim() || !selectedConversation || !currentPartnerId) {
+            console.log('Validation failed', {
+                hasInput: !!messageInput.trim(),
+                hasConversation: !!selectedConversation,
+                hasPartnerId: !!currentPartnerId
+            });
+            return;
+        }
 
         setSending(true);
         try {
+            console.log('Calling sendMetaWhatsAppMessageAction...');
             const result = await sendMetaWhatsAppMessageAction({
                 partnerId: currentPartnerId,
                 to: selectedConversation.customerPhone,
                 message: messageInput.trim(),
                 conversationId: selectedConversation.id,
             });
+            console.log('sendMetaWhatsAppMessageAction result:', result);
 
             if (result.success) {
                 setMessageInput('');
@@ -138,6 +148,7 @@ export default function ChatSpacePage() {
                 toast.error(`Failed to send: ${result.message}`);
             }
         } catch (error: any) {
+            console.error('Error in handleSendMessage:', error);
             toast.error(`Error: ${error.message}`);
         } finally {
             setSending(false);

@@ -36,14 +36,14 @@ export async function queryWithGeminiRAG(
   console.log(`📊 Partner: ${partnerId}`);
   console.log(`📊 Question: "${question}"`);
   console.log(`📊 Selected file IDs: ${selectedFileIds?.length || 'ALL'} files`);
-  
+
   const startTime = Date.now();
 
   try {
     console.log('🔵 Step 1: Getting RAG store from database');
-    
+
     let ragStoreName: string | null = null;
-    
+
     if (db) {
       try {
         const storesSnapshot = await db
@@ -85,12 +85,13 @@ export async function queryWithGeminiRAG(
     }
 
     let metadataFilter: string | undefined;
-    
+
     if (selectedFileIds && selectedFileIds.length > 0) {
+      // Construct filter string: fileId = "id1" OR fileId = "id2"
       metadataFilter = selectedFileIds
-        .map(id => `fileId="${id}"`)
+        .map(id => `fileId = "${id}"`)
         .join(' OR ');
-      console.log(`🔍 Metadata filter: ${metadataFilter}`);
+      console.log(`🔍 Metadata filter constructed: ${metadataFilter}`);
     } else {
       console.log(`🔍 No filter - searching ALL documents`);
     }
@@ -100,7 +101,7 @@ export async function queryWithGeminiRAG(
     console.log(`📤 Question: "${question}"`);
     console.log(`📤 Model: gemini-3-pro-preview`);
     console.log(`📤 Thinking Level: low (optimized for retrieval + generation)`);
-    
+
     const queryStart = Date.now();
 
     const geminiConfig: any = {
@@ -120,8 +121,13 @@ export async function queryWithGeminiRAG(
     };
 
     if (metadataFilter) {
+      // Ensure the filter is passed correctly
+      // The correct property name is 'metadataFilter' in the Google Gen AI SDK
       geminiConfig.config.tools[0].fileSearch.metadataFilter = metadataFilter;
+      console.log('🔍 Applied metadataFilter to Gemini config:', metadataFilter);
     }
+
+    console.log('📤 Sending Gemini 3 request with config:', JSON.stringify(geminiConfig, null, 2));
 
     console.log('📤 Sending Gemini 3 request');
 
@@ -141,11 +147,14 @@ export async function queryWithGeminiRAG(
         groundingChunks = candidate.groundingMetadata.groundingChunks || [];
       }
     }
-    
+
     console.log(`📚 Retrieved ${groundingChunks.length} chunks from Gemini 3`);
 
     if (groundingChunks.length === 0) {
       console.warn('⚠️ No chunks retrieved - answer may be based on general knowledge');
+      if (metadataFilter) {
+        console.warn('⚠️ Filter was applied. Check if files have the correct metadata (fileId).');
+      }
     } else {
       groundingChunks.forEach((chunk: any, i: number) => {
         const ctx = chunk.retrievedContext;
@@ -165,7 +174,7 @@ export async function queryWithGeminiRAG(
 
         let content = ctx.text || '';
         let source = ctx.title || 'Unknown Source';
-        
+
         if (ctx.uri) {
           const match = ctx.uri.match(/files\/([^\/]+)/);
           if (match) {
