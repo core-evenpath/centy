@@ -22,7 +22,7 @@ export function useUploadProgress() {
       fileName,
       status: 'uploading',
       currentStep: 1,
-      totalSteps: 5,
+      totalSteps: 6,
       stepDescription: 'Creating file record...',
     };
     setUploads(prev => [...prev, newUpload]);
@@ -53,7 +53,7 @@ export function useUploadProgress() {
         ? {
           ...upload,
           status: 'complete' as const,
-          currentStep: 5,
+          currentStep: 6,
           stepDescription: 'Upload complete! Ready to query.'
         }
         : upload

@@ -17,6 +17,55 @@ interface UploadFileResult {
   file?: VaultFile;
 }
 
+interface VaultFileTags {
+  primaryCategory: string;
+  topics: string[];
+  entities: string[];
+  keywords: string[];
+  documentType: string;
+  sentiment?: 'positive' | 'neutral' | 'negative';
+  language?: string;
+  dateReferences?: string[];
+  confidence: number;
+  extractedAt: string;
+  version: number;
+}
+
+interface TagExtractionResult {
+  success: boolean;
+  message: string;
+  tags?: VaultFileTags;
+  processingTimeMs?: number;
+}
+
+interface VaultQuerySource {
+  fileId: string;
+  fileName: string;
+  relevanceScore: number;
+  excerpts: string[];
+  tags?: string[];
+}
+
+interface VaultQueryResult {
+  success: boolean;
+  message: string;
+  response?: string;
+  sources?: VaultQuerySource[];
+  groundingChunks?: GroundingChunk[];
+  consolidatedTags?: string[];
+  usage?: {
+    model: string;
+    inputTokens?: number;
+    outputTokens?: number;
+  };
+  timings?: {
+    totalMs: number;
+    retrievalMs: number;
+    generationMs: number;
+  };
+  queryId?: string;
+}
+
 async function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -38,6 +87,172 @@ function formatBytes(bytes: number): string {
   const sizes = ['Bytes', 'KB', 'MB', 'GB'];
   const i = Math.floor(Math.log(bytes) / Math.log(k));
   return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
+}
+
+const TAG_EXTRACTION_PROMPT = `You are an expert document analyzer. Analyze the provided document content and extract structured metadata tags.
+
+DOCUMENT CONTENT:
+{CONTENT}
+
+DOCUMENT NAME: {FILENAME}
+DOCUMENT TYPE: {MIMETYPE}
+
+Extract the following information and return ONLY a valid JSON object (no markdown, no code blocks):
+
+{
+  "primaryCategory": "The main category (e.g., 'Financial Report', 'Legal Document', 'Technical Documentation', 'Marketing Material', 'Research Paper', 'Meeting Notes', 'Policy Document', 'Training Material', 'Product Specification', 'Customer Communication')",
+  "topics": ["Array of 3-8 main topics discussed in the document"],
+  "entities": ["Array of named entities: company names, person names, product names, locations, organizations mentioned"],
+  "keywords": ["Array of 10-20 search-optimized keywords that someone might use to find this document"],
+  "documentType": "Specific document type (e.g., 'PDF Report', 'Spreadsheet', 'Presentation', 'Memo', 'Contract', 'Invoice', 'Whitepaper')",
+  "sentiment": "Overall sentiment: 'positive', 'neutral', or 'negative'",
+  "language": "Primary language of the document (e.g., 'English', 'Spanish')",
+  "dateReferences": ["Any specific dates or time periods mentioned (e.g., 'Q3 2024', 'January 2025', 'FY2024')"],
+  "confidence": 0.85
+}
+
+Guidelines:
+- Be specific and accurate with categories and topics
+- Keywords should be diverse and cover different aspects of the document
+- Include acronyms and their full forms as separate keywords
+- Extract ALL named entities mentioned
+- Confidence should reflect how well you understood the document (0.0-1.0)
+- If document is too short or unclear, lower the confidence score
+
+Return ONLY the JSON object, nothing else.`;
+
+async function extractDocumentTags(
+  content: string,
+  fileName: string,
+  mimeType: string,
+  maxContentLength: number = 50000
+): Promise<TagExtractionResult> {
+  const startTime = Date.now();
+
+  try {
+    if (!content || content.trim().length < 50) {
+      return {
+        success: false,
+        message: 'Document content too short for meaningful tag extraction',
+      };
+    }
+
+    const truncatedContent = content.length > maxContentLength
+      ? content.substring(0, maxContentLength) + '\n\n[Content truncated...]'
+      : content;
+
+    const prompt = TAG_EXTRACTION_PROMPT
+      .replace('{CONTENT}', truncatedContent)
+      .replace('{FILENAME}', fileName)
+      .replace('{MIMETYPE}', mimeType);
+
+    console.log('🏷️ Starting tag extraction for:', fileName);
+    console.log('📊 Content length:', content.length, 'chars');
+
+    const response = await genAI.models.generateContent({
+      model: 'gemini-3-pro-preview',
+      contents: prompt,
+      config: {
+        temperature: 0.3,
+        maxOutputTokens: 2048,
+      }
+    });
+
+    const responseText = response.text?.trim() || '';
+
+    let jsonText = responseText;
+    const jsonMatch = responseText.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
+    if (jsonMatch) {
+      jsonText = jsonMatch[1];
+    } else {
+      const firstBrace = responseText.indexOf('{');
+      const lastBrace = responseText.lastIndexOf('}');
+      if (firstBrace !== -1 && lastBrace !== -1) {
+        jsonText = responseText.substring(firstBrace, lastBrace + 1);
+      }
+    }
+
+    const parsed = JSON.parse(jsonText);
+
+    const tags: VaultFileTags = {
+      primaryCategory: parsed.primaryCategory || 'Uncategorized',
+      topics: Array.isArray(parsed.topics) ? parsed.topics.slice(0, 10) : [],
+      entities: Array.isArray(parsed.entities) ? parsed.entities.slice(0, 20) : [],
+      keywords: Array.isArray(parsed.keywords) ? parsed.keywords.slice(0, 25) : [],
+      documentType: parsed.documentType || mimeType,
+      sentiment: ['positive', 'neutral', 'negative'].includes(parsed.sentiment)
+        ? parsed.sentiment
+        : 'neutral',
+      language: parsed.language || 'English',
+      dateReferences: Array.isArray(parsed.dateReferences) ? parsed.dateReferences : [],
+      confidence: typeof parsed.confidence === 'number'
+        ? Math.min(1, Math.max(0, parsed.confidence))
+        : 0.7,
+      extractedAt: new Date().toISOString(),
+      version: 1,
+    };
+
+    const processingTimeMs = Date.now() - startTime;
+    console.log('✅ Tags extracted successfully in', processingTimeMs, 'ms');
+    console.log('📋 Primary category:', tags.primaryCategory);
+    console.log('📋 Topics:', tags.topics.length);
+    console.log('📋 Keywords:', tags.keywords.length);
+
+    return {
+      success: true,
+      message: 'Tags extracted successfully',
+      tags,
+      processingTimeMs,
+    };
+
+  } catch (error: any) {
+    console.error('❌ Tag extraction failed:', error.message);
+    return {
+      success: false,
+      message: `Tag extraction failed: ${error.message}`,
+      processingTimeMs: Date.now() - startTime,
+    };
+  }
+}
+
+async function triggerTagExtraction(
+  partnerId: string,
+  fileId: string,
+  content: string,
+  fileName: string,
+  mimeType: string
+) {
+  try {
+    console.log('🏷️ Starting async tag extraction for:', fileName);
+
+    await db?.collection(`partners/${partnerId}/vaultFiles`).doc(fileId).update({
+      tagsStatus: 'processing',
+    });
+
+    const result = await extractDocumentTags(content, fileName, mimeType);
+
+    if (result.success && result.tags) {
+      await db?.collection(`partners/${partnerId}/vaultFiles`).doc(fileId).update({
+        tags: result.tags,
+        tagsStatus: 'completed',
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+      console.log('✅ Tags saved for:', fileName);
+    } else {
+      await db?.collection(`partners/${partnerId}/vaultFiles`).doc(fileId).update({
+        tagsStatus: 'failed',
+        tagsError: result.message,
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+      console.warn('⚠️ Tag extraction failed:', result.message);
+    }
+  } catch (error: any) {
+    console.error('❌ Tag extraction error:', error.message);
+    await db?.collection(`partners/${partnerId}/vaultFiles`).doc(fileId).update({
+      tagsStatus: 'failed',
+      tagsError: error.message,
+    });
+  }
 }
 
 async function getOrCreateRagStore(partnerId: string): Promise<string> {
@@ -207,6 +422,7 @@ export async function uploadFileToVault(
       firebaseStoragePath: storagePath,
       sourceType: 'upload',
       extractedText: extractedText || undefined,
+      tagsStatus: 'pending',
       ragMetadata: {
         chunkSize: 2048,
         chunkOverlap: 128,
@@ -365,8 +581,13 @@ export async function uploadFileToVault(
     console.log(`   Actual chunks: ${actualChunks}`);
     console.log(`   Actual embeddings: ${actualEmbeddings}`);
     console.log(`   Processing time: ${(totalProcessingTime / 1000).toFixed(2)}s`);
-    console.log(`   Uploaded by: ${uploadedByEmail}`);
-    console.log(`   Uploaded at: ${processingStartedAt}`);
+
+    if (extractedText && extractedText.length > 100) {
+      console.log('🏷️ Triggering async tag extraction...');
+      setImmediate(() => {
+        triggerTagExtraction(partnerId, fileDocRef!.id, extractedText!, fileData.displayName, fileData.mimeType);
+      });
+    }
 
     const finalFile = {
       id: fileDocRef.id,
@@ -375,6 +596,7 @@ export async function uploadFileToVault(
       geminiFileUri: ragStoreName,
       geminiFileName: uploadedFileName,
       createdAt: processingStartedAt,
+      tagsStatus: 'pending' as const,
       ragMetadata: {
         chunkSize: 2048,
         chunkOverlap: 128,
@@ -446,6 +668,44 @@ export async function uploadFileToVault(
   }
 }
 
+export async function retryTagExtraction(
+  partnerId: string,
+  fileId: string
+): Promise<{ success: boolean; message: string }> {
+  if (!db) {
+    return { success: false, message: 'Database not available' };
+  }
+
+  try {
+    const fileDoc = await db.collection(`partners/${partnerId}/vaultFiles`).doc(fileId).get();
+
+    if (!fileDoc.exists) {
+      return { success: false, message: 'File not found' };
+    }
+
+    const data = fileDoc.data();
+    const content = data?.extractedText || data?.trainingData;
+
+    if (!content || content.length < 100) {
+      return { success: false, message: 'No extractable content available' };
+    }
+
+    setImmediate(() => {
+      triggerTagExtraction(
+        partnerId,
+        fileId,
+        content,
+        data?.displayName || 'Document',
+        data?.mimeType || 'application/pdf'
+      );
+    });
+
+    return { success: true, message: 'Tag extraction started' };
+  } catch (error: any) {
+    return { success: false, message: error.message };
+  }
+}
+
 export async function createTrainingDataFile(
   partnerId: string,
   userId: string,
@@ -485,6 +745,7 @@ export async function createTrainingDataFile(
       firebaseStoragePath: storagePath,
       sourceType: 'training',
       trainingData: jsonlContent,
+      tagsStatus: 'pending',
       ragMetadata: {
         chunkSize: 2048,
         chunkOverlap: 128,
@@ -566,6 +827,12 @@ export async function createTrainingDataFile(
       'ragMetadata.indexedAt': new Date().toISOString(),
       'ragMetadata.processingTimeMs': totalProcessingTime,
     });
+
+    if (markdownContent.length > 100) {
+      setImmediate(() => {
+        triggerTagExtraction(partnerId, fileDocRef!.id, markdownContent, `${datasetName}.md`, 'text/markdown');
+      });
+    }
 
     const finalFile = {
       id: fileDocRef.id,
@@ -730,6 +997,7 @@ export async function updateTrainingDataFile(
         geminiFileName: uploadedFileName,
         state: 'ACTIVE',
         trainingData: jsonlContent,
+        tagsStatus: 'pending',
         ragMetadata: {
           chunkSize: 2048,
           chunkOverlap: 128,
@@ -744,6 +1012,12 @@ export async function updateTrainingDataFile(
         },
         updatedAt: FieldValue.serverTimestamp(),
       });
+
+    if (markdownContent.length > 100) {
+      setImmediate(() => {
+        triggerTagExtraction(partnerId, fileId, markdownContent, `${datasetName}.md`, 'text/markdown');
+      });
+    }
 
     const finalFile = {
       id: fileId,
@@ -843,10 +1117,16 @@ export async function getVaultFileContent(
 export async function deleteVaultFile(
   partnerId: string,
   fileId: string
-): Promise<{ success: boolean; message: string }> {
+): Promise<{ success: boolean; message: string; deletedFrom?: { gemini: boolean; storage: boolean; firestore: boolean } }> {
   if (!db) {
     return { success: false, message: 'Database not available' };
   }
+
+  const deletedFrom = {
+    gemini: false,
+    storage: false,
+    firestore: false,
+  };
 
   try {
     console.log('🔵 Step 1: Fetching file record');
@@ -865,12 +1145,13 @@ export async function deleteVaultFile(
     if (fileData?.geminiFileName) {
       try {
         await genAI.files.delete({ name: fileData.geminiFileName });
+        deletedFrom.gemini = true;
         console.log('✅ Deleted file from RAG store:', fileData.geminiFileName);
       } catch (ragError: any) {
-        console.warn('⚠️  Could not delete from RAG store:', ragError.message);
+        console.warn('⚠️ Could not delete from RAG store:', ragError.message);
       }
     } else {
-      console.log('⚠️  No Gemini file name found, skipping RAG cleanup');
+      console.log('⚠️ No Gemini file name found, skipping RAG cleanup');
     }
 
     console.log('🔵 Step 3: Deleting from Firebase Storage');
@@ -881,9 +1162,10 @@ export async function deleteVaultFile(
 
       try {
         await file.delete();
+        deletedFrom.storage = true;
         console.log('✅ Deleted file from storage');
       } catch (error) {
-        console.warn('⚠️  Could not delete from storage:', error);
+        console.warn('⚠️ Could not delete from storage:', error);
       }
     }
 
@@ -892,15 +1174,381 @@ export async function deleteVaultFile(
       .collection(`partners/${partnerId}/vaultFiles`)
       .doc(fileId)
       .delete();
+    deletedFrom.firestore = true;
 
     console.log('✅ File deleted successfully');
 
-    return { success: true, message: 'File deleted successfully' };
+    return {
+      success: true,
+      message: 'File deleted successfully',
+      deletedFrom,
+    };
   } catch (error: any) {
     console.error('❌ Error deleting vault file:', error);
     return {
       success: false,
       message: `Failed to delete file: ${error.message}`,
+      deletedFrom,
+    };
+  }
+}
+
+interface DocumentNameMapping {
+  geminiName: string;
+  displayName: string;
+  fileId: string;
+}
+
+async function buildDocumentMapping(ragStoreName: string, partnerId: string): Promise<Map<string, DocumentNameMapping>> {
+  const mapping = new Map<string, DocumentNameMapping>();
+
+  try {
+    if (db) {
+      const filesSnapshot = await db
+        .collection(`partners/${partnerId}/vaultFiles`)
+        .where('state', '==', 'ACTIVE')
+        .get();
+
+      for (const doc of filesSnapshot.docs) {
+        const data = doc.data();
+        if (data.geminiFileName) {
+          mapping.set(data.geminiFileName, {
+            geminiName: data.geminiFileName,
+            displayName: data.displayName || data.name,
+            fileId: doc.id,
+          });
+
+          const shortName = data.geminiFileName.split('/').pop() || '';
+          if (shortName) {
+            mapping.set(shortName, {
+              geminiName: data.geminiFileName,
+              displayName: data.displayName || data.name,
+              fileId: doc.id,
+            });
+          }
+        }
+      }
+    }
+
+    let pageToken: string | undefined;
+    do {
+      const listParams: any = {
+        parent: ragStoreName,
+        config: { pageSize: 100 }
+      };
+      if (pageToken) {
+        listParams.config.pageToken = pageToken;
+      }
+
+      const response = await genAI.fileSearchStores.documents.list(listParams) as any;
+
+      if (response.documents) {
+        for (const doc of response.documents) {
+          if (doc.name && !mapping.has(doc.name)) {
+            const fileIdMeta = doc.customMetadata?.find((m: any) => m.key === 'fileId');
+            const fileNameMeta = doc.customMetadata?.find((m: any) => m.key === 'fileName');
+
+            mapping.set(doc.name, {
+              geminiName: doc.name,
+              displayName: fileNameMeta?.stringValue || doc.displayName || doc.name.split('/').pop() || 'Document',
+              fileId: fileIdMeta?.stringValue || '',
+            });
+
+            const shortName = doc.name.split('/').pop() || '';
+            if (shortName && !mapping.has(shortName)) {
+              mapping.set(shortName, {
+                geminiName: doc.name,
+                displayName: fileNameMeta?.stringValue || doc.displayName || shortName,
+                fileId: fileIdMeta?.stringValue || '',
+              });
+            }
+          }
+        }
+      }
+
+      pageToken = response.nextPageToken;
+    } while (pageToken);
+
+    console.log(`📋 Document mapping built with ${mapping.size} entries`);
+  } catch (error) {
+    console.warn('⚠️ Error building document mapping:', error);
+  }
+
+  return mapping;
+}
+
+function buildMetadataFilter(fileIds: string[]): string | undefined {
+  if (!fileIds.length) return undefined;
+
+  const filterParts = fileIds.map(id => `fileId="${id}"`);
+  let filter = filterParts.join(' OR ');
+
+  if (filter.length > 5000) {
+    console.warn('⚠️ Filter too long, truncating to first 50 files');
+    filter = filterParts.slice(0, 50).join(' OR ');
+  }
+
+  return filter;
+}
+
+const RAG_SYSTEM_INSTRUCTION = `You are an intelligent assistant that answers questions based ONLY on the documents provided in the knowledge base.
+
+CRITICAL RULES:
+1. ONLY use information from the retrieved documents to answer questions
+2. If the documents contain relevant information, provide a clear, comprehensive answer
+3. If the documents do NOT contain relevant information, clearly state: "I couldn't find information about that in the uploaded documents."
+4. Always cite your sources by mentioning which document the information came from
+5. Be specific and quote relevant passages when appropriate
+6. Do NOT make up information or use external knowledge
+7. If information is partial or incomplete, acknowledge that
+8. Structure your response clearly with key points
+
+When citing sources, use this format: "According to [Document Name]..." or "In [Document Name], it states..."`;
+
+export async function queryVault(
+  partnerId: string,
+  userId: string,
+  query: string,
+  selectedFileIds?: string[]
+): Promise<VaultQueryResult> {
+  const startTime = Date.now();
+  const maxChunks = 15;
+
+  console.log('═══════════════════════════════════════');
+  console.log('🔍 RAG QUERY STARTING');
+  console.log('═══════════════════════════════════════');
+  console.log(`📊 Partner: ${partnerId}`);
+  console.log(`📊 Question: "${query}"`);
+  console.log(`📊 Selected files: ${selectedFileIds?.length || 'ALL'}`);
+
+  try {
+    if (!db) {
+      return { success: false, message: 'Database not available' };
+    }
+
+    const storesSnapshot = await db
+      .collection(`partners/${partnerId}/fileSearchStores`)
+      .where('state', '==', 'ACTIVE')
+      .limit(1)
+      .get();
+
+    if (storesSnapshot.empty) {
+      return {
+        success: false,
+        message: 'No document vault found. Please upload documents first.',
+      };
+    }
+
+    const ragStoreName = storesSnapshot.docs[0].data().name;
+    console.log(`✅ RAG Store: ${ragStoreName}`);
+
+    let effectiveFileIds = selectedFileIds || [];
+
+    if (effectiveFileIds.length === 0) {
+      console.log('🔵 No files selected, fetching all active files...');
+      const activeFilesSnapshot = await db
+        .collection(`partners/${partnerId}/vaultFiles`)
+        .where('state', '==', 'ACTIVE')
+        .get();
+
+      effectiveFileIds = activeFilesSnapshot.docs.map(doc => doc.id);
+      console.log(`✅ Found ${effectiveFileIds.length} active files`);
+
+      if (effectiveFileIds.length === 0) {
+        return {
+          success: true,
+          message: 'No active documents found',
+          response: "I don't have any documents to search. Please upload some documents first.",
+          sources: [],
+          groundingChunks: [],
+        };
+      }
+    }
+
+    const docMapping = await buildDocumentMapping(ragStoreName, partnerId);
+
+    const metadataFilter = buildMetadataFilter(effectiveFileIds);
+    console.log(`📤 Metadata filter: ${metadataFilter ? `${effectiveFileIds.length} files` : 'NONE'}`);
+
+    const retrievalStart = Date.now();
+
+    const fileSearchConfig: any = {
+      fileSearchStoreNames: [ragStoreName],
+    };
+
+    if (metadataFilter) {
+      fileSearchConfig.metadataFilter = metadataFilter;
+    }
+
+    console.log('🔵 Calling Gemini with File Search...');
+
+    const response = await genAI.models.generateContent({
+      model: 'gemini-3-pro-preview',
+      contents: query,
+      config: {
+        systemInstruction: RAG_SYSTEM_INSTRUCTION,
+        tools: [{ fileSearch: fileSearchConfig }],
+        temperature: 0.3,
+        maxOutputTokens: 4096,
+      }
+    });
+
+    const retrievalTime = Date.now() - retrievalStart;
+    const responseText = response.text || '';
+
+    console.log(`✅ Response received in ${retrievalTime}ms`);
+    console.log(`📝 Response length: ${responseText.length} chars`);
+
+    let groundingChunks: GroundingChunk[] = [];
+    const sourcesMap = new Map<string, VaultQuerySource>();
+
+    if (response.candidates?.[0]?.groundingMetadata?.groundingChunks) {
+      const rawChunks = response.candidates[0].groundingMetadata.groundingChunks;
+      console.log(`📚 Retrieved ${rawChunks.length} grounding chunks`);
+
+      for (const chunk of rawChunks) {
+        const ctx = chunk.retrievedContext;
+        if (!ctx?.text) continue;
+
+        let sourceInfo: DocumentNameMapping | undefined;
+
+        if (ctx.uri) {
+          sourceInfo = docMapping.get(ctx.uri);
+          if (!sourceInfo) {
+            const uriParts = ctx.uri.split('/');
+            for (let i = uriParts.length - 1; i >= 0; i--) {
+              sourceInfo = docMapping.get(uriParts[i]);
+              if (sourceInfo) break;
+            }
+          }
+        }
+
+        if (!sourceInfo && ctx.title) {
+          for (const [, info] of docMapping) {
+            if (info.displayName === ctx.title) {
+              sourceInfo = info;
+              break;
+            }
+          }
+        }
+
+        const displayName = sourceInfo?.displayName || ctx.title || 'Document';
+        const fileId = sourceInfo?.fileId || '';
+
+        groundingChunks.push({
+          content: ctx.text.substring(0, 1500),
+          source: displayName,
+          sourceFileId: fileId,
+          sourceFileName: displayName,
+          score: 0.85,
+        });
+
+        if (fileId && !sourcesMap.has(fileId)) {
+          sourcesMap.set(fileId, {
+            fileId,
+            fileName: displayName,
+            relevanceScore: 0.85,
+            excerpts: [ctx.text.substring(0, 300)],
+          });
+        } else if (fileId) {
+          const existing = sourcesMap.get(fileId)!;
+          if (existing.excerpts.length < 3) {
+            existing.excerpts.push(ctx.text.substring(0, 300));
+          }
+        }
+      }
+    }
+
+    groundingChunks = groundingChunks.slice(0, maxChunks);
+    const sources = Array.from(sourcesMap.values());
+
+    const consolidatedTags: string[] = [];
+    if (sources.length > 0 && db) {
+      try {
+        const fileIds = sources.map(s => s.fileId).filter(Boolean);
+        if (fileIds.length > 0) {
+          const filesSnapshot = await db
+            .collection(`partners/${partnerId}/vaultFiles`)
+            .where('__name__', 'in', fileIds.slice(0, 10))
+            .get();
+
+          const tagSet = new Set<string>();
+          filesSnapshot.docs.forEach(doc => {
+            const data = doc.data();
+            if (data.tags) {
+              if (data.tags.primaryCategory) tagSet.add(data.tags.primaryCategory);
+              data.tags.topics?.forEach((t: string) => tagSet.add(t));
+              data.tags.keywords?.slice(0, 5).forEach((k: string) => tagSet.add(k));
+            }
+          });
+          consolidatedTags.push(...Array.from(tagSet).slice(0, 15));
+        }
+      } catch (error) {
+        console.warn('⚠️ Could not fetch consolidated tags:', error);
+      }
+    }
+
+    const totalTime = Date.now() - startTime;
+
+    try {
+      const fileNames = sources.map(s => s.fileName);
+      await db.collection(`partners/${partnerId}/vaultQueries`).add({
+        query,
+        response: responseText,
+        partnerId,
+        userId,
+        selectedFileIds: effectiveFileIds,
+        selectedFileNames: fileNames,
+        provider: 'gemini-rag',
+        modelUsed: 'gemini-3-pro-preview',
+        sources,
+        consolidatedTags,
+        usage: { model: 'gemini-3-pro-preview' },
+        timings: {
+          totalMs: totalTime,
+          retrievalMs: retrievalTime,
+          generationMs: totalTime - retrievalTime,
+        },
+        createdAt: FieldValue.serverTimestamp(),
+      });
+    } catch (logError) {
+      console.warn('Failed to log query:', logError);
+    }
+
+    console.log('═══════════════════════════════════════');
+    console.log('✅ RAG QUERY COMPLETE');
+    console.log(`⏱️ Total time: ${totalTime}ms`);
+    console.log(`📚 Sources: ${sources.length}`);
+    console.log(`📚 Chunks: ${groundingChunks.length}`);
+    console.log(`🏷️ Tags: ${consolidatedTags.length}`);
+    console.log('═══════════════════════════════════════');
+
+    return {
+      success: true,
+      message: 'Query successful',
+      response: responseText,
+      sources,
+      groundingChunks,
+      consolidatedTags,
+      usage: {
+        model: 'gemini-3-pro-preview',
+      },
+      timings: {
+        totalMs: totalTime,
+        retrievalMs: retrievalTime,
+        generationMs: totalTime - retrievalTime,
+      },
+    };
+
+  } catch (error: any) {
+    console.error('═══════════════════════════════════════');
+    console.error('❌ RAG QUERY FAILED');
+    console.error('Error:', error.message);
+    console.error('═══════════════════════════════════════');
+
+    return {
+      success: false,
+      message: `Query failed: ${error.message}`,
     };
   }
 }
@@ -1055,13 +1703,6 @@ export async function verifyRagFileIntegrity(
 
     console.log(`⚠️ Missing in Gemini: ${missingInGemini.length}`);
     console.log(`⚠️ Orphaned in Gemini: ${orphanedInGemini.length}`);
-
-    if (missingInGemini.length > 0) {
-      console.log('Files in Firestore but not in Gemini:', missingInGemini);
-    }
-    if (orphanedInGemini.length > 0) {
-      console.log('Files in Gemini but not in Firestore:', orphanedInGemini);
-    }
 
     return {
       success: true,
@@ -1499,6 +2140,9 @@ export async function listVaultFiles(
         ragMetadata: data.ragMetadata,
         extractedText: data.extractedText,
         trainingData: data.trainingData,
+        tags: data.tags,
+        tagsStatus: data.tagsStatus,
+        tagsError: data.tagsError,
       } as VaultFile;
     });
 
@@ -1553,6 +2197,7 @@ export async function getVaultFileStatus(
   processingStep?: number;
   processingDescription?: string;
   errorMessage?: string;
+  tagsStatus?: string;
 }> {
   if (!db) {
     return { success: false };
@@ -1575,6 +2220,7 @@ export async function getVaultFileStatus(
       processingStep: data?.processingStep || 1,
       processingDescription: data?.processingDescription || 'Processing...',
       errorMessage: data?.errorMessage,
+      tagsStatus: data?.tagsStatus,
     };
   } catch (error) {
     console.error('Error getting file status:', error);
@@ -1660,6 +2306,8 @@ export async function debugVaultFile(
     mimeType: string;
     fileName: string;
     state: string;
+    tagsStatus?: string;
+    tags?: any;
   };
   message?: string;
 }> {
@@ -1688,6 +2336,8 @@ export async function debugVaultFile(
         mimeType: data.mimeType,
         fileName: data.displayName || data.name,
         state: data.state,
+        tagsStatus: data.tagsStatus,
+        tags: data.tags,
       },
     };
   } catch (error: any) {
@@ -1768,6 +2418,7 @@ export async function cleanupAllVaultData(
   details?: {
     firestoreFilesDeleted: number;
     geminiFilesDeleted: number;
+    storageFilesDeleted: number;
     storeDeleted: boolean;
     queriesDeleted: number;
     errors: string[];
@@ -1782,6 +2433,7 @@ export async function cleanupAllVaultData(
   const details = {
     firestoreFilesDeleted: 0,
     geminiFilesDeleted: 0,
+    storageFilesDeleted: 0,
     storeDeleted: false,
     queriesDeleted: 0,
     errors: [] as string[],
@@ -1795,7 +2447,7 @@ export async function cleanupAllVaultData(
 
     console.log(`📊 Found ${vaultFilesSnapshot.size} vault files in Firestore`);
 
-    console.log('📋 Step 2: Deleting Gemini files...');
+    console.log('📋 Step 2: Deleting Gemini files and storage...');
     for (const doc of vaultFilesSnapshot.docs) {
       const data = doc.data();
 
@@ -1816,6 +2468,7 @@ export async function cleanupAllVaultData(
           const storage = getStorage();
           const bucket = storage.bucket();
           await bucket.file(data.firebaseStoragePath).delete();
+          details.storageFilesDeleted++;
           console.log(`✅ Deleted storage file: ${data.firebaseStoragePath}`);
         } catch (error: any) {
           const errorMsg = `Failed to delete storage file ${data.firebaseStoragePath}: ${error.message}`;
@@ -1884,16 +2537,9 @@ export async function cleanupAllVaultData(
       details.errors.push(errorMsg);
     }
 
-    const summary = `
-✅ Cleanup Complete:
-- Firestore files: ${details.firestoreFilesDeleted}
-- Gemini embeddings: ${details.geminiFilesDeleted}
-- Query history: ${details.queriesDeleted}
-- Store deleted: ${details.storeDeleted ? 'Yes' : 'No'}
-${details.errors.length > 0 ? `\n⚠️ ${details.errors.length} errors occurred` : ''}
-    `.trim();
+    const summary = `Cleanup complete: ${details.firestoreFilesDeleted} files, ${details.geminiFilesDeleted} embeddings, ${details.storageFilesDeleted} storage files deleted`;
 
-    console.log(summary);
+    console.log('✅', summary);
 
     return {
       success: true,
@@ -1910,7 +2556,6 @@ ${details.errors.length > 0 ? `\n⚠️ ${details.errors.length} errors occurred
     };
   }
 }
-
 export async function listGeminiStoreDocuments(
   partnerId: string
 ): Promise<{
@@ -1928,14 +2573,12 @@ export async function listGeminiStoreDocuments(
   if (!db) {
     return { success: false, message: 'Database not available' };
   }
-
   try {
     const storesSnapshot = await db
       .collection(`partners/${partnerId}/fileSearchStores`)
       .where('state', '==', 'ACTIVE')
       .limit(1)
       .get();
-
     if (storesSnapshot.empty) {
       return { success: false, message: 'No active file search store found' };
     }
@@ -1998,7 +2641,6 @@ export async function listGeminiStoreDocuments(
       documents,
       storeName: ragStoreName,
     };
-
   } catch (error: any) {
     console.error('❌ Failed to list Gemini store documents:', error);
     return {

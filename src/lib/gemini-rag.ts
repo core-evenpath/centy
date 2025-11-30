@@ -21,6 +21,20 @@ interface GeminiRAGResult {
   metadataFilter?: string;
 }
 
+function buildMetadataFilter(fileIds: string[]): string | undefined {
+  if (!fileIds.length) return undefined;
+
+  const filterParts = fileIds.map(id => `fileId="${id}"`);
+  let filter = filterParts.join(' OR ');
+
+  if (filter.length > 5000) {
+    console.warn('⚠️ Filter too long, truncating to first 50 files');
+    filter = filterParts.slice(0, 50).join(' OR ');
+  }
+
+  return filter;
+}
+
 async function getDocumentNameMapping(
   ragStoreName: string
 ): Promise<Map<string, string>> {
@@ -39,7 +53,7 @@ async function getDocumentNameMapping(
         listParams.config.pageToken = pageToken;
       }
 
-      const response = await genAI.fileSearchStores.documents.list(listParams);
+      const response = await genAI.fileSearchStores.documents.list(listParams) as any;
 
       if (response.documents) {
         for (const doc of response.documents) {
@@ -56,6 +70,7 @@ async function getDocumentNameMapping(
       pageToken = response.nextPageToken;
     } while (pageToken);
 
+
     console.log(`📋 Built document mapping with ${mapping.size} entries`);
   } catch (error) {
     console.warn('⚠️ Could not build document mapping:', error);
@@ -63,6 +78,7 @@ async function getDocumentNameMapping(
 
   return mapping;
 }
+
 
 export async function queryWithGeminiRAG(
   partnerId: string,
@@ -188,9 +204,6 @@ CRITICAL INSTRUCTIONS:
     }
 
     if (effectiveFileIds.length > 0) {
-      // Create filter string: fileId="ID1" OR fileId="ID2" ...
-      // fileId is safe (alphanumeric)
-
       const filterParts = effectiveFileIds.map(id => `fileId="${id}"`);
 
       metadataFilter = filterParts.join(' OR ');

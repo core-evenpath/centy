@@ -31,26 +31,40 @@ async function callClaudeWithRetry(
   baseDelay: number = 1000
 ): Promise<{ response: any; retryCount: number }> {
   let lastError: any;
-  
+
   for (let attempt = 0; attempt < maxRetries; attempt++) {
     try {
       const response = await anthropic.messages.create(params);
       return { response, retryCount: attempt };
     } catch (error: any) {
       lastError = error;
-      
+
       if (error.status === 529) {
         const delay = baseDelay * Math.pow(2, attempt);
         console.log(`⚠️ Overloaded (attempt ${attempt + 1}/${maxRetries}), waiting ${delay}ms...`);
         await new Promise(resolve => setTimeout(resolve, delay));
         continue;
       }
-      
+
       throw error;
     }
   }
-  
+
   throw lastError;
+}
+
+function buildMetadataFilter(fileIds: string[]): string | undefined {
+  if (!fileIds.length) return undefined;
+
+  const filterParts = fileIds.map(id => `fileId="${id}"`);
+  let filter = filterParts.join(' OR ');
+
+  if (filter.length > 5000) {
+    console.warn('⚠️ Filter too long, truncating to first 50 files');
+    filter = filterParts.slice(0, 50).join(' OR ');
+  }
+
+  return filter;
 }
 
 export async function queryWithHybridRAG(
@@ -79,14 +93,14 @@ export async function queryWithHybridRAG(
   if (selectedFileIds) {
     console.log(`📋 File IDs:`, selectedFileIds);
   }
-  
+
   const startTime = Date.now();
 
   try {
     console.log('🔵 Step 1: Getting RAG store from database');
-    
+
     let ragStoreName: string | null = null;
-    
+
     if (db) {
       try {
         const storesSnapshot = await db
@@ -132,10 +146,10 @@ export async function queryWithHybridRAG(
     let metadataFilter: string | undefined;
 
     console.log('🔵 Step 2: Preparing metadata filter');
-    
+
     if (selectedFileIds && selectedFileIds.length > 0) {
-      console.log('⚠️ TEMPORARILY DISABLING METADATA FILTER FOR TESTING');
-      console.log('   This will search ALL documents to verify retrieval works');
+      metadataFilter = buildMetadataFilter(selectedFileIds);
+      console.log(`📤 Metadata filter: ${selectedFileIds.length} files`);
     } else {
       console.log(`🔍 No filter - searching ALL documents`);
     }
@@ -146,7 +160,7 @@ export async function queryWithHybridRAG(
     console.log(`📤 Model: gemini-3-pro-preview`);
     console.log(`📤 Thinking Level: low (optimized for retrieval speed)`);
     console.log(`📤 Filter: ${metadataFilter || 'NONE (searching all docs)'}`);
-    
+
     const retrievalStart = Date.now();
 
     try {
@@ -202,7 +216,7 @@ export async function queryWithHybridRAG(
           groundingChunks = gm.groundingChunks || [];
         }
       }
-      
+
       console.log(`📚 Retrieved ${groundingChunks.length} chunks from Gemini 3`);
 
       if (groundingChunks.length === 0) {
@@ -242,7 +256,7 @@ export async function queryWithHybridRAG(
     }
 
     console.log('🔵 Step 4: Processing and filtering chunks');
-    
+
     const processedChunks = groundingChunks
       .map((chunk: any) => {
         const ctx = chunk.retrievedContext;
@@ -250,7 +264,7 @@ export async function queryWithHybridRAG(
 
         let content = ctx.text || '';
         let source = ctx.title || 'Unknown Source';
-        
+
         if (ctx.uri) {
           const match = ctx.uri.match(/files\/([^\/]+)/);
           if (match) {
@@ -285,15 +299,15 @@ export async function queryWithHybridRAG(
 
     const contextText = processedChunks.length > 0
       ? processedChunks
-          .map((chunk, i) => `[Source ${i + 1}: ${chunk.source}]\n${chunk.content}`)
-          .join('\n\n---\n\n')
+        .map((chunk, i) => `[Source ${i + 1}: ${chunk.source}]\n${chunk.content}`)
+        .join('\n\n---\n\n')
       : 'No specific document content retrieved.';
 
     const estimatedTokens = Math.ceil(contextText.length / 4) + Math.ceil(question.length / 4);
     console.log(`📊 Estimated total tokens: ${estimatedTokens.toLocaleString()}`);
 
     console.log('🔵 Step 6: Generating response with LLM');
-    
+
     const systemPrompt = processedChunks.length > 0
       ? `You are a helpful assistant that answers questions based on the provided document context.
 
@@ -373,8 +387,8 @@ Instructions:
         ],
       });
 
-      responseText = response.content[0].type === 'text' 
-        ? response.content[0].text 
+      responseText = response.content[0].type === 'text'
+        ? response.content[0].text
         : '';
       usage = response.usage;
       modelUsed = claudeModel;
