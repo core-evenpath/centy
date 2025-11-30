@@ -1,3 +1,5 @@
+'use server';
+
 import { GoogleGenAI } from '@google/genai';
 import { db } from '@/lib/firebase-admin';
 
@@ -19,23 +21,70 @@ interface GeminiRAGResult {
   metadataFilter?: string;
 }
 
+async function getDocumentNameMapping(
+  ragStoreName: string
+): Promise<Map<string, string>> {
+  const mapping = new Map<string, string>();
+
+  try {
+    let pageToken: string | undefined = undefined;
+
+    do {
+      const listParams: any = {
+        parent: ragStoreName,
+        config: { pageSize: 100 }
+      };
+
+      if (pageToken) {
+        listParams.config.pageToken = pageToken;
+      }
+
+      const response = await genAI.fileSearchStores.documents.list(listParams);
+
+      if (response.documents) {
+        for (const doc of response.documents) {
+          if (doc.name && doc.displayName) {
+            mapping.set(doc.name, doc.displayName);
+            const docId = doc.name.split('/').pop() || '';
+            if (docId) {
+              mapping.set(docId, doc.displayName);
+            }
+          }
+        }
+      }
+
+      pageToken = response.nextPageToken;
+    } while (pageToken);
+
+    console.log(`📋 Built document mapping with ${mapping.size} entries`);
+  } catch (error) {
+    console.warn('⚠️ Could not build document mapping:', error);
+  }
+
+  return mapping;
+}
+
 export async function queryWithGeminiRAG(
   partnerId: string,
   question: string,
   options?: {
     maxChunks?: number;
     selectedFileIds?: string[];
+    selectedFileNames?: string[];
   }
 ): Promise<GeminiRAGResult> {
-  const maxChunks = options?.maxChunks || 5;
+  const maxChunks = options?.maxChunks || 10;
   const selectedFileIds = options?.selectedFileIds;
+  const selectedFileNames = options?.selectedFileNames;
 
   console.log('═══════════════════════════════════════');
-  console.log('🔍 GEMINI 3 RAG QUERY STARTING');
+  console.log('🔍 GEMINI RAG QUERY STARTING');
   console.log('═══════════════════════════════════════');
   console.log(`📊 Partner: ${partnerId}`);
   console.log(`📊 Question: "${question}"`);
+  console.log(`📊 Max chunks: ${maxChunks}`);
   console.log(`📊 Selected file IDs: ${selectedFileIds?.length || 'ALL'} files`);
+  console.log(`📊 Selected file Names: ${selectedFileNames?.join(', ') || 'ALL'}`);
 
   const startTime = Date.now();
 
@@ -84,119 +133,201 @@ export async function queryWithGeminiRAG(
       };
     }
 
-    let metadataFilter: string | undefined;
+    console.log('🔵 Step 2: Building document name mapping');
+    const docNameMapping = await getDocumentNameMapping(ragStoreName);
 
-    if (selectedFileIds && selectedFileIds.length > 0) {
-      // Construct filter string: fileId = "id1" OR fileId = "id2"
-      metadataFilter = selectedFileIds
-        .map(id => `fileId = "${id}"`)
-        .join(' OR ');
-      console.log(`🔍 Metadata filter constructed: ${metadataFilter}`);
-    } else {
-      console.log(`🔍 No filter - searching ALL documents`);
-    }
-
-    console.log('🔵 Step 2: Calling Gemini 3 Pro for RAG query');
+    console.log('🔵 Step 3: Calling Gemini 3 Pro with File Search');
     console.log(`📤 RAG Store: ${ragStoreName}`);
     console.log(`📤 Question: "${question}"`);
     console.log(`📤 Model: gemini-3-pro-preview`);
-    console.log(`📤 Thinking Level: low (optimized for retrieval + generation)`);
 
     const queryStart = Date.now();
 
-    const geminiConfig: any = {
-      model: 'gemini-3-pro-preview',
-      contents: question,
-      config: {
-        tools: [
-          {
-            fileSearch: {
-              fileSearchStoreNames: [ragStoreName],
-            }
-          }
-        ],
-        thinkingLevel: 'low',
-        maxOutputTokens: 4096,
+    const systemInstruction = `You are a helpful assistant that answers questions based ONLY on the documents in the knowledge base.
+
+CRITICAL INSTRUCTIONS:
+1. ONLY use information from the retrieved documents to answer
+2. If the documents contain the answer, provide it directly and confidently
+3. If the documents do NOT contain relevant information, clearly state: "I don't have information about that in the uploaded documents."
+4. Be specific and cite information from the documents
+5. Do NOT make up information or use general knowledge
+6. Keep answers concise but complete`;
+
+    let metadataFilter: string | undefined = undefined;
+
+    // If no specific files selected, fetch ALL active files to ensure we don't search deleted ones
+    let effectiveFileIds = selectedFileIds || [];
+
+    if (effectiveFileIds.length === 0) {
+      console.log('🔵 No specific files selected, fetching active file IDs for filter...');
+      try {
+        const activeFilesSnapshot = await db
+          .collection(`partners/${partnerId}/vaultFiles`)
+          .where('state', '==', 'ACTIVE')
+          .get();
+
+        const activeIds = activeFilesSnapshot.docs
+          .map(doc => doc.id)
+          .filter(id => id);
+
+        if (activeIds.length > 0) {
+          console.log(`✅ Found ${activeIds.length} active files for filtering`);
+          effectiveFileIds = activeIds;
+        } else {
+          console.warn('⚠️ No active files found in database');
+          return {
+            success: true,
+            message: 'No active documents found',
+            response: "I don't have any documents to answer from. Please upload some documents first.",
+            geminiChunks: []
+          };
+        }
+      } catch (dbError) {
+        console.error('⚠️ Failed to fetch active files:', dbError);
       }
+    }
+
+    if (effectiveFileIds.length > 0) {
+      // Create filter string: fileId="ID1" OR fileId="ID2" ...
+      // fileId is safe (alphanumeric)
+
+      const filterParts = effectiveFileIds.map(id => `fileId="${id}"`);
+
+      metadataFilter = filterParts.join(' OR ');
+      console.log(`📤 Metadata Filter Length: ${metadataFilter.length} chars`);
+
+      if (metadataFilter.length > 5000) {
+        console.warn('⚠️ Filter string too long, truncating to first 50 files');
+        const truncatedParts = filterParts.slice(0, 50);
+        metadataFilter = truncatedParts.join(' OR ');
+      }
+
+      console.log(`📤 Metadata Filter: ${effectiveFileIds.length} files (using fileId)`);
+    } else {
+      console.log(`📤 Metadata Filter: None (searching all documents)`);
+    }
+
+    const fileSearchConfig: any = {
+      fileSearchStoreNames: [ragStoreName],
     };
 
     if (metadataFilter) {
-      // Ensure the filter is passed correctly
-      // The correct property name is 'metadataFilter' in the Google Gen AI SDK
-      geminiConfig.config.tools[0].fileSearch.metadataFilter = metadataFilter;
-      console.log('🔍 Applied metadataFilter to Gemini config:', metadataFilter);
+      fileSearchConfig.metadataFilter = metadataFilter;
     }
 
-    console.log('📤 Sending Gemini 3 request with config:', JSON.stringify(geminiConfig, null, 2));
+    let geminiResponse = await genAI.models.generateContent({
+      model: 'gemini-3-pro-preview',
+      contents: question,
+      config: {
+        systemInstruction: systemInstruction,
+        tools: [
+          {
+            fileSearch: fileSearchConfig
+          }
+        ],
+        temperature: 0.3,
+        maxOutputTokens: 2048,
+      }
+    });
 
-    console.log('📤 Sending Gemini 3 request');
+    let response = geminiResponse;
+    let responseText = response.text || '';
 
-    const geminiResponse = await genAI.models.generateContent(geminiConfig);
+    // Removed fallback retry logic to prevent contamination from deleted files
 
     const totalTime = Date.now() - queryStart;
-    console.log(`✅ Gemini 3 response received in ${totalTime}ms`);
+    console.log(`✅ Gemini response received in ${totalTime}ms`);
+    console.log(`📝 Response length: ${responseText.length} characters`);
 
-    // Extract response text
-    const responseText = geminiResponse.text || '';
-
-    // Extract grounding chunks
     let groundingChunks: any[] = [];
-    if (geminiResponse.candidates && geminiResponse.candidates[0]) {
-      const candidate = geminiResponse.candidates[0];
+
+    if (response.candidates && response.candidates[0]) {
+      const candidate = response.candidates[0];
+
+      console.log('📊 Response structure:', {
+        hasGroundingMetadata: !!candidate.groundingMetadata,
+        groundingMetadataKeys: candidate.groundingMetadata ? Object.keys(candidate.groundingMetadata) : [],
+      });
+
       if (candidate.groundingMetadata) {
-        groundingChunks = candidate.groundingMetadata.groundingChunks || [];
+        const gm = candidate.groundingMetadata;
+        groundingChunks = gm.groundingChunks || [];
+
+        console.log('📊 Grounding metadata:', {
+          hasGroundingChunks: !!gm.groundingChunks,
+          chunksLength: groundingChunks.length,
+          hasGroundingSupports: !!gm.groundingSupports,
+        });
       }
     }
 
-    console.log(`📚 Retrieved ${groundingChunks.length} chunks from Gemini 3`);
+    console.log(`📚 Retrieved ${groundingChunks.length} grounding chunks`);
 
     if (groundingChunks.length === 0) {
-      console.warn('⚠️ No chunks retrieved - answer may be based on general knowledge');
-      if (metadataFilter) {
-        console.warn('⚠️ Filter was applied. Check if files have the correct metadata (fileId).');
-      }
+      console.warn('⚠️ No grounding chunks retrieved');
     } else {
-      groundingChunks.forEach((chunk: any, i: number) => {
-        const ctx = chunk.retrievedContext;
-        console.log(`  📄 Chunk ${i + 1}:`, {
-          hasTitle: !!ctx?.title,
-          title: ctx?.title || 'No title',
-          textLength: ctx?.text?.length || 0,
-        });
-      });
+      console.log('✅ Grounding chunks retrieved successfully!');
     }
 
-    // Process chunks
     const processedChunks = groundingChunks
       .map((chunk: any) => {
         const ctx = chunk.retrievedContext;
         if (!ctx) return null;
 
         let content = ctx.text || '';
-        let source = ctx.title || 'Unknown Source';
+        let source = 'Document';
 
-        if (ctx.uri) {
-          const match = ctx.uri.match(/files\/([^\/]+)/);
-          if (match) {
-            source = match[1];
+        if (ctx.title && ctx.title.trim()) {
+          source = ctx.title;
+        } else if (ctx.uri) {
+          const uriParts = ctx.uri.split('/');
+          for (let i = uriParts.length - 1; i >= 0; i--) {
+            const part = uriParts[i];
+            if (part && part.trim()) {
+              const mappedName = docNameMapping.get(part);
+              if (mappedName) {
+                source = mappedName;
+                break;
+              }
+              const fullPath = uriParts.slice(0, i + 1).join('/');
+              const mappedFullPath = docNameMapping.get(fullPath);
+              if (mappedFullPath) {
+                source = mappedFullPath;
+                break;
+              }
+            }
+          }
+
+          if (source === 'Document') {
+            const lastPart = uriParts[uriParts.length - 1];
+            if (lastPart && lastPart.trim() && !lastPart.match(/^[a-z0-9]{20,}$/i)) {
+              source = decodeURIComponent(lastPart);
+            }
           }
         }
 
+        if (chunk.displayName) {
+          source = chunk.displayName;
+        }
+
         return {
-          content,
+          content: content.substring(0, 1000),
           source,
           score: 0.85,
         };
       })
-      .filter((chunk): chunk is NonNullable<typeof chunk> => chunk !== null)
+      .filter((chunk): chunk is NonNullable<typeof chunk> => chunk !== null && chunk.content.length > 0)
       .slice(0, maxChunks);
 
+    const uniqueSources = [...new Set(processedChunks.map(c => c.source))];
+    console.log(`📄 Unique sources: ${uniqueSources.join(', ')}`);
+
     console.log('═══════════════════════════════════════');
-    console.log('✅ GEMINI 3 RAG QUERY COMPLETE');
+    console.log('✅ GEMINI RAG QUERY COMPLETE');
     console.log('═══════════════════════════════════════');
     console.log(`⏱️ Total time: ${totalTime}ms`);
-    console.log(`📚 Chunks used: ${processedChunks.length}`);
-    console.log(`📝 Response length: ${responseText.length} characters`);
+    console.log(`📚 Processed chunks: ${processedChunks.length}`);
+    console.log(`📝 Response preview: ${responseText.substring(0, 200)}...`);
     console.log('═══════════════════════════════════════');
 
     return {
@@ -210,12 +341,12 @@ export async function queryWithGeminiRAG(
       retrievalTime: totalTime,
       generationTime: totalTime,
       modelUsed: 'gemini-3-pro-preview',
-      metadataFilter,
+      metadataFilter: metadataFilter,
     };
 
   } catch (error: any) {
     console.error('═══════════════════════════════════════');
-    console.error('❌ GEMINI 3 RAG QUERY FAILED');
+    console.error('❌ GEMINI RAG QUERY FAILED');
     console.error('═══════════════════════════════════════');
     console.error('Error:', error.message);
     console.error('Stack:', error.stack);

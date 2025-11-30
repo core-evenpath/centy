@@ -223,7 +223,8 @@ export default function VaultPage() {
   };
 
   const handleUploadStart = (id: string, fileName: string) => {
-    startUpload(fileName);
+    // Use the ID provided by UploadDialog to ensure consistency
+    startUpload(fileName, id);
   };
 
   const handleUploadProgress = (id: string, step: number, description: string) => {

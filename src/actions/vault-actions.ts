@@ -1180,19 +1180,25 @@ export async function chatWithVaultHybrid(
   }
 
   try {
-    const modelChoice = await getPartnerAIConfig(partnerId);
-    console.log(`📊 Hybrid query initiated - Using partner's model: ${modelChoice}`);
+    console.log('═══════════════════════════════════════');
+    console.log('🚀 VAULT HYBRID QUERY STARTING');
+    console.log('═══════════════════════════════════════');
+    console.log(`📊 Partner: ${partnerId}`);
+    console.log(`📊 User: ${userId}`);
+    console.log(`📊 Message: "${message}"`);
+    console.log(`📊 Selected files: ${selectedFileIds?.length || 'ALL'}`);
 
     const result = await queryWithGeminiRAG(
       partnerId,
       message,
       {
-        maxChunks: 5,
+        maxChunks: 10,
         selectedFileIds: selectedFileIds,
       }
     );
 
     if (!result.success) {
+      console.error('❌ Query failed:', result.message);
       return {
         success: false,
         message: result.message || 'Query failed',
@@ -1201,24 +1207,30 @@ export async function chatWithVaultHybrid(
 
     const sourceFileNames = result.geminiChunks?.map(c => c.source) || [];
 
-    await db.collection(`partners/${partnerId}/vaultQueries`).add({
-      query: message,
-      response: result.response,
-      partnerId: partnerId,
-      userId: userId,
-      selectedFileIds: selectedFileIds || [],
-      provider: `gemini-rag-${modelChoice}`,
-      modelUsed: result.modelUsed,
-      geminiChunks: result.geminiChunks?.length || 0,
-      sources: sourceFileNames,
-      usage: result.usage,
-      inputTokens: result.usage?.input_tokens || result.usage?.prompt_tokens || 0,
-      outputTokens: result.usage?.output_tokens || result.usage?.completion_tokens || 0,
-      retrievalTimeMs: result.retrievalTime,
-      generationTimeMs: result.generationTime,
-      metadataFilterUsed: result.metadataFilter,
-      createdAt: FieldValue.serverTimestamp(),
-    });
+    try {
+      await db.collection(`partners/${partnerId}/vaultQueries`).add({
+        query: message,
+        response: result.response,
+        partnerId: partnerId,
+        userId: userId,
+        selectedFileIds: selectedFileIds || [],
+        provider: 'gemini-rag',
+        modelUsed: result.modelUsed,
+        geminiChunks: result.geminiChunks?.length || 0,
+        sources: sourceFileNames,
+        usage: result.usage,
+        retrievalTimeMs: result.retrievalTime,
+        generationTimeMs: result.generationTime,
+        metadataFilterUsed: result.metadataFilter,
+        createdAt: FieldValue.serverTimestamp(),
+      });
+    } catch (logError) {
+      console.warn('Failed to log query:', logError);
+    }
+
+    console.log('═══════════════════════════════════════');
+    console.log('✅ VAULT HYBRID QUERY COMPLETE');
+    console.log('═══════════════════════════════════════');
 
     return {
       success: true,
@@ -1231,7 +1243,7 @@ export async function chatWithVaultHybrid(
       modelUsed: result.modelUsed,
     };
   } catch (error: any) {
-    console.error('Error querying vault:', error);
+    console.error('❌ Error querying vault:', error);
     return {
       success: false,
       message: `Query failed: ${error.message}`,
@@ -1290,7 +1302,7 @@ export async function chatWithVaultForConversation(
   sources?: any[];
   alternativeReplies?: string[];
 }> {
-  console.log('⚡ Gemini 3 RAG starting for messaging');
+  console.log('⚡ Gemini RAG starting for messaging');
   const startTime = Date.now();
 
   if (!db) {
@@ -1324,7 +1336,7 @@ Customer question: "${message}"
 
 Generate a helpful, professional response (1-3 sentences) using the knowledge base. The information you need is in the documents - find it and use it. Be confident and direct in your answer.`;
 
-    console.log('📤 Querying with Gemini 3 RAG...');
+    console.log('📤 Querying with Gemini RAG...');
     const queryStart = Date.now();
 
     const result = await queryWithGeminiRAG(
@@ -1335,7 +1347,7 @@ Generate a helpful, professional response (1-3 sentences) using the knowledge ba
       }
     );
 
-    console.log(`⏱️ Gemini 3 query: ${Date.now() - queryStart}ms`);
+    console.log(`⏱️ Gemini query: ${Date.now() - queryStart}ms`);
 
     if (!result.success || !result.response) {
       return {
@@ -1349,8 +1361,8 @@ Generate a helpful, professional response (1-3 sentences) using the knowledge ba
 
     const confidence = chunksUsed > 0 ? 0.90 : 0.65;
     const reasoning = chunksUsed > 0
-      ? `Based on ${chunksUsed} source${chunksUsed > 1 ? 's' : ''} from knowledge base (Gemini 3)`
-      : `General response (Gemini 3)`;
+      ? `Based on ${chunksUsed} source${chunksUsed > 1 ? 's' : ''} from knowledge base`
+      : `General response`;
 
     const sources = result.geminiChunks?.slice(0, 3).map(chunk => ({
       type: 'document' as const,
@@ -1373,7 +1385,7 @@ Generate a helpful, professional response (1-3 sentences) using the knowledge ba
     };
 
   } catch (error: any) {
-    console.error('❌ Gemini 3 RAG failed for messaging:', error);
+    console.error('❌ Gemini RAG failed for messaging:', error);
 
     return {
       success: false,
@@ -1396,9 +1408,20 @@ export async function generateExampleQuestions(partnerId: string): Promise<strin
 
     const ragStoreName = storesSnapshot.docs[0].data().name;
 
+    const prompt = `Based on the documents in this knowledge base, generate 4 specific, practical questions that a user might ask.
+
+The questions should:
+- Be based on actual content in the documents
+- Be specific rather than generic
+- Cover different topics from the documents
+- Be phrased naturally as a user would ask them
+
+Return ONLY a JSON array of 4 question strings, nothing else. Example format:
+["Question 1?", "Question 2?", "Question 3?", "Question 4?"]`;
+
     const response = await genAI.models.generateContent({
       model: 'gemini-3-pro-preview',
-      contents: "Generate 4 short and practical example questions a user might ask about the uploaded documents. Return only a JSON array of question strings.",
+      contents: prompt,
       config: {
         tools: [
           {
@@ -1407,13 +1430,14 @@ export async function generateExampleQuestions(partnerId: string): Promise<strin
             }
           }
         ],
-        thinkingLevel: 'low',
+        temperature: 0.7,
+        maxOutputTokens: 500,
       }
     });
 
-    let jsonText = response.text.trim();
-    const jsonMatch = jsonText.match(/```json\n([\s\S]*?)\n```/);
+    let jsonText = response.text?.trim() || '[]';
 
+    const jsonMatch = jsonText.match(/```json\n?([\s\S]*?)\n?```/);
     if (jsonMatch && jsonMatch[1]) {
       jsonText = jsonMatch[1];
     } else {
@@ -1425,7 +1449,7 @@ export async function generateExampleQuestions(partnerId: string): Promise<strin
     }
 
     const parsedData = JSON.parse(jsonText);
-    return Array.isArray(parsedData) ? parsedData.filter(q => typeof q === 'string') : [];
+    return Array.isArray(parsedData) ? parsedData.filter(q => typeof q === 'string').slice(0, 4) : [];
   } catch (error) {
     console.error("Failed to generate questions:", error);
     return [];
@@ -1883,6 +1907,103 @@ ${details.errors.length > 0 ? `\n⚠️ ${details.errors.length} errors occurred
       success: false,
       message: `Cleanup failed: ${error.message}`,
       details,
+    };
+  }
+}
+
+export async function listGeminiStoreDocuments(
+  partnerId: string
+): Promise<{
+  success: boolean;
+  message: string;
+  documents?: Array<{
+    name: string;
+    displayName: string;
+    customMetadata?: any[];
+    state?: string;
+    createTime?: string;
+  }>;
+  storeName?: string;
+}> {
+  if (!db) {
+    return { success: false, message: 'Database not available' };
+  }
+
+  try {
+    const storesSnapshot = await db
+      .collection(`partners/${partnerId}/fileSearchStores`)
+      .where('state', '==', 'ACTIVE')
+      .limit(1)
+      .get();
+
+    if (storesSnapshot.empty) {
+      return { success: false, message: 'No active file search store found' };
+    }
+
+    const ragStoreName = storesSnapshot.docs[0].data().name;
+    console.log(`📦 Listing documents in store: ${ragStoreName}`);
+
+    const documents: Array<{
+      name: string;
+      displayName: string;
+      customMetadata?: any[];
+      state?: string;
+      createTime?: string;
+    }> = [];
+
+    let pageToken: string | undefined = undefined;
+
+    do {
+      const listParams: any = {
+        parent: ragStoreName,
+        config: { pageSize: 20 }
+      };
+
+      if (pageToken) {
+        listParams.config.pageToken = pageToken;
+      }
+
+      const response = await genAI.fileSearchStores.documents.list(listParams);
+
+      if (response.documents) {
+        for (const doc of response.documents) {
+          documents.push({
+            name: doc.name || '',
+            displayName: doc.displayName || '',
+            customMetadata: doc.customMetadata || [],
+            state: doc.state || 'UNKNOWN',
+            createTime: doc.createTime || '',
+          });
+        }
+      }
+
+      pageToken = response.nextPageToken;
+    } while (pageToken);
+
+    console.log(`📋 Found ${documents.length} documents in Gemini store`);
+
+    const docsWithFileId = documents.filter(d =>
+      d.customMetadata?.some((m: any) => m.key === 'fileId')
+    );
+    const docsWithoutFileId = documents.filter(d =>
+      !d.customMetadata?.some((m: any) => m.key === 'fileId')
+    );
+
+    console.log(`✅ Documents WITH fileId metadata: ${docsWithFileId.length}`);
+    console.log(`❌ Documents WITHOUT fileId metadata: ${docsWithoutFileId.length}`);
+
+    return {
+      success: true,
+      message: `Found ${documents.length} documents. ${docsWithFileId.length} have fileId metadata, ${docsWithoutFileId.length} need re-upload.`,
+      documents,
+      storeName: ragStoreName,
+    };
+
+  } catch (error: any) {
+    console.error('❌ Failed to list Gemini store documents:', error);
+    return {
+      success: false,
+      message: `Failed to list documents: ${error.message}`,
     };
   }
 }

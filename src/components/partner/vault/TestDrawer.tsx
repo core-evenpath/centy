@@ -69,26 +69,25 @@ const FormattedMessage = ({ content }: { content: string }) => {
     <div className="prose prose-sm max-w-none text-inherit">
       <ReactMarkdown
         components={{
-          h1: ({ node, ...props }) => <h1 className="text-base font-bold mb-2 mt-3" {...props} />,
-          h2: ({ node, ...props }) => <h2 className="text-sm font-bold mb-1.5 mt-2" {...props} />,
-          h3: ({ node, ...props }) => <h3 className="text-sm font-semibold mb-1 mt-2" {...props} />,
-          p: ({ node, ...props }) => <p className="mb-2 leading-relaxed" {...props} />,
-          ul: ({ node, ...props }) => <ul className="list-disc pl-5 mb-2 space-y-1" {...props} />,
-          ol: ({ node, ...props }) => <ol className="list-decimal pl-5 mb-2 space-y-1" {...props} />,
-          li: ({ node, ...props }) => <li className="leading-relaxed" {...props} />,
-          strong: ({ node, ...props }) => <strong className="font-semibold" {...props} />,
-          em: ({ node, ...props }) => <em className="italic" {...props} />,
-          code: ({ node, inline, ...props }: any) =>
-            inline ? (
-              <code className="bg-white/20 px-1.5 py-0.5 rounded text-xs font-mono" {...props} />
+          h1: ({ children }) => <h1 className="text-base font-bold mb-2 mt-3">{children}</h1>,
+          h2: ({ children }) => <h2 className="text-sm font-bold mb-1.5 mt-2">{children}</h2>,
+          h3: ({ children }) => <h3 className="text-sm font-semibold mb-1 mt-2">{children}</h3>,
+          p: ({ children }) => <p className="mb-2 leading-relaxed">{children}</p>,
+          ul: ({ children }) => <ul className="list-disc pl-5 mb-2 space-y-1">{children}</ul>,
+          ol: ({ children }) => <ol className="list-decimal pl-5 mb-2 space-y-1">{children}</ol>,
+          li: ({ children }) => <li className="leading-relaxed">{children}</li>,
+          strong: ({ children }) => <strong className="font-semibold">{children}</strong>,
+          em: ({ children }) => <em className="italic">{children}</em>,
+          code: ({ children, className }) => {
+            const isInline = !className;
+            return isInline ? (
+              <code className="bg-slate-100 px-1.5 py-0.5 rounded text-xs font-mono">{children}</code>
             ) : (
-              <code className="block bg-white/10 p-2 rounded text-xs font-mono overflow-x-auto my-2" {...props} />
-            ),
-          blockquote: ({ node, ...props }) => (
-            <blockquote className="border-l-2 border-white/30 pl-3 italic my-2" {...props} />
-          ),
-          a: ({ node, ...props }) => (
-            <a className="underline hover:no-underline" {...props} />
+              <code className="block bg-slate-100 p-3 rounded-lg text-xs font-mono overflow-x-auto">{children}</code>
+            );
+          },
+          blockquote: ({ children }) => (
+            <blockquote className="border-l-4 border-blue-300 pl-4 italic text-slate-600">{children}</blockquote>
           ),
         }}
       >
@@ -102,11 +101,12 @@ const getModelDisplayName = (modelUsed?: string): string => {
   if (!modelUsed) return 'Unknown';
 
   const modelMap: Record<string, string> = {
+    'gemini-2.0-flash': 'Gemini 2.0 Flash',
+    'gemini-2.5-pro': 'Gemini 2.5 Pro',
+    'gemini-3-pro-preview': 'Gemini 3 Pro Preview',
     'claude-3-5-haiku-20241022': 'Claude Haiku 3.5',
     'claude-3-5-sonnet-20241022': 'Claude Sonnet 3.5',
-    'claude-sonnet-4-20250514': 'Claude Sonnet 4.5',
-    'gpt-4o-mini': 'GPT-4o Mini',
-    'gemini-2.5-pro': 'Gemini 2.5 Pro',
+    'claude-sonnet-4-20250514': 'Claude Sonnet 4',
   };
 
   return modelMap[modelUsed] || modelUsed;
@@ -115,11 +115,9 @@ const getModelDisplayName = (modelUsed?: string): string => {
 const getModelBadgeColor = (modelUsed?: string): string => {
   if (!modelUsed) return 'bg-gray-100 text-gray-700';
 
-  if (modelUsed.includes('haiku')) return 'bg-blue-100 text-blue-700';
-  if (modelUsed.includes('sonnet-4')) return 'bg-purple-100 text-purple-700';
-  if (modelUsed.includes('sonnet-3')) return 'bg-indigo-100 text-indigo-700';
-  if (modelUsed.includes('gpt')) return 'bg-green-100 text-green-700';
   if (modelUsed.includes('gemini')) return 'bg-orange-100 text-orange-700';
+  if (modelUsed.includes('haiku')) return 'bg-blue-100 text-blue-700';
+  if (modelUsed.includes('sonnet')) return 'bg-purple-100 text-purple-700';
 
   return 'bg-gray-100 text-gray-700';
 };
@@ -148,7 +146,7 @@ export default function TestDrawer({
       loadFiles();
       loadExampleQuestions();
     }
-  }, [isOpen, documentCount]);
+  }, [isOpen, documentCount, partnerId]);
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -206,13 +204,6 @@ export default function TestDrawer({
     e.preventDefault();
     if (!query.trim() || isQuerying) return;
 
-    if (selectedFiles.size === 0) {
-      // If no files selected, we default to searching ALL files (replicating messaging behavior)
-      console.log('🔍 No specific files selected, searching ALL documents');
-    } else if (selectedFiles.size === 1) {
-      console.log('🔍 Querying single file:', Array.from(selectedFiles)[0]);
-    }
-
     const testedDocs = selectedFiles.size === 0
       ? ['All Documents']
       : Array.from(selectedFiles).map(id => {
@@ -228,11 +219,22 @@ export default function TestDrawer({
     };
 
     setMessages(prev => [...prev, userMessage]);
+    const currentQuery = query.trim();
     setQuery('');
     setIsQuerying(true);
 
     try {
       console.log('🔍 Sending query to vault API...');
+      console.log('📊 Partner:', partnerId);
+      console.log('📊 Query:', currentQuery);
+      console.log('📊 Selected files:', selectedFiles.size === 0 ? 'ALL' : Array.from(selectedFiles));
+
+      const selectedFileNames = selectedFiles.size === 0
+        ? undefined
+        : Array.from(selectedFiles).map(id => {
+          const file = files.find(f => f.id === id);
+          return file?.displayName || file?.name || '';
+        }).filter(name => name);
 
       const response = await fetch('/api/vault/chat', {
         method: 'POST',
@@ -240,12 +242,14 @@ export default function TestDrawer({
         body: JSON.stringify({
           partnerId,
           userId,
-          message: query.trim(),
+          message: currentQuery,
           selectedFileIds: selectedFiles.size === 0 ? undefined : Array.from(selectedFiles),
+          selectedFileNames,
         }),
       });
 
       const result = await response.json();
+      console.log('📊 API Response:', result);
 
       if (result.success) {
         let sources: SourceChunk[] = [];
@@ -255,12 +259,12 @@ export default function TestDrawer({
             content: chunk.content || chunk.text || '',
             source: chunk.source || chunk.documentName || 'Unknown Document',
             score: chunk.score,
-          })).filter((s: any) => s.content);
+          })).filter((s: SourceChunk) => s.content.length > 0);
         }
 
         const assistantMessage: Message = {
           role: 'assistant',
-          content: result.response || '',
+          content: result.response || 'No response generated.',
           sources,
           modelUsed: result.modelUsed,
           usage: result.usage,
@@ -272,21 +276,19 @@ export default function TestDrawer({
         setMessages(prev => [...prev, assistantMessage]);
 
         if (sources.length === 0) {
-          toast({
-            title: 'No sources found',
-            description: 'The response was generated but no source citations were returned',
-            variant: 'default',
-          });
+          console.warn('⚠️ No source citations returned');
+        } else {
+          console.log(`✅ ${sources.length} sources returned`);
         }
       } else {
-        throw new Error(result.message);
+        throw new Error(result.message || 'Query failed');
       }
     } catch (error: any) {
       console.error('❌ Query failed:', error);
 
       const errorMessage: Message = {
         role: 'assistant',
-        content: 'Sorry, I encountered an error. Please try again.',
+        content: `Sorry, I encountered an error: ${error.message}. Please try again.`,
         timestamp: new Date(),
       };
 
@@ -317,7 +319,6 @@ export default function TestDrawer({
       <div className="fixed inset-0 bg-slate-900/20 backdrop-blur-sm z-50" onClick={onClose} />
 
       <div className="fixed inset-y-0 right-0 w-full md:w-[600px] bg-white shadow-2xl z-50 flex flex-col border-l border-slate-200">
-        {/* Header */}
         <div className="bg-white border-b border-slate-200 p-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="p-2 bg-blue-50 rounded-lg">
@@ -338,7 +339,6 @@ export default function TestDrawer({
           </button>
         </div>
 
-        {/* Document Selector */}
         <div className="border-b border-slate-200 bg-slate-50/50 p-3">
           <button
             onClick={() => setShowDocumentSelector(!showDocumentSelector)}
@@ -353,55 +353,64 @@ export default function TestDrawer({
               </span>
             </div>
             <ChevronDown
-              className={`h-4 w-4 text-slate-400 transition-transform ${showDocumentSelector ? 'rotate-180' : ''
-                }`}
+              className={`h-4 w-4 text-slate-400 transition-transform ${showDocumentSelector ? 'rotate-180' : ''}`}
             />
           </button>
 
           {showDocumentSelector && (
-            <div className="mt-3 bg-white border border-slate-200 rounded-lg p-3 max-h-64 overflow-y-auto shadow-lg">
-              <div className="flex items-center gap-2 mb-3">
-                <div className="relative flex-1">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-                  <Input
-                    type="text"
-                    placeholder="Search documents..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className="pl-9 h-9 text-sm bg-slate-50 border-slate-200"
-                  />
+            <div className="mt-3 bg-white border border-slate-200 rounded-lg shadow-sm overflow-hidden">
+              <div className="p-3 border-b border-slate-100 bg-slate-50">
+                <div className="flex items-center gap-2 mb-2">
+                  <div className="relative flex-1">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                    <Input
+                      type="text"
+                      placeholder="Search documents..."
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      className="pl-9 h-8 text-sm"
+                    />
+                  </div>
                 </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handleSelectAll}
-                  className="text-xs h-9"
-                >
-                  All
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handleClearSelection}
-                  className="text-xs h-9"
-                >
-                  None
-                </Button>
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-slate-500">
+                    {selectedFiles.size} of {files.length} selected
+                  </span>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={handleSelectAll}
+                      className="text-xs text-blue-600 hover:text-blue-700 font-medium"
+                    >
+                      Select All
+                    </button>
+                    <button
+                      onClick={handleClearSelection}
+                      className="text-xs text-slate-500 hover:text-slate-700 font-medium"
+                    >
+                      Clear
+                    </button>
+                  </div>
+                </div>
               </div>
-
-              <div className="space-y-1">
-                {filteredFiles.map((file) => (
+              <div className="max-h-48 overflow-y-auto divide-y divide-slate-100">
+                {filteredFiles.map(file => (
                   <label
                     key={file.id}
-                    className="flex items-center gap-3 p-2 hover:bg-slate-50 rounded-lg cursor-pointer transition-colors"
+                    className="flex items-center gap-3 px-3 py-2 hover:bg-slate-50 cursor-pointer transition-colors"
                   >
-                    <div className="relative flex items-center justify-center">
-                      <input
-                        type="checkbox"
-                        checked={selectedFiles.has(file.id)}
-                        onChange={() => toggleFileSelection(file.id)}
-                        className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
-                      />
+                    <div
+                      className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-colors ${selectedFiles.has(file.id)
+                        ? 'bg-blue-600 border-blue-600'
+                        : 'border-slate-300 hover:border-blue-400'
+                        }`}
+                      onClick={(e) => {
+                        e.preventDefault();
+                        toggleFileSelection(file.id);
+                      }}
+                    >
+                      {selectedFiles.has(file.id) && (
+                        <Check className="h-3 w-3 text-white" />
+                      )}
                     </div>
                     <FileText className="h-4 w-4 text-slate-400 flex-shrink-0" />
                     <span className="text-sm text-slate-700 truncate flex-1 font-medium">
@@ -414,7 +423,6 @@ export default function TestDrawer({
           )}
         </div>
 
-        {/* Chat Area */}
         <div className="flex-1 overflow-y-auto p-4 space-y-6 bg-slate-50/30">
           {messages.length === 0 && (
             <div className="text-center py-12">
@@ -428,7 +436,12 @@ export default function TestDrawer({
                 Ask questions about your documents and get AI-powered answers based on your knowledge base.
               </p>
 
-              {exampleQuestions.length > 0 && (
+              {isLoadingExamples ? (
+                <div className="flex items-center justify-center gap-2 text-slate-500">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <span className="text-sm">Loading suggestions...</span>
+                </div>
+              ) : exampleQuestions.length > 0 ? (
                 <div className="space-y-2 max-w-sm mx-auto">
                   <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">
                     Suggested Questions
@@ -443,15 +456,14 @@ export default function TestDrawer({
                     </button>
                   ))}
                 </div>
-              )}
+              ) : null}
             </div>
           )}
 
           {messages.map((message, idx) => (
             <div
               key={idx}
-              className={`flex gap-4 ${message.role === 'user' ? 'justify-end' : 'justify-start'
-                }`}
+              className={`flex gap-4 ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
             >
               {message.role === 'assistant' && (
                 <div className="flex-shrink-0">
@@ -461,10 +473,7 @@ export default function TestDrawer({
                 </div>
               )}
 
-              <div
-                className={`flex-1 max-w-[85%] ${message.role === 'user' ? 'flex justify-end' : ''
-                  }`}
-              >
+              <div className={`flex-1 max-w-[85%] ${message.role === 'user' ? 'flex justify-end' : ''}`}>
                 <div
                   className={`rounded-2xl px-5 py-4 shadow-sm ${message.role === 'user'
                     ? 'bg-blue-600 text-white rounded-tr-none'
@@ -472,110 +481,78 @@ export default function TestDrawer({
                     }`}
                 >
                   {message.role === 'user' ? (
-                    <>
-                      <p className="text-sm leading-relaxed font-medium">{message.content}</p>
-                      {message.testedDocuments && message.testedDocuments.length > 0 && (
-                        <div className="mt-2 pt-2 border-t border-white/20">
-                          <p className="text-xs text-blue-100 mb-1 opacity-80">Context:</p>
-                          <div className="flex flex-wrap gap-1">
-                            {message.testedDocuments.slice(0, 3).map((doc, i) => (
-                              <span
-                                key={i}
-                                className="text-[10px] bg-white/20 px-1.5 py-0.5 rounded text-white"
-                              >
-                                {doc}
-                              </span>
-                            ))}
-                            {message.testedDocuments.length > 3 && (
-                              <span className="text-[10px] bg-white/20 px-1.5 py-0.5 rounded text-white">
-                                +{message.testedDocuments.length - 3} more
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                      )}
-                    </>
+                    <p className="text-sm leading-relaxed">{message.content}</p>
                   ) : (
                     <>
-                      <div className="flex items-center gap-2 mb-3">
-                        {message.modelUsed && (
-                          <div className={`flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-medium uppercase tracking-wide ${getModelBadgeColor(message.modelUsed)}`}>
-                            <Brain className="h-3 w-3" />
+                      {message.modelUsed && (
+                        <div className="flex items-center gap-2 mb-3">
+                          <Badge className={`text-[10px] ${getModelBadgeColor(message.modelUsed)}`}>
                             {getModelDisplayName(message.modelUsed)}
-                          </div>
-                        )}
-                      </div>
+                          </Badge>
+                          {message.sources && message.sources.length > 0 && (
+                            <Badge variant="outline" className="text-[10px]">
+                              {message.sources.length} source{message.sources.length !== 1 ? 's' : ''}
+                            </Badge>
+                          )}
+                        </div>
+                      )}
 
                       <FormattedMessage content={message.content} />
 
-                      {message.usage && (
+                      {message.sources && message.sources.length > 0 && (
                         <div className="mt-4 pt-3 border-t border-slate-100">
                           <Collapsible>
                             <CollapsibleTrigger className="flex items-center gap-2 text-xs text-slate-500 hover:text-slate-800 w-full transition-colors">
                               <ChevronDown className="h-3 w-3" />
-                              <span>Performance Metrics</span>
+                              <span>Sources ({message.sources.length})</span>
                             </CollapsibleTrigger>
                             <CollapsibleContent className="mt-3 space-y-2">
-                              {(message.retrievalTime !== undefined || message.generationTime !== undefined) && (
-                                <div className="flex items-center gap-4 text-xs text-slate-600 bg-slate-50 p-2 rounded-lg">
-                                  {message.retrievalTime !== undefined && (
-                                    <div className="flex items-center gap-1.5">
-                                      <Clock className="h-3 w-3 text-slate-400" />
-                                      <span>Retrieval: <span className="font-mono font-medium">{formatTime(message.retrievalTime)}</span></span>
+                              {message.sources.map((source, i) => (
+                                <div
+                                  key={i}
+                                  className="p-3 bg-slate-50 rounded-lg border border-slate-100 hover:border-blue-200 transition-colors group"
+                                >
+                                  <div className="flex items-start justify-between gap-2 mb-1">
+                                    <div className="flex items-center gap-2">
+                                      <FileText className="h-4 w-4 text-blue-600" />
+                                      <span className="text-xs font-semibold text-slate-900 truncate group-hover:text-blue-700 transition-colors">
+                                        {source.source}
+                                      </span>
                                     </div>
-                                  )}
-                                  {message.generationTime !== undefined && (
-                                    <div className="flex items-center gap-1.5">
-                                      <Zap className="h-3 w-3 text-slate-400" />
-                                      <span>Generation: <span className="font-mono font-medium">{formatTime(message.generationTime)}</span></span>
-                                    </div>
-                                  )}
+                                    {source.score !== undefined && (
+                                      <Badge variant="secondary" className="text-[10px] h-5 bg-white border border-slate-200 text-slate-600">
+                                        {(source.score * 100).toFixed(0)}% match
+                                      </Badge>
+                                    )}
+                                  </div>
+                                  <p className="text-xs text-slate-600 line-clamp-3 leading-relaxed pl-6">
+                                    {source.content}
+                                  </p>
                                 </div>
-                              )}
-
-                              {message.usage && (
-                                <div className="flex items-center gap-3 text-xs text-slate-600 bg-slate-50 p-2 rounded-lg">
-                                  <span>Tokens: <span className="font-mono">{message.usage.input_tokens || 0}</span> in / <span className="font-mono">{message.usage.output_tokens || 0}</span> out</span>
-                                </div>
-                              )}
+                              ))}
                             </CollapsibleContent>
                           </Collapsible>
                         </div>
                       )}
 
-                      {message.sources && message.sources.length > 0 && (
-                        <div className="mt-4 pt-3 border-t border-slate-100">
-                          <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3 flex items-center gap-1.5">
-                            <FileText className="h-3 w-3" />
-                            Sources ({message.sources.length})
-                          </h4>
-                          <div className="space-y-2">
-                            {message.sources.map((source, sourceIdx) => (
-                              <div
-                                key={sourceIdx}
-                                className="bg-slate-50 rounded-lg p-3 border border-slate-200 hover:border-blue-300 transition-colors group"
-                              >
-                                <div className="flex items-start justify-between gap-2 mb-1.5">
-                                  <div className="flex items-center gap-2 flex-1 min-w-0">
-                                    <div className="bg-white p-1 rounded border border-slate-200">
-                                      <FileText className="h-3 w-3 text-blue-600" />
-                                    </div>
-                                    <span className="text-xs font-semibold text-slate-900 truncate group-hover:text-blue-700 transition-colors">
-                                      {source.source}
-                                    </span>
+                      {(message.retrievalTime !== undefined || message.generationTime !== undefined) && (
+                        <div className="mt-3 pt-2 border-t border-slate-100">
+                          <Collapsible>
+                            <CollapsibleTrigger className="flex items-center gap-2 text-xs text-slate-500 hover:text-slate-800 w-full transition-colors">
+                              <ChevronDown className="h-3 w-3" />
+                              <span>Performance</span>
+                            </CollapsibleTrigger>
+                            <CollapsibleContent className="mt-2">
+                              <div className="flex items-center gap-4 text-xs text-slate-600 bg-slate-50 p-2 rounded-lg">
+                                {message.retrievalTime !== undefined && (
+                                  <div className="flex items-center gap-1.5">
+                                    <Clock className="h-3 w-3 text-slate-400" />
+                                    <span>Time: <span className="font-mono font-medium">{formatTime(message.retrievalTime)}</span></span>
                                   </div>
-                                  {source.score !== undefined && (
-                                    <Badge variant="secondary" className="text-[10px] h-5 bg-white border border-slate-200 text-slate-600">
-                                      {(source.score * 100).toFixed(0)}% match
-                                    </Badge>
-                                  )}
-                                </div>
-                                <p className="text-xs text-slate-600 line-clamp-2 leading-relaxed pl-7">
-                                  {source.content}
-                                </p>
+                                )}
                               </div>
-                            ))}
-                          </div>
+                            </CollapsibleContent>
+                          </Collapsible>
                         </div>
                       )}
                     </>
@@ -609,10 +586,10 @@ export default function TestDrawer({
                   <Bot className="h-5 w-5 text-white" />
                 </div>
               </div>
-              <div className="flex-1">
-                <div className="bg-white border border-slate-100 rounded-2xl rounded-tl-none px-5 py-4 shadow-sm inline-flex items-center gap-3">
+              <div className="bg-white border border-slate-100 rounded-2xl rounded-tl-none px-5 py-4 shadow-sm">
+                <div className="flex items-center gap-3">
                   <Loader2 className="h-4 w-4 animate-spin text-blue-600" />
-                  <span className="text-sm text-slate-600 font-medium">Analyzing documents...</span>
+                  <span className="text-sm text-slate-600">Searching documents...</span>
                 </div>
               </div>
             </div>
@@ -621,26 +598,25 @@ export default function TestDrawer({
           <div ref={chatEndRef} />
         </div>
 
-        {/* Input Area */}
-        <div className="border-t border-slate-200 bg-white p-4">
-          <form onSubmit={handleSubmit} className="flex gap-3">
+        <form onSubmit={handleSubmit} className="border-t border-slate-200 p-4 bg-white">
+          <div className="flex gap-3">
             <Textarea
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Ask a question about your documents..."
-              className="flex-1 min-h-[50px] max-h-[120px] resize-none bg-slate-50 border-slate-200 focus:bg-white focus:border-blue-300 transition-all rounded-xl py-3"
+              className="flex-1 min-h-[60px] max-h-[120px] resize-none"
+              disabled={isQuerying}
               onKeyDown={(e) => {
                 if (e.key === 'Enter' && !e.shiftKey) {
                   e.preventDefault();
                   handleSubmit(e);
                 }
               }}
-              disabled={isQuerying}
             />
             <Button
               type="submit"
               disabled={!query.trim() || isQuerying}
-              className="self-end h-[50px] w-[50px] rounded-xl bg-blue-600 hover:bg-blue-700 shadow-lg shadow-blue-600/20 transition-all hover:scale-105"
+              className="h-auto px-4 bg-blue-600 hover:bg-blue-700"
             >
               {isQuerying ? (
                 <Loader2 className="h-5 w-5 animate-spin" />
@@ -648,11 +624,11 @@ export default function TestDrawer({
                 <Send className="h-5 w-5" />
               )}
             </Button>
-          </form>
-          <p className="text-[10px] text-slate-400 mt-2 text-center font-medium">
-            Press Enter to send, Shift+Enter for new line
+          </div>
+          <p className="text-xs text-slate-400 mt-2 text-center">
+            Press Enter to send • Shift+Enter for new line
           </p>
-        </div>
+        </form>
       </div>
     </>
   );

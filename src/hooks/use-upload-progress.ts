@@ -15,8 +15,8 @@ export interface UploadProgress {
 export function useUploadProgress() {
   const [uploads, setUploads] = useState<UploadProgress[]>([]);
 
-  const startUpload = useCallback((fileName: string): string => {
-    const id = `upload-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+  const startUpload = useCallback((fileName: string, providedId?: string): string => {
+    const id = providedId || `upload-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
     const newUpload: UploadProgress = {
       id,
       fileName,
@@ -30,45 +30,45 @@ export function useUploadProgress() {
   }, []);
 
   const updateUploadStep = useCallback((
-    id: string, 
-    step: number, 
+    id: string,
+    step: number,
     description: string,
     status?: UploadProgress['status']
   ) => {
-    setUploads(prev => prev.map(upload => 
-      upload.id === id 
-        ? { 
-            ...upload, 
-            currentStep: step, 
-            stepDescription: description,
-            status: status || upload.status
-          } 
+    setUploads(prev => prev.map(upload =>
+      upload.id === id
+        ? {
+          ...upload,
+          currentStep: step,
+          stepDescription: description,
+          status: status || upload.status
+        }
         : upload
     ));
   }, []);
 
   const completeUpload = useCallback((id: string) => {
-    setUploads(prev => prev.map(upload => 
-      upload.id === id 
-        ? { 
-            ...upload, 
-            status: 'complete' as const,
-            currentStep: 5,
-            stepDescription: 'Upload complete! Ready to query.'
-          } 
+    setUploads(prev => prev.map(upload =>
+      upload.id === id
+        ? {
+          ...upload,
+          status: 'complete' as const,
+          currentStep: 5,
+          stepDescription: 'Upload complete! Ready to query.'
+        }
         : upload
     ));
   }, []);
 
   const failUpload = useCallback((id: string, error: string) => {
-    setUploads(prev => prev.map(upload => 
-      upload.id === id 
-        ? { 
-            ...upload, 
-            status: 'failed' as const,
-            error,
-            stepDescription: 'Upload failed'
-          } 
+    setUploads(prev => prev.map(upload =>
+      upload.id === id
+        ? {
+          ...upload,
+          status: 'failed' as const,
+          error,
+          stepDescription: 'Upload failed'
+        }
         : upload
     ));
   }, []);
