@@ -1234,7 +1234,7 @@ async function buildDocumentMapping(ragStoreName: string, partnerId: string): Pr
     do {
       const listParams: any = {
         parent: ragStoreName,
-        config: { pageSize: 100 }
+        config: { pageSize: 20 }
       };
       if (pageToken) {
         listParams.config.pageToken = pageToken;
