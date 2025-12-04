@@ -8,13 +8,13 @@ import {
   ChevronDown,
   LogOut,
   Building2,
-  MessageSquare,
   Bell,
   HelpCircle,
   Layers,
   Users,
-  Database,
   Puzzle,
+  Inbox,
+  HardDrive,
 } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
@@ -95,18 +95,18 @@ export default function UnifiedPartnerSidebar() {
 
   const allMenuItems: MenuItem[] = [
     {
-      icon: MessageSquare,
-      label: 'Chat Space',
-      href: '/partner/chatspace',
-      badge: stats?.unreadMessages || null,
-      description: 'SMS & WhatsApp conversations'
+      icon: Inbox,
+      label: 'AI Inbox',
+      href: '/partner/inbox',
+      badge: null,
+      description: 'AI assistants & document chats'
     },
     {
-      icon: Database,
-      label: 'Vault',
-      href: '/partner/vault',
+      icon: HardDrive,
+      label: 'Core Memory',
+      href: '/partner/core',
       badge: null,
-      description: 'Document storage & AI search'
+      description: 'Digital assets & AI agents'
     },
     {
       icon: Users,
