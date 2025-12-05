@@ -3,6 +3,7 @@
 import { format } from 'date-fns';
 import { Check, CheckCheck, Clock, FileText, Download, MoreVertical, Trash2 } from 'lucide-react';
 import type { MetaWhatsAppMessage } from '@/lib/types-meta-whatsapp';
+import ReactMarkdown from 'react-markdown';
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -92,12 +93,25 @@ export function MessageBubble({ message, onDelete }: MessageBubbleProps) {
             );
         }
 
-        // For text messages or media without URL
+        // For text messages or media without URL - render with markdown
         if (message.content && !message.content.match(/^\[(IMAGE|VIDEO|DOCUMENT|AUDIO|STICKER)\]$/)) {
             return (
-                <p className="text-[15px] text-gray-900 whitespace-pre-wrap break-words">
-                    {message.content}
-                </p>
+                <div className="text-[15px] text-gray-900 whitespace-pre-wrap break-words prose prose-sm max-w-none prose-p:my-0 prose-p:leading-relaxed prose-strong:font-semibold prose-ul:my-1 prose-ol:my-1 prose-li:my-0">
+                    <ReactMarkdown
+                        components={{
+                            p: ({ children }) => <p className="mb-1 last:mb-0 leading-relaxed">{children}</p>,
+                            strong: ({ children }) => <span className="font-bold">{children}</span>,
+                            // Treat emphasis (*) as Bold to match WhatsApp formatting
+                            em: ({ children }) => <span className="font-bold not-italic">{children}</span>,
+                            ul: ({ children }) => <ul className="list-disc list-inside my-1 space-y-0.5">{children}</ul>,
+                            ol: ({ children }) => <ol className="list-decimal list-inside my-1 space-y-0.5">{children}</ol>,
+                            li: ({ children }) => <li className="my-0 leading-relaxed">{children}</li>,
+                            code: ({ children }) => <code className="bg-gray-100 px-1 py-0.5 rounded text-xs font-mono text-pink-600">{children}</code>,
+                        }}
+                    >
+                        {message.content}
+                    </ReactMarkdown>
+                </div>
             );
         }
 

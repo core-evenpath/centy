@@ -7,7 +7,8 @@ const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_GENAI_API_KEY;
 const ai = new GoogleGenAI({ apiKey: apiKey });
 
 // Use standard models if preview ones are not available
-// Use standard models
+// Note: gemini-3-pro-preview may show "thoughtSignature" warnings - these are cosmetic
+// The SDK automatically handles the non-text parts
 
 const GENERATION_MODEL = 'gemini-3-pro-preview';
 // Only use Flash Image for strictly generating images, not for analysis
@@ -132,23 +133,40 @@ export const generateRAGResponseStream = async function* (
         .map((c) => `[Source: ${c.source}]\n${c.text}\n`)
         .join("\n---\n");
 
-    const systemInstruction = `
-    ${customSystemInstruction || 'You are a helpful knowledge assistant. Answer based on the Context below.'}
-    Context:
-    ${contextString}
-  `;
+    const defaultInstruction = `
+You are a helpful knowledge assistant. 
+Answer the user's question strictly based on the provided Context below.
+If the answer is not in the context, say "I cannot answer this based on the available documents."
 
+IMPORTANT: Do NOT include citations in the format "[Source: filename]" in your text response. 
+The system will automatically display the sources separately. 
+Just answer the question directly.
+`;
+
+    const systemInstruction = `
+${customSystemInstruction || defaultInstruction}
+
+Context:
+${contextString}
+`;
+
+    // Use the simpler contents format (just the query string) like the reference implementation
     const responseStream = await retryWithBackoff(() => ai.models.generateContentStream({
         model: GENERATION_MODEL,
-        contents: { parts: [{ text: query }] },
+        contents: query,
         config: {
             systemInstruction: systemInstruction,
             temperature: 0.4
         }
     }));
 
+    // Iterate through chunks and yield only text content
+    // This handles the "thoughtSignature" warning gracefully - we just extract text parts
     for await (const chunk of responseStream) {
-        if (chunk.text) yield chunk.text;
+        // chunk.text returns concatenated text from all text parts
+        if (chunk.text) {
+            yield chunk.text;
+        }
     }
 };
 
@@ -158,7 +176,11 @@ export const generateMultimodalStream = async function* (
 ): AsyncGenerator<string> {
     const parts: any[] = [];
     attachments.forEach(att => {
-        parts.push({ inlineData: { mimeType: att.mimeType, data: att.base64 } });
+        // Use 'url' property since our Attachment type doesn't have 'base64'
+        // If we need inline data in the future, we'd need to fetch and convert the URL
+        if (att.url) {
+            parts.push({ text: `[Attached file: ${att.name}]` });
+        }
     });
     parts.push({ text: prompt });
 

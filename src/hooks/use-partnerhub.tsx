@@ -179,7 +179,7 @@ interface PartnerHubContextType {
     deleteDocument: (id: string) => Promise<void>;
     addTagToDocument: (id: string, tag: string) => Promise<void>;
     removeTagFromDocument: (id: string, tag: string) => Promise<void>;
-    sendMessage: (text: string, attachments?: Attachment[], options?: { isImageMode?: boolean; referenceImageUrl?: string }) => Promise<void>;
+    sendMessage: (text: string, attachments?: Attachment[], options?: { isImageMode?: boolean; referenceImageUrl?: string; documentIds?: string[] }) => Promise<void>;
     partnerId: string | null;
     createNewThread: (title: string, contextType?: ChatContextType, contextId?: string) => Promise<string | null>;
     deleteThread: (id: string) => Promise<void>;
@@ -483,17 +483,27 @@ export function PartnerHubProvider({ children }: { children: ReactNode }) {
 
     // Send message
     const sendMessage = useCallback(
-        async (text: string, attachments?: Attachment[], options?: { isImageMode?: boolean; referenceImageUrl?: string }) => {
+        async (text: string, attachments?: Attachment[], options?: { isImageMode?: boolean; referenceImageUrl?: string; documentIds?: string[] }) => {
             if (!partnerId || !userId || !text.trim()) return;
 
             let threadId = activeThreadId;
 
+            // Determine document IDs for RAG context
+            // Priority: 1. Explicitly passed documentIds, 2. Active document context, 3. None (all documents)
+            let documentIdsForRAG = options?.documentIds;
+            if (!documentIdsForRAG && activeContext?.type === ChatContextType.DOCUMENT && activeContext.id) {
+                documentIdsForRAG = [activeContext.id];
+            }
+
             // Create new thread if none active
             if (!threadId) {
+                const contextType = activeContext?.type || ChatContextType.AGENT;
+                const contextId = activeContext?.id || selectedAgentId;
+
                 const result = await createThreadAction(partnerId, {
                     title: text.substring(0, 50) + (text.length > 50 ? '...' : ''),
-                    contextType: 'agent',
-                    contextId: selectedAgentId,
+                    contextType,
+                    contextId,
                     createdBy: userId,
                 });
                 if (result.success && result.threadId) {
@@ -513,6 +523,7 @@ export function PartnerHubProvider({ children }: { children: ReactNode }) {
             try {
                 const result = await generatePartnerHubResponseAction(partnerId, threadId, text, {
                     agentId: selectedAgentId !== 'system-general' ? selectedAgentId : undefined,
+                    documentIds: documentIdsForRAG,
                     isImageMode: options?.isImageMode,
                     referenceImageUrl: options?.referenceImageUrl,
                 });

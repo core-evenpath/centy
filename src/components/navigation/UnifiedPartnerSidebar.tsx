@@ -5,297 +5,184 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import {
   Settings,
-  ChevronDown,
   LogOut,
-  Building2,
-  Bell,
-  HelpCircle,
-  Layers,
   Users,
-  Puzzle,
   Inbox,
-  HardDrive,
+  Brain,
+  Link as LinkIcon,
+  PanelLeftClose,
+  PanelLeftOpen,
+  Database
 } from 'lucide-react';
 import { Button } from '../ui/button';
-import { Badge } from '../ui/badge';
-import { Avatar, AvatarFallback } from '../ui/avatar';
-import { ScrollArea } from '../ui/scroll-area';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '../ui/dropdown-menu';
-import {
-  Sidebar,
-  SidebarContent,
-  SidebarFooter,
-  SidebarHeader,
-  SidebarMenu,
-  SidebarMenuItem,
-  SidebarMenuButton
-} from '../ui/sidebar';
+import { cn } from '@/lib/utils';
 import { useMultiWorkspaceAuth } from '../../hooks/use-multi-workspace-auth';
 import { useToast } from '../../hooks/use-toast';
 import { getAuth, signOut } from 'firebase/auth';
 import { app } from '../../lib/firebase';
-import type { WorkspaceAccess, Partner } from '../../lib/types';
-import { getPartnerProfileAction } from '@/actions/get-partner-profile';
-
-interface MenuItem {
-  icon: any;
-  label: string;
-  href: string;
-  badge: number | null;
-  description?: string;
-}
-
-interface SidebarStats {
-  pendingTasks?: number;
-  unreadMessages?: number;
-}
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '../ui/dropdown-menu';
 
 export default function UnifiedPartnerSidebar() {
   const pathname = usePathname();
   const router = useRouter();
   const { toast } = useToast();
   const auth = getAuth(app);
+  const [isCollapsed, setIsCollapsed] = useState(false);
+
+  // Auto-collapse logic based on initial load or responsive (optional)
+  // For now we persist specific state manually
 
   const {
     user,
     currentWorkspace,
-    availableWorkspaces,
     switchWorkspace
   } = useMultiWorkspaceAuth();
-
-  const [stats, setStats] = useState<SidebarStats>({});
-  const [isWorkspaceSwitching, setIsWorkspaceSwitching] = useState(false);
-  const [partner, setPartner] = useState<Partner | null>(null);
-
-  useEffect(() => {
-    async function fetchPartnerProfile() {
-      if (!currentWorkspace?.partnerId) return;
-
-      try {
-        const result = await getPartnerProfileAction(currentWorkspace.partnerId);
-
-        if (result.success && result.partner) {
-          setPartner(result.partner);
-        } else {
-          console.error("Could not fetch partner profile for sidebar:", result.message)
-        }
-      } catch (err: any) {
-        console.error('Error fetching partner profile for sidebar:', err);
-      }
-    }
-
-    fetchPartnerProfile();
-  }, [currentWorkspace?.partnerId]);
-
-  const allMenuItems: MenuItem[] = [
-    {
-      icon: Inbox,
-      label: 'AI Inbox',
-      href: '/partner/inbox',
-      badge: null,
-      description: 'AI assistants & document chats'
-    },
-    {
-      icon: HardDrive,
-      label: 'Core Memory',
-      href: '/partner/core',
-      badge: null,
-      description: 'Digital assets & AI agents'
-    },
-    {
-      icon: Users,
-      label: 'Contacts',
-      href: '/partner/contacts',
-      badge: null,
-      description: 'Contact management'
-    },
-    {
-      icon: Puzzle,
-      label: 'Integrations',
-      href: '/partner/apps',
-      badge: null,
-      description: 'Connected apps & services'
-    },
-    {
-      icon: Settings,
-      label: 'Settings',
-      href: '/partner/settings',
-      badge: null,
-      description: 'Workspace settings'
-    },
-  ];
-
-  const menuItems = partner?.isActivePlanUser === false
-    ? allMenuItems.filter(item => item.label === 'Settings')
-    : allMenuItems;
-
-  useEffect(() => {
-    setStats({
-      pendingTasks: 0,
-      unreadMessages: 0,
-    });
-  }, [currentWorkspace?.partnerId]);
-
-  const handleWorkspaceSwitch = async (workspace: WorkspaceAccess) => {
-    if (workspace.partnerId === currentWorkspace?.partnerId) return;
-
-    setIsWorkspaceSwitching(true);
-    toast({
-      title: "Switching Workspace",
-      description: `Switching to ${workspace.partnerName}...`
-    });
-
-    const success = await switchWorkspace(workspace.partnerId);
-
-    if (success) {
-      window.location.reload();
-    } else {
-      toast({
-        variant: "destructive",
-        title: "Switch Failed",
-        description: "Unable to switch workspace. Please try again."
-      });
-      setIsWorkspaceSwitching(false);
-    }
-  };
 
   const handleSignOut = async () => {
     try {
       await signOut(auth);
-      toast({
-        title: "Signed Out",
-        description: "You have been successfully signed out."
-      });
-      router.push('/partner/login');
+      router.push('/auth/login');
     } catch (error) {
-      toast({
-        variant: "destructive",
-        title: "Sign Out Failed",
-        description: "Unable to sign out. Please try again."
-      });
+      console.error("Error signing out:", error);
     }
   };
 
-  const WorkspaceAvatar = ({ workspace, size = 'md' }: { workspace: WorkspaceAccess | null, size?: 'sm' | 'md' | 'lg' }) => {
-    const sizeClasses = {
-      sm: 'w-8 h-8 text-xs',
-      md: 'w-10 h-10 text-sm',
-      lg: 'w-12 h-12 text-base'
-    };
-
-    const workspaceName = workspace?.partnerName || 'Workspace';
-
-    return (
-      <div className={`${sizeClasses[size]} bg-primary text-primary-foreground rounded-lg flex items-center justify-center font-bold`}>
-        {workspaceName?.charAt(0)?.toUpperCase() || '?'}
-      </div>
-    );
+  const isActiveRoute = (href: string) => {
+    // Special handling for Core Memory grouping
+    if (href === '/partner/core') {
+      return pathname === '/partner/core' ||
+        pathname.startsWith('/partner/documents') ||
+        pathname.startsWith('/partner/agents');
+    }
+    return pathname === href || pathname.startsWith(href + '/');
   };
 
+  const menuItems = [
+    {
+      icon: Inbox,
+      label: 'Inbox',
+      href: '/partner/inbox',
+      isInbox: true
+    },
+    {
+      icon: Database, // Matching the "Core Memory" icon concept
+      label: 'Core Memory',
+      href: '/partner/core'
+    },
+    {
+      icon: Users,
+      label: 'Contacts',
+      href: '/partner/contacts'
+    },
+    {
+      icon: LinkIcon, // Using Link icon for Integrations
+      label: 'Integrations',
+      href: '/partner/apps'
+    },
+    {
+      icon: Settings,
+      label: 'Settings',
+      href: '/partner/settings'
+    },
+  ];
+
   return (
-    <Sidebar>
-      <SidebarHeader className="border-b p-4">
-        <div className="flex items-center gap-3 p-1">
-          <div className="flex items-center justify-center w-10 h-10">
-            <div className="flex items-center justify-center bg-gradient-to-br from-[#3081D0] to-[#6044A6] rounded-lg w-10 h-10">
-              <Layers className="w-6 h-6 text-white" />
-            </div>
-          </div>
-          <div>
-            <h1 className="font-bold text-lg">Partner Hub</h1>
-          </div>
+    <div className={cn(
+      "flex flex-col bg-[#F3F4F6] border-r border-gray-200 transition-all duration-300 ease-in-out h-full",
+      isCollapsed ? "w-20" : "w-64"
+    )}>
+      {/* Header / Logo */}
+      <div className="p-4 flex items-center gap-3 mb-6">
+        <div className="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center flex-shrink-0 shadow-sm">
+          <Database className="w-5 h-5 text-white" />
         </div>
-      </SidebarHeader>
+        {!isCollapsed && (
+          <div className="flex flex-col overflow-hidden transition-all duration-300">
+            <h1 className="font-bold text-gray-900 text-lg leading-none">Centy</h1>
+            <span className="text-xs text-indigo-600 font-medium tracking-wide">PartnerHub</span>
+          </div>
+        )}
+      </div>
 
-      <SidebarContent>
-        <ScrollArea className="flex-1">
-          <SidebarMenu className="p-2">
-            {menuItems.map((item) => {
-              const Icon = item.icon;
-              const isActive = pathname.startsWith(item.href);
-
-              return (
-                <SidebarMenuItem key={item.href}>
-                  <SidebarMenuButton
-                    asChild
-                    isActive={isActive}
-                    tooltip={item.description || item.label}
-                  >
-                    <Link
-                      href={item.href}
-                      className="flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors"
-                    >
-                      <Icon className="w-5 h-5 flex-shrink-0" />
-                      <span className="flex-1 font-medium">{item.label}</span>
-                      {item.badge !== null && item.badge > 0 && (
-                        <Badge variant="secondary" className="ml-auto">
-                          {item.badge}
-                        </Badge>
-                      )}
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              );
-            })}
-          </SidebarMenu>
-        </ScrollArea>
-      </SidebarContent>
-
-      <SidebarFooter className="border-t p-4">
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button
-              variant="ghost"
-              className="w-full justify-start gap-3 h-auto p-3 hover:bg-accent"
+      {/* Navigation */}
+      <div className="flex-1 px-3 space-y-1 overflow-y-auto">
+        {menuItems.map((item) => {
+          const isActive = isActiveRoute(item.href);
+          return (
+            <Link
+              key={item.href}
+              href={item.href}
+              className={cn(
+                "flex items-center gap-3 px-3 py-3 rounded-xl transition-all duration-200 group relative",
+                isActive
+                  ? "bg-white text-indigo-600 shadow-sm"
+                  : "text-gray-500 hover:bg-white/50 hover:text-gray-900",
+                isCollapsed && "justify-center px-0"
+              )}
             >
-              <Avatar className="w-9 h-9">
-                <AvatarFallback className="bg-primary/10 text-primary">
+              <item.icon className={cn(
+                "w-6 h-6 flex-shrink-0 transition-colors",
+                isActive ? "text-indigo-600" : "text-gray-500 group-hover:text-gray-900"
+              )} />
+
+              {!isCollapsed && (
+                <span className="font-medium text-sm whitespace-nowrap overflow-hidden text-ellipsis">
+                  {item.label}
+                </span>
+              )}
+
+              {/* Tooltip for collapsed state */}
+              {isCollapsed && (
+                <div className="absolute left-16 bg-gray-900 text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity z-50 whitespace-nowrap pointer-events-none">
+                  {item.label}
+                </div>
+              )}
+            </Link>
+          );
+        })}
+      </div>
+
+      {/* Collapse Toggle */}
+      <div className="p-4 mt-auto border-t border-gray-200/50">
+        <button
+          onClick={() => setIsCollapsed(!isCollapsed)}
+          className={cn(
+            "flex items-center gap-3 w-full px-3 py-2 text-gray-500 hover:text-gray-900 transition-colors rounded-lg hover:bg-gray-100",
+            isCollapsed && "justify-center"
+          )}
+        >
+          {isCollapsed ? <PanelLeftOpen className="w-5 h-5" /> : <PanelLeftClose className="w-5 h-5" />}
+          {!isCollapsed && <span className="text-sm font-medium">Collapse</span>}
+        </button>
+
+        {/* User Profile (Optional Mini) */}
+        {!isCollapsed && (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <div className="mt-4 flex items-center gap-3 p-2 rounded-lg hover:bg-white transition-colors cursor-pointer">
+                <div className="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600 font-bold text-xs">
                   {user?.email?.charAt(0).toUpperCase() || 'U'}
-                </AvatarFallback>
-              </Avatar>
-              <div className="flex-1 text-left min-w-0">
-                <p className="font-medium text-sm truncate">
-                  {user?.displayName || user?.email || 'User'}
-                </p>
-                <p className="text-xs text-muted-foreground truncate">
-                  {user?.email || 'No email'}
-                </p>
+                </div>
+                <div className="flex-1 min-w-0 overflow-hidden">
+                  <p className="text-xs font-medium text-gray-900 truncate">{user?.displayName || 'User'}</p>
+                  <p className="text-[10px] text-gray-500 truncate">{user?.email}</p>
+                </div>
               </div>
-              <ChevronDown className="w-4 h-4 flex-shrink-0 opacity-50" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-56">
-            <DropdownMenuItem onClick={() => router.push('/partner/settings')}>
-              <Settings className="w-4 h-4 mr-2" />
-              Account Settings
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => router.push('/partner/settings/notifications')}>
-              <Bell className="w-4 h-4 mr-2" />
-              Notifications
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => router.push('/partner/settings/billing')}>
-              <Building2 className="w-4 h-4 mr-2" />
-              Billing & Plan
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem>
-              <HelpCircle className="w-4 h-4 mr-2" />
-              Help & Support
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={handleSignOut} className="text-red-600">
-              <LogOut className="w-4 h-4 mr-2" />
-              Sign Out
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </SidebarFooter>
-    </Sidebar>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-56">
+              <DropdownMenuItem onClick={handleSignOut} className="text-red-600">
+                <LogOut className="w-4 h-4 mr-2" />
+                Sign Out
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}
+      </div>
+    </div>
   );
 }

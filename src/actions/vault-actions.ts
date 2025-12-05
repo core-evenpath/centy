@@ -2649,3 +2649,90 @@ export async function listGeminiStoreDocuments(
     };
   }
 }
+
+/**
+ * Generate AI suggestion for inbox - works with Meta WhatsApp conversations
+ * Uses Gemini RAG to search documents and generate response suggestions
+ */
+export async function generateInboxAISuggestion(
+  partnerId: string,
+  customerMessage: string,
+  conversationContext?: string // Optional: recent messages for context
+): Promise<{
+  success: boolean;
+  message: string;
+  suggestedReply?: string;
+  confidence?: number;
+  reasoning?: string;
+  sources?: Array<{
+    type: 'document';
+    name: string;
+    excerpt: string;
+    relevance: number;
+  }>;
+}> {
+  console.log('⚡ Inbox AI Suggestion starting');
+  const startTime = Date.now();
+
+  try {
+    // Build enhanced question with conversation context
+    const contextSection = conversationContext
+      ? `\nRecent conversation:\n${conversationContext}\n`
+      : '';
+
+    const enhancedQuestion = `${contextSection}
+
+Customer message: "${customerMessage}"
+
+Generate a helpful, professional response (1-3 sentences) using the knowledge base. The information you need is in the documents - find it and use it. Be confident and direct in your answer.`;
+
+    console.log('📤 Querying with Gemini RAG...');
+    const queryStart = Date.now();
+
+    const result = await queryWithGeminiRAG(partnerId, enhancedQuestion, {
+      maxChunks: 5,
+    });
+
+    console.log(`⏱️ Gemini query: ${Date.now() - queryStart}ms`);
+
+    if (!result.success || !result.response) {
+      return {
+        success: false,
+        message: result.message || 'Failed to generate response',
+      };
+    }
+
+    const responseText = result.response.trim();
+    const chunksUsed = result.geminiChunks?.length || 0;
+
+    const confidence = chunksUsed > 0 ? 0.90 : 0.65;
+    const reasoning = chunksUsed > 0
+      ? `Based on ${chunksUsed} source${chunksUsed > 1 ? 's' : ''} from knowledge base`
+      : `General response`;
+
+    const sources = result.geminiChunks?.slice(0, 3).map(chunk => ({
+      type: 'document' as const,
+      name: chunk.source || 'Knowledge Base',
+      excerpt: chunk.content.substring(0, 150),
+      relevance: chunk.score || 0.85,
+    })) || [];
+
+    console.log(`✅ Total time: ${Date.now() - startTime}ms`);
+    console.log(`📚 Sources used: ${chunksUsed}`);
+
+    return {
+      success: true,
+      message: 'Success',
+      suggestedReply: responseText,
+      confidence,
+      reasoning,
+      sources,
+    };
+  } catch (error: any) {
+    console.error('❌ Inbox AI Suggestion failed:', error);
+    return {
+      success: false,
+      message: `Error: ${error.message}`,
+    };
+  }
+}

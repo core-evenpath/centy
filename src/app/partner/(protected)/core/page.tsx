@@ -1,89 +1,92 @@
 "use client";
 
-import React, { useState } from 'react';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { HardDrive, Bot } from 'lucide-react';
-import AssetsPanel from '@/components/partner/core/AssetsPanel';
-import AgentsPanel from '@/components/partner/core/AgentsPanel';
-import AgentConfigPanel from '@/components/partner/core/AgentConfigPanel';
-import PartnerHubChatWidget from '@/components/partner/core/PartnerHubChatWidget';
-import { EssentialAgent } from '@/lib/partnerhub-types';
+import React, { useState, useEffect } from 'react';
 import { usePartnerHub } from '@/hooks/use-partnerhub';
-import { saveEssentialAgentAction } from '@/actions/partnerhub-actions';
+import { cn } from '@/lib/utils';
+import {
+    FileText,
+    Bot,
+    Brain,
+    MessageCircle,
+    Upload,
+    CheckCircle2
+} from 'lucide-react';
+import { ProcessingStatus } from '@/lib/partnerhub-types';
+import DocumentsView from '@/components/partner/core/DocumentsView';
+import AgentsView from '@/components/partner/core/AgentsView';
 
-export default function CoreMemoryPage() {
-    const { partnerId } = usePartnerHub();
-    const [isChatOpen, setIsChatOpen] = useState(false);
-    const [configAgent, setConfigAgent] = useState<EssentialAgent | null>(null);
+type TabType = 'documents' | 'agents';
 
-    // If configuring an agent, show the config panel
-    if (configAgent) {
-        return (
-            <div className="h-full flex flex-col bg-gray-50/50 relative">
-                <AgentConfigPanel
-                    agent={configAgent}
-                    onBack={() => setConfigAgent(null)}
-                    onSave={async (updated) => {
-                        if (!partnerId) return;
-                        try {
-                            await saveEssentialAgentAction(partnerId, updated);
-                            setConfigAgent(null);
-                        } catch (error) {
-                            console.error('Failed to save agent:', error);
-                            // Ideally show a toast here
-                        }
-                    }}
-                    onTest={() => setIsChatOpen(true)}
-                />
-                <PartnerHubChatWidget
-                    isOpen={isChatOpen}
-                    onToggle={() => setIsChatOpen(!isChatOpen)}
-                    onClose={() => setIsChatOpen(false)}
-                />
-            </div>
-        );
-    }
+export default function CorePage() {
+    const { documents, customAgents } = usePartnerHub();
+    const [activeTab, setActiveTab] = useState<TabType>('documents');
+
+    const completedDocs = documents.filter(d => d.status === ProcessingStatus.COMPLETED).length;
+
+    useEffect(() => {
+        const handleSwitchToAgents = () => setActiveTab('agents');
+        window.addEventListener('switchToAgentsTab', handleSwitchToAgents);
+        return () => window.removeEventListener('switchToAgentsTab', handleSwitchToAgents);
+    }, []);
 
     return (
-        <div className="h-full flex flex-col bg-gray-50/50 relative">
-            <div className="flex-1 p-4 md:p-6 overflow-hidden flex flex-col">
-                <div className="mb-6">
-                    <h1 className="text-2xl font-bold text-gray-900">Core Memory</h1>
-                    <p className="text-gray-500">Manage your digital assets and AI agents.</p>
-                </div>
-
-                <Tabs defaultValue="assets" className="flex-1 flex flex-col overflow-hidden">
-                    <div className="flex items-center justify-between mb-4">
-                        <TabsList className="bg-white border border-gray-200 p-1 h-10">
-                            <TabsTrigger value="assets" className="data-[state=active]:bg-indigo-50 data-[state=active]:text-indigo-600 px-4">
-                                <HardDrive className="w-4 h-4 mr-2" />
-                                Digital Assets
-                            </TabsTrigger>
-                            <TabsTrigger value="agents" className="data-[state=active]:bg-indigo-50 data-[state=active]:text-indigo-600 px-4">
-                                <Bot className="w-4 h-4 mr-2" />
-                                AI Agents
-                            </TabsTrigger>
-                        </TabsList>
+        <div className="h-full flex flex-col bg-slate-50">
+            <div className="bg-white border-b border-slate-200">
+                <div className="px-6 py-4">
+                    <div className="flex items-center gap-3 mb-4">
+                        <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center">
+                            <Brain className="w-5 h-5 text-white" />
+                        </div>
+                        <div>
+                            <h1 className="text-lg font-semibold text-slate-900">AI Setup</h1>
+                            <p className="text-sm text-slate-500">Train your AI with documents and configure assistants</p>
+                        </div>
                     </div>
 
-                    <TabsContent value="assets" className="flex-1 overflow-hidden mt-0 data-[state=active]:flex flex-col">
-                        <AssetsPanel onChat={() => setIsChatOpen(true)} />
-                    </TabsContent>
-
-                    <TabsContent value="agents" className="flex-1 overflow-hidden mt-0 data-[state=active]:flex flex-col">
-                        <AgentsPanel
-                            onTestAgent={() => setIsChatOpen(true)}
-                            onConfigureAgent={(agent) => setConfigAgent(agent)}
-                        />
-                    </TabsContent>
-                </Tabs>
+                    <div className="flex gap-1 bg-slate-100 p-1 rounded-xl w-fit">
+                        <button
+                            onClick={() => setActiveTab('documents')}
+                            className={cn(
+                                "flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all",
+                                activeTab === 'documents'
+                                    ? "bg-white text-slate-900 shadow-sm"
+                                    : "text-slate-600 hover:text-slate-900"
+                            )}
+                        >
+                            <FileText className="w-4 h-4" />
+                            Documents
+                            {completedDocs > 0 && (
+                                <span className="ml-1 px-1.5 py-0.5 bg-indigo-100 text-indigo-700 text-xs rounded-full">
+                                    {completedDocs}
+                                </span>
+                            )}
+                        </button>
+                        <button
+                            onClick={() => setActiveTab('agents')}
+                            className={cn(
+                                "flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all",
+                                activeTab === 'agents'
+                                    ? "bg-white text-slate-900 shadow-sm"
+                                    : "text-slate-600 hover:text-slate-900"
+                            )}
+                        >
+                            <Bot className="w-4 h-4" />
+                            Assistants
+                            <span className="ml-1 px-1.5 py-0.5 bg-slate-200 text-slate-600 text-xs rounded-full">
+                                3
+                            </span>
+                        </button>
+                    </div>
+                </div>
             </div>
 
-            <PartnerHubChatWidget
-                isOpen={isChatOpen}
-                onToggle={() => setIsChatOpen(!isChatOpen)}
-                onClose={() => setIsChatOpen(false)}
-            />
+            <div className="flex-1 overflow-hidden">
+                {activeTab === 'documents' ? (
+                    <DocumentsView />
+                ) : (
+                    <AgentsView />
+                )}
+            </div>
         </div>
     );
 }

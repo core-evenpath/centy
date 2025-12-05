@@ -210,21 +210,40 @@ export async function generatePartnerHubResponseAction(
         });
 
         // Fetch documents for RAG context
-        const docsSnapshot = await db
-            .collection('partners')
-            .doc(partnerId)
-            .collection('hubDocuments')
-            .where('status', '==', ProcessingStatus.COMPLETED)
-            .limit(10)
-            .get();
+        // If specific documentIds are provided, only fetch those documents
+        // Otherwise, fetch all completed documents (limited to 10)
+        let docsSnapshot;
+        if (options?.documentIds && options.documentIds.length > 0) {
+            // Fetch specific documents by ID
+            const docPromises = options.documentIds.map(docId =>
+                db.collection('partners')
+                    .doc(partnerId)
+                    .collection('hubDocuments')
+                    .doc(docId)
+                    .get()
+            );
+            const docs = await Promise.all(docPromises);
+            docsSnapshot = { docs: docs.filter(doc => doc.exists) };
+        } else {
+            // Fetch all completed documents (fallback)
+            docsSnapshot = await db
+                .collection('partners')
+                .doc(partnerId)
+                .collection('hubDocuments')
+                .where('status', '==', ProcessingStatus.COMPLETED)
+                .limit(10)
+                .get();
+        }
 
         const contextSnippets: { source: string; text: string }[] = [];
         docsSnapshot.docs.forEach((doc) => {
             const data = doc.data();
-            if (data.extractedText) {
+            if (data && data.extractedText) {
+                // Use more text for specific document queries (15k chars), less for general queries (3k chars)
+                const textLimit = options?.documentIds ? 15000 : 3000;
                 contextSnippets.push({
                     source: data.name || doc.id,
-                    text: data.extractedText.substring(0, 3000),
+                    text: data.extractedText.substring(0, textLimit),
                 });
             }
         });
@@ -661,5 +680,141 @@ export async function saveEssentialAgentAction(
     } catch (error: any) {
         console.error('Save essential agent error:', error);
         return { success: false, error: error.message };
+    }
+}
+
+// ============================================================================
+// INBOX AI SUGGESTION (Using hubDocuments from /partner/core)
+// ============================================================================
+
+/**
+ * Generate AI suggestion for inbox using hubDocuments from /partner/core
+ * This uses the same RAG system as the PartnerHub chat
+ */
+export async function generateInboxSuggestionAction(
+    partnerId: string,
+    customerMessage: string,
+    conversationContext?: string
+): Promise<{
+    success: boolean;
+    message: string;
+    suggestedReply?: string;
+    confidence?: number;
+    reasoning?: string;
+    sources?: Array<{
+        type: 'document';
+        name: string;
+        excerpt: string;
+        relevance: number;
+    }>;
+}> {
+    console.log('⚡ Inbox AI Suggestion starting (using hubDocuments)');
+    const startTime = Date.now();
+
+    try {
+        // Fetch COMPLETED hubDocuments from /partner/core
+        const docsSnapshot = await db
+            .collection('partners')
+            .doc(partnerId)
+            .collection('hubDocuments')
+            .where('status', '==', ProcessingStatus.COMPLETED)
+            .limit(15)
+            .get();
+
+        if (docsSnapshot.empty) {
+            console.warn('⚠️ No hubDocuments found for partner:', partnerId);
+            return {
+                success: false,
+                message: 'No documents found. Please upload documents in /partner/core first.',
+            };
+        }
+
+        console.log(`📚 Found ${docsSnapshot.docs.length} hubDocuments`);
+
+        // Build context from hubDocuments
+        const contextSnippets: { source: string; text: string }[] = [];
+        docsSnapshot.docs.forEach((doc) => {
+            const data = doc.data();
+            if (data && data.extractedText) {
+                contextSnippets.push({
+                    source: data.name || data.originalName || doc.id,
+                    text: data.extractedText.substring(0, 5000), // Use up to 5k chars per doc
+                });
+            }
+        });
+
+        if (contextSnippets.length === 0) {
+            return {
+                success: false,
+                message: 'Documents found but no text extracted. Please ensure documents are processed.',
+            };
+        }
+
+        // Build context string
+        const contextString = contextSnippets
+            .map((c) => `[Source: ${c.source}]\n${c.text}`)
+            .join('\n\n---\n\n');
+
+        // Build the prompt
+        const systemPrompt = `You are a helpful customer service assistant. Your knowledge base consists of the documents provided below. Use this information to craft helpful, accurate responses.
+
+KNOWLEDGE BASE:
+${contextString}
+
+---
+
+INSTRUCTIONS:
+1. Answer the customer's question using ONLY information from the knowledge base above
+2. If the answer is in the documents, provide it confidently
+3. If you cannot find relevant information, say "I don't have specific information about that, but I can help connect you with someone who does."
+4. Keep responses professional, friendly, and concise (2-3 sentences max)
+5. Do not make up information
+6. FORMATTING: Use standard Markdown for formatting:
+   - Use **bold** for ALL key information (names, prices, metrics, dates).
+   - Use dashes (-) for bullet points.
+   - Avoid using italics to ensure better readability.`;
+
+        // Build the full prompt with conversation context
+        const fullPrompt = conversationContext
+            ? `Recent conversation:\n${conversationContext}\n\nCustomer's latest message: "${customerMessage}"\n\nProvide a helpful response:`
+            : `Customer message: "${customerMessage}"\n\nProvide a helpful response:`;
+
+        // Generate response using the RAG stream
+        const stream = generateRAGResponseStream(
+            fullPrompt,
+            contextSnippets,
+            systemPrompt
+        );
+
+        let responseText = '';
+        for await (const chunk of stream) {
+            responseText += chunk;
+        }
+
+        const totalTime = Date.now() - startTime;
+        console.log(`✅ Inbox AI Suggestion completed in ${totalTime}ms`);
+
+        // Build sources for the response
+        const sources = contextSnippets.slice(0, 3).map((snippet) => ({
+            type: 'document' as const,
+            name: snippet.source,
+            excerpt: snippet.text.substring(0, 150) + '...',
+            relevance: 0.85,
+        }));
+
+        return {
+            success: true,
+            message: 'Success',
+            suggestedReply: responseText.trim(),
+            confidence: contextSnippets.length > 0 ? 0.85 : 0.5,
+            reasoning: `Based on ${contextSnippets.length} document${contextSnippets.length > 1 ? 's' : ''} from your knowledge base`,
+            sources,
+        };
+    } catch (error: any) {
+        console.error('❌ Inbox AI Suggestion failed:', error);
+        return {
+            success: false,
+            message: `Error: ${error.message}`,
+        };
     }
 }
