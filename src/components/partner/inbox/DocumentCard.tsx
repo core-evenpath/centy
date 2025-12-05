@@ -14,32 +14,32 @@ interface DocumentCardProps {
     variant?: 'list' | 'grid' | 'thread';
     isActiveContext?: boolean;
     onAddTag?: (tag: string) => void;
+    onModifyImage?: (id: string) => void;
 }
 
-const statusConfig = {
-    [ProcessingStatus.UPLOADING]: { color: 'text-blue-500', icon: Loader2, label: 'Uploading' },
+const statusConfig: Record<string, { color: string; icon: any; label: string }> = {
     [ProcessingStatus.PROCESSING]: { color: 'text-amber-500', icon: Loader2, label: 'Processing' },
-    [ProcessingStatus.EMBEDDING]: { color: 'text-purple-500', icon: Loader2, label: 'Embedding' },
-    [ProcessingStatus.ACTIVE]: { color: 'text-green-500', icon: CheckCircle2, label: 'Ready' },
     [ProcessingStatus.COMPLETED]: { color: 'text-green-500', icon: CheckCircle2, label: 'Ready' },
-    [ProcessingStatus.ERROR]: { color: 'text-red-500', icon: AlertCircle, label: 'Error' },
+    [ProcessingStatus.ACTIVE]: { color: 'text-green-500', icon: CheckCircle2, label: 'Ready' },
+    [ProcessingStatus.FAILED]: { color: 'text-red-500', icon: AlertCircle, label: 'Error' },
     [ProcessingStatus.PENDING]: { color: 'text-gray-400', icon: Loader2, label: 'Pending' },
 };
 
 const getFileIcon = (category: FileCategory) => {
     switch (category) {
-        case 'audio': return FileAudio;
-        case 'video': return FileVideo;
-        case 'image': return ImageIcon;
-        case 'code': return FileCode;
-        case 'spreadsheet': return FileSpreadsheet;
-        case 'pdf': return FileText;
+        case FileCategory.AUDIO: return FileAudio;
+        case FileCategory.VIDEO: return FileVideo;
+        case FileCategory.IMAGE: return ImageIcon;
+        case FileCategory.CODE: return FileCode;
+        case FileCategory.SPREADSHEET: return FileSpreadsheet;
         default: return File;
     }
 };
 
-export function DocumentCard({ doc, onChat, variant = 'list', isActiveContext, onAddTag }: DocumentCardProps) {
-    const config = statusConfig[doc.status] || statusConfig[ProcessingStatus.ERROR];
+const getDate = (date: any) => date?.toDate ? date.toDate() : new Date(date);
+
+export function DocumentCard({ doc, onChat, variant = 'list', isActiveContext, onAddTag, onModifyImage }: DocumentCardProps) {
+    const config = statusConfig[doc.status] || statusConfig[ProcessingStatus.FAILED];
     const StatusIcon = config.icon;
     const FileTypeIcon = getFileIcon(doc.category);
     const isActive = doc.status === ProcessingStatus.ACTIVE || doc.status === ProcessingStatus.COMPLETED;
@@ -75,7 +75,7 @@ export function DocumentCard({ doc, onChat, variant = 'list', isActiveContext, o
                     <FileTypeIcon className="w-5 h-5" />
                     {!isActive && (
                         <div className="absolute inset-0 bg-white/50 backdrop-blur-[1px] rounded-full flex items-center justify-center">
-                            <StatusIcon className={cn("w-4 h-4", config.color, doc.status !== ProcessingStatus.ERROR && "animate-spin")} />
+                            <StatusIcon className={cn("w-4 h-4", config.color, doc.status !== ProcessingStatus.FAILED && "animate-spin")} />
                         </div>
                     )}
                 </div>
@@ -89,8 +89,10 @@ export function DocumentCard({ doc, onChat, variant = 'list', isActiveContext, o
                         )}>
                             {doc.name}
                         </h3>
+
+
                         <span className="text-[10px] text-gray-400 flex-shrink-0">
-                            {doc.uploadedAt ? new Date(doc.uploadedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}
+                            {doc.createdAt ? getDate(doc.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}
                         </span>
                     </div>
                     <div className="flex justify-between items-center">
@@ -98,7 +100,7 @@ export function DocumentCard({ doc, onChat, variant = 'list', isActiveContext, o
                             {tags.length > 0 ? `#${tags[0]} • ` : ''}
                             {doc.summary ? doc.summary : `${(doc.size / 1024).toFixed(0)}KB`}
                         </p>
-                        {doc.status === ProcessingStatus.ERROR && (
+                        {doc.status === ProcessingStatus.FAILED && (
                             <AlertCircle className="w-3 h-3 text-red-500" />
                         )}
                     </div>
@@ -130,8 +132,8 @@ export function DocumentCard({ doc, onChat, variant = 'list', isActiveContext, o
                     "flex items-center gap-1 text-[10px] uppercase tracking-wide font-bold flex-shrink-0 bg-white px-1.5 py-0.5 rounded-full border border-gray-100 shadow-sm",
                     config.color
                 )}>
-                    {!isActive && doc.status !== ProcessingStatus.ERROR && <StatusIcon className="w-3 h-3 animate-spin" />}
-                    {doc.status === ProcessingStatus.ERROR && <StatusIcon className="w-3 h-3" />}
+                    {!isActive && doc.status !== ProcessingStatus.FAILED && <StatusIcon className="w-3 h-3 animate-spin" />}
+                    {doc.status === ProcessingStatus.FAILED && <StatusIcon className="w-3 h-3" />}
                     <span>{config.label}</span>
                 </div>
             </div>
@@ -158,7 +160,7 @@ export function DocumentCard({ doc, onChat, variant = 'list', isActiveContext, o
                     </div>
                     <div className="flex items-center gap-1 col-span-2">
                         <Calendar className="w-3 h-3 text-gray-400" />
-                        <span>{doc.uploadedAt ? new Date(doc.uploadedAt).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' }) : ''}</span>
+                        <span>{doc.createdAt ? getDate(doc.createdAt).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' }) : ''}</span>
                     </div>
                 </div>
 
@@ -196,13 +198,24 @@ export function DocumentCard({ doc, onChat, variant = 'list', isActiveContext, o
             </div>
 
             {isActive && (
-                <div className="mt-3 pt-3 border-t border-gray-100 flex justify-end w-full">
+                <div className="mt-3 pt-3 border-t border-gray-100 flex gap-2 w-full">
+                    {/* Modify Image Button (only for images) */}
+                    {(doc.category === 'image' || doc.mimeType?.startsWith('image/')) && onModifyImage && (
+                        <button
+                            onClick={(e) => { e.stopPropagation(); onModifyImage(doc.id); }}
+                            className="text-xs font-medium text-pink-600 hover:text-pink-800 flex items-center gap-1 px-3 py-1.5 bg-pink-50 rounded-lg hover:bg-pink-100 transition-colors flex-1 justify-center"
+                        >
+                            <ImageIcon className="w-3.5 h-3.5" />
+                            Modify
+                        </button>
+                    )}
+
                     <button
                         onClick={(e) => { e.stopPropagation(); onChat(doc.id); }}
-                        className="text-xs font-medium text-indigo-600 hover:text-indigo-800 flex items-center gap-1 px-3 py-1.5 bg-indigo-50 rounded-lg hover:bg-indigo-100 transition-colors w-full justify-center"
+                        className="text-xs font-medium text-indigo-600 hover:text-indigo-800 flex items-center gap-1 px-3 py-1.5 bg-indigo-50 rounded-lg hover:bg-indigo-100 transition-colors flex-1 justify-center"
                     >
                         <MessageCircle className="w-3.5 h-3.5" />
-                        Chat with Document
+                        {(doc.category === 'image' || doc.mimeType?.startsWith('image/')) ? 'Chat' : 'Chat'}
                     </button>
                 </div>
             )}

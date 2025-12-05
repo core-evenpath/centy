@@ -179,7 +179,8 @@ interface PartnerHubContextType {
     deleteDocument: (id: string) => Promise<void>;
     addTagToDocument: (id: string, tag: string) => Promise<void>;
     removeTagFromDocument: (id: string, tag: string) => Promise<void>;
-    sendMessage: (text: string, attachments?: Attachment[]) => Promise<void>;
+    sendMessage: (text: string, attachments?: Attachment[], options?: { isImageMode?: boolean; referenceImageUrl?: string }) => Promise<void>;
+    partnerId: string | null;
     createNewThread: (title: string, contextType?: ChatContextType, contextId?: string) => Promise<string | null>;
     deleteThread: (id: string) => Promise<void>;
 }
@@ -482,7 +483,7 @@ export function PartnerHubProvider({ children }: { children: ReactNode }) {
 
     // Send message
     const sendMessage = useCallback(
-        async (text: string, attachments?: Attachment[]) => {
+        async (text: string, attachments?: Attachment[], options?: { isImageMode?: boolean; referenceImageUrl?: string }) => {
             if (!partnerId || !userId || !text.trim()) return;
 
             let threadId = activeThreadId;
@@ -505,11 +506,15 @@ export function PartnerHubProvider({ children }: { children: ReactNode }) {
             }
 
             setIsGenerating(true);
-            setGenerationStatus('Thinking...');
+            setGenerationStatus(options?.isImageMode
+                ? (options.referenceImageUrl ? 'Editing image...' : 'Creating image...')
+                : 'Thinking...');
 
             try {
                 const result = await generatePartnerHubResponseAction(partnerId, threadId, text, {
                     agentId: selectedAgentId !== 'system-general' ? selectedAgentId : undefined,
+                    isImageMode: options?.isImageMode,
+                    referenceImageUrl: options?.referenceImageUrl,
                 });
 
                 if (!result.success) {
@@ -604,6 +609,7 @@ export function PartnerHubProvider({ children }: { children: ReactNode }) {
         addTagToDocument,
         removeTagFromDocument,
         sendMessage,
+        partnerId: partnerId || null,
         createNewThread,
         deleteThread,
     };

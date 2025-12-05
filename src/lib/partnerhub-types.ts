@@ -34,6 +34,16 @@ export enum AgentType {
     CUSTOM = 'custom',
 }
 
+export enum AgentRole {
+    CUSTOMER_CARE = 'customer_care',
+    SALES_ASSISTANT = 'sales_assistant',
+    MARKETING_COMMS = 'marketing_comms',
+}
+
+export type AgentTone = 'professional' | 'friendly' | 'casual' | 'formal' | 'empathetic' | 'creative' | 'consultative';
+export type AgentStyle = 'formal' | 'conversational' | 'casual';
+export type AgentLength = 'brief' | 'moderate' | 'detailed';
+
 export enum ChatContextType {
     AGENT = 'agent',
     DOCUMENT = 'document',
@@ -147,6 +157,13 @@ export interface ChatContext {
     name: string;
     avatar?: string;
     description?: string;
+    initialMode?: 'chat' | 'image';
+
+    // UI specific properties
+    subtext?: string;
+    avatarColor?: string;
+    isGlobal?: boolean;
+    selectedItems?: any[];
 }
 
 // ============================================================================
@@ -202,6 +219,126 @@ export interface TrainingExample {
 }
 
 // ============================================================================
+// ESSENTIAL AGENTS (New System)
+// ============================================================================
+
+export interface EssentialAgent {
+    id: string;
+    partnerId: string;
+    role: AgentRole;
+    name: string;
+    description: string;
+    avatar: string;
+
+    // Identity
+    businessName: string;
+    openingMessage?: string;
+
+    // Personality
+    tones: AgentTone[];
+    style: AgentStyle;
+    responseLength: AgentLength;
+
+    // Knowledge
+    useAllDocuments: boolean;
+    attachedDocumentIds: string[];
+
+    // Response Rules
+    responseRules: ResponseRule[];
+    neverSay: string[];
+    alwaysInclude: string[];
+
+    // Escalation
+    escalationSettings: EscalationSettings;
+
+    // Role-specific settings
+    leadSettings?: LeadQualificationSettings; // For Sales Assistant
+    campaignSettings?: CampaignSettings; // For Marketing & Comms
+
+    // Stats
+    conversationCount: number;
+    messageCount: number;
+    rating?: number;
+
+    // State
+    isActive: boolean;
+    isDefault: boolean;
+    temperature: number;
+
+    // Metadata
+    createdAt: Timestamp | Date;
+    updatedAt: Timestamp | Date;
+}
+
+export interface ResponseRule {
+    id: string;
+    triggerKeywords: string[];
+    response: string;
+    escalateAfter: boolean;
+}
+
+export interface EscalationSettings {
+    onHumanRequest: boolean;
+    humanRequestKeywords: string[];
+    onFrustration: boolean;
+    frustrationThreshold: number;
+    onNoAnswer: boolean;
+    noAnswerAttempts: number;
+    onSensitiveTopics: boolean;
+    sensitiveTopics: string[];
+    escalationMessage: string;
+    notifyEmail?: string;
+    notifySms?: string;
+    notifySlack?: string;
+}
+
+export interface LeadQualificationSettings {
+    askBudget: boolean;
+    budgetQuestion: string;
+    askAuthority: boolean;
+    authorityQuestion: string;
+    askNeed: boolean;
+    needQuestion: string;
+    askTimeline: boolean;
+    timelineQuestion: string;
+    hotLeadAction: 'notify_email' | 'assign_team' | 'add_crm';
+    warmLeadAction: 'add_pipeline' | 'schedule_followup';
+    coldLeadAction: 'add_newsletter' | 'nurture';
+    products: ProductInfo[];
+}
+
+export interface ProductInfo {
+    name: string;
+    priceRange: string;
+    bestFor: string;
+}
+
+export interface CampaignSettings {
+    enableBirthday: boolean;
+    birthdayDaysBefore: number;
+    birthdayChannel: 'whatsapp' | 'email' | 'sms';
+    birthdayIncludeOffer: boolean;
+    enableAnniversary: boolean;
+    enableWelcome: boolean;
+    enableThankYou: boolean;
+    holidays: HolidaySetting[];
+    brandColors: string[];
+    imageStyle: 'modern' | 'playful' | 'elegant';
+    includeLogo: boolean;
+    logoUrl?: string;
+    maxMessagesPerMonth: number;
+    quietHoursStart: string;
+    quietHoursEnd: string;
+    requireApprovalOver: number;
+}
+
+export interface HolidaySetting {
+    name: string;
+    enabled: boolean;
+    message?: string;
+}
+
+// ============================================================================
 // VECTOR SEARCH
 // ============================================================================
 
@@ -245,29 +382,24 @@ export interface SimulatorFeedback {
 // ============================================================================
 
 export interface PartnerHubState {
-    // Documents
+    // State
     documents: DocumentMetadata[];
     documentsLoading: boolean;
-    documentsError: string | null;
-
-    // Threads
+    filteredDocuments: DocumentMetadata[];
     threads: Thread[];
-    activeThreadId: string | null;
     threadsLoading: boolean;
-
-    // Messages
+    activeThreadId: string | null;
+    setActiveThreadId: (id: string | null) => void;
     messages: PartnerHubChatMessage[];
     messagesLoading: boolean;
-
-    // Agents
     agents: AgentProfile[];
-    activeAgentId: string | null;
+    customAgents: AgentProfile[];
     agentsLoading: boolean;
-
-    // Context
+    selectedAgentId: string;
+    setSelectedAgentId: (id: string) => void;
     activeContext: ChatContext | null;
-
-    // UI State
+    switchContext: (context: ChatContext) => void;
+    partnerId?: string | null;
     isUploading: boolean;
     isGenerating: boolean;
     generationStatus: string;

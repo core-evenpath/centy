@@ -1,19 +1,55 @@
 "use client";
 
-import React from 'react';
+import React, { useState } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { HardDrive, Bot, Swords } from 'lucide-react';
+import { HardDrive, Bot } from 'lucide-react';
 import AssetsPanel from '@/components/partner/core/AssetsPanel';
-import PersonaEditor from '@/components/partner/core/PersonaEditor';
-import Simulator from '@/components/partner/core/Simulator';
+import AgentsPanel from '@/components/partner/core/AgentsPanel';
+import AgentConfigPanel from '@/components/partner/core/AgentConfigPanel';
+import PartnerHubChatWidget from '@/components/partner/core/PartnerHubChatWidget';
+import { EssentialAgent } from '@/lib/partnerhub-types';
+import { usePartnerHub } from '@/hooks/use-partnerhub';
+import { saveEssentialAgentAction } from '@/actions/partnerhub-actions';
 
 export default function CoreMemoryPage() {
+    const { partnerId } = usePartnerHub();
+    const [isChatOpen, setIsChatOpen] = useState(false);
+    const [configAgent, setConfigAgent] = useState<EssentialAgent | null>(null);
+
+    // If configuring an agent, show the config panel
+    if (configAgent) {
+        return (
+            <div className="h-full flex flex-col bg-gray-50/50 relative">
+                <AgentConfigPanel
+                    agent={configAgent}
+                    onBack={() => setConfigAgent(null)}
+                    onSave={async (updated) => {
+                        if (!partnerId) return;
+                        try {
+                            await saveEssentialAgentAction(partnerId, updated);
+                            setConfigAgent(null);
+                        } catch (error) {
+                            console.error('Failed to save agent:', error);
+                            // Ideally show a toast here
+                        }
+                    }}
+                    onTest={() => setIsChatOpen(true)}
+                />
+                <PartnerHubChatWidget
+                    isOpen={isChatOpen}
+                    onToggle={() => setIsChatOpen(!isChatOpen)}
+                    onClose={() => setIsChatOpen(false)}
+                />
+            </div>
+        );
+    }
+
     return (
-        <div className="h-full flex flex-col bg-gray-50/50">
+        <div className="h-full flex flex-col bg-gray-50/50 relative">
             <div className="flex-1 p-4 md:p-6 overflow-hidden flex flex-col">
                 <div className="mb-6">
                     <h1 className="text-2xl font-bold text-gray-900">Core Memory</h1>
-                    <p className="text-gray-500">Manage your digital assets, AI agents, and training simulations.</p>
+                    <p className="text-gray-500">Manage your digital assets and AI agents.</p>
                 </div>
 
                 <Tabs defaultValue="assets" className="flex-1 flex flex-col overflow-hidden">
@@ -27,26 +63,27 @@ export default function CoreMemoryPage() {
                                 <Bot className="w-4 h-4 mr-2" />
                                 AI Agents
                             </TabsTrigger>
-                            <TabsTrigger value="simulator" className="data-[state=active]:bg-indigo-50 data-[state=active]:text-indigo-600 px-4">
-                                <Swords className="w-4 h-4 mr-2" />
-                                Training Arena
-                            </TabsTrigger>
                         </TabsList>
                     </div>
 
                     <TabsContent value="assets" className="flex-1 overflow-hidden mt-0 data-[state=active]:flex flex-col">
-                        <AssetsPanel />
+                        <AssetsPanel onChat={() => setIsChatOpen(true)} />
                     </TabsContent>
 
                     <TabsContent value="agents" className="flex-1 overflow-hidden mt-0 data-[state=active]:flex flex-col">
-                        <PersonaEditor />
-                    </TabsContent>
-
-                    <TabsContent value="simulator" className="flex-1 overflow-hidden mt-0 data-[state=active]:flex flex-col">
-                        <Simulator />
+                        <AgentsPanel
+                            onTestAgent={() => setIsChatOpen(true)}
+                            onConfigureAgent={(agent) => setConfigAgent(agent)}
+                        />
                     </TabsContent>
                 </Tabs>
             </div>
+
+            <PartnerHubChatWidget
+                isOpen={isChatOpen}
+                onToggle={() => setIsChatOpen(!isChatOpen)}
+                onClose={() => setIsChatOpen(false)}
+            />
         </div>
     );
 }

@@ -13,11 +13,13 @@ import {
     ChatContextType,
     getFileCategory,
     generateId,
+    EssentialAgent,
 } from '@/lib/partnerhub-types';
 import {
     processDocumentWithGemini,
     generateEmbedding,
     generateRAGResponseStream,
+    generateImage,
 } from '@/lib/gemini-service';
 
 
@@ -126,7 +128,7 @@ export async function processDocumentAction(
 
         // Update status to EMBEDDING
         await docRef.update({
-            status: ProcessingStatus.EMBEDDING,
+            status: ProcessingStatus.PROCESSING,
             extractedText: extraction.text?.substring(0, 50000) || '', // Limit text size
             summary: extraction.summary || '',
             tags: extraction.tags || [],
@@ -161,7 +163,7 @@ export async function processDocumentAction(
                 .doc(documentId);
 
             await docRef.update({
-                status: ProcessingStatus.ERROR,
+                status: ProcessingStatus.FAILED,
                 error: error.message || 'Processing failed',
                 updatedAt: Timestamp.now(),
             });
@@ -184,6 +186,8 @@ export async function generatePartnerHubResponseAction(
     options?: {
         agentId?: string;
         documentIds?: string[];
+        isImageMode?: boolean;
+        referenceImageUrl?: string;
     }
 ): Promise<{ success: boolean; error?: string }> {
     try {
@@ -249,29 +253,94 @@ export async function generatePartnerHubResponseAction(
             }
         }
 
-        // Generate response using RAG stream (consumed fully here)
-        const stream = generateRAGResponseStream(
-            userMessage,
-            contextSnippets,
-            systemPrompt
-        );
-
         let responseText = '';
-        for await (const chunk of stream) {
-            responseText += chunk;
+        let responseImageUrl: string | undefined;
+
+        // Handle image generation mode
+        if (options?.isImageMode) {
+            try {
+                // If we have a reference image, fetch it and convert to base64
+                let referenceImage: { base64: string; mimeType: string } | undefined;
+
+                if (options.referenceImageUrl) {
+                    try {
+                        const response = await fetch(options.referenceImageUrl);
+                        const arrayBuffer = await response.arrayBuffer();
+                        const base64 = Buffer.from(arrayBuffer).toString('base64');
+                        const contentType = response.headers.get('content-type') || 'image/jpeg';
+                        referenceImage = { base64, mimeType: contentType };
+                    } catch (fetchError) {
+                        console.warn('Failed to fetch reference image:', fetchError);
+                    }
+                }
+
+                // generateImage returns a data URI directly
+                const dataUri = await generateImage(userMessage, referenceImage);
+
+                // Upload to Firebase Storage
+                const bucket = adminStorage.bucket();
+                const imageId = generateId();
+                const storagePath = `partners/${partnerId}/generated-images/${imageId}.png`;
+
+                // Extract base64 data from data URI
+                const base64Data = dataUri.split(',')[1];
+                const buffer = Buffer.from(base64Data, 'base64');
+
+                // Upload to storage
+                const file = bucket.file(storagePath);
+                await file.save(buffer, {
+                    metadata: {
+                        contentType: 'image/png',
+                    },
+                });
+
+                // Make file publicly accessible and get URL
+                await file.makePublic();
+                responseImageUrl = `https://storage.googleapis.com/${bucket.name}/${storagePath}`;
+
+                responseText = referenceImage
+                    ? `Here's the edited image based on: "${userMessage}"`
+                    : `Here's the image I generated for: "${userMessage}"`;
+            } catch (imageError: any) {
+                console.error('Image generation failed:', imageError);
+                responseText = `Sorry, I couldn't generate an image for that prompt. Error: ${imageError.message || 'Unknown error'}`;
+            }
+        } else {
+            // Generate response using RAG stream (consumed fully here)
+            const stream = generateRAGResponseStream(
+                userMessage,
+                contextSnippets,
+                systemPrompt
+            );
+
+            for await (const chunk of stream) {
+                responseText += chunk;
+            }
         }
 
         // Save assistant message
         const assistantMsgId = generateId();
-        await messagesRef.doc(assistantMsgId).set({
+        const assistantMessage: any = {
             id: assistantMsgId,
             threadId,
             role: 'assistant',
             content: responseText,
-            citations: contextSnippets.map((c) => c.source),
+            citations: options?.isImageMode ? [] : contextSnippets.map((c) => c.source),
             agentId: options?.agentId,
             createdAt: Timestamp.now(),
-        });
+        };
+
+        // Add image attachment if generated (now using storage URL, not base64)
+        if (responseImageUrl) {
+            assistantMessage.attachments = [{
+                type: 'image',
+                url: responseImageUrl,
+                name: 'Generated Image',
+                mimeType: 'image/png',
+            }];
+        }
+
+        await messagesRef.doc(assistantMsgId).set(assistantMessage);
 
         // Update thread last message
         await threadRef.update({
@@ -552,6 +621,45 @@ export async function deleteAgentAction(
         return { success: true };
     } catch (error: any) {
         console.error('Delete agent error:', error);
+        return { success: false, error: error.message };
+    }
+}
+
+export async function saveEssentialAgentAction(
+    partnerId: string,
+    agent: EssentialAgent
+): Promise<{ success: boolean; error?: string }> {
+    try {
+        const agentRef = db
+            .collection('partners')
+            .doc(partnerId)
+            .collection('hubAgents')
+            .doc(agent.id);
+
+        // Remove undefined values to avoid Firestore errors
+        const data = JSON.parse(JSON.stringify(agent));
+
+        // Ensure dates are Timestamps
+        data.updatedAt = Timestamp.now();
+
+        // If it's a new agent (or doesn't have createdAt), set it
+        // Note: We check if the doc exists first if we want to be strict, 
+        // but here we just rely on the passed object. 
+        // If the passed object has createdAt as string (from JSON), convert it.
+        if (data.createdAt) {
+            // If it's a string or number, try to convert. If it's already a Timestamp object (unlikely after JSON.stringify), it might need handling.
+            // JSON.stringify converts Date to string.
+            data.createdAt = new Date(data.createdAt);
+        } else {
+            data.createdAt = Timestamp.now();
+        }
+
+        // We use set with merge: true to update or create
+        await agentRef.set(data, { merge: true });
+
+        return { success: true };
+    } catch (error: any) {
+        console.error('Save essential agent error:', error);
         return { success: false, error: error.message };
     }
 }

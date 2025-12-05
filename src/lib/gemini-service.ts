@@ -173,19 +173,66 @@ export const generateMultimodalStream = async function* (
     }
 };
 
+/**
+ * Generate Image from Text or Edit Image
+ * Uses gemini-2.5-flash-image for both.
+ * Returns a full Data URI.
+ */
 export const generateImage = async (
     prompt: string,
     referenceImage?: { base64: string, mimeType: string }
 ): Promise<string> => {
-    // Note: Actual image generation might require a different model or endpoint
-    // For now, we'll use a placeholder or text description if the model doesn't support it
-    // But since we are using gemini-1.5-flash, it doesn't generate images natively yet (it's multimodal input, text output)
-    // We might need Imagen model for this.
-    // For this implementation, we will mock it or return a text description if image gen is not available.
+    const parts: any[] = [];
 
-    // If the user has access to Imagen via Vertex AI, we would use that.
-    // For now, let's throw or return a placeholder.
-    throw new Error("Image generation not supported with current model configuration.");
+    // If editing an image, pass it first
+    if (referenceImage) {
+        parts.push({
+            inlineData: {
+                data: referenceImage.base64,
+                mimeType: referenceImage.mimeType
+            }
+        });
+    }
+
+    // Add the text prompt with stronger instruction
+    parts.push({
+        text: `Create an image based on this description: "${prompt}". Ignore any references to missing documents or unavailable context. Visualize the request creatively.`
+    });
+
+    try {
+        const response = await retryWithBackoff<GenerateContentResponse>(() => ai.models.generateContent({
+            model: IMAGE_GEN_MODEL,
+            contents: { parts },
+            config: {}
+        }));
+
+        // Check for inline data (Image)
+        if (response.candidates && response.candidates[0].content && response.candidates[0].content.parts) {
+            for (const part of response.candidates[0].content.parts) {
+                if (part.inlineData && part.inlineData.data) {
+                    // Construct full Data URI
+                    const mime = part.inlineData.mimeType || 'image/png';
+                    return `data:${mime};base64,${part.inlineData.data}`;
+                }
+            }
+
+            // If we are here, no image data found. Check if model returned text (e.g., refusal)
+            const textPart = response.candidates[0].content.parts.find(p => p.text);
+            if (textPart && textPart.text) {
+                throw new Error(`Model Refusal: ${textPart.text}`);
+            }
+        }
+
+        // Check for finish reason (e.g. SAFETY)
+        if (response.candidates?.[0]?.finishReason && response.candidates[0].finishReason !== 'STOP') {
+            throw new Error(`Generation stopped due to: ${response.candidates[0].finishReason}`);
+        }
+
+        throw new Error("API returned success but no image data found.");
+    } catch (e) {
+        console.error("Image Generation Failed:", e);
+        throw e;
+    }
 };
 
 export const generateSuggestions = async (

@@ -7,7 +7,11 @@ import { Plus, Trash2 } from 'lucide-react';
 import { ChatContextType } from '@/lib/partnerhub-types';
 import { useRouter } from 'next/navigation';
 
-export default function AssetsPanel() {
+interface AssetsPanelProps {
+    onChat?: (doc: any) => void;
+}
+
+export default function AssetsPanel({ onChat }: AssetsPanelProps) {
     const {
         filteredDocuments,
         uploadDocument,
@@ -17,15 +21,47 @@ export default function AssetsPanel() {
     } = usePartnerHub();
 
     const router = useRouter();
+    const [isDragging, setIsDragging] = React.useState(false);
 
     const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
         const files = event.target.files;
         if (!files || files.length === 0) return;
 
-        for (const file of Array.from(files)) {
-            await uploadDocument(file);
-        }
+        await Promise.all(Array.from(files).map(file => uploadDocument(file)));
         event.target.value = '';
+    };
+
+    const handleDragEnter = (e: React.DragEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setIsDragging(true);
+    };
+
+    const handleDragLeave = (e: React.DragEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+
+        // Check if we're leaving to a child element
+        if (e.currentTarget.contains(e.relatedTarget as Node)) {
+            return;
+        }
+
+        setIsDragging(false);
+    };
+
+    const handleDragOver = (e: React.DragEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+    };
+
+    const handleDrop = async (e: React.DragEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setIsDragging(false);
+        const files = e.dataTransfer.files;
+        if (files && files.length > 0) {
+            await Promise.all(Array.from(files).map(file => uploadDocument(file)));
+        }
     };
 
     const handleDocumentSelect = (doc: any) => {
@@ -38,11 +74,34 @@ export default function AssetsPanel() {
             isGlobal: false,
             selectedItems: [{ id: doc.id, type: 'document', name: doc.name }],
         });
-        router.push('/partner/inbox');
+
+        if (onChat) {
+            onChat(doc);
+        } else {
+            router.push('/partner/inbox');
+        }
     };
 
     return (
-        <div className="flex-1 overflow-y-auto p-6 bg-gray-50 animate-in fade-in duration-300">
+        <div
+            className="flex-1 overflow-y-auto p-6 bg-gray-50 animate-in fade-in duration-300"
+            onDragEnter={handleDragEnter}
+            onDragOver={handleDragOver}
+            onDragLeave={handleDragLeave}
+            onDrop={handleDrop}
+        >
+            {isDragging && (
+                <div className="absolute inset-0 z-50 bg-indigo-50/90 border-2 border-dashed border-indigo-500 rounded-xl flex items-center justify-center m-4 backdrop-blur-sm transition-all">
+                    <div className="text-center">
+                        <div className="w-16 h-16 bg-indigo-100 text-indigo-600 rounded-full flex items-center justify-center mx-auto mb-4">
+                            <Plus className="w-8 h-8" />
+                        </div>
+                        <h3 className="text-xl font-bold text-indigo-900">Drop files here</h3>
+                        <p className="text-indigo-600 mt-1">Upload multiple documents instantly</p>
+                    </div>
+                </div>
+            )}
+
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 pb-20">
                 {filteredDocuments.map(doc => (
                     <div key={doc.id} className="relative group">
@@ -51,6 +110,23 @@ export default function AssetsPanel() {
                             variant="grid"
                             onChat={() => handleDocumentSelect(doc)}
                             onAddTag={(tag) => addTagToDocument(doc.id, tag)}
+                            onModifyImage={(id) => {
+                                switchContext({
+                                    id: doc.id,
+                                    type: ChatContextType.DOCUMENT,
+                                    name: doc.name,
+                                    subtext: `${(doc.size / 1024).toFixed(0)} KB • ${doc.category.toUpperCase()}`,
+                                    avatarColor: 'bg-pink-500',
+                                    isGlobal: false,
+                                    selectedItems: [{ id: doc.id, type: 'document', name: doc.name }],
+                                    initialMode: 'image'
+                                });
+                                if (onChat) {
+                                    onChat(doc);
+                                } else {
+                                    router.push('/partner/inbox');
+                                }
+                            }}
                         />
                         <button
                             onClick={(e) => { e.stopPropagation(); deleteDocument(doc.id); }}
@@ -67,6 +143,7 @@ export default function AssetsPanel() {
                             <Plus className="w-6 h-6 text-gray-400 group-hover:text-indigo-500" />
                         </div>
                         <span className="text-sm font-medium group-hover:text-indigo-600">Add New File</span>
+                        <span className="text-xs text-gray-400 mt-1">or drag and drop</span>
                     </label>
                 </div>
             </div>
