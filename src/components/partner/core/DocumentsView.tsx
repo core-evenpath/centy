@@ -32,7 +32,10 @@ import {
     File,
     Edit3,
     Plus,
-    Eye
+    Eye,
+    EyeOff,
+    Globe,
+    Lock
 } from 'lucide-react';
 import { ProcessingStatus, DocumentMetadata, ChatContextType } from '@/lib/partnerhub-types';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -176,6 +179,7 @@ export default function DocumentsView() {
     const [newTag, setNewTag] = useState('');
     const [showCategoryPicker, setShowCategoryPicker] = useState(false);
     const [showChat, setShowChat] = useState(false);
+    const [uploadVisibility, setUploadVisibility] = useState<'internal' | 'external' | 'both'>('both');
 
     const enrichedDocuments = useMemo(() => {
         return documents.map(doc => {
@@ -209,9 +213,11 @@ export default function DocumentsView() {
             filtered = filtered.filter(doc => doc.inferredCategory === filterCategory);
         }
 
-        return filtered.sort((a, b) =>
-            new Date(b.updatedAt || 0).getTime() - new Date(a.updatedAt || 0).getTime()
-        );
+        return filtered.sort((a, b) => {
+            const dateA = a.updatedAt && 'toDate' in a.updatedAt ? a.updatedAt.toDate() : new Date((a.updatedAt as any) || 0);
+            const dateB = b.updatedAt && 'toDate' in b.updatedAt ? b.updatedAt.toDate() : new Date((b.updatedAt as any) || 0);
+            return dateB.getTime() - dateA.getTime();
+        });
     }, [enrichedDocuments, searchQuery, filterCategory]);
 
     const categoryStats = useMemo(() => {
@@ -248,7 +254,7 @@ export default function DocumentsView() {
         const files = event.target.files;
         if (!files || files.length === 0) return;
         setUploading(true);
-        await Promise.all(Array.from(files).map(file => uploadDocument(file)));
+        await Promise.all(Array.from(files).map(file => uploadDocument(file, uploadVisibility)));
         setUploading(false);
         event.target.value = '';
     };
@@ -260,7 +266,7 @@ export default function DocumentsView() {
         const files = e.dataTransfer.files;
         if (files && files.length > 0) {
             setUploading(true);
-            await Promise.all(Array.from(files).map(file => uploadDocument(file)));
+            await Promise.all(Array.from(files).map(file => uploadDocument(file, uploadVisibility)));
             setUploading(false);
         }
     };
@@ -364,6 +370,40 @@ export default function DocumentsView() {
                                 className="w-full pl-9 pr-4 py-2 text-sm border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
                             />
                         </div>
+
+                        <div className="flex items-center bg-slate-100 rounded-lg p-1 mr-2">
+                            <button
+                                onClick={() => setUploadVisibility('internal')}
+                                className={cn(
+                                    "p-1.5 rounded-md transition-all",
+                                    uploadVisibility === 'internal' ? "bg-white shadow text-slate-900" : "text-slate-500 hover:text-slate-900"
+                                )}
+                                title="Internal only"
+                            >
+                                <Lock className="w-4 h-4" />
+                            </button>
+                            <button
+                                onClick={() => setUploadVisibility('both')}
+                                className={cn(
+                                    "p-1.5 rounded-md transition-all",
+                                    uploadVisibility === 'both' ? "bg-white shadow text-slate-900" : "text-slate-500 hover:text-slate-900"
+                                )}
+                                title="Internal & External"
+                            >
+                                <Eye className="w-4 h-4" />
+                            </button>
+                            <button
+                                onClick={() => setUploadVisibility('external')}
+                                className={cn(
+                                    "p-1.5 rounded-md transition-all",
+                                    uploadVisibility === 'external' ? "bg-white shadow text-slate-900" : "text-slate-500 hover:text-slate-900"
+                                )}
+                                title="External only"
+                            >
+                                <Globe className="w-4 h-4" />
+                            </button>
+                        </div>
+
                         <label className="flex items-center justify-center px-3 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 transition-colors cursor-pointer gap-1.5">
                             <Upload className="w-4 h-4" />
                             <span className="hidden sm:inline">Upload</span>

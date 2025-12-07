@@ -10,9 +10,10 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogD
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../../ui/tabs';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, Edit, Save, User, Briefcase } from 'lucide-react';
+import { Loader2, Edit, Save, User, Briefcase, Sparkles } from 'lucide-react';
 import { updateContactAction } from '@/actions/contact-actions';
 import type { Contact } from '@/lib/types';
+import PersonaPanel from './PersonaPanel';
 
 interface EditContactModalProps {
   isOpen: boolean;
@@ -105,6 +106,10 @@ export default function EditContactModal({
                 <Briefcase className="w-4 h-4 mr-2" />
                 Business Info
               </TabsTrigger>
+              <TabsTrigger value="persona">
+                <Sparkles className="w-4 h-4 mr-2 text-purple-500" />
+                Persona
+              </TabsTrigger>
             </TabsList>
 
             <TabsContent value="basic" className="space-y-4 mt-4">
@@ -146,8 +151,8 @@ export default function EditContactModal({
 
               <div className="space-y-2">
                 <Label htmlFor="status">Status</Label>
-                <Select 
-                  value={formData.status || 'active'} 
+                <Select
+                  value={formData.status || 'active'}
                   onValueChange={(value) => handleSelectChange('status', value)}
                 >
                   <SelectTrigger>
@@ -206,6 +211,18 @@ export default function EditContactModal({
                   disabled={isSubmitting}
                 />
               </div>
+            </TabsContent>
+
+            <TabsContent value="persona" className="mt-4">
+              {contact && (
+                <PersonaPanel
+                  contactId={contact.id}
+                  partnerId={partnerId}
+                  persona={contact.persona}
+                  messageCount={contact.totalMessageCount || 0}
+                  generationStatus={contact.personaGenerationStatus || 'idle'}
+                />
+              )}
             </TabsContent>
           </Tabs>
 

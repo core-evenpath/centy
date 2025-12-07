@@ -17,6 +17,7 @@ import type {
     MetaWhatsAppConversation,
     MetaPhoneMapping
 } from '@/lib/types-meta-whatsapp';
+import { incrementContactMessageCountAction, triggerPersonaGenerationAction } from './persona-actions';
 
 export async function connectMetaWhatsApp(
     partnerId: string,
@@ -352,6 +353,36 @@ export async function sendMetaWhatsAppMessageAction(
                 isActive: true,
                 updatedAt: FieldValue.serverTimestamp(),
             });
+
+            // Trigger persona generation logic
+            const convData = conversationDoc.exists ? conversationDoc.data() : null;
+            const contactId = convData?.contactId;
+
+            if (contactId) {
+                // Increment message count and check if we should generate
+                const { shouldGeneratePersona, currentCount } = await incrementContactMessageCountAction(
+                    input.partnerId,
+                    contactId
+                );
+
+                if (shouldGeneratePersona) {
+                    console.log(`🧠 Triggering background persona generation for contact: ${contactId} (${currentCount} messages)`);
+
+                    // Call without awaiting to not block response
+                    triggerPersonaGenerationAction(input.partnerId, contactId, false)
+                        .then(result => {
+                            if (result.success) {
+                                console.log(`✅ Background persona generation completed for: ${contactId}`);
+                            } else {
+                                console.warn(`⚠️ Background persona generation failed: ${result.message}`);
+                            }
+                        })
+                        .catch(err => {
+                            console.error(`❌ Background persona generation error:`, err);
+                        });
+                }
+            }
+
         }
 
         return {

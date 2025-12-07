@@ -21,6 +21,7 @@ import {
     generateRAGResponseStream,
     generateImage,
 } from '@/lib/gemini-service';
+import { GoogleGenerativeAI } from '@google/generative-ai';
 
 
 
@@ -694,7 +695,8 @@ export async function saveEssentialAgentAction(
 export async function generateInboxSuggestionAction(
     partnerId: string,
     customerMessage: string,
-    conversationContext?: string
+    conversationContext?: string,
+    contactId?: string
 ): Promise<{
     success: boolean;
     message: string;
@@ -707,12 +709,12 @@ export async function generateInboxSuggestionAction(
         excerpt: string;
         relevance: number;
     }>;
+    personaUsed?: boolean;
 }> {
-    console.log('⚡ Inbox AI Suggestion starting (using hubDocuments)');
+    console.log('⚡ Inbox AI Suggestion starting (using hubDocuments + persona)');
     const startTime = Date.now();
 
     try {
-        // Fetch COMPLETED hubDocuments from /partner/core
         const docsSnapshot = await db
             .collection('partners')
             .doc(partnerId)
@@ -731,14 +733,13 @@ export async function generateInboxSuggestionAction(
 
         console.log(`📚 Found ${docsSnapshot.docs.length} hubDocuments`);
 
-        // Build context from hubDocuments
         const contextSnippets: { source: string; text: string }[] = [];
         docsSnapshot.docs.forEach((doc) => {
             const data = doc.data();
             if (data && data.extractedText) {
                 contextSnippets.push({
                     source: data.name || data.originalName || doc.id,
-                    text: data.extractedText.substring(0, 5000), // Use up to 5k chars per doc
+                    text: data.extractedText.substring(0, 5000),
                 });
             }
         });
@@ -750,16 +751,41 @@ export async function generateInboxSuggestionAction(
             };
         }
 
-        // Build context string
+        let personaContext = '';
+        let personaUsed = false;
+
+        if (contactId) {
+            try {
+                const contactDoc = await db
+                    .collection('partners')
+                    .doc(partnerId)
+                    .collection('contacts')
+                    .doc(contactId)
+                    .get();
+
+                if (contactDoc.exists) {
+                    const contactData = contactDoc.data();
+                    if (contactData?.persona) {
+                        const { buildPersonaContextForPrompt } = await import('@/lib/persona-generator');
+                        personaContext = buildPersonaContextForPrompt(contactData.persona);
+                        personaUsed = !!personaContext;
+                        console.log(`👤 Persona context loaded for contact: ${contactId}`);
+                    }
+                }
+            } catch (personaError) {
+                console.warn('Could not load persona:', personaError);
+            }
+        }
+
         const contextString = contextSnippets
             .map((c) => `[Source: ${c.source}]\n${c.text}`)
             .join('\n\n---\n\n');
 
-        // Build the prompt
         const systemPrompt = `You are a helpful customer service assistant. Your knowledge base consists of the documents provided below. Use this information to craft helpful, accurate responses.
 
 KNOWLEDGE BASE:
 ${contextString}
+${personaContext}
 
 ---
 
@@ -769,52 +795,46 @@ INSTRUCTIONS:
 3. If you cannot find relevant information, say "I don't have specific information about that, but I can help connect you with someone who does."
 4. Keep responses professional, friendly, and concise (2-3 sentences max)
 5. Do not make up information
-6. FORMATTING: Use standard Markdown for formatting:
+${personaUsed ? '6. PERSONALIZATION: Adapt your tone and style based on the customer persona provided. Match their communication preferences.' : ''}
+7. FORMATTING: Use standard Markdown for formatting:
    - Use **bold** for ALL key information (names, prices, metrics, dates).
    - Use dashes (-) for bullet points.
    - Avoid using italics to ensure better readability.`;
 
-        // Build the full prompt with conversation context
         const fullPrompt = conversationContext
-            ? `Recent conversation:\n${conversationContext}\n\nCustomer's latest message: "${customerMessage}"\n\nProvide a helpful response:`
-            : `Customer message: "${customerMessage}"\n\nProvide a helpful response:`;
+            ? `${systemPrompt}\n\nRecent conversation:\n${conversationContext}\n\nCustomer's latest message: "${customerMessage}"\n\nProvide a helpful reply:`
+            : `${systemPrompt}\n\nCustomer message: "${customerMessage}"\n\nProvide a helpful reply:`;
 
-        // Generate response using the RAG stream
-        const stream = generateRAGResponseStream(
-            fullPrompt,
-            contextSnippets,
-            systemPrompt
-        );
+        const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
+        const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
 
-        let responseText = '';
-        for await (const chunk of stream) {
-            responseText += chunk;
-        }
+        const result = await model.generateContent(fullPrompt);
+        const response = result.response.text();
 
-        const totalTime = Date.now() - startTime;
-        console.log(`✅ Inbox AI Suggestion completed in ${totalTime}ms`);
-
-        // Build sources for the response
-        const sources = contextSnippets.slice(0, 3).map((snippet) => ({
-            type: 'document' as const,
-            name: snippet.source,
-            excerpt: snippet.text.substring(0, 150) + '...',
-            relevance: 0.85,
-        }));
+        const elapsedMs = Date.now() - startTime;
+        console.log(`✅ AI suggestion generated in ${elapsedMs}ms (persona: ${personaUsed})`);
 
         return {
             success: true,
-            message: 'Success',
-            suggestedReply: responseText.trim(),
-            confidence: contextSnippets.length > 0 ? 0.85 : 0.5,
-            reasoning: `Based on ${contextSnippets.length} document${contextSnippets.length > 1 ? 's' : ''} from your knowledge base`,
-            sources,
+            message: 'Suggestion generated successfully',
+            suggestedReply: response.trim(),
+            confidence: personaUsed ? 0.9 : 0.85,
+            reasoning: personaUsed
+                ? 'Generated based on your business documents and personalized for this customer.'
+                : 'Generated based on your business documents and conversation history.',
+            sources: contextSnippets.slice(0, 3).map((s) => ({
+                type: 'document' as const,
+                name: s.source,
+                excerpt: s.text.substring(0, 200) + '...',
+                relevance: 0.8,
+            })),
+            personaUsed,
         };
     } catch (error: any) {
-        console.error('❌ Inbox AI Suggestion failed:', error);
+        console.error('❌ Inbox AI Suggestion error:', error);
         return {
             success: false,
-            message: `Error: ${error.message}`,
+            message: error.message || 'Failed to generate suggestion',
         };
     }
 }

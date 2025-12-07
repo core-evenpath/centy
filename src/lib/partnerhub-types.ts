@@ -83,6 +83,9 @@ export interface DocumentMetadata {
 
     // Error handling
     errorMessage?: string;
+
+    // NEW FIELD - Document visibility for AI usage
+    visibility: 'internal' | 'external' | 'both';
 }
 
 export interface DocumentUploadResult {

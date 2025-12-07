@@ -5,6 +5,8 @@
 import { z } from 'zod';
 import type { UserInfo } from 'firebase/auth';
 import type { Timestamp } from 'firebase/firestore';
+import { ContactPersona } from './types-contact';
+export * from './types-contact';
 
 
 // ============================================================================
@@ -550,6 +552,10 @@ export interface Contact {
   lifetimeValue?: string;
   company?: string;
   category?: string;
+  persona?: ContactPersona;
+  personaGenerationStatus?: 'idle' | 'pending' | 'generating' | 'completed' | 'failed' | 'outdated';
+  totalMessageCount?: number;
+  lastPersonaGenerationAt?: Date | Timestamp | null;
 }
 
 export interface ContactGroup {

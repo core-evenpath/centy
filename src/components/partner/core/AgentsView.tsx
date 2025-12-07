@@ -1,462 +1,348 @@
 "use client";
 
-import React, { useState, useMemo } from 'react';
-import { usePartnerHub } from '@/hooks/use-partnerhub';
-import { useRouter } from 'next/navigation';
-import { cn } from '@/lib/utils';
+import React, { useState, useEffect } from 'react';
 import {
-    Bot,
-    Zap,
+    Plus,
+    Search,
+    LayoutGrid,
+    List as ListIcon,
     Sparkles,
-    Play,
-    Settings2,
-    FileText,
-    ChevronRight,
-    MessageCircle,
-    CheckCircle2,
-    AlertCircle,
-    ToggleLeft,
-    ToggleRight,
-    ExternalLink
+    Filter
 } from 'lucide-react';
-import { AgentRole, EssentialAgent, ChatContextType, ProcessingStatus } from '@/lib/partnerhub-types';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import AgentConfigPanel from '@/components/partner/core/AgentConfigPanel';
-import { saveEssentialAgentAction } from '@/actions/partnerhub-actions';
+import {
+    DropdownMenu,
+    DropdownMenuTrigger,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuCheckboxItem,
+    DropdownMenuSeparator,
+} from '@/components/ui/dropdown-menu';
 import { toast } from 'sonner';
 
-const DEFAULT_AGENTS: Omit<EssentialAgent, 'id' | 'partnerId' | 'createdAt' | 'updatedAt'>[] = [
-    {
-        role: AgentRole.CUSTOMER_CARE,
-        name: 'Customer Support',
-        description: 'Answers questions from existing customers using your uploaded documents',
-        avatar: 'Bot',
-        businessName: '',
-        tones: ['professional', 'empathetic'],
-        style: 'conversational',
-        responseLength: 'moderate',
-        useAllDocuments: true,
-        attachedDocumentIds: [],
-        responseRules: [],
-        neverSay: [],
-        alwaysInclude: [],
-        escalationSettings: {
-            onHumanRequest: true,
-            humanRequestKeywords: ['human', 'person', 'agent', 'manager'],
-            onFrustration: true,
-            frustrationThreshold: 3,
-            onNoAnswer: true,
-            noAnswerAttempts: 2,
-            onSensitiveTopics: true,
-            sensitiveTopics: ['refund', 'complaint', 'legal'],
-            escalationMessage: "Let me connect you with a team member who can help.",
-        },
-        conversationCount: 0,
-        messageCount: 0,
-        isActive: true,
-        isDefault: false,
-        temperature: 0.7,
-    },
-    {
-        role: AgentRole.SALES_ASSISTANT,
-        name: 'Sales Assistant',
-        description: 'Helps potential customers learn about your products and services',
-        avatar: 'Zap',
-        businessName: '',
-        tones: ['friendly', 'professional'],
-        style: 'conversational',
-        responseLength: 'moderate',
-        useAllDocuments: true,
-        attachedDocumentIds: [],
-        responseRules: [],
-        neverSay: [],
-        alwaysInclude: [],
-        escalationSettings: {
-            onHumanRequest: true,
-            humanRequestKeywords: ['human', 'person', 'call me'],
-            onFrustration: false,
-            frustrationThreshold: 3,
-            onNoAnswer: true,
-            noAnswerAttempts: 2,
-            onSensitiveTopics: false,
-            sensitiveTopics: [],
-            escalationMessage: "I'd be happy to have someone reach out to you!",
-        },
-        leadSettings: {
-            askBudget: false,
-            budgetQuestion: '',
-            askAuthority: false,
-            authorityQuestion: '',
-            askNeed: true,
-            needQuestion: 'What are you looking for today?',
-            askTimeline: false,
-            timelineQuestion: '',
-            hotLeadAction: 'notify_email',
-            warmLeadAction: 'add_pipeline',
-            coldLeadAction: 'nurture',
-            products: [],
-        },
-        conversationCount: 0,
-        messageCount: 0,
-        isActive: true,
-        isDefault: false,
-        temperature: 0.7,
-    },
-    {
-        role: AgentRole.MARKETING_COMMS,
-        name: 'Marketing & Outreach',
-        description: 'Creates and sends personalized messages, birthday wishes, and promotions',
-        avatar: 'Sparkles',
-        businessName: '',
-        tones: ['friendly', 'creative'],
-        style: 'casual',
-        responseLength: 'brief',
-        useAllDocuments: false,
-        attachedDocumentIds: [],
-        responseRules: [],
-        neverSay: [],
-        alwaysInclude: [],
-        escalationSettings: {
-            onHumanRequest: true,
-            humanRequestKeywords: ['unsubscribe', 'stop'],
-            onFrustration: false,
-            frustrationThreshold: 3,
-            onNoAnswer: false,
-            noAnswerAttempts: 2,
-            onSensitiveTopics: false,
-            sensitiveTopics: [],
-            escalationMessage: "",
-        },
-        campaignSettings: {
-            enableBirthday: true,
-            birthdayDaysBefore: 0,
-            birthdayChannel: 'whatsapp',
-            birthdayIncludeOffer: false,
-            enableAnniversary: false,
-            enableWelcome: true,
-            enableThankYou: false,
-            holidays: [],
-            brandColors: ['#4F46E5'],
-            imageStyle: 'modern',
-            includeLogo: true,
-            maxMessagesPerMonth: 4,
-            quietHoursStart: '21:00',
-            quietHoursEnd: '08:00',
-            requireApprovalOver: 100,
-        },
-        conversationCount: 0,
-        messageCount: 0,
-        isActive: true,
-        isDefault: false,
-        temperature: 0.7,
-    },
-];
+import AssistantCard from './AssistantCard';
+import AssistantConfigPanel from './AssistantConfigPanel';
+import CreateAssistantModal from './CreateAssistantModal';
 
-const AGENT_STYLES = {
-    [AgentRole.CUSTOMER_CARE]: {
-        icon: Bot,
-        gradient: 'from-blue-500 to-cyan-500',
-        bgLight: 'bg-blue-50',
-        borderColor: 'border-blue-200',
-        textColor: 'text-blue-600',
-        ringColor: 'ring-blue-500/20',
-        useCases: ['FAQs & Help', 'Order Status', 'Account Issues'],
-    },
-    [AgentRole.SALES_ASSISTANT]: {
-        icon: Zap,
-        gradient: 'from-amber-500 to-orange-500',
-        bgLight: 'bg-amber-50',
-        borderColor: 'border-amber-200',
-        textColor: 'text-amber-600',
-        ringColor: 'ring-amber-500/20',
-        useCases: ['Product Info', 'Pricing', 'Lead Capture'],
-    },
-    [AgentRole.MARKETING_COMMS]: {
-        icon: Sparkles,
-        gradient: 'from-violet-500 to-purple-500',
-        bgLight: 'bg-violet-50',
-        borderColor: 'border-violet-200',
-        textColor: 'text-violet-600',
-        ringColor: 'ring-violet-500/20',
-        useCases: ['Birthdays', 'Promotions', 'Updates'],
-    },
-};
+import { Assistant } from '@/lib/types-assistant';
+import { DocumentMetadata } from '@/lib/partnerhub-types';
 
-export default function AgentsView() {
-    const router = useRouter();
-    const { documents, customAgents, partnerId, switchContext } = usePartnerHub();
-    const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null);
-    const [savingId, setSavingId] = useState<string | null>(null);
+import {
+    getAssistantsAction,
+    createAssistantAction,
+    createAssistantFromTemplateAction,
+    updateAssistantAction,
+    deleteAssistantAction,
+    toggleAssistantActiveAction,
+    duplicateAssistantAction,
+} from '@/actions/assistant-actions';
 
-    const completedDocs = useMemo(() =>
-        documents.filter(d => d.status === ProcessingStatus.COMPLETED).length,
-        [documents]
-    );
+interface AgentsViewProps {
+    partnerId: string;
+    documents: DocumentMetadata[];
+}
 
-    const essentialAgents: EssentialAgent[] = useMemo(() => {
-        return DEFAULT_AGENTS.map((defaultAgent) => {
-            const id = `essential-${defaultAgent.role}`;
-            const existingAgent = customAgents.find(a => a.id === id);
+export default function AgentsView({ partnerId, documents }: AgentsViewProps) {
+    const [assistants, setAssistants] = useState<Assistant[]>([]);
+    const [isLoading, setIsLoading] = useState(true);
+    const [searchQuery, setSearchQuery] = useState('');
+    const [filterType, setFilterType] = useState<'all' | 'essential' | 'custom'>('all');
 
-            if (existingAgent) {
-                return {
-                    ...defaultAgent,
-                    ...existingAgent,
-                    id,
-                } as unknown as EssentialAgent;
-            }
+    // UI State
+    const [selectedAssistant, setSelectedAssistant] = useState<Assistant | null>(null);
+    const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+    const [isCreating, setIsCreating] = useState(false);
 
-            return {
-                ...defaultAgent,
-                id,
-                partnerId: partnerId || 'current',
-                businessName: '',
-                createdAt: new Date(),
-                updatedAt: new Date(),
-            };
-        });
-    }, [customAgents, partnerId]);
+    useEffect(() => {
+        loadAssistants();
+    }, [partnerId]);
 
-    const selectedAgent = selectedAgentId ? essentialAgents.find(a => a.id === selectedAgentId) : null;
-
-    const getDocumentCount = (agent: EssentialAgent) => {
-        if (agent.useAllDocuments) return completedDocs;
-        return agent.attachedDocumentIds.filter(id =>
-            documents.some(d => d.id === id && d.status === ProcessingStatus.COMPLETED)
-        ).length;
-    };
-
-    const getSetupStatus = (agent: EssentialAgent) => {
-        const hasBusinessName = agent.businessName && agent.businessName.trim() !== '';
-        const hasDocuments = agent.useAllDocuments ? completedDocs > 0 : agent.attachedDocumentIds.length > 0;
-
-        if (hasBusinessName && hasDocuments) return 'configured';
-        if (hasDocuments) return 'partial';
-        return 'basic';
-    };
-
-    const handleSaveAgent = async (updatedAgent: EssentialAgent) => {
-        if (!partnerId) {
-            toast.error('No partner ID found');
-            return;
-        }
-
-        setSavingId(updatedAgent.id);
+    const loadAssistants = async () => {
+        setIsLoading(true);
         try {
-            const result = await saveEssentialAgentAction(partnerId, updatedAgent);
-            if (result.success) {
-                toast.success('Agent saved successfully');
+            const result = await getAssistantsAction(partnerId);
+            if (result.success && result.assistants) {
+                setAssistants(result.assistants);
             } else {
-                toast.error(result.error || 'Failed to save agent');
+                toast.error('Failed to load assistants');
             }
         } catch (error) {
-            toast.error('Failed to save agent');
+            console.error(error);
+            toast.error('Error loading assistants');
         } finally {
-            setSavingId(null);
+            setIsLoading(false);
         }
     };
 
-    const handleTestAgent = (agent: EssentialAgent) => {
-        switchContext({
-            type: ChatContextType.AGENT,
-            id: agent.id,
-            name: agent.name,
-            description: agent.description,
-        });
-        router.push('/partner/inbox');
-    };
-
-    const handleToggleActive = async (agent: EssentialAgent, e: React.MouseEvent) => {
-        e.stopPropagation();
-        if (!partnerId) return;
-
-        const updatedAgent = { ...agent, isActive: !agent.isActive };
-        setSavingId(agent.id);
+    const handleCreateCustom = async (data: Partial<Assistant>) => {
+        setIsCreating(true);
         try {
-            const result = await saveEssentialAgentAction(partnerId, updatedAgent);
+            const result = await createAssistantAction(partnerId, data as any, 'user'); // TODO: get real user ID
             if (result.success) {
-                toast.success(updatedAgent.isActive ? 'Agent activated' : 'Agent deactivated');
+                toast.success('Assistant created successfully');
+                setIsCreateModalOpen(false);
+                loadAssistants();
+            } else {
+                toast.error(result.error || 'Failed to create assistant');
             }
         } catch (error) {
-            toast.error('Failed to update agent');
+            toast.error('Error creating assistant');
         } finally {
-            setSavingId(null);
+            setIsCreating(false);
         }
     };
 
-    if (selectedAgent) {
-        return (
-            <AgentConfigPanel
-                agent={selectedAgent}
-                onBack={() => setSelectedAgentId(null)}
-                onSave={handleSaveAgent}
-                onTest={() => handleTestAgent(selectedAgent)}
-            />
-        );
-    }
+    const handleCreateFromTemplate = async (templateId: string) => {
+        setIsCreating(true);
+        try {
+            const result = await createAssistantFromTemplateAction(partnerId, templateId, 'user');
+            if (result.success) {
+                toast.success('Assistant created from template');
+                setIsCreateModalOpen(false);
+                loadAssistants();
+            } else {
+                toast.error(result.error || 'Failed to create assistant');
+            }
+        } catch (error) {
+            toast.error('Error creating assistant');
+        } finally {
+            setIsCreating(false);
+        }
+    };
+
+    const handleUpdate = async (updates: Partial<Assistant>) => {
+        if (!selectedAssistant) return;
+
+        try {
+            const result = await updateAssistantAction(partnerId, selectedAssistant.id, updates);
+            if (result.success) {
+                // Update local state immediately for responsiveness
+                setAssistants(prev => prev.map(a =>
+                    a.id === selectedAssistant.id ? { ...a, ...updates } : a
+                ));
+                setSelectedAssistant(prev => prev ? { ...prev, ...updates } : null);
+            } else {
+                toast.error(result.error || 'Failed to update assistant');
+            }
+        } catch (error) {
+            toast.error('Error updating assistant');
+        }
+    };
+
+    const handleDelete = async (assistantId: string) => {
+        try {
+            const result = await deleteAssistantAction(partnerId, assistantId);
+            if (result.success) {
+                toast.success('Assistant deleted');
+                setAssistants(prev => prev.filter(a => a.id !== assistantId));
+                if (selectedAssistant?.id === assistantId) {
+                    setSelectedAssistant(null);
+                }
+            } else {
+                toast.error(result.error || 'Failed to delete assistant');
+            }
+        } catch (error) {
+            toast.error('Error deleting assistant');
+        }
+    };
+
+    const handleDuplicate = async (assistantId: string) => {
+        try {
+            const result = await duplicateAssistantAction(partnerId, assistantId, 'user');
+            if (result.success) {
+                toast.success('Assistant duplicated');
+                loadAssistants();
+            } else {
+                toast.error(result.error || 'Failed to duplicate');
+            }
+        } catch (error) {
+            toast.error('Error duplicating assistant');
+        }
+    };
+
+    const handleToggleActive = async (assistant: Assistant, isActive: boolean) => {
+        try {
+            // Optimistic update
+            setAssistants(prev => prev.map(a =>
+                a.id === assistant.id ? { ...a, isActive } : a
+            ));
+
+            const result = await toggleAssistantActiveAction(partnerId, assistant.id, isActive);
+            if (!result.success) {
+                // Revert on failure
+                toast.error('Failed to update status');
+                setAssistants(prev => prev.map(a =>
+                    a.id === assistant.id ? { ...a, isActive: !isActive } : a
+                ));
+            }
+        } catch (error) {
+            toast.error('Error updating status');
+            loadAssistants(); // Reload to ensure sync
+        }
+    };
+
+    const filteredAssistants = assistants.filter(a => {
+        const matchesSearch = a.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+            a.description.toLowerCase().includes(searchQuery.toLowerCase());
+        const matchesFilter = filterType === 'all' || a.type === filterType;
+        return matchesSearch && matchesFilter;
+    });
+
+    const essentialAssistants = filteredAssistants.filter(a => a.type === 'essential');
+    const customAssistants = filteredAssistants.filter(a => a.type === 'custom');
 
     return (
-        <div className="h-full flex flex-col">
-            <ScrollArea className="flex-1">
-                <div className="p-5 space-y-4 max-w-4xl">
-                    <div className="mb-6">
-                        <p className="text-sm text-slate-500">
-                            These AI assistants are ready to help your customers. They use your uploaded documents to answer questions accurately.
-                            {completedDocs === 0 && (
-                                <span className="text-amber-600 ml-1">
-                                    Upload documents in the Documents tab to make them smarter.
-                                </span>
-                            )}
-                        </p>
-                    </div>
-
-                    {essentialAgents.map((agent) => {
-                        const style = AGENT_STYLES[agent.role];
-                        const Icon = style.icon;
-                        const docCount = getDocumentCount(agent);
-                        const status = getSetupStatus(agent);
-                        const isSaving = savingId === agent.id;
-
-                        return (
-                            <div
-                                key={agent.id}
-                                className={cn(
-                                    "bg-white rounded-2xl border overflow-hidden transition-all hover:shadow-lg",
-                                    agent.isActive ? style.borderColor : "border-slate-200 opacity-75"
-                                )}
-                            >
-                                <div className="p-5">
-                                    <div className="flex items-start gap-4">
-                                        <div className={cn(
-                                            "w-14 h-14 rounded-2xl flex items-center justify-center flex-shrink-0 bg-gradient-to-br shadow-lg",
-                                            style.gradient
-                                        )}>
-                                            <Icon className="w-7 h-7 text-white" />
-                                        </div>
-
-                                        <div className="flex-1 min-w-0">
-                                            <div className="flex items-start justify-between gap-4">
-                                                <div>
-                                                    <div className="flex items-center gap-2.5">
-                                                        <h3 className="font-semibold text-slate-900 text-lg">{agent.name}</h3>
-                                                        <button
-                                                            onClick={(e) => handleToggleActive(agent, e)}
-                                                            disabled={isSaving}
-                                                            className={cn(
-                                                                "flex items-center gap-1 text-xs font-medium px-2 py-1 rounded-full transition-colors",
-                                                                agent.isActive
-                                                                    ? "bg-emerald-100 text-emerald-700 hover:bg-emerald-200"
-                                                                    : "bg-slate-100 text-slate-500 hover:bg-slate-200"
-                                                            )}
-                                                        >
-                                                            {agent.isActive ? (
-                                                                <>
-                                                                    <ToggleRight className="w-3.5 h-3.5" />
-                                                                    Active
-                                                                </>
-                                                            ) : (
-                                                                <>
-                                                                    <ToggleLeft className="w-3.5 h-3.5" />
-                                                                    Inactive
-                                                                </>
-                                                            )}
-                                                        </button>
-                                                    </div>
-                                                    <p className="text-sm text-slate-500 mt-1">{agent.description}</p>
-                                                </div>
-                                            </div>
-
-                                            <div className="flex items-center gap-3 mt-4">
-                                                <div className={cn(
-                                                    "flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-lg",
-                                                    style.bgLight
-                                                )}>
-                                                    <FileText className={cn("w-4 h-4", style.textColor)} />
-                                                    <span className={cn("font-medium", style.textColor)}>
-                                                        {docCount} {docCount === 1 ? 'document' : 'documents'}
-                                                    </span>
-                                                </div>
-
-                                                {status === 'configured' && (
-                                                    <div className="flex items-center gap-1.5 text-sm text-emerald-600 bg-emerald-50 px-3 py-1.5 rounded-lg">
-                                                        <CheckCircle2 className="w-4 h-4" />
-                                                        <span className="font-medium">Configured</span>
-                                                    </div>
-                                                )}
-
-                                                {status === 'basic' && docCount === 0 && (
-                                                    <div className="flex items-center gap-1.5 text-sm text-amber-600 bg-amber-50 px-3 py-1.5 rounded-lg">
-                                                        <AlertCircle className="w-4 h-4" />
-                                                        <span className="font-medium">Needs documents</span>
-                                                    </div>
-                                                )}
-                                            </div>
-
-                                            <div className="flex flex-wrap gap-2 mt-4">
-                                                {style.useCases.map((useCase, i) => (
-                                                    <span
-                                                        key={i}
-                                                        className="text-xs px-2.5 py-1 bg-slate-100 text-slate-600 rounded-md"
-                                                    >
-                                                        {useCase}
-                                                    </span>
-                                                ))}
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <div className="border-t border-slate-100 px-5 py-3 bg-slate-50/50 flex items-center justify-between">
-                                    <button
-                                        onClick={() => handleTestAgent(agent)}
-                                        disabled={!agent.isActive}
-                                        className={cn(
-                                            "flex items-center gap-2 text-sm font-medium transition-colors",
-                                            agent.isActive
-                                                ? "text-slate-600 hover:text-slate-900"
-                                                : "text-slate-400 cursor-not-allowed"
-                                        )}
-                                    >
-                                        <Play className="w-4 h-4" />
-                                        Test in Inbox
-                                        <ExternalLink className="w-3.5 h-3.5 ml-0.5" />
-                                    </button>
-
-                                    <button
-                                        onClick={() => setSelectedAgentId(agent.id)}
-                                        className={cn(
-                                            "flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors",
-                                            style.bgLight,
-                                            style.textColor,
-                                            "hover:opacity-80"
-                                        )}
-                                    >
-                                        <Settings2 className="w-4 h-4" />
-                                        Configure
-                                        <ChevronRight className="w-4 h-4" />
-                                    </button>
-                                </div>
-                            </div>
-                        );
-                    })}
-
-                    <div className="mt-8 p-5 bg-gradient-to-r from-slate-50 to-slate-100 rounded-2xl border border-slate-200">
-                        <div className="flex items-start gap-4">
-                            <div className="w-10 h-10 rounded-xl bg-slate-200 flex items-center justify-center">
-                                <MessageCircle className="w-5 h-5 text-slate-500" />
-                            </div>
-                            <div>
-                                <h4 className="font-medium text-slate-700">How agents work</h4>
-                                <p className="text-sm text-slate-500 mt-1">
-                                    When customers message you, AI routes their question to the right assistant.
-                                    The assistant searches your documents for relevant information and crafts a helpful response.
-                                    Complex issues are escalated to your team automatically.
-                                </p>
-                            </div>
-                        </div>
-                    </div>
+        <div className="h-full flex flex-col bg-gray-50/50">
+            {/* Header */}
+            <div className="flex items-center justify-between p-6 pb-2">
+                <div>
+                    <h1 className="text-2xl font-semibold text-gray-900">AI Assistants</h1>
+                    <p className="text-sm text-gray-500 mt-1">Manage and configure your custom AI workforce</p>
                 </div>
-            </ScrollArea>
+                <Button onClick={() => setIsCreateModalOpen(true)} className="gap-2 shadow-sm bg-indigo-600 hover:bg-indigo-700">
+                    <Plus className="w-4 h-4" />
+                    New Assistant
+                </Button>
+            </div>
+
+            {/* Toolbar */}
+            <div className="px-6 py-4 flex items-center justify-between gap-4">
+                <div className="relative flex-1 max-w-md">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                    <Input
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        placeholder="Search assistants..."
+                        className="pl-9 bg-white"
+                    />
+                </div>
+                <div className="flex items-center gap-2">
+                    <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                            <Button variant="outline" size="sm" className="gap-2 bg-white">
+                                <Filter className="w-4 h-4 text-gray-500" />
+                                <span className="text-gray-700">Filter: {filterType === 'all' ? 'All' : filterType === 'essential' ? 'Essential' : 'Custom'}</span>
+                            </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                            <DropdownMenuItem onClick={() => setFilterType('all')}>
+                                All Assistants
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuCheckboxItem checked={filterType === 'essential'} onCheckedChange={() => setFilterType('essential')}>
+                                Essential
+                            </DropdownMenuCheckboxItem>
+                            <DropdownMenuCheckboxItem checked={filterType === 'custom'} onCheckedChange={() => setFilterType('custom')}>
+                                Custom
+                            </DropdownMenuCheckboxItem>
+                        </DropdownMenuContent>
+                    </DropdownMenu>
+                </div>
+            </div>
+
+            {/* Content */}
+            <div className="flex-1 min-h-0 flex">
+                <ScrollArea className="flex-1">
+                    <div className="p-6 pt-2 space-y-8 pb-20">
+                        {essentialAssistants.length > 0 && (
+                            <section>
+                                <div className="flex items-center gap-2 mb-4">
+                                    <Sparkles className="w-4 h-4 text-indigo-600" />
+                                    <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wider">Essential Assistants</h2>
+                                </div>
+                                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+                                    {essentialAssistants.map(assistant => (
+                                        <AssistantCard
+                                            key={assistant.id}
+                                            assistant={assistant}
+                                            documentCount={documents.length}
+                                            onConfigure={() => setSelectedAssistant(assistant)}
+                                            onToggleActive={(isActive) => handleToggleActive(assistant, isActive)}
+                                            onDuplicate={() => handleDuplicate(assistant.id)}
+                                            onDelete={() => handleDelete(assistant.id)}
+                                            onTest={() => {
+                                                // TODO: Implement test logic, maybe open a right panel or modal
+                                                toast.info("Opening test chat...");
+                                                setSelectedAssistant(assistant); // Open config panel as well for context
+                                            }}
+                                            isLoading={isLoading}
+                                        />
+                                    ))}
+                                </div>
+                            </section>
+                        )}
+
+                        {customAssistants.length > 0 && (
+                            <section>
+                                <div className="flex items-center gap-2 mb-4">
+                                    <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wider">Custom Assistants</h2>
+                                    <span className="text-xs bg-gray-200 text-gray-600 px-2 py-0.5 rounded-full">{customAssistants.length}</span>
+                                </div>
+                                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+                                    {customAssistants.map(assistant => (
+                                        <AssistantCard
+                                            key={assistant.id}
+                                            assistant={assistant}
+                                            documentCount={documents.length}
+                                            onConfigure={() => setSelectedAssistant(assistant)}
+                                            onToggleActive={(isActive) => handleToggleActive(assistant, isActive)}
+                                            onDuplicate={() => handleDuplicate(assistant.id)}
+                                            onDelete={() => handleDelete(assistant.id)}
+                                            onTest={() => {
+                                                // TODO: Implement test logic
+                                                toast.info("Opening test chat...");
+                                                setSelectedAssistant(assistant);
+                                            }}
+                                            isLoading={isLoading}
+                                        />
+                                    ))}
+                                </div>
+                            </section>
+                        )}
+
+                        {filteredAssistants.length === 0 && !isLoading && (
+                            <div className="text-center py-20">
+                                <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                                    <Search className="w-8 h-8 text-gray-400" />
+                                </div>
+                                <h3 className="text-lg font-medium text-gray-900">No assistants found</h3>
+                                <p className="text-gray-500 mt-2">Try adjusting your search or create a new assistant.</p>
+                                <Button onClick={() => setIsCreateModalOpen(true)} variant="outline" className="mt-4">
+                                    Create New Assistant
+                                </Button>
+                            </div>
+                        )}
+                    </div>
+                </ScrollArea>
+
+                {/* Config Panel (Right Sidebar) */}
+                {selectedAssistant && (
+                    <div className="border-l border-gray-200 h-full relative z-20">
+                        <AssistantConfigPanel
+                            assistant={selectedAssistant}
+                            documents={documents}
+                            onSave={handleUpdate}
+                            onClose={() => setSelectedAssistant(null)}
+                            onTest={(assistant) => {
+                                // This could launch a separate test modal or mode
+                                console.log("Testing:", assistant);
+                                toast.info(`Starting test chat with ${assistant.name}`);
+                            }}
+                        />
+                    </div>
+                )}
+            </div>
+
+            <CreateAssistantModal
+                open={isCreateModalOpen}
+                onOpenChange={setIsCreateModalOpen}
+                documents={documents}
+                onCreateFromTemplate={handleCreateFromTemplate}
+                onCreateCustom={handleCreateCustom}
+                isCreating={isCreating}
+            />
         </div>
     );
 }

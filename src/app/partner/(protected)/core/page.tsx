@@ -18,7 +18,7 @@ import AgentsView from '@/components/partner/core/AgentsView';
 type TabType = 'documents' | 'agents';
 
 export default function CorePage() {
-    const { documents, customAgents } = usePartnerHub();
+    const { documents, customAgents, partnerId } = usePartnerHub();
     const [activeTab, setActiveTab] = useState<TabType>('documents');
 
     const completedDocs = documents.filter(d => d.status === ProcessingStatus.COMPLETED).length;
@@ -28,6 +28,14 @@ export default function CorePage() {
         window.addEventListener('switchToAgentsTab', handleSwitchToAgents);
         return () => window.removeEventListener('switchToAgentsTab', handleSwitchToAgents);
     }, []);
+
+    if (!partnerId) {
+        return (
+            <div className="h-full flex items-center justify-center text-slate-500">
+                Loading...
+            </div>
+        );
+    }
 
     return (
         <div className="h-full flex flex-col bg-slate-50">
@@ -73,7 +81,7 @@ export default function CorePage() {
                             <Bot className="w-4 h-4" />
                             Assistants
                             <span className="ml-1 px-1.5 py-0.5 bg-slate-200 text-slate-600 text-xs rounded-full">
-                                3
+                                {customAgents.length > 0 ? customAgents.length : '3'}
                             </span>
                         </button>
                     </div>
@@ -84,7 +92,7 @@ export default function CorePage() {
                 {activeTab === 'documents' ? (
                     <DocumentsView />
                 ) : (
-                    <AgentsView />
+                    <AgentsView partnerId={partnerId} documents={documents} />
                 )}
             </div>
         </div>

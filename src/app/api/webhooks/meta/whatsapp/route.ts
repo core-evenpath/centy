@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/firebase-admin';
 import { FieldValue } from 'firebase-admin/firestore';
 import { findPartnerByPhoneNumberId, processAndUploadMedia, getWhatsAppProfilePicture } from '@/lib/meta-whatsapp-service';
+import { incrementContactMessageCountAction, triggerPersonaGenerationAction } from '@/actions/persona-actions';
 import { getPlatformMetaConfig, getDecryptedAppSecret } from '@/actions/admin-platform-actions';
 import crypto from 'crypto';
 import type {
@@ -352,6 +353,33 @@ async function handleIncomingMessage(
         customerName: customerName || undefined,
         updatedAt: FieldValue.serverTimestamp(),
     });
+
+    // Check for linked contact and trigger persona generation
+    const convDoc = await db.collection('metaWhatsAppConversations').doc(conversationId).get();
+    const contactId = convDoc.data()?.contactId;
+
+    if (contactId) {
+        const { shouldGeneratePersona, currentCount } = await incrementContactMessageCountAction(
+            partnerId,
+            contactId
+        );
+
+        if (shouldGeneratePersona) {
+            console.log(`🧠 Triggering background persona generation for contact: ${contactId} (${currentCount} messages)`);
+
+            triggerPersonaGenerationAction(partnerId, contactId, false)
+                .then(result => {
+                    if (result.success) {
+                        console.log(`✅ Background persona generation completed for: ${contactId}`);
+                    } else {
+                        console.warn(`⚠️ Background persona generation failed: ${result.message}`);
+                    }
+                })
+                .catch(err => {
+                    console.error(`❌ Background persona generation error:`, err);
+                });
+        }
+    }
 }
 
 async function handleStatusUpdate(

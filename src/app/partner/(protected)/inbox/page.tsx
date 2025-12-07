@@ -33,6 +33,7 @@ interface RAGSuggestion {
         excerpt: string;
         relevance: number;
     }>;
+    personaUsed?: boolean;
 }
 
 export default function InboxPage() {
@@ -204,7 +205,8 @@ export default function InboxPage() {
             const result = await generateInboxSuggestionAction(
                 currentPartnerId,
                 messageToAnalyze,
-                context
+                context,
+                selectedConversation?.contactId
             );
 
             if (result.success && result.suggestedReply) {
@@ -212,7 +214,8 @@ export default function InboxPage() {
                     suggestedReply: result.suggestedReply,
                     confidence: result.confidence || 0.85,
                     reasoning: result.reasoning || 'Generated based on your business documents and conversation history.',
-                    sources: (result.sources || []).map(s => ({ ...s, type: 'document' as const, excerpt: s.excerpt || '' }))
+                    sources: (result.sources || []).map(s => ({ ...s, type: 'document' as const, excerpt: s.excerpt || '' })),
+                    personaUsed: result.personaUsed
                 });
             } else {
                 toast.error(result.message || "Failed to generate suggestion");

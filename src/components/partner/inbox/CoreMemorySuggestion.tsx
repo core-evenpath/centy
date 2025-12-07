@@ -3,13 +3,22 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import {
     Sparkles,
-    X,
+    Bot,
+    RefreshCcw,
     Send,
-    Edit3,
-    RefreshCw,
+    Edit2,
+    X,
+    Check,
+    ThumbsUp,
+    ThumbsDown,
+    Copy,
+    Info,
     ChevronDown,
     ChevronUp,
     FileText,
+    User,
+    RefreshCw,
+    Edit3,
     Search,
     Brain,
     Clock,
@@ -31,6 +40,7 @@ interface RAGSuggestion {
     confidence: number;
     reasoning: string;
     sources: RAGSource[];
+    personaUsed?: boolean;
 }
 
 interface CoreMemorySuggestionProps {

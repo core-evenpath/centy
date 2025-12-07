@@ -175,7 +175,7 @@ interface PartnerHubContextType {
     setChatSearch: (search: string) => void;
 
     // Actions
-    uploadDocument: (file: File) => Promise<string | null>;
+    uploadDocument: (file: File, visibility?: 'internal' | 'external' | 'both') => Promise<string | null>;
     deleteDocument: (id: string) => Promise<void>;
     addTagToDocument: (id: string, tag: string) => Promise<void>;
     removeTagFromDocument: (id: string, tag: string) => Promise<void>;
@@ -402,7 +402,7 @@ export function PartnerHubProvider({ children }: { children: ReactNode }) {
 
     // Upload document
     const uploadDocument = useCallback(
-        async (file: File): Promise<string | null> => {
+        async (file: File, visibility: 'internal' | 'external' | 'both' = 'both'): Promise<string | null> => {
             if (!partnerId || !userId) return null;
 
             setIsUploading(true);
@@ -429,7 +429,8 @@ export function PartnerHubProvider({ children }: { children: ReactNode }) {
                     storagePath,
                     storageUrl,
                     status: ProcessingStatus.PENDING,
-                    tags: [],
+                    tags: [], // Tags will be populated by AI processing if generic upload
+                    visibility, // Set visibility from param
                     createdAt: Timestamp.now(),
                     updatedAt: Timestamp.now(),
                     uploadedBy: userId,
