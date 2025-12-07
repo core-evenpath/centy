@@ -39,11 +39,11 @@ export default function ProtectedPartnerLayout({
     <AuthProvider>
       <MultiWorkspaceProvider>
         <PartnerHubProvider>
-          <SidebarProvider defaultOpen={true}>
+          <SidebarProvider defaultOpen={false}>
             <PartnerAuthWrapper>
-              <div className="flex h-screen bg-gray-100 dark:bg-gray-900">
+              <div className="flex h-screen bg-gray-100 dark:bg-gray-900 overflow-hidden">
                 <UnifiedPartnerSidebar />
-                <main className="flex-1 flex flex-col overflow-y-auto">
+                <main className="flex-1 flex flex-col overflow-hidden relative min-w-0">
                   {children}
                 </main>
               </div>

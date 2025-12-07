@@ -10,6 +10,8 @@ import {
     DropdownMenuItem,
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { cn } from '@/lib/utils';
+import { Button } from '@/components/ui/button';
 
 interface MessageBubbleProps {
     message: MetaWhatsAppMessage;
@@ -23,15 +25,17 @@ export function MessageBubble({ message, onDelete }: MessageBubbleProps) {
     const getStatusIcon = () => {
         if (!isOutbound) return null;
 
+        const iconClass = "w-3 h-3";
+
         switch (metadata.status) {
             case 'read':
-                return <CheckCheck className="w-4 h-4 text-blue-500" />;
+                return <CheckCheck className={cn(iconClass, "text-blue-300")} />; // Distinct blue for read on indigo bg
             case 'delivered':
-                return <CheckCheck className="w-4 h-4 text-gray-400" />;
+                return <CheckCheck className={cn(iconClass, "text-indigo-200")} />;
             case 'sent':
-                return <Check className="w-4 h-4 text-gray-400" />;
+                return <Check className={cn(iconClass, "text-indigo-200")} />;
             default:
-                return <Clock className="w-4 h-4 text-gray-300" />;
+                return <Clock className={cn(iconClass, "text-indigo-300")} />;
         }
     };
 
@@ -47,16 +51,15 @@ export function MessageBubble({ message, onDelete }: MessageBubbleProps) {
     const renderContent = () => {
         if (message.type === 'image' && metadata.mediaUrl) {
             return (
-                <div className="relative mb-1 group">
+                <div className="relative mb-1 group max-w-sm">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
                         src={metadata.mediaUrl}
                         alt="Image"
-                        className="rounded-lg max-w-full h-auto object-cover"
-                        style={{ maxHeight: '300px' }}
+                        className="rounded-lg w-full h-auto object-cover border border-black/5"
                     />
                     {message.content && !message.content.includes('[IMAGE]') && (
-                        <p className="mt-2 text-sm">{message.content}</p>
+                        <p className={cn("mt-2 text-[14px] leading-relaxed", isOutbound ? "text-indigo-50" : "text-gray-900")}>{message.content}</p>
                     )}
                 </div>
             );
@@ -64,15 +67,14 @@ export function MessageBubble({ message, onDelete }: MessageBubbleProps) {
 
         if (message.type === 'video' && metadata.mediaUrl) {
             return (
-                <div className="relative mb-1">
+                <div className="relative mb-1 max-w-sm">
                     <video
                         src={metadata.mediaUrl}
                         controls
-                        className="rounded-lg max-w-full h-auto"
-                        style={{ maxHeight: '300px' }}
+                        className="rounded-lg w-full h-auto border border-black/5"
                     />
                     {message.content && !message.content.includes('[VIDEO]') && (
-                        <p className="mt-2 text-sm">{message.content}</p>
+                        <p className={cn("mt-2 text-[14px] leading-relaxed", isOutbound ? "text-indigo-50" : "text-gray-900")}>{message.content}</p>
                     )}
                 </div>
             );
@@ -80,33 +82,57 @@ export function MessageBubble({ message, onDelete }: MessageBubbleProps) {
 
         if (message.type === 'document' && metadata.mediaUrl) {
             return (
-                <div className="flex items-center gap-3 p-2 bg-gray-100 rounded-lg mb-1">
-                    <FileText className="w-8 h-8 text-red-500" />
-                    <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium truncate">{metadata.filename || 'Document'}</p>
-                        <p className="text-xs text-gray-500 uppercase">{metadata.mimeType?.split('/')[1] || 'FILE'}</p>
+                <div className={cn(
+                    "flex items-center gap-3 p-3 rounded-lg mb-1 max-w-sm",
+                    isOutbound ? "bg-white/10 border border-white/20" : "bg-gray-50 border border-gray-200"
+                )}>
+                    <div className={cn(
+                        "w-10 h-10 rounded-lg flex items-center justify-center shrink-0",
+                        isOutbound ? "bg-white/20" : "bg-white border border-gray-100 shadow-sm"
+                    )}>
+                        <FileText className={cn("w-5 h-5", isOutbound ? "text-white" : "text-indigo-500")} />
                     </div>
-                    <a href={metadata.mediaUrl} target="_blank" rel="noopener noreferrer" className="p-2 hover:bg-gray-200 rounded-full">
-                        <Download className="w-4 h-4 text-gray-600" />
+                    <div className="flex-1 min-w-0">
+                        <p className={cn("text-[13px] font-medium truncate", isOutbound ? "text-white" : "text-gray-900")}>
+                            {metadata.filename || 'Document'}
+                        </p>
+                        <p className={cn("text-[10px] uppercase tracking-wider font-medium", isOutbound ? "text-indigo-200" : "text-gray-400")}>
+                            {metadata.mimeType?.split('/')[1] || 'FILE'}
+                        </p>
+                    </div>
+                    <a
+                        href={metadata.mediaUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className={cn(
+                            "p-2 rounded-full transition-colors",
+                            isOutbound ? "hover:bg-white/10 text-indigo-100" : "hover:bg-gray-200 text-gray-500"
+                        )}
+                    >
+                        <Download className="w-4 h-4" />
                     </a>
                 </div>
             );
         }
 
-        // For text messages or media without URL - render with markdown
+        // For text messages
         if (message.content && !message.content.match(/^\[(IMAGE|VIDEO|DOCUMENT|AUDIO|STICKER)\]$/)) {
             return (
-                <div className="text-[15px] text-gray-900 whitespace-pre-wrap break-words prose prose-sm max-w-none prose-p:my-0 prose-p:leading-relaxed prose-strong:font-semibold prose-ul:my-1 prose-ol:my-1 prose-li:my-0">
+                <div className={cn(
+                    "text-[14px] whitespace-pre-wrap break-words leading-relaxed tracking-normal",
+                    isOutbound ? "text-white" : "text-gray-900" // removed font-light/medium, just use default (regular) for clean look
+                )}>
                     <ReactMarkdown
                         components={{
-                            p: ({ children }) => <p className="mb-1 last:mb-0 leading-relaxed">{children}</p>,
-                            strong: ({ children }) => <span className="font-bold">{children}</span>,
-                            // Treat emphasis (*) as Bold to match WhatsApp formatting
-                            em: ({ children }) => <span className="font-bold not-italic">{children}</span>,
+                            p: ({ children }) => <p className="mb-0.5 last:mb-0">{children}</p>, // tighter spacing between paragraphs
+                            strong: ({ children }) => <span className="font-semibold">{children}</span>,
+                            em: ({ children }) => <span className="italic">{children}</span>,
                             ul: ({ children }) => <ul className="list-disc list-inside my-1 space-y-0.5">{children}</ul>,
                             ol: ({ children }) => <ol className="list-decimal list-inside my-1 space-y-0.5">{children}</ol>,
-                            li: ({ children }) => <li className="my-0 leading-relaxed">{children}</li>,
-                            code: ({ children }) => <code className="bg-gray-100 px-1 py-0.5 rounded text-xs font-mono text-pink-600">{children}</code>,
+                            code: ({ children }) => <code className={cn(
+                                "px-1 py-0.5 rounded text-xs font-mono",
+                                isOutbound ? "bg-white/20 text-white" : "bg-gray-100 text-indigo-600"
+                            )}>{children}</code>,
                         }}
                     >
                         {message.content}
@@ -119,37 +145,48 @@ export function MessageBubble({ message, onDelete }: MessageBubbleProps) {
     };
 
     return (
-        <div className={`flex ${isOutbound ? 'justify-end' : 'justify-start'} mb-2 group`}>
-            <div
-                className={`relative max-w-[70%] rounded-lg px-3 py-2 shadow-sm ${isOutbound
-                    ? 'bg-[#dcf8c6] rounded-tr-none'
-                    : 'bg-white rounded-tl-none'
-                    }`}
-            >
-                {/* Dropdown Trigger - Floating inside top right */}
-                <div className={`absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity z-10 bg-black/10 rounded-full backdrop-blur-sm`}>
-                    <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                            <button className="p-1 hover:bg-black/20 rounded-full text-gray-600">
-                                <MoreVertical className="w-3 h-3" />
-                            </button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                            <DropdownMenuItem
-                                onClick={() => onDelete?.(message.id)}
-                                className="text-red-600 focus:text-red-600 cursor-pointer"
-                            >
-                                <Trash2 className="w-4 h-4 mr-2" />
-                                Delete
-                            </DropdownMenuItem>
-                        </DropdownMenuContent>
-                    </DropdownMenu>
-                </div>
+        <div className={cn(
+            "flex w-full mb-3 group", // reduced margin bottom
+            isOutbound ? "justify-end" : "justify-start"
+        )}>
+            <div className={cn(
+                "relative max-w-[85%] sm:max-w-[70%] px-3.5 py-2.5 shadow-sm text-left transition-all",
+                isOutbound
+                    ? "bg-indigo-600 rounded-2xl rounded-tr-sm"
+                    : "bg-white border border-gray-100 rounded-2xl rounded-tl-sm hover:shadow-md"
+            )}>
+                {/* Dropdown - Only show on hover */}
+                {onDelete && (
+                    <div className={cn(
+                        "absolute top-0 right-0 p-1 opacity-0 group-hover:opacity-100 transition-opacity z-10",
+                        isOutbound ? "text-indigo-100" : "text-gray-400"
+                    )}>
+                        <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                                <Button variant="ghost" size="icon" className="h-6 w-6 rounded-full hover:bg-black/10">
+                                    <MoreVertical className="w-3 h-3" />
+                                </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                                <DropdownMenuItem
+                                    onClick={() => onDelete(message.id)}
+                                    className="text-red-600 focus:text-red-600 cursor-pointer focus:bg-red-50 text-xs"
+                                >
+                                    <Trash2 className="w-3.5 h-3.5 mr-2" />
+                                    Delete
+                                </DropdownMenuItem>
+                            </DropdownMenuContent>
+                        </DropdownMenu>
+                    </div>
+                )}
 
                 {renderContent()}
 
-                <div className={`flex items-center gap-1 mt-1 ${isOutbound ? 'justify-end' : 'justify-start'}`}>
-                    <span className="text-[11px] text-gray-500">{formatTime()}</span>
+                <div className={cn(
+                    "flex items-center gap-1 mt-0.5 select-none",
+                    isOutbound ? "justify-end text-indigo-200" : "justify-start text-gray-400"
+                )}>
+                    <span className="text-[10px] font-medium tracking-wide opacity-80 tabular-nums">{formatTime()}</span>
                     {getStatusIcon()}
                 </div>
             </div>
