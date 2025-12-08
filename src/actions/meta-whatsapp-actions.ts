@@ -1,7 +1,7 @@
 'use server';
 
 import { db } from '@/lib/firebase-admin';
-import { FieldValue } from 'firebase-admin/firestore';
+import { FieldValue, Timestamp } from 'firebase-admin/firestore';
 import { encrypt, generateVerifyToken } from '@/lib/encryption';
 import {
     sendMetaTextMessage,
@@ -573,5 +573,32 @@ export async function deleteMetaWhatsAppTemplateAction(partnerId: string, templa
     } catch (error: any) {
         console.error('❌ Error deleting template:', error);
         return { success: false, message: error.message };
+    }
+}
+
+export async function updateConversationAssistantsAction(
+    partnerId: string,
+    conversationId: string,
+    assistantIds: string[]
+): Promise<{ success: boolean; error?: string }> {
+    try {
+        if (!db) {
+            return { success: false, error: 'Database unavailable' };
+        }
+
+        await db
+            .collection('metaWhatsAppConversations')
+            .doc(conversationId)
+            .update({
+                assignedAssistantIds: assistantIds,
+                updatedAt: Timestamp.now(),
+            });
+
+        console.log(`✅ Updated conversation ${conversationId} with assistants:`, assistantIds);
+
+        return { success: true };
+    } catch (error: any) {
+        console.error('Update conversation assistants error:', error);
+        return { success: false, error: error.message };
     }
 }

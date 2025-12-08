@@ -4,8 +4,15 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useMultiWorkspaceAuth } from '@/hooks/use-multi-workspace-auth';
 import { useEnrichedMetaConversations, EnrichedMetaConversation } from '@/hooks/useEnrichedMetaConversations';
 import { useMetaMessages } from '@/hooks/useMetaWhatsApp';
-import { sendMetaWhatsAppMessageAction, getMetaWhatsAppStatus, deleteMetaConversation, deleteMetaMessage } from '@/actions/meta-whatsapp-actions';
+import {
+    sendMetaWhatsAppMessageAction,
+    getMetaWhatsAppStatus,
+    deleteMetaConversation,
+    deleteMetaMessage,
+    updateConversationAssistantsAction
+} from '@/actions/meta-whatsapp-actions';
 import { generateInboxSuggestionAction } from '@/actions/partnerhub-actions';
+import { getActiveAssistantsAction } from '@/actions/assistant-actions';
 import { cn } from '@/lib/utils';
 import { Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -32,8 +39,15 @@ interface RAGSuggestion {
         name: string;
         excerpt: string;
         relevance: number;
+        fromAssistant?: string;
     }>;
     personaUsed?: boolean;
+    assistantUsed?: {
+        id: string;
+        name: string;
+        avatar: string;
+        usedAsFallback: boolean;
+    };
 }
 
 export default function InboxPage() {
@@ -55,6 +69,11 @@ export default function InboxPage() {
     // Data - Status
     const [isWhatsAppConnected, setIsWhatsAppConnected] = useState<boolean | null>(null);
 
+    // Data - Assistants
+    const [activeAssistants, setActiveAssistants] = useState<any[]>([]);
+    const [assistantsLoading, setAssistantsLoading] = useState(false);
+    const [selectedAssistantIds, setSelectedAssistantIds] = useState<string[]>([]);
+
     // AI State
     const [showAISuggestion, setShowAISuggestion] = useState(false);
     const [aiSuggestion, setAISuggestion] = useState<RAGSuggestion | null>(null);
@@ -74,12 +93,35 @@ export default function InboxPage() {
     // Effects
     // ----------------------------------------------------------------------
 
-    // Check WhatsApp Status
+    // Check WhatsApp Status & Fetch Assistants
     useEffect(() => {
         if (currentPartnerId) {
             getMetaWhatsAppStatus(currentPartnerId).then(s => setIsWhatsAppConnected(s.connected));
+
+            // Fetch active assistants
+            setAssistantsLoading(true);
+            getActiveAssistantsAction(currentPartnerId).then(res => {
+                if (res.success && res.assistants) {
+                    setActiveAssistants(res.assistants);
+                }
+                setAssistantsLoading(false);
+            });
         }
     }, [currentPartnerId]);
+
+    // Update selected assistants when conversation changes
+    useEffect(() => {
+        if (selectedConversation) {
+            // Find stored assistant IDs or default to empty
+            const storedIds = selectedConversation.assignedAssistantIds || [];
+
+            // Validate against current active list
+            const validIds = storedIds.filter(id => activeAssistants.some(a => a.id === id));
+            setSelectedAssistantIds(validIds);
+        } else {
+            setSelectedAssistantIds([]);
+        }
+    }, [selectedConversation?.id, activeAssistants]); // IMPORTANT: activeAssistants dependency
 
     // Scroll to bottom on new messages
     useEffect(() => {
@@ -140,6 +182,20 @@ export default function InboxPage() {
     // Handlers
     // ----------------------------------------------------------------------
 
+    const handleAssistantSelectionChange = async (ids: string[]) => {
+        setSelectedAssistantIds(ids);
+
+        if (currentPartnerId && selectedConversation) {
+            // Optimistic update locally (state already set)
+            // Persist to DB
+            const result = await updateConversationAssistantsAction(currentPartnerId, selectedConversation.id, ids);
+            if (!result.success) {
+                toast.error("Failed to save assistant selection");
+                // Revert or fetch fresh? For now, we trust optimism
+            }
+        }
+    };
+
     const markdownToWhatsApp = useCallback((text: string): string => {
         let formatted = text;
         formatted = formatted.replace(/^#+\s+(.*)$/gm, '*$1*');
@@ -192,7 +248,7 @@ export default function InboxPage() {
         setIsLoadingSuggestion(true);
 
         try {
-            console.log('⚡ Core Memory RAG starting...');
+            console.log('⚡ Core Memory RAG starting...', { assistantIds: selectedAssistantIds });
 
             // Construct context from recent messages
             let context = messages.slice(-5).map(m => `${m.direction}: ${m.content}`).join('\n');
@@ -206,7 +262,8 @@ export default function InboxPage() {
                 currentPartnerId,
                 messageToAnalyze,
                 context,
-                selectedConversation?.contactId
+                selectedConversation?.contactId,
+                selectedAssistantIds
             );
 
             if (result.success && result.suggestedReply) {
@@ -215,7 +272,8 @@ export default function InboxPage() {
                     confidence: result.confidence || 0.85,
                     reasoning: result.reasoning || 'Generated based on your business documents and conversation history.',
                     sources: (result.sources || []).map(s => ({ ...s, type: 'document' as const, excerpt: s.excerpt || '' })),
-                    personaUsed: result.personaUsed
+                    personaUsed: result.personaUsed,
+                    assistantUsed: result.assistantUsed
                 });
             } else {
                 toast.error(result.message || "Failed to generate suggestion");
@@ -359,6 +417,10 @@ export default function InboxPage() {
                                 onRegenerate={() => handleGenerateSuggestion()}
                                 onRefine={handleRefineSuggestion}
                                 incomingMessage={pendingIncomingMessage}
+                                activeAssistants={activeAssistants}
+                                selectedAssistantIds={selectedAssistantIds}
+                                onAssistantSelectionChange={handleAssistantSelectionChange}
+                                assistantsLoading={assistantsLoading}
                             />
                         )}
                     </>

@@ -23,16 +23,20 @@ import {
     Brain,
     Clock,
     Database,
-    Wand2
+    Wand2,
+    CheckCircle2
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { AssistantSelector } from './AssistantSelector';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
 interface RAGSource {
     type: 'conversation' | 'document';
     name: string;
     excerpt: string;
     relevance: number;
+    fromAssistant?: string;
 }
 
 interface RAGSuggestion {
@@ -41,6 +45,12 @@ interface RAGSuggestion {
     reasoning: string;
     sources: RAGSource[];
     personaUsed?: boolean;
+    assistantUsed?: {
+        id: string;
+        name: string;
+        avatar: string;
+        usedAsFallback: boolean;
+    };
 }
 
 interface CoreMemorySuggestionProps {
@@ -53,6 +63,12 @@ interface CoreMemorySuggestionProps {
     onRegenerate: () => void;
     onRefine: (instruction: string) => void;
     incomingMessage: string;
+
+    // Assistant Props
+    activeAssistants: any[];
+    selectedAssistantIds: string[];
+    onAssistantSelectionChange: (ids: string[]) => void;
+    assistantsLoading?: boolean;
 }
 
 type LoadingStage = 'searching' | 'analyzing' | 'generating' | 'complete';
@@ -67,6 +83,10 @@ export default function CoreMemorySuggestion({
     onRegenerate,
     onRefine,
     incomingMessage,
+    activeAssistants,
+    selectedAssistantIds,
+    onAssistantSelectionChange,
+    assistantsLoading
 }: CoreMemorySuggestionProps) {
     const [isExpanded, setIsExpanded] = useState(true);
     const [loadingStage, setLoadingStage] = useState<LoadingStage>('searching');
@@ -161,33 +181,42 @@ export default function CoreMemorySuggestion({
     const handleEdit = () => onEdit(displayedText || suggestion?.suggestedReply || '');
 
     return (
-        // Changed wrapper to standard flex column, removed absolute positioning
         <div className="w-[360px] flex flex-col h-full border-l border-gray-100 bg-white shadow-xl shadow-gray-100/50 z-20 shrink-0 animate-in slide-in-from-right duration-300">
             {/* Header */}
-            <div className="p-4 border-b border-gray-50 flex items-center justify-between shrink-0 bg-white/80 backdrop-blur-sm sticky top-0 z-10">
-                <div className="flex items-center gap-3">
-                    <div className={cn(
-                        "w-8 h-8 rounded-xl flex items-center justify-center transition-all ring-4 ring-indigo-50",
-                        isLoading ? "bg-indigo-50" : "bg-gradient-to-br from-indigo-500 to-violet-600 shadow-sm"
-                    )}>
-                        <Database className={cn(
-                            "h-3.5 w-3.5",
-                            isLoading ? "text-indigo-600 animate-pulse" : "text-white"
-                        )} />
+            <div className="p-4 border-b border-gray-50 flex flex-col gap-3 shrink-0 bg-white/80 backdrop-blur-sm sticky top-0 z-10 transition-all">
+                <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                        <div className={cn(
+                            "w-8 h-8 rounded-xl flex items-center justify-center transition-all ring-4 ring-indigo-50",
+                            isLoading ? "bg-indigo-50" : "bg-gradient-to-br from-indigo-500 to-violet-600 shadow-sm"
+                        )}>
+                            <Database className={cn(
+                                "h-3.5 w-3.5",
+                                isLoading ? "text-indigo-600 animate-pulse" : "text-white"
+                            )} />
+                        </div>
+                        <div>
+                            <h3 className="text-[13px] font-bold text-gray-900 leading-tight">Core Memory</h3>
+                            <p className="text-[10px] text-gray-500 font-medium">AI Intelligence</p>
+                        </div>
                     </div>
-                    <div>
-                        <h3 className="text-[13px] font-bold text-gray-900 leading-tight">Core Memory</h3>
-                        <p className="text-[10px] text-gray-500 font-medium">AI Intelligence</p>
-                    </div>
+                    <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={onDismiss}
+                        className="h-7 w-7 text-gray-400 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
+                    >
+                        <X className="h-4 w-4" />
+                    </Button>
                 </div>
-                <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={onDismiss}
-                    className="h-7 w-7 text-gray-400 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
-                >
-                    <X className="h-4 w-4" />
-                </Button>
+
+                {/* Assistant Selector */}
+                <AssistantSelector
+                    availableAssistants={activeAssistants}
+                    selectedAssistantIds={selectedAssistantIds}
+                    onSelectionChange={onAssistantSelectionChange}
+                    isLoading={assistantsLoading}
+                />
             </div>
 
             <ScrollArea className="flex-1 bg-white">
@@ -235,7 +264,27 @@ export default function CoreMemorySuggestion({
                     ) : suggestion ? (
                         <>
                             {/* Suggestion Card */}
-                            <div className="bg-white rounded-2xl border border-indigo-100 shadow-sm overflow-hidden group hover:shadow-md transition-all">
+                            <div className="bg-white rounded-2xl border border-indigo-100 shadow-sm overflow-hidden group hover:shadow-md transition-all relative">
+                                {/* Assistant Attribution */}
+                                {suggestion.assistantUsed && (
+                                    <div className="absolute top-0 right-0 p-2 z-10 flex items-center gap-1.5 pointer-events-none">
+                                        <div className={cn(
+                                            "flex items-center gap-1.5 px-2 py-1 rounded-full text-[10px] font-medium shadow-sm border",
+                                            suggestion.assistantUsed.usedAsFallback
+                                                ? "bg-amber-50 text-amber-700 border-amber-100"
+                                                : "bg-indigo-50 text-indigo-700 border-indigo-100"
+                                        )}>
+                                            <span className="text-sm leading-none">{suggestion.assistantUsed.avatar}</span>
+                                            <span>{suggestion.assistantUsed.name}</span>
+                                            {suggestion.assistantUsed.usedAsFallback && (
+                                                <Badge variant="outline" className="h-3.5 px-1 text-[8px] bg-white border-amber-200 text-amber-600">
+                                                    Fallback
+                                                </Badge>
+                                            )}
+                                        </div>
+                                    </div>
+                                )}
+
                                 <div className="p-3 bg-gradient-to-r from-indigo-50/30 to-violet-50/30 border-b border-indigo-50 flex items-center justify-between">
                                     <div className="flex items-center gap-2">
                                         <Badge variant="secondary" className={cn("text-[9px] h-5 px-2 font-bold tracking-wide border rounded-md shadow-sm", getConfidenceColor(suggestion.confidence))}>
@@ -251,7 +300,7 @@ export default function CoreMemorySuggestion({
                                         <RefreshCw className="h-3 w-3" />
                                     </Button>
                                 </div>
-                                <div className="p-5">
+                                <div className="p-5 pt-7">
                                     <div className="prose prose-sm max-w-none">
                                         <p className="text-[13px] text-gray-900 leading-relaxed whitespace-pre-wrap">
                                             {displayedText}
@@ -321,10 +370,24 @@ export default function CoreMemorySuggestion({
                                                 <div key={i} className="bg-white p-3 rounded-xl border border-gray-100 shadow-sm flex flex-col gap-1.5 hover:border-indigo-200 transition-colors">
                                                     <div className="flex items-center gap-2">
                                                         <FileText className="w-3.5 h-3.5 text-indigo-500 shrink-0" />
-                                                        <span className="text-[11px] font-semibold text-gray-900 truncate">
+                                                        <span className="text-[11px] font-semibold text-gray-900 truncate flex-1">
                                                             {source.name}
                                                         </span>
-                                                        <span className="text-[9px] text-gray-400 ml-auto tabular-nums font-medium bg-gray-50 px-1.5 py-0.5 rounded-md border border-gray-100">
+                                                        {source.fromAssistant && (
+                                                            <TooltipProvider>
+                                                                <Tooltip>
+                                                                    <TooltipTrigger>
+                                                                        <div className="w-4 h-4 rounded-full bg-slate-100 flex items-center justify-center text-[10px] shrink-0 border border-slate-200">
+                                                                            🤖
+                                                                        </div>
+                                                                    </TooltipTrigger>
+                                                                    <TooltipContent className="text-[10px]">
+                                                                        From {source.fromAssistant}
+                                                                    </TooltipContent>
+                                                                </Tooltip>
+                                                            </TooltipProvider>
+                                                        )}
+                                                        <span className="text-[9px] text-gray-400 tabular-nums font-medium bg-gray-50 px-1.5 py-0.5 rounded-md border border-gray-100">
                                                             {Math.round(source.relevance * 100)}%
                                                         </span>
                                                     </div>

@@ -221,6 +221,7 @@ export interface MetaWhatsAppConversation {
     updatedAt?: any;
     contactId?: string;
     tags?: string[];
+    assignedAssistantIds?: string[];
 }
 
 export interface SendMetaWhatsAppInput {
@@ -306,4 +307,45 @@ export interface MetaPhoneMapping {
     wabaId: string;
     createdAt: any;
     updatedAt?: any;
+}
+
+export interface AssistantSuggestionResult {
+    assistantId: string;
+    assistantName: string;
+    assistantAvatar: string;
+    suggestedReply: string;
+    confidence: number;
+    reasoning: string;
+    sources: Array<{
+        type: 'document';
+        name: string;
+        excerpt: string;
+        relevance: number;
+    }>;
+    usedAsFallback: boolean;
+}
+
+export interface CombinedAssistantSuggestion {
+    primaryAssistant: {
+        id: string;
+        name: string;
+        avatar: string;
+    } | null;
+    fallbackUsed: boolean;
+    fallbackAssistant?: {
+        id: string;
+        name: string;
+        avatar: string;
+    };
+    suggestedReply: string;
+    confidence: number;
+    reasoning: string;
+    sources: Array<{
+        type: 'document';
+        name: string;
+        excerpt: string;
+        relevance: number;
+        fromAssistant?: string;
+    }>;
+    personaUsed?: boolean;
 }

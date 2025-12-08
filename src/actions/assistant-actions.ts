@@ -365,3 +365,54 @@ export async function incrementAssistantUsageAction(
         return { success: false };
     }
 }
+
+export async function getActiveAssistantsAction(
+    partnerId: string
+): Promise<{ success: boolean; assistants?: Array<{ id: string; name: string; avatar: string; color: string; type: string }>; error?: string }> {
+    try {
+        if (!db) {
+            return { success: false, error: 'Database unavailable' };
+        }
+
+        const snapshot = await db
+            .collection('partners')
+            .doc(partnerId)
+            .collection('hubAgents')
+            .where('isActive', '==', true)
+            .get();
+
+        const assistants = snapshot.docs.map(doc => {
+            const data = doc.data();
+            return {
+                id: doc.id,
+                name: data.name || 'Unnamed',
+                avatar: data.avatar || '🤖',
+                color: data.color || 'blue',
+                type: data.type || 'custom',
+            };
+        });
+
+        // Add missing essential assistants with defaults
+        const essentialIds = ['essential-customer_care', 'essential-sales_assistant', 'essential-marketing_comms', 'essential-incognito'];
+        const existingIds = assistants.map(a => a.id);
+
+        const missingEssentials = essentialIds
+            .filter(id => !existingIds.includes(id))
+            .map(id => {
+                if (id === 'essential-customer_care') {
+                    return { id, name: 'Customer Care', avatar: '🎧', color: 'blue', type: 'essential' };
+                } else if (id === 'essential-sales_assistant') {
+                    return { id, name: 'Sales Assistant', avatar: '⚡', color: 'amber', type: 'essential' };
+                } else if (id === 'essential-marketing_comms') {
+                    return { id, name: 'Marketing Comms', avatar: '✨', color: 'violet', type: 'essential' };
+                } else {
+                    return { id, name: 'Incognito Mode', avatar: '🕵️', color: 'slate', type: 'essential' };
+                }
+            });
+
+        return { success: true, assistants: [...missingEssentials, ...assistants] };
+    } catch (error: any) {
+        console.error('Get active assistants error:', error);
+        return { success: false, error: error.message };
+    }
+}

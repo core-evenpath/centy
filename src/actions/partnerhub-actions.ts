@@ -696,7 +696,8 @@ export async function generateInboxSuggestionAction(
     partnerId: string,
     customerMessage: string,
     conversationContext?: string,
-    contactId?: string
+    contactId?: string,
+    assistantIds?: string[]
 ): Promise<{
     success: boolean;
     message: string;
@@ -708,52 +709,45 @@ export async function generateInboxSuggestionAction(
         name: string;
         excerpt: string;
         relevance: number;
+        fromAssistant?: string;
     }>;
     personaUsed?: boolean;
+    assistantUsed?: {
+        id: string;
+        name: string;
+        avatar: string;
+        usedAsFallback: boolean;
+    };
 }> {
-    console.log('⚡ Inbox AI Suggestion starting (using hubDocuments + persona)');
+    console.log('⚡ Inbox AI Suggestion starting (Assistant-aware)');
     const startTime = Date.now();
 
     try {
-        const docsSnapshot = await db
-            .collection('partners')
-            .doc(partnerId)
-            .collection('hubDocuments')
-            .where('status', '==', ProcessingStatus.COMPLETED)
-            .limit(15)
-            .get();
-
-        if (docsSnapshot.empty) {
-            console.warn('⚠️ No hubDocuments found for partner:', partnerId);
-            return {
-                success: false,
-                message: 'No documents found. Please upload documents in /partner/core first.',
-            };
+        if (!db) {
+            return { success: false, message: 'Database unavailable' };
         }
 
-        console.log(`📚 Found ${docsSnapshot.docs.length} hubDocuments`);
+        // Fetch assigned Assistants if provided
+        let assistants: any[] = [];
+        if (assistantIds && assistantIds.length > 0) {
+            const assistantPromises = assistantIds.map(id =>
+                db!.collection('partners')
+                    .doc(partnerId)
+                    .collection('hubAgents')
+                    .doc(id)
+                    .get()
+            );
+            const assistantDocs = await Promise.all(assistantPromises);
+            assistants = assistantDocs
+                .filter(doc => doc.exists)
+                .map(doc => ({ id: doc.id, ...doc.data() }));
 
-        const contextSnippets: { source: string; text: string }[] = [];
-        docsSnapshot.docs.forEach((doc) => {
-            const data = doc.data();
-            if (data && data.extractedText) {
-                contextSnippets.push({
-                    source: data.name || data.originalName || doc.id,
-                    text: data.extractedText.substring(0, 5000),
-                });
-            }
-        });
-
-        if (contextSnippets.length === 0) {
-            return {
-                success: false,
-                message: 'Documents found but no text extracted. Please ensure documents are processed.',
-            };
+            console.log(`📋 Found ${assistants.length} assigned assistants`);
         }
 
+        // Fetch contact persona if available
         let personaContext = '';
         let personaUsed = false;
-
         if (contactId) {
             try {
                 const contactDoc = await db
@@ -766,69 +760,268 @@ export async function generateInboxSuggestionAction(
                 if (contactDoc.exists) {
                     const contactData = contactDoc.data();
                     if (contactData?.persona) {
-                        const { buildPersonaContextForPrompt } = await import('@/lib/persona-generator');
-                        personaContext = buildPersonaContextForPrompt(contactData.persona);
-                        personaUsed = !!personaContext;
-                        console.log(`👤 Persona context loaded for contact: ${contactId}`);
+                        const p = contactData.persona;
+                        personaContext = `
+CUSTOMER PERSONA:
+- Communication Style: ${p.communicationStyle || 'Unknown'}
+- Preferred Tone: ${p.preferredTone || 'Professional'}
+- Sentiment: ${p.sentiment || 'Neutral'}
+- Customer Stage: ${p.customerStage || 'Unknown'}
+- Interests: ${(p.interests || []).join(', ') || 'None specified'}
+- Pain Points: ${(p.painPoints || []).join(', ') || 'None specified'}
+- Relationship Summary: ${p.relationshipSummary || 'No summary available'}
+`;
+                        personaUsed = true;
+                        console.log('👤 Using customer persona for personalization');
                     }
                 }
-            } catch (personaError) {
-                console.warn('Could not load persona:', personaError);
+            } catch (e) {
+                console.warn('⚠️ Could not fetch persona:', e);
             }
+        }
+
+        // Primary + Fallback logic
+        let usedAssistant: any = null;
+        let usedAsFallback = false;
+        let sourcesAreGlobal = false;
+        let systemPrompt = '';
+        let documentIds: string[] = [];
+
+        if (assistants.length > 0) {
+            // Try primary assistant first
+            const primary = assistants[0];
+            console.log(`🎯 Trying primary assistant: ${primary.name}`);
+
+            // Get primary's documents
+            let primaryDocIds: string[] = [];
+            if (primary.documentConfig?.useAllDocuments) {
+                const allDocsSnapshot = await db
+                    .collection('partners')
+                    .doc(partnerId)
+                    .collection('hubDocuments')
+                    .where('status', '==', ProcessingStatus.COMPLETED)
+                    .limit(15)
+                    .get();
+                primaryDocIds = allDocsSnapshot.docs.map(d => d.id);
+                // Even if "useAllDocuments" is true, these are considered "checked by the assistant"
+                // but strictly speaking they are global. For attribution, we can still claim them for the assistant
+                // since the assistant is configured to use them.
+            } else {
+                primaryDocIds = primary.documentConfig?.attachedDocumentIds || [];
+            }
+
+            if (primaryDocIds.length > 0) {
+                usedAssistant = primary;
+                documentIds = primaryDocIds;
+                systemPrompt = primary.systemPrompt || '';
+            } else {
+                // Try fallbacks
+                for (let i = 1; i < assistants.length; i++) {
+                    const fallback = assistants[i];
+                    console.log(`🔄 Trying fallback assistant: ${fallback.name}`);
+
+                    let fallbackDocIds: string[] = [];
+                    if (fallback.documentConfig?.useAllDocuments) {
+                        const allDocsSnapshot = await db
+                            .collection('partners')
+                            .doc(partnerId)
+                            .collection('hubDocuments')
+                            .where('status', '==', ProcessingStatus.COMPLETED)
+                            .limit(15)
+                            .get();
+                        fallbackDocIds = allDocsSnapshot.docs.map(d => d.id);
+                    } else {
+                        fallbackDocIds = fallback.documentConfig?.attachedDocumentIds || [];
+                    }
+
+                    if (fallbackDocIds.length > 0) {
+                        usedAssistant = fallback;
+                        usedAsFallback = true;
+                        documentIds = fallbackDocIds;
+                        systemPrompt = fallback.systemPrompt || '';
+                        break;
+                    }
+                }
+            }
+        }
+
+        // If no documents found yet...
+        // 1. If NO assistants are selected, fall back to ALL global documents (legacy behavior)
+        if (documentIds.length === 0 && assistants.length === 0) {
+            console.log('📂 No assistant selected, using all hubDocuments');
+            sourcesAreGlobal = true;
+
+            const docsSnapshot = await db
+                .collection('partners')
+                .doc(partnerId)
+                .collection('hubDocuments')
+                .where('status', '==', ProcessingStatus.COMPLETED)
+                .limit(15)
+                .get();
+
+            if (docsSnapshot.empty) {
+                return {
+                    success: false,
+                    message: 'No documents found. Please upload documents in Core Memory first.',
+                };
+            }
+
+            documentIds = docsSnapshot.docs.map(d => d.id);
+        }
+        // 2. If assistants ARE selected but had no documents, STRICTLY use the Primary Assistant with NO context
+        else if (documentIds.length === 0 && assistants.length > 0) {
+            console.log('⚠️ Assistants selected but no content found. Using Primary Assistant (Pure Generation).');
+            usedAssistant = assistants[0];
+            systemPrompt = usedAssistant.systemPrompt || '';
+            // Do NOT fetch global documents. Keep documentIds empty.
+        }
+
+        // Fetch document content (if any IDs exist)
+        let contextSnippets: { source: string; text: string; docId: string }[] = [];
+
+        if (documentIds.length > 0) {
+            const docPromises = documentIds.slice(0, 10).map(docId =>
+                db!.collection('partners')
+                    .doc(partnerId)
+                    .collection('hubDocuments')
+                    .doc(docId)
+                    .get()
+            );
+            const docSnapshots = await Promise.all(docPromises);
+
+            docSnapshots.forEach((doc) => {
+                if (doc.exists) {
+                    const data = doc.data();
+                    if (data?.extractedText) {
+                        contextSnippets.push({
+                            source: data.name || doc.id,
+                            text: data.extractedText.substring(0, 2000),
+                            docId: doc.id,
+                        });
+                    }
+                }
+            });
+        }
+
+        // If no content for RAG, fail ONLY if no assistant was used (i.e. legacy mode failed)
+        if (contextSnippets.length === 0 && !usedAssistant) {
+            return {
+                success: false,
+                message: 'No document content available for request.',
+            };
         }
 
         const contextString = contextSnippets
             .map((c) => `[Source: ${c.source}]\n${c.text}`)
             .join('\n\n---\n\n');
 
-        const systemPrompt = `You are a helpful customer service assistant. Your knowledge base consists of the documents provided below. Use this information to craft helpful, accurate responses.
+        // Build system prompt
+        let finalSystemPrompt = systemPrompt;
+        if (!finalSystemPrompt) {
+            finalSystemPrompt = `You are a helpful AI assistant. Answer questions based on the provided context.`;
+        }
 
-KNOWLEDGE BASE:
-${contextString}
-${personaContext}
+        // Add persona context if available
+        if (personaContext) {
+            finalSystemPrompt += `\n\n${personaContext}\nUse this persona information to personalize your response appropriately.`;
+        }
 
----
+        // Add behavior rules if assistant has them
+        if (usedAssistant?.behaviorRules) {
+            const rules = usedAssistant.behaviorRules;
+            if (rules.responseRules?.length > 0) {
+                finalSystemPrompt += `\n\nRULES TO FOLLOW:\n${rules.responseRules.map((r: string) => `- ${r}`).join('\n')}`;
+            }
+            if (rules.neverSay?.length > 0) {
+                finalSystemPrompt += `\n\nNEVER SAY:\n${rules.neverSay.map((r: string) => `- "${r}"`).join('\n')}`;
+            }
+        }
 
-INSTRUCTIONS:
-1. Answer the customer's question using ONLY information from the knowledge base above
-2. If the answer is in the documents, provide it confidently
-3. If you cannot find relevant information, say "I don't have specific information about that, but I can help connect you with someone who does."
-4. Keep responses professional, friendly, and concise (2-3 sentences max)
-5. Do not make up information
-${personaUsed ? '6. PERSONALIZATION: Adapt your tone and style based on the customer persona provided. Match their communication preferences.' : ''}
-7. FORMATTING: Use standard Markdown for formatting:
-   - Use **bold** for ALL key information (names, prices, metrics, dates).
-   - Use dashes (-) for bullet points.
-   - Avoid using italics to ensure better readability.`;
-
-        const fullPrompt = conversationContext
-            ? `${systemPrompt}\n\nRecent conversation:\n${conversationContext}\n\nCustomer's latest message: "${customerMessage}"\n\nProvide a helpful reply:`
-            : `${systemPrompt}\n\nCustomer message: "${customerMessage}"\n\nProvide a helpful reply:`;
-
+        // Call Gemini
+        const { GoogleGenerativeAI } = await import('@google/generative-ai');
         const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
         const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
 
-        const result = await model.generateContent(fullPrompt);
-        const response = result.response.text();
+        const prompt = `${finalSystemPrompt}
 
-        const elapsedMs = Date.now() - startTime;
-        console.log(`✅ AI suggestion generated in ${elapsedMs}ms (persona: ${personaUsed})`);
+DOCUMENT CONTEXT:
+${contextString}
+
+CONVERSATION CONTEXT:
+${conversationContext || 'No previous messages'}
+
+CUSTOMER MESSAGE:
+"${customerMessage}"
+
+Generate a helpful, professional reply suggestion (2-3 sentences). Be specific and use information from the documents when relevant.
+
+Respond in JSON format:
+{
+    "suggestedReply": "Your suggested reply here",
+    "confidence": 0.85,
+    "reasoning": "Brief explanation of why this response is appropriate",
+    "relevantSources": ["Document Name 1", "Document Name 2"]
+}`;
+
+        const result = await model.generateContent(prompt);
+        const responseText = result.response.text();
+
+        // Parse JSON response
+        let parsed: any;
+        try {
+            const jsonMatch = responseText.match(/\{[\s\S]*\}/);
+            if (jsonMatch) {
+                parsed = JSON.parse(jsonMatch[0]);
+            } else {
+                parsed = {
+                    suggestedReply: responseText.trim(),
+                    confidence: 0.7,
+                    reasoning: 'Generated response',
+                    relevantSources: [],
+                };
+            }
+        } catch (e) {
+            parsed = {
+                suggestedReply: responseText.trim(),
+                confidence: 0.7,
+                reasoning: 'Generated response',
+                relevantSources: [],
+            };
+        }
+
+        // Build sources array
+        const sources = (parsed.relevantSources || []).map((sourceName: string) => {
+            const matchedSnippet = contextSnippets.find(s =>
+                s.source.toLowerCase().includes(sourceName.toLowerCase()) ||
+                sourceName.toLowerCase().includes(s.source.toLowerCase())
+            );
+            return {
+                type: 'document' as const,
+                name: sourceName,
+                excerpt: matchedSnippet?.text.substring(0, 200) || '',
+                relevance: 0.8,
+                // Only attribute to assistant if sources are NOT global
+                fromAssistant: sourcesAreGlobal ? undefined : usedAssistant?.name,
+            };
+        });
+
+        const elapsed = Date.now() - startTime;
+        console.log(`✅ Inbox AI Suggestion completed in ${elapsed}ms`);
 
         return {
             success: true,
             message: 'Suggestion generated successfully',
-            suggestedReply: response.trim(),
-            confidence: personaUsed ? 0.9 : 0.85,
-            reasoning: personaUsed
-                ? 'Generated based on your business documents and personalized for this customer.'
-                : 'Generated based on your business documents and conversation history.',
-            sources: contextSnippets.slice(0, 3).map((s) => ({
-                type: 'document' as const,
-                name: s.source,
-                excerpt: s.text.substring(0, 200) + '...',
-                relevance: 0.8,
-            })),
+            suggestedReply: parsed.suggestedReply,
+            confidence: parsed.confidence || 0.85,
+            reasoning: parsed.reasoning || 'Based on your business documents',
+            sources,
             personaUsed,
+            assistantUsed: usedAssistant ? {
+                id: usedAssistant.id,
+                name: usedAssistant.name,
+                avatar: usedAssistant.avatar || '🤖',
+                usedAsFallback,
+            } : undefined,
         };
     } catch (error: any) {
         console.error('❌ Inbox AI Suggestion error:', error);
