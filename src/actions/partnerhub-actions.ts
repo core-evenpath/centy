@@ -1,10 +1,5 @@
 "use server";
 
-// ============================================================================
-// PARTNERHUB SERVER ACTIONS
-// Server-side actions for document processing, AI generation, and CRUD operations
-// ============================================================================
-
 import { db, adminStorage } from '@/lib/firebase-admin';
 import { FieldValue, Timestamp } from 'firebase-admin/firestore';
 import {
@@ -22,18 +17,10 @@ import {
     generateImage,
 } from '@/lib/gemini-service';
 import { GoogleGenerativeAI } from '@google/generative-ai';
-
-
-
-// ============================================================================
-// UTILITIES
-// ============================================================================
+import { isGeneralModeAssistant, getEssentialAssistantById } from '@/lib/types-assistant';
 
 const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
-/**
- * Retry wrapper for API calls with exponential backoff
- */
 async function retryWithBackoff<T>(
     fn: () => Promise<T>,
     retries = 5,
@@ -69,19 +56,12 @@ async function retryWithBackoff<T>(
     throw new Error('Max retries exceeded');
 }
 
-// ============================================================================
-// DOCUMENT PROCESSING
-// ============================================================================
-
 interface ExtractionResult {
     text: string;
     tags: string[];
     summary: string;
 }
 
-/**
- * Process a document with Gemini AI to extract text, tags, and summary
- */
 export async function processDocumentAction(
     partnerId: string,
     documentId: string,
@@ -90,7 +70,6 @@ export async function processDocumentAction(
     fileName: string
 ): Promise<{ success: boolean; error?: string }> {
     try {
-        // Update status to PROCESSING
         const docRef = db
             .collection('partners')
             .doc(partnerId)
@@ -102,7 +81,6 @@ export async function processDocumentAction(
             updatedAt: Timestamp.now(),
         });
 
-        // Determine prompt based on file type
         let prompt = '';
         if (mimeType.startsWith('audio/')) {
             prompt = 'Listen to this audio clip. Transcribe the spoken content verbatim. Then, provide a brief summary and generate relevant tags.';
@@ -114,7 +92,6 @@ export async function processDocumentAction(
             prompt = 'Analyze this document. Extract all readable text, provide a brief 2-sentence summary, and generate 3-5 relevant categorization tags.';
         }
 
-        // Call Gemini for extraction
         let extraction: ExtractionResult;
         try {
             extraction = await processDocumentWithGemini(base64Data, mimeType);
@@ -127,16 +104,14 @@ export async function processDocumentAction(
             };
         }
 
-        // Update status to EMBEDDING
         await docRef.update({
             status: ProcessingStatus.PROCESSING,
-            extractedText: extraction.text?.substring(0, 50000) || '', // Limit text size
+            extractedText: extraction.text?.substring(0, 50000) || '',
             summary: extraction.summary || '',
             tags: extraction.tags || [],
             updatedAt: Timestamp.now(),
         });
 
-        // Generate embedding
         const textForEmbedding = (extraction.text || '').substring(0, 9000);
         let embedding: number[] = [];
 
@@ -144,7 +119,6 @@ export async function processDocumentAction(
             embedding = await generateEmbedding(textForEmbedding);
         }
 
-        // Update to COMPLETED
         await docRef.update({
             status: ProcessingStatus.COMPLETED,
             embedding: embedding,
@@ -155,7 +129,6 @@ export async function processDocumentAction(
     } catch (error: any) {
         console.error('Document processing error:', error);
 
-        // Update status to ERROR
         try {
             const docRef = db
                 .collection('partners')
@@ -175,10 +148,6 @@ export async function processDocumentAction(
         return { success: false, error: error.message };
     }
 }
-
-// ============================================================================
-// MESSAGE GENERATION (RAG)
-// ============================================================================
 
 export async function generatePartnerHubResponseAction(
     partnerId: string,
@@ -200,7 +169,6 @@ export async function generatePartnerHubResponseAction(
 
         const messagesRef = threadRef.collection('messages');
 
-        // Save user message
         const userMsgId = generateId();
         await messagesRef.doc(userMsgId).set({
             id: userMsgId,
@@ -210,12 +178,8 @@ export async function generatePartnerHubResponseAction(
             createdAt: Timestamp.now(),
         });
 
-        // Fetch documents for RAG context
-        // If specific documentIds are provided, only fetch those documents
-        // Otherwise, fetch all completed documents (limited to 10)
         let docsSnapshot;
         if (options?.documentIds && options.documentIds.length > 0) {
-            // Fetch specific documents by ID
             const docPromises = options.documentIds.map(docId =>
                 db.collection('partners')
                     .doc(partnerId)
@@ -226,7 +190,6 @@ export async function generatePartnerHubResponseAction(
             const docs = await Promise.all(docPromises);
             docsSnapshot = { docs: docs.filter(doc => doc.exists) };
         } else {
-            // Fetch all completed documents (fallback)
             docsSnapshot = await db
                 .collection('partners')
                 .doc(partnerId)
@@ -240,7 +203,6 @@ export async function generatePartnerHubResponseAction(
         docsSnapshot.docs.forEach((doc) => {
             const data = doc.data();
             if (data && data.extractedText) {
-                // Use more text for specific document queries (15k chars), less for general queries (3k chars)
                 const textLimit = options?.documentIds ? 15000 : 3000;
                 contextSnippets.push({
                     source: data.name || doc.id,
@@ -249,12 +211,10 @@ export async function generatePartnerHubResponseAction(
             }
         });
 
-        // Build context string
         const contextString = contextSnippets
             .map((c) => `[Source: ${c.source}]\n${c.text}`)
             .join('\n\n---\n\n');
 
-        // Get agent system prompt if provided
         let systemPrompt = `You are a helpful AI assistant. Answer questions based on the provided context. If the answer is not in the context, say so politely.`;
 
         if (options?.agentId) {
@@ -276,10 +236,8 @@ export async function generatePartnerHubResponseAction(
         let responseText = '';
         let responseImageUrl: string | undefined;
 
-        // Handle image generation mode
         if (options?.isImageMode) {
             try {
-                // If we have a reference image, fetch it and convert to base64
                 let referenceImage: { base64: string; mimeType: string } | undefined;
 
                 if (options.referenceImageUrl) {
@@ -294,19 +252,15 @@ export async function generatePartnerHubResponseAction(
                     }
                 }
 
-                // generateImage returns a data URI directly
                 const dataUri = await generateImage(userMessage, referenceImage);
 
-                // Upload to Firebase Storage
                 const bucket = adminStorage.bucket();
                 const imageId = generateId();
                 const storagePath = `partners/${partnerId}/generated-images/${imageId}.png`;
 
-                // Extract base64 data from data URI
                 const base64Data = dataUri.split(',')[1];
                 const buffer = Buffer.from(base64Data, 'base64');
 
-                // Upload to storage
                 const file = bucket.file(storagePath);
                 await file.save(buffer, {
                     metadata: {
@@ -314,7 +268,6 @@ export async function generatePartnerHubResponseAction(
                     },
                 });
 
-                // Make file publicly accessible and get URL
                 await file.makePublic();
                 responseImageUrl = `https://storage.googleapis.com/${bucket.name}/${storagePath}`;
 
@@ -326,7 +279,6 @@ export async function generatePartnerHubResponseAction(
                 responseText = `Sorry, I couldn't generate an image for that prompt. Error: ${imageError.message || 'Unknown error'}`;
             }
         } else {
-            // Generate response using RAG stream (consumed fully here)
             const stream = generateRAGResponseStream(
                 userMessage,
                 contextSnippets,
@@ -338,7 +290,6 @@ export async function generatePartnerHubResponseAction(
             }
         }
 
-        // Save assistant message
         const assistantMsgId = generateId();
         const assistantMessage: any = {
             id: assistantMsgId,
@@ -350,7 +301,6 @@ export async function generatePartnerHubResponseAction(
             createdAt: Timestamp.now(),
         };
 
-        // Add image attachment if generated (now using storage URL, not base64)
         if (responseImageUrl) {
             assistantMessage.attachments = [{
                 type: 'image',
@@ -362,7 +312,6 @@ export async function generatePartnerHubResponseAction(
 
         await messagesRef.doc(assistantMsgId).set(assistantMessage);
 
-        // Update thread last message
         await threadRef.update({
             lastMessage: responseText.substring(0, 100),
             lastMessageAt: Timestamp.now(),
@@ -376,10 +325,6 @@ export async function generatePartnerHubResponseAction(
         return { success: false, error: error.message };
     }
 }
-
-// ============================================================================
-// THREAD CRUD
-// ============================================================================
 
 export async function createThreadAction(
     partnerId: string,
@@ -429,7 +374,6 @@ export async function deleteThreadAction(
             .collection('hubThreads')
             .doc(threadId);
 
-        // Soft delete - just mark as inactive
         await threadRef.update({
             isActive: false,
             updatedAt: Timestamp.now(),
@@ -441,10 +385,6 @@ export async function deleteThreadAction(
         return { success: false, error: error.message };
     }
 }
-
-// ============================================================================
-// DOCUMENT CRUD
-// ============================================================================
 
 export async function deleteDocumentAction(
     partnerId: string,
@@ -464,7 +404,6 @@ export async function deleteDocumentAction(
 
         const docData = docSnapshot.data();
 
-        // Delete from storage if path exists
         if (docData?.storagePath) {
             try {
                 const bucket = adminStorage.bucket();
@@ -474,7 +413,6 @@ export async function deleteDocumentAction(
             }
         }
 
-        // Delete Firestore document
         await docRef.delete();
 
         return { success: true };
@@ -536,10 +474,6 @@ export async function removeTagFromDocumentAction(
         return { success: false, error: error.message };
     }
 }
-
-// ============================================================================
-// AGENT CRUD
-// ============================================================================
 
 export async function createAgentAction(
     partnerId: string,
@@ -632,7 +566,6 @@ export async function deleteAgentAction(
             .collection('hubAgents')
             .doc(agentId);
 
-        // Soft delete
         await agentRef.update({
             isActive: false,
             updatedAt: Timestamp.now(),
@@ -656,25 +589,16 @@ export async function saveEssentialAgentAction(
             .collection('hubAgents')
             .doc(agent.id);
 
-        // Remove undefined values to avoid Firestore errors
         const data = JSON.parse(JSON.stringify(agent));
 
-        // Ensure dates are Timestamps
         data.updatedAt = Timestamp.now();
 
-        // If it's a new agent (or doesn't have createdAt), set it
-        // Note: We check if the doc exists first if we want to be strict, 
-        // but here we just rely on the passed object. 
-        // If the passed object has createdAt as string (from JSON), convert it.
         if (data.createdAt) {
-            // If it's a string or number, try to convert. If it's already a Timestamp object (unlikely after JSON.stringify), it might need handling.
-            // JSON.stringify converts Date to string.
             data.createdAt = new Date(data.createdAt);
         } else {
             data.createdAt = Timestamp.now();
         }
 
-        // We use set with merge: true to update or create
         await agentRef.set(data, { merge: true });
 
         return { success: true };
@@ -684,14 +608,26 @@ export async function saveEssentialAgentAction(
     }
 }
 
-// ============================================================================
-// INBOX AI SUGGESTION (Using hubDocuments from /partner/core)
-// ============================================================================
+const GENERAL_MODE_SYSTEM_PROMPT = `You are a general AI assistant. You do NOT have access to any business-specific documents or knowledge base.
 
-/**
- * Generate AI suggestion for inbox using hubDocuments from /partner/core
- * This uses the same RAG system as the PartnerHub chat
- */
+IMPORTANT LIMITATIONS:
+- You CANNOT access this business's files, documents, pricing, policies, or internal information
+- You CANNOT look up specific product details, inventory, or customer records
+- You CANNOT provide business-specific answers that would require document access
+
+WHAT YOU CAN DO:
+- Provide helpful, general assistance based on your training
+- Answer general knowledge questions
+- Help with writing, brainstorming, and general advice
+- Assist with tasks that don't require business-specific information
+
+WHEN ASKED ABOUT BUSINESS SPECIFICS:
+- Politely explain that you're in General Mode and don't have access to business documents
+- Suggest the customer ask to switch to a specialized assistant (Customer Care, Sales, etc.) for business-specific questions
+- Offer to help with any general questions in the meantime
+
+Be helpful, professional, and honest about your limitations in this mode.`;
+
 export async function generateInboxSuggestionAction(
     partnerId: string,
     customerMessage: string,
@@ -727,7 +663,75 @@ export async function generateInboxSuggestionAction(
             return { success: false, message: 'Database unavailable' };
         }
 
-        // Fetch assigned Assistants if provided
+        const primaryAssistantId = assistantIds?.[0];
+        const isGeneralMode = primaryAssistantId ? isGeneralModeAssistant(primaryAssistantId) : false;
+
+        if (isGeneralMode) {
+            console.log('🤖 General Mode selected - skipping document queries');
+
+            const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
+            const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
+
+            const prompt = `${GENERAL_MODE_SYSTEM_PROMPT}
+
+CONVERSATION CONTEXT:
+${conversationContext || 'No previous messages'}
+
+CUSTOMER MESSAGE:
+"${customerMessage}"
+
+Generate a helpful response. Remember: you cannot access any business documents, so if the customer asks about specific products, pricing, policies, or other business-specific information, politely explain your limitations and suggest they ask to switch to a specialized assistant.
+
+Respond in JSON format:
+{
+    "suggestedReply": "Your suggested reply here",
+    "confidence": 0.7,
+    "reasoning": "Brief explanation"
+}`;
+
+            const result = await model.generateContent(prompt);
+            const responseText = result.response.text();
+
+            let parsed: any;
+            try {
+                const jsonMatch = responseText.match(/\{[\s\S]*\}/);
+                if (jsonMatch) {
+                    parsed = JSON.parse(jsonMatch[0]);
+                } else {
+                    parsed = {
+                        suggestedReply: responseText.trim(),
+                        confidence: 0.7,
+                        reasoning: 'General AI response (no document access)',
+                    };
+                }
+            } catch (e) {
+                parsed = {
+                    suggestedReply: responseText.trim(),
+                    confidence: 0.7,
+                    reasoning: 'General AI response (no document access)',
+                };
+            }
+
+            const elapsed = Date.now() - startTime;
+            console.log(`✅ General Mode suggestion completed in ${elapsed}ms`);
+
+            return {
+                success: true,
+                message: 'Suggestion generated successfully (General Mode)',
+                suggestedReply: parsed.suggestedReply,
+                confidence: parsed.confidence || 0.7,
+                reasoning: parsed.reasoning || 'General AI response without document access',
+                sources: [],
+                personaUsed: false,
+                assistantUsed: {
+                    id: 'essential-general_mode',
+                    name: 'General Mode',
+                    avatar: '🤖',
+                    usedAsFallback: false,
+                },
+            };
+        }
+
         let assistants: any[] = [];
         if (assistantIds && assistantIds.length > 0) {
             const assistantPromises = assistantIds.map(id =>
@@ -745,7 +749,6 @@ export async function generateInboxSuggestionAction(
             console.log(`📋 Found ${assistants.length} assigned assistants`);
         }
 
-        // Fetch contact persona if available
         let personaContext = '';
         let personaUsed = false;
         if (contactId) {
@@ -780,7 +783,6 @@ CUSTOMER PERSONA:
             }
         }
 
-        // Primary + Fallback logic
         let usedAssistant: any = null;
         let usedAsFallback = false;
         let sourcesAreGlobal = false;
@@ -788,11 +790,9 @@ CUSTOMER PERSONA:
         let documentIds: string[] = [];
 
         if (assistants.length > 0) {
-            // Try primary assistant first
             const primary = assistants[0];
             console.log(`🎯 Trying primary assistant: ${primary.name}`);
 
-            // Get primary's documents
             let primaryDocIds: string[] = [];
             if (primary.documentConfig?.useAllDocuments) {
                 const allDocsSnapshot = await db
@@ -803,9 +803,6 @@ CUSTOMER PERSONA:
                     .limit(15)
                     .get();
                 primaryDocIds = allDocsSnapshot.docs.map(d => d.id);
-                // Even if "useAllDocuments" is true, these are considered "checked by the assistant"
-                // but strictly speaking they are global. For attribution, we can still claim them for the assistant
-                // since the assistant is configured to use them.
             } else {
                 primaryDocIds = primary.documentConfig?.attachedDocumentIds || [];
             }
@@ -815,9 +812,13 @@ CUSTOMER PERSONA:
                 documentIds = primaryDocIds;
                 systemPrompt = primary.systemPrompt || '';
             } else {
-                // Try fallbacks
                 for (let i = 1; i < assistants.length; i++) {
                     const fallback = assistants[i];
+
+                    if (isGeneralModeAssistant(fallback.id)) {
+                        continue;
+                    }
+
                     console.log(`🔄 Trying fallback assistant: ${fallback.name}`);
 
                     let fallbackDocIds: string[] = [];
@@ -845,8 +846,6 @@ CUSTOMER PERSONA:
             }
         }
 
-        // If no documents found yet...
-        // 1. If NO assistants are selected, fall back to ALL global documents (legacy behavior)
         if (documentIds.length === 0 && assistants.length === 0) {
             console.log('📂 No assistant selected, using all hubDocuments');
             sourcesAreGlobal = true;
@@ -867,16 +866,12 @@ CUSTOMER PERSONA:
             }
 
             documentIds = docsSnapshot.docs.map(d => d.id);
-        }
-        // 2. If assistants ARE selected but had no documents, STRICTLY use the Primary Assistant with NO context
-        else if (documentIds.length === 0 && assistants.length > 0) {
+        } else if (documentIds.length === 0 && assistants.length > 0) {
             console.log('⚠️ Assistants selected but no content found. Using Primary Assistant (Pure Generation).');
             usedAssistant = assistants[0];
             systemPrompt = usedAssistant.systemPrompt || '';
-            // Do NOT fetch global documents. Keep documentIds empty.
         }
 
-        // Fetch document content (if any IDs exist)
         let contextSnippets: { source: string; text: string; docId: string }[] = [];
 
         if (documentIds.length > 0) {
@@ -903,7 +898,6 @@ CUSTOMER PERSONA:
             });
         }
 
-        // If no content for RAG, fail ONLY if no assistant was used (i.e. legacy mode failed)
         if (contextSnippets.length === 0 && !usedAssistant) {
             return {
                 success: false,
@@ -915,18 +909,15 @@ CUSTOMER PERSONA:
             .map((c) => `[Source: ${c.source}]\n${c.text}`)
             .join('\n\n---\n\n');
 
-        // Build system prompt
         let finalSystemPrompt = systemPrompt;
         if (!finalSystemPrompt) {
             finalSystemPrompt = `You are a helpful AI assistant. Answer questions based on the provided context.`;
         }
 
-        // Add persona context if available
         if (personaContext) {
             finalSystemPrompt += `\n\n${personaContext}\nUse this persona information to personalize your response appropriately.`;
         }
 
-        // Add behavior rules if assistant has them
         if (usedAssistant?.behaviorRules) {
             const rules = usedAssistant.behaviorRules;
             if (rules.responseRules?.length > 0) {
@@ -937,15 +928,13 @@ CUSTOMER PERSONA:
             }
         }
 
-        // Call Gemini
-        const { GoogleGenerativeAI } = await import('@google/generative-ai');
         const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
         const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
 
         const prompt = `${finalSystemPrompt}
 
 DOCUMENT CONTEXT:
-${contextString}
+${contextString || 'No documents available'}
 
 CONVERSATION CONTEXT:
 ${conversationContext || 'No previous messages'}
@@ -966,7 +955,6 @@ Respond in JSON format:
         const result = await model.generateContent(prompt);
         const responseText = result.response.text();
 
-        // Parse JSON response
         let parsed: any;
         try {
             const jsonMatch = responseText.match(/\{[\s\S]*\}/);
@@ -989,7 +977,6 @@ Respond in JSON format:
             };
         }
 
-        // Build sources array
         const sources = (parsed.relevantSources || []).map((sourceName: string) => {
             const matchedSnippet = contextSnippets.find(s =>
                 s.source.toLowerCase().includes(sourceName.toLowerCase()) ||
@@ -1000,7 +987,6 @@ Respond in JSON format:
                 name: sourceName,
                 excerpt: matchedSnippet?.text.substring(0, 200) || '',
                 relevance: 0.8,
-                // Only attribute to assistant if sources are NOT global
                 fromAssistant: sourcesAreGlobal ? undefined : usedAssistant?.name,
             };
         });

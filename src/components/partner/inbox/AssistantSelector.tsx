@@ -1,9 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Search, ChevronDown, Check, AlertCircle, Bot } from 'lucide-react';
+import { X, Search, ChevronDown, Check, AlertCircle, Bot, GripVertical } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
+import { cn } from '@/lib/utils';
 import {
     Tooltip,
     TooltipContent,
@@ -14,9 +16,10 @@ import {
 interface Assistant {
     id: string;
     name: string;
-    avatar: string; // emoji or url
+    avatar: string;
     color?: string;
     type?: string;
+    description?: string;
 }
 
 interface AssistantSelectorProps {
@@ -26,6 +29,18 @@ interface AssistantSelectorProps {
     isLoading?: boolean;
 }
 
+const colorClasses: Record<string, string> = {
+    blue: 'bg-blue-100 text-blue-700 border-blue-200',
+    amber: 'bg-amber-100 text-amber-700 border-amber-200',
+    violet: 'bg-violet-100 text-violet-700 border-violet-200',
+    emerald: 'bg-emerald-100 text-emerald-700 border-emerald-200',
+    rose: 'bg-rose-100 text-rose-700 border-rose-200',
+    cyan: 'bg-cyan-100 text-cyan-700 border-cyan-200',
+    orange: 'bg-orange-100 text-orange-700 border-orange-200',
+    indigo: 'bg-indigo-100 text-indigo-700 border-indigo-200',
+    slate: 'bg-slate-100 text-slate-700 border-slate-200',
+};
+
 export function AssistantSelector({
     availableAssistants,
     selectedAssistantIds,
@@ -34,19 +49,18 @@ export function AssistantSelector({
 }: AssistantSelectorProps) {
     const [isOpen, setIsOpen] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
-    const [menuPosition, setMenuPosition] = useState<'top' | 'bottom'>('bottom');
+    const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0, width: 0 });
+    const buttonRef = useRef<HTMLButtonElement>(null);
+    const dropdownRef = useRef<HTMLDivElement>(null);
 
-    // Only show active assistants
     const filteredAssistants = availableAssistants.filter(a =>
         a.name.toLowerCase().includes(searchQuery.toLowerCase())
     );
 
     const handleToggle = (assistantId: string) => {
         if (selectedAssistantIds.includes(assistantId)) {
-            // Remove
             onSelectionChange(selectedAssistantIds.filter(id => id !== assistantId));
         } else {
-            // Add (append to end)
             onSelectionChange([...selectedAssistantIds, assistantId]);
         }
     };
@@ -56,189 +70,251 @@ export function AssistantSelector({
         onSelectionChange(selectedAssistantIds.filter(id => id !== assistantId));
     };
 
-    // Reorder: Move Primary to First
     const handleSetPrimary = (assistantId: string, e: React.MouseEvent) => {
         e.stopPropagation();
         const otherIds = selectedAssistantIds.filter(id => id !== assistantId);
         onSelectionChange([assistantId, ...otherIds]);
     };
 
+    const selectedAssistants = selectedAssistantIds
+        .map(id => availableAssistants.find(a => a.id === id))
+        .filter(Boolean) as Assistant[];
+
+    const updateDropdownPosition = () => {
+        if (buttonRef.current) {
+            const rect = buttonRef.current.getBoundingClientRect();
+            setDropdownPosition({
+                top: rect.bottom + 4,
+                left: rect.left,
+                width: rect.width,
+            });
+        }
+    };
+
+    useEffect(() => {
+        if (isOpen) {
+            updateDropdownPosition();
+            window.addEventListener('scroll', updateDropdownPosition, true);
+            window.addEventListener('resize', updateDropdownPosition);
+        }
+
+        return () => {
+            window.removeEventListener('scroll', updateDropdownPosition, true);
+            window.removeEventListener('resize', updateDropdownPosition);
+        };
+    }, [isOpen]);
+
+    useEffect(() => {
+        const handleClickOutside = (event: MouseEvent) => {
+            const target = event.target as Node;
+            if (
+                buttonRef.current &&
+                !buttonRef.current.contains(target) &&
+                dropdownRef.current &&
+                !dropdownRef.current.contains(target)
+            ) {
+                setIsOpen(false);
+            }
+        };
+
+        if (isOpen) {
+            document.addEventListener('mousedown', handleClickOutside);
+        }
+
+        return () => {
+            document.removeEventListener('mousedown', handleClickOutside);
+        };
+    }, [isOpen]);
+
+    const dropdownContent = (
+        <AnimatePresence>
+            {isOpen && (
+                <motion.div
+                    ref={dropdownRef}
+                    initial={{ opacity: 0, y: -4, scale: 0.98 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: -4, scale: 0.98 }}
+                    transition={{ duration: 0.15 }}
+                    className="bg-white rounded-lg shadow-2xl border border-gray-200 overflow-hidden"
+                    style={{
+                        position: 'fixed',
+                        top: dropdownPosition.top,
+                        left: dropdownPosition.left,
+                        width: dropdownPosition.width,
+                        maxHeight: '340px',
+                        zIndex: 99999,
+                    }}
+                >
+                    <div className="p-2 border-b border-gray-100">
+                        <div className="relative">
+                            <Search className="w-4 h-4 absolute left-2.5 top-2.5 text-gray-400" />
+                            <Input
+                                placeholder="Search assistants..."
+                                value={searchQuery}
+                                onChange={(e) => setSearchQuery(e.target.value)}
+                                className="h-9 pl-8 text-sm bg-gray-50 border-gray-200 focus-visible:ring-1 focus-visible:ring-indigo-500"
+                                autoFocus
+                            />
+                        </div>
+                    </div>
+
+                    <div className="overflow-y-auto" style={{ maxHeight: '260px' }}>
+                        {availableAssistants.length === 0 ? (
+                            <div className="p-4 text-center text-sm text-gray-500">
+                                <AlertCircle className="w-8 h-8 mx-auto mb-2 text-gray-300" />
+                                <p className="font-medium">No assistants available</p>
+                                <p className="text-xs mt-1">Create assistants in Core Memory first</p>
+                            </div>
+                        ) : filteredAssistants.length === 0 ? (
+                            <div className="p-4 text-center text-sm text-gray-500">
+                                <Search className="w-6 h-6 mx-auto mb-2 text-gray-300" />
+                                <p>No matches for "{searchQuery}"</p>
+                            </div>
+                        ) : (
+                            <div className="p-1">
+                                {filteredAssistants.map((assistant) => {
+                                    const isSelected = selectedAssistantIds.includes(assistant.id);
+                                    const isPrimary = selectedAssistantIds[0] === assistant.id;
+                                    const isGeneralMode = assistant.id === 'essential-general_mode';
+
+                                    return (
+                                        <div
+                                            key={assistant.id}
+                                            onClick={() => handleToggle(assistant.id)}
+                                            className={cn(
+                                                "flex items-center gap-3 p-2.5 rounded-lg cursor-pointer transition-all",
+                                                isSelected
+                                                    ? "bg-indigo-50 border border-indigo-200"
+                                                    : "hover:bg-gray-50 border border-transparent"
+                                            )}
+                                        >
+                                            <div className={cn(
+                                                "w-9 h-9 rounded-lg flex items-center justify-center text-lg shrink-0",
+                                                isGeneralMode ? "bg-slate-100" : "bg-gradient-to-br from-indigo-100 to-violet-100"
+                                            )}>
+                                                {assistant.avatar}
+                                            </div>
+
+                                            <div className="flex-1 min-w-0">
+                                                <div className="flex items-center gap-2">
+                                                    <span className="font-medium text-sm text-gray-900 truncate">
+                                                        {assistant.name}
+                                                    </span>
+                                                    {assistant.type === 'essential' && (
+                                                        <Badge variant="outline" className="text-[9px] h-4 px-1.5 border-indigo-200 text-indigo-600">
+                                                            Essential
+                                                        </Badge>
+                                                    )}
+                                                    {isPrimary && isSelected && (
+                                                        <Badge className="text-[9px] h-4 px-1.5 bg-indigo-600">
+                                                            Primary
+                                                        </Badge>
+                                                    )}
+                                                </div>
+                                                {assistant.description && (
+                                                    <p className="text-xs text-gray-500 truncate mt-0.5">
+                                                        {assistant.description}
+                                                    </p>
+                                                )}
+                                            </div>
+
+                                            <div className="flex items-center gap-1 shrink-0">
+                                                {isSelected && !isPrimary && (
+                                                    <TooltipProvider>
+                                                        <Tooltip>
+                                                            <TooltipTrigger asChild>
+                                                                <button
+                                                                    onClick={(e) => handleSetPrimary(assistant.id, e)}
+                                                                    className="p-1 hover:bg-indigo-100 rounded transition-colors"
+                                                                >
+                                                                    <GripVertical className="w-4 h-4 text-gray-400" />
+                                                                </button>
+                                                            </TooltipTrigger>
+                                                            <TooltipContent side="left">
+                                                                <p className="text-xs">Set as Primary</p>
+                                                            </TooltipContent>
+                                                        </Tooltip>
+                                                    </TooltipProvider>
+                                                )}
+                                                <div className={cn(
+                                                    "w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all",
+                                                    isSelected
+                                                        ? "bg-indigo-600 border-indigo-600"
+                                                        : "border-gray-300"
+                                                )}>
+                                                    {isSelected && <Check className="w-3 h-3 text-white" />}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        )}
+                    </div>
+
+                    {selectedAssistantIds.length > 0 && (
+                        <div className="p-2 border-t border-gray-100 bg-gray-50">
+                            <p className="text-[10px] text-gray-500 text-center">
+                                {selectedAssistantIds.length} selected • First is Primary (used for document context)
+                            </p>
+                        </div>
+                    )}
+                </motion.div>
+            )}
+        </AnimatePresence>
+    );
+
     return (
-        <div className="relative w-full z-20">
-            {/* Trigger Button */}
+        <div className="relative w-full">
             <Button
+                ref={buttonRef}
                 variant="outline"
                 size="sm"
                 onClick={() => setIsOpen(!isOpen)}
-                className="w-full justify-between h-auto min-h-[36px] py-1.5 px-3 bg-white/50 hover:bg-white/80 border-slate-200 transition-all font-normal text-slate-700"
+                className="w-full justify-between h-auto min-h-[40px] py-2 px-3 bg-white hover:bg-gray-50 border-gray-200 transition-all font-normal text-gray-700"
                 disabled={isLoading}
             >
-                <div className="flex flex-wrap gap-1 items-center max-w-[calc(100%-20px)]">
+                <div className="flex flex-wrap gap-1.5 items-center max-w-[calc(100%-24px)]">
                     {selectedAssistantIds.length === 0 ? (
-                        <span className="text-slate-500 text-xs flex items-center gap-1.5">
-                            <Bot className="w-3.5 h-3.5" />
+                        <span className="text-gray-400 text-sm flex items-center gap-2">
+                            <Bot className="w-4 h-4" />
                             Assign AI Assistants...
                         </span>
                     ) : (
-                        selectedAssistantIds.map((id, index) => {
-                            const assistant = availableAssistants.find(a => a.id === id);
-                            if (!assistant) return null;
-                            const isPrimary = index === 0;
-
-                            return (
-                                <Badge
-                                    key={id}
-                                    variant="secondary"
-                                    className={`
-                                        h-6 pl-1.5 pr-1 gap-1 flex items-center
-                                        ${isPrimary
-                                            ? 'bg-indigo-50 text-indigo-700 border-indigo-100'
-                                            : 'bg-slate-100 text-slate-600 border-slate-200'
-                                        }
-                                    `}
+                        selectedAssistants.map((assistant, index) => (
+                            <Badge
+                                key={assistant.id}
+                                variant="secondary"
+                                className={cn(
+                                    "text-xs py-0.5 px-2 flex items-center gap-1.5 border",
+                                    colorClasses[assistant.color || 'blue'] || colorClasses.blue
+                                )}
+                            >
+                                <span className="text-sm">{assistant.avatar}</span>
+                                <span className="font-medium">{assistant.name}</span>
+                                {index === 0 && selectedAssistantIds.length > 1 && (
+                                    <span className="text-[9px] opacity-60 ml-0.5">(Primary)</span>
+                                )}
+                                <span
+                                    role="button"
+                                    tabIndex={0}
+                                    onClick={(e) => handleRemove(assistant.id, e)}
+                                    onKeyDown={(e) => e.key === 'Enter' && handleRemove(assistant.id, e as any)}
+                                    className="ml-0.5 hover:bg-black/10 rounded-full p-0.5 transition-colors cursor-pointer"
                                 >
-                                    <span className="text-[10px]">{assistant.avatar}</span>
-                                    <span className="text-[10px] truncate max-w-[80px] font-medium">
-                                        {assistant.name}
-                                    </span>
-                                    {isPrimary && (
-                                        <span className="text-[9px] bg-indigo-100 px-1 rounded-sm text-indigo-700 font-bold ml-0.5">
-                                            1
-                                        </span>
-                                    )}
-                                    <div
-                                        role="button"
-                                        className="hover:bg-black/5 rounded-full p-0.5 cursor-pointer ml-0.5"
-                                        onClick={(e) => handleRemove(id, e)}
-                                    >
-                                        <X className="w-2.5 h-2.5 opacity-60 hover:opacity-100" />
-                                    </div>
-                                </Badge>
-                            );
-                        })
+                                    <X className="w-3 h-3" />
+                                </span>
+                            </Badge>
+                        ))
                     )}
                 </div>
-                <ChevronDown className={`w-3.5 h-3.5 text-slate-400 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+                <ChevronDown className={cn(
+                    "w-4 h-4 text-gray-400 transition-transform shrink-0",
+                    isOpen && "rotate-180"
+                )} />
             </Button>
 
-            {/* Dropdown Menu */}
-            <AnimatePresence>
-                {isOpen && (
-                    <>
-                        <div
-                            className="fixed inset-0 z-10 bg-transparent"
-                            onClick={() => setIsOpen(false)}
-                        />
-                        <motion.div
-                            initial={{ opacity: 0, y: 4, scale: 0.98 }}
-                            animate={{ opacity: 1, y: 0, scale: 1 }}
-                            exit={{ opacity: 0, y: 4, scale: 0.98 }}
-                            transition={{ duration: 0.15 }}
-                            className="absolute z-30 w-[280px] bg-white rounded-lg shadow-xl border border-slate-200 p-2 top-full mt-1 right-0"
-                            style={{ maxHeight: '320px', display: 'flex', flexDirection: 'column' }}
-                        >
-                            <div className="mb-2 relative px-1">
-                                <Search className="w-3.5 h-3.5 absolute left-3 top-2.5 text-slate-400" />
-                                <Input
-                                    placeholder="Search assistants..."
-                                    value={searchQuery}
-                                    onChange={(e) => setSearchQuery(e.target.value)}
-                                    className="h-8 pl-8 text-xs bg-slate-50 border-slate-200 focus-visible:ring-1 focus-visible:ring-indigo-500"
-                                    autoFocus
-                                />
-                            </div>
-
-                            <div className="overflow-y-auto flex-1 space-y-0.5 px-1 pr-1 custom-scrollbar">
-                                {availableAssistants.length === 0 ? (
-                                    <div className="p-4 text-center text-xs text-slate-500 bg-slate-50 rounded-md border border-dashed border-slate-200">
-                                        No active assistants found.<br />
-                                        Please create some in Core Memory.
-                                    </div>
-                                ) : filteredAssistants.length === 0 ? (
-                                    <div className="p-3 text-center text-xs text-slate-500">
-                                        No assistants match "{searchQuery}"
-                                    </div>
-                                ) : (
-                                    filteredAssistants.map(assistant => {
-                                        const isSelected = selectedAssistantIds.includes(assistant.id);
-                                        const selectionIndex = selectedAssistantIds.indexOf(assistant.id);
-                                        const isPrimary = selectionIndex === 0;
-
-                                        return (
-                                            <div
-                                                key={assistant.id}
-                                                className={`
-                                                    group flex items-center justify-between p-2 rounded-md cursor-pointer transition-colors
-                                                    ${isSelected ? 'bg-indigo-50/60' : 'hover:bg-slate-50'}
-                                                `}
-                                                onClick={() => handleToggle(assistant.id)}
-                                            >
-                                                <div className="flex items-center gap-2.5 overflow-hidden">
-                                                    <div className="w-7 h-7 rounded-full bg-slate-100 flex items-center justify-center text-sm border border-slate-200 shrink-0">
-                                                        {assistant.avatar}
-                                                    </div>
-                                                    <div className="flex flex-col overflow-hidden">
-                                                        <span className={`text-xs font-medium truncate ${isSelected ? 'text-indigo-900' : 'text-slate-700'}`}>
-                                                            {assistant.name}
-                                                        </span>
-                                                        <span className="text-[10px] text-slate-500 truncate capitalize">
-                                                            {assistant.type?.replace('_', ' ') || 'Custom'}
-                                                        </span>
-                                                    </div>
-                                                </div>
-
-                                                <div className="flex items-center gap-1">
-                                                    {isSelected && (
-                                                        <>
-                                                            {selectionIndex > 0 && (
-                                                                <TooltipProvider>
-                                                                    <Tooltip>
-                                                                        <TooltipTrigger asChild>
-                                                                            <Button
-                                                                                variant="ghost"
-                                                                                size="icon"
-                                                                                className="h-6 w-6 text-slate-400 hover:text-indigo-600 hover:bg-indigo-100 opacity-0 group-hover:opacity-100 transition-opacity"
-                                                                                onClick={(e) => handleSetPrimary(assistant.id, e)}
-                                                                            >
-                                                                                <span className="text-[10px] font-bold">1st</span>
-                                                                            </Button>
-                                                                        </TooltipTrigger>
-                                                                        <TooltipContent side="top" className="text-[10px]">Make Primary</TooltipContent>
-                                                                    </Tooltip>
-                                                                </TooltipProvider>
-                                                            )}
-
-                                                            {isPrimary ? (
-                                                                <Badge className="h-5 px-1.5 bg-indigo-600 hover:bg-indigo-700 text-[9px]">Primary</Badge>
-                                                            ) : (
-                                                                <span className="h-5 px-1.5 flex items-center justify-center bg-slate-200/80 rounded-sm text-[9px] font-medium text-slate-600">
-                                                                    Fallback #{selectionIndex}
-                                                                </span>
-                                                            )}
-                                                        </>
-                                                    )}
-                                                </div>
-                                            </div>
-                                        );
-                                    })
-                                )}
-                            </div>
-
-                            {selectedAssistantIds.length > 0 && (
-                                <div className="pt-2 mt-2 border-t border-slate-100 px-1">
-                                    <div className="flex items-start gap-1.5 p-2 bg-slate-50 rounded text-[10px] text-slate-500 leading-tight">
-                                        <AlertCircle className="w-3 h-3 text-slate-400 shrink-0 mt-0.5" />
-                                        <span>
-                                            Use <strong>{availableAssistants.find(a => a.id === selectedAssistantIds[0])?.name}</strong> first.
-                                            If no answer found, try fallbacks in order.
-                                        </span>
-                                    </div>
-                                </div>
-                            )}
-                        </motion.div>
-                    </>
-                )}
-            </AnimatePresence>
+            {typeof window !== 'undefined' && createPortal(dropdownContent, document.body)}
         </div>
     );
 }

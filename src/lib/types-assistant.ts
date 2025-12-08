@@ -117,6 +117,7 @@ export const ASSISTANT_COLORS: { value: string; label: string }[] = [
     { value: 'cyan', label: 'Cyan' },
     { value: 'orange', label: 'Orange' },
     { value: 'indigo', label: 'Indigo' },
+    { value: 'slate', label: 'Slate' },
 ];
 
 export const TONE_LABELS: Record<AssistantTone, string> = {
@@ -312,7 +313,7 @@ export const ESSENTIAL_ASSISTANT_DEFAULTS: Partial<Assistant>[] = [
         id: 'essential-customer_care',
         type: 'essential',
         name: 'Customer Care',
-        description: 'Handles FAQs, support tickets, and account issues',
+        description: 'Handles FAQs, support tickets, and account issues using your business documents',
         avatar: '🎧',
         color: 'blue',
         personality: {
@@ -320,13 +321,18 @@ export const ESSENTIAL_ASSISTANT_DEFAULTS: Partial<Assistant>[] = [
             style: 'conversational',
             responseLength: 'moderate',
         },
+        documentConfig: {
+            useAllDocuments: true,
+            attachedDocumentIds: [],
+            externalDocumentIds: [],
+        },
         behaviorRules: {
             responseRules: ['Always greet warmly', 'Acknowledge customer concerns'],
             neverSay: ['That\'s not my problem'],
             escalationTriggers: ['Customer requests manager'],
             openingMessage: 'Hello! How can I help you today?',
         },
-        systemPrompt: 'You are a customer care specialist. Be empathetic, helpful, and solution-oriented. Always aim to resolve issues on first contact.',
+        systemPrompt: 'You are a customer care specialist. Be empathetic, helpful, and solution-oriented. Always aim to resolve issues on first contact. Use the provided knowledge base to answer questions accurately.',
         allowExternalUse: true,
         temperature: 0.7,
         maxTokens: 1024,
@@ -335,7 +341,7 @@ export const ESSENTIAL_ASSISTANT_DEFAULTS: Partial<Assistant>[] = [
         id: 'essential-sales_assistant',
         type: 'essential',
         name: 'Sales Assistant',
-        description: 'Provides product info, pricing, and captures leads',
+        description: 'Provides product info, pricing, and captures leads using your business documents',
         avatar: '⚡',
         color: 'amber',
         personality: {
@@ -343,13 +349,18 @@ export const ESSENTIAL_ASSISTANT_DEFAULTS: Partial<Assistant>[] = [
             style: 'conversational',
             responseLength: 'moderate',
         },
+        documentConfig: {
+            useAllDocuments: true,
+            attachedDocumentIds: [],
+            externalDocumentIds: [],
+        },
         behaviorRules: {
             responseRules: ['Highlight value propositions', 'Ask qualifying questions'],
             neverSay: ['I don\'t know the price'],
             escalationTriggers: ['Enterprise deal inquiry'],
             openingMessage: 'Hi! Looking for information about our products?',
         },
-        systemPrompt: 'You are a sales assistant. Be helpful and informative about products and pricing. Focus on understanding customer needs and matching them with the right solutions.',
+        systemPrompt: 'You are a sales assistant. Be helpful and informative about products and pricing. Focus on understanding customer needs and matching them with the right solutions. Use the knowledge base to provide accurate product information.',
         allowExternalUse: true,
         temperature: 0.7,
         maxTokens: 1024,
@@ -358,7 +369,7 @@ export const ESSENTIAL_ASSISTANT_DEFAULTS: Partial<Assistant>[] = [
         id: 'essential-marketing_comms',
         type: 'essential',
         name: 'Marketing Comms',
-        description: 'Sends birthday wishes, promotions, and updates',
+        description: 'Sends birthday wishes, promotions, and updates using your business context',
         avatar: '✨',
         color: 'violet',
         personality: {
@@ -366,16 +377,71 @@ export const ESSENTIAL_ASSISTANT_DEFAULTS: Partial<Assistant>[] = [
             style: 'casual',
             responseLength: 'brief',
         },
+        documentConfig: {
+            useAllDocuments: true,
+            attachedDocumentIds: [],
+            externalDocumentIds: [],
+        },
         behaviorRules: {
             responseRules: ['Keep messages engaging', 'Include clear call-to-action'],
             neverSay: [],
             escalationTriggers: [],
             openingMessage: '',
         },
-        systemPrompt: 'You are a marketing communications specialist. Create engaging, friendly messages for promotions, updates, and customer celebrations.',
+        systemPrompt: 'You are a marketing communications specialist. Create engaging, friendly messages for promotions, updates, and customer celebrations. Use the business context to personalize communications.',
         allowExternalUse: true,
         temperature: 0.8,
         maxTokens: 512,
+    },
+    {
+        id: 'essential-general_mode',
+        type: 'essential',
+        name: 'General Mode',
+        description: 'Responds without accessing business documents — general AI assistance only',
+        avatar: '🤖',
+        color: 'slate',
+        personality: {
+            tone: 'professional',
+            style: 'conversational',
+            responseLength: 'moderate',
+        },
+        documentConfig: {
+            useAllDocuments: false,
+            attachedDocumentIds: [],
+            externalDocumentIds: [],
+        },
+        behaviorRules: {
+            responseRules: [
+                'Provide helpful, general responses',
+                'Be clear when you cannot access specific business information',
+                'Suggest switching to a specialized assistant for business-specific questions',
+            ],
+            neverSay: [],
+            escalationTriggers: [],
+            openingMessage: '',
+        },
+        systemPrompt: `You are a general AI assistant. You do NOT have access to any business-specific documents or knowledge base.
+
+IMPORTANT LIMITATIONS:
+- You CANNOT access this business's files, documents, pricing, policies, or internal information
+- You CANNOT look up specific product details, inventory, or customer records
+- You CANNOT provide business-specific answers that would require document access
+
+WHAT YOU CAN DO:
+- Provide helpful, general assistance based on your training
+- Answer general knowledge questions
+- Help with writing, brainstorming, and general advice
+- Assist with tasks that don't require business-specific information
+
+WHEN ASKED ABOUT BUSINESS SPECIFICS:
+- Politely explain that you're in General Mode and don't have access to business documents
+- Suggest the customer ask to switch to a specialized assistant (Customer Care, Sales, etc.) for business-specific questions
+- Offer to help with any general questions in the meantime
+
+Be helpful, professional, and honest about your limitations in this mode.`,
+        allowExternalUse: true,
+        temperature: 0.7,
+        maxTokens: 1024,
     },
 ];
 
@@ -516,7 +582,22 @@ export function getAssistantColorClasses(color: string): {
             border: 'border-indigo-200',
             ring: 'ring-indigo-500/20',
         },
+        slate: {
+            gradient: 'from-slate-500 to-gray-500',
+            bgLight: 'bg-slate-50',
+            text: 'text-slate-600',
+            border: 'border-slate-200',
+            ring: 'ring-slate-500/20',
+        },
     };
 
     return colorMap[color] || colorMap.blue;
+}
+
+export function isGeneralModeAssistant(assistantId: string): boolean {
+    return assistantId === 'essential-general_mode';
+}
+
+export function getEssentialAssistantById(id: string): Partial<Assistant> | undefined {
+    return ESSENTIAL_ASSISTANT_DEFAULTS.find(a => a.id === id);
 }

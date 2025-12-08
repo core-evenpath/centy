@@ -17,7 +17,6 @@ import { cn } from '@/lib/utils';
 import { Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 
-// Components
 import { ConversationSidebar } from '@/components/partner/inbox/ConversationSidebar';
 import { ChatHeader } from '@/components/partner/inbox/ChatHeader';
 import { MessageInput } from '@/components/partner/inbox/MessageInput';
@@ -27,7 +26,6 @@ import CoreMemorySuggestion from '@/components/partner/inbox/CoreMemorySuggestio
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
 
-// Types
 import type { MetaWhatsAppMessage } from '@/lib/types-meta-whatsapp';
 
 interface RAGSuggestion {
@@ -51,54 +49,40 @@ interface RAGSuggestion {
 }
 
 export default function InboxPage() {
-    // ----------------------------------------------------------------------
-    // State & Hooks
-    // ----------------------------------------------------------------------
     const { currentWorkspace, loading: authLoading } = useMultiWorkspaceAuth();
     const currentPartnerId = currentWorkspace?.partnerId;
 
-    // Data - Conversations
     const { conversations, loading: convsLoading, markAsRead } = useEnrichedMetaConversations(currentPartnerId);
     const [selectedConversation, setSelectedConversation] = useState<EnrichedMetaConversation | null>(null);
     const [searchQuery, setSearchQuery] = useState('');
 
-    // Data - Messages
     const { messages, loading: msgsLoading } = useMetaMessages(selectedConversation?.id);
     const messagesEndRef = useRef<HTMLDivElement>(null);
 
-    // Data - Status
     const [isWhatsAppConnected, setIsWhatsAppConnected] = useState<boolean | null>(null);
 
-    // Data - Assistants
     const [activeAssistants, setActiveAssistants] = useState<any[]>([]);
     const [assistantsLoading, setAssistantsLoading] = useState(false);
     const [selectedAssistantIds, setSelectedAssistantIds] = useState<string[]>([]);
+    const previousAssistantIdsRef = useRef<string[]>([]);
 
-    // AI State
     const [showAISuggestion, setShowAISuggestion] = useState(false);
     const [aiSuggestion, setAISuggestion] = useState<RAGSuggestion | null>(null);
     const [isLoadingSuggestion, setIsLoadingSuggestion] = useState(false);
     const [pendingIncomingMessage, setPendingIncomingMessage] = useState('');
 
-    // Debounce & Tracking refs
     const processedMessageIds = useRef<Set<string>>(new Set());
     const lastSuggestionContext = useRef<string>('');
     const suggestionDebounceTimer = useRef<NodeJS.Timeout | null>(null);
+    const assistantChangeTimer = useRef<NodeJS.Timeout | null>(null);
 
-    // Input State
     const [messageInput, setMessageInput] = useState('');
     const [sending, setSending] = useState(false);
 
-    // ----------------------------------------------------------------------
-    // Effects
-    // ----------------------------------------------------------------------
-
-    // Check WhatsApp Status & Fetch Assistants
     useEffect(() => {
         if (currentPartnerId) {
             getMetaWhatsAppStatus(currentPartnerId).then(s => setIsWhatsAppConnected(s.connected));
 
-            // Fetch active assistants
             setAssistantsLoading(true);
             getActiveAssistantsAction(currentPartnerId).then(res => {
                 if (res.success && res.assistants) {
@@ -109,33 +93,28 @@ export default function InboxPage() {
         }
     }, [currentPartnerId]);
 
-    // Update selected assistants when conversation changes
     useEffect(() => {
-        if (selectedConversation) {
-            // Find stored assistant IDs or default to empty
+        if (selectedConversation && activeAssistants.length > 0) {
             const storedIds = selectedConversation.assignedAssistantIds || [];
-
-            // Validate against current active list
             const validIds = storedIds.filter(id => activeAssistants.some(a => a.id === id));
             setSelectedAssistantIds(validIds);
+            previousAssistantIdsRef.current = validIds;
         } else {
             setSelectedAssistantIds([]);
+            previousAssistantIdsRef.current = [];
         }
-    }, [selectedConversation?.id, activeAssistants]); // IMPORTANT: activeAssistants dependency
+    }, [selectedConversation?.id, activeAssistants]);
 
-    // Scroll to bottom on new messages
     useEffect(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }, [messages]);
 
-    // Mark as read when selecting conversation
     useEffect(() => {
         if (selectedConversation && selectedConversation.unreadCount > 0) {
             markAsRead(selectedConversation.id);
         }
     }, [selectedConversation, markAsRead]);
 
-    // Auto-Trigger AI for new inbound messages
     useEffect(() => {
         if (!messages || messages.length === 0) return;
 
@@ -145,7 +124,6 @@ export default function InboxPage() {
         const messageId = latestMessage.id;
         if (processedMessageIds.current.has(messageId)) return;
 
-        // Simple context check to prevent duplicate runs
         const currentContext = `${selectedConversation?.id}-${latestMessage.content}`;
         if (lastSuggestionContext.current === currentContext) return;
 
@@ -168,7 +146,6 @@ export default function InboxPage() {
         };
     }, [messages, selectedConversation?.id]);
 
-    // Reset AI state on conversation change
     useEffect(() => {
         processedMessageIds.current.clear();
         lastSuggestionContext.current = '';
@@ -178,30 +155,41 @@ export default function InboxPage() {
         setMessageInput('');
     }, [selectedConversation?.id]);
 
-    // ----------------------------------------------------------------------
-    // Handlers
-    // ----------------------------------------------------------------------
-
-    const handleAssistantSelectionChange = async (ids: string[]) => {
+    const handleAssistantSelectionChange = useCallback(async (ids: string[]) => {
+        const previousIds = previousAssistantIdsRef.current;
         setSelectedAssistantIds(ids);
+        previousAssistantIdsRef.current = ids;
 
         if (currentPartnerId && selectedConversation) {
-            // Optimistic update locally (state already set)
-            // Persist to DB
             const result = await updateConversationAssistantsAction(currentPartnerId, selectedConversation.id, ids);
             if (!result.success) {
                 toast.error("Failed to save assistant selection");
-                // Revert or fetch fresh? For now, we trust optimism
+                setSelectedAssistantIds(previousIds);
+                previousAssistantIdsRef.current = previousIds;
+                return;
             }
         }
-    };
+
+        const hasChanged = JSON.stringify(previousIds.sort()) !== JSON.stringify(ids.sort());
+
+        if (hasChanged && showAISuggestion && pendingIncomingMessage) {
+            if (assistantChangeTimer.current) {
+                clearTimeout(assistantChangeTimer.current);
+            }
+
+            assistantChangeTimer.current = setTimeout(() => {
+                console.log('🔄 Assistant selection changed, regenerating suggestion...');
+                handleGenerateSuggestionWithIds(pendingIncomingMessage, undefined, ids);
+            }, 500);
+        }
+    }, [currentPartnerId, selectedConversation, showAISuggestion, pendingIncomingMessage]);
 
     const markdownToWhatsApp = useCallback((text: string): string => {
         let formatted = text;
         formatted = formatted.replace(/^#+\s+(.*)$/gm, '*$1*');
         formatted = formatted.replace(/\*\*(.*?)\*\*/g, '*$1*');
         formatted = formatted.replace(/__(.*?)__/g, '*$1*');
-        formatted = formatted.replace(/(?<!\w)_([^*\n]+?)_(?!\w)/g, '_$1_'); // Underscores for italics
+        formatted = formatted.replace(/(?<!\w)_([^*\n]+?)_(?!\w)/g, '_$1_');
         formatted = formatted.replace(/~~(.*?)~~/g, '~$1~');
         formatted = formatted.replace(/`([^`]+)`/g, '```$1```');
         return formatted;
@@ -227,18 +215,22 @@ export default function InboxPage() {
         } catch (err) {
             console.error(err);
             toast.error("Failed to send message");
-            if (!textOverride) setMessageInput(textToSend); // Restore input on fail
+            if (!textOverride) setMessageInput(textToSend);
         } finally {
             setSending(false);
         }
     };
 
-    const handleGenerateSuggestion = async (incomingMessage?: string, refinementInstruction?: string) => {
+    const handleGenerateSuggestionWithIds = async (
+        incomingMessage?: string,
+        refinementInstruction?: string,
+        assistantIds?: string[]
+    ) => {
         if (!currentPartnerId || !selectedConversation) return;
 
         const messageToAnalyze = incomingMessage || pendingIncomingMessage || messages[messages.length - 1]?.content || "Hello";
+        const idsToUse = assistantIds ?? selectedAssistantIds;
 
-        // If it's a new generation (not refinement), reset state
         if (!refinementInstruction) {
             setPendingIncomingMessage(messageToAnalyze);
             setAISuggestion(null);
@@ -248,12 +240,10 @@ export default function InboxPage() {
         setIsLoadingSuggestion(true);
 
         try {
-            console.log('⚡ Core Memory RAG starting...', { assistantIds: selectedAssistantIds });
+            console.log('⚡ Core Memory RAG starting...', { assistantIds: idsToUse });
 
-            // Construct context from recent messages
             let context = messages.slice(-5).map(m => `${m.direction}: ${m.content}`).join('\n');
 
-            // Add refinement instruction if present
             if (refinementInstruction) {
                 context += `\n\n[SYSTEM INSTRUCTION: The user wants to refine the previous suggestion. ${refinementInstruction}]`;
             }
@@ -263,7 +253,7 @@ export default function InboxPage() {
                 messageToAnalyze,
                 context,
                 selectedConversation?.contactId,
-                selectedAssistantIds
+                idsToUse
             );
 
             if (result.success && result.suggestedReply) {
@@ -288,6 +278,10 @@ export default function InboxPage() {
         }
     };
 
+    const handleGenerateSuggestion = (incomingMessage?: string, refinementInstruction?: string) => {
+        handleGenerateSuggestionWithIds(incomingMessage, refinementInstruction, selectedAssistantIds);
+    };
+
     const handleRefineSuggestion = (instruction: string) => {
         handleGenerateSuggestion(undefined, instruction);
     };
@@ -297,141 +291,132 @@ export default function InboxPage() {
         if (!confirm("Are you sure you want to delete this conversation? This cannot be undone.")) return;
 
         try {
-            await deleteMetaConversation(currentPartnerId, selectedConversation.id);
-            setSelectedConversation(null);
-            toast.success("Conversation deleted");
-        } catch (err) {
-            toast.error("Failed to delete conversation");
+            const result = await deleteMetaConversation(currentPartnerId, selectedConversation.id);
+            if (result.success) {
+                toast.success("Conversation deleted");
+                setSelectedConversation(null);
+            } else {
+                toast.error(result.message || "Failed to delete");
+            }
+        } catch (e: any) {
+            toast.error(e.message || "Delete failed");
         }
     };
 
     const handleDeleteMessage = async (messageId: string) => {
         if (!currentPartnerId) return;
+        if (!confirm("Delete this message?")) return;
+
         try {
-            await deleteMetaMessage(currentPartnerId, messageId);
-            toast.success("Message deleted");
-        } catch (err) {
-            toast.error("Failed to delete message");
+            const result = await deleteMetaMessage(currentPartnerId, messageId);
+            if (result.success) {
+                toast.success("Message deleted");
+            } else {
+                toast.error(result.message || "Failed to delete");
+            }
+        } catch (e: any) {
+            toast.error(e.message || "Delete failed");
         }
     };
 
-    // ----------------------------------------------------------------------
-    // Render
-    // ----------------------------------------------------------------------
-
-    if (authLoading) {
+    if (authLoading || convsLoading) {
         return (
-            <div className="flex h-screen items-center justify-center bg-white">
-                <Loader2 className="animate-spin text-indigo-500 w-8 h-8" />
+            <div className="flex items-center justify-center h-full bg-gray-50/50">
+                <div className="flex flex-col items-center gap-3">
+                    <Loader2 className="w-8 h-8 animate-spin text-indigo-500" />
+                    <p className="text-sm text-gray-500">Loading inbox...</p>
+                </div>
             </div>
         );
     }
 
     return (
-        <div className="flex bg-white overflow-hidden font-sans h-full">
-            {/* Panel 1: Left Sidebar - Hidden on mobile if conversation selected */}
-            <div className={cn(
-                "w-full md:w-[380px] flex-col border-r border-gray-200 bg-white h-full",
-                selectedConversation ? "hidden md:flex" : "flex"
-            )}>
-                <ConversationSidebar
-                    conversations={conversations}
-                    selectedId={selectedConversation?.id || null}
-                    onSelect={(conv) => setSelectedConversation(conv)}
-                    searchQuery={searchQuery}
-                    onSearchChange={setSearchQuery}
-                    loading={convsLoading}
-                />
-            </div>
+        <div className="h-full flex bg-gray-50/30">
+            <ConversationSidebar
+                conversations={conversations}
+                selectedId={selectedConversation?.id || null}
+                onSelect={setSelectedConversation}
+                searchQuery={searchQuery}
+                onSearchChange={setSearchQuery}
+                loading={convsLoading}
+            />
 
-            {/* Panel 2 & 3: Chat Area + AI Panel */}
-            <div className={cn(
-                "flex-1 flex min-w-0 bg-white relative h-full", // Flex row to contain Chat Area and AI Panel
-                !selectedConversation ? "hidden md:flex" : "flex"
-            )}>
-                {selectedConversation ? (
-                    <>
-                        {/* Panel 2: Main Chat Area */}
-                        <div className="flex-1 flex flex-col min-w-0 bg-white h-full relative">
-                            <ChatHeader
-                                conversation={selectedConversation}
-                                isWhatsAppConnected={isWhatsAppConnected}
-                                onDelete={handleDeleteConversation}
-                                onBack={() => setSelectedConversation(null)}
-                            />
+            {!selectedConversation ? (
+                <EmptyState isWhatsAppConnected={isWhatsAppConnected} />
+            ) : (
+                <>
+                    <div className="flex-1 flex flex-col min-w-0 bg-white border-x border-gray-100">
+                        <ChatHeader
+                            conversation={selectedConversation}
+                            isWhatsAppConnected={isWhatsAppConnected}
+                            onDelete={handleDeleteConversation}
+                        />
 
-                            {/* Messages Area */}
-                            <div className="flex-1 relative bg-gray-50/30 min-h-0">
-                                <ScrollArea className="h-full px-4 md:px-6 pt-6">
-                                    {msgsLoading ? (
-                                        <div className="flex items-center justify-center py-12">
-                                            <Loader2 className="w-6 h-6 animate-spin text-indigo-400" />
-                                        </div>
-                                    ) : messages.length === 0 ? (
-                                        <div className="text-center py-20">
-                                            <Badge variant="outline" className="mb-4 bg-gray-50 text-gray-400 border-dashed">No messages yet</Badge>
-                                            <p className="text-gray-400 text-sm">Start the conversation by typing a message below.</p>
-                                        </div>
-                                    ) : (
-                                        <div className="space-y-6 pb-6">
-                                            {messages.map((msg: MetaWhatsAppMessage) => (
-                                                <MessageBubble
-                                                    key={msg.id}
-                                                    message={msg}
-                                                    onDelete={handleDeleteMessage}
-                                                />
-                                            ))}
-                                            <div ref={messagesEndRef} />
-                                        </div>
-                                    )}
-                                </ScrollArea>
-                            </div>
-
-                            {/* Input Area */}
-                            <MessageInput
-                                value={messageInput}
-                                onChange={setMessageInput}
-                                onSend={() => handleSendMessage()}
-                                onGenerateSuggestion={() => handleGenerateSuggestion()}
-                                isGenerating={isLoadingSuggestion}
-                                sending={sending}
-                            />
+                        <div className="flex-1 overflow-hidden relative">
+                            <ScrollArea className="h-full px-4 md:px-6 py-4">
+                                {msgsLoading ? (
+                                    <div className="flex items-center justify-center py-12">
+                                        <Loader2 className="w-6 h-6 animate-spin text-indigo-400" />
+                                    </div>
+                                ) : messages.length === 0 ? (
+                                    <div className="text-center py-20">
+                                        <Badge variant="outline" className="mb-4 bg-gray-50 text-gray-400 border-dashed">No messages yet</Badge>
+                                        <p className="text-gray-400 text-sm">Start the conversation by typing a message below.</p>
+                                    </div>
+                                ) : (
+                                    <div className="space-y-6 pb-6">
+                                        {messages.map((msg: MetaWhatsAppMessage) => (
+                                            <MessageBubble
+                                                key={msg.id}
+                                                message={msg}
+                                                onDelete={handleDeleteMessage}
+                                            />
+                                        ))}
+                                        <div ref={messagesEndRef} />
+                                    </div>
+                                )}
+                            </ScrollArea>
                         </div>
 
-                        {/* Panel 3: Core Memory AI Suggestion Panel (Conditional render as a column) */}
-                        {showAISuggestion && (
-                            <CoreMemorySuggestion
-                                suggestion={aiSuggestion}
-                                isLoading={isLoadingSuggestion}
-                                isVisible={showAISuggestion}
-                                onEdit={(text) => {
-                                    setMessageInput(text);
-                                    setShowAISuggestion(false);
-                                    setAISuggestion(null);
-                                }}
-                                onSend={(text) => handleSendMessage(text)}
-                                onDismiss={() => {
-                                    setShowAISuggestion(false);
-                                    setAISuggestion(null);
-                                }}
-                                onRegenerate={() => handleGenerateSuggestion()}
-                                onRefine={handleRefineSuggestion}
-                                incomingMessage={pendingIncomingMessage}
-                                activeAssistants={activeAssistants}
-                                selectedAssistantIds={selectedAssistantIds}
-                                onAssistantSelectionChange={handleAssistantSelectionChange}
-                                assistantsLoading={assistantsLoading}
-                            />
-                        )}
-                    </>
-                ) : (
-                    <div className="flex-1 flex flex-col">
-                        <EmptyState isWhatsAppConnected={isWhatsAppConnected} />
+                        <MessageInput
+                            value={messageInput}
+                            onChange={setMessageInput}
+                            onSend={() => handleSendMessage()}
+                            onGenerateSuggestion={() => handleGenerateSuggestion()}
+                            isGenerating={isLoadingSuggestion}
+                            sending={sending}
+                        />
                     </div>
-                )}
-            </div>
 
-            {/* Optional: Right Profile Panel Area (Hidden for now, can be toggled) */}
+                    {showAISuggestion && (
+                        <CoreMemorySuggestion
+                            suggestion={aiSuggestion}
+                            isLoading={isLoadingSuggestion}
+                            isVisible={showAISuggestion}
+                            onEdit={(text) => {
+                                setMessageInput(text);
+                                setShowAISuggestion(false);
+                                setAISuggestion(null);
+                            }}
+                            onSend={(text) => {
+                                handleSendMessage(text);
+                            }}
+                            onDismiss={() => {
+                                setShowAISuggestion(false);
+                                setAISuggestion(null);
+                                setPendingIncomingMessage('');
+                            }}
+                            onRegenerate={() => handleGenerateSuggestion()}
+                            onRefine={handleRefineSuggestion}
+                            incomingMessage={pendingIncomingMessage}
+                            activeAssistants={activeAssistants}
+                            selectedAssistantIds={selectedAssistantIds}
+                            onAssistantSelectionChange={handleAssistantSelectionChange}
+                            assistantsLoading={assistantsLoading}
+                        />
+                    )}
+                </>
+            )}
         </div>
     );
 }

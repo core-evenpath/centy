@@ -48,8 +48,8 @@ export async function getAssistantsAction(
             .map(e => ({
                 ...e,
                 partnerId,
-                documentConfig: {
-                    useAllDocuments: true,
+                documentConfig: e.documentConfig || {
+                    useAllDocuments: e.id !== 'essential-general_mode',
                     attachedDocumentIds: [],
                     externalDocumentIds: [],
                 },
@@ -140,7 +140,6 @@ export async function createAssistantFromTemplateAction(
 
         console.log(`✅ Assistant created from template: ${assistantData.id}`);
 
-        // Return serialized assistant for client
         const serializedAssistant = serializeAssistant(fullAssistant, assistantData.id);
 
         return { success: true, assistantId: assistantData.id, assistant: serializedAssistant };
@@ -368,7 +367,7 @@ export async function incrementAssistantUsageAction(
 
 export async function getActiveAssistantsAction(
     partnerId: string
-): Promise<{ success: boolean; assistants?: Array<{ id: string; name: string; avatar: string; color: string; type: string }>; error?: string }> {
+): Promise<{ success: boolean; assistants?: Array<{ id: string; name: string; avatar: string; color: string; type: string; description?: string }>; error?: string }> {
     try {
         if (!db) {
             return { success: false, error: 'Database unavailable' };
@@ -389,30 +388,65 @@ export async function getActiveAssistantsAction(
                 avatar: data.avatar || '🤖',
                 color: data.color || 'blue',
                 type: data.type || 'custom',
+                description: data.description || '',
             };
         });
 
-        // Add missing essential assistants with defaults
-        const essentialIds = ['essential-customer_care', 'essential-sales_assistant', 'essential-marketing_comms', 'essential-incognito'];
+        const essentialDefaults = [
+            { id: 'essential-customer_care', name: 'Customer Care', avatar: '🎧', color: 'blue', type: 'essential', description: 'Uses your business documents' },
+            { id: 'essential-sales_assistant', name: 'Sales Assistant', avatar: '⚡', color: 'amber', type: 'essential', description: 'Uses your business documents' },
+            { id: 'essential-marketing_comms', name: 'Marketing Comms', avatar: '✨', color: 'violet', type: 'essential', description: 'Uses your business documents' },
+            { id: 'essential-general_mode', name: 'General Mode', avatar: '🤖', color: 'slate', type: 'essential', description: 'No document access - general AI only' },
+        ];
+
         const existingIds = assistants.map(a => a.id);
 
-        const missingEssentials = essentialIds
-            .filter(id => !existingIds.includes(id))
-            .map(id => {
-                if (id === 'essential-customer_care') {
-                    return { id, name: 'Customer Care', avatar: '🎧', color: 'blue', type: 'essential' };
-                } else if (id === 'essential-sales_assistant') {
-                    return { id, name: 'Sales Assistant', avatar: '⚡', color: 'amber', type: 'essential' };
-                } else if (id === 'essential-marketing_comms') {
-                    return { id, name: 'Marketing Comms', avatar: '✨', color: 'violet', type: 'essential' };
-                } else {
-                    return { id, name: 'Incognito Mode', avatar: '🕵️', color: 'slate', type: 'essential' };
-                }
-            });
+        const missingEssentials = essentialDefaults.filter(e => !existingIds.includes(e.id));
 
         return { success: true, assistants: [...missingEssentials, ...assistants] };
     } catch (error: any) {
         console.error('Get active assistants error:', error);
+        return { success: false, error: error.message };
+    }
+}
+
+export async function getAssistantByIdAction(
+    partnerId: string,
+    assistantId: string
+): Promise<{ success: boolean; assistant?: Assistant; error?: string }> {
+    try {
+        if (!db) {
+            return { success: false, error: 'Database unavailable' };
+        }
+
+        const docRef = await db
+            .collection('partners')
+            .doc(partnerId)
+            .collection('hubAgents')
+            .doc(assistantId)
+            .get();
+
+        if (!docRef.exists) {
+            const essentialDefault = ESSENTIAL_ASSISTANT_DEFAULTS.find(e => e.id === assistantId);
+            if (essentialDefault) {
+                return {
+                    success: true,
+                    assistant: {
+                        ...essentialDefault,
+                        partnerId,
+                        isActive: true,
+                        createdAt: new Date(),
+                        updatedAt: new Date(),
+                        usageCount: 0,
+                    } as Assistant,
+                };
+            }
+            return { success: false, error: 'Assistant not found' };
+        }
+
+        return { success: true, assistant: serializeAssistant(docRef.data(), docRef.id) };
+    } catch (error: any) {
+        console.error('Get assistant by ID error:', error);
         return { success: false, error: error.message };
     }
 }

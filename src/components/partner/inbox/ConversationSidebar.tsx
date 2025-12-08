@@ -32,7 +32,6 @@ export function ConversationSidebar({
     const filteredConversations = React.useMemo(() => {
         let filtered = conversations;
 
-        // Apply Search
         if (searchQuery.trim()) {
             const lowerQ = searchQuery.toLowerCase();
             filtered = filtered.filter(c =>
@@ -45,11 +44,9 @@ export function ConversationSidebar({
             );
         }
 
-        // Apply Filter
         if (activeFilter === 'unread') {
             filtered = filtered.filter(c => c.unreadCount > 0);
         } else if (activeFilter === 'starred') {
-            // Mock implementation as backend doesn't support it yet
             filtered = [];
         }
 
@@ -69,13 +66,11 @@ export function ConversationSidebar({
     };
 
     return (
-        <div className="w-full h-full flex flex-col border-r border-gray-100 bg-white">
-            {/* Header */}
+        <div className="w-[320px] min-w-[320px] max-w-[320px] h-full flex flex-col border-r border-gray-100 bg-white shrink-0">
             <div className="p-4 pb-2 space-y-4">
                 <div className="flex items-center justify-between">
                     <h1 className="text-lg font-semibold tracking-tight text-gray-900">Inbox</h1>
                     <div className="flex gap-2">
-                        {/* Placeholder for future actions */}
                     </div>
                 </div>
 
@@ -107,7 +102,6 @@ export function ConversationSidebar({
                 </div>
             </div>
 
-            {/* Conversation List */}
             <ScrollArea className="flex-1">
                 {loading ? (
                     <div className="flex flex-col items-center justify-center py-12 space-y-3">
@@ -141,7 +135,6 @@ export function ConversationSidebar({
                                             {(conv.contactName || conv.customerName || conv.customerPhone)?.[0]?.toUpperCase()}
                                         </AvatarFallback>
                                     </Avatar>
-                                    {/* Online indicator can be added later */}
                                 </div>
 
                                 <div className="flex-1 min-w-0 flex flex-col justify-center h-10">

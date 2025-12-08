@@ -1,30 +1,28 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
 import {
     Sparkles,
     Bot,
-    RefreshCcw,
     Send,
-    Edit2,
     X,
-    Check,
-    ThumbsUp,
-    ThumbsDown,
     Copy,
-    Info,
     ChevronDown,
     ChevronUp,
     FileText,
-    User,
     RefreshCw,
     Edit3,
     Search,
     Brain,
-    Clock,
     Database,
     Wand2,
-    CheckCircle2
+    CheckCircle2,
+    Zap,
+    MessageSquare,
+    User,
+    Lightbulb,
+    ArrowRight
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -63,8 +61,6 @@ interface CoreMemorySuggestionProps {
     onRegenerate: () => void;
     onRefine: (instruction: string) => void;
     incomingMessage: string;
-
-    // Assistant Props
     activeAssistants: any[];
     selectedAssistantIds: string[];
     onAssistantSelectionChange: (ids: string[]) => void;
@@ -72,6 +68,13 @@ interface CoreMemorySuggestionProps {
 }
 
 type LoadingStage = 'searching' | 'analyzing' | 'generating' | 'complete';
+
+const QUICK_REFINEMENTS = [
+    { label: 'Shorter', instruction: 'Make it more concise and brief' },
+    { label: 'Friendlier', instruction: 'Make it warmer and more friendly' },
+    { label: 'More formal', instruction: 'Make it more professional and formal' },
+    { label: 'Add details', instruction: 'Add more helpful details and specifics' },
+];
 
 export default function CoreMemorySuggestion({
     suggestion,
@@ -88,22 +91,23 @@ export default function CoreMemorySuggestion({
     onAssistantSelectionChange,
     assistantsLoading
 }: CoreMemorySuggestionProps) {
-    const [isExpanded, setIsExpanded] = useState(true);
     const [loadingStage, setLoadingStage] = useState<LoadingStage>('searching');
     const [displayedText, setDisplayedText] = useState('');
     const [isTyping, setIsTyping] = useState(false);
+    const [showSources, setShowSources] = useState(false);
+    const [customRefineInput, setCustomRefineInput] = useState('');
+    const [copied, setCopied] = useState(false);
+    const textRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
         if (!isLoading) {
             setLoadingStage('complete');
-            if (suggestion) setIsExpanded(true);
             return;
         }
 
         setLoadingStage('searching');
-        setIsExpanded(true);
-        const timer1 = setTimeout(() => setLoadingStage('analyzing'), 800);
-        const timer2 = setTimeout(() => setLoadingStage('generating'), 1800);
+        const timer1 = setTimeout(() => setLoadingStage('analyzing'), 600);
+        const timer2 = setTimeout(() => setLoadingStage('generating'), 1400);
 
         return () => {
             clearTimeout(timer1);
@@ -131,275 +135,346 @@ export default function CoreMemorySuggestion({
                 setIsTyping(false);
                 clearInterval(typingInterval);
             }
-        }, 8);
+        }, 12);
 
         return () => clearInterval(typingInterval);
     }, [suggestion?.suggestedReply, isLoading]);
 
-    if (!isVisible) return null;
-
-    const getConfidenceColor = (confidence: number) => {
-        if (confidence >= 0.8) return 'bg-green-50 text-green-700 border-green-200';
-        if (confidence >= 0.6) return 'bg-yellow-50 text-yellow-700 border-yellow-200';
-        return 'bg-red-50 text-red-700 border-red-200';
-    };
-
-    const documentSources = suggestion?.sources?.filter(s => s.type === 'document').length || 0;
-
-    const getLoadingStageInfo = () => {
-        switch (loadingStage) {
-            case 'searching':
-                return {
-                    icon: Search,
-                    text: 'Searching Core Memory',
-                    subtext: 'Scanning documents...',
-                    color: 'text-blue-600',
-                    bgColor: 'bg-blue-50',
-                };
-            case 'analyzing':
-                return {
-                    icon: Brain,
-                    text: 'Analyzing Context',
-                    subtext: 'Processing message...',
-                    color: 'text-purple-600',
-                    bgColor: 'bg-purple-50',
-                };
-            case 'generating':
-                return {
-                    icon: Sparkles,
-                    text: 'Crafting Response',
-                    subtext: 'Finalizing text...',
-                    color: 'text-indigo-600',
-                    bgColor: 'bg-indigo-50',
-                };
-            default:
-                return null;
+    const handleCopy = () => {
+        if (suggestion?.suggestedReply) {
+            navigator.clipboard.writeText(suggestion.suggestedReply);
+            setCopied(true);
+            setTimeout(() => setCopied(false), 2000);
         }
     };
 
-    const handleSend = () => onSend(displayedText || suggestion?.suggestedReply || '');
-    const handleEdit = () => onEdit(displayedText || suggestion?.suggestedReply || '');
+    const handleCustomRefine = () => {
+        if (customRefineInput.trim()) {
+            onRefine(customRefineInput.trim());
+            setCustomRefineInput('');
+        }
+    };
+
+    if (!isVisible) return null;
+
+    const getConfidenceInfo = (confidence: number) => {
+        if (confidence >= 0.85) return { label: 'High', color: 'bg-emerald-100 text-emerald-700 border-emerald-200' };
+        if (confidence >= 0.7) return { label: 'Good', color: 'bg-blue-100 text-blue-700 border-blue-200' };
+        if (confidence >= 0.5) return { label: 'Fair', color: 'bg-amber-100 text-amber-700 border-amber-200' };
+        return { label: 'Low', color: 'bg-red-100 text-red-700 border-red-200' };
+    };
+
+    const documentSources = suggestion?.sources?.filter(s => s.type === 'document') || [];
+    const isGeneralMode = selectedAssistantIds.includes('essential-general_mode');
+
+    const getLoadingContent = () => {
+        const stages = {
+            searching: {
+                icon: Search,
+                title: 'Searching Knowledge Base',
+                subtitle: 'Finding relevant documents...',
+                progress: 33
+            },
+            analyzing: {
+                icon: Brain,
+                title: 'Analyzing Context',
+                subtitle: 'Understanding the conversation...',
+                progress: 66
+            },
+            generating: {
+                icon: Wand2,
+                title: 'Crafting Response',
+                subtitle: 'Generating personalized reply...',
+                progress: 90
+            },
+            complete: {
+                icon: CheckCircle2,
+                title: 'Complete',
+                subtitle: '',
+                progress: 100
+            },
+        };
+
+        return stages[loadingStage];
+    };
+
+    const loadingContent = getLoadingContent();
+    const LoadingIcon = loadingContent.icon;
 
     return (
-        <div className="w-[360px] flex flex-col h-full border-l border-gray-100 bg-white shadow-xl shadow-gray-100/50 z-20 shrink-0 animate-in slide-in-from-right duration-300">
-            {/* Header */}
-            <div className="p-4 border-b border-gray-50 flex flex-col gap-3 shrink-0 bg-white/80 backdrop-blur-sm sticky top-0 z-10 transition-all">
-                <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
+        <div className="w-[380px] border-l border-gray-100 bg-gradient-to-b from-slate-50 to-white flex flex-col h-full">
+            <div className="p-4 border-b border-gray-100 bg-white/80 backdrop-blur-sm">
+                <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-2.5">
                         <div className={cn(
-                            "w-8 h-8 rounded-xl flex items-center justify-center transition-all ring-4 ring-indigo-50",
-                            isLoading ? "bg-indigo-50" : "bg-gradient-to-br from-indigo-500 to-violet-600 shadow-sm"
+                            "w-8 h-8 rounded-lg flex items-center justify-center transition-all",
+                            isLoading
+                                ? "bg-indigo-100 animate-pulse"
+                                : "bg-gradient-to-br from-indigo-500 to-violet-600 shadow-sm"
                         )}>
                             <Database className={cn(
-                                "h-3.5 w-3.5",
-                                isLoading ? "text-indigo-600 animate-pulse" : "text-white"
+                                "h-4 w-4",
+                                isLoading ? "text-indigo-600" : "text-white"
                             )} />
                         </div>
                         <div>
-                            <h3 className="text-[13px] font-bold text-gray-900 leading-tight">Core Memory</h3>
-                            <p className="text-[10px] text-gray-500 font-medium">AI Intelligence</p>
+                            <h3 className="text-sm font-semibold text-gray-900">Core Memory</h3>
+                            <p className="text-[10px] text-gray-500">AI-Powered Suggestions</p>
                         </div>
                     </div>
                     <Button
                         variant="ghost"
                         size="icon"
                         onClick={onDismiss}
-                        className="h-7 w-7 text-gray-400 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
+                        className="h-7 w-7 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg"
                     >
                         <X className="h-4 w-4" />
                     </Button>
                 </div>
 
-                {/* Assistant Selector */}
                 <AssistantSelector
                     availableAssistants={activeAssistants}
                     selectedAssistantIds={selectedAssistantIds}
                     onSelectionChange={onAssistantSelectionChange}
                     isLoading={assistantsLoading}
                 />
+
+                {isGeneralMode && (
+                    <div className="mt-2 px-2 py-1.5 bg-slate-50 border border-slate-200 rounded-lg">
+                        <p className="text-[10px] text-slate-600 flex items-center gap-1.5">
+                            <Bot className="w-3 h-3" />
+                            <span><strong>General Mode:</strong> Responding without business documents</span>
+                        </p>
+                    </div>
+                )}
             </div>
 
-            <ScrollArea className="flex-1 bg-white">
-                <div className="p-4 space-y-5">
-                    {/* Incoming Context */}
-                    <div className="bg-gray-50/50 p-4 rounded-2xl border border-gray-100">
-                        <p className="text-[10px] font-bold text-gray-400 mb-2 flex items-center gap-1.5 uppercase tracking-widest">
-                            <Brain className="w-3 h-3" />
-                            Context
-                        </p>
-                        <p className="text-[13px] text-gray-700 italic leading-relaxed font-serif">
-                            "{incomingMessage}"
-                        </p>
+            <ScrollArea className="flex-1">
+                <div className="p-4 space-y-4">
+                    <div className="bg-white rounded-xl border border-gray-100 p-3 shadow-sm">
+                        <div className="flex items-start gap-2">
+                            <MessageSquare className="w-3.5 h-3.5 text-gray-400 mt-0.5 shrink-0" />
+                            <div>
+                                <p className="text-[10px] font-medium text-gray-400 uppercase tracking-wider mb-1">Customer Message</p>
+                                <p className="text-sm text-gray-700 leading-relaxed">"{incomingMessage}"</p>
+                            </div>
+                        </div>
                     </div>
 
                     {isLoading ? (
-                        <div className="bg-white p-6 rounded-2xl border border-indigo-50 shadow-sm space-y-4 relative overflow-hidden">
-                            {(() => {
-                                const stageInfo = getLoadingStageInfo();
-                                if (!stageInfo) return null;
-                                const Icon = stageInfo.icon;
-                                return (
-                                    <>
-                                        <div className="absolute inset-0 bg-gradient-to-br from-indigo-50/20 to-purple-50/20 opacity-30" />
-                                        <div className="relative flex flex-col items-center text-center py-2">
-                                            <div className={cn("w-10 h-10 rounded-xl flex items-center justify-center mb-3 transition-colors duration-500 shadow-sm", stageInfo.bgColor)}>
-                                                <Icon className={cn("h-5 w-5 animate-pulse transition-colors duration-500", stageInfo.color)} />
-                                            </div>
-                                            <h3 className={cn("text-[13px] font-bold mb-1 transition-colors duration-500", stageInfo.color)}>
-                                                {stageInfo.text}
-                                            </h3>
-                                            <p className="text-[11px] text-gray-400 font-medium">{stageInfo.subtext}</p>
-                                        </div>
-                                        {/* Progress Bar */}
-                                        <div className="h-1 bg-gray-100 rounded-full overflow-hidden w-full max-w-[100px] mx-auto opacity-70">
-                                            <div
-                                                className="h-full bg-gradient-to-r from-indigo-500 to-purple-500 transition-all duration-700 ease-out"
-                                                style={{ width: loadingStage === 'searching' ? '30%' : loadingStage === 'analyzing' ? '60%' : '90%' }}
-                                            />
-                                        </div>
-                                    </>
-                                );
-                            })()}
+                        <div className="bg-white rounded-xl border border-gray-100 p-6 shadow-sm">
+                            <div className="flex flex-col items-center text-center">
+                                <div className="w-12 h-12 rounded-full bg-indigo-50 flex items-center justify-center mb-4">
+                                    <LoadingIcon className="w-6 h-6 text-indigo-600 animate-pulse" />
+                                </div>
+                                <h4 className="text-sm font-medium text-gray-900 mb-1">{loadingContent.title}</h4>
+                                <p className="text-xs text-gray-500 mb-4">{loadingContent.subtitle}</p>
+
+                                <div className="w-full bg-gray-100 rounded-full h-1.5 overflow-hidden">
+                                    <div
+                                        className="h-full bg-gradient-to-r from-indigo-500 to-violet-500 rounded-full transition-all duration-500 ease-out"
+                                        style={{ width: `${loadingContent.progress}%` }}
+                                    />
+                                </div>
+
+                                <div className="flex items-center gap-4 mt-4 text-[10px] text-gray-400">
+                                    <span className={cn(loadingStage === 'searching' && 'text-indigo-600 font-medium')}>Search</span>
+                                    <ArrowRight className="w-3 h-3" />
+                                    <span className={cn(loadingStage === 'analyzing' && 'text-indigo-600 font-medium')}>Analyze</span>
+                                    <ArrowRight className="w-3 h-3" />
+                                    <span className={cn(loadingStage === 'generating' && 'text-indigo-600 font-medium')}>Generate</span>
+                                </div>
+                            </div>
                         </div>
                     ) : suggestion ? (
                         <>
-                            {/* Suggestion Card */}
-                            <div className="bg-white rounded-2xl border border-indigo-100 shadow-sm overflow-hidden group hover:shadow-md transition-all relative">
-                                {/* Assistant Attribution */}
-                                {suggestion.assistantUsed && (
-                                    <div className="absolute top-0 right-0 p-2 z-10 flex items-center gap-1.5 pointer-events-none">
-                                        <div className={cn(
-                                            "flex items-center gap-1.5 px-2 py-1 rounded-full text-[10px] font-medium shadow-sm border",
-                                            suggestion.assistantUsed.usedAsFallback
-                                                ? "bg-amber-50 text-amber-700 border-amber-100"
-                                                : "bg-indigo-50 text-indigo-700 border-indigo-100"
-                                        )}>
-                                            <span className="text-sm leading-none">{suggestion.assistantUsed.avatar}</span>
-                                            <span>{suggestion.assistantUsed.name}</span>
-                                            {suggestion.assistantUsed.usedAsFallback && (
-                                                <Badge variant="outline" className="h-3.5 px-1 text-[8px] bg-white border-amber-200 text-amber-600">
-                                                    Fallback
-                                                </Badge>
-                                            )}
-                                        </div>
+                            <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+                                <div className="p-3 bg-gradient-to-r from-gray-50 to-slate-50 border-b border-gray-100 flex items-center justify-between">
+                                    <div className="flex items-center gap-2">
+                                        {suggestion.assistantUsed && (
+                                            <div className={cn(
+                                                "flex items-center gap-1.5 px-2 py-1 rounded-full text-xs font-medium border",
+                                                suggestion.assistantUsed.usedAsFallback
+                                                    ? "bg-amber-50 text-amber-700 border-amber-200"
+                                                    : "bg-indigo-50 text-indigo-700 border-indigo-200"
+                                            )}>
+                                                <span className="text-sm">{suggestion.assistantUsed.avatar}</span>
+                                                <span>{suggestion.assistantUsed.name}</span>
+                                                {suggestion.assistantUsed.usedAsFallback && (
+                                                    <Badge variant="outline" className="h-4 px-1 text-[8px] bg-white border-amber-300">
+                                                        Fallback
+                                                    </Badge>
+                                                )}
+                                            </div>
+                                        )}
+                                        <Badge
+                                            variant="outline"
+                                            className={cn("text-[10px] h-5 px-2 font-medium border", getConfidenceInfo(suggestion.confidence).color)}
+                                        >
+                                            {Math.round(suggestion.confidence * 100)}% {getConfidenceInfo(suggestion.confidence).label}
+                                        </Badge>
+                                    </div>
+                                    <div className="flex items-center gap-1">
+                                        <TooltipProvider>
+                                            <Tooltip>
+                                                <TooltipTrigger asChild>
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="icon"
+                                                        onClick={handleCopy}
+                                                        className="h-7 w-7 text-gray-400 hover:text-gray-600"
+                                                    >
+                                                        {copied ? <CheckCircle2 className="h-3.5 w-3.5 text-green-500" /> : <Copy className="h-3.5 w-3.5" />}
+                                                    </Button>
+                                                </TooltipTrigger>
+                                                <TooltipContent side="top" className="text-xs">Copy</TooltipContent>
+                                            </Tooltip>
+                                        </TooltipProvider>
+                                        <TooltipProvider>
+                                            <Tooltip>
+                                                <TooltipTrigger asChild>
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="icon"
+                                                        onClick={onRegenerate}
+                                                        className="h-7 w-7 text-gray-400 hover:text-indigo-600"
+                                                    >
+                                                        <RefreshCw className="h-3.5 w-3.5" />
+                                                    </Button>
+                                                </TooltipTrigger>
+                                                <TooltipContent side="top" className="text-xs">Regenerate</TooltipContent>
+                                            </Tooltip>
+                                        </TooltipProvider>
+                                    </div>
+                                </div>
+
+                                <div className="p-4" ref={textRef}>
+                                    <p className="text-sm text-gray-800 leading-relaxed whitespace-pre-wrap">
+                                        {displayedText}
+                                        {isTyping && <span className="inline-block w-0.5 h-4 bg-indigo-500 animate-pulse ml-0.5" />}
+                                    </p>
+                                </div>
+
+                                {!isTyping && (
+                                    <div className="px-4 pb-4 flex gap-2">
+                                        <Button
+                                            onClick={() => onSend(suggestion.suggestedReply)}
+                                            className="flex-1 h-9 bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700 text-white shadow-sm"
+                                        >
+                                            <Send className="h-3.5 w-3.5 mr-1.5" />
+                                            Send
+                                        </Button>
+                                        <Button
+                                            variant="outline"
+                                            onClick={() => onEdit(suggestion.suggestedReply)}
+                                            className="h-9 px-4 border-gray-200 hover:bg-gray-50"
+                                        >
+                                            <Edit3 className="h-3.5 w-3.5 mr-1.5" />
+                                            Edit
+                                        </Button>
                                     </div>
                                 )}
-
-                                <div className="p-3 bg-gradient-to-r from-indigo-50/30 to-violet-50/30 border-b border-indigo-50 flex items-center justify-between">
-                                    <div className="flex items-center gap-2">
-                                        <Badge variant="secondary" className={cn("text-[9px] h-5 px-2 font-bold tracking-wide border rounded-md shadow-sm", getConfidenceColor(suggestion.confidence))}>
-                                            {Math.round(suggestion.confidence * 100)}% MATCH
-                                        </Badge>
-                                        {documentSources > 0 && (
-                                            <Badge variant="outline" className="text-[9px] h-5 px-2 font-semibold bg-white text-gray-500 border-gray-200 rounded-md">
-                                                {documentSources} DOCS
-                                            </Badge>
-                                        )}
-                                    </div>
-                                    <Button onClick={onRegenerate} variant="ghost" size="icon" className="h-6 w-6 text-indigo-400 hover:text-indigo-600 rounded-full hover:bg-white" title="Regenerate">
-                                        <RefreshCw className="h-3 w-3" />
-                                    </Button>
-                                </div>
-                                <div className="p-5 pt-7">
-                                    <div className="prose prose-sm max-w-none">
-                                        <p className="text-[13px] text-gray-900 leading-relaxed whitespace-pre-wrap">
-                                            {displayedText}
-                                            {isTyping && <span className="inline-block w-0.5 h-3.5 bg-indigo-600 ml-0.5 animate-pulse align-middle" />}
-                                        </p>
-                                    </div>
-
-                                    {!isTyping && (
-                                        <div className="mt-5 flex flex-col gap-2.5">
-                                            <Button
-                                                onClick={handleSend}
-                                                className="w-full bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm h-9 text-xs font-semibold rounded-lg"
-                                            >
-                                                <Send className="w-3.5 h-3.5 mr-2" />
-                                                Send Reply
-                                            </Button>
-                                            <Button
-                                                onClick={handleEdit}
-                                                variant="outline"
-                                                className="w-full border-gray-200 text-gray-700 hover:bg-gray-50 hover:text-gray-900 h-9 text-xs font-semibold rounded-lg"
-                                            >
-                                                <Edit3 className="w-3.5 h-3.5 mr-2" />
-                                                Edit Text
-                                            </Button>
-                                        </div>
-                                    )}
-                                </div>
                             </div>
 
-                            {/* Refinements */}
                             {!isTyping && (
-                                <div>
-                                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-3 px-1">Refine Response</p>
-                                    <div className="grid grid-cols-2 gap-2.5">
-                                        <Button variant="outline" size="sm" onClick={() => onRefine("Make it shorter")} className="h-8 text-[10px] font-semibold border-gray-200/60 hover:border-indigo-200 hover:bg-indigo-50 text-gray-600 bg-white shadow-sm rounded-lg">
-                                            Shorten
-                                        </Button>
-                                        <Button variant="outline" size="sm" onClick={() => onRefine("Make it more formal")} className="h-8 text-[10px] font-semibold border-gray-200/60 hover:border-indigo-200 hover:bg-indigo-50 text-gray-600 bg-white shadow-sm rounded-lg">
-                                            Formal
-                                        </Button>
-                                        <Button variant="outline" size="sm" onClick={() => onRefine("Add a friendly greeting")} className="h-8 text-[10px] font-semibold border-gray-200/60 hover:border-indigo-200 hover:bg-indigo-50 text-gray-600 bg-white shadow-sm rounded-lg">
-                                            + Greeting
-                                        </Button>
-                                        <Button variant="outline" size="sm" onClick={() => onRefine("Ask a follow-up question")} className="h-8 text-[10px] font-semibold border-gray-200/60 hover:border-indigo-200 hover:bg-indigo-50 text-gray-600 bg-white shadow-sm rounded-lg">
-                                            + Question
+                                <div className="space-y-3">
+                                    <div>
+                                        <p className="text-[10px] font-medium text-gray-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                                            <Lightbulb className="w-3 h-3" />
+                                            Quick Refine
+                                        </p>
+                                        <div className="flex flex-wrap gap-1.5">
+                                            {QUICK_REFINEMENTS.map((item) => (
+                                                <button
+                                                    key={item.label}
+                                                    onClick={() => onRefine(item.instruction)}
+                                                    className="px-2.5 py-1 text-xs font-medium text-gray-600 bg-white border border-gray-200 rounded-full hover:bg-indigo-50 hover:text-indigo-700 hover:border-indigo-200 transition-colors"
+                                                >
+                                                    {item.label}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
+
+                                    <div className="flex gap-2">
+                                        <Input
+                                            value={customRefineInput}
+                                            onChange={(e) => setCustomRefineInput(e.target.value)}
+                                            placeholder="Custom instruction..."
+                                            className="h-8 text-xs bg-white"
+                                            onKeyDown={(e) => e.key === 'Enter' && handleCustomRefine()}
+                                        />
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            onClick={handleCustomRefine}
+                                            disabled={!customRefineInput.trim()}
+                                            className="h-8 px-3"
+                                        >
+                                            <Wand2 className="h-3.5 w-3.5" />
                                         </Button>
                                     </div>
                                 </div>
                             )}
 
-                            {/* Sources */}
-                            {suggestion.sources.length > 0 && !isTyping && (
-                                <div className="space-y-3 pt-2">
-                                    <div
-                                        onClick={() => setIsExpanded(!isExpanded)}
-                                        className="flex items-center justify-between cursor-pointer group"
+                            {documentSources.length > 0 && !isTyping && (
+                                <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
+                                    <button
+                                        onClick={() => setShowSources(!showSources)}
+                                        className="w-full px-4 py-3 flex items-center justify-between hover:bg-gray-50 transition-colors"
                                     >
-                                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest px-1 group-hover:text-gray-600 transition-colors">
-                                            Sources
-                                        </p>
-                                        <ChevronDown className={cn("w-3 h-3 text-gray-400 transition-transform", isExpanded && "rotate-180")} />
-                                    </div>
+                                        <div className="flex items-center gap-2">
+                                            <FileText className="w-4 h-4 text-indigo-500" />
+                                            <span className="text-xs font-medium text-gray-700">
+                                                {documentSources.length} Source{documentSources.length > 1 ? 's' : ''} Used
+                                            </span>
+                                        </div>
+                                        {showSources ? (
+                                            <ChevronUp className="w-4 h-4 text-gray-400" />
+                                        ) : (
+                                            <ChevronDown className="w-4 h-4 text-gray-400" />
+                                        )}
+                                    </button>
 
-                                    {isExpanded && (
-                                        <div className="space-y-2.5 animate-in slide-in-from-top-2 duration-200">
-                                            {suggestion.sources.slice(0, 3).map((source, i) => (
-                                                <div key={i} className="bg-white p-3 rounded-xl border border-gray-100 shadow-sm flex flex-col gap-1.5 hover:border-indigo-200 transition-colors">
-                                                    <div className="flex items-center gap-2">
-                                                        <FileText className="w-3.5 h-3.5 text-indigo-500 shrink-0" />
-                                                        <span className="text-[11px] font-semibold text-gray-900 truncate flex-1">
+                                    {showSources && (
+                                        <div className="border-t border-gray-100 divide-y divide-gray-50">
+                                            {documentSources.map((source, idx) => (
+                                                <div key={idx} className="p-3">
+                                                    <div className="flex items-start justify-between mb-1.5">
+                                                        <span className="text-xs font-medium text-gray-800 flex items-center gap-1.5">
+                                                            <FileText className="w-3 h-3 text-indigo-400" />
                                                             {source.name}
                                                         </span>
                                                         {source.fromAssistant && (
-                                                            <TooltipProvider>
-                                                                <Tooltip>
-                                                                    <TooltipTrigger>
-                                                                        <div className="w-4 h-4 rounded-full bg-slate-100 flex items-center justify-center text-[10px] shrink-0 border border-slate-200">
-                                                                            🤖
-                                                                        </div>
-                                                                    </TooltipTrigger>
-                                                                    <TooltipContent className="text-[10px]">
-                                                                        From {source.fromAssistant}
-                                                                    </TooltipContent>
-                                                                </Tooltip>
-                                                            </TooltipProvider>
+                                                            <Badge variant="outline" className="text-[9px] h-4 px-1.5 bg-violet-50 text-violet-600 border-violet-200">
+                                                                via {source.fromAssistant}
+                                                            </Badge>
                                                         )}
-                                                        <span className="text-[9px] text-gray-400 tabular-nums font-medium bg-gray-50 px-1.5 py-0.5 rounded-md border border-gray-100">
-                                                            {Math.round(source.relevance * 100)}%
-                                                        </span>
                                                     </div>
-                                                    <p className="text-[10px] text-gray-500 line-clamp-2 leading-relaxed bg-gray-50/50 p-2 rounded-lg border border-gray-50/50 italic">
-                                                        "{source.excerpt}"
-                                                    </p>
+                                                    {source.excerpt && (
+                                                        <p className="text-[11px] text-gray-500 leading-relaxed line-clamp-2">
+                                                            "{source.excerpt}"
+                                                        </p>
+                                                    )}
                                                 </div>
                                             ))}
                                         </div>
                                     )}
                                 </div>
                             )}
+
+                            {suggestion.personaUsed && (
+                                <div className="flex items-center gap-2 px-3 py-2 bg-violet-50 rounded-lg border border-violet-100">
+                                    <User className="w-3.5 h-3.5 text-violet-500" />
+                                    <span className="text-[11px] text-violet-700 font-medium">
+                                        Personalized using customer profile
+                                    </span>
+                                </div>
+                            )}
+
+                            <p className="text-[10px] text-gray-400 text-center">
+                                {suggestion.reasoning}
+                            </p>
                         </>
                     ) : null}
                 </div>
