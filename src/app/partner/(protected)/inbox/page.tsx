@@ -392,7 +392,7 @@ export default function InboxPage() {
                 />
             </div>
 
-            {/* Empty state or Chat view */}
+            {/* Empty state or Chat view with AI Panel */}
             {!selectedConversation ? (
                 <div className={cn(
                     "flex-1",
@@ -402,90 +402,91 @@ export default function InboxPage() {
                 </div>
             ) : (
                 <div className={cn(
-                    "flex-1 flex flex-col min-w-0 bg-white md:border-x border-gray-100",
+                    "flex-1 flex min-w-0",
                     mobileShowChat ? "flex" : "hidden md:flex"
                 )}>
-                    {/* Chat Header - Fixed at top */}
-                    <ChatHeader
-                        conversation={selectedConversation}
-                        isWhatsAppConnected={isWhatsAppConnected}
-                        onDelete={handleDeleteConversation}
-                        onBack={handleMobileBack}
+                    {/* Chat Column */}
+                    <div className="flex-1 flex flex-col min-w-0 bg-white md:border-x border-gray-100">
+                        {/* Chat Header - Fixed at top */}
+                        <ChatHeader
+                            conversation={selectedConversation}
+                            isWhatsAppConnected={isWhatsAppConnected}
+                            onDelete={handleDeleteConversation}
+                            onBack={handleMobileBack}
+                        />
+
+                        {/* Messages Area - Scrollable, takes remaining space */}
+                        <div
+                            ref={messagesContainerRef}
+                            className="flex-1 overflow-y-auto overscroll-contain px-4 md:px-6 py-4"
+                            style={{ WebkitOverflowScrolling: 'touch' }}
+                        >
+                            {msgsLoading ? (
+                                <div className="flex items-center justify-center h-full">
+                                    <Loader2 className="w-6 h-6 animate-spin text-indigo-400" />
+                                </div>
+                            ) : messages.length === 0 ? (
+                                <div className="flex items-center justify-center h-full">
+                                    <div className="text-center">
+                                        <Badge variant="outline" className="mb-4 bg-gray-50 text-gray-400 border-dashed">No messages yet</Badge>
+                                        <p className="text-gray-400 text-sm">Start the conversation by typing a message below.</p>
+                                    </div>
+                                </div>
+                            ) : (
+                                <div className="chat-messages-container">
+                                    <div className="chat-messages-wrapper space-y-4 md:space-y-6">
+                                        {messages.map((msg: MetaWhatsAppMessage) => (
+                                            <MessageBubble
+                                                key={msg.id}
+                                                message={msg}
+                                                onDelete={handleDeleteMessage}
+                                            />
+                                        ))}
+                                        <div ref={messagesEndRef} className="h-1" />
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Message Input - Fixed at bottom */}
+                        <div className="shrink-0">
+                            <MessageInput
+                                value={messageInput}
+                                onChange={setMessageInput}
+                                onSend={() => handleSendMessage()}
+                                onGenerateSuggestion={() => handleGenerateSuggestion()}
+                                isGenerating={isLoadingSuggestion}
+                                sending={sending}
+                            />
+                        </div>
+                    </div>
+
+                    {/* AI Suggestion Panel - Side panel on desktop, bottom sheet on mobile */}
+                    <CoreMemorySuggestion
+                        suggestion={aiSuggestion}
+                        isLoading={isLoadingSuggestion}
+                        isVisible={showAISuggestion}
+                        onEdit={(text) => {
+                            setMessageInput(text);
+                            setShowAISuggestion(false);
+                            setAISuggestion(null);
+                        }}
+                        onSend={(text) => {
+                            handleSendMessage(text);
+                        }}
+                        onDismiss={() => {
+                            setShowAISuggestion(false);
+                            setAISuggestion(null);
+                            setPendingIncomingMessage('');
+                        }}
+                        onRegenerate={() => handleGenerateSuggestion()}
+                        onRefine={handleRefineSuggestion}
+                        incomingMessage={pendingIncomingMessage}
+                        activeAssistants={activeAssistants}
+                        selectedAssistantIds={selectedAssistantIds}
+                        onAssistantSelectionChange={handleAssistantSelectionChange}
+                        assistantsLoading={assistantsLoading}
                     />
-
-                    {/* Messages Area - Scrollable, takes remaining space */}
-                    <div
-                        ref={messagesContainerRef}
-                        className="flex-1 overflow-y-auto overscroll-contain px-4 md:px-6 py-4"
-                        style={{ WebkitOverflowScrolling: 'touch' }}
-                    >
-                        {msgsLoading ? (
-                            <div className="flex items-center justify-center h-full">
-                                <Loader2 className="w-6 h-6 animate-spin text-indigo-400" />
-                            </div>
-                        ) : messages.length === 0 ? (
-                            <div className="flex items-center justify-center h-full">
-                                <div className="text-center">
-                                    <Badge variant="outline" className="mb-4 bg-gray-50 text-gray-400 border-dashed">No messages yet</Badge>
-                                    <p className="text-gray-400 text-sm">Start the conversation by typing a message below.</p>
-                                </div>
-                            </div>
-                        ) : (
-                            <div className="chat-messages-container">
-                                <div className="chat-messages-wrapper space-y-4 md:space-y-6">
-                                    {messages.map((msg: MetaWhatsAppMessage) => (
-                                        <MessageBubble
-                                            key={msg.id}
-                                            message={msg}
-                                            onDelete={handleDeleteMessage}
-                                        />
-                                    ))}
-                                    <div ref={messagesEndRef} className="h-1" />
-                                </div>
-                            </div>
-                        )}
-                    </div>
-
-                    {/* Message Input - Fixed at bottom */}
-                    <div className="shrink-0">
-                        <MessageInput
-                            value={messageInput}
-                            onChange={setMessageInput}
-                            onSend={() => handleSendMessage()}
-                            onGenerateSuggestion={() => handleGenerateSuggestion()}
-                            isGenerating={isLoadingSuggestion}
-                            sending={sending}
-                        />
-                    </div>
-
-                    {/* AI Suggestion Panel - Modal on mobile, side panel on desktop */}
-                    {showAISuggestion && (
-                        <CoreMemorySuggestion
-                            suggestion={aiSuggestion}
-                            isLoading={isLoadingSuggestion}
-                            isVisible={showAISuggestion}
-                            onEdit={(text) => {
-                                setMessageInput(text);
-                                setShowAISuggestion(false);
-                                setAISuggestion(null);
-                            }}
-                            onSend={(text) => {
-                                handleSendMessage(text);
-                            }}
-                            onDismiss={() => {
-                                setShowAISuggestion(false);
-                                setAISuggestion(null);
-                                setPendingIncomingMessage('');
-                            }}
-                            onRegenerate={() => handleGenerateSuggestion()}
-                            onRefine={handleRefineSuggestion}
-                            incomingMessage={pendingIncomingMessage}
-                            activeAssistants={activeAssistants}
-                            selectedAssistantIds={selectedAssistantIds}
-                            onAssistantSelectionChange={handleAssistantSelectionChange}
-                            assistantsLoading={assistantsLoading}
-                        />
-                    )}
                 </div>
             )}
         </div>
