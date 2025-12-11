@@ -25,32 +25,32 @@ export function ChatHeader({ conversation, isWhatsAppConnected, onDelete, onBack
 
     return (
         <div className="h-[70px] bg-white border-b border-gray-100 px-4 md:px-6 flex items-center justify-between shrink-0 shadow-[0_1px_2px_0_rgba(0,0,0,0.02)] z-10">
-            <div className="flex items-center gap-3">
-                {/* Mobile Back Button */}
+            <div className="flex items-center gap-2 md:gap-3">
+                {/* Mobile Back Button - More prominent */}
                 <Button
                     variant="ghost"
                     size="icon"
-                    className="md:hidden -ml-2 text-gray-500 hover:bg-gray-50"
+                    className="md:hidden -ml-2 h-10 w-10 text-gray-600 hover:text-indigo-600 hover:bg-indigo-50/50 rounded-full transition-colors active:scale-95"
                     onClick={onBack}
                 >
-                    <ChevronLeft className="w-5 h-5" />
+                    <ChevronLeft className="w-6 h-6" />
                 </Button>
 
-                <Avatar className="w-9 h-9 border border-gray-100 shadow-sm">
+                <Avatar className="w-9 h-9 md:w-10 md:h-10 border border-gray-100 shadow-sm">
                     <AvatarImage src={conversation.contact?.avatarUrl} />
                     <AvatarFallback className="bg-gradient-to-br from-indigo-500 to-purple-600 text-white font-medium text-xs">
                         {contactName?.[0]?.toUpperCase()}
                     </AvatarFallback>
                 </Avatar>
 
-                <div>
+                <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
-                        <h2 className="font-semibold text-gray-900 text-[15px] leading-tight tracking-tight truncate max-w-[150px] md:max-w-xs">
+                        <h2 className="font-semibold text-gray-900 text-[15px] leading-tight tracking-tight truncate max-w-[140px] md:max-w-xs">
                             {contactName}
                         </h2>
                         {conversation.contactCompany && (
-                            <span className="hidden md:inline-flex text-[10px] items-center px-1.5 py-0.5 bg-gray-50 text-gray-500 rounded border border-gray-100 font-medium">
-                                {conversation.contactCompany}
+                            <span className="text-[10px] md:text-[11px] text-gray-400 truncate max-w-[80px] md:max-w-none hidden sm:inline">
+                                · {conversation.contactCompany}
                             </span>
                         )}
                     </div>
@@ -63,8 +63,8 @@ export function ChatHeader({ conversation, isWhatsAppConnected, onDelete, onBack
                             )}
                             <span className="hidden md:inline font-medium">WhatsApp</span>
                         </div>
-                        <span className="text-gray-300">•</span>
-                        <span className="font-mono text-gray-400">{conversation.customerPhone}</span>
+                        <span className="text-gray-300 hidden sm:inline">•</span>
+                        <span className="font-mono text-gray-400 text-[10px] md:text-[11px] hidden sm:inline">{conversation.customerPhone}</span>
                     </div>
                 </div>
             </div>
