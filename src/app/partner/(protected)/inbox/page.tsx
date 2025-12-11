@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useLayoutEffect } from 'react';
 import { useMultiWorkspaceAuth } from '@/hooks/use-multi-workspace-auth';
 import { useEnrichedMetaConversations, EnrichedMetaConversation } from '@/hooks/useEnrichedMetaConversations';
 import { useMetaMessages } from '@/hooks/useMetaWhatsApp';
@@ -23,7 +23,6 @@ import { MessageInput } from '@/components/partner/inbox/MessageInput';
 import { EmptyState } from '@/components/partner/inbox/EmptyState';
 import { MessageBubble } from '@/components/partner/chatspace/MessageBubble';
 import CoreMemorySuggestion from '@/components/partner/inbox/CoreMemorySuggestion';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
 
 import type { MetaWhatsAppMessage } from '@/lib/types-meta-whatsapp';
@@ -56,8 +55,12 @@ export default function InboxPage() {
     const [selectedConversation, setSelectedConversation] = useState<EnrichedMetaConversation | null>(null);
     const [searchQuery, setSearchQuery] = useState('');
 
+    // Mobile view state - show chat view when conversation is selected on mobile
+    const [mobileShowChat, setMobileShowChat] = useState(false);
+
     const { messages, loading: msgsLoading } = useMetaMessages(selectedConversation?.id);
     const messagesEndRef = useRef<HTMLDivElement>(null);
+    const messagesContainerRef = useRef<HTMLDivElement>(null);
 
     const [isWhatsAppConnected, setIsWhatsAppConnected] = useState<boolean | null>(null);
 
@@ -105,9 +108,23 @@ export default function InboxPage() {
         }
     }, [selectedConversation?.id, activeAssistants]);
 
-    useEffect(() => {
-        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    // Scroll to bottom when messages change - use layout effect for immediate scroll
+    useLayoutEffect(() => {
+        if (messagesContainerRef.current) {
+            messagesContainerRef.current.scrollTop = messagesContainerRef.current.scrollHeight;
+        }
     }, [messages]);
+
+    // Handle conversation selection with mobile view toggle
+    const handleSelectConversation = useCallback((conversation: EnrichedMetaConversation) => {
+        setSelectedConversation(conversation);
+        setMobileShowChat(true);
+    }, []);
+
+    // Handle back button on mobile
+    const handleMobileBack = useCallback(() => {
+        setMobileShowChat(false);
+    }, []);
 
     useEffect(() => {
         if (selectedConversation && selectedConversation.unreadCount > 0) {
@@ -331,53 +348,75 @@ export default function InboxPage() {
     }
 
     return (
-        <div className="h-full flex bg-gray-50/30">
-            <ConversationSidebar
-                conversations={conversations}
-                selectedId={selectedConversation?.id || null}
-                onSelect={setSelectedConversation}
-                searchQuery={searchQuery}
-                onSearchChange={setSearchQuery}
-                loading={convsLoading}
-            />
+        <div className="h-full flex bg-gray-50/30 overflow-hidden">
+            {/* Conversation Sidebar - hidden on mobile when chat is open */}
+            <div className={cn(
+                "md:block",
+                mobileShowChat ? "hidden" : "block w-full md:w-auto"
+            )}>
+                <ConversationSidebar
+                    conversations={conversations}
+                    selectedId={selectedConversation?.id || null}
+                    onSelect={handleSelectConversation}
+                    searchQuery={searchQuery}
+                    onSearchChange={setSearchQuery}
+                    loading={convsLoading}
+                    isMobile={!mobileShowChat}
+                />
+            </div>
 
+            {/* Empty state or Chat view */}
             {!selectedConversation ? (
-                <EmptyState isWhatsAppConnected={isWhatsAppConnected} />
+                <div className={cn(
+                    "flex-1",
+                    mobileShowChat ? "hidden md:flex" : "hidden md:flex"
+                )}>
+                    <EmptyState isWhatsAppConnected={isWhatsAppConnected} />
+                </div>
             ) : (
-                <>
-                    <div className="flex-1 flex flex-col min-w-0 bg-white border-x border-gray-100">
-                        <ChatHeader
-                            conversation={selectedConversation}
-                            isWhatsAppConnected={isWhatsAppConnected}
-                            onDelete={handleDeleteConversation}
-                        />
+                <div className={cn(
+                    "flex-1 flex flex-col min-w-0 bg-white md:border-x border-gray-100",
+                    mobileShowChat ? "flex" : "hidden md:flex"
+                )}>
+                    {/* Chat Header - Fixed at top */}
+                    <ChatHeader
+                        conversation={selectedConversation}
+                        isWhatsAppConnected={isWhatsAppConnected}
+                        onDelete={handleDeleteConversation}
+                        onBack={handleMobileBack}
+                    />
 
-                        <div className="flex-1 overflow-hidden relative">
-                            <ScrollArea className="h-full px-4 md:px-6 py-4">
-                                {msgsLoading ? (
-                                    <div className="flex items-center justify-center py-12">
-                                        <Loader2 className="w-6 h-6 animate-spin text-indigo-400" />
-                                    </div>
-                                ) : messages.length === 0 ? (
-                                    <div className="text-center py-20">
-                                        <Badge variant="outline" className="mb-4 bg-gray-50 text-gray-400 border-dashed">No messages yet</Badge>
-                                        <p className="text-gray-400 text-sm">Start the conversation by typing a message below.</p>
-                                    </div>
-                                ) : (
-                                    <div className="space-y-6 pb-6">
-                                        {messages.map((msg: MetaWhatsAppMessage) => (
-                                            <MessageBubble
-                                                key={msg.id}
-                                                message={msg}
-                                                onDelete={handleDeleteMessage}
-                                            />
-                                        ))}
-                                        <div ref={messagesEndRef} />
-                                    </div>
-                                )}
-                            </ScrollArea>
-                        </div>
+                    {/* Messages Area - Scrollable, takes remaining space */}
+                    <div
+                        ref={messagesContainerRef}
+                        className="flex-1 overflow-y-auto overscroll-contain px-4 md:px-6 py-4 scroll-smooth-mobile"
+                        style={{ WebkitOverflowScrolling: 'touch' }}
+                    >
+                        {msgsLoading ? (
+                            <div className="flex items-center justify-center py-12">
+                                <Loader2 className="w-6 h-6 animate-spin text-indigo-400" />
+                            </div>
+                        ) : messages.length === 0 ? (
+                            <div className="text-center py-20">
+                                <Badge variant="outline" className="mb-4 bg-gray-50 text-gray-400 border-dashed">No messages yet</Badge>
+                                <p className="text-gray-400 text-sm">Start the conversation by typing a message below.</p>
+                            </div>
+                        ) : (
+                            <div className="space-y-4 md:space-y-6">
+                                {messages.map((msg: MetaWhatsAppMessage) => (
+                                    <MessageBubble
+                                        key={msg.id}
+                                        message={msg}
+                                        onDelete={handleDeleteMessage}
+                                    />
+                                ))}
+                                <div ref={messagesEndRef} className="h-1" />
+                            </div>
+                        )}
+                    </div>
 
+                    {/* Message Input - Fixed at bottom */}
+                    <div className="shrink-0">
                         <MessageInput
                             value={messageInput}
                             onChange={setMessageInput}
@@ -388,6 +427,7 @@ export default function InboxPage() {
                         />
                     </div>
 
+                    {/* AI Suggestion Panel - Modal on mobile, side panel on desktop */}
                     {showAISuggestion && (
                         <CoreMemorySuggestion
                             suggestion={aiSuggestion}
@@ -415,7 +455,7 @@ export default function InboxPage() {
                             assistantsLoading={assistantsLoading}
                         />
                     )}
-                </>
+                </div>
             )}
         </div>
     );
