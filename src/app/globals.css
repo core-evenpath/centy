@@ -185,3 +185,20 @@
   -webkit-overflow-scrolling: touch;
   scroll-behavior: smooth;
 }
+
+/* Bottom navigation safe area padding */
+.pb-nav-safe {
+  /* 64px (h-16) for nav height + safe area for notched devices */
+  padding-bottom: calc(4rem + env(safe-area-inset-bottom, 0px));
+}
+
+/* Chat container - content flows from bottom */
+.chat-messages-container {
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+}
+
+.chat-messages-wrapper {
+  margin-top: auto;
+}

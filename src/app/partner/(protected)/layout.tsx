@@ -44,7 +44,7 @@ export default function ProtectedPartnerLayout({
             <PartnerAuthWrapper>
               <div className="flex h-screen bg-gray-100 dark:bg-gray-900 overflow-hidden">
                 <UnifiedPartnerSidebar />
-                <main className="flex-1 flex flex-col overflow-hidden relative min-w-0 pb-16 md:pb-0">
+                <main className="flex-1 flex flex-col overflow-hidden relative min-w-0 pb-nav-safe md:pb-0">
                   {children}
                 </main>
                 <PartnerBottomNavigation />

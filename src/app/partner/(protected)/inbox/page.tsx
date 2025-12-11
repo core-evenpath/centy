@@ -108,12 +108,39 @@ export default function InboxPage() {
         }
     }, [selectedConversation?.id, activeAssistants]);
 
-    // Scroll to bottom when messages change - use layout effect for immediate scroll
+    // Track if this is initial load vs new message
+    const isInitialLoad = useRef(true);
+    const prevMessagesLength = useRef(0);
+
+    // Scroll to bottom when messages change - instant on load, smooth for new messages
     useLayoutEffect(() => {
-        if (messagesContainerRef.current) {
-            messagesContainerRef.current.scrollTop = messagesContainerRef.current.scrollHeight;
+        if (messagesContainerRef.current && messages.length > 0) {
+            const container = messagesContainerRef.current;
+            // Use instant scroll on initial load to avoid visible scrolling
+            // Use smooth scroll only for new messages after initial load
+            const isNewMessage = messages.length > prevMessagesLength.current && !isInitialLoad.current;
+
+            if (isNewMessage) {
+                // Smooth scroll for new messages
+                container.scrollTo({
+                    top: container.scrollHeight,
+                    behavior: 'smooth'
+                });
+            } else {
+                // Instant scroll on initial load - no visible scrolling
+                container.scrollTop = container.scrollHeight;
+            }
+
+            prevMessagesLength.current = messages.length;
+            isInitialLoad.current = false;
         }
     }, [messages]);
+
+    // Reset initial load flag when conversation changes
+    useEffect(() => {
+        isInitialLoad.current = true;
+        prevMessagesLength.current = 0;
+    }, [selectedConversation?.id]);
 
     // Handle conversation selection with mobile view toggle
     const handleSelectConversation = useCallback((conversation: EnrichedMetaConversation) => {
@@ -389,28 +416,32 @@ export default function InboxPage() {
                     {/* Messages Area - Scrollable, takes remaining space */}
                     <div
                         ref={messagesContainerRef}
-                        className="flex-1 overflow-y-auto overscroll-contain px-4 md:px-6 py-4 scroll-smooth-mobile"
+                        className="flex-1 overflow-y-auto overscroll-contain px-4 md:px-6 py-4"
                         style={{ WebkitOverflowScrolling: 'touch' }}
                     >
                         {msgsLoading ? (
-                            <div className="flex items-center justify-center py-12">
+                            <div className="flex items-center justify-center h-full">
                                 <Loader2 className="w-6 h-6 animate-spin text-indigo-400" />
                             </div>
                         ) : messages.length === 0 ? (
-                            <div className="text-center py-20">
-                                <Badge variant="outline" className="mb-4 bg-gray-50 text-gray-400 border-dashed">No messages yet</Badge>
-                                <p className="text-gray-400 text-sm">Start the conversation by typing a message below.</p>
+                            <div className="flex items-center justify-center h-full">
+                                <div className="text-center">
+                                    <Badge variant="outline" className="mb-4 bg-gray-50 text-gray-400 border-dashed">No messages yet</Badge>
+                                    <p className="text-gray-400 text-sm">Start the conversation by typing a message below.</p>
+                                </div>
                             </div>
                         ) : (
-                            <div className="space-y-4 md:space-y-6">
-                                {messages.map((msg: MetaWhatsAppMessage) => (
-                                    <MessageBubble
-                                        key={msg.id}
-                                        message={msg}
-                                        onDelete={handleDeleteMessage}
-                                    />
-                                ))}
-                                <div ref={messagesEndRef} className="h-1" />
+                            <div className="chat-messages-container">
+                                <div className="chat-messages-wrapper space-y-4 md:space-y-6">
+                                    {messages.map((msg: MetaWhatsAppMessage) => (
+                                        <MessageBubble
+                                            key={msg.id}
+                                            message={msg}
+                                            onDelete={handleDeleteMessage}
+                                        />
+                                    ))}
+                                    <div ref={messagesEndRef} className="h-1" />
+                                </div>
                             </div>
                         )}
                     </div>
