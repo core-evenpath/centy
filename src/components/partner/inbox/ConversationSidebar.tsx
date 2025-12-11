@@ -146,7 +146,7 @@ export function ConversationSidebar({
                                 <div className="flex-1 min-w-0 flex flex-col justify-center h-10">
                                     <div className="flex items-center justify-between gap-2">
                                         <h3 className={cn(
-                                            "text-[13px] font-semibold truncate leading-none",
+                                            "text-[13px] font-semibold truncate leading-none flex-1 min-w-0",
                                             conv.unreadCount > 0 ? "text-gray-950" : "text-gray-700"
                                         )}>
                                             {conv.contactName || conv.customerName || conv.customerPhone}
@@ -161,7 +161,7 @@ export function ConversationSidebar({
 
                                     <div className="flex items-center justify-between gap-2 mt-1">
                                         <p className={cn(
-                                            "text-[12px] truncate line-clamp-1 leading-normal",
+                                            "text-[12px] truncate leading-normal flex-1 min-w-0",
                                             (conv.unreadCount > 0 || selectedId === conv.id) ? "text-gray-900 font-medium" : "text-gray-500"
                                         )}>
                                             {conv.lastMessagePreview || 'No messages yet'}
