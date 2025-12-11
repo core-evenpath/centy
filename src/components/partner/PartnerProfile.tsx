@@ -14,12 +14,8 @@ import {
   Mail,
   Phone,
   Calendar,
-  TrendingUp,
-  CheckCircle2,
-  Clock,
   Target,
   Briefcase,
-  BarChart3,
   Zap,
   AlertCircle
 } from 'lucide-react';
@@ -44,32 +40,6 @@ function InfoRow({ icon: Icon, label, value }: InfoRowProps) {
       <span className="text-sm font-medium text-foreground">
         {value || <span className="text-muted-foreground italic">Not set</span>}
       </span>
-    </div>
-  );
-}
-
-interface StatItemProps {
-  icon: React.ElementType;
-  label: string;
-  value: string | number;
-  color: 'blue' | 'green' | 'purple' | 'orange';
-}
-
-function StatItem({ icon: Icon, label, value, color }: StatItemProps) {
-  const colorClasses = {
-    blue: 'bg-blue-50 dark:bg-blue-950/30 text-blue-600 dark:text-blue-400',
-    green: 'bg-green-50 dark:bg-green-950/30 text-green-600 dark:text-green-400',
-    purple: 'bg-purple-50 dark:bg-purple-950/30 text-purple-600 dark:text-purple-400',
-    orange: 'bg-orange-50 dark:bg-orange-950/30 text-orange-600 dark:text-orange-400',
-  };
-
-  return (
-    <div className={`rounded-xl p-4 ${colorClasses[color]}`}>
-      <div className="flex items-center gap-2 mb-2">
-        <Icon className="w-4 h-4" />
-        <span className="text-xs font-medium uppercase tracking-wide opacity-80">{label}</span>
-      </div>
-      <div className="text-2xl font-bold">{value}</div>
     </div>
   );
 }
@@ -155,36 +125,6 @@ export default function PartnerProfile({ partner }: PartnerProfileProps) {
           </p>
         </CardContent>
       </Card>
-
-      {/* Stats Grid */}
-      {partner.stats && (
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          <StatItem
-            icon={TrendingUp}
-            label="Active Workflows"
-            value={partner.stats.activeWorkflows}
-            color="blue"
-          />
-          <StatItem
-            icon={CheckCircle2}
-            label="Success Rate"
-            value={`${partner.stats.successRate}%`}
-            color="green"
-          />
-          <StatItem
-            icon={BarChart3}
-            label="Executions"
-            value={partner.stats.totalExecutions}
-            color="purple"
-          />
-          <StatItem
-            icon={Clock}
-            label="Time Saved"
-            value={partner.stats.timeSaved}
-            color="orange"
-          />
-        </div>
-      )}
 
       {/* Contact Information */}
       <Card>

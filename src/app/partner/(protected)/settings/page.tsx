@@ -266,40 +266,6 @@ export default function SettingsPage() {
           />
         </div>
       </div>
-
-      {/* Workspace Stats */}
-      <Card>
-        <CardHeader className="pb-4">
-          <CardTitle className="text-lg">Workspace Summary</CardTitle>
-          <CardDescription>Quick overview of your workspace activity</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <div className="text-center p-4 rounded-lg bg-blue-50 dark:bg-blue-950/20">
-              <div className="text-2xl font-bold text-blue-600">
-                {loadingStats ? '...' : teamCount + adminCount}
-              </div>
-              <div className="text-sm text-muted-foreground">Total Users</div>
-            </div>
-            <div className="text-center p-4 rounded-lg bg-green-50 dark:bg-green-950/20">
-              <div className="text-2xl font-bold text-green-600">
-                {loadingStats ? '...' : adminCount}
-              </div>
-              <div className="text-sm text-muted-foreground">Admins</div>
-            </div>
-            <div className="text-center p-4 rounded-lg bg-purple-50 dark:bg-purple-950/20">
-              <div className="text-2xl font-bold text-purple-600">
-                {loadingStats ? '...' : teamCount}
-              </div>
-              <div className="text-sm text-muted-foreground">Team Members</div>
-            </div>
-            <div className="text-center p-4 rounded-lg bg-orange-50 dark:bg-orange-950/20">
-              <div className="text-2xl font-bold text-orange-600">Active</div>
-              <div className="text-sm text-muted-foreground">Status</div>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
     </div>
   );
 }

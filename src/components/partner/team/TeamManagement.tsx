@@ -27,7 +27,6 @@ import {
   QrCode,
   CheckSquare,
   ArrowLeft,
-  BarChart3,
   User
 } from "lucide-react";
 import type { TeamMember } from "@/lib/types";
@@ -87,7 +86,6 @@ function MemberDetailSkeleton() {
           <Skeleton key={i} className="h-12" />
         ))}
       </div>
-      <Skeleton className="h-24 rounded-lg" />
     </div>
   );
 }
@@ -422,28 +420,6 @@ export default function TeamManagement({ roleToShow }: TeamManagementProps) {
           <InfoItem icon={Clock} label="Last Active" value={formatDate(selectedMember.lastActive)} />
           <InfoItem icon={Calendar} label="Joined" value={formatDate(selectedMember.joinedDate)} />
         </div>
-
-        {/* Performance Card */}
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium flex items-center gap-2">
-              <BarChart3 className="w-4 h-4" />
-              Performance
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="text-center p-4 rounded-lg bg-blue-50 dark:bg-blue-950/20">
-                <div className="text-2xl font-bold text-blue-600">{selectedMember.tasksCompleted || 0}</div>
-                <div className="text-xs text-muted-foreground mt-1">Tasks Completed</div>
-              </div>
-              <div className="text-center p-4 rounded-lg bg-green-50 dark:bg-green-950/20">
-                <div className="text-2xl font-bold text-green-600">{selectedMember.avgCompletionTime || 'N/A'}</div>
-                <div className="text-xs text-muted-foreground mt-1">Avg. Completion</div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
       </div>
     );
   };
