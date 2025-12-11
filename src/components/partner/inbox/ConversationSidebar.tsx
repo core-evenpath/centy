@@ -6,7 +6,6 @@ import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { cn } from '@/lib/utils';
 import type { EnrichedMetaConversation } from '@/hooks/useEnrichedMetaConversations';
-import { formatDistanceToNow } from 'date-fns';
 
 interface ConversationSidebarProps {
     conversations: EnrichedMetaConversation[];
@@ -61,7 +60,20 @@ export function ConversationSidebar({
         if (!timestamp) return '';
         try {
             const date = timestamp?.toDate?.() || new Date(timestamp);
-            return formatDistanceToNow(date, { addSuffix: true });
+            const now = new Date();
+            const isToday = date.toDateString() === now.toDateString();
+            const yesterday = new Date(now);
+            yesterday.setDate(yesterday.getDate() - 1);
+            const isYesterday = date.toDateString() === yesterday.toDateString();
+
+            if (isToday) {
+                return date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+            } else if (isYesterday) {
+                return 'Yesterday ' + date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+            } else {
+                return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) + ' ' +
+                       date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+            }
         } catch {
             return '';
         }
@@ -71,12 +83,11 @@ export function ConversationSidebar({
         return conv.contactName || conv.customerName || conv.customerPhone;
     };
 
-    const getPhoneDisplay = (conv: EnrichedMetaConversation) => {
-        // Format as whatsapp:+number for WhatsApp conversations
-        if (conv.platform === 'meta_whatsapp') {
-            return `whatsapp:${conv.customerPhone}`;
-        }
-        return conv.customerPhone;
+    const getMessagePreview = (conv: EnrichedMetaConversation) => {
+        if (!conv.lastMessagePreview) return 'No messages yet';
+        const maxLength = 45;
+        if (conv.lastMessagePreview.length <= maxLength) return conv.lastMessagePreview;
+        return conv.lastMessagePreview.substring(0, maxLength) + '...';
     };
 
     const getChannelType = (conv: EnrichedMetaConversation): 'whatsapp' | 'sms' => {
@@ -179,9 +190,9 @@ export function ConversationSidebar({
                                             </div>
                                         </div>
 
-                                        {/* Phone number */}
-                                        <p className="text-sm text-gray-600 mb-2 truncate">
-                                            {getPhoneDisplay(conv)}
+                                        {/* Message preview */}
+                                        <p className="text-sm text-gray-600 mb-2 line-clamp-1">
+                                            {getMessagePreview(conv)}
                                         </p>
 
                                         {/* Bottom row: Channel badge and message count */}
@@ -195,9 +206,11 @@ export function ConversationSidebar({
                                                     SMS
                                                 </span>
                                             )}
-                                            <span className="text-sm text-gray-500">
-                                                {conv.messageCount} msgs
-                                            </span>
+                                            {conv.unreadCount > 0 && (
+                                                <span className="inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full text-xs font-semibold bg-blue-600 text-white">
+                                                    {conv.unreadCount}
+                                                </span>
+                                            )}
                                         </div>
                                     </div>
                                 </div>
