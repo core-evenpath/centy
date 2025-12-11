@@ -1,12 +1,12 @@
 import React from 'react';
-import { Search, Inbox, SlidersHorizontal, Star, MessageSquare, ArrowUpRight, ArrowDownLeft } from 'lucide-react';
+import { Search, Plus, MessageCircle, MoreVertical } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { cn } from '@/lib/utils';
 import type { EnrichedMetaConversation } from '@/hooks/useEnrichedMetaConversations';
-import { formatDistanceToNow, isToday, isYesterday } from 'date-fns';
+import { formatDistanceToNow } from 'date-fns';
 
 interface ConversationSidebarProps {
     conversations: EnrichedMetaConversation[];
@@ -18,7 +18,21 @@ interface ConversationSidebarProps {
     isMobile?: boolean;
 }
 
-type FilterType = 'all' | 'unread' | 'starred';
+// Generate consistent color from string
+function getAvatarColor(str: string): string {
+    const colors = [
+        'bg-green-500',
+        'bg-blue-500',
+        'bg-emerald-500',
+        'bg-teal-500',
+        'bg-cyan-500',
+    ];
+    let hash = 0;
+    for (let i = 0; i < str.length; i++) {
+        hash = str.charCodeAt(i) + ((hash << 5) - hash);
+    }
+    return colors[Math.abs(hash) % colors.length];
+}
 
 export function ConversationSidebar({
     conversations,
@@ -29,171 +43,166 @@ export function ConversationSidebar({
     loading,
     isMobile = false
 }: ConversationSidebarProps) {
-    const [activeFilter, setActiveFilter] = React.useState<FilterType>('all');
-
     const filteredConversations = React.useMemo(() => {
-        let filtered = conversations;
+        if (!searchQuery.trim()) return conversations;
 
-        if (searchQuery.trim()) {
-            const lowerQ = searchQuery.toLowerCase();
-            filtered = filtered.filter(c =>
-                c.customerName?.toLowerCase().includes(lowerQ) ||
-                c.customerPhone.includes(lowerQ) ||
-                c.lastMessagePreview?.toLowerCase().includes(lowerQ) ||
-                c.contactName?.toLowerCase().includes(lowerQ) ||
-                c.contactEmail?.toLowerCase().includes(lowerQ) ||
-                c.contactCompany?.toLowerCase().includes(lowerQ)
-            );
-        }
-
-        if (activeFilter === 'unread') {
-            filtered = filtered.filter(c => c.unreadCount > 0);
-        } else if (activeFilter === 'starred') {
-            filtered = [];
-        }
-
-        return filtered;
-    }, [conversations, searchQuery, activeFilter]);
+        const lowerQ = searchQuery.toLowerCase();
+        return conversations.filter(c =>
+            c.customerName?.toLowerCase().includes(lowerQ) ||
+            c.customerPhone.includes(lowerQ) ||
+            c.lastMessagePreview?.toLowerCase().includes(lowerQ) ||
+            c.contactName?.toLowerCase().includes(lowerQ) ||
+            c.contactEmail?.toLowerCase().includes(lowerQ) ||
+            c.contactCompany?.toLowerCase().includes(lowerQ)
+        );
+    }, [conversations, searchQuery]);
 
     const formatTime = (timestamp: any) => {
         if (!timestamp) return '';
         try {
             const date = timestamp?.toDate?.() || new Date(timestamp);
-            if (isToday(date)) return date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
-            if (isYesterday(date)) return 'Yesterday';
-            return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+            return formatDistanceToNow(date, { addSuffix: true });
         } catch {
             return '';
         }
     };
 
+    const getDisplayName = (conv: EnrichedMetaConversation) => {
+        return conv.contactName || conv.customerName || conv.customerPhone;
+    };
+
+    const getPhoneDisplay = (conv: EnrichedMetaConversation) => {
+        // Format as whatsapp:+number for WhatsApp conversations
+        if (conv.platform === 'meta_whatsapp') {
+            return `whatsapp:${conv.customerPhone}`;
+        }
+        return conv.customerPhone;
+    };
+
+    const getChannelType = (conv: EnrichedMetaConversation): 'whatsapp' | 'sms' => {
+        return conv.platform === 'meta_whatsapp' ? 'whatsapp' : 'sms';
+    };
+
     return (
         <div className={cn(
-            "h-full flex flex-col border-r border-gray-100 bg-white shrink-0",
-            // Full width on mobile, fixed width on desktop
-            "w-full md:w-[320px] md:min-w-[320px] md:max-w-[320px]"
+            "h-full flex flex-col border-r border-gray-200 bg-white shrink-0",
+            "w-full md:w-[380px] md:min-w-[380px] md:max-w-[380px]"
         )}>
-            <div className="p-4 pb-2 space-y-4">
+            {/* Header */}
+            <div className="p-4 pb-3 space-y-4">
                 <div className="flex items-center justify-between">
-                    <h1 className="text-xl md:text-lg font-semibold tracking-tight text-gray-900">Inbox</h1>
-                    <div className="flex gap-2">
-                    </div>
+                    <h1 className="text-2xl font-bold text-gray-900">Messages</h1>
+                    <Button
+                        size="sm"
+                        className="bg-blue-600 hover:bg-blue-700 text-white font-medium h-9 px-4"
+                    >
+                        <Plus className="w-4 h-4 mr-1" />
+                        New
+                    </Button>
                 </div>
 
-                <div className="relative group">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 group-focus-within:text-indigo-500 transition-colors" />
+                {/* Search */}
+                <div className="relative">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                     <Input
                         value={searchQuery}
                         onChange={(e) => onSearchChange(e.target.value)}
-                        placeholder="Search messages..."
-                        className="pl-9 h-9 bg-gray-50 border-gray-100 focus:border-indigo-200 focus:bg-white focus:ring-2 focus:ring-indigo-50/50 transition-all text-sm shadow-sm"
+                        placeholder="Search conversations..."
+                        className="pl-10 h-11 bg-gray-50 border-gray-200 rounded-lg text-sm"
                     />
-                </div>
-
-                <div className="flex gap-1.5">
-                    {['all', 'unread', 'starred'].map((filter) => (
-                        <button
-                            key={filter}
-                            onClick={() => setActiveFilter(filter as FilterType)}
-                            className={cn(
-                                "px-3 py-1 rounded-full text-[11px] font-medium transition-all border",
-                                activeFilter === filter
-                                    ? "bg-gray-900 text-white border-gray-900 shadow-sm"
-                                    : "bg-white text-gray-500 border-gray-200 hover:border-gray-300 hover:bg-gray-50"
-                            )}
-                        >
-                            {filter === 'all' ? 'All Chats' : filter.charAt(0).toUpperCase() + filter.slice(1)}
-                        </button>
-                    ))}
                 </div>
             </div>
 
+            {/* Conversation List */}
             <ScrollArea className="flex-1">
                 {loading ? (
                     <div className="flex flex-col items-center justify-center py-12 space-y-3">
-                        <div className="w-6 h-6 rounded-full border-2 border-indigo-600 border-t-transparent animate-spin" />
+                        <div className="w-6 h-6 rounded-full border-2 border-blue-600 border-t-transparent animate-spin" />
                     </div>
                 ) : filteredConversations.length === 0 ? (
                     <div className="flex flex-col items-center justify-center py-16 px-6 text-center">
-                        <div className="w-10 h-10 bg-gray-50 rounded-full flex items-center justify-center mb-3">
-                            <Search className="w-4 h-4 text-gray-400" />
+                        <div className="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center mb-3">
+                            <Search className="w-5 h-5 text-gray-400" />
                         </div>
-                        <p className="text-gray-900 font-medium text-sm">No conversations</p>
+                        <p className="text-gray-600 font-medium">No conversations found</p>
                     </div>
                 ) : (
-                    <div className="divide-y divide-gray-50/80">
-                        {filteredConversations.map((conv) => (
-                            <div
-                                key={conv.id}
-                                onClick={() => onSelect(conv)}
-                                className={cn(
-                                    "flex items-start gap-3 p-3.5 cursor-pointer transition-all group relative",
-                                    "hover:bg-gradient-to-r hover:from-gray-50 hover:to-transparent",
-                                    "active:bg-gray-100/80",
-                                    selectedId === conv.id
-                                        ? "bg-gradient-to-r from-indigo-50/70 to-indigo-50/30 border-l-[3px] border-l-indigo-600 pl-[calc(0.875rem-3px)]"
-                                        : "border-l-[3px] border-l-transparent"
-                                )}
-                            >
-                                <div className="relative shrink-0">
-                                    <Avatar className={cn(
-                                        "w-10 h-10 border shadow-sm transition-all",
-                                        conv.unreadCount > 0
-                                            ? "border-indigo-200 ring-2 ring-indigo-100"
-                                            : "border-black/5"
-                                    )}>
-                                        <AvatarImage src={conv.contact?.avatarUrl} />
+                    <div className="divide-y divide-gray-100">
+                        {filteredConversations.map((conv) => {
+                            const displayName = getDisplayName(conv);
+                            const channelType = getChannelType(conv);
+                            const avatarColor = getAvatarColor(displayName);
+
+                            return (
+                                <div
+                                    key={conv.id}
+                                    onClick={() => onSelect(conv)}
+                                    className={cn(
+                                        "flex items-start gap-3 p-4 cursor-pointer transition-all relative",
+                                        "hover:bg-gray-50",
+                                        selectedId === conv.id
+                                            ? "bg-blue-50/60 border-l-4 border-l-blue-500 pl-3"
+                                            : "border-l-4 border-l-transparent"
+                                    )}
+                                >
+                                    {/* Avatar */}
+                                    <Avatar className="w-12 h-12 shrink-0">
+                                        <AvatarImage src={conv.contact?.avatarUrl || conv.customerProfilePicture} />
                                         <AvatarFallback className={cn(
-                                            "text-xs font-medium text-white",
-                                            selectedId === conv.id ? "bg-indigo-600" : "bg-gradient-to-br from-indigo-500 to-purple-600"
+                                            "text-white font-semibold text-lg",
+                                            avatarColor
                                         )}>
-                                            {(conv.contactName || conv.customerName || conv.customerPhone)?.[0]?.toUpperCase()}
+                                            {displayName?.[0]?.toUpperCase() || '?'}
                                         </AvatarFallback>
                                     </Avatar>
-                                    {conv.unreadCount > 0 && (
-                                        <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-indigo-600 rounded-full border-2 border-white" />
-                                    )}
-                                </div>
 
-                                <div className="flex-1 min-w-0 flex flex-col justify-center">
-                                    <div className="flex items-center justify-between gap-2">
-                                        <div className="flex items-center gap-1.5 min-w-0 flex-1">
-                                            <h3 className={cn(
-                                                "text-[13px] font-semibold truncate leading-none",
-                                                conv.unreadCount > 0 ? "text-gray-950" : "text-gray-700"
-                                            )}>
-                                                {conv.contactName || conv.customerName || conv.customerPhone}
-                                            </h3>
-                                            {conv.contactCompany && (
-                                                <span className="text-[10px] text-gray-400 truncate hidden sm:inline">
-                                                    · {conv.contactCompany}
+                                    {/* Content */}
+                                    <div className="flex-1 min-w-0">
+                                        {/* Top row: Name and timestamp */}
+                                        <div className="flex items-start justify-between gap-2 mb-0.5">
+                                            <div className="flex items-center gap-1.5 min-w-0">
+                                                <h3 className="text-base font-semibold text-gray-900 truncate">
+                                                    {displayName}
+                                                </h3>
+                                                <MessageCircle className="w-4 h-4 text-gray-400 shrink-0" />
+                                            </div>
+                                            <div className="flex items-center gap-1 shrink-0">
+                                                <span className="text-sm text-gray-500">
+                                                    {formatTime(conv.lastMessageAt)}
+                                                </span>
+                                                <button
+                                                    className="p-1 hover:bg-gray-100 rounded"
+                                                    onClick={(e) => e.stopPropagation()}
+                                                >
+                                                    <MoreVertical className="w-4 h-4 text-gray-400" />
+                                                </button>
+                                            </div>
+                                        </div>
+
+                                        {/* Phone number */}
+                                        <p className="text-sm text-gray-600 mb-2 truncate">
+                                            {getPhoneDisplay(conv)}
+                                        </p>
+
+                                        {/* Bottom row: Channel badge and message count */}
+                                        <div className="flex items-center justify-between gap-2">
+                                            {channelType === 'whatsapp' ? (
+                                                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border border-green-500 text-green-600 bg-white">
+                                                    WhatsApp
+                                                </span>
+                                            ) : (
+                                                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-700">
+                                                    SMS
                                                 </span>
                                             )}
+                                            <span className="text-sm text-gray-500">
+                                                {conv.messageCount} msgs
+                                            </span>
                                         </div>
-                                        <span className={cn(
-                                            "text-[10px] tabular-nums shrink-0",
-                                            conv.unreadCount > 0 ? "text-indigo-600 font-medium" : "text-gray-400"
-                                        )}>
-                                            {formatTime(conv.lastMessageAt)}
-                                        </span>
-                                    </div>
-
-                                    <div className="flex items-center justify-between gap-2 mt-1">
-                                        <p className={cn(
-                                            "text-[12px] truncate leading-normal flex-1 min-w-0",
-                                            conv.unreadCount > 0 ? "text-gray-900 font-medium" : "text-gray-500"
-                                        )}>
-                                            {conv.lastMessagePreview || 'No messages yet'}
-                                        </p>
-                                        {conv.unreadCount > 0 && (
-                                            <Badge className="h-4 min-w-[1rem] px-1 flex items-center justify-center bg-indigo-600 hover:bg-indigo-700 text-[9px] rounded-full shrink-0 shadow-none">
-                                                {conv.unreadCount}
-                                            </Badge>
-                                        )}
                                     </div>
                                 </div>
-                            </div>
-                        ))}
+                            );
+                        })}
                     </div>
                 )}
             </ScrollArea>
