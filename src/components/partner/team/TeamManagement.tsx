@@ -2,11 +2,14 @@
 "use client";
 
 import React, { useState, useEffect, useMemo } from "react";
-import { Button } from "../../ui/button";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "../../ui/card";
-import { Badge } from "../../ui/badge";
-import { Input } from "../../ui/input";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "../../ui/tabs";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   UserPlus,
   Search,
@@ -22,26 +25,84 @@ import {
   Calendar,
   Shield,
   QrCode,
-  CheckSquare
+  CheckSquare,
+  ArrowLeft,
+  BarChart3,
+  User
 } from "lucide-react";
-import type { TeamMember } from "../../../lib/types";
-import { useToast } from "../../../hooks/use-toast";
-import { useAuth } from "../../../hooks/use-auth";
-import { db } from "../../../lib/firebase";
+import type { TeamMember } from "@/lib/types";
+import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/hooks/use-auth";
+import { db } from "@/lib/firebase";
 import { collection, onSnapshot, query, where } from "firebase/firestore";
-import { removeTeamMemberAction } from "../../../actions/team-actions";
+import { removeTeamMemberAction } from "@/actions/team-actions";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from "../../ui/dropdown-menu";
+  DropdownMenuSeparator,
+} from "@/components/ui/dropdown-menu";
 import GenerateInviteCodeDialog from "./GenerateInviteCodeDialog";
 import InvitationManagement from "./InvitationManagement";
-import TaskAssignmentModal from "../../chat/TaskAssignmentModal"; // Import the modal
+import TaskAssignmentModal from "@/components/chat/TaskAssignmentModal";
 
 interface TeamManagementProps {
   roleToShow: 'employee' | 'partner_admin';
+}
+
+// Loading skeleton for the member list
+function MemberListSkeleton() {
+  return (
+    <div className="space-y-3">
+      {[...Array(4)].map((_, i) => (
+        <div key={i} className="flex items-center gap-3 p-3">
+          <Skeleton className="h-10 w-10 rounded-full" />
+          <div className="flex-1 space-y-2">
+            <Skeleton className="h-4 w-32" />
+            <Skeleton className="h-3 w-20" />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// Member detail skeleton
+function MemberDetailSkeleton() {
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center gap-4">
+        <Skeleton className="h-16 w-16 rounded-full" />
+        <div className="space-y-2">
+          <Skeleton className="h-6 w-40" />
+          <div className="flex gap-2">
+            <Skeleton className="h-5 w-16 rounded-full" />
+            <Skeleton className="h-5 w-16 rounded-full" />
+          </div>
+        </div>
+      </div>
+      <div className="grid grid-cols-2 gap-4">
+        {[...Array(4)].map((_, i) => (
+          <Skeleton key={i} className="h-12" />
+        ))}
+      </div>
+      <Skeleton className="h-24 rounded-lg" />
+    </div>
+  );
+}
+
+// Info item for member details
+function InfoItem({ icon: Icon, label, value }: { icon: React.ElementType; label: string; value: string }) {
+  return (
+    <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50">
+      <Icon className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+      <div className="min-w-0">
+        <p className="text-xs text-muted-foreground">{label}</p>
+        <p className="text-sm font-medium truncate">{value}</p>
+      </div>
+    </div>
+  );
 }
 
 export default function TeamManagement({ roleToShow }: TeamManagementProps) {
@@ -54,9 +115,9 @@ export default function TeamManagement({ roleToShow }: TeamManagementProps) {
   const [isInviteDialogOpen, setIsInviteDialogOpen] = useState(false);
   const [isTaskModalOpen, setIsTaskModalOpen] = useState(false);
   const [inviteRefreshTrigger, setInviteRefreshTrigger] = useState(0);
+  const [showMobileDetail, setShowMobileDetail] = useState(false);
   const { toast } = useToast();
 
-  // Get partner info from user's custom claims
   const partnerId = user?.customClaims?.partnerId;
   const userRole = user?.customClaims?.role;
 
@@ -64,8 +125,8 @@ export default function TeamManagement({ roleToShow }: TeamManagementProps) {
     return teamMembers.filter(member => {
       const matchesRole = member.role === roleToShow;
       const matchesSearch = !searchTerm ||
-                           member.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                           member.email?.toLowerCase().includes(searchTerm.toLowerCase());
+        member.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        member.email?.toLowerCase().includes(searchTerm.toLowerCase());
       return matchesRole && matchesSearch;
     });
   }, [teamMembers, searchTerm, roleToShow]);
@@ -77,299 +138,376 @@ export default function TeamManagement({ roleToShow }: TeamManagementProps) {
     }
 
     if (!partnerId || !db) {
-      setFirestoreError(
-        `Could not identify your organization. Please ensure you are logged in correctly.`
-      );
+      setFirestoreError("Could not identify your organization. Please ensure you are logged in correctly.");
       setIsLoading(false);
       return;
     }
 
-    console.log('Fetching team members for partner:', partnerId);
     setIsLoading(true);
     setFirestoreError(null);
-    
+
     const teamMembersRef = collection(db, "teamMembers");
-    const q = query(
-      teamMembersRef,
-      where("partnerId", "==", partnerId)
-    );
+    const q = query(teamMembersRef, where("partnerId", "==", partnerId));
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
-      console.log(`Found ${snapshot.docs.length} team members`);
       const membersData = snapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data(),
         createdAt: doc.data().createdAt?.toDate ? doc.data().createdAt.toDate() : null,
         lastActive: doc.data().lastActive?.toDate ? doc.data().lastActive.toDate() : null
       } as TeamMember));
-      
+
       setTeamMembers(membersData);
       setFirestoreError(null);
       setIsLoading(false);
     }, (error) => {
       console.error("Error fetching team members:", error);
-      setFirestoreError(`Access denied to team members: ${error.message}`);
+      setFirestoreError(`Access denied: ${error.message}`);
       setIsLoading(false);
     });
 
     return () => unsubscribe();
-  }, [partnerId, authLoading, user]);
-  
+  }, [partnerId, authLoading]);
+
+  const handleSelectMember = (member: TeamMember) => {
+    setSelectedMember(member);
+    setShowMobileDetail(true);
+  };
+
+  const handleBackToList = () => {
+    setShowMobileDetail(false);
+  };
+
   const handleRemoveMember = async (memberToRemove: TeamMember) => {
-    if (!memberToRemove) return;
-    const userIdToRemove = memberToRemove.id;
-    
-    if (!partnerId) {
+    if (!memberToRemove || !partnerId) {
       toast({
         variant: "destructive",
         title: "Error",
-        description: "Cannot remove member: missing workspace context.",
+        description: "Cannot remove member: missing context.",
       });
       return;
     }
-    
-    if (window.confirm(`Are you sure you want to remove ${memberToRemove.name}? This will revoke their access to the workspace.`)) {
-        const result = await removeTeamMemberAction({ partnerId, userIdToRemove });
-        if (result.success) {
-          toast({ title: "Success", description: result.message });
-          if (selectedMember?.id === userIdToRemove) {
-            setSelectedMember(null);
-          }
-        } else {
-          toast({ variant: "destructive", title: "Error", description: result.message });
+
+    if (window.confirm(`Are you sure you want to remove ${memberToRemove.name}? This will revoke their workspace access.`)) {
+      const result = await removeTeamMemberAction({ partnerId, userIdToRemove: memberToRemove.id });
+      if (result.success) {
+        toast({ title: "Member Removed", description: result.message });
+        if (selectedMember?.id === memberToRemove.id) {
+          setSelectedMember(null);
+          setShowMobileDetail(false);
         }
+      } else {
+        toast({ variant: "destructive", title: "Error", description: result.message });
+      }
     }
   };
 
   const handleInviteGenerated = () => {
     setInviteRefreshTrigger(prev => prev + 1);
   };
-  
+
   const handleTaskAssigned = (taskData: any) => {
     toast({
-        title: "Task Assigned",
-        description: `Task "${taskData.title}" has been assigned to ${taskData.assignee}.`
+      title: "Task Assigned",
+      description: `Task "${taskData.title}" has been assigned.`
     });
     setIsTaskModalOpen(false);
-  }
+  };
 
   const getStatusBadge = (status: string) => {
-    switch (status) {
-      case 'active': return <Badge variant="success" className="bg-green-100 text-green-800">Active</Badge>;
-      case 'invited': return <Badge variant="warning" className="bg-yellow-100 text-yellow-800">Invited</Badge>;
-      case 'suspended': return <Badge variant="destructive">Suspended</Badge>;
-      default: return <Badge variant="secondary">{status}</Badge>;
-    }
+    const config: Record<string, { className: string; label: string }> = {
+      active: { className: "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400", label: "Active" },
+      invited: { className: "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400", label: "Invited" },
+      suspended: { className: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400", label: "Suspended" },
+    };
+    const { className, label } = config[status] || { className: "bg-gray-100 text-gray-700", label: status };
+    return <Badge variant="secondary" className={className}>{label}</Badge>;
   };
 
   const getRoleBadge = (role: string) => {
-    switch (role) {
-      case 'partner_admin': return <Badge variant="default">Admin</Badge>;
-      case 'employee': return <Badge variant="secondary">Employee</Badge>;
-      default: return <Badge variant="secondary">{role}</Badge>;
-    }
+    return role === 'partner_admin'
+      ? <Badge variant="default">Admin</Badge>
+      : <Badge variant="outline">Team Member</Badge>;
   };
 
+  const formatDate = (date: string | Date | null | undefined) => {
+    if (!date) return 'Never';
+    return new Date(date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  };
+
+  const pageConfig = {
+    employee: {
+      title: "Team Members",
+      description: "Manage your team members and their access permissions.",
+      emptyText: "team members",
+      icon: Users,
+    },
+    partner_admin: {
+      title: "Administrators",
+      description: "Manage users with administrative access to this workspace.",
+      emptyText: "administrators",
+      icon: Shield,
+    },
+  };
+
+  const config = pageConfig[roleToShow];
+
+  // Error state
   if (firestoreError) {
     return (
-      <Card>
-        <CardContent className="p-6 text-center">
-            <AlertTriangle className="h-12 w-12 text-destructive mx-auto mb-4" />
-            <h3 className="text-lg font-bold text-destructive">Database Connection Error</h3>
-            <pre className="text-sm text-muted-foreground mb-4 max-w-2xl mx-auto text-left bg-muted p-4 rounded whitespace-pre-wrap">
-              {firestoreError}
-            </pre>
-            <Button onClick={() => window.location.reload()}>
+      <Card className="border-destructive/50">
+        <CardContent className="pt-6">
+          <div className="flex flex-col items-center text-center py-8">
+            <div className="w-12 h-12 rounded-full bg-destructive/10 flex items-center justify-center mb-4">
+              <AlertTriangle className="w-6 h-6 text-destructive" />
+            </div>
+            <h3 className="text-lg font-semibold text-destructive mb-2">Connection Error</h3>
+            <p className="text-sm text-muted-foreground mb-4 max-w-sm">{firestoreError}</p>
+            <Button onClick={() => window.location.reload()} variant="outline" size="sm">
               <RefreshCw className="w-4 h-4 mr-2" />
               Retry
             </Button>
+          </div>
         </CardContent>
       </Card>
     );
   }
 
-  const pageTitle = roleToShow === 'employee' ? 'Employees' : 'Admins';
-  const pageDescription = roleToShow === 'employee' ? 'Manage your team members and their roles.' : 'Manage users with administrative access to this workspace.';
-  const memberType = roleToShow === 'employee' ? 'employee' : 'admin';
+  // Member list component
+  const MemberList = () => (
+    <div className="space-y-4">
+      {/* Search */}
+      <div className="relative">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+        <Input
+          placeholder={`Search ${config.emptyText}...`}
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          className="pl-9"
+        />
+      </div>
+
+      {/* List */}
+      <ScrollArea className="h-[400px] lg:h-[500px]">
+        {isLoading ? (
+          <MemberListSkeleton />
+        ) : filteredMembers.length > 0 ? (
+          <div className="space-y-2 pr-4">
+            {filteredMembers.map((member) => (
+              <div
+                key={member.id}
+                onClick={() => handleSelectMember(member)}
+                className={`flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-all
+                  ${selectedMember?.id === member.id
+                    ? 'bg-primary/10 border border-primary/30'
+                    : 'hover:bg-muted/50 border border-transparent'
+                  }`}
+              >
+                <Avatar className="h-10 w-10">
+                  <AvatarFallback className="bg-gradient-to-br from-primary/80 to-primary text-primary-foreground text-sm font-semibold">
+                    {member.name?.charAt(0)?.toUpperCase() || 'U'}
+                  </AvatarFallback>
+                </Avatar>
+                <div className="flex-1 min-w-0">
+                  <h4 className="font-medium text-sm truncate">{member.name}</h4>
+                  <p className="text-xs text-muted-foreground truncate">{member.email}</p>
+                </div>
+                <div className="flex items-center gap-2">
+                  {getStatusBadge(member.status)}
+                  <ChevronRight className="w-4 h-4 text-muted-foreground" />
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="flex flex-col items-center justify-center py-12 text-center">
+            <div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center mb-4">
+              <User className="w-6 h-6 text-muted-foreground" />
+            </div>
+            <h4 className="font-medium mb-1">No {config.emptyText} found</h4>
+            <p className="text-sm text-muted-foreground mb-4">
+              {searchTerm ? 'Try a different search term' : `Invite ${config.emptyText} to get started`}
+            </p>
+            {userRole === 'partner_admin' && !searchTerm && (
+              <Button onClick={() => setIsInviteDialogOpen(true)} size="sm">
+                <UserPlus className="w-4 h-4 mr-2" />
+                Generate Invite
+              </Button>
+            )}
+          </div>
+        )}
+      </ScrollArea>
+    </div>
+  );
+
+  // Member detail component
+  const MemberDetail = () => {
+    if (!selectedMember) {
+      return (
+        <div className="flex flex-col items-center justify-center h-full py-12 text-center">
+          <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center mb-4">
+            <Users className="w-8 h-8 text-muted-foreground/50" />
+          </div>
+          <h3 className="font-semibold text-lg mb-2">Select a Member</h3>
+          <p className="text-sm text-muted-foreground max-w-xs">
+            Choose someone from the list to view their details and manage their access.
+          </p>
+        </div>
+      );
+    }
+
+    return (
+      <div className="space-y-6">
+        {/* Mobile back button */}
+        <Button
+          variant="ghost"
+          size="sm"
+          className="lg:hidden -ml-2 mb-2"
+          onClick={handleBackToList}
+        >
+          <ArrowLeft className="w-4 h-4 mr-2" />
+          Back to list
+        </Button>
+
+        {/* Header */}
+        <div className="flex items-start justify-between">
+          <div className="flex items-center gap-4">
+            <Avatar className="h-16 w-16">
+              <AvatarFallback className="bg-gradient-to-br from-primary/80 to-primary text-primary-foreground text-xl font-bold">
+                {selectedMember.name?.charAt(0)?.toUpperCase() || 'U'}
+              </AvatarFallback>
+            </Avatar>
+            <div>
+              <h3 className="text-xl font-bold">{selectedMember.name}</h3>
+              <div className="flex items-center gap-2 mt-1.5">
+                {getRoleBadge(selectedMember.role)}
+                {getStatusBadge(selectedMember.status)}
+              </div>
+            </div>
+          </div>
+
+          {userRole === 'partner_admin' && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="icon">
+                  <MoreVertical className="w-4 h-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-48">
+                <DropdownMenuItem onClick={() => setIsTaskModalOpen(true)}>
+                  <CheckSquare className="mr-2 h-4 w-4" />
+                  Assign Task
+                </DropdownMenuItem>
+                <DropdownMenuItem>
+                  <Shield className="mr-2 h-4 w-4" />
+                  Edit Permissions
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  className="text-destructive focus:bg-destructive/10 focus:text-destructive"
+                  onClick={() => handleRemoveMember(selectedMember)}
+                >
+                  <Trash2 className="mr-2 h-4 w-4" />
+                  Remove Member
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
+        </div>
+
+        {/* Contact Info Grid */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <InfoItem icon={Mail} label="Email" value={selectedMember.email || 'Not provided'} />
+          <InfoItem icon={Phone} label="Phone" value={selectedMember.phone || 'Not provided'} />
+          <InfoItem icon={Clock} label="Last Active" value={formatDate(selectedMember.lastActive)} />
+          <InfoItem icon={Calendar} label="Joined" value={formatDate(selectedMember.joinedDate)} />
+        </div>
+
+        {/* Performance Card */}
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm font-medium flex items-center gap-2">
+              <BarChart3 className="w-4 h-4" />
+              Performance
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="text-center p-4 rounded-lg bg-blue-50 dark:bg-blue-950/20">
+                <div className="text-2xl font-bold text-blue-600">{selectedMember.tasksCompleted || 0}</div>
+                <div className="text-xs text-muted-foreground mt-1">Tasks Completed</div>
+              </div>
+              <div className="text-center p-4 rounded-lg bg-green-50 dark:bg-green-950/20">
+                <div className="text-2xl font-bold text-green-600">{selectedMember.avgCompletionTime || 'N/A'}</div>
+                <div className="text-xs text-muted-foreground mt-1">Avg. Completion</div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  };
 
   return (
     <>
       <Tabs defaultValue="members" className="space-y-6">
-        <div className="flex items-center justify-between">
+        {/* Header */}
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <TabsList>
             <TabsTrigger value="members" className="flex items-center gap-2">
-              <Users className="w-4 h-4" />
-              {pageTitle} ({filteredMembers.length})
+              <config.icon className="w-4 h-4" />
+              <span className="hidden sm:inline">{config.title}</span>
+              <Badge variant="secondary" className="ml-1">{filteredMembers.length}</Badge>
             </TabsTrigger>
             <TabsTrigger value="invitations" className="flex items-center gap-2">
               <QrCode className="w-4 h-4" />
-              Invitations
+              <span className="hidden sm:inline">Invitations</span>
             </TabsTrigger>
           </TabsList>
-          
+
           {userRole === 'partner_admin' && (
-            <Button onClick={() => setIsInviteDialogOpen(true)}>
+            <Button onClick={() => setIsInviteDialogOpen(true)} size="sm">
               <UserPlus className="w-4 h-4 mr-2" />
-              Generate Invite Code
+              <span className="hidden sm:inline">Generate Invite</span>
+              <span className="sm:hidden">Invite</span>
             </Button>
           )}
         </div>
 
-        <TabsContent value="members">
+        {/* Members Tab */}
+        <TabsContent value="members" className="mt-0">
           <Card>
-            <CardHeader>
-              <CardTitle className="text-xl font-semibold font-headline">
-                {pageTitle}
-              </CardTitle>
-              <CardDescription>{pageDescription}</CardDescription>
+            <CardHeader className="pb-4">
+              <CardTitle className="text-lg">{config.title}</CardTitle>
+              <CardDescription>{config.description}</CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <div className="md:col-span-1 border-r pr-6">
-                  <div className="relative mb-4">
-                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
-                    <Input
-                      placeholder={`Search ${memberType}s...`}
-                      value={searchTerm}
-                      onChange={(e) => setSearchTerm(e.target.value)}
-                      className="pl-9"
-                    />
-                  </div>
-                  <div className="space-y-2 max-h-[60vh] overflow-y-auto">
-                     {isLoading ? (
-                      <div className="flex items-center justify-center py-8">
-                        <RefreshCw className="animate-spin h-6 w-6 text-muted-foreground mr-2" />
-                        <span className="text-sm text-muted-foreground">Loading...</span>
-                      </div>
-                    ) : filteredMembers.length > 0 ? filteredMembers.map((member) => (
-                      <div
-                        key={member.id}
-                        className={`p-3 rounded-lg cursor-pointer flex items-center justify-between hover:bg-muted/50 transition-colors ${
-                          selectedMember?.id === member.id ? 'bg-primary/10 border border-primary/20' : 'border border-transparent'
-                        }`}
-                        onClick={() => setSelectedMember(member)}
-                      >
-                        <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-white text-sm font-semibold">
-                            {member.name?.charAt(0)?.toUpperCase() || 'U'}
-                          </div>
-                          <div>
-                            <h4 className="font-medium text-sm">{member.name}</h4>
-                            <div className="flex items-center gap-1 mt-1">
-                              {getStatusBadge(member.status)}
-                            </div>
-                          </div>
-                        </div>
-                        <ChevronRight className="w-4 h-4 text-muted-foreground" />
-                      </div>
-                    )) : (
-                      <div className="text-center py-8 text-muted-foreground">
-                        <Users className="w-12 h-12 mx-auto mb-4 opacity-50" />
-                        <p>No {memberType}s found</p>
-                        {userRole === 'partner_admin' && (
-                          <Button 
-                            variant="outline" 
-                            size="sm" 
-                            className="mt-2"
-                            onClick={() => setIsInviteDialogOpen(true)}
-                          >
-                            <UserPlus className="w-4 h-4 mr-2" />
-                            Generate First Invite
-                          </Button>
-                        )}
-                      </div>
-                    )}
-                  </div>
+              {/* Desktop: Side-by-side layout */}
+              <div className="hidden lg:grid lg:grid-cols-5 lg:gap-6">
+                <div className="lg:col-span-2 lg:border-r lg:pr-6">
+                  <MemberList />
                 </div>
-                <div className="md:col-span-2">
-                  {selectedMember ? (
-                       <div className="space-y-6">
-                            <div className="flex items-center justify-between">
-                                <div className="flex items-center gap-4">
-                                    <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-white text-2xl font-semibold">
-                                        {selectedMember.name?.charAt(0)?.toUpperCase() || 'U'}
-                                    </div>
-                                    <div>
-                                        <h3 className="text-xl font-bold">{selectedMember.name}</h3>
-                                        <div className="flex items-center gap-2 mt-1">
-                                            {getRoleBadge(selectedMember.role)}
-                                            {getStatusBadge(selectedMember.status)}
-                                        </div>
-                                    </div>
-                                </div>
-                                {userRole === 'partner_admin' && (
-                                  <DropdownMenu>
-                                    <DropdownMenuTrigger asChild>
-                                      <Button variant="ghost" size="icon">
-                                        <MoreVertical className="w-4 h-4" />
-                                      </Button>
-                                    </DropdownMenuTrigger>
-                                    <DropdownMenuContent align="end">
-                                      <DropdownMenuItem onClick={() => setIsTaskModalOpen(true)}>
-                                        <CheckSquare className="mr-2 h-4 w-4" />
-                                        <span>Assign Task</span>
-                                      </DropdownMenuItem>
-                                      <DropdownMenuItem>
-                                          <Shield className="mr-2 h-4 w-4" />
-                                          <span>Edit Permissions</span>
-                                      </DropdownMenuItem>
-                                      <DropdownMenuItem
-                                        className="text-destructive focus:bg-destructive/10 focus:text-destructive"
-                                        onClick={() => handleRemoveMember(selectedMember)}
-                                      >
-                                        <Trash2 className="mr-2 h-4 w-4" />
-                                        <span>Remove Member</span>
-                                      </DropdownMenuItem>
-                                    </DropdownMenuContent>
-                                  </DropdownMenu>
-                                )}
-                            </div>
-                            <div className="grid grid-cols-2 gap-4 text-sm">
-                                <div className="flex items-center gap-2">
-                                  <Mail className="w-4 h-4 text-muted-foreground" /> 
-                                  {selectedMember.email || 'No email provided'}
-                                </div>
-                                <div className="flex items-center gap-2">
-                                  <Phone className="w-4 h-4 text-muted-foreground" /> 
-                                  {selectedMember.phone || "Not provided"}
-                                </div>
-                                <div className="flex items-center gap-2">
-                                  <Clock className="w-4 h-4 text-muted-foreground" /> 
-                                  Last active: {selectedMember.lastActive ? 
-                                    new Date(selectedMember.lastActive).toLocaleDateString() : 'Never'}
-                                </div>
-                                <div className="flex items-center gap-2">
-                                  <Calendar className="w-4 h-4 text-muted-foreground" /> 
-                                  Joined: {selectedMember.joinedDate ? 
-                                    new Date(selectedMember.joinedDate).toLocaleDateString() : 'Unknown'}
-                                </div>
-                            </div>
-                            <div className="bg-muted/30 p-4 rounded-lg">
-                                <h4 className="font-semibold mb-2">Performance</h4>
-                                <div className="grid grid-cols-2 gap-4 text-sm">
-                                    <div>Tasks Completed: <span className="font-bold">{selectedMember.tasksCompleted || 0}</span></div>
-                                    <div>Avg. Completion Time: <span className="font-bold">{selectedMember.avgCompletionTime || 'N/A'}</span></div>
-                                </div>
-                            </div>
-                        </div>
-                  ) : (
-                    <div className="flex items-center justify-center h-full text-center text-muted-foreground">
-                        <div>
-                            <Users className="w-16 h-16 mx-auto mb-4 opacity-30" />
-                            <h3 className="text-lg font-semibold mb-2">Select a Team Member</h3>
-                            <p>Choose a member from the list to view their details and manage their access.</p>
-                        </div>
-                    </div>
-                  )}
+                <div className="lg:col-span-3">
+                  {isLoading ? <MemberDetailSkeleton /> : <MemberDetail />}
                 </div>
+              </div>
+
+              {/* Mobile: Conditional rendering */}
+              <div className="lg:hidden">
+                {!showMobileDetail ? (
+                  <MemberList />
+                ) : (
+                  <MemberDetail />
+                )}
               </div>
             </CardContent>
           </Card>
         </TabsContent>
 
-        <TabsContent value="invitations">
-          <InvitationManagement 
-            partnerId={partnerId!} 
+        {/* Invitations Tab */}
+        <TabsContent value="invitations" className="mt-0">
+          <InvitationManagement
+            partnerId={partnerId!}
             refreshTrigger={inviteRefreshTrigger}
           />
         </TabsContent>
@@ -384,15 +522,16 @@ export default function TeamManagement({ roleToShow }: TeamManagementProps) {
           onInviteGenerated={handleInviteGenerated}
         />
       )}
+
       {user?.customClaims && teamMembers && (
         <TaskAssignmentModal
-            isOpen={isTaskModalOpen}
-            onClose={() => setIsTaskModalOpen(false)}
-            onTaskAssigned={handleTaskAssigned}
-            activeWorkspace={user.customClaims}
-            teamMembers={teamMembers}
+          isOpen={isTaskModalOpen}
+          onClose={() => setIsTaskModalOpen(false)}
+          onTaskAssigned={handleTaskAssigned}
+          activeWorkspace={user.customClaims}
+          teamMembers={teamMembers}
         />
-       )}
+      )}
     </>
   );
 }
