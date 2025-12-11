@@ -15,6 +15,7 @@ interface ConversationSidebarProps {
     searchQuery: string;
     onSearchChange: (query: string) => void;
     loading: boolean;
+    isMobile?: boolean;
 }
 
 type FilterType = 'all' | 'unread' | 'starred';
@@ -25,7 +26,8 @@ export function ConversationSidebar({
     onSelect,
     searchQuery,
     onSearchChange,
-    loading
+    loading,
+    isMobile = false
 }: ConversationSidebarProps) {
     const [activeFilter, setActiveFilter] = React.useState<FilterType>('all');
 
@@ -66,10 +68,14 @@ export function ConversationSidebar({
     };
 
     return (
-        <div className="w-[320px] min-w-[320px] max-w-[320px] h-full flex flex-col border-r border-gray-100 bg-white shrink-0">
+        <div className={cn(
+            "h-full flex flex-col border-r border-gray-100 bg-white shrink-0",
+            // Full width on mobile, fixed width on desktop
+            "w-full md:w-[320px] md:min-w-[320px] md:max-w-[320px]"
+        )}>
             <div className="p-4 pb-2 space-y-4">
                 <div className="flex items-center justify-between">
-                    <h1 className="text-lg font-semibold tracking-tight text-gray-900">Inbox</h1>
+                    <h1 className="text-xl md:text-lg font-semibold tracking-tight text-gray-900">Inbox</h1>
                     <div className="flex gap-2">
                     </div>
                 </div>

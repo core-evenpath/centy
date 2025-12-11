@@ -155,6 +155,17 @@ export default function CoreMemorySuggestion({
         }
     };
 
+    // Close on escape key
+    useEffect(() => {
+        const handleEscape = (e: KeyboardEvent) => {
+            if (e.key === 'Escape' && isVisible) {
+                onDismiss();
+            }
+        };
+        window.addEventListener('keydown', handleEscape);
+        return () => window.removeEventListener('keydown', handleEscape);
+    }, [isVisible, onDismiss]);
+
     if (!isVisible) return null;
 
     const getConfidenceInfo = (confidence: number) => {
@@ -202,35 +213,54 @@ export default function CoreMemorySuggestion({
     const LoadingIcon = loadingContent.icon;
 
     return (
-        <div className="w-[380px] border-l border-gray-100 bg-gradient-to-b from-slate-50 to-white flex flex-col h-full">
-            <div className="p-4 border-b border-gray-100 bg-white/80 backdrop-blur-sm">
-                <div className="flex items-center justify-between mb-3">
-                    <div className="flex items-center gap-2.5">
-                        <div className={cn(
-                            "w-8 h-8 rounded-lg flex items-center justify-center transition-all",
-                            isLoading
-                                ? "bg-indigo-100 animate-pulse"
-                                : "bg-gradient-to-br from-indigo-500 to-violet-600 shadow-sm"
-                        )}>
-                            <Database className={cn(
-                                "h-4 w-4",
-                                isLoading ? "text-indigo-600" : "text-white"
-                            )} />
-                        </div>
-                        <div>
-                            <h3 className="text-sm font-semibold text-gray-900">Core Memory</h3>
-                            <p className="text-[10px] text-gray-500">AI-Powered Suggestions</p>
-                        </div>
-                    </div>
-                    <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={onDismiss}
-                        className="h-7 w-7 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg"
-                    >
-                        <X className="h-4 w-4" />
-                    </Button>
+        <>
+            {/* Mobile: Full-screen overlay */}
+            <div
+                className="md:hidden fixed inset-0 bg-black/50 z-40 animate-fadeIn"
+                onClick={onDismiss}
+            />
+
+            {/* Mobile: Bottom sheet / Desktop: Side panel */}
+            <div className={cn(
+                "bg-gradient-to-b from-slate-50 to-white flex flex-col z-50",
+                // Mobile: Bottom sheet style
+                "fixed inset-x-0 bottom-0 max-h-[85vh] rounded-t-2xl shadow-2xl",
+                // Desktop: Side panel style
+                "md:relative md:inset-auto md:w-[380px] md:h-full md:rounded-none md:shadow-none md:border-l md:border-gray-100"
+            )}>
+                {/* Mobile drag handle */}
+                <div className="md:hidden flex justify-center py-2">
+                    <div className="w-10 h-1 rounded-full bg-gray-300" />
                 </div>
+
+                <div className="p-4 pt-2 md:pt-4 border-b border-gray-100 bg-white/80 backdrop-blur-sm">
+                    <div className="flex items-center justify-between mb-3">
+                        <div className="flex items-center gap-2.5">
+                            <div className={cn(
+                                "w-8 h-8 rounded-lg flex items-center justify-center transition-all",
+                                isLoading
+                                    ? "bg-indigo-100 animate-pulse"
+                                    : "bg-gradient-to-br from-indigo-500 to-violet-600 shadow-sm"
+                            )}>
+                                <Database className={cn(
+                                    "h-4 w-4",
+                                    isLoading ? "text-indigo-600" : "text-white"
+                                )} />
+                            </div>
+                            <div>
+                                <h3 className="text-sm font-semibold text-gray-900">Core Memory</h3>
+                                <p className="text-[10px] text-gray-500">AI-Powered Suggestions</p>
+                            </div>
+                        </div>
+                        <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={onDismiss}
+                            className="h-8 w-8 md:h-7 md:w-7 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg touch-manipulation"
+                        >
+                            <X className="h-4 w-4" />
+                        </Button>
+                    </div>
 
                 <AssistantSelector
                     availableAssistants={activeAssistants}
@@ -359,17 +389,17 @@ export default function CoreMemorySuggestion({
                                     <div className="px-4 pb-4 flex gap-2">
                                         <Button
                                             onClick={() => onSend(suggestion.suggestedReply)}
-                                            className="flex-1 h-9 bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700 text-white shadow-sm"
+                                            className="flex-1 h-11 md:h-9 bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700 text-white shadow-sm touch-manipulation active:scale-[0.98] transition-transform"
                                         >
-                                            <Send className="h-3.5 w-3.5 mr-1.5" />
+                                            <Send className="h-4 w-4 md:h-3.5 md:w-3.5 mr-1.5" />
                                             Send
                                         </Button>
                                         <Button
                                             variant="outline"
                                             onClick={() => onEdit(suggestion.suggestedReply)}
-                                            className="h-9 px-4 border-gray-200 hover:bg-gray-50"
+                                            className="h-11 md:h-9 px-4 border-gray-200 hover:bg-gray-50 touch-manipulation active:scale-[0.98] transition-transform"
                                         >
-                                            <Edit3 className="h-3.5 w-3.5 mr-1.5" />
+                                            <Edit3 className="h-4 w-4 md:h-3.5 md:w-3.5 mr-1.5" />
                                             Edit
                                         </Button>
                                     </div>
@@ -383,12 +413,12 @@ export default function CoreMemorySuggestion({
                                             <Lightbulb className="w-3 h-3" />
                                             Quick Refine
                                         </p>
-                                        <div className="flex flex-wrap gap-1.5">
+                                        <div className="flex flex-wrap gap-2 md:gap-1.5">
                                             {QUICK_REFINEMENTS.map((item) => (
                                                 <button
                                                     key={item.label}
                                                     onClick={() => onRefine(item.instruction)}
-                                                    className="px-2.5 py-1 text-xs font-medium text-gray-600 bg-white border border-gray-200 rounded-full hover:bg-indigo-50 hover:text-indigo-700 hover:border-indigo-200 transition-colors"
+                                                    className="px-3 py-1.5 md:px-2.5 md:py-1 text-sm md:text-xs font-medium text-gray-600 bg-white border border-gray-200 rounded-full hover:bg-indigo-50 hover:text-indigo-700 hover:border-indigo-200 active:scale-95 transition-all touch-manipulation"
                                                 >
                                                     {item.label}
                                                 </button>
@@ -401,7 +431,7 @@ export default function CoreMemorySuggestion({
                                             value={customRefineInput}
                                             onChange={(e) => setCustomRefineInput(e.target.value)}
                                             placeholder="Custom instruction..."
-                                            className="h-8 text-xs bg-white"
+                                            className="h-10 md:h-8 text-sm md:text-xs bg-white"
                                             onKeyDown={(e) => e.key === 'Enter' && handleCustomRefine()}
                                         />
                                         <Button
@@ -409,9 +439,9 @@ export default function CoreMemorySuggestion({
                                             size="sm"
                                             onClick={handleCustomRefine}
                                             disabled={!customRefineInput.trim()}
-                                            className="h-8 px-3"
+                                            className="h-10 w-10 md:h-8 md:w-auto md:px-3 touch-manipulation"
                                         >
-                                            <Wand2 className="h-3.5 w-3.5" />
+                                            <Wand2 className="h-4 w-4 md:h-3.5 md:w-3.5" />
                                         </Button>
                                     </div>
                                 </div>
@@ -472,13 +502,14 @@ export default function CoreMemorySuggestion({
                                 </div>
                             )}
 
-                            <p className="text-[10px] text-gray-400 text-center">
+                            <p className="text-[10px] text-gray-400 text-center pb-safe">
                                 {suggestion.reasoning}
                             </p>
                         </>
                     ) : null}
                 </div>
             </ScrollArea>
-        </div>
+            </div>
+        </>
     );
 }

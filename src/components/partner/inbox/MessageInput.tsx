@@ -49,7 +49,7 @@ export function MessageInput({
     };
 
     return (
-        <div className="p-4 bg-white border-t border-gray-100">
+        <div className="p-3 md:p-4 bg-white border-t border-gray-100 pb-safe">
             <div className="max-w-4xl mx-auto relative group">
                 {/* Floating Input Container */}
                 <div className={cn(
@@ -63,13 +63,14 @@ export function MessageInput({
                         onChange={(e) => onChange(e.target.value)}
                         onKeyDown={handleKeyDown}
                         placeholder="Type a message..."
-                        className="min-h-[50px] max-h-[120px] w-full border-none bg-transparent resize-none p-3.5 focus-visible:ring-0 text-gray-900 placeholder:text-gray-400"
+                        className="min-h-[44px] md:min-h-[50px] max-h-[100px] md:max-h-[120px] w-full border-none bg-transparent resize-none p-3 md:p-3.5 focus-visible:ring-0 text-gray-900 placeholder:text-gray-400 text-[16px] md:text-sm"
                         rows={1}
                     />
 
                     {/* Toolbar */}
                     <div className="flex items-center justify-between px-2 pb-2">
-                        <div className="flex items-center gap-1">
+                        {/* Left side - attachment buttons (hidden on mobile for cleaner UX) */}
+                        <div className="hidden md:flex items-center gap-1">
                             <TooltipProvider>
                                 <Tooltip>
                                     <TooltipTrigger asChild>
@@ -104,34 +105,56 @@ export function MessageInput({
                             </TooltipProvider>
                         </div>
 
-                        <div className="flex items-center gap-2">
-                            {/* AI Trigger */}
-                            <TooltipProvider>
-                                <Tooltip>
-                                    <TooltipTrigger asChild>
-                                        <Button
-                                            onClick={onGenerateSuggestion}
-                                            variant="ghost"
-                                            size="sm"
-                                            disabled={isGenerating}
-                                            className={cn(
-                                                "h-8 px-3 text-xs font-medium rounded-full transition-all gap-1.5",
-                                                "bg-gradient-to-r from-indigo-50 to-purple-50 text-indigo-700 hover:from-indigo-100 hover:to-purple-100 hover:text-indigo-800 border border-indigo-100/50"
-                                            )}
-                                        >
-                                            {isGenerating ? (
-                                                <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                                            ) : (
-                                                <Sparkles className="w-3.5 h-3.5" />
-                                            )}
-                                            <span>AI Suggestion</span>
-                                        </Button>
-                                    </TooltipTrigger>
-                                    <TooltipContent>Generate response from Core Memory</TooltipContent>
-                                </Tooltip>
-                            </TooltipProvider>
+                        {/* Mobile: AI button on left */}
+                        <div className="flex md:hidden">
+                            <Button
+                                onClick={onGenerateSuggestion}
+                                variant="ghost"
+                                size="sm"
+                                disabled={isGenerating}
+                                className={cn(
+                                    "h-9 w-9 p-0 rounded-full transition-all",
+                                    "bg-gradient-to-r from-indigo-50 to-purple-50 text-indigo-700 hover:from-indigo-100 hover:to-purple-100 hover:text-indigo-800 border border-indigo-100/50"
+                                )}
+                            >
+                                {isGenerating ? (
+                                    <Loader2 className="w-4 h-4 animate-spin" />
+                                ) : (
+                                    <Sparkles className="w-4 h-4" />
+                                )}
+                            </Button>
+                        </div>
 
-                            <div className="h-5 w-px bg-gray-200 mx-1" />
+                        <div className="flex items-center gap-2">
+                            {/* AI Trigger - Desktop */}
+                            <div className="hidden md:block">
+                                <TooltipProvider>
+                                    <Tooltip>
+                                        <TooltipTrigger asChild>
+                                            <Button
+                                                onClick={onGenerateSuggestion}
+                                                variant="ghost"
+                                                size="sm"
+                                                disabled={isGenerating}
+                                                className={cn(
+                                                    "h-8 px-3 text-xs font-medium rounded-full transition-all gap-1.5",
+                                                    "bg-gradient-to-r from-indigo-50 to-purple-50 text-indigo-700 hover:from-indigo-100 hover:to-purple-100 hover:text-indigo-800 border border-indigo-100/50"
+                                                )}
+                                            >
+                                                {isGenerating ? (
+                                                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                                ) : (
+                                                    <Sparkles className="w-3.5 h-3.5" />
+                                                )}
+                                                <span>AI Suggestion</span>
+                                            </Button>
+                                        </TooltipTrigger>
+                                        <TooltipContent>Generate response from Core Memory</TooltipContent>
+                                    </Tooltip>
+                                </TooltipProvider>
+                            </div>
+
+                            <div className="hidden md:block h-5 w-px bg-gray-200 mx-1" />
 
                             {/* Send Button */}
                             <Button
@@ -139,9 +162,9 @@ export function MessageInput({
                                 disabled={!value.trim() || sending}
                                 size="icon"
                                 className={cn(
-                                    "h-9 w-9 rounded-full transition-all shadow-sm",
+                                    "h-10 w-10 md:h-9 md:w-9 rounded-full transition-all shadow-sm touch-manipulation",
                                     value.trim()
-                                        ? "bg-indigo-600 hover:bg-indigo-700 text-white"
+                                        ? "bg-indigo-600 hover:bg-indigo-700 text-white active:scale-95"
                                         : "bg-gray-100 text-gray-400"
                                 )}
                             >
@@ -155,8 +178,8 @@ export function MessageInput({
                     </div>
                 </div>
 
-                {/* Character Count helper (optional) */}
-                <div className="absolute -bottom-6 right-2 text-[10px] text-gray-400 opacity-0 group-focus-within:opacity-100 transition-opacity">
+                {/* Character Count helper (optional - hidden on mobile) */}
+                <div className="absolute -bottom-6 right-2 text-[10px] text-gray-400 opacity-0 group-focus-within:opacity-100 transition-opacity hidden md:block">
                     {value.length} chars
                 </div>
             </div>
