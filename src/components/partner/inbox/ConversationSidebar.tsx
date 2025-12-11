@@ -1,5 +1,5 @@
 import React from 'react';
-import { Search, Inbox, SlidersHorizontal, Star, MessageSquare } from 'lucide-react';
+import { Search, Inbox, SlidersHorizontal, Star, MessageSquare, ArrowUpRight, ArrowDownLeft } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
@@ -121,18 +121,27 @@ export function ConversationSidebar({
                         <p className="text-gray-900 font-medium text-sm">No conversations</p>
                     </div>
                 ) : (
-                    <div className="divide-y divide-gray-50">
+                    <div className="divide-y divide-gray-50/80">
                         {filteredConversations.map((conv) => (
                             <div
                                 key={conv.id}
                                 onClick={() => onSelect(conv)}
                                 className={cn(
-                                    "flex items-start gap-3 p-3.5 cursor-pointer transition-all hover:bg-gray-50/80 group",
-                                    selectedId === conv.id && "bg-indigo-50/50 hover:bg-indigo-50/60 border-l-[3px] border-l-indigo-600 pl-[calc(0.875rem-3px)]"
+                                    "flex items-start gap-3 p-3.5 cursor-pointer transition-all group relative",
+                                    "hover:bg-gradient-to-r hover:from-gray-50 hover:to-transparent",
+                                    "active:bg-gray-100/80",
+                                    selectedId === conv.id
+                                        ? "bg-gradient-to-r from-indigo-50/70 to-indigo-50/30 border-l-[3px] border-l-indigo-600 pl-[calc(0.875rem-3px)]"
+                                        : "border-l-[3px] border-l-transparent"
                                 )}
                             >
                                 <div className="relative shrink-0">
-                                    <Avatar className="w-10 h-10 border border-black/5 shadow-sm">
+                                    <Avatar className={cn(
+                                        "w-10 h-10 border shadow-sm transition-all",
+                                        conv.unreadCount > 0
+                                            ? "border-indigo-200 ring-2 ring-indigo-100"
+                                            : "border-black/5"
+                                    )}>
                                         <AvatarImage src={conv.contact?.avatarUrl} />
                                         <AvatarFallback className={cn(
                                             "text-xs font-medium text-white",
@@ -141,16 +150,26 @@ export function ConversationSidebar({
                                             {(conv.contactName || conv.customerName || conv.customerPhone)?.[0]?.toUpperCase()}
                                         </AvatarFallback>
                                     </Avatar>
+                                    {conv.unreadCount > 0 && (
+                                        <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-indigo-600 rounded-full border-2 border-white" />
+                                    )}
                                 </div>
 
-                                <div className="flex-1 min-w-0 flex flex-col justify-center h-10">
+                                <div className="flex-1 min-w-0 flex flex-col justify-center">
                                     <div className="flex items-center justify-between gap-2">
-                                        <h3 className={cn(
-                                            "text-[13px] font-semibold truncate leading-none flex-1 min-w-0",
-                                            conv.unreadCount > 0 ? "text-gray-950" : "text-gray-700"
-                                        )}>
-                                            {conv.contactName || conv.customerName || conv.customerPhone}
-                                        </h3>
+                                        <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                                            <h3 className={cn(
+                                                "text-[13px] font-semibold truncate leading-none",
+                                                conv.unreadCount > 0 ? "text-gray-950" : "text-gray-700"
+                                            )}>
+                                                {conv.contactName || conv.customerName || conv.customerPhone}
+                                            </h3>
+                                            {conv.contactCompany && (
+                                                <span className="text-[10px] text-gray-400 truncate hidden sm:inline">
+                                                    · {conv.contactCompany}
+                                                </span>
+                                            )}
+                                        </div>
                                         <span className={cn(
                                             "text-[10px] tabular-nums shrink-0",
                                             conv.unreadCount > 0 ? "text-indigo-600 font-medium" : "text-gray-400"
@@ -162,7 +181,7 @@ export function ConversationSidebar({
                                     <div className="flex items-center justify-between gap-2 mt-1">
                                         <p className={cn(
                                             "text-[12px] truncate leading-normal flex-1 min-w-0",
-                                            (conv.unreadCount > 0 || selectedId === conv.id) ? "text-gray-900 font-medium" : "text-gray-500"
+                                            conv.unreadCount > 0 ? "text-gray-900 font-medium" : "text-gray-500"
                                         )}>
                                             {conv.lastMessagePreview || 'No messages yet'}
                                         </p>
