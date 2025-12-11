@@ -9,6 +9,7 @@ import { PartnerHubProvider } from '../../../hooks/use-partnerhub';
 
 import { SidebarProvider } from '../../../components/ui/sidebar';
 import UnifiedPartnerSidebar from '../../../components/navigation/UnifiedPartnerSidebar';
+import PartnerBottomNavigation from '../../../components/navigation/PartnerBottomNavigation';
 
 const MultiWorkspaceContext = createContext<MultiWorkspaceAuthState | null>(null);
 
@@ -43,9 +44,10 @@ export default function ProtectedPartnerLayout({
             <PartnerAuthWrapper>
               <div className="flex h-screen bg-gray-100 dark:bg-gray-900 overflow-hidden">
                 <UnifiedPartnerSidebar />
-                <main className="flex-1 flex flex-col overflow-hidden relative min-w-0">
+                <main className="flex-1 flex flex-col overflow-hidden relative min-w-0 pb-16 md:pb-0">
                   {children}
                 </main>
+                <PartnerBottomNavigation />
               </div>
             </PartnerAuthWrapper>
           </SidebarProvider>
