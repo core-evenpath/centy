@@ -40,6 +40,7 @@ import {
 import { ProcessingStatus, DocumentMetadata, ChatContextType } from '@/lib/partnerhub-types';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import ChatInterface from '@/components/partner/inbox/ChatInterface';
+import Link from 'next/link';
 
 interface DocumentCategory {
     id: string;
@@ -652,16 +653,13 @@ export default function DocumentsView() {
                                 <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
                                     <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between">
                                         <h3 className="font-medium text-slate-900">Used by AI Assistants</h3>
-                                        <button
-                                            onClick={() => {
-                                                const event = new CustomEvent('switchToAgentsTab');
-                                                window.dispatchEvent(event);
-                                            }}
+                                        <Link
+                                            href="/partner/agents"
                                             className="text-sm text-indigo-600 hover:text-indigo-700 font-medium flex items-center gap-1"
                                         >
                                             <Edit3 className="w-3.5 h-3.5" />
                                             Configure
-                                        </button>
+                                        </Link>
                                     </div>
                                     <div className="p-4">
                                         <div className="flex flex-wrap gap-2">
@@ -679,7 +677,7 @@ export default function DocumentsView() {
                                             })}
                                         </div>
                                         <p className="text-xs text-slate-400 mt-3">
-                                            Auto-assigned based on category • Edit in Assistants tab
+                                            Auto-assigned based on category • Manage in AI Assistants page
                                         </p>
                                     </div>
                                 </div>
