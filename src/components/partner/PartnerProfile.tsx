@@ -17,7 +17,8 @@ import {
   Target,
   Briefcase,
   Zap,
-  AlertCircle
+  AlertCircle,
+  BarChart3
 } from 'lucide-react';
 
 interface PartnerProfileProps {
