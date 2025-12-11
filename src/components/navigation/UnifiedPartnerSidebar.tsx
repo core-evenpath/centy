@@ -12,7 +12,8 @@ import {
   Link as LinkIcon,
   PanelLeftClose,
   PanelLeftOpen,
-  Database
+  Database,
+  Bot
 } from 'lucide-react';
 import { Button } from '../ui/button';
 import { cn } from '@/lib/utils';
@@ -70,9 +71,14 @@ export default function UnifiedPartnerSidebar() {
       isInbox: true
     },
     {
-      icon: Database, // Matching the "Core Memory" icon concept
+      icon: Database,
       label: 'Core Memory',
       href: '/partner/core'
+    },
+    {
+      icon: Bot,
+      label: 'Agents',
+      href: '/partner/agents'
     },
     {
       icon: Users,
@@ -80,7 +86,7 @@ export default function UnifiedPartnerSidebar() {
       href: '/partner/contacts'
     },
     {
-      icon: LinkIcon, // Using Link icon for Integrations
+      icon: LinkIcon,
       label: 'Integrations',
       href: '/partner/apps'
     },
@@ -93,7 +99,7 @@ export default function UnifiedPartnerSidebar() {
 
   return (
     <div className={cn(
-      "flex flex-col bg-[#F3F4F6] border-r border-gray-200 transition-all duration-300 ease-in-out h-full",
+      "hidden md:flex flex-col bg-[#F3F4F6] border-r border-gray-200 transition-all duration-300 ease-in-out h-full overflow-hidden",
       isCollapsed ? "w-20" : "w-64"
     )}>
       {/* Header / Logo */}
@@ -110,7 +116,7 @@ export default function UnifiedPartnerSidebar() {
       </div>
 
       {/* Navigation */}
-      <div className="flex-1 px-3 space-y-1 overflow-y-auto">
+      <div className="flex-1 px-3 space-y-1 overflow-hidden">
         {menuItems.map((item) => {
           const isActive = isActiveRoute(item.href);
           return (
