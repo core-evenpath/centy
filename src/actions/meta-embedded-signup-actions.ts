@@ -15,6 +15,8 @@ import type { MetaPhoneMapping } from '@/lib/types-meta-whatsapp';
 const META_API_VERSION = 'v24.0';
 const META_API_BASE = `https://graph.facebook.com/${META_API_VERSION}`;
 
+import { getPlatformMetaConfig } from '@/actions/admin-platform-actions';
+
 // Helper function to subscribe to webhook fields at the app level
 async function subscribeWebhookFieldsForEmbeddedSignup(
     wabaId: string,
@@ -24,7 +26,10 @@ async function subscribeWebhookFieldsForEmbeddedSignup(
     const callbackUrl = process.env.NEXT_PUBLIC_APP_URL
         ? `${process.env.NEXT_PUBLIC_APP_URL}/api/webhooks/meta/whatsapp`
         : 'https://www.centy.dev/api/webhooks/meta/whatsapp';
-    const verifyToken = process.env.META_WHATSAPP_VERIFY_TOKEN || 'centy_webhook_verify';
+
+    // Fetch platform config to match the logic in the webhook route
+    const platformConfig = await getPlatformMetaConfig();
+    const verifyToken = platformConfig?.verifyToken || process.env.META_WHATSAPP_VERIFY_TOKEN || 'centy_webhook_verify';
 
     if (!appId) {
         console.error('Missing NEXT_PUBLIC_META_APP_ID for webhook subscription');
