@@ -740,26 +740,53 @@ export async function testAgentAction(
         }
         if (identity?.currency) businessDetails.push(`Currency: ${identity.currency}`);
 
-        // Add operating hours
+        // Add operating hours (complete schedule from Business Manager AI)
         if (identity?.operatingHours) {
             if (identity.operatingHours.isOpen24x7) {
-                businessDetails.push(`Hours: Open 24/7`);
+                businessDetails.push(`Operating Hours: Open 24/7`);
             } else if (identity.operatingHours.schedule) {
-                const hours = Object.entries(identity.operatingHours.schedule)
-                    .filter(([day, sched]: [string, any]) => sched?.isOpen)
-                    .map(([day, sched]: [string, any]) => `${day}: ${sched.openTime}-${sched.closeTime}`)
-                    .slice(0, 3);
-                if (hours.length > 0) {
-                    businessDetails.push(`Hours: ${hours.join(', ')}...`);
+                const dayOrder = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
+                const schedule = identity.operatingHours.schedule;
+                const hoursLines: string[] = [];
+
+                for (const day of dayOrder) {
+                    const sched = schedule[day];
+                    if (sched?.isOpen) {
+                        const dayName = day.charAt(0).toUpperCase() + day.slice(1);
+                        let timeStr = `${sched.openTime} - ${sched.closeTime}`;
+                        if (sched.breakTime?.start && sched.breakTime?.end) {
+                            timeStr += ` (Break: ${sched.breakTime.start}-${sched.breakTime.end})`;
+                        }
+                        hoursLines.push(`  ${dayName}: ${timeStr}`);
+                    } else if (sched) {
+                        const dayName = day.charAt(0).toUpperCase() + day.slice(1);
+                        hoursLines.push(`  ${dayName}: Closed`);
+                    }
+                }
+
+                if (hoursLines.length > 0) {
+                    businessDetails.push(`Operating Hours:\n${hoursLines.join('\n')}`);
                 }
             }
+            if (identity.operatingHours.appointmentOnly) {
+                businessDetails.push(`Note: By appointment only`);
+            }
+            if (identity.operatingHours.onlineAlways) {
+                businessDetails.push(`Note: Online services available 24/7`);
+            }
             if (identity.operatingHours.specialNote) {
-                businessDetails.push(`Note: ${identity.operatingHours.specialNote}`);
+                businessDetails.push(`Special Note: ${identity.operatingHours.specialNote}`);
+            }
+            if (identity.operatingHours.holidays?.length > 0) {
+                businessDetails.push(`Closed on holidays: ${identity.operatingHours.holidays.join(', ')}`);
             }
         }
 
+        // Build business context that should ALWAYS be included (from Business Manager AI)
+        let businessContext = '';
+
         if (businessDetails.length > 0) {
-            systemPrompt += `\n\nBUSINESS INFORMATION:\n${businessDetails.join('\n')}`;
+            businessContext += `\n\nBUSINESS INFORMATION (from Business Manager):\n${businessDetails.join('\n')}`;
         }
 
         // Add products/services if available
@@ -768,20 +795,23 @@ export async function testAgentAction(
                 .slice(0, 5)
                 .map((p: any) => `- ${p.name}${p.priceRange ? ` (${p.priceRange})` : ''}: ${p.description || 'No description'}`)
                 .join('\n');
-            systemPrompt += `\n\nPRODUCTS/SERVICES:\n${products}`;
+            businessContext += `\n\nPRODUCTS/SERVICES:\n${products}`;
         }
 
         // Add unique selling points
         if (personality?.uniqueSellingPoints?.length > 0) {
-            systemPrompt += `\n\nWhat makes us special: ${personality.uniqueSellingPoints.join(', ')}`;
+            businessContext += `\n\nWhat makes us special: ${personality.uniqueSellingPoints.join(', ')}`;
+        }
+
+        // If agent has a custom system prompt, use it as base but ALWAYS append business context
+        if (agentConfig?.systemPrompt) {
+            systemPrompt = agentConfig.systemPrompt + businessContext;
+        } else {
+            systemPrompt += businessContext;
         }
 
         if (agentConfig?.openingMessage) {
             systemPrompt += `\n\n${agentConfig.openingMessage}`;
-        }
-
-        if (agentConfig?.systemPrompt) {
-            systemPrompt = agentConfig.systemPrompt;
         }
 
         // Add tones/style if available
@@ -1210,11 +1240,46 @@ CUSTOMER PERSONA:
         if (identity?.website) businessDetails.push(`Website: ${identity.website}`);
         if (identity?.currency) businessDetails.push(`Currency: ${identity.currency}`);
 
-        // Add operating hours
-        if (identity?.operatingHours?.isOpen24x7) {
-            businessDetails.push(`Hours: Open 24/7`);
-        } else if (identity?.operatingHours?.specialNote) {
-            businessDetails.push(`Hours: ${identity.operatingHours.specialNote}`);
+        // Add operating hours (complete schedule from Business Manager AI)
+        if (identity?.operatingHours) {
+            if (identity.operatingHours.isOpen24x7) {
+                businessDetails.push(`Operating Hours: Open 24/7`);
+            } else if (identity.operatingHours.schedule) {
+                const dayOrder = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
+                const schedule = identity.operatingHours.schedule;
+                const hoursLines: string[] = [];
+
+                for (const day of dayOrder) {
+                    const sched = schedule[day];
+                    if (sched?.isOpen) {
+                        const dayName = day.charAt(0).toUpperCase() + day.slice(1);
+                        let timeStr = `${sched.openTime} - ${sched.closeTime}`;
+                        if (sched.breakTime?.start && sched.breakTime?.end) {
+                            timeStr += ` (Break: ${sched.breakTime.start}-${sched.breakTime.end})`;
+                        }
+                        hoursLines.push(`  ${dayName}: ${timeStr}`);
+                    } else if (sched) {
+                        const dayName = day.charAt(0).toUpperCase() + day.slice(1);
+                        hoursLines.push(`  ${dayName}: Closed`);
+                    }
+                }
+
+                if (hoursLines.length > 0) {
+                    businessDetails.push(`Operating Hours:\n${hoursLines.join('\n')}`);
+                }
+            }
+            if (identity.operatingHours.appointmentOnly) {
+                businessDetails.push(`Note: By appointment only`);
+            }
+            if (identity.operatingHours.onlineAlways) {
+                businessDetails.push(`Note: Online services available 24/7`);
+            }
+            if (identity.operatingHours.specialNote) {
+                businessDetails.push(`Special Note: ${identity.operatingHours.specialNote}`);
+            }
+            if (identity.operatingHours.holidays?.length > 0) {
+                businessDetails.push(`Closed on holidays: ${identity.operatingHours.holidays.join(', ')}`);
+            }
         }
 
         if (businessDetails.length > 0) {
