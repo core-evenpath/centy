@@ -22,6 +22,8 @@ import {
 } from 'lucide-react';
 import { db } from '@/lib/firebase';
 import { collection, query, where, getDocs } from 'firebase/firestore';
+import { getPartnerProfileAction } from '@/actions/get-partner-profile';
+import type { Partner } from '@/lib/types';
 
 interface QuickLinkCardProps {
   href: string;
@@ -89,6 +91,7 @@ export default function SettingsPage() {
   const [teamCount, setTeamCount] = useState<number>(0);
   const [adminCount, setAdminCount] = useState<number>(0);
   const [loadingStats, setLoadingStats] = useState(true);
+  const [partner, setPartner] = useState<Partner | null>(null);
 
   const partnerId = user?.customClaims?.partnerId;
   const userRole = user?.customClaims?.role;
@@ -131,6 +134,25 @@ export default function SettingsPage() {
     }
   }, [partnerId, authLoading]);
 
+  useEffect(() => {
+    async function fetchPartnerProfile() {
+      if (!partnerId) return;
+
+      try {
+        const result = await getPartnerProfileAction(partnerId);
+        if (result.success && result.partner) {
+          setPartner(result.partner);
+        }
+      } catch (error) {
+        console.error('Error fetching partner profile:', error);
+      }
+    }
+
+    if (!authLoading && partnerId) {
+      fetchPartnerProfile();
+    }
+  }, [partnerId, authLoading]);
+
   if (authLoading) {
     return <LoadingSkeleton />;
   }
@@ -152,9 +174,10 @@ export default function SettingsPage() {
     );
   }
 
-  const userInitial = user?.displayName?.charAt(0)?.toUpperCase() ||
-                      user?.email?.charAt(0)?.toUpperCase() ||
-                      'U';
+  const businessInitial = partner?.businessName?.charAt(0)?.toUpperCase() ||
+                          user?.displayName?.charAt(0)?.toUpperCase() ||
+                          user?.email?.charAt(0)?.toUpperCase() ||
+                          'U';
 
   const formatDate = (date: string | Date | undefined) => {
     if (!date) return 'N/A';
@@ -178,14 +201,14 @@ export default function SettingsPage() {
             {/* Avatar & Name */}
             <div className="flex items-center gap-4">
               <Avatar className="h-16 w-16 border-2 border-primary/20">
-                <AvatarImage src={user?.photoURL || undefined} alt={user?.displayName || 'User'} />
+                <AvatarImage src={user?.photoURL || undefined} alt={partner?.businessName || 'Business'} />
                 <AvatarFallback className="bg-primary/10 text-primary text-xl font-semibold">
-                  {userInitial}
+                  {businessInitial}
                 </AvatarFallback>
               </Avatar>
               <div>
                 <h2 className="text-xl font-semibold">
-                  {user?.displayName || 'Workspace User'}
+                  {partner?.businessName || 'Workspace User'}
                 </h2>
                 <div className="flex items-center gap-2 mt-1">
                   <Badge variant={userRole === 'partner_admin' ? 'default' : 'secondary'}>
