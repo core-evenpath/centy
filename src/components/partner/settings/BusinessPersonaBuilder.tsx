@@ -123,6 +123,122 @@ const VOICE_TONES: { id: VoiceTone; label: string; emoji: string; description: s
     { id: 'calm', label: 'Calm', emoji: '🌊', description: 'Peaceful & reassuring' },
 ];
 
+// Common time options for dropdowns (user-friendly format)
+const TIME_OPTIONS = [
+    { value: '06:00', label: '6:00 AM' },
+    { value: '07:00', label: '7:00 AM' },
+    { value: '08:00', label: '8:00 AM' },
+    { value: '08:30', label: '8:30 AM' },
+    { value: '09:00', label: '9:00 AM' },
+    { value: '09:30', label: '9:30 AM' },
+    { value: '10:00', label: '10:00 AM' },
+    { value: '10:30', label: '10:30 AM' },
+    { value: '11:00', label: '11:00 AM' },
+    { value: '11:30', label: '11:30 AM' },
+    { value: '12:00', label: '12:00 PM' },
+    { value: '12:30', label: '12:30 PM' },
+    { value: '13:00', label: '1:00 PM' },
+    { value: '13:30', label: '1:30 PM' },
+    { value: '14:00', label: '2:00 PM' },
+    { value: '14:30', label: '2:30 PM' },
+    { value: '15:00', label: '3:00 PM' },
+    { value: '15:30', label: '3:30 PM' },
+    { value: '16:00', label: '4:00 PM' },
+    { value: '16:30', label: '4:30 PM' },
+    { value: '17:00', label: '5:00 PM' },
+    { value: '17:30', label: '5:30 PM' },
+    { value: '18:00', label: '6:00 PM' },
+    { value: '18:30', label: '6:30 PM' },
+    { value: '19:00', label: '7:00 PM' },
+    { value: '19:30', label: '7:30 PM' },
+    { value: '20:00', label: '8:00 PM' },
+    { value: '20:30', label: '8:30 PM' },
+    { value: '21:00', label: '9:00 PM' },
+    { value: '21:30', label: '9:30 PM' },
+    { value: '22:00', label: '10:00 PM' },
+    { value: '23:00', label: '11:00 PM' },
+    { value: '00:00', label: '12:00 AM' },
+];
+
+// Hour presets for one-click setup
+const HOUR_PRESETS = [
+    {
+        id: 'standard',
+        label: 'Standard 9-5',
+        emoji: '🏢',
+        description: 'Mon-Fri 9am-5pm',
+        schedule: {
+            monday: { isOpen: true, openTime: '09:00', closeTime: '17:00' },
+            tuesday: { isOpen: true, openTime: '09:00', closeTime: '17:00' },
+            wednesday: { isOpen: true, openTime: '09:00', closeTime: '17:00' },
+            thursday: { isOpen: true, openTime: '09:00', closeTime: '17:00' },
+            friday: { isOpen: true, openTime: '09:00', closeTime: '17:00' },
+            saturday: { isOpen: false },
+            sunday: { isOpen: false },
+        },
+    },
+    {
+        id: 'extended',
+        label: 'Extended Hours',
+        emoji: '🌆',
+        description: 'Mon-Fri 8am-8pm',
+        schedule: {
+            monday: { isOpen: true, openTime: '08:00', closeTime: '20:00' },
+            tuesday: { isOpen: true, openTime: '08:00', closeTime: '20:00' },
+            wednesday: { isOpen: true, openTime: '08:00', closeTime: '20:00' },
+            thursday: { isOpen: true, openTime: '08:00', closeTime: '20:00' },
+            friday: { isOpen: true, openTime: '08:00', closeTime: '20:00' },
+            saturday: { isOpen: false },
+            sunday: { isOpen: false },
+        },
+    },
+    {
+        id: 'retail',
+        label: 'Retail Hours',
+        emoji: '🛍️',
+        description: 'Mon-Sat 10am-9pm',
+        schedule: {
+            monday: { isOpen: true, openTime: '10:00', closeTime: '21:00' },
+            tuesday: { isOpen: true, openTime: '10:00', closeTime: '21:00' },
+            wednesday: { isOpen: true, openTime: '10:00', closeTime: '21:00' },
+            thursday: { isOpen: true, openTime: '10:00', closeTime: '21:00' },
+            friday: { isOpen: true, openTime: '10:00', closeTime: '21:00' },
+            saturday: { isOpen: true, openTime: '10:00', closeTime: '21:00' },
+            sunday: { isOpen: false },
+        },
+    },
+    {
+        id: 'restaurant',
+        label: 'Restaurant',
+        emoji: '🍽️',
+        description: 'Tue-Sun 11am-10pm',
+        schedule: {
+            monday: { isOpen: false },
+            tuesday: { isOpen: true, openTime: '11:00', closeTime: '22:00' },
+            wednesday: { isOpen: true, openTime: '11:00', closeTime: '22:00' },
+            thursday: { isOpen: true, openTime: '11:00', closeTime: '22:00' },
+            friday: { isOpen: true, openTime: '11:00', closeTime: '23:00' },
+            saturday: { isOpen: true, openTime: '11:00', closeTime: '23:00' },
+            sunday: { isOpen: true, openTime: '11:00', closeTime: '21:00' },
+        },
+    },
+    {
+        id: 'weekend',
+        label: 'Weekends Only',
+        emoji: '🎉',
+        description: 'Sat-Sun 10am-6pm',
+        schedule: {
+            monday: { isOpen: false },
+            tuesday: { isOpen: false },
+            wednesday: { isOpen: false },
+            thursday: { isOpen: false },
+            friday: { isOpen: false },
+            saturday: { isOpen: true, openTime: '10:00', closeTime: '18:00' },
+            sunday: { isOpen: true, openTime: '10:00', closeTime: '18:00' },
+        },
+    },
+];
+
 export default function BusinessPersonaBuilder({
     partnerId,
     onComplete,
@@ -906,133 +1022,209 @@ export default function BusinessPersonaBuilder({
                     {/* Step 3: Operating Hours */}
                     {currentStep === 2 && (
                         <div className="space-y-6">
-                            {/* Quick Options */}
-                            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                                <button
-                                    onClick={() => {
-                                        updateField('identity.operatingHours.isOpen24x7', true);
-                                        updateField('identity.operatingHours.appointmentOnly', false);
-                                    }}
-                                    className={cn(
-                                        'p-4 rounded-xl border-2 text-center transition-all',
-                                        persona.identity?.operatingHours?.isOpen24x7
-                                            ? 'bg-green-50 border-green-400'
-                                            : 'bg-white border-gray-200 hover:border-gray-300'
-                                    )}
-                                >
-                                    <div className="text-2xl mb-1">🌐</div>
-                                    <div className="text-sm font-medium">Open 24/7</div>
-                                </button>
+                            {/* Quick Options - Always Available */}
+                            <div>
+                                <Label className="text-base mb-3 block">Quick Options</Label>
+                                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                                    <button
+                                        onClick={() => {
+                                            updateField('identity.operatingHours.isOpen24x7', true);
+                                            updateField('identity.operatingHours.appointmentOnly', false);
+                                            updateField('identity.operatingHours.onlineAlways', false);
+                                        }}
+                                        className={cn(
+                                            'p-4 rounded-xl border-2 text-center transition-all',
+                                            persona.identity?.operatingHours?.isOpen24x7
+                                                ? 'bg-green-50 border-green-400'
+                                                : 'bg-white border-gray-200 hover:border-gray-300'
+                                        )}
+                                    >
+                                        <div className="text-2xl mb-1">🌐</div>
+                                        <div className="text-sm font-medium">Open 24/7</div>
+                                    </button>
 
-                                <button
-                                    onClick={() => {
-                                        updateField('identity.operatingHours.isOpen24x7', false);
-                                        updateField('identity.operatingHours.appointmentOnly', true);
-                                    }}
-                                    className={cn(
-                                        'p-4 rounded-xl border-2 text-center transition-all',
-                                        persona.identity?.operatingHours?.appointmentOnly
-                                            ? 'bg-purple-50 border-purple-400'
-                                            : 'bg-white border-gray-200 hover:border-gray-300'
-                                    )}
-                                >
-                                    <div className="text-2xl mb-1">📅</div>
-                                    <div className="text-sm font-medium">By Appointment</div>
-                                </button>
+                                    <button
+                                        onClick={() => {
+                                            updateField('identity.operatingHours.isOpen24x7', false);
+                                            updateField('identity.operatingHours.appointmentOnly', true);
+                                            updateField('identity.operatingHours.onlineAlways', false);
+                                        }}
+                                        className={cn(
+                                            'p-4 rounded-xl border-2 text-center transition-all',
+                                            persona.identity?.operatingHours?.appointmentOnly
+                                                ? 'bg-purple-50 border-purple-400'
+                                                : 'bg-white border-gray-200 hover:border-gray-300'
+                                        )}
+                                    >
+                                        <div className="text-2xl mb-1">📅</div>
+                                        <div className="text-sm font-medium">By Appointment</div>
+                                    </button>
 
-                                <button
-                                    onClick={() => {
-                                        updateField('identity.operatingHours.isOpen24x7', false);
-                                        updateField('identity.operatingHours.appointmentOnly', false);
-                                        updateField('identity.operatingHours.onlineAlways', true);
-                                    }}
-                                    className={cn(
-                                        'p-4 rounded-xl border-2 text-center transition-all',
-                                        persona.identity?.operatingHours?.onlineAlways
-                                            ? 'bg-blue-50 border-blue-400'
-                                            : 'bg-white border-gray-200 hover:border-gray-300'
-                                    )}
-                                >
-                                    <div className="text-2xl mb-1">💻</div>
-                                    <div className="text-sm font-medium">Online 24/7</div>
-                                </button>
+                                    <button
+                                        onClick={() => {
+                                            updateField('identity.operatingHours.isOpen24x7', false);
+                                            updateField('identity.operatingHours.appointmentOnly', false);
+                                            updateField('identity.operatingHours.onlineAlways', true);
+                                        }}
+                                        className={cn(
+                                            'p-4 rounded-xl border-2 text-center transition-all',
+                                            persona.identity?.operatingHours?.onlineAlways
+                                                ? 'bg-blue-50 border-blue-400'
+                                                : 'bg-white border-gray-200 hover:border-gray-300'
+                                        )}
+                                    >
+                                        <div className="text-2xl mb-1">💻</div>
+                                        <div className="text-sm font-medium">Online 24/7</div>
+                                    </button>
 
-                                <button
-                                    onClick={() => {
-                                        updateField('identity.operatingHours.isOpen24x7', false);
-                                        updateField('identity.operatingHours.appointmentOnly', false);
-                                        updateField('identity.operatingHours.onlineAlways', false);
-                                    }}
-                                    className={cn(
-                                        'p-4 rounded-xl border-2 text-center transition-all',
-                                        !persona.identity?.operatingHours?.isOpen24x7 &&
-                                            !persona.identity?.operatingHours?.appointmentOnly &&
-                                            !persona.identity?.operatingHours?.onlineAlways
-                                            ? 'bg-amber-50 border-amber-400'
-                                            : 'bg-white border-gray-200 hover:border-gray-300'
-                                    )}
-                                >
-                                    <div className="text-2xl mb-1">⏰</div>
-                                    <div className="text-sm font-medium">Set Hours</div>
-                                </button>
+                                    <button
+                                        onClick={() => {
+                                            updateField('identity.operatingHours.isOpen24x7', false);
+                                            updateField('identity.operatingHours.appointmentOnly', false);
+                                            updateField('identity.operatingHours.onlineAlways', false);
+                                        }}
+                                        className={cn(
+                                            'p-4 rounded-xl border-2 text-center transition-all',
+                                            !persona.identity?.operatingHours?.isOpen24x7 &&
+                                                !persona.identity?.operatingHours?.appointmentOnly &&
+                                                !persona.identity?.operatingHours?.onlineAlways
+                                                ? 'bg-amber-50 border-amber-400'
+                                                : 'bg-white border-gray-200 hover:border-gray-300'
+                                        )}
+                                    >
+                                        <div className="text-2xl mb-1">⏰</div>
+                                        <div className="text-sm font-medium">Set Hours</div>
+                                    </button>
+                                </div>
                             </div>
 
-                            {/* Detailed Schedule */}
+                            {/* Hour Presets - Show when "Set Hours" is selected */}
                             {!persona.identity?.operatingHours?.isOpen24x7 &&
                                 !persona.identity?.operatingHours?.appointmentOnly &&
                                 !persona.identity?.operatingHours?.onlineAlways && (
-                                    <div className="space-y-3 bg-gray-50 p-4 rounded-xl">
-                                        <p className="text-sm font-medium mb-4">Set your weekly schedule:</p>
-
-                                        {DAYS_OF_WEEK.map((day) => {
-                                            const schedule = persona.identity?.operatingHours?.schedule?.[day] as DaySchedule | undefined;
-                                            const isOpen = schedule?.isOpen ?? (day !== 'sunday');
-
-                                            return (
-                                                <div
-                                                    key={day}
-                                                    className="flex items-center gap-4 p-3 rounded-lg bg-white border"
-                                                >
-                                                    <div className="w-16">
-                                                        <span className="font-medium text-sm capitalize">{day.slice(0, 3)}</span>
-                                                    </div>
-
-                                                    <Switch
-                                                        checked={isOpen}
-                                                        onCheckedChange={(checked) => {
-                                                            updateField(`identity.operatingHours.schedule.${day}.isOpen`, checked);
+                                    <>
+                                        {/* Common Presets */}
+                                        <div>
+                                            <Label className="text-base mb-3 block">Start with a template</Label>
+                                            <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+                                                {HOUR_PRESETS.map((preset) => (
+                                                    <button
+                                                        key={preset.id}
+                                                        onClick={() => {
+                                                            updateField('identity.operatingHours.schedule', preset.schedule);
                                                         }}
-                                                    />
+                                                        className="p-3 rounded-xl border-2 border-gray-200 bg-white hover:border-indigo-300 hover:bg-indigo-50 text-center transition-all"
+                                                    >
+                                                        <div className="text-xl mb-1">{preset.emoji}</div>
+                                                        <div className="text-xs font-medium">{preset.label}</div>
+                                                        <div className="text-[10px] text-muted-foreground">{preset.description}</div>
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        </div>
 
-                                                    {isOpen ? (
-                                                        <div className="flex items-center gap-2 flex-1">
-                                                            <Input
-                                                                type="time"
-                                                                value={schedule?.openTime || '09:00'}
-                                                                onChange={(e) => updateField(
-                                                                    `identity.operatingHours.schedule.${day}.openTime`,
-                                                                    e.target.value
-                                                                )}
-                                                                className="w-28"
-                                                            />
-                                                            <span className="text-muted-foreground">to</span>
-                                                            <Input
-                                                                type="time"
-                                                                value={schedule?.closeTime || '18:00'}
-                                                                onChange={(e) => updateField(
-                                                                    `identity.operatingHours.schedule.${day}.closeTime`,
-                                                                    e.target.value
-                                                                )}
-                                                                className="w-28"
-                                                            />
+                                        {/* Detailed Schedule */}
+                                        <div className="space-y-3 bg-gray-50 p-4 rounded-xl">
+                                            <div className="flex items-center justify-between mb-4">
+                                                <p className="text-sm font-medium">Your weekly schedule</p>
+                                                <Button
+                                                    type="button"
+                                                    variant="outline"
+                                                    size="sm"
+                                                    onClick={() => {
+                                                        // Get Monday's hours and apply to all weekdays
+                                                        const mondaySchedule = persona.identity?.operatingHours?.schedule?.monday as DaySchedule | undefined;
+                                                        const openTime = mondaySchedule?.openTime || '09:00';
+                                                        const closeTime = mondaySchedule?.closeTime || '17:00';
+                                                        const weekdaySchedule = { isOpen: true, openTime, closeTime };
+
+                                                        updateField('identity.operatingHours.schedule.monday', weekdaySchedule);
+                                                        updateField('identity.operatingHours.schedule.tuesday', weekdaySchedule);
+                                                        updateField('identity.operatingHours.schedule.wednesday', weekdaySchedule);
+                                                        updateField('identity.operatingHours.schedule.thursday', weekdaySchedule);
+                                                        updateField('identity.operatingHours.schedule.friday', weekdaySchedule);
+                                                    }}
+                                                    className="text-xs"
+                                                >
+                                                    <Copy className="h-3 w-3 mr-1" />
+                                                    Copy Mon to all weekdays
+                                                </Button>
+                                            </div>
+
+                                            {DAYS_OF_WEEK.map((day) => {
+                                                const schedule = persona.identity?.operatingHours?.schedule?.[day] as DaySchedule | undefined;
+                                                const isOpen = schedule?.isOpen ?? (day !== 'sunday');
+                                                const openTime = schedule?.openTime || '09:00';
+                                                const closeTime = schedule?.closeTime || '17:00';
+
+                                                return (
+                                                    <div
+                                                        key={day}
+                                                        className="flex items-center gap-3 p-3 rounded-lg bg-white border"
+                                                    >
+                                                        <div className="w-12">
+                                                            <span className="font-medium text-sm">{DAY_LABELS[day]}</span>
                                                         </div>
-                                                    ) : (
-                                                        <span className="text-sm text-muted-foreground">Closed</span>
-                                                    )}
-                                                </div>
-                                            );
-                                        })}
-                                    </div>
+
+                                                        <Switch
+                                                            checked={isOpen}
+                                                            onCheckedChange={(checked) => {
+                                                                updateField(`identity.operatingHours.schedule.${day}.isOpen`, checked);
+                                                                if (checked) {
+                                                                    updateField(`identity.operatingHours.schedule.${day}.openTime`, '09:00');
+                                                                    updateField(`identity.operatingHours.schedule.${day}.closeTime`, '17:00');
+                                                                }
+                                                            }}
+                                                        />
+
+                                                        {isOpen ? (
+                                                            <div className="flex items-center gap-2 flex-1">
+                                                                <Select
+                                                                    value={openTime}
+                                                                    onValueChange={(value) => updateField(
+                                                                        `identity.operatingHours.schedule.${day}.openTime`,
+                                                                        value
+                                                                    )}
+                                                                >
+                                                                    <SelectTrigger className="w-[110px]">
+                                                                        <SelectValue />
+                                                                    </SelectTrigger>
+                                                                    <SelectContent>
+                                                                        {TIME_OPTIONS.map((time) => (
+                                                                            <SelectItem key={time.value} value={time.value}>
+                                                                                {time.label}
+                                                                            </SelectItem>
+                                                                        ))}
+                                                                    </SelectContent>
+                                                                </Select>
+                                                                <span className="text-muted-foreground text-sm">to</span>
+                                                                <Select
+                                                                    value={closeTime}
+                                                                    onValueChange={(value) => updateField(
+                                                                        `identity.operatingHours.schedule.${day}.closeTime`,
+                                                                        value
+                                                                    )}
+                                                                >
+                                                                    <SelectTrigger className="w-[110px]">
+                                                                        <SelectValue />
+                                                                    </SelectTrigger>
+                                                                    <SelectContent>
+                                                                        {TIME_OPTIONS.map((time) => (
+                                                                            <SelectItem key={time.value} value={time.value}>
+                                                                                {time.label}
+                                                                            </SelectItem>
+                                                                        ))}
+                                                                    </SelectContent>
+                                                                </Select>
+                                                            </div>
+                                                        ) : (
+                                                            <span className="text-sm text-muted-foreground italic">Closed</span>
+                                                        )}
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                    </>
                                 )}
 
                             {/* Special Notes */}
@@ -1041,7 +1233,7 @@ export default function BusinessPersonaBuilder({
                                 <Input
                                     value={persona.identity?.operatingHours?.specialNote || ''}
                                     onChange={(e) => updateField('identity.operatingHours.specialNote', e.target.value)}
-                                    placeholder="e.g., Closed on 2nd Saturdays, Lunch break 1-2pm, Closed on public holidays"
+                                    placeholder="e.g., Closed on 2nd Saturdays, Lunch break 1-2pm"
                                     className="mt-2"
                                 />
                             </div>
