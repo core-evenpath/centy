@@ -3,10 +3,10 @@
 
 import React from 'react';
 import type { Partner } from '../../lib/types';
+import { SUPPORTED_CURRENCIES } from '../../lib/business-persona-types';
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '../ui/card';
 import { Badge } from '../ui/badge';
 import { Progress } from '../ui/progress';
-import { Separator } from '../ui/separator';
 import {
   Building2,
   Users,
@@ -18,7 +18,9 @@ import {
   Briefcase,
   Zap,
   AlertCircle,
-  BarChart3
+  BarChart3,
+  Globe,
+  DollarSign,
 } from 'lucide-react';
 
 interface PartnerProfileProps {
@@ -46,6 +48,9 @@ function InfoRow({ icon: Icon, label, value }: InfoRowProps) {
 }
 
 export default function PartnerProfile({ partner }: PartnerProfileProps) {
+  // Get businessPersona data if available
+  const persona = (partner as any).businessPersona;
+
   const getStatusBadge = (status: string) => {
     const statusConfig: Record<string, { variant: "default" | "secondary" | "destructive" | "outline"; className: string }> = {
       active: { variant: 'default', className: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400' },
@@ -74,10 +79,19 @@ export default function PartnerProfile({ partner }: PartnerProfileProps) {
   };
 
   const formatLocation = () => {
+    // Try businessPersona first, then fall back to partner.location
+    const address = persona?.identity?.address;
+    if (address?.city || address?.state) {
+      const parts = [address.city, address.state].filter(Boolean);
+      return parts.join(', ');
+    }
     if (!partner.location) return null;
     const parts = [partner.location.city, partner.location.state].filter(Boolean);
     return parts.length > 0 ? parts.join(', ') : null;
   };
+
+  // Get business name from persona or partner
+  const businessName = persona?.identity?.name || partner.businessName || partner.name;
 
   return (
     <div className="space-y-6">
@@ -87,10 +101,10 @@ export default function PartnerProfile({ partner }: PartnerProfileProps) {
           <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
             <div className="flex items-start gap-4">
               <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-primary/80 to-primary flex items-center justify-center text-primary-foreground text-xl font-bold shadow-lg">
-                {(partner.name || partner.businessName || 'O').charAt(0).toUpperCase()}
+                {(businessName || 'O').charAt(0).toUpperCase()}
               </div>
               <div>
-                <h2 className="text-xl font-bold">{partner.name || partner.businessName}</h2>
+                <h2 className="text-xl font-bold">{businessName}</h2>
                 <p className="text-sm text-muted-foreground mt-0.5">Organization Profile</p>
                 <div className="flex items-center gap-2 mt-2">
                   {getStatusBadge(partner.status)}
@@ -117,10 +131,10 @@ export default function PartnerProfile({ partner }: PartnerProfileProps) {
               <span className="font-medium">Profile Completeness</span>
             </div>
             <span className="text-lg font-bold text-primary">
-              {partner.aiProfileCompleteness || 0}%
+              {persona?.setupProgress?.overallPercentage || partner.aiProfileCompleteness || 0}%
             </span>
           </div>
-          <Progress value={partner.aiProfileCompleteness || 0} className="h-2" />
+          <Progress value={persona?.setupProgress?.overallPercentage || partner.aiProfileCompleteness || 0} className="h-2" />
           <p className="text-xs text-muted-foreground mt-2">
             Complete your profile to unlock better AI recommendations and insights
           </p>
@@ -137,11 +151,28 @@ export default function PartnerProfile({ partner }: PartnerProfileProps) {
         </CardHeader>
         <CardContent>
           <div className="divide-y">
-            <InfoRow icon={Building2} label="Business Name" value={partner.businessName} />
-            <InfoRow icon={Users} label="Contact Person" value={partner.contactPerson} />
-            <InfoRow icon={Mail} label="Email Address" value={partner.email} />
-            <InfoRow icon={Phone} label="Phone Number" value={partner.phone} />
-            <InfoRow icon={MapPin} label="Location" value={formatLocation()} />
+            <InfoRow
+              icon={Mail}
+              label="Email Address"
+              value={persona?.identity?.email || partner.email}
+            />
+            <InfoRow
+              icon={Phone}
+              label="Phone Number"
+              value={persona?.identity?.phone || partner.phone}
+            />
+            <InfoRow
+              icon={MapPin}
+              label="Location"
+              value={formatLocation()}
+            />
+            {persona?.identity?.website && (
+              <InfoRow
+                icon={Globe}
+                label="Website"
+                value={persona.identity.website}
+              />
+            )}
           </div>
         </CardContent>
       </Card>
@@ -156,23 +187,96 @@ export default function PartnerProfile({ partner }: PartnerProfileProps) {
         </CardHeader>
         <CardContent>
           <div className="divide-y">
-            <InfoRow icon={Building2} label="Industry" value={partner.industry?.name} />
-            <InfoRow icon={Users} label="Business Size" value={partner.businessSize} />
-            <InfoRow icon={Users} label="Employee Count" value={partner.employeeCount} />
             <InfoRow
-              icon={BarChart3}
-              label="Monthly Revenue"
-              value={partner.monthlyRevenue ? `$${partner.monthlyRevenue}` : undefined}
+              icon={Building2}
+              label="Industry"
+              value={persona?.identity?.industry?.name || partner.industry?.name}
             />
+            {persona?.identity?.currency && (
+              <InfoRow
+                icon={DollarSign}
+                label="Currency"
+                value={(() => {
+                  const currency = SUPPORTED_CURRENCIES.find(c => c.code === persona.identity.currency);
+                  return currency ? `${currency.flag} ${currency.name} (${currency.symbol})` : persona.identity.currency;
+                })()}
+              />
+            )}
+            {partner.businessSize && (
+              <InfoRow icon={Users} label="Business Size" value={partner.businessSize} />
+            )}
+            {partner.employeeCount && (
+              <InfoRow icon={Users} label="Employee Count" value={partner.employeeCount} />
+            )}
+            {partner.monthlyRevenue && (
+              <InfoRow
+                icon={BarChart3}
+                label="Monthly Revenue"
+                value={(() => {
+                  const currencyCode = persona?.identity?.currency;
+                  const currency = currencyCode ? SUPPORTED_CURRENCIES.find(c => c.code === currencyCode) : null;
+                  const symbol = currency?.symbol || '$';
+                  return `${symbol}${partner.monthlyRevenue.toLocaleString()}`;
+                })()}
+              />
+            )}
           </div>
         </CardContent>
       </Card>
 
-      {/* Business Context */}
+      {/* Business Personality - from persona */}
+      {persona?.personality && (
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base flex items-center gap-2">
+              <Target className="w-4 h-4" />
+              Brand Personality
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              {persona.personality.description && (
+                <div>
+                  <p className="text-sm text-muted-foreground mb-1">About</p>
+                  <p className="text-sm">{persona.personality.description}</p>
+                </div>
+              )}
+              {persona.personality.tagline && (
+                <div>
+                  <p className="text-sm text-muted-foreground mb-1">Tagline</p>
+                  <p className="text-sm font-medium">{persona.personality.tagline}</p>
+                </div>
+              )}
+              {persona.personality.uniqueSellingPoints?.length > 0 && (
+                <div>
+                  <p className="text-sm text-muted-foreground mb-2">What Makes Us Special</p>
+                  <div className="flex flex-wrap gap-2">
+                    {persona.personality.uniqueSellingPoints.map((usp: string, i: number) => (
+                      <Badge key={i} variant="secondary">{usp}</Badge>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {persona.personality.voiceTone?.length > 0 && (
+                <div>
+                  <p className="text-sm text-muted-foreground mb-2">Communication Style</p>
+                  <div className="flex flex-wrap gap-2">
+                    {persona.personality.voiceTone.map((tone: string, i: number) => (
+                      <Badge key={i} variant="outline" className="capitalize">{tone}</Badge>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Business Context - legacy */}
       {partner.businessProfile && (
         <div className="grid md:grid-cols-2 gap-6">
           {/* Challenges */}
-          {partner.businessProfile.painPoints && partner.businessProfile.painPoints.length > 0 && (
+          {(partner.businessProfile as any).painPoints?.length > 0 && (
             <Card>
               <CardHeader className="pb-3">
                 <CardTitle className="text-base flex items-center gap-2 text-orange-600 dark:text-orange-400">
@@ -183,7 +287,7 @@ export default function PartnerProfile({ partner }: PartnerProfileProps) {
               </CardHeader>
               <CardContent>
                 <ul className="space-y-2">
-                  {partner.businessProfile.painPoints.map((point, index) => (
+                  {(partner.businessProfile as any).painPoints.map((point: string, index: number) => (
                     <li
                       key={index}
                       className="flex items-start gap-3 p-3 rounded-lg bg-orange-50 dark:bg-orange-950/20 text-sm"
@@ -198,7 +302,7 @@ export default function PartnerProfile({ partner }: PartnerProfileProps) {
           )}
 
           {/* Goals */}
-          {partner.businessProfile.goals && partner.businessProfile.goals.length > 0 && (
+          {partner.businessProfile.goals?.length > 0 && (
             <Card>
               <CardHeader className="pb-3">
                 <CardTitle className="text-base flex items-center gap-2 text-green-600 dark:text-green-400">
@@ -209,7 +313,7 @@ export default function PartnerProfile({ partner }: PartnerProfileProps) {
               </CardHeader>
               <CardContent>
                 <ul className="space-y-2">
-                  {partner.businessProfile.goals.map((goal, index) => (
+                  {partner.businessProfile.goals.map((goal: string, index: number) => (
                     <li
                       key={index}
                       className="flex items-start gap-3 p-3 rounded-lg bg-green-50 dark:bg-green-950/20 text-sm"

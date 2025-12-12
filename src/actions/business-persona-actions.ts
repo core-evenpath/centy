@@ -1,0 +1,708 @@
+// src/actions/business-persona-actions.ts
+'use server';
+
+import { db } from '@/lib/firebase-admin';
+import { FieldValue, Timestamp } from 'firebase-admin/firestore';
+import type {
+    BusinessPersona,
+    BusinessIdentity,
+    BusinessPersonality,
+    CustomerProfile,
+    BusinessKnowledge,
+    SetupProgress,
+    FrequentlyAskedQuestion,
+    VoiceTone,
+} from '@/lib/business-persona-types';
+
+/**
+ * Helper function to serialize Firestore data for client components
+ * Converts Timestamp objects to ISO strings
+ */
+function serializeForClient(obj: any): any {
+    if (obj === null || obj === undefined) {
+        return obj;
+    }
+
+    // Handle Firestore Timestamp
+    if (obj instanceof Timestamp || (obj && typeof obj.toDate === 'function')) {
+        return obj.toDate().toISOString();
+    }
+
+    // Handle Date objects
+    if (obj instanceof Date) {
+        return obj.toISOString();
+    }
+
+    // Handle arrays
+    if (Array.isArray(obj)) {
+        return obj.map(item => serializeForClient(item));
+    }
+
+    // Handle plain objects
+    if (typeof obj === 'object') {
+        const result: any = {};
+        for (const key of Object.keys(obj)) {
+            result[key] = serializeForClient(obj[key]);
+        }
+        return result;
+    }
+
+    // Return primitives as-is
+    return obj;
+}
+
+/**
+ * Calculate setup progress based on filled fields
+ */
+function calculateSetupProgress(data: Partial<BusinessPersona>): SetupProgress {
+    const progress: SetupProgress = {
+        basicInfo: false,
+        contactInfo: false,
+        operatingHours: false,
+        businessDescription: false,
+        customerProfile: false,
+        productsServices: false,
+        policies: false,
+        faqs: false,
+        overallPercentage: 0,
+        nextRecommendedStep: 'basicInfo',
+    };
+
+    // Check basic info (name + industry)
+    if (data.identity?.name && data.identity?.industry) {
+        progress.basicInfo = true;
+    }
+
+    // Check contact info (at least phone or email + city)
+    if ((data.identity?.phone || data.identity?.email) && data.identity?.address?.city) {
+        progress.contactInfo = true;
+    }
+
+    // Check operating hours
+    if (data.identity?.operatingHours?.isOpen24x7 ||
+        data.identity?.operatingHours?.appointmentOnly ||
+        data.identity?.operatingHours?.onlineAlways ||
+        data.identity?.operatingHours?.schedule) {
+        progress.operatingHours = true;
+    }
+
+    // Check business description (at least 30 chars)
+    if (data.personality?.description && data.personality?.description.length > 30) {
+        progress.businessDescription = true;
+    }
+
+    // Check customer profile
+    if (data.customerProfile?.targetAudience || (data.customerProfile?.commonQueries?.length ?? 0) > 0) {
+        progress.customerProfile = true;
+    }
+
+    // Check products/services (at least 1 with name)
+    const products = data.knowledge?.productsOrServices || [];
+    if (products.length > 0 && products.some(p => p.name && p.name.length > 0)) {
+        progress.productsServices = true;
+    }
+
+    // Check policies
+    if (data.knowledge?.policies && (
+        data.knowledge.policies.returnPolicy ||
+        data.knowledge.policies.refundPolicy ||
+        data.knowledge.policies.cancellationPolicy ||
+        (data.knowledge.policies.customPolicies?.length ?? 0) > 0
+    )) {
+        progress.policies = true;
+    }
+
+    // Check FAQs (at least 1 with answer)
+    const faqs = data.knowledge?.faqs || [];
+    if (faqs.length > 0 && faqs.some(f => f.question && f.answer && f.answer.length > 0)) {
+        progress.faqs = true;
+    }
+
+    // Calculate overall percentage with weighted scoring
+    const requiredSteps = ['basicInfo', 'contactInfo', 'operatingHours', 'businessDescription'] as const;
+    const optionalSteps = ['productsServices', 'faqs'] as const;
+
+    let score = 0;
+    const requiredWeight = 20; // Each required step = 20%
+    const optionalWeight = 10; // Each optional step = 10%
+
+    // Required steps (80% total)
+    requiredSteps.forEach(step => {
+        if (progress[step]) score += requiredWeight;
+    });
+
+    // Optional steps (20% total)
+    optionalSteps.forEach(step => {
+        if (progress[step]) score += optionalWeight;
+    });
+
+    progress.overallPercentage = Math.min(100, score);
+
+    // Find next recommended step (prioritize required first)
+    const allSteps: (keyof SetupProgress)[] = [
+        'basicInfo', 'contactInfo', 'operatingHours', 'businessDescription',
+        'productsServices', 'faqs'
+    ];
+    for (const step of allSteps) {
+        if (!progress[step]) {
+            progress.nextRecommendedStep = step;
+            break;
+        }
+    }
+
+    return progress;
+}
+
+/**
+ * Get the business persona for a partner
+ */
+export async function getBusinessPersonaAction(partnerId: string): Promise<{
+    success: boolean;
+    message: string;
+    persona?: BusinessPersona | null;
+    setupProgress?: SetupProgress;
+    isNewPersona?: boolean;
+}> {
+    if (!db) {
+        return { success: false, message: 'Database unavailable' };
+    }
+
+    try {
+        const partnerDoc = await db.collection('partners').doc(partnerId).get();
+
+        if (!partnerDoc.exists) {
+            return { success: false, message: 'Partner not found' };
+        }
+
+        const partnerData = partnerDoc.data();
+
+        // If businessPersona exists, return it
+        if (partnerData?.businessPersona) {
+            // Serialize to convert Firestore Timestamps to plain objects
+            const persona = serializeForClient(partnerData.businessPersona) as BusinessPersona;
+            const progress = calculateSetupProgress(persona);
+            return {
+                success: true,
+                message: 'Business persona retrieved',
+                persona,
+                setupProgress: progress,
+            };
+        }
+
+        // Otherwise, build a basic persona from existing partner data
+        const basicPersona: Partial<BusinessPersona> = {
+            identity: {
+                name: partnerData?.businessName || partnerData?.name || '',
+                industry: serializeForClient(partnerData?.industry) || null,
+                email: partnerData?.email || '',
+                phone: partnerData?.phone || '',
+                whatsAppNumber: partnerData?.whatsAppPhone || '',
+                address: partnerData?.location ? {
+                    city: partnerData.location.city || '',
+                    state: partnerData.location.state || '',
+                    country: 'India',
+                } : { city: '', state: '', country: 'India' },
+                timezone: 'Asia/Kolkata',
+                currency: partnerData?.currency || '', // No default - must be selected
+                operatingHours: { isOpen24x7: false },
+                lastUpdated: new Date() as any, // Will be serialized
+                completenessScore: 0,
+            },
+            personality: {
+                voiceTone: ['professional', 'friendly'] as VoiceTone[],
+                communicationStyle: 'conversational',
+                languagePreference: ['English'],
+                description: '',
+                uniqueSellingPoints: [],
+                responseTimeExpectation: 'within_hour',
+                escalationPreferences: {
+                    escalateOnHumanRequest: true,
+                    escalationKeywords: ['speak to human', 'talk to person', 'real person', 'human agent'],
+                    escalateOnComplaint: true,
+                    escalateOnUrgent: true,
+                    escalationMessage: 'Let me connect you with a team member who can help you better.',
+                },
+            },
+            customerProfile: {
+                targetAudience: '',
+                commonQueries: [],
+                typicalJourneyStages: [],
+                customerPainPoints: [],
+            },
+            knowledge: {
+                productsOrServices: [],
+                hasPricing: false,
+                policies: {},
+                faqs: [],
+            },
+        };
+
+        const progress = calculateSetupProgress(basicPersona);
+
+        // Return the built persona so the form is pre-populated with existing data
+        return {
+            success: true,
+            message: 'Basic persona created from existing data',
+            persona: basicPersona as BusinessPersona,
+            setupProgress: progress,
+            isNewPersona: true, // Flag to indicate this is a new persona built from partner data
+        };
+
+    } catch (error: any) {
+        console.error('Error fetching business persona:', error);
+        return { success: false, message: `Failed to fetch: ${error.message}` };
+    }
+}
+
+/**
+ * Save/update the business persona
+ */
+export async function saveBusinessPersonaAction(
+    partnerId: string,
+    updates: Partial<BusinessPersona>
+): Promise<{
+    success: boolean;
+    message: string;
+    setupProgress?: SetupProgress;
+}> {
+    if (!db) {
+        return { success: false, message: 'Database unavailable' };
+    }
+
+    try {
+        const partnerRef = db.collection('partners').doc(partnerId);
+        const partnerDoc = await partnerRef.get();
+
+        if (!partnerDoc.exists) {
+            return { success: false, message: 'Partner not found' };
+        }
+
+        const existingData = partnerDoc.data();
+        const existingPersona = existingData?.businessPersona || {};
+
+        // Deep merge identity
+        const mergedIdentity = {
+            ...existingPersona.identity,
+            ...updates.identity,
+            address: {
+                ...existingPersona.identity?.address,
+                ...updates.identity?.address,
+            },
+            socialMedia: {
+                ...existingPersona.identity?.socialMedia,
+                ...updates.identity?.socialMedia,
+            },
+            operatingHours: {
+                ...existingPersona.identity?.operatingHours,
+                ...updates.identity?.operatingHours,
+                schedule: {
+                    ...existingPersona.identity?.operatingHours?.schedule,
+                    ...updates.identity?.operatingHours?.schedule,
+                },
+            },
+            lastUpdated: new Date(),
+        };
+
+        // Deep merge personality
+        const mergedPersonality = {
+            ...existingPersona.personality,
+            ...updates.personality,
+            escalationPreferences: {
+                ...existingPersona.personality?.escalationPreferences,
+                ...updates.personality?.escalationPreferences,
+            },
+        };
+
+        // Deep merge knowledge
+        const mergedKnowledge = {
+            ...existingPersona.knowledge,
+            ...updates.knowledge,
+            policies: {
+                ...existingPersona.knowledge?.policies,
+                ...updates.knowledge?.policies,
+            },
+        };
+
+        // Merge updates with existing persona
+        const updatedPersona = {
+            ...existingPersona,
+            identity: mergedIdentity,
+            personality: mergedPersonality,
+            customerProfile: {
+                ...existingPersona.customerProfile,
+                ...updates.customerProfile,
+            },
+            knowledge: mergedKnowledge,
+            updatedAt: new Date(),
+            version: (existingPersona.version || 0) + 1,
+            createdAt: existingPersona.createdAt || new Date(),
+        };
+
+        // Calculate new progress
+        const setupProgress = calculateSetupProgress(updatedPersona);
+        updatedPersona.setupProgress = setupProgress;
+        updatedPersona.identity.completenessScore = setupProgress.overallPercentage;
+
+        // Also update top-level partner fields for backward compatibility
+        const topLevelUpdates: any = {
+            businessPersona: updatedPersona,
+            aiProfileCompleteness: setupProgress.overallPercentage,
+            updatedAt: FieldValue.serverTimestamp(),
+        };
+
+        // Sync critical fields to top level for other systems that need them
+        if (updates.identity?.name) {
+            topLevelUpdates.businessName = updates.identity.name;
+            topLevelUpdates.name = updates.identity.name;
+        }
+        if (updates.identity?.phone) {
+            topLevelUpdates.phone = updates.identity.phone;
+        }
+        if (updates.identity?.email) {
+            topLevelUpdates.email = updates.identity.email;
+        }
+        if (updates.identity?.whatsAppNumber) {
+            topLevelUpdates.whatsAppPhone = updates.identity.whatsAppNumber;
+        }
+        if (updates.identity?.address) {
+            topLevelUpdates.location = {
+                city: updates.identity.address.city || existingData?.location?.city || '',
+                state: updates.identity.address.state || existingData?.location?.state || '',
+            };
+        }
+        if (updates.identity?.industry) {
+            topLevelUpdates.industry = updates.identity.industry;
+        }
+
+        await partnerRef.update(topLevelUpdates);
+
+        console.log(`✅ Business persona saved for partner ${partnerId} (${setupProgress.overallPercentage}% complete)`);
+
+        return {
+            success: true,
+            message: 'Business persona saved successfully',
+            setupProgress,
+        };
+
+    } catch (error: any) {
+        console.error('Error saving business persona:', error);
+        return { success: false, message: `Failed to save: ${error.message}` };
+    }
+}
+
+/**
+ * Quick update for a specific section (for lazy updates)
+ */
+export async function quickUpdatePersonaSection(
+    partnerId: string,
+    section: 'identity' | 'personality' | 'customerProfile' | 'knowledge',
+    data: any
+): Promise<{
+    success: boolean;
+    message: string;
+}> {
+    if (!db) {
+        return { success: false, message: 'Database unavailable' };
+    }
+
+    try {
+        const partnerRef = db.collection('partners').doc(partnerId);
+
+        await partnerRef.update({
+            [`businessPersona.${section}`]: data,
+            [`businessPersona.updatedAt`]: new Date(),
+            updatedAt: FieldValue.serverTimestamp(),
+        });
+
+        return { success: true, message: `${section} updated successfully` };
+
+    } catch (error: any) {
+        console.error(`Error updating ${section}:`, error);
+        return { success: false, message: `Failed to update: ${error.message}` };
+    }
+}
+
+/**
+ * Add a FAQ
+ */
+export async function addFAQAction(
+    partnerId: string,
+    faq: FrequentlyAskedQuestion
+): Promise<{
+    success: boolean;
+    message: string;
+}> {
+    if (!db) {
+        return { success: false, message: 'Database unavailable' };
+    }
+
+    try {
+        const partnerRef = db.collection('partners').doc(partnerId);
+
+        await partnerRef.update({
+            'businessPersona.knowledge.faqs': FieldValue.arrayUnion(faq),
+            'businessPersona.updatedAt': new Date(),
+            updatedAt: FieldValue.serverTimestamp(),
+        });
+
+        return { success: true, message: 'FAQ added successfully' };
+
+    } catch (error: any) {
+        console.error('Error adding FAQ:', error);
+        return { success: false, message: `Failed to add FAQ: ${error.message}` };
+    }
+}
+
+/**
+ * Generate AI suggestions based on industry
+ */
+export async function generateAISuggestionsAction(
+    partnerId: string,
+    industryCategory: string
+): Promise<{
+    success: boolean;
+    message: string;
+    suggestions?: {
+        faqs: FrequentlyAskedQuestion[];
+        voiceTones: VoiceTone[];
+        tagline: string;
+        commonQueries: string[];
+        suggestedUSPs: string[];
+    };
+}> {
+    // For now, return industry-based suggestions
+    // This can be enhanced with Gemini AI later
+
+    const { INDUSTRY_PRESETS } = await import('@/lib/business-persona-types');
+    const preset = INDUSTRY_PRESETS[industryCategory as keyof typeof INDUSTRY_PRESETS];
+
+    if (!preset) {
+        return { success: false, message: 'Industry not found' };
+    }
+
+    const suggestions = {
+        faqs: preset.typicalQuestions.map((q, i) => ({
+            id: `suggested-${i}`,
+            question: q,
+            answer: '', // User needs to fill this
+            isAutoGenerated: true,
+        })),
+        voiceTones: preset.voiceSuggestion as VoiceTone[],
+        tagline: `Your trusted partner for ${preset.name.toLowerCase()} solutions`,
+        commonQueries: preset.typicalQuestions,
+        suggestedUSPs: preset.suggestedUSPs || [],
+    };
+
+    return {
+        success: true,
+        message: 'Suggestions generated',
+        suggestions,
+    };
+}
+
+/**
+ * Initialize persona for new signup
+ */
+export async function initializeBusinessPersonaAction(
+    partnerId: string,
+    initialData: {
+        businessName: string;
+        email: string;
+        industry?: any;
+    }
+): Promise<{
+    success: boolean;
+    message: string;
+}> {
+    if (!db) {
+        return { success: false, message: 'Database unavailable' };
+    }
+
+    try {
+        const initialPersona: Partial<BusinessPersona> = {
+            identity: {
+                name: initialData.businessName,
+                industry: initialData.industry || null,
+                email: initialData.email,
+                phone: '',
+                timezone: 'Asia/Kolkata',
+                currency: '', // No default - must be selected by user
+                operatingHours: { isOpen24x7: false },
+                lastUpdated: new Date(),
+                completenessScore: 20,
+            },
+            personality: {
+                voiceTone: ['professional', 'friendly'] as VoiceTone[],
+                communicationStyle: 'conversational',
+                languagePreference: ['English'],
+                description: '',
+                uniqueSellingPoints: [],
+                responseTimeExpectation: 'within_hour',
+                escalationPreferences: {
+                    escalateOnHumanRequest: true,
+                    escalationKeywords: ['speak to human', 'talk to person', 'real person', 'human agent'],
+                    escalateOnComplaint: true,
+                    escalateOnUrgent: true,
+                    escalationMessage: 'Let me connect you with a team member who can help you better.',
+                },
+            },
+            customerProfile: {
+                targetAudience: '',
+                commonQueries: [],
+                typicalJourneyStages: [],
+                customerPainPoints: [],
+            },
+            knowledge: {
+                productsOrServices: [],
+                hasPricing: false,
+                policies: {},
+                faqs: [],
+            },
+            setupProgress: {
+                basicInfo: true,
+                contactInfo: true,
+                operatingHours: false,
+                businessDescription: false,
+                customerProfile: false,
+                productsServices: false,
+                policies: false,
+                faqs: false,
+                overallPercentage: 20,
+                nextRecommendedStep: 'operatingHours',
+            },
+            createdAt: new Date(),
+            updatedAt: new Date(),
+            version: 1,
+        };
+
+        await db.collection('partners').doc(partnerId).update({
+            businessPersona: initialPersona,
+            updatedAt: FieldValue.serverTimestamp(),
+        });
+
+        console.log(`✅ Initialized business persona for partner ${partnerId}`);
+
+        return { success: true, message: 'Business persona initialized' };
+
+    } catch (error: any) {
+        console.error('Error initializing persona:', error);
+        return { success: false, message: `Failed to initialize: ${error.message}` };
+    }
+}
+
+/**
+ * Get a summary of the business persona for AI prompts
+ */
+export async function getBusinessPersonaSummaryAction(partnerId: string): Promise<{
+    success: boolean;
+    summary?: string;
+    identity?: any;
+    personality?: any;
+    knowledge?: any;
+}> {
+    if (!db) {
+        return { success: false };
+    }
+
+    try {
+        const partnerDoc = await db.collection('partners').doc(partnerId).get();
+
+        if (!partnerDoc.exists) {
+            return { success: false };
+        }
+
+        const partnerData = partnerDoc.data();
+        const rawPersona = partnerData?.businessPersona;
+
+        if (!rawPersona) {
+            // Fall back to basic partner data
+            return {
+                success: true,
+                summary: `Business: ${partnerData?.businessName || partnerData?.name || 'Unknown'}`,
+                identity: serializeForClient({
+                    name: partnerData?.businessName || partnerData?.name,
+                    phone: partnerData?.phone,
+                    email: partnerData?.email,
+                    location: partnerData?.location,
+                }),
+            };
+        }
+
+        // Serialize persona for client
+        const persona = serializeForClient(rawPersona);
+
+        // Build a comprehensive summary
+        const parts: string[] = [];
+
+        // Identity
+        if (persona.identity?.name) {
+            parts.push(`Business: ${persona.identity.name}`);
+        }
+        if (persona.personality?.tagline) {
+            parts.push(`Tagline: ${persona.personality.tagline}`);
+        }
+        if (persona.personality?.description) {
+            parts.push(`About: ${persona.personality.description}`);
+        }
+        if (persona.identity?.industry?.name) {
+            parts.push(`Industry: ${persona.identity.industry.name}`);
+        }
+
+        // Contact
+        if (persona.identity?.phone) {
+            parts.push(`Phone: ${persona.identity.phone}`);
+        }
+        if (persona.identity?.email) {
+            parts.push(`Email: ${persona.identity.email}`);
+        }
+        if (persona.identity?.address?.city && persona.identity?.address?.state) {
+            parts.push(`Location: ${persona.identity.address.city}, ${persona.identity.address.state}`);
+        }
+        if (persona.identity?.website) {
+            parts.push(`Website: ${persona.identity.website}`);
+        }
+
+        // Hours
+        if (persona.identity?.operatingHours?.isOpen24x7) {
+            parts.push(`Hours: Open 24/7`);
+        } else if (persona.identity?.operatingHours?.appointmentOnly) {
+            parts.push(`Hours: By appointment only`);
+        } else if (persona.identity?.operatingHours?.specialNote) {
+            parts.push(`Hours: ${persona.identity.operatingHours.specialNote}`);
+        }
+
+        // USPs
+        if (persona.personality?.uniqueSellingPoints?.length > 0) {
+            parts.push(`Specialties: ${persona.personality.uniqueSellingPoints.join(', ')}`);
+        }
+
+        // Products
+        if (persona.knowledge?.productsOrServices?.length > 0) {
+            const products = persona.knowledge.productsOrServices
+                .slice(0, 5)
+                .map((p: any) => p.name)
+                .filter(Boolean)
+                .join(', ');
+            if (products) {
+                parts.push(`Offerings: ${products}`);
+            }
+        }
+
+        // Payment methods
+        if (persona.knowledge?.policies?.acceptedPayments?.length > 0) {
+            parts.push(`Payment: ${persona.knowledge.policies.acceptedPayments.join(', ')}`);
+        }
+
+        return {
+            success: true,
+            summary: parts.join('\n'),
+            identity: persona.identity,
+            personality: persona.personality,
+            knowledge: persona.knowledge,
+        };
+
+    } catch (error: any) {
+        console.error('Error getting persona summary:', error);
+        return { success: false };
+    }
+}

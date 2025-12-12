@@ -41,6 +41,7 @@ import {
     Attachment,
     getFileCategory,
     generateId,
+    EssentialAgent,
 } from '@/lib/partnerhub-types';
 import {
     processDocumentAction,
@@ -50,6 +51,7 @@ import {
     deleteDocumentAction,
     addTagToDocumentAction,
     removeTagFromDocumentAction,
+    saveEssentialAgentAction,
 } from '@/actions/partnerhub-actions';
 
 // ============================================================================
@@ -183,6 +185,7 @@ interface PartnerHubContextType {
     partnerId: string | null;
     createNewThread: (title: string, contextType?: ChatContextType, contextId?: string) => Promise<string | null>;
     deleteThread: (id: string) => Promise<void>;
+    saveEssentialAgent: (agent: EssentialAgent) => Promise<void>;
 }
 
 const PartnerHubContext = createContext<PartnerHubContextType | null>(null);
@@ -345,7 +348,7 @@ export function PartnerHubProvider({ children }: { children: ReactNode }) {
 
         setAgentsLoading(true);
         const agentsRef = collection(db, 'partners', partnerId, 'hubAgents');
-        const agentsQuery = query(agentsRef, where('isActive', '==', true));
+        const agentsQuery = query(agentsRef);
 
         const unsubscribe = onSnapshot(
             agentsQuery,
@@ -371,7 +374,10 @@ export function PartnerHubProvider({ children }: { children: ReactNode }) {
     // ============================================================================
 
     // All agents (system + custom)
-    const agents = useMemo(() => [...SYSTEM_AGENTS, ...customAgents], [customAgents]);
+    const agents = useMemo(() => {
+        const all = [...SYSTEM_AGENTS, ...customAgents];
+        return all.filter(a => a.isActive);
+    }, [customAgents]);
 
     // Filtered documents
     const filteredDocuments = useMemo(() => {
@@ -579,6 +585,17 @@ export function PartnerHubProvider({ children }: { children: ReactNode }) {
         [partnerId, activeThreadId]
     );
 
+    // Save Essential Agent
+    const saveEssentialAgent = useCallback(
+        async (agent: EssentialAgent) => {
+            if (!partnerId) return;
+            // Serialize to plain object to avoid Firestore Timestamp serialization issues
+            const serializedAgent = JSON.parse(JSON.stringify(agent));
+            await saveEssentialAgentAction(partnerId, serializedAgent);
+        },
+        [partnerId]
+    );
+
     // Switch context
     const switchContext = useCallback((context: ChatContext) => {
         setActiveContext(context);
@@ -624,6 +641,7 @@ export function PartnerHubProvider({ children }: { children: ReactNode }) {
         partnerId: partnerId || null,
         createNewThread,
         deleteThread,
+        saveEssentialAgent,
     };
 
     return (

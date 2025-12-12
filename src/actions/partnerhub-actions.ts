@@ -608,6 +608,270 @@ export async function saveEssentialAgentAction(
     }
 }
 
+/**
+ * Test an agent with a message - uses RAG like inbox but doesn't require a thread
+ */
+export async function testAgentAction(
+    partnerId: string,
+    agentId: string,
+    userMessage: string
+): Promise<{
+    success: boolean;
+    message: string;
+    response?: string;
+    sources?: Array<{
+        name: string;
+        excerpt: string;
+    }>;
+}> {
+    console.log('🧪 Agent Test starting...');
+    const startTime = Date.now();
+
+    try {
+        if (!db) {
+            return { success: false, message: 'Database unavailable' };
+        }
+
+        // Fetch agent configuration
+        const agentDoc = await db
+            .collection('partners')
+            .doc(partnerId)
+            .collection('hubAgents')
+            .doc(agentId)
+            .get();
+
+        let agentConfig: any = null;
+        if (agentDoc.exists) {
+            agentConfig = { id: agentDoc.id, ...agentDoc.data() };
+        }
+
+        // Fetch partner profile as the single source of truth for business info
+        const partnerDoc = await db.collection('partners').doc(partnerId).get();
+        let partnerInfo: any = null;
+        if (partnerDoc.exists) {
+            partnerInfo = partnerDoc.data();
+        }
+
+        // Gather document context based on agent config
+        let documentIds: string[] = [];
+
+        if (agentConfig) {
+            if (agentConfig.useAllDocuments || agentConfig.documentConfig?.useAllDocuments) {
+                const allDocsSnapshot = await db
+                    .collection('partners')
+                    .doc(partnerId)
+                    .collection('hubDocuments')
+                    .where('status', '==', ProcessingStatus.COMPLETED)
+                    .limit(10)
+                    .get();
+                documentIds = allDocsSnapshot.docs.map(d => d.id);
+            } else {
+                documentIds = agentConfig.attachedDocumentIds || agentConfig.documentConfig?.attachedDocumentIds || [];
+            }
+        }
+
+        // If no agent-specific docs, fallback to all docs
+        if (documentIds.length === 0) {
+            const allDocsSnapshot = await db
+                .collection('partners')
+                .doc(partnerId)
+                .collection('hubDocuments')
+                .where('status', '==', ProcessingStatus.COMPLETED)
+                .limit(10)
+                .get();
+            documentIds = allDocsSnapshot.docs.map(d => d.id);
+        }
+
+        // Fetch document content
+        const contextSnippets: { source: string; text: string }[] = [];
+
+        if (documentIds.length > 0) {
+            const docPromises = documentIds.slice(0, 8).map(docId =>
+                db!.collection('partners')
+                    .doc(partnerId)
+                    .collection('hubDocuments')
+                    .doc(docId)
+                    .get()
+            );
+            const docSnapshots = await Promise.all(docPromises);
+
+            docSnapshots.forEach((doc) => {
+                if (doc.exists) {
+                    const data = doc.data();
+                    if (data?.extractedText) {
+                        contextSnippets.push({
+                            source: data.name || doc.id,
+                            text: data.extractedText.substring(0, 2000),
+                        });
+                    }
+                }
+            });
+        }
+
+        // Build system prompt from agent config + partner profile (single source of truth for business info)
+        const persona = partnerInfo?.businessPersona;
+        const identity = persona?.identity;
+        const personality = persona?.personality;
+        const knowledge = persona?.knowledge;
+
+        const businessName = identity?.name || partnerInfo?.businessName || partnerInfo?.name || agentConfig?.businessName || 'the business';
+        let systemPrompt = `You are ${agentConfig?.name || 'an AI assistant'} for ${businessName}.`;
+
+        // Add business description and tagline
+        if (personality?.tagline) {
+            systemPrompt += ` ${personality.tagline}`;
+        }
+        if (personality?.description) {
+            systemPrompt += `\n\nAbout the business: ${personality.description}`;
+        }
+
+        // Add business info from partner profile (single source of truth)
+        const businessDetails: string[] = [];
+        if (identity?.phone || partnerInfo?.phone) businessDetails.push(`Phone: ${identity?.phone || partnerInfo.phone}`);
+        if (identity?.email || partnerInfo?.email) businessDetails.push(`Email: ${identity?.email || partnerInfo.email}`);
+        if (identity?.address?.city && identity?.address?.state) {
+            businessDetails.push(`Location: ${identity.address.city}, ${identity.address.state}`);
+        } else if (partnerInfo?.location?.city && partnerInfo?.location?.state) {
+            businessDetails.push(`Location: ${partnerInfo.location.city}, ${partnerInfo.location.state}`);
+        }
+        if (identity?.website) businessDetails.push(`Website: ${identity.website}`);
+        if (identity?.industry?.name || partnerInfo?.industry?.name) {
+            businessDetails.push(`Industry: ${identity?.industry?.name || partnerInfo?.industry?.name}`);
+        }
+        if (identity?.currency) businessDetails.push(`Currency: ${identity.currency}`);
+
+        // Add operating hours
+        if (identity?.operatingHours) {
+            if (identity.operatingHours.isOpen24x7) {
+                businessDetails.push(`Hours: Open 24/7`);
+            } else if (identity.operatingHours.schedule) {
+                const hours = Object.entries(identity.operatingHours.schedule)
+                    .filter(([day, sched]: [string, any]) => sched?.isOpen)
+                    .map(([day, sched]: [string, any]) => `${day}: ${sched.openTime}-${sched.closeTime}`)
+                    .slice(0, 3);
+                if (hours.length > 0) {
+                    businessDetails.push(`Hours: ${hours.join(', ')}...`);
+                }
+            }
+            if (identity.operatingHours.specialNote) {
+                businessDetails.push(`Note: ${identity.operatingHours.specialNote}`);
+            }
+        }
+
+        if (businessDetails.length > 0) {
+            systemPrompt += `\n\nBUSINESS INFORMATION:\n${businessDetails.join('\n')}`;
+        }
+
+        // Add products/services if available
+        if (knowledge?.productsOrServices?.length > 0) {
+            const products = knowledge.productsOrServices
+                .slice(0, 5)
+                .map((p: any) => `- ${p.name}${p.priceRange ? ` (${p.priceRange})` : ''}: ${p.description || 'No description'}`)
+                .join('\n');
+            systemPrompt += `\n\nPRODUCTS/SERVICES:\n${products}`;
+        }
+
+        // Add unique selling points
+        if (personality?.uniqueSellingPoints?.length > 0) {
+            systemPrompt += `\n\nWhat makes us special: ${personality.uniqueSellingPoints.join(', ')}`;
+        }
+
+        if (agentConfig?.openingMessage) {
+            systemPrompt += `\n\n${agentConfig.openingMessage}`;
+        }
+
+        if (agentConfig?.systemPrompt) {
+            systemPrompt = agentConfig.systemPrompt;
+        }
+
+        // Add tones/style if available
+        if (agentConfig?.tones?.length > 0) {
+            systemPrompt += `\n\nCommunication style: ${agentConfig.tones.join(', ')}`;
+        }
+        if (agentConfig?.style) {
+            systemPrompt += `, ${agentConfig.style}`;
+        }
+        if (agentConfig?.responseLength) {
+            systemPrompt += `\nResponse length: ${agentConfig.responseLength}`;
+        }
+
+        // Add behavior rules
+        if (agentConfig?.neverSay?.length > 0) {
+            systemPrompt += `\n\nNEVER SAY: ${agentConfig.neverSay.join(', ')}`;
+        }
+        if (agentConfig?.alwaysInclude?.length > 0) {
+            systemPrompt += `\n\nALWAYS INCLUDE: ${agentConfig.alwaysInclude.join(', ')}`;
+        }
+        if (agentConfig?.behaviorRules?.neverSay?.length > 0) {
+            systemPrompt += `\n\nNEVER SAY: ${agentConfig.behaviorRules.neverSay.join(', ')}`;
+        }
+        if (agentConfig?.behaviorRules?.responseRules?.length > 0) {
+            systemPrompt += `\n\nRULES: ${agentConfig.behaviorRules.responseRules.join(', ')}`;
+        }
+
+        // Check FAQs first
+        if (agentConfig?.faqs?.length > 0) {
+            const messageLower = userMessage.toLowerCase();
+            for (const faq of agentConfig.faqs) {
+                if (faq.question && faq.answer) {
+                    const questionLower = faq.question.toLowerCase();
+                    // Simple keyword matching
+                    const keywords = questionLower.split(' ').filter((w: string) => w.length > 3);
+                    const matches = keywords.filter((kw: string) => messageLower.includes(kw)).length;
+                    if (matches >= 2 || messageLower.includes(questionLower.substring(0, 15))) {
+                        console.log(`✅ FAQ match found in ${Date.now() - startTime}ms`);
+                        return {
+                            success: true,
+                            message: 'Response from FAQ',
+                            response: faq.answer,
+                            sources: [{ name: 'FAQ', excerpt: faq.question }],
+                        };
+                    }
+                }
+            }
+        }
+
+        const contextString = contextSnippets
+            .map((c) => `[Source: ${c.source}]\n${c.text}`)
+            .join('\n\n---\n\n');
+
+        const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
+        const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
+
+        const prompt = `${systemPrompt}
+
+DOCUMENT CONTEXT:
+${contextString || 'No documents available'}
+
+CUSTOMER MESSAGE:
+"${userMessage}"
+
+Respond as this assistant would. Be helpful, use the document context when relevant, and match the specified communication style. Keep responses conversational and appropriately sized.`;
+
+        const result = await model.generateContent(prompt);
+        const responseText = result.response.text();
+
+        const elapsed = Date.now() - startTime;
+        console.log(`✅ Agent test completed in ${elapsed}ms`);
+
+        return {
+            success: true,
+            message: 'Response generated successfully',
+            response: responseText,
+            sources: contextSnippets.slice(0, 3).map(s => ({
+                name: s.source,
+                excerpt: s.text.substring(0, 100) + '...',
+            })),
+        };
+    } catch (error: any) {
+        console.error('❌ Agent test error:', error);
+        return {
+            success: false,
+            message: error.message || 'Failed to generate response',
+        };
+    }
+}
+
 const GENERAL_MODE_SYSTEM_PROMPT = `You are a general AI assistant. You do NOT have access to any business-specific documents or knowledge base.
 
 IMPORTANT LIMITATIONS:
@@ -730,6 +994,13 @@ Respond in JSON format:
                     usedAsFallback: false,
                 },
             };
+        }
+
+        // Fetch partner profile as the single source of truth for business info
+        const partnerDoc = await db.collection('partners').doc(partnerId).get();
+        let partnerInfo: any = null;
+        if (partnerDoc.exists) {
+            partnerInfo = partnerDoc.data();
         }
 
         let assistants: any[] = [];
@@ -909,9 +1180,50 @@ CUSTOMER PERSONA:
             .map((c) => `[Source: ${c.source}]\n${c.text}`)
             .join('\n\n---\n\n');
 
+        // Get business persona for enhanced context
+        const persona = partnerInfo?.businessPersona;
+        const identity = persona?.identity;
+        const personality = persona?.personality;
+        const knowledge = persona?.knowledge;
+
         let finalSystemPrompt = systemPrompt;
         if (!finalSystemPrompt) {
-            finalSystemPrompt = `You are a helpful AI assistant. Answer questions based on the provided context.`;
+            const businessName = identity?.name || partnerInfo?.businessName || partnerInfo?.name || 'the business';
+            finalSystemPrompt = `You are a helpful AI assistant for ${businessName}. Answer questions based on the provided context.`;
+
+            if (personality?.tagline) {
+                finalSystemPrompt += ` ${personality.tagline}`;
+            }
+        }
+
+        // Add business info from partner profile (single source of truth)
+        const businessDetails: string[] = [];
+        const businessName = identity?.name || partnerInfo?.businessName || partnerInfo?.name;
+        if (businessName) businessDetails.push(`Business: ${businessName}`);
+        if (identity?.phone || partnerInfo?.phone) businessDetails.push(`Phone: ${identity?.phone || partnerInfo.phone}`);
+        if (identity?.email || partnerInfo?.email) businessDetails.push(`Email: ${identity?.email || partnerInfo.email}`);
+        if (identity?.address?.city && identity?.address?.state) {
+            businessDetails.push(`Location: ${identity.address.city}, ${identity.address.state}`);
+        } else if (partnerInfo?.location?.city && partnerInfo?.location?.state) {
+            businessDetails.push(`Location: ${partnerInfo.location.city}, ${partnerInfo.location.state}`);
+        }
+        if (identity?.website) businessDetails.push(`Website: ${identity.website}`);
+        if (identity?.currency) businessDetails.push(`Currency: ${identity.currency}`);
+
+        // Add operating hours
+        if (identity?.operatingHours?.isOpen24x7) {
+            businessDetails.push(`Hours: Open 24/7`);
+        } else if (identity?.operatingHours?.specialNote) {
+            businessDetails.push(`Hours: ${identity.operatingHours.specialNote}`);
+        }
+
+        if (businessDetails.length > 0) {
+            finalSystemPrompt += `\n\nBUSINESS INFORMATION:\n${businessDetails.join('\n')}`;
+        }
+
+        // Add business description
+        if (personality?.description) {
+            finalSystemPrompt += `\n\nAbout the business: ${personality.description}`;
         }
 
         if (personaContext) {

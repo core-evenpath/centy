@@ -8,6 +8,9 @@ import {
     AgentStyle,
     AgentLength,
     ResponseRule,
+    BusinessInfo,
+    FAQItem,
+    ExampleInteraction,
 } from '@/lib/partnerhub-types';
 import { usePartnerHub } from '@/hooks/use-partnerhub';
 import { useMultiWorkspaceAuth } from '@/hooks/use-multi-workspace-auth';
@@ -40,6 +43,7 @@ import {
     Trash2,
     RefreshCw,
     MessageCircle,
+    Settings,
     User,
     CheckCircle2
 } from 'lucide-react';
@@ -53,29 +57,7 @@ interface AgentConfigPanelProps {
 
 type ConfigTab = 'knowledge' | 'personality' | 'rules' | 'escalation';
 
-interface FAQItem {
-    id: string;
-    question: string;
-    answer: string;
-}
-
-interface ExampleInteraction {
-    id: string;
-    customerMessage: string;
-    idealResponse: string;
-    situation: string;
-}
-
-interface BusinessInfo {
-    name: string;
-    tagline: string;
-    description: string;
-    hours: string;
-    address: string;
-    phone: string;
-    email: string;
-    website: string;
-}
+// Local interfaces removed, using imported types
 
 const DEFAULT_FAQS: FAQItem[] = [
     { id: '1', question: 'What are your hours?', answer: '' },
@@ -147,19 +129,21 @@ export default function AgentConfigPanel({ agent, onBack, onSave, onTest }: Agen
     const [saving, setSaving] = useState(false);
     const [loadingProfile, setLoadingProfile] = useState(false);
 
-    const [businessInfo, setBusinessInfo] = useState<BusinessInfo>({
-        name: agent.businessName || '',
-        tagline: '',
-        description: '',
-        hours: '',
-        address: '',
-        phone: '',
-        email: '',
-        website: '',
-    });
+    const [businessInfo, setBusinessInfo] = useState<BusinessInfo>(
+        agent.businessInfo || {
+            name: agent.businessName || '',
+            tagline: '',
+            description: '',
+            hours: '',
+            address: '',
+            phone: '',
+            email: '',
+            website: '',
+        }
+    );
 
-    const [faqs, setFaqs] = useState<FAQItem[]>(DEFAULT_FAQS);
-    const [exampleInteractions, setExampleInteractions] = useState<ExampleInteraction[]>(DEFAULT_INTERACTIONS);
+    const [faqs, setFaqs] = useState<FAQItem[]>(agent.faqs || DEFAULT_FAQS);
+    const [exampleInteractions, setExampleInteractions] = useState<ExampleInteraction[]>(agent.exampleInteractions || DEFAULT_INTERACTIONS);
     const [expandedSections, setExpandedSections] = useState<string[]>(['business', 'faqs', 'interactions']);
 
     useEffect(() => {
@@ -202,13 +186,8 @@ export default function AgentConfigPanel({ agent, onBack, onSave, onTest }: Agen
         setHasChanges(true);
     };
 
-    const updateBusinessInfo = (field: keyof BusinessInfo, value: string) => {
-        setBusinessInfo(prev => ({ ...prev, [field]: value }));
-        setHasChanges(true);
-        if (field === 'name') {
-            updateAgent({ businessName: value });
-        }
-    };
+    // Note: Business info is now read-only and managed from /partner/settings
+    // The updateBusinessInfo function has been removed
 
     const updateFaq = (id: string, field: 'question' | 'answer', value: string) => {
         setFaqs(prev => prev.map(faq => faq.id === id ? { ...faq, [field]: value } : faq));
@@ -295,17 +274,9 @@ export default function AgentConfigPanel({ agent, onBack, onSave, onTest }: Agen
             .map(i => `[${i.situation || 'General'}]\nCustomer: ${i.customerMessage}\nIdeal Response: ${i.idealResponse}`)
             .join('\n\n');
 
+        // Note: Business info now comes from /partner/settings (single source of truth)
+        // We only save FAQs and example interactions here
         const knowledgeContext = `
-BUSINESS INFORMATION:
-Business Name: ${businessInfo.name}
-${businessInfo.tagline ? `Tagline: ${businessInfo.tagline}` : ''}
-${businessInfo.description ? `About: ${businessInfo.description}` : ''}
-${businessInfo.hours ? `Hours: ${businessInfo.hours}` : ''}
-${businessInfo.address ? `Location: ${businessInfo.address}` : ''}
-${businessInfo.phone ? `Phone: ${businessInfo.phone}` : ''}
-${businessInfo.email ? `Email: ${businessInfo.email}` : ''}
-${businessInfo.website ? `Website: ${businessInfo.website}` : ''}
-
 FREQUENTLY ASKED QUESTIONS:
 ${faqContent || 'No FAQs configured yet.'}
 
@@ -315,7 +286,9 @@ ${interactionsContent || 'No example interactions configured yet.'}
 
         const updatedAgent = {
             ...editedAgent,
-            businessName: businessInfo.name,
+            // Don't save businessInfo - it comes from /partner/settings
+            faqs,
+            exampleInteractions,
             openingMessage: knowledgeContext,
             updatedAt: new Date(),
         };
@@ -461,128 +434,72 @@ ${interactionsContent || 'No example interactions configured yet.'}
                                     <div className="px-4 pb-4 border-t border-gray-100">
                                         <div className="flex items-center justify-between mt-4 mb-3">
                                             <p className="text-xs text-gray-500">
-                                                ✨ Auto-filled from your Business Profile
+                                                ✨ Auto-filled from your Organization Settings
                                             </p>
-                                            <button
-                                                onClick={loadPartnerProfile}
-                                                disabled={loadingProfile}
+                                            <a
+                                                href="/partner/settings/dashboard"
                                                 className="text-xs text-indigo-600 hover:text-indigo-700 flex items-center gap-1"
                                             >
-                                                <RefreshCw className={cn("w-3 h-3", loadingProfile && "animate-spin")} />
-                                                Refresh
-                                            </button>
+                                                <Settings className="w-3 h-3" />
+                                                Edit in Settings
+                                            </a>
                                         </div>
-                                        <div className="grid gap-4">
-                                            <div>
-                                                <label className="block text-sm font-medium text-gray-700 mb-1">
-                                                    Business Name *
-                                                </label>
-                                                <input
-                                                    type="text"
-                                                    value={businessInfo.name}
-                                                    onChange={(e) => updateBusinessInfo('name', e.target.value)}
-                                                    placeholder="e.g., Joe's Pizza"
-                                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                                                />
-                                            </div>
 
-                                            <div>
-                                                <label className="block text-sm font-medium text-gray-700 mb-1">
-                                                    Tagline (optional)
-                                                </label>
-                                                <input
-                                                    type="text"
-                                                    value={businessInfo.tagline}
-                                                    onChange={(e) => updateBusinessInfo('tagline', e.target.value)}
-                                                    placeholder="e.g., The best pizza in town since 1985"
-                                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                                                />
+                                        {loadingProfile ? (
+                                            <div className="flex items-center justify-center py-8 text-gray-400">
+                                                <RefreshCw className="w-5 h-5 animate-spin mr-2" />
+                                                Loading business info...
                                             </div>
+                                        ) : (
+                                            <div className="grid gap-3">
+                                                <div className="bg-gray-50 rounded-lg p-3">
+                                                    <label className="block text-xs font-medium text-gray-500 mb-1">
+                                                        Business Name
+                                                    </label>
+                                                    <p className="text-sm text-gray-900">
+                                                        {businessInfo.name || <span className="text-gray-400 italic">Not set - Edit in Settings</span>}
+                                                    </p>
+                                                </div>
 
-                                            <div>
-                                                <label className="block text-sm font-medium text-gray-700 mb-1">
-                                                    About Your Business
-                                                </label>
-                                                <textarea
-                                                    value={businessInfo.description}
-                                                    onChange={(e) => updateBusinessInfo('description', e.target.value)}
-                                                    placeholder="Describe what you do, what makes you special..."
-                                                    rows={3}
-                                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                                                />
-                                            </div>
+                                                <div className="grid sm:grid-cols-2 gap-3">
+                                                    <div className="bg-gray-50 rounded-lg p-3">
+                                                        <label className="block text-xs font-medium text-gray-500 mb-1">
+                                                            <Phone className="w-3 h-3 inline mr-1" />
+                                                            Phone
+                                                        </label>
+                                                        <p className="text-sm text-gray-900">
+                                                            {businessInfo.phone || <span className="text-gray-400 italic">Not set</span>}
+                                                        </p>
+                                                    </div>
+                                                    <div className="bg-gray-50 rounded-lg p-3">
+                                                        <label className="block text-xs font-medium text-gray-500 mb-1">
+                                                            <Mail className="w-3 h-3 inline mr-1" />
+                                                            Email
+                                                        </label>
+                                                        <p className="text-sm text-gray-900">
+                                                            {businessInfo.email || <span className="text-gray-400 italic">Not set</span>}
+                                                        </p>
+                                                    </div>
+                                                </div>
 
-                                            <div className="grid sm:grid-cols-2 gap-4">
-                                                <div>
-                                                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                                                        <Clock className="w-4 h-4 inline mr-1" />
-                                                        Hours
+                                                <div className="bg-gray-50 rounded-lg p-3">
+                                                    <label className="block text-xs font-medium text-gray-500 mb-1">
+                                                        <MapPin className="w-3 h-3 inline mr-1" />
+                                                        Location
                                                     </label>
-                                                    <input
-                                                        type="text"
-                                                        value={businessInfo.hours}
-                                                        onChange={(e) => updateBusinessInfo('hours', e.target.value)}
-                                                        placeholder="e.g., Mon-Sat 9am-9pm"
-                                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                                                    />
+                                                    <p className="text-sm text-gray-900">
+                                                        {businessInfo.address || <span className="text-gray-400 italic">Not set</span>}
+                                                    </p>
                                                 </div>
-                                                <div>
-                                                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                                                        <MapPin className="w-4 h-4 inline mr-1" />
-                                                        Address
-                                                    </label>
-                                                    <input
-                                                        type="text"
-                                                        value={businessInfo.address}
-                                                        onChange={(e) => updateBusinessInfo('address', e.target.value)}
-                                                        placeholder="e.g., 123 Main St, City"
-                                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                                                    />
-                                                </div>
-                                            </div>
 
-                                            <div className="grid sm:grid-cols-3 gap-4">
-                                                <div>
-                                                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                                                        <Phone className="w-4 h-4 inline mr-1" />
-                                                        Phone
-                                                    </label>
-                                                    <input
-                                                        type="text"
-                                                        value={businessInfo.phone}
-                                                        onChange={(e) => updateBusinessInfo('phone', e.target.value)}
-                                                        placeholder="(555) 123-4567"
-                                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                                                    />
-                                                </div>
-                                                <div>
-                                                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                                                        <Mail className="w-4 h-4 inline mr-1" />
-                                                        Email
-                                                    </label>
-                                                    <input
-                                                        type="email"
-                                                        value={businessInfo.email}
-                                                        onChange={(e) => updateBusinessInfo('email', e.target.value)}
-                                                        placeholder="hello@business.com"
-                                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                                                    />
-                                                </div>
-                                                <div>
-                                                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                                                        <Globe className="w-4 h-4 inline mr-1" />
-                                                        Website
-                                                    </label>
-                                                    <input
-                                                        type="url"
-                                                        value={businessInfo.website}
-                                                        onChange={(e) => updateBusinessInfo('website', e.target.value)}
-                                                        placeholder="www.business.com"
-                                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                                                    />
+                                                <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 mt-2">
+                                                    <p className="text-xs text-amber-700 flex items-center gap-1">
+                                                        <Info className="w-3 h-3" />
+                                                        To update business info, go to <a href="/partner/settings/dashboard" className="underline font-medium">Organization Settings</a>
+                                                    </p>
                                                 </div>
                                             </div>
-                                        </div>
+                                        )}
                                     </div>
                                 )}
                             </div>

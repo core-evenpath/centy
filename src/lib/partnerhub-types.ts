@@ -235,6 +235,9 @@ export interface EssentialAgent {
 
     // Identity
     businessName: string;
+    businessInfo?: BusinessInfo;
+    faqs?: FAQItem[];
+    exampleInteractions?: ExampleInteraction[];
     openingMessage?: string;
 
     // Personality
@@ -271,6 +274,30 @@ export interface EssentialAgent {
     // Metadata
     createdAt: Timestamp | Date;
     updatedAt: Timestamp | Date;
+}
+
+export interface BusinessInfo {
+    name: string;
+    tagline: string;
+    description: string;
+    hours: string;
+    address: string;
+    phone: string;
+    email: string;
+    website: string;
+}
+
+export interface FAQItem {
+    id: string;
+    question: string;
+    answer: string;
+}
+
+export interface ExampleInteraction {
+    id: string;
+    customerMessage: string;
+    idealResponse: string;
+    situation: string;
 }
 
 export interface ResponseRule {
