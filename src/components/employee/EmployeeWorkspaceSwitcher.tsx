@@ -13,6 +13,7 @@ import {
   DropdownMenuSeparator
 } from '../ui/dropdown-menu';
 import { useToast } from '../../hooks/use-toast';
+import JoinWorkspaceDialog from './JoinWorkspaceDialog';
 
 interface WorkspaceAccess {
   partnerId: string;
@@ -198,14 +199,23 @@ export default function EmployeeWorkspaceSwitcher({
             ))}
             
             <DropdownMenuSeparator />
-            
-            <DropdownMenuItem 
-              className="p-3 cursor-pointer text-blue-600 hover:text-blue-700 hover:bg-blue-50"
-              disabled={isLoading}
-            >
-              <Plus className="w-4 h-4 mr-2" />
-              Join Another Workspace
-            </DropdownMenuItem>
+
+            <JoinWorkspaceDialog
+              trigger={
+                <DropdownMenuItem
+                  className="p-3 cursor-pointer text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                  disabled={isLoading}
+                  onSelect={(e) => e.preventDefault()}
+                >
+                  <Plus className="w-4 h-4 mr-2" />
+                  Join Another Workspace
+                </DropdownMenuItem>
+              }
+              onSuccess={() => {
+                setIsOpen(false);
+                window.location.reload();
+              }}
+            />
           </div>
         </DropdownMenuContent>
       </DropdownMenu>
