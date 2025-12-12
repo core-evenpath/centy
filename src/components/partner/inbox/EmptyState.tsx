@@ -1,13 +1,16 @@
 import React from 'react';
-import { Inbox, Settings, MessageSquareMore, ArrowRight } from 'lucide-react';
+import { Inbox, Settings, MessageSquareMore, ArrowRight, AlertCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 
 interface EmptyStateProps {
     isWhatsAppConnected: boolean | null;
+    whatsAppStatus?: string | null;
 }
 
-export function EmptyState({ isWhatsAppConnected }: EmptyStateProps) {
+export function EmptyState({ isWhatsAppConnected, whatsAppStatus }: EmptyStateProps) {
+    const isPending = whatsAppStatus === 'pending';
+
     return (
         <div className="flex-1 flex flex-col items-center justify-center p-8 text-center bg-gray-50/30">
             <div className="relative mb-8 group">
@@ -28,8 +31,17 @@ export function EmptyState({ isWhatsAppConnected }: EmptyStateProps) {
             </p>
 
             <div className="flex flex-col gap-3 w-full max-w-xs">
-                {isWhatsAppConnected === false && (
-                    <Link href="/partner/settings/whatsapp-business">
+                {isWhatsAppConnected === false && isPending && (
+                    <Link href="/partner/apps/whatsapp-api">
+                        <Button className="w-full h-11 bg-amber-500 hover:bg-amber-600 text-white shadow-md shadow-amber-200 flex items-center justify-center gap-2 group transition-all">
+                            <AlertCircle className="w-4 h-4" />
+                            <span>Complete WhatsApp Setup</span>
+                            <ArrowRight className="w-4 h-4 opacity-50 group-hover:translate-x-1 transition-transform" />
+                        </Button>
+                    </Link>
+                )}
+                {isWhatsAppConnected === false && !isPending && (
+                    <Link href="/partner/apps/whatsapp-api">
                         <Button className="w-full h-11 bg-indigo-600 hover:bg-indigo-700 text-white shadow-md shadow-indigo-200 flex items-center justify-center gap-2 group transition-all">
                             <Settings className="w-4 h-4" />
                             <span>Connect WhatsApp</span>

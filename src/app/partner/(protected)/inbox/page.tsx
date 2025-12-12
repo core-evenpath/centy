@@ -6,11 +6,11 @@ import { useEnrichedMetaConversations, EnrichedMetaConversation } from '@/hooks/
 import { useMetaMessages } from '@/hooks/useMetaWhatsApp';
 import {
     sendMetaWhatsAppMessageAction,
-    getMetaWhatsAppStatus,
     deleteMetaConversation,
     deleteMetaMessage,
     updateConversationAssistantsAction
 } from '@/actions/meta-whatsapp-actions';
+import { getEmbeddedSignupStatus } from '@/actions/meta-embedded-signup-actions';
 import { generateInboxSuggestionAction } from '@/actions/partnerhub-actions';
 import { getActiveAssistantsAction } from '@/actions/assistant-actions';
 import { cn } from '@/lib/utils';
@@ -69,6 +69,7 @@ export default function InboxPage() {
     const messagesContainerRef = useRef<HTMLDivElement>(null);
 
     const [isWhatsAppConnected, setIsWhatsAppConnected] = useState<boolean | null>(null);
+    const [whatsAppStatus, setWhatsAppStatus] = useState<string | null>(null);
 
     const [activeAssistants, setActiveAssistants] = useState<any[]>([]);
     const [assistantsLoading, setAssistantsLoading] = useState(false);
@@ -93,7 +94,10 @@ export default function InboxPage() {
 
     useEffect(() => {
         if (currentPartnerId) {
-            getMetaWhatsAppStatus(currentPartnerId).then(s => setIsWhatsAppConnected(s.connected));
+            getEmbeddedSignupStatus(currentPartnerId).then(status => {
+                setIsWhatsAppConnected(status.connected);
+                setWhatsAppStatus(status.config?.status || null);
+            });
 
             setAssistantsLoading(true);
             getActiveAssistantsAction(currentPartnerId).then(res => {
@@ -417,7 +421,10 @@ export default function InboxPage() {
         }
 
         if (!isWhatsAppConnected) {
-            throw new Error('WhatsApp is not connected. Please set up WhatsApp integration first.');
+            if (whatsAppStatus === 'pending') {
+                throw new Error('WhatsApp setup is incomplete. Please go to Apps → WhatsApp API and click "Activate Connection" to complete the setup.');
+            }
+            throw new Error('WhatsApp is not connected. Please set up WhatsApp integration in Apps → WhatsApp API.');
         }
 
         // Create a temporary conversation object to show immediately
@@ -482,7 +489,7 @@ export default function InboxPage() {
                     "flex-1",
                     mobileShowChat ? "hidden md:flex" : "hidden md:flex"
                 )}>
-                    <EmptyState isWhatsAppConnected={isWhatsAppConnected} />
+                    <EmptyState isWhatsAppConnected={isWhatsAppConnected} whatsAppStatus={whatsAppStatus} />
                 </div>
             ) : (
                 <div className={cn(
