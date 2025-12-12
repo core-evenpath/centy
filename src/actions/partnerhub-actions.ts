@@ -1095,7 +1095,8 @@ CUSTOMER PERSONA:
             console.log(`🎯 Trying primary assistant: ${primary.name}`);
 
             let primaryDocIds: string[] = [];
-            if (primary.documentConfig?.useAllDocuments) {
+            // Check both root level and nested documentConfig for backward compatibility
+            if (primary.useAllDocuments || primary.documentConfig?.useAllDocuments) {
                 const allDocsSnapshot = await db
                     .collection('partners')
                     .doc(partnerId)
@@ -1105,7 +1106,7 @@ CUSTOMER PERSONA:
                     .get();
                 primaryDocIds = allDocsSnapshot.docs.map(d => d.id);
             } else {
-                primaryDocIds = primary.documentConfig?.attachedDocumentIds || [];
+                primaryDocIds = primary.attachedDocumentIds || primary.documentConfig?.attachedDocumentIds || [];
             }
 
             if (primaryDocIds.length > 0) {
@@ -1123,7 +1124,8 @@ CUSTOMER PERSONA:
                     console.log(`🔄 Trying fallback assistant: ${fallback.name}`);
 
                     let fallbackDocIds: string[] = [];
-                    if (fallback.documentConfig?.useAllDocuments) {
+                    // Check both root level and nested documentConfig for backward compatibility
+                    if (fallback.useAllDocuments || fallback.documentConfig?.useAllDocuments) {
                         const allDocsSnapshot = await db
                             .collection('partners')
                             .doc(partnerId)
@@ -1133,7 +1135,7 @@ CUSTOMER PERSONA:
                             .get();
                         fallbackDocIds = allDocsSnapshot.docs.map(d => d.id);
                     } else {
-                        fallbackDocIds = fallback.documentConfig?.attachedDocumentIds || [];
+                        fallbackDocIds = fallback.attachedDocumentIds || fallback.documentConfig?.attachedDocumentIds || [];
                     }
 
                     if (fallbackDocIds.length > 0) {
