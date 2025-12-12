@@ -8,6 +8,7 @@ import {
     getEmbeddedSignupStatus,
     activateEmbeddedSignup,
     disconnectEmbeddedSignup,
+    resubscribeWebhooks,
 } from '@/actions/meta-embedded-signup-actions';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -21,6 +22,7 @@ import {
     Smartphone,
     Shield,
     Zap,
+    RefreshCw,
 } from 'lucide-react';
 import type { EmbeddedSignupSessionInfo, EmbeddedSignupResponse } from '@/lib/types-meta-embedded';
 
@@ -252,6 +254,26 @@ export default function WhatsAppBusinessAPIPage() {
             if (result.success) {
                 setSuccess('Disconnected successfully. You can reconnect anytime.');
                 setConfig(null);
+            } else {
+                setError(result.message);
+            }
+        } catch (err: any) {
+            setError(err.message);
+        }
+    };
+
+    const handleResubscribeWebhooks = async () => {
+        if (!currentPartnerId) return;
+
+        setError(null);
+        setSuccess(null);
+        try {
+            const result = await resubscribeWebhooks(currentPartnerId);
+            if (result.success) {
+                setSuccess(result.message);
+                // Refresh the config to show updated status
+                const status = await getEmbeddedSignupStatus(currentPartnerId);
+                setConfig(status.config);
             } else {
                 setError(result.message);
             }
@@ -575,11 +597,24 @@ export default function WhatsAppBusinessAPIPage() {
                                         You can now send and receive WhatsApp messages through the Inbox.
                                         Messages will be delivered to your connected phone number.
                                     </p>
-                                    <Button asChild className="bg-green-600 hover:bg-green-700">
-                                        <a href="/partner/inbox">
-                                            Go to Inbox →
-                                        </a>
-                                    </Button>
+                                    <div className="flex gap-3">
+                                        <Button asChild className="bg-green-600 hover:bg-green-700">
+                                            <a href="/partner/inbox">
+                                                Go to Inbox →
+                                            </a>
+                                        </Button>
+                                        <Button
+                                            variant="outline"
+                                            onClick={handleResubscribeWebhooks}
+                                            className="border-green-600 text-green-700 hover:bg-green-100"
+                                        >
+                                            <RefreshCw className="w-4 h-4 mr-2" />
+                                            Fix Webhooks
+                                        </Button>
+                                    </div>
+                                    <p className="text-xs text-green-600">
+                                        Not receiving messages? Click "Fix Webhooks" to re-establish the connection.
+                                    </p>
                                 </CardContent>
                             </Card>
                         )}
