@@ -1,5 +1,7 @@
-import React, { useRef, useEffect } from 'react';
-import { Send, Paperclip, Image as ImageIcon, Smile, Sparkles, X, Loader2 } from 'lucide-react';
+'use client';
+
+import React, { useRef, useEffect, useState, useCallback } from 'react';
+import { Send, Sparkles, Loader2, Mic, Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { cn } from '@/lib/utils';
@@ -10,26 +12,56 @@ import {
     TooltipTrigger,
 } from "@/components/ui/tooltip";
 
-interface MessageInputProps {
+import { AttachmentMenu, QuickImagePicker } from './AttachmentMenu';
+import { EmojiPicker } from './EmojiPicker';
+import { AudioRecorder } from './AudioRecorder';
+import { MediaPreviewList, MediaAttachment } from './MediaPreview';
+
+export interface MessageInputProps {
     value: string;
     onChange: (value: string) => void;
     onSend: (text?: string) => void;
+    onSendMedia?: (mediaUrl: string, mediaType: 'image' | 'video' | 'audio' | 'document', caption?: string, filename?: string) => void;
     onGenerateSuggestion: () => void;
     isGenerating: boolean;
     sending: boolean;
     disabled?: boolean;
+    partnerId?: string;
+}
+
+// Helper to determine media type from file
+function getMediaTypeFromFile(file: File): 'image' | 'video' | 'audio' | 'document' {
+    const type = file.type;
+    if (type.startsWith('image/')) return 'image';
+    if (type.startsWith('video/')) return 'video';
+    if (type.startsWith('audio/')) return 'audio';
+    return 'document';
+}
+
+// Helper to create preview URL for file
+function createPreviewUrl(file: File): string | null {
+    const mediaType = getMediaTypeFromFile(file);
+    if (mediaType === 'image' || mediaType === 'video' || mediaType === 'audio') {
+        return URL.createObjectURL(file);
+    }
+    return null;
 }
 
 export function MessageInput({
     value,
     onChange,
     onSend,
+    onSendMedia,
     onGenerateSuggestion,
     isGenerating,
     sending,
-    disabled
+    disabled,
+    partnerId
 }: MessageInputProps) {
     const textareaRef = useRef<HTMLTextAreaElement>(null);
+    const [attachments, setAttachments] = useState<MediaAttachment[]>([]);
+    const [isRecordingMode, setIsRecordingMode] = useState(false);
+    const [uploadError, setUploadError] = useState<string | null>(null);
 
     // Auto-resize textarea
     useEffect(() => {
@@ -39,93 +71,281 @@ export function MessageInput({
         }
     }, [value]);
 
+    // Cleanup preview URLs on unmount
+    useEffect(() => {
+        return () => {
+            attachments.forEach(att => {
+                if (att.preview) URL.revokeObjectURL(att.preview);
+            });
+        };
+    }, []);
+
     const handleKeyDown = (e: React.KeyboardEvent) => {
         if (e.key === 'Enter' && !e.shiftKey) {
             e.preventDefault();
-            if (value.trim() && !sending) {
-                onSend();
+            if ((value.trim() || attachments.length > 0) && !sending) {
+                handleSendWithAttachments();
             }
         }
     };
 
+    const handleFileSelect = useCallback((files: FileList, mediaType: 'image' | 'video' | 'audio' | 'document') => {
+        const file = files[0];
+        if (!file) return;
+
+        setUploadError(null);
+        const preview = createPreviewUrl(file);
+
+        const newAttachment: MediaAttachment = {
+            file,
+            preview,
+            mediaType,
+            uploading: false
+        };
+
+        setAttachments(prev => [...prev, newAttachment]);
+    }, []);
+
+    const handleImageSelect = useCallback((files: FileList) => {
+        handleFileSelect(files, 'image');
+    }, [handleFileSelect]);
+
+    const handleRemoveAttachment = useCallback((index: number) => {
+        setAttachments(prev => {
+            const att = prev[index];
+            if (att.preview) URL.revokeObjectURL(att.preview);
+            return prev.filter((_, i) => i !== index);
+        });
+    }, []);
+
+    const handleEmojiSelect = useCallback((emoji: string) => {
+        const textarea = textareaRef.current;
+        if (textarea) {
+            const start = textarea.selectionStart;
+            const end = textarea.selectionEnd;
+            const newValue = value.substring(0, start) + emoji + value.substring(end);
+            onChange(newValue);
+            // Set cursor position after emoji
+            setTimeout(() => {
+                textarea.selectionStart = textarea.selectionEnd = start + emoji.length;
+                textarea.focus();
+            }, 0);
+        } else {
+            onChange(value + emoji);
+        }
+    }, [value, onChange]);
+
+    const handleRecordingComplete = useCallback(async (audioBlob: Blob, duration: number) => {
+        setIsRecordingMode(false);
+
+        // Convert blob to file
+        const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+        const extension = audioBlob.type.includes('webm') ? 'webm' : 'mp3';
+        const audioFile = new File([audioBlob], `voice-message-${timestamp}.${extension}`, {
+            type: audioBlob.type
+        });
+
+        const preview = URL.createObjectURL(audioBlob);
+
+        const newAttachment: MediaAttachment = {
+            file: audioFile,
+            preview,
+            mediaType: 'audio',
+            uploading: false
+        };
+
+        setAttachments(prev => [...prev, newAttachment]);
+    }, []);
+
+    const uploadMedia = async (attachment: MediaAttachment): Promise<string | null> => {
+        if (!partnerId) {
+            setUploadError('Partner ID is required for upload');
+            return null;
+        }
+
+        const formData = new FormData();
+        formData.append('file', attachment.file);
+        formData.append('partnerId', partnerId);
+        formData.append('filename', attachment.file.name);
+
+        try {
+            const response = await fetch('/api/upload-media', {
+                method: 'POST',
+                body: formData
+            });
+
+            if (!response.ok) {
+                const error = await response.json();
+                throw new Error(error.error || 'Upload failed');
+            }
+
+            const result = await response.json();
+            return result.url;
+        } catch (err: any) {
+            console.error('Upload error:', err);
+            setUploadError(err.message || 'Failed to upload media');
+            return null;
+        }
+    };
+
+    const handleSendWithAttachments = async () => {
+        if (sending) return;
+
+        // If there are attachments, upload and send them
+        if (attachments.length > 0 && onSendMedia) {
+            // Mark all as uploading
+            setAttachments(prev => prev.map(att => ({ ...att, uploading: true })));
+
+            for (const attachment of attachments) {
+                const url = await uploadMedia(attachment);
+                if (url) {
+                    // Send media with caption (use text value as caption for first media)
+                    const caption = attachments.indexOf(attachment) === 0 ? value.trim() : undefined;
+                    onSendMedia(url, attachment.mediaType, caption, attachment.file.name);
+                }
+            }
+
+            // Clear attachments and text
+            attachments.forEach(att => {
+                if (att.preview) URL.revokeObjectURL(att.preview);
+            });
+            setAttachments([]);
+            onChange('');
+        } else if (value.trim()) {
+            // Just send text
+            onSend();
+        }
+    };
+
+    const canSend = (value.trim() || attachments.length > 0) && !sending;
+    const hasContent = value.trim() || attachments.length > 0;
+
+    // Recording mode - show full-width recorder
+    if (isRecordingMode) {
+        return (
+            <div className="p-3 md:p-4 bg-white border-t border-gray-100 pb-safe">
+                <div className="max-w-4xl mx-auto">
+                    <AudioRecorder
+                        onRecordingComplete={handleRecordingComplete}
+                        onCancel={() => setIsRecordingMode(false)}
+                        disabled={disabled || sending}
+                    />
+                </div>
+            </div>
+        );
+    }
+
     return (
         <div className="p-3 md:p-4 bg-white border-t border-gray-100 pb-safe">
             <div className="max-w-4xl mx-auto relative group">
+                {/* Upload Error */}
+                {uploadError && (
+                    <div className="mb-2 px-3 py-2 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700 flex items-center justify-between">
+                        <span>{uploadError}</span>
+                        <button
+                            onClick={() => setUploadError(null)}
+                            className="text-red-500 hover:text-red-700"
+                        >
+                            &times;
+                        </button>
+                    </div>
+                )}
+
                 {/* Floating Input Container */}
                 <div className={cn(
                     "flex flex-col bg-gray-50 border border-gray-200 rounded-2xl transition-all shadow-sm focus-within:shadow-md focus-within:bg-white focus-within:border-indigo-200",
                     (disabled || sending) && "opacity-60 pointer-events-none"
                 )}>
+                    {/* Media Previews */}
+                    <MediaPreviewList
+                        attachments={attachments}
+                        onRemove={handleRemoveAttachment}
+                    />
+
                     {/* Text Area */}
                     <Textarea
                         ref={textareaRef}
                         value={value}
                         onChange={(e) => onChange(e.target.value)}
                         onKeyDown={handleKeyDown}
-                        placeholder="Type a message..."
+                        placeholder={attachments.length > 0 ? "Add a caption..." : "Type a message..."}
                         className="min-h-[44px] md:min-h-[50px] max-h-[100px] md:max-h-[120px] w-full border-none bg-transparent resize-none p-3 md:p-3.5 focus-visible:ring-0 text-gray-900 placeholder:text-gray-400 text-[16px] md:text-sm"
                         rows={1}
                     />
 
                     {/* Toolbar */}
                     <div className="flex items-center justify-between px-2 pb-2">
-                        {/* Left side - attachment buttons (hidden on mobile for cleaner UX) */}
-                        <div className="hidden md:flex items-center gap-1">
-                            <TooltipProvider>
-                                <Tooltip>
-                                    <TooltipTrigger asChild>
-                                        <Button variant="ghost" size="icon" className="h-9 w-9 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-full transition-colors">
-                                            <Paperclip className="w-5 h-5" />
-                                        </Button>
-                                    </TooltipTrigger>
-                                    <TooltipContent>Attach File</TooltipContent>
-                                </Tooltip>
-                            </TooltipProvider>
+                        {/* Left side - attachment buttons */}
+                        <div className="flex items-center gap-0.5">
+                            {/* Mobile: Plus button opens attachment menu */}
+                            <div className="md:hidden">
+                                <AttachmentMenu
+                                    onFileSelect={handleFileSelect}
+                                    disabled={disabled || sending}
+                                />
+                            </div>
 
-                            <TooltipProvider>
-                                <Tooltip>
-                                    <TooltipTrigger asChild>
-                                        <Button variant="ghost" size="icon" className="h-9 w-9 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-full transition-colors">
-                                            <ImageIcon className="w-5 h-5" />
-                                        </Button>
-                                    </TooltipTrigger>
-                                    <TooltipContent>Upload Image</TooltipContent>
-                                </Tooltip>
-                            </TooltipProvider>
+                            {/* Desktop: Individual attachment buttons */}
+                            <div className="hidden md:flex items-center gap-0.5">
+                                <AttachmentMenu
+                                    onFileSelect={handleFileSelect}
+                                    disabled={disabled || sending}
+                                />
 
-                            <TooltipProvider>
-                                <Tooltip>
-                                    <TooltipTrigger asChild>
-                                        <Button variant="ghost" size="icon" className="h-9 w-9 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-full transition-colors">
-                                            <Smile className="w-5 h-5" />
-                                        </Button>
-                                    </TooltipTrigger>
-                                    <TooltipContent>Insert Emoji</TooltipContent>
-                                </Tooltip>
-                            </TooltipProvider>
+                                <QuickImagePicker
+                                    onFileSelect={handleImageSelect}
+                                    disabled={disabled || sending}
+                                />
+
+                                <EmojiPicker
+                                    onEmojiSelect={handleEmojiSelect}
+                                    disabled={disabled || sending}
+                                />
+                            </div>
                         </div>
 
-                        {/* Mobile: AI button on left */}
-                        <div className="flex md:hidden">
-                            <Button
-                                onClick={onGenerateSuggestion}
-                                variant="ghost"
-                                size="sm"
-                                disabled={isGenerating}
-                                className={cn(
-                                    "h-9 w-9 p-0 rounded-full transition-all",
-                                    "bg-gradient-to-r from-indigo-50 to-purple-50 text-indigo-700 hover:from-indigo-100 hover:to-purple-100 hover:text-indigo-800 border border-indigo-100/50"
-                                )}
-                            >
-                                {isGenerating ? (
-                                    <Loader2 className="w-4 h-4 animate-spin" />
-                                ) : (
-                                    <Sparkles className="w-4 h-4" />
-                                )}
-                            </Button>
-                        </div>
-
+                        {/* Right side - AI and send buttons */}
                         <div className="flex items-center gap-2">
+                            {/* Voice Message Button - show when no text/attachments */}
+                            {!hasContent && (
+                                <TooltipProvider>
+                                    <Tooltip>
+                                        <TooltipTrigger asChild>
+                                            <Button
+                                                variant="ghost"
+                                                size="icon"
+                                                disabled={disabled || sending}
+                                                onClick={() => setIsRecordingMode(true)}
+                                                className="h-9 w-9 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-full transition-colors"
+                                            >
+                                                <Mic className="w-5 h-5" />
+                                            </Button>
+                                        </TooltipTrigger>
+                                        <TooltipContent side="top">Record Voice Message</TooltipContent>
+                                    </Tooltip>
+                                </TooltipProvider>
+                            )}
+
+                            {/* Mobile: AI button */}
+                            <div className="flex md:hidden">
+                                <Button
+                                    onClick={onGenerateSuggestion}
+                                    variant="ghost"
+                                    size="sm"
+                                    disabled={isGenerating}
+                                    className={cn(
+                                        "h-9 w-9 p-0 rounded-full transition-all",
+                                        "bg-gradient-to-r from-indigo-50 to-purple-50 text-indigo-700 hover:from-indigo-100 hover:to-purple-100 hover:text-indigo-800 border border-indigo-100/50"
+                                    )}
+                                >
+                                    {isGenerating ? (
+                                        <Loader2 className="w-4 h-4 animate-spin" />
+                                    ) : (
+                                        <Sparkles className="w-4 h-4" />
+                                    )}
+                                </Button>
+                            </div>
+
                             {/* AI Trigger - Desktop */}
                             <div className="hidden md:block">
                                 <TooltipProvider>
@@ -158,12 +378,12 @@ export function MessageInput({
 
                             {/* Send Button */}
                             <Button
-                                onClick={() => onSend()}
-                                disabled={!value.trim() || sending}
+                                onClick={handleSendWithAttachments}
+                                disabled={!canSend}
                                 size="icon"
                                 className={cn(
                                     "h-10 w-10 md:h-9 md:w-9 rounded-full transition-all shadow-sm touch-manipulation",
-                                    value.trim()
+                                    canSend
                                         ? "bg-indigo-600 hover:bg-indigo-700 text-white active:scale-95"
                                         : "bg-gray-100 text-gray-400"
                                 )}

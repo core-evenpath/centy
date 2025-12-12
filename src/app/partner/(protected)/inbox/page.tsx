@@ -265,6 +265,37 @@ export default function InboxPage() {
         }
     };
 
+    const handleSendMedia = async (
+        mediaUrl: string,
+        mediaType: 'image' | 'video' | 'audio' | 'document',
+        caption?: string,
+        filename?: string
+    ) => {
+        if (!selectedConversation || !currentPartnerId) return;
+
+        setSending(true);
+
+        try {
+            await sendMetaWhatsAppMessageAction({
+                partnerId: currentPartnerId,
+                to: selectedConversation.customerPhone,
+                message: caption,
+                mediaUrl,
+                mediaType,
+                filename,
+                conversationId: selectedConversation.id
+            });
+            setShowAISuggestion(false);
+            setAISuggestion(null);
+            toast.success(`${mediaType.charAt(0).toUpperCase() + mediaType.slice(1)} sent`);
+        } catch (err) {
+            console.error(err);
+            toast.error(`Failed to send ${mediaType}`);
+        } finally {
+            setSending(false);
+        }
+    };
+
     const handleGenerateSuggestionWithIds = async (
         incomingMessage?: string,
         refinementInstruction?: string,
@@ -454,9 +485,11 @@ export default function InboxPage() {
                                 value={messageInput}
                                 onChange={setMessageInput}
                                 onSend={() => handleSendMessage()}
+                                onSendMedia={handleSendMedia}
                                 onGenerateSuggestion={() => handleGenerateSuggestion()}
                                 isGenerating={isLoadingSuggestion}
                                 sending={sending}
+                                partnerId={currentPartnerId}
                             />
                         </div>
                     </div>
