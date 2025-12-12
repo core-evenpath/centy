@@ -1,7 +1,9 @@
 "use client";
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { usePartnerHub } from '@/hooks/use-partnerhub';
+import { useMultiWorkspaceAuth } from '@/hooks/use-multi-workspace-auth';
+import { getBusinessPersonaAction } from '@/actions/business-persona-actions';
 import { cn } from '@/lib/utils';
 import {
     Bot,
@@ -11,27 +13,35 @@ import {
     Play,
     MessageCircle,
     ChevronRight,
-    CheckCircle2,
-    Circle,
-    HelpCircle,
     FileText,
-    ArrowLeft,
     Users,
     TrendingUp,
-    Clock,
     Shield,
     Target,
-    Brain
+    ArrowRight,
+    Building2,
+    ExternalLink,
+    CheckCircle2,
+    AlertCircle,
+    Sliders,
+    ToggleLeft,
+    ToggleRight,
+    Clock,
+    Phone,
+    Globe,
+    Lightbulb,
+    ArrowUpRight,
 } from 'lucide-react';
 import { AgentRole, EssentialAgent } from '@/lib/partnerhub-types';
 import AgentConfigPanel from '@/components/partner/core/AgentConfigPanel';
 import AgentTestPanel from '@/components/partner/core/AgentTestPanel';
+import type { BusinessPersona } from '@/lib/business-persona-types';
 
 const DEFAULT_AGENTS: Omit<EssentialAgent, 'id' | 'partnerId' | 'createdAt' | 'updatedAt'>[] = [
     {
         role: AgentRole.CUSTOMER_CARE,
         name: 'Customer Support',
-        description: 'Answers questions from your existing customers',
+        description: 'Handles questions from existing customers',
         avatar: 'Bot',
         businessName: '',
         tones: ['professional', 'empathetic'],
@@ -163,18 +173,14 @@ const AGENT_INFO = {
         bgDark: 'bg-blue-500',
         text: 'text-blue-600',
         border: 'border-blue-200',
-        examples: [
-            'Where is my order?',
-            'How do I return this?',
-            'I need help with my account'
+        ring: 'ring-blue-500/20',
+        useCases: [
+            'Order status inquiries',
+            'Return & refund questions',
+            'Product troubleshooting',
+            'Account issues',
         ],
-        capabilities: [
-            { icon: MessageCircle, text: 'Answer support questions' },
-            { icon: FileText, text: 'Reference your documents' },
-            { icon: Shield, text: 'Handle complaints professionally' },
-            { icon: Users, text: 'Escalate to human when needed' },
-        ],
-        whatItDoes: 'Handles support questions, checks order status, explains policies, and knows when to escalate complex issues to your team.',
+        bestFor: 'Inbox conversations with existing customers',
     },
     [AgentRole.SALES_ASSISTANT]: {
         icon: Zap,
@@ -184,18 +190,14 @@ const AGENT_INFO = {
         bgDark: 'bg-amber-500',
         text: 'text-amber-600',
         border: 'border-amber-200',
-        examples: [
-            'What do you sell?',
-            'How much does it cost?',
-            'Tell me about your services'
+        ring: 'ring-amber-500/20',
+        useCases: [
+            'Product/service questions',
+            'Pricing inquiries',
+            'Feature comparisons',
+            'Booking appointments',
         ],
-        capabilities: [
-            { icon: Target, text: 'Qualify leads automatically' },
-            { icon: MessageCircle, text: 'Answer product questions' },
-            { icon: TrendingUp, text: 'Share pricing & packages' },
-            { icon: Users, text: 'Capture contact info' },
-        ],
-        whatItDoes: 'Answers questions about your products/services, shares pricing information, and identifies potential customers for follow-up.',
+        bestFor: 'Converting inquiries into customers',
     },
     [AgentRole.MARKETING_COMMS]: {
         icon: Sparkles,
@@ -205,18 +207,14 @@ const AGENT_INFO = {
         bgDark: 'bg-purple-500',
         text: 'text-purple-600',
         border: 'border-purple-200',
-        examples: [
-            '🎂 Birthday messages',
-            '🎁 Special offers',
-            '📢 New arrival alerts'
+        ring: 'ring-purple-500/20',
+        useCases: [
+            'Birthday wishes',
+            'Promotional messages',
+            'New arrival alerts',
+            'Re-engagement',
         ],
-        capabilities: [
-            { icon: Sparkles, text: 'Send birthday wishes' },
-            { icon: Target, text: 'Promote special offers' },
-            { icon: Clock, text: 'Scheduled campaigns' },
-            { icon: Users, text: 'Personalized outreach' },
-        ],
-        whatItDoes: 'Sends personalized messages for birthdays, promotions, and updates to keep your customers engaged and coming back.',
+        bestFor: 'Automated outreach campaigns',
     },
 };
 
@@ -224,9 +222,32 @@ type PageView = 'list' | 'configure';
 
 export default function AgentsPage() {
     const { documents, customAgents, partnerId, saveEssentialAgent } = usePartnerHub();
+    const { currentWorkspace } = useMultiWorkspaceAuth();
     const [pageView, setPageView] = useState<PageView>('list');
     const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null);
     const [testingAgent, setTestingAgent] = useState<EssentialAgent | null>(null);
+    const [businessPersona, setBusinessPersona] = useState<BusinessPersona | null>(null);
+    const [loadingPersona, setLoadingPersona] = useState(true);
+
+    // Load business persona from settings
+    useEffect(() => {
+        async function loadPersona() {
+            if (currentWorkspace?.partnerId) {
+                setLoadingPersona(true);
+                try {
+                    const result = await getBusinessPersonaAction(currentWorkspace.partnerId);
+                    if (result.success && result.persona) {
+                        setBusinessPersona(result.persona);
+                    }
+                } catch (e) {
+                    console.error('Failed to load business persona:', e);
+                } finally {
+                    setLoadingPersona(false);
+                }
+            }
+        }
+        loadPersona();
+    }, [currentWorkspace?.partnerId]);
 
     const essentialAgents: EssentialAgent[] = useMemo(() => {
         return DEFAULT_AGENTS.map((defaultAgent) => {
@@ -245,30 +266,14 @@ export default function AgentsPage() {
                 ...defaultAgent,
                 id,
                 partnerId: partnerId || 'current',
-                businessName: 'Your Business',
+                businessName: businessPersona?.identity?.name || 'Your Business',
                 createdAt: new Date(),
                 updatedAt: new Date(),
             };
         });
-    }, [customAgents, partnerId]);
+    }, [customAgents, partnerId, businessPersona]);
 
     const selectedAgent = selectedAgentId ? essentialAgents.find(a => a.id === selectedAgentId) : null;
-
-    const getSetupProgress = (agent: EssentialAgent) => {
-        let completed = 0;
-        let total = 3;
-
-        if (agent.businessName && agent.businessName !== 'Your Business') completed++;
-        if (agent.useAllDocuments || agent.attachedDocumentIds.length > 0) completed++;
-        if (agent.responseRules.length > 0 || agent.neverSay.length > 0) completed++;
-
-        return { completed, total, percentage: Math.round((completed / total) * 100) };
-    };
-
-    const getDocumentCount = (agent: EssentialAgent) => {
-        if (agent.useAllDocuments) return documents.length;
-        return agent.attachedDocumentIds.length;
-    };
 
     const handleConfigureAgent = (agent: EssentialAgent) => {
         setSelectedAgentId(agent.id);
@@ -278,6 +283,22 @@ export default function AgentsPage() {
     const handleSaveAgent = async (updatedAgent: EssentialAgent) => {
         await saveEssentialAgent(updatedAgent);
     };
+
+    const handleToggleActive = async (agent: EssentialAgent, isActive: boolean) => {
+        const updated = { ...agent, isActive, updatedAt: new Date() };
+        await saveEssentialAgent(updated);
+    };
+
+    const getDocumentCount = (agent: EssentialAgent) => {
+        if (agent.useAllDocuments) return documents.length;
+        return agent.attachedDocumentIds.length;
+    };
+
+    // Check if business profile is set up
+    const hasBusinessProfile = businessPersona?.identity?.name && businessPersona?.identity?.name !== '';
+    const businessName = businessPersona?.identity?.name || 'Your Business';
+    const businessPhone = businessPersona?.identity?.phone;
+    const businessHours = businessPersona?.identity?.operatingHours;
 
     if (pageView === 'configure' && selectedAgent) {
         return (
@@ -300,167 +321,303 @@ export default function AgentsPage() {
                 />
             )}
             <div className="h-full flex flex-col bg-slate-50">
+                {/* Header */}
                 <div className="bg-white border-b border-slate-200 px-6 py-5">
                     <div className="flex items-center justify-between">
                         <div>
-                            <h1 className="text-xl font-semibold text-slate-900">AI Assistants</h1>
+                            <h1 className="text-xl font-semibold text-slate-900">AI Agents</h1>
                             <p className="text-slate-500 text-sm mt-0.5">
-                                Configure how your AI responds to different types of conversations
+                                Specialized AI assistants for your inbox and customer conversations
                             </p>
                         </div>
                     </div>
                 </div>
 
                 <div className="flex-1 overflow-auto">
-                    <div className="p-6 space-y-6">
-                        <div className="bg-gradient-to-br from-indigo-500 to-purple-600 rounded-2xl p-6 text-white">
-                            <div className="flex items-start gap-4">
-                                <div className="w-12 h-12 rounded-xl bg-white/20 flex items-center justify-center flex-shrink-0">
-                                    <Brain className="w-6 h-6" />
+                    <div className="p-6 space-y-6 max-w-5xl mx-auto">
+
+                        {/* Business Context Banner - Links to Settings */}
+                        <div className={cn(
+                            "rounded-2xl border-2 overflow-hidden transition-all",
+                            hasBusinessProfile
+                                ? "bg-gradient-to-r from-emerald-50 to-teal-50 border-emerald-200"
+                                : "bg-gradient-to-r from-amber-50 to-orange-50 border-amber-200"
+                        )}>
+                            <div className="p-5">
+                                <div className="flex items-start gap-4">
+                                    <div className={cn(
+                                        "w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0",
+                                        hasBusinessProfile ? "bg-emerald-100" : "bg-amber-100"
+                                    )}>
+                                        <Building2 className={cn(
+                                            "w-6 h-6",
+                                            hasBusinessProfile ? "text-emerald-600" : "text-amber-600"
+                                        )} />
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                        <div className="flex items-start justify-between gap-4">
+                                            <div>
+                                                <h2 className={cn(
+                                                    "font-semibold",
+                                                    hasBusinessProfile ? "text-emerald-900" : "text-amber-900"
+                                                )}>
+                                                    {hasBusinessProfile ? 'Business Context Connected' : 'Set Up Your Business Profile'}
+                                                </h2>
+                                                <p className={cn(
+                                                    "text-sm mt-1",
+                                                    hasBusinessProfile ? "text-emerald-700" : "text-amber-700"
+                                                )}>
+                                                    {hasBusinessProfile
+                                                        ? `All agents use your business info from Settings. Currently representing "${businessName}".`
+                                                        : 'Your agents need business information to respond accurately. Set up your profile in Settings first.'
+                                                    }
+                                                </p>
+
+                                                {/* Quick Business Info Preview */}
+                                                {hasBusinessProfile && (
+                                                    <div className="flex flex-wrap gap-3 mt-3">
+                                                        {businessPhone && (
+                                                            <span className="inline-flex items-center gap-1.5 text-xs bg-white/60 px-2.5 py-1 rounded-full text-emerald-700">
+                                                                <Phone className="w-3 h-3" />
+                                                                {businessPhone}
+                                                            </span>
+                                                        )}
+                                                        {businessHours?.isOpen24x7 && (
+                                                            <span className="inline-flex items-center gap-1.5 text-xs bg-white/60 px-2.5 py-1 rounded-full text-emerald-700">
+                                                                <Clock className="w-3 h-3" />
+                                                                Open 24/7
+                                                            </span>
+                                                        )}
+                                                        {businessPersona?.identity?.website && (
+                                                            <span className="inline-flex items-center gap-1.5 text-xs bg-white/60 px-2.5 py-1 rounded-full text-emerald-700">
+                                                                <Globe className="w-3 h-3" />
+                                                                Website connected
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                )}
+                                            </div>
+                                            <a
+                                                href="/partner/settings/dashboard"
+                                                className={cn(
+                                                    "flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium transition-colors flex-shrink-0",
+                                                    hasBusinessProfile
+                                                        ? "bg-emerald-600 text-white hover:bg-emerald-700"
+                                                        : "bg-amber-600 text-white hover:bg-amber-700"
+                                                )}
+                                            >
+                                                <Settings className="w-4 h-4" />
+                                                {hasBusinessProfile ? 'Edit in Settings' : 'Set Up Profile'}
+                                                <ArrowUpRight className="w-3.5 h-3.5" />
+                                            </a>
+                                        </div>
+                                    </div>
                                 </div>
-                                <div>
-                                    <h2 className="text-lg font-semibold">How AI Assistants Work</h2>
-                                    <p className="text-indigo-100 mt-1">
-                                        Each assistant is optimized for specific conversations. They share your documents
-                                        but have different personalities and goals. Configure each one to match your business style.
-                                    </p>
-                                </div>
+                            </div>
+
+                            {/* Info strip */}
+                            <div className={cn(
+                                "px-5 py-2.5 text-xs flex items-center gap-2 border-t",
+                                hasBusinessProfile
+                                    ? "bg-emerald-100/50 border-emerald-200/50 text-emerald-700"
+                                    : "bg-amber-100/50 border-amber-200/50 text-amber-700"
+                            )}>
+                                <Lightbulb className="w-3.5 h-3.5" />
+                                {hasBusinessProfile
+                                    ? 'Business name, contact info, hours, and FAQs are automatically available to all agents.'
+                                    : 'Complete your business profile so agents can accurately represent your business.'
+                                }
                             </div>
                         </div>
 
-                        <div className="grid gap-4">
-                            {essentialAgents.map((agent) => {
-                                const info = AGENT_INFO[agent.role];
-                                const Icon = info.icon;
-                                const progress = getSetupProgress(agent);
-                                const docCount = getDocumentCount(agent);
+                        {/* Agents Grid */}
+                        <div className="space-y-4">
+                            <div className="flex items-center justify-between">
+                                <h2 className="text-sm font-semibold text-slate-600 uppercase tracking-wider">
+                                    Available Agents
+                                </h2>
+                                <span className="text-xs text-slate-500">
+                                    {essentialAgents.filter(a => a.isActive).length} of {essentialAgents.length} active
+                                </span>
+                            </div>
 
-                                return (
-                                    <div
-                                        key={agent.id}
-                                        className="bg-white rounded-2xl border border-slate-200 overflow-hidden hover:shadow-lg transition-shadow"
-                                    >
-                                        <div className="p-6">
-                                            <div className="flex items-start gap-5">
-                                                <div className={cn(
-                                                    "w-16 h-16 rounded-2xl flex items-center justify-center bg-gradient-to-br flex-shrink-0",
-                                                    info.gradient
-                                                )}>
-                                                    <Icon className="w-8 h-8 text-white" />
-                                                </div>
+                            <div className="grid gap-4">
+                                {essentialAgents.map((agent) => {
+                                    const info = AGENT_INFO[agent.role];
+                                    const Icon = info.icon;
+                                    const docCount = getDocumentCount(agent);
 
-                                                <div className="flex-1 min-w-0">
-                                                    <div className="flex items-start justify-between gap-4">
-                                                        <div>
-                                                            <div className="flex items-center gap-3">
-                                                                <h3 className="text-lg font-semibold text-slate-900">{agent.name}</h3>
-                                                                <span className={cn(
-                                                                    "text-xs px-2.5 py-1 rounded-full font-medium",
-                                                                    agent.isActive ? "bg-emerald-100 text-emerald-700" : "bg-slate-100 text-slate-500"
-                                                                )}>
-                                                                    {agent.isActive ? 'Active' : 'Inactive'}
-                                                                </span>
-                                                            </div>
-                                                            <p className="text-slate-500 mt-1">{agent.description}</p>
-                                                        </div>
-
-                                                        <button
-                                                            onClick={() => handleConfigureAgent(agent)}
-                                                            className={cn(
-                                                                "flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium transition-colors",
-                                                                `bg-gradient-to-r ${info.gradient} text-white hover:shadow-md`
-                                                            )}
-                                                        >
-                                                            <Settings className="w-4 h-4" />
-                                                            Configure
-                                                        </button>
+                                    return (
+                                        <div
+                                            key={agent.id}
+                                            className={cn(
+                                                "bg-white rounded-2xl border-2 overflow-hidden transition-all hover:shadow-lg",
+                                                agent.isActive ? info.border : "border-slate-200 opacity-75"
+                                            )}
+                                        >
+                                            <div className="p-5">
+                                                <div className="flex items-start gap-4">
+                                                    {/* Icon */}
+                                                    <div className={cn(
+                                                        "w-14 h-14 rounded-2xl flex items-center justify-center flex-shrink-0 bg-gradient-to-br",
+                                                        agent.isActive ? info.gradient : "from-slate-400 to-slate-500"
+                                                    )}>
+                                                        <Icon className="w-7 h-7 text-white" />
                                                     </div>
 
-                                                    <div className="grid sm:grid-cols-2 gap-6 mt-6">
-                                                        <div>
-                                                            <h4 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">
-                                                                What it does
-                                                            </h4>
-                                                            <div className="grid grid-cols-2 gap-2">
-                                                                {info.capabilities.map((cap, i) => (
-                                                                    <div key={i} className="flex items-center gap-2 text-sm text-slate-600">
-                                                                        <cap.icon className={cn("w-4 h-4 flex-shrink-0", info.text)} />
-                                                                        <span>{cap.text}</span>
-                                                                    </div>
-                                                                ))}
+                                                    {/* Content */}
+                                                    <div className="flex-1 min-w-0">
+                                                        <div className="flex items-start justify-between gap-4">
+                                                            <div>
+                                                                <div className="flex items-center gap-3">
+                                                                    <h3 className="text-lg font-semibold text-slate-900">{agent.name}</h3>
+                                                                    {/* Active Toggle */}
+                                                                    <button
+                                                                        onClick={() => handleToggleActive(agent, !agent.isActive)}
+                                                                        className={cn(
+                                                                            "flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full font-medium transition-colors",
+                                                                            agent.isActive
+                                                                                ? "bg-emerald-100 text-emerald-700 hover:bg-emerald-200"
+                                                                                : "bg-slate-100 text-slate-500 hover:bg-slate-200"
+                                                                        )}
+                                                                    >
+                                                                        {agent.isActive ? (
+                                                                            <>
+                                                                                <ToggleRight className="w-3.5 h-3.5" />
+                                                                                Active
+                                                                            </>
+                                                                        ) : (
+                                                                            <>
+                                                                                <ToggleLeft className="w-3.5 h-3.5" />
+                                                                                Inactive
+                                                                            </>
+                                                                        )}
+                                                                    </button>
+                                                                </div>
+                                                                <p className="text-slate-500 mt-1">{agent.description}</p>
                                                             </div>
-                                                        </div>
 
-                                                        <div>
-                                                            <h4 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">
-                                                                Example messages
-                                                            </h4>
-                                                            <div className="space-y-1.5">
-                                                                {info.examples.map((ex, i) => (
-                                                                    <div key={i} className={cn(
-                                                                        "text-sm px-3 py-1.5 rounded-lg",
-                                                                        info.bgLight, info.text
-                                                                    )}>
-                                                                        "{ex}"
-                                                                    </div>
-                                                                ))}
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        </div>
-
-                                        <div className={cn("px-6 py-4 border-t", info.bgLight)}>
-                                            <div className="flex items-center justify-between">
-                                                <div className="flex items-center gap-6">
-                                                    <div className="flex items-center gap-2">
-                                                        <div className="flex items-center gap-1">
-                                                            {[...Array(progress.total)].map((_, i) => (
-                                                                <div
-                                                                    key={i}
+                                                            {/* Actions */}
+                                                            <div className="flex items-center gap-2">
+                                                                <button
+                                                                    onClick={() => setTestingAgent(agent)}
+                                                                    className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
+                                                                >
+                                                                    <Play className="w-4 h-4" />
+                                                                    Test
+                                                                </button>
+                                                                <button
+                                                                    onClick={() => handleConfigureAgent(agent)}
                                                                     className={cn(
-                                                                        "w-2.5 h-2.5 rounded-full",
-                                                                        i < progress.completed ? info.bgDark : "bg-slate-200"
+                                                                        "flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-colors",
+                                                                        `bg-gradient-to-r ${info.gradient} text-white hover:shadow-md`
                                                                     )}
-                                                                />
-                                                            ))}
+                                                                >
+                                                                    <Sliders className="w-4 h-4" />
+                                                                    Configure
+                                                                </button>
+                                                            </div>
                                                         </div>
-                                                        <span className="text-sm text-slate-600 ml-2">
-                                                            {progress.completed}/{progress.total} setup
-                                                        </span>
-                                                    </div>
-                                                    <div className="flex items-center gap-2 text-sm text-slate-600">
-                                                        <FileText className="w-4 h-4 text-slate-400" />
-                                                        {docCount} document{docCount !== 1 ? 's' : ''} connected
+
+                                                        {/* Best For & Use Cases */}
+                                                        <div className="mt-4 grid sm:grid-cols-2 gap-4">
+                                                            <div>
+                                                                <h4 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">
+                                                                    Best for
+                                                                </h4>
+                                                                <p className={cn("text-sm font-medium", info.text)}>
+                                                                    {info.bestFor}
+                                                                </p>
+                                                            </div>
+                                                            <div>
+                                                                <h4 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">
+                                                                    Handles
+                                                                </h4>
+                                                                <div className="flex flex-wrap gap-1.5">
+                                                                    {info.useCases.slice(0, 3).map((useCase, i) => (
+                                                                        <span
+                                                                            key={i}
+                                                                            className={cn(
+                                                                                "text-xs px-2 py-0.5 rounded-full",
+                                                                                info.bgLight, info.text
+                                                                            )}
+                                                                        >
+                                                                            {useCase}
+                                                                        </span>
+                                                                    ))}
+                                                                </div>
+                                                            </div>
+                                                        </div>
                                                     </div>
                                                 </div>
+                                            </div>
 
-                                                <button
-                                                    onClick={() => setTestingAgent(agent)}
-                                                    className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-white rounded-lg transition-colors"
-                                                >
-                                                    <Play className="w-4 h-4" />
-                                                    Test
-                                                </button>
+                                            {/* Footer */}
+                                            <div className={cn("px-5 py-3 border-t flex items-center justify-between", info.bgLight)}>
+                                                <div className="flex items-center gap-4 text-sm text-slate-600">
+                                                    <span className="flex items-center gap-1.5">
+                                                        <FileText className="w-4 h-4 text-slate-400" />
+                                                        {agent.useAllDocuments ? 'All' : docCount} documents
+                                                    </span>
+                                                    <span className="flex items-center gap-1.5">
+                                                        <MessageCircle className="w-4 h-4 text-slate-400" />
+                                                        {agent.tones.slice(0, 2).join(', ')} tone
+                                                    </span>
+                                                    {agent.escalationSettings.onHumanRequest && (
+                                                        <span className="flex items-center gap-1.5">
+                                                            <Shield className="w-4 h-4 text-slate-400" />
+                                                            Escalation enabled
+                                                        </span>
+                                                    )}
+                                                </div>
+                                                {/* Role-specific indicator */}
+                                                {agent.role === AgentRole.SALES_ASSISTANT && agent.leadSettings && (
+                                                    <span className="text-xs px-2 py-1 rounded-full bg-amber-200/50 text-amber-700">
+                                                        Lead qualification {agent.leadSettings.askNeed ? 'on' : 'off'}
+                                                    </span>
+                                                )}
+                                                {agent.role === AgentRole.MARKETING_COMMS && agent.campaignSettings && (
+                                                    <span className="text-xs px-2 py-1 rounded-full bg-purple-200/50 text-purple-700">
+                                                        Campaigns {agent.campaignSettings.enableBirthday ? 'enabled' : 'disabled'}
+                                                    </span>
+                                                )}
                                             </div>
                                         </div>
-                                    </div>
-                                );
-                            })}
+                                    );
+                                })}
+                            </div>
                         </div>
 
+                        {/* How It Works Section */}
                         <div className="bg-white rounded-2xl border border-slate-200 p-6">
-                            <div className="flex items-start gap-4">
-                                <div className="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center flex-shrink-0">
-                                    <HelpCircle className="w-5 h-5 text-slate-500" />
+                            <h3 className="font-semibold text-slate-900 mb-4">How Agents Work with Your Inbox</h3>
+                            <div className="grid sm:grid-cols-3 gap-4">
+                                <div className="flex items-start gap-3">
+                                    <div className="w-8 h-8 rounded-lg bg-indigo-100 flex items-center justify-center flex-shrink-0 text-indigo-600 font-semibold text-sm">
+                                        1
+                                    </div>
+                                    <div>
+                                        <p className="text-sm font-medium text-slate-900">Customer Sends Message</p>
+                                        <p className="text-xs text-slate-500 mt-0.5">Via WhatsApp, web chat, or other channels</p>
+                                    </div>
                                 </div>
-                                <div>
-                                    <h3 className="font-semibold text-slate-900">Need a custom assistant?</h3>
-                                    <p className="text-slate-500 text-sm mt-1">
-                                        These three cover most business needs. If you need something specialized,
-                                        you can customize any assistant's behavior in its settings.
-                                    </p>
+                                <div className="flex items-start gap-3">
+                                    <div className="w-8 h-8 rounded-lg bg-indigo-100 flex items-center justify-center flex-shrink-0 text-indigo-600 font-semibold text-sm">
+                                        2
+                                    </div>
+                                    <div>
+                                        <p className="text-sm font-medium text-slate-900">Agent Generates Reply</p>
+                                        <p className="text-xs text-slate-500 mt-0.5">Using your business info & documents</p>
+                                    </div>
+                                </div>
+                                <div className="flex items-start gap-3">
+                                    <div className="w-8 h-8 rounded-lg bg-indigo-100 flex items-center justify-center flex-shrink-0 text-indigo-600 font-semibold text-sm">
+                                        3
+                                    </div>
+                                    <div>
+                                        <p className="text-sm font-medium text-slate-900">You Review & Send</p>
+                                        <p className="text-xs text-slate-500 mt-0.5">Edit suggestions or send directly</p>
+                                    </div>
                                 </div>
                             </div>
                         </div>

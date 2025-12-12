@@ -8,20 +8,16 @@ import {
     AgentStyle,
     AgentLength,
     ResponseRule,
-    BusinessInfo,
-    FAQItem,
-    ExampleInteraction,
 } from '@/lib/partnerhub-types';
 import { usePartnerHub } from '@/hooks/use-partnerhub';
 import { useMultiWorkspaceAuth } from '@/hooks/use-multi-workspace-auth';
-import { getPartnerProfileAction } from '@/actions/get-partner-profile';
+import { getBusinessPersonaAction } from '@/actions/business-persona-actions';
 import { cn } from '@/lib/utils';
 import {
     ArrowLeft,
     Bot,
     Zap,
     Sparkles,
-    BookOpen,
     MessageSquare,
     AlertTriangle,
     Play,
@@ -31,22 +27,21 @@ import {
     FileText,
     Info,
     Building2,
-    Clock,
-    MapPin,
-    Phone,
-    Mail,
-    Globe,
-    HelpCircle,
     ChevronDown,
     ChevronUp,
-    Lightbulb,
     Trash2,
-    RefreshCw,
     MessageCircle,
     Settings,
-    User,
-    CheckCircle2
+    Sliders,
+    Shield,
+    Target,
+    Calendar,
+    CheckCircle2,
+    ExternalLink,
+    Volume2,
+    Clock,
 } from 'lucide-react';
+import type { BusinessPersona } from '@/lib/business-persona-types';
 
 interface AgentConfigPanelProps {
     agent: EssentialAgent;
@@ -55,181 +50,62 @@ interface AgentConfigPanelProps {
     onTest?: () => void;
 }
 
-type ConfigTab = 'knowledge' | 'personality' | 'rules' | 'escalation';
+type ConfigTab = 'personality' | 'documents' | 'rules' | 'escalation' | 'advanced';
 
-// Local interfaces removed, using imported types
-
-const DEFAULT_FAQS: FAQItem[] = [
-    { id: '1', question: 'What are your hours?', answer: '' },
-    { id: '2', question: 'Where are you located?', answer: '' },
-    { id: '3', question: 'Do you offer delivery?', answer: '' },
-    { id: '4', question: 'What payment methods do you accept?', answer: '' },
-    { id: '5', question: 'How can I contact you?', answer: '' },
-];
-
-const DEFAULT_INTERACTIONS: ExampleInteraction[] = [
-    {
-        id: '1',
-        situation: 'Greeting',
-        customerMessage: 'Hi, I have a question',
-        idealResponse: ''
-    },
-    {
-        id: '2',
-        situation: 'Product inquiry',
-        customerMessage: 'What products/services do you offer?',
-        idealResponse: ''
-    },
-    {
-        id: '3',
-        situation: 'Pricing question',
-        customerMessage: 'How much does it cost?',
-        idealResponse: ''
-    },
-    {
-        id: '4',
-        situation: 'Complaint handling',
-        customerMessage: "I'm not happy with my order",
-        idealResponse: ''
-    },
-    {
-        id: '5',
-        situation: 'Closing',
-        customerMessage: 'Thank you for your help',
-        idealResponse: ''
-    },
-];
-
-const TONE_OPTIONS: { value: AgentTone; label: string; description: string }[] = [
-    { value: 'professional', label: 'Professional', description: 'Formal and business-like' },
-    { value: 'friendly', label: 'Friendly', description: 'Warm and approachable' },
-    { value: 'empathetic', label: 'Empathetic', description: 'Understanding and caring' },
-    { value: 'casual', label: 'Casual', description: 'Relaxed and informal' },
+const TONE_OPTIONS: { value: AgentTone; label: string; emoji: string }[] = [
+    { value: 'professional', label: 'Professional', emoji: '👔' },
+    { value: 'friendly', label: 'Friendly', emoji: '😊' },
+    { value: 'empathetic', label: 'Empathetic', emoji: '💙' },
+    { value: 'casual', label: 'Casual', emoji: '✌️' },
+    { value: 'creative', label: 'Creative', emoji: '✨' },
 ];
 
 const STYLE_OPTIONS: { value: AgentStyle; label: string; description: string }[] = [
-    { value: 'formal', label: 'Formal', description: 'Proper grammar, no slang' },
-    { value: 'conversational', label: 'Conversational', description: 'Natural, like texting a friend' },
-    { value: 'casual', label: 'Casual', description: 'Very relaxed, uses emojis' },
+    { value: 'formal', label: 'Formal', description: 'Professional language, no contractions' },
+    { value: 'conversational', label: 'Conversational', description: 'Natural, like messaging a friend' },
+    { value: 'casual', label: 'Casual', description: 'Relaxed, may use emoji' },
 ];
 
-const LENGTH_OPTIONS: { value: AgentLength; label: string; description: string }[] = [
-    { value: 'brief', label: 'Brief', description: '1-2 sentences' },
-    { value: 'moderate', label: 'Moderate', description: '2-4 sentences' },
-    { value: 'detailed', label: 'Detailed', description: 'Full explanations' },
+const LENGTH_OPTIONS: { value: AgentLength; label: string; example: string }[] = [
+    { value: 'brief', label: 'Brief', example: '1-2 sentences' },
+    { value: 'moderate', label: 'Moderate', example: '2-4 sentences' },
+    { value: 'detailed', label: 'Detailed', example: 'Full explanations' },
 ];
 
 export default function AgentConfigPanel({ agent, onBack, onSave, onTest }: AgentConfigPanelProps) {
     const { documents } = usePartnerHub();
     const { currentWorkspace } = useMultiWorkspaceAuth();
 
-    const [activeTab, setActiveTab] = useState<ConfigTab>('knowledge');
+    const [activeTab, setActiveTab] = useState<ConfigTab>('personality');
     const [editedAgent, setEditedAgent] = useState<EssentialAgent>(agent);
     const [hasChanges, setHasChanges] = useState(false);
     const [saving, setSaving] = useState(false);
-    const [loadingProfile, setLoadingProfile] = useState(false);
+    const [businessPersona, setBusinessPersona] = useState<BusinessPersona | null>(null);
+    const [loadingPersona, setLoadingPersona] = useState(true);
 
-    const [businessInfo, setBusinessInfo] = useState<BusinessInfo>(
-        agent.businessInfo || {
-            name: agent.businessName || '',
-            tagline: '',
-            description: '',
-            hours: '',
-            address: '',
-            phone: '',
-            email: '',
-            website: '',
-        }
-    );
-
-    const [faqs, setFaqs] = useState<FAQItem[]>(agent.faqs || DEFAULT_FAQS);
-    const [exampleInteractions, setExampleInteractions] = useState<ExampleInteraction[]>(agent.exampleInteractions || DEFAULT_INTERACTIONS);
-    const [expandedSections, setExpandedSections] = useState<string[]>(['business', 'faqs', 'interactions']);
-
+    // Load business persona
     useEffect(() => {
-        if (currentWorkspace?.partnerId) {
-            loadPartnerProfile();
-        }
-    }, [currentWorkspace?.partnerId]);
-
-    const loadPartnerProfile = async () => {
-        if (!currentWorkspace?.partnerId) return;
-
-        setLoadingProfile(true);
-        try {
-            const result = await getPartnerProfileAction(currentWorkspace.partnerId);
-            if (result.success && result.partner) {
-                const partner = result.partner;
-                setBusinessInfo(prev => ({
-                    ...prev,
-                    name: partner.businessName || partner.name || prev.name,
-                    phone: partner.phone || prev.phone,
-                    email: partner.email || prev.email,
-                    address: partner.location
-                        ? `${partner.location.city}, ${partner.location.state}`
-                        : prev.address,
-                }));
-
-                if (!editedAgent.businessName || editedAgent.businessName === 'Your Business') {
-                    updateAgent({ businessName: partner.businessName || partner.name });
+        async function loadPersona() {
+            if (currentWorkspace?.partnerId) {
+                setLoadingPersona(true);
+                try {
+                    const result = await getBusinessPersonaAction(currentWorkspace.partnerId);
+                    if (result.success && result.persona) {
+                        setBusinessPersona(result.persona);
+                    }
+                } catch (e) {
+                    console.error('Failed to load business persona:', e);
+                } finally {
+                    setLoadingPersona(false);
                 }
             }
-        } catch (error) {
-            console.error('Failed to load partner profile:', error);
-        } finally {
-            setLoadingProfile(false);
         }
-    };
+        loadPersona();
+    }, [currentWorkspace?.partnerId]);
 
     const updateAgent = (updates: Partial<EssentialAgent>) => {
         setEditedAgent(prev => ({ ...prev, ...updates }));
         setHasChanges(true);
-    };
-
-    // Note: Business info is now read-only and managed from /partner/settings
-    // The updateBusinessInfo function has been removed
-
-    const updateFaq = (id: string, field: 'question' | 'answer', value: string) => {
-        setFaqs(prev => prev.map(faq => faq.id === id ? { ...faq, [field]: value } : faq));
-        setHasChanges(true);
-    };
-
-    const addFaq = () => {
-        setFaqs(prev => [...prev, { id: Date.now().toString(), question: '', answer: '' }]);
-        setHasChanges(true);
-    };
-
-    const removeFaq = (id: string) => {
-        setFaqs(prev => prev.filter(faq => faq.id !== id));
-        setHasChanges(true);
-    };
-
-    const updateInteraction = (id: string, field: keyof ExampleInteraction, value: string) => {
-        setExampleInteractions(prev => prev.map(item =>
-            item.id === id ? { ...item, [field]: value } : item
-        ));
-        setHasChanges(true);
-    };
-
-    const addInteraction = () => {
-        setExampleInteractions(prev => [...prev, {
-            id: Date.now().toString(),
-            situation: '',
-            customerMessage: '',
-            idealResponse: ''
-        }]);
-        setHasChanges(true);
-    };
-
-    const removeInteraction = (id: string) => {
-        setExampleInteractions(prev => prev.filter(item => item.id !== id));
-        setHasChanges(true);
-    };
-
-    const toggleSection = (section: string) => {
-        setExpandedSections(prev =>
-            prev.includes(section) ? prev.filter(s => s !== section) : [...prev, section]
-        );
     };
 
     const getAgentIcon = () => {
@@ -243,56 +119,32 @@ export default function AgentConfigPanel({ agent, onBack, onSave, onTest }: Agen
     const getAgentColors = () => {
         switch (agent.role) {
             case AgentRole.CUSTOMER_CARE:
-                return { bg: 'bg-blue-500', text: 'text-blue-600', light: 'bg-blue-50', border: 'border-blue-200' };
+                return { bg: 'bg-blue-500', gradient: 'from-blue-500 to-blue-600', text: 'text-blue-600', light: 'bg-blue-50', border: 'border-blue-200' };
             case AgentRole.SALES_ASSISTANT:
-                return { bg: 'bg-amber-500', text: 'text-amber-600', light: 'bg-amber-50', border: 'border-amber-200' };
+                return { bg: 'bg-amber-500', gradient: 'from-amber-500 to-orange-500', text: 'text-amber-600', light: 'bg-amber-50', border: 'border-amber-200' };
             case AgentRole.MARKETING_COMMS:
-                return { bg: 'bg-purple-500', text: 'text-purple-600', light: 'bg-purple-50', border: 'border-purple-200' };
+                return { bg: 'bg-purple-500', gradient: 'from-purple-500 to-pink-500', text: 'text-purple-600', light: 'bg-purple-50', border: 'border-purple-200' };
         }
     };
 
     const Icon = getAgentIcon();
     const colors = getAgentColors();
 
-    const tabs: { id: ConfigTab; label: string; icon: React.ReactNode; description: string }[] = [
-        { id: 'knowledge', label: 'Knowledge', icon: <BookOpen className="w-4 h-4" />, description: 'What your AI knows' },
-        { id: 'personality', label: 'Personality', icon: <MessageSquare className="w-4 h-4" />, description: 'How it talks' },
-        { id: 'rules', label: 'Rules', icon: <FileText className="w-4 h-4" />, description: 'Special instructions' },
-        { id: 'escalation', label: 'Escalation', icon: <AlertTriangle className="w-4 h-4" />, description: 'When to get human help' },
+    const tabs: { id: ConfigTab; label: string; icon: React.ReactNode }[] = [
+        { id: 'personality', label: 'Personality', icon: <MessageSquare className="w-4 h-4" /> },
+        { id: 'documents', label: 'Knowledge', icon: <FileText className="w-4 h-4" /> },
+        { id: 'rules', label: 'Rules', icon: <Sliders className="w-4 h-4" /> },
+        { id: 'escalation', label: 'Escalation', icon: <Shield className="w-4 h-4" /> },
+        ...(agent.role === AgentRole.SALES_ASSISTANT ? [{ id: 'advanced' as ConfigTab, label: 'Lead Capture', icon: <Target className="w-4 h-4" /> }] : []),
+        ...(agent.role === AgentRole.MARKETING_COMMS ? [{ id: 'advanced' as ConfigTab, label: 'Campaigns', icon: <Calendar className="w-4 h-4" /> }] : []),
     ];
 
     const handleSave = async () => {
         setSaving(true);
-
-        const faqContent = faqs
-            .filter(f => f.question && f.answer)
-            .map(f => `Q: ${f.question}\nA: ${f.answer}`)
-            .join('\n\n');
-
-        const interactionsContent = exampleInteractions
-            .filter(i => i.customerMessage && i.idealResponse)
-            .map(i => `[${i.situation || 'General'}]\nCustomer: ${i.customerMessage}\nIdeal Response: ${i.idealResponse}`)
-            .join('\n\n');
-
-        // Note: Business info now comes from /partner/settings (single source of truth)
-        // We only save FAQs and example interactions here
-        const knowledgeContext = `
-FREQUENTLY ASKED QUESTIONS:
-${faqContent || 'No FAQs configured yet.'}
-
-EXAMPLE INTERACTIONS (use these as guidance for tone and approach):
-${interactionsContent || 'No example interactions configured yet.'}
-        `.trim();
-
         const updatedAgent = {
             ...editedAgent,
-            // Don't save businessInfo - it comes from /partner/settings
-            faqs,
-            exampleInteractions,
-            openingMessage: knowledgeContext,
             updatedAt: new Date(),
         };
-
         await onSave?.(updatedAgent);
         setSaving(false);
         setHasChanges(false);
@@ -321,28 +173,29 @@ ${interactionsContent || 'No example interactions configured yet.'}
     };
 
     return (
-        <div className="h-full flex flex-col bg-gray-50">
-            <div className="bg-white border-b border-gray-200 px-4 md:px-6 py-4">
+        <div className="h-full flex flex-col bg-slate-50">
+            {/* Header */}
+            <div className="bg-white border-b border-slate-200 px-4 md:px-6 py-4">
                 <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
                         <button
                             onClick={onBack}
-                            className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                            className="p-2 hover:bg-slate-100 rounded-lg transition-colors"
                         >
-                            <ArrowLeft className="w-5 h-5 text-gray-500" />
+                            <ArrowLeft className="w-5 h-5 text-slate-500" />
                         </button>
-                        <div className={cn("w-10 h-10 rounded-xl flex items-center justify-center", colors.bg)}>
+                        <div className={cn("w-10 h-10 rounded-xl flex items-center justify-center bg-gradient-to-br", colors.gradient)}>
                             <Icon className="w-5 h-5 text-white" />
                         </div>
                         <div>
-                            <h1 className="text-lg font-semibold text-gray-900">{agent.name}</h1>
-                            <p className="text-sm text-gray-500">{agent.description}</p>
+                            <h1 className="text-lg font-semibold text-slate-900">{agent.name}</h1>
+                            <p className="text-sm text-slate-500">{agent.description}</p>
                         </div>
                     </div>
                     <div className="flex items-center gap-2">
                         <button
                             onClick={onTest}
-                            className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+                            className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
                         >
                             <Play className="w-4 h-4" />
                             <span className="hidden sm:inline">Test</span>
@@ -354,7 +207,7 @@ ${interactionsContent || 'No example interactions configured yet.'}
                                 "flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg transition-colors",
                                 hasChanges
                                     ? "bg-indigo-600 text-white hover:bg-indigo-700"
-                                    : "bg-gray-100 text-gray-400 cursor-not-allowed"
+                                    : "bg-slate-100 text-slate-400 cursor-not-allowed"
                             )}
                         >
                             {saving ? (
@@ -362,11 +215,12 @@ ${interactionsContent || 'No example interactions configured yet.'}
                             ) : (
                                 <Save className="w-4 h-4" />
                             )}
-                            <span className="hidden sm:inline">{saving ? 'Saving...' : 'Save'}</span>
+                            <span className="hidden sm:inline">{saving ? 'Saving...' : 'Save Changes'}</span>
                         </button>
                     </div>
                 </div>
 
+                {/* Tabs */}
                 <div className="flex gap-1 mt-4 overflow-x-auto pb-1">
                     {tabs.map(tab => (
                         <button
@@ -376,7 +230,7 @@ ${interactionsContent || 'No example interactions configured yet.'}
                                 "flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg whitespace-nowrap transition-colors",
                                 activeTab === tab.id
                                     ? `${colors.light} ${colors.text}`
-                                    : "text-gray-500 hover:bg-gray-100"
+                                    : "text-slate-500 hover:bg-slate-100"
                             )}
                         >
                             {tab.icon}
@@ -386,470 +240,222 @@ ${interactionsContent || 'No example interactions configured yet.'}
                 </div>
             </div>
 
+            {/* Content */}
             <div className="flex-1 overflow-auto p-4 md:p-6">
-                <div className="max-w-3xl mx-auto">
-                    {activeTab === 'knowledge' && (
-                        <div className="space-y-4">
-                            <div className={cn("rounded-xl p-4", colors.light, colors.border, "border")}>
-                                <div className="flex items-start gap-3">
-                                    <Lightbulb className={cn("w-5 h-5 mt-0.5", colors.text)} />
+                <div className="max-w-3xl mx-auto space-y-6">
+
+                    {/* Business Context Banner */}
+                    <div className="bg-gradient-to-r from-indigo-50 to-purple-50 rounded-xl border border-indigo-200 p-4">
+                        <div className="flex items-start gap-3">
+                            <div className="w-10 h-10 rounded-lg bg-indigo-100 flex items-center justify-center flex-shrink-0">
+                                <Building2 className="w-5 h-5 text-indigo-600" />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                                <div className="flex items-center justify-between gap-4">
                                     <div>
-                                        <p className="text-sm font-medium text-gray-900">
-                                            Teach your AI about your business
+                                        <p className="font-medium text-indigo-900">
+                                            Business Context: {businessPersona?.identity?.name || 'Not set'}
                                         </p>
-                                        <p className="text-sm text-gray-500 mt-1">
-                                            The more details you provide, the better your AI can help customers. We've pre-filled some info from your profile.
+                                        <p className="text-sm text-indigo-700 mt-0.5">
+                                            This agent uses your business profile from Settings for name, contact info, hours, and FAQs.
                                         </p>
                                     </div>
+                                    <a
+                                        href="/partner/settings/dashboard"
+                                        className="flex items-center gap-1.5 text-sm font-medium text-indigo-600 hover:text-indigo-800 whitespace-nowrap"
+                                    >
+                                        <Settings className="w-4 h-4" />
+                                        Edit Profile
+                                        <ExternalLink className="w-3 h-3" />
+                                    </a>
                                 </div>
                             </div>
-
-                            <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-                                <button
-                                    onClick={() => toggleSection('business')}
-                                    className="w-full flex items-center justify-between p-4 hover:bg-gray-50 transition-colors"
-                                >
-                                    <div className="flex items-center gap-3">
-                                        <div className="w-10 h-10 rounded-lg bg-indigo-100 flex items-center justify-center">
-                                            <Building2 className="w-5 h-5 text-indigo-600" />
-                                        </div>
-                                        <div className="text-left">
-                                            <h3 className="font-medium text-gray-900">Business Details</h3>
-                                            <p className="text-sm text-gray-500">Name, hours, location, contact</p>
-                                        </div>
-                                    </div>
-                                    <div className="flex items-center gap-2">
-                                        {loadingProfile && (
-                                            <RefreshCw className="w-4 h-4 text-gray-400 animate-spin" />
-                                        )}
-                                        {expandedSections.includes('business') ? (
-                                            <ChevronUp className="w-5 h-5 text-gray-400" />
-                                        ) : (
-                                            <ChevronDown className="w-5 h-5 text-gray-400" />
-                                        )}
-                                    </div>
-                                </button>
-
-                                {expandedSections.includes('business') && (
-                                    <div className="px-4 pb-4 border-t border-gray-100">
-                                        <div className="flex items-center justify-between mt-4 mb-3">
-                                            <p className="text-xs text-gray-500">
-                                                ✨ Auto-filled from your Organization Settings
-                                            </p>
-                                            <a
-                                                href="/partner/settings/dashboard"
-                                                className="text-xs text-indigo-600 hover:text-indigo-700 flex items-center gap-1"
-                                            >
-                                                <Settings className="w-3 h-3" />
-                                                Edit in Settings
-                                            </a>
-                                        </div>
-
-                                        {loadingProfile ? (
-                                            <div className="flex items-center justify-center py-8 text-gray-400">
-                                                <RefreshCw className="w-5 h-5 animate-spin mr-2" />
-                                                Loading business info...
-                                            </div>
-                                        ) : (
-                                            <div className="grid gap-3">
-                                                <div className="bg-gray-50 rounded-lg p-3">
-                                                    <label className="block text-xs font-medium text-gray-500 mb-1">
-                                                        Business Name
-                                                    </label>
-                                                    <p className="text-sm text-gray-900">
-                                                        {businessInfo.name || <span className="text-gray-400 italic">Not set - Edit in Settings</span>}
-                                                    </p>
-                                                </div>
-
-                                                <div className="grid sm:grid-cols-2 gap-3">
-                                                    <div className="bg-gray-50 rounded-lg p-3">
-                                                        <label className="block text-xs font-medium text-gray-500 mb-1">
-                                                            <Phone className="w-3 h-3 inline mr-1" />
-                                                            Phone
-                                                        </label>
-                                                        <p className="text-sm text-gray-900">
-                                                            {businessInfo.phone || <span className="text-gray-400 italic">Not set</span>}
-                                                        </p>
-                                                    </div>
-                                                    <div className="bg-gray-50 rounded-lg p-3">
-                                                        <label className="block text-xs font-medium text-gray-500 mb-1">
-                                                            <Mail className="w-3 h-3 inline mr-1" />
-                                                            Email
-                                                        </label>
-                                                        <p className="text-sm text-gray-900">
-                                                            {businessInfo.email || <span className="text-gray-400 italic">Not set</span>}
-                                                        </p>
-                                                    </div>
-                                                </div>
-
-                                                <div className="bg-gray-50 rounded-lg p-3">
-                                                    <label className="block text-xs font-medium text-gray-500 mb-1">
-                                                        <MapPin className="w-3 h-3 inline mr-1" />
-                                                        Location
-                                                    </label>
-                                                    <p className="text-sm text-gray-900">
-                                                        {businessInfo.address || <span className="text-gray-400 italic">Not set</span>}
-                                                    </p>
-                                                </div>
-
-                                                <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 mt-2">
-                                                    <p className="text-xs text-amber-700 flex items-center gap-1">
-                                                        <Info className="w-3 h-3" />
-                                                        To update business info, go to <a href="/partner/settings/dashboard" className="underline font-medium">Organization Settings</a>
-                                                    </p>
-                                                </div>
-                                            </div>
-                                        )}
-                                    </div>
-                                )}
-                            </div>
-
-                            <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-                                <button
-                                    onClick={() => toggleSection('faqs')}
-                                    className="w-full flex items-center justify-between p-4 hover:bg-gray-50 transition-colors"
-                                >
-                                    <div className="flex items-center gap-3">
-                                        <div className="w-10 h-10 rounded-lg bg-green-100 flex items-center justify-center">
-                                            <HelpCircle className="w-5 h-5 text-green-600" />
-                                        </div>
-                                        <div className="text-left">
-                                            <h3 className="font-medium text-gray-900">Common Questions (FAQs)</h3>
-                                            <p className="text-sm text-gray-500">Pre-written answers for frequent questions</p>
-                                        </div>
-                                    </div>
-                                    {expandedSections.includes('faqs') ? (
-                                        <ChevronUp className="w-5 h-5 text-gray-400" />
-                                    ) : (
-                                        <ChevronDown className="w-5 h-5 text-gray-400" />
-                                    )}
-                                </button>
-
-                                {expandedSections.includes('faqs') && (
-                                    <div className="px-4 pb-4 border-t border-gray-100">
-                                        <p className="text-sm text-gray-500 mt-4 mb-4">
-                                            Your AI will use these exact answers when customers ask similar questions.
-                                        </p>
-
-                                        <div className="space-y-3">
-                                            {faqs.map((faq, index) => (
-                                                <div key={faq.id} className="bg-gray-50 rounded-lg p-3">
-                                                    <div className="flex items-start gap-2">
-                                                        <span className="text-sm font-medium text-gray-400 mt-2 w-6">Q{index + 1}</span>
-                                                        <div className="flex-1 space-y-2">
-                                                            <input
-                                                                type="text"
-                                                                value={faq.question}
-                                                                onChange={(e) => updateFaq(faq.id, 'question', e.target.value)}
-                                                                placeholder="What do customers ask?"
-                                                                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-sm"
-                                                            />
-                                                            <textarea
-                                                                value={faq.answer}
-                                                                onChange={(e) => updateFaq(faq.id, 'answer', e.target.value)}
-                                                                placeholder="Your answer..."
-                                                                rows={2}
-                                                                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-sm"
-                                                            />
-                                                        </div>
-                                                        <button
-                                                            onClick={() => removeFaq(faq.id)}
-                                                            className="p-1 text-gray-400 hover:text-red-500 transition-colors"
-                                                        >
-                                                            <X className="w-4 h-4" />
-                                                        </button>
-                                                    </div>
-                                                </div>
-                                            ))}
-                                        </div>
-
-                                        <button
-                                            onClick={addFaq}
-                                            className="mt-3 flex items-center gap-2 text-sm text-indigo-600 hover:text-indigo-700 font-medium"
-                                        >
-                                            <Plus className="w-4 h-4" />
-                                            Add another question
-                                        </button>
-                                    </div>
-                                )}
-                            </div>
-
-                            <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-                                <button
-                                    onClick={() => toggleSection('interactions')}
-                                    className="w-full flex items-center justify-between p-4 hover:bg-gray-50 transition-colors"
-                                >
-                                    <div className="flex items-center gap-3">
-                                        <div className="w-10 h-10 rounded-lg bg-amber-100 flex items-center justify-center">
-                                            <MessageCircle className="w-5 h-5 text-amber-600" />
-                                        </div>
-                                        <div className="text-left">
-                                            <h3 className="font-medium text-gray-900">Example Interactions</h3>
-                                            <p className="text-sm text-gray-500">Show your AI the ideal way to respond</p>
-                                        </div>
-                                    </div>
-                                    {expandedSections.includes('interactions') ? (
-                                        <ChevronUp className="w-5 h-5 text-gray-400" />
-                                    ) : (
-                                        <ChevronDown className="w-5 h-5 text-gray-400" />
-                                    )}
-                                </button>
-
-                                {expandedSections.includes('interactions') && (
-                                    <div className="px-4 pb-4 border-t border-gray-100">
-                                        <p className="text-sm text-gray-500 mt-4 mb-4">
-                                            These examples teach your AI the perfect tone and approach. Think of them as training conversations.
-                                        </p>
-
-                                        <div className="space-y-4">
-                                            {exampleInteractions.map((interaction, index) => (
-                                                <div key={interaction.id} className="bg-gradient-to-br from-gray-50 to-white rounded-xl border border-gray-200 p-4">
-                                                    <div className="flex items-center justify-between mb-3">
-                                                        <div className="flex items-center gap-2">
-                                                            <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">
-                                                                Example {index + 1}
-                                                            </span>
-                                                            <input
-                                                                type="text"
-                                                                value={interaction.situation}
-                                                                onChange={(e) => updateInteraction(interaction.id, 'situation', e.target.value)}
-                                                                placeholder="Situation (e.g., Greeting)"
-                                                                className="px-2 py-1 text-xs border border-gray-200 rounded-md focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 w-32"
-                                                            />
-                                                        </div>
-                                                        <button
-                                                            onClick={() => removeInteraction(interaction.id)}
-                                                            className="p-1 text-gray-400 hover:text-red-500 transition-colors"
-                                                        >
-                                                            <Trash2 className="w-4 h-4" />
-                                                        </button>
-                                                    </div>
-
-                                                    <div className="space-y-3">
-                                                        <div className="flex items-start gap-3">
-                                                            <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center flex-shrink-0">
-                                                                <User className="w-4 h-4 text-gray-500" />
-                                                            </div>
-                                                            <div className="flex-1">
-                                                                <label className="block text-xs font-medium text-gray-500 mb-1">Customer says:</label>
-                                                                <input
-                                                                    type="text"
-                                                                    value={interaction.customerMessage}
-                                                                    onChange={(e) => updateInteraction(interaction.id, 'customerMessage', e.target.value)}
-                                                                    placeholder="e.g., Hi, I need help with something"
-                                                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-sm"
-                                                                />
-                                                            </div>
-                                                        </div>
-
-                                                        <div className="flex items-start gap-3">
-                                                            <div className={cn("w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0", colors.bg)}>
-                                                                <Bot className="w-4 h-4 text-white" />
-                                                            </div>
-                                                            <div className="flex-1">
-                                                                <label className="block text-xs font-medium text-gray-500 mb-1">Ideal response:</label>
-                                                                <textarea
-                                                                    value={interaction.idealResponse}
-                                                                    onChange={(e) => updateInteraction(interaction.id, 'idealResponse', e.target.value)}
-                                                                    placeholder="Write the perfect response you'd want your AI to give..."
-                                                                    rows={2}
-                                                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-sm"
-                                                                />
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            ))}
-                                        </div>
-
-                                        <button
-                                            onClick={addInteraction}
-                                            className="mt-4 flex items-center gap-2 text-sm text-indigo-600 hover:text-indigo-700 font-medium"
-                                        >
-                                            <Plus className="w-4 h-4" />
-                                            Add another example
-                                        </button>
-                                    </div>
-                                )}
-                            </div>
-
-                            <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-                                <button
-                                    onClick={() => toggleSection('documents')}
-                                    className="w-full flex items-center justify-between p-4 hover:bg-gray-50 transition-colors"
-                                >
-                                    <div className="flex items-center gap-3">
-                                        <div className="w-10 h-10 rounded-lg bg-blue-100 flex items-center justify-center">
-                                            <FileText className="w-5 h-5 text-blue-600" />
-                                        </div>
-                                        <div className="text-left">
-                                            <h3 className="font-medium text-gray-900">Documents</h3>
-                                            <p className="text-sm text-gray-500">Files your AI can reference</p>
-                                        </div>
-                                    </div>
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-sm text-gray-500">
-                                            {editedAgent.useAllDocuments ? 'All docs' : `${editedAgent.attachedDocumentIds.length} selected`}
-                                        </span>
-                                        {expandedSections.includes('documents') ? (
-                                            <ChevronUp className="w-5 h-5 text-gray-400" />
-                                        ) : (
-                                            <ChevronDown className="w-5 h-5 text-gray-400" />
-                                        )}
-                                    </div>
-                                </button>
-
-                                {expandedSections.includes('documents') && (
-                                    <div className="px-4 pb-4 border-t border-gray-100">
-                                        <div className="mt-4 space-y-3">
-                                            <label className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg cursor-pointer hover:bg-gray-100 transition-colors">
-                                                <input
-                                                    type="checkbox"
-                                                    checked={editedAgent.useAllDocuments}
-                                                    onChange={(e) => updateAgent({ useAllDocuments: e.target.checked })}
-                                                    className="w-4 h-4 text-indigo-600 rounded border-gray-300 focus:ring-indigo-500"
-                                                />
-                                                <div>
-                                                    <p className="text-sm font-medium text-gray-900">Use all documents</p>
-                                                    <p className="text-xs text-gray-500">AI will search all {documents.length} uploaded files</p>
-                                                </div>
-                                            </label>
-
-                                            {!editedAgent.useAllDocuments && (
-                                                <div className="space-y-2 max-h-48 overflow-auto">
-                                                    {documents.length === 0 ? (
-                                                        <p className="text-sm text-gray-500 text-center py-4">
-                                                            No documents uploaded yet. Go to Documents & Files to add some.
-                                                        </p>
-                                                    ) : (
-                                                        documents.map(doc => (
-                                                            <label
-                                                                key={doc.id}
-                                                                className="flex items-center gap-3 p-3 border border-gray-200 rounded-lg cursor-pointer hover:bg-gray-50 transition-colors"
-                                                            >
-                                                                <input
-                                                                    type="checkbox"
-                                                                    checked={editedAgent.attachedDocumentIds.includes(doc.id)}
-                                                                    onChange={(e) => {
-                                                                        if (e.target.checked) {
-                                                                            updateAgent({
-                                                                                attachedDocumentIds: [...editedAgent.attachedDocumentIds, doc.id]
-                                                                            });
-                                                                        } else {
-                                                                            updateAgent({
-                                                                                attachedDocumentIds: editedAgent.attachedDocumentIds.filter(id => id !== doc.id)
-                                                                            });
-                                                                        }
-                                                                    }}
-                                                                    className="w-4 h-4 text-indigo-600 rounded border-gray-300 focus:ring-indigo-500"
-                                                                />
-                                                                <FileText className="w-4 h-4 text-gray-400" />
-                                                                <span className="text-sm text-gray-700 truncate">{doc.name}</span>
-                                                            </label>
-                                                        ))
-                                                    )}
-                                                </div>
-                                            )}
-                                        </div>
-                                    </div>
-                                )}
-                            </div>
                         </div>
-                    )}
+                    </div>
 
+                    {/* PERSONALITY TAB */}
                     {activeTab === 'personality' && (
                         <div className="space-y-6">
-                            <div className="bg-white rounded-xl border border-gray-200 p-4">
-                                <h3 className="font-medium text-gray-900 mb-1">Communication Style</h3>
-                                <p className="text-sm text-gray-500 mb-4">How should your AI sound when talking to customers?</p>
+                            {/* Tone Selection */}
+                            <div className="bg-white rounded-xl border border-slate-200 p-5">
+                                <div className="flex items-center gap-2 mb-4">
+                                    <Volume2 className={cn("w-5 h-5", colors.text)} />
+                                    <h3 className="font-semibold text-slate-900">Voice & Tone</h3>
+                                </div>
+                                <p className="text-sm text-slate-500 mb-4">
+                                    Select the personality traits that match your brand. Pick 1-3 options.
+                                </p>
+                                <div className="flex flex-wrap gap-2">
+                                    {TONE_OPTIONS.map(option => (
+                                        <button
+                                            key={option.value}
+                                            onClick={() => {
+                                                const tones = editedAgent.tones.includes(option.value)
+                                                    ? editedAgent.tones.filter(t => t !== option.value)
+                                                    : editedAgent.tones.length < 3
+                                                        ? [...editedAgent.tones, option.value]
+                                                        : editedAgent.tones;
+                                                updateAgent({ tones });
+                                            }}
+                                            className={cn(
+                                                "flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium border-2 transition-all",
+                                                editedAgent.tones.includes(option.value)
+                                                    ? `${colors.light} ${colors.border} ${colors.text}`
+                                                    : "bg-white border-slate-200 text-slate-600 hover:border-slate-300"
+                                            )}
+                                        >
+                                            <span>{option.emoji}</span>
+                                            {option.label}
+                                            {editedAgent.tones.includes(option.value) && (
+                                                <CheckCircle2 className="w-4 h-4" />
+                                            )}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
 
-                                <div className="space-y-4">
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-2">Tone (pick one or more)</label>
-                                        <div className="flex flex-wrap gap-2">
-                                            {TONE_OPTIONS.map(option => (
-                                                <button
-                                                    key={option.value}
-                                                    onClick={() => {
-                                                        const tones = editedAgent.tones.includes(option.value)
-                                                            ? editedAgent.tones.filter(t => t !== option.value)
-                                                            : [...editedAgent.tones, option.value];
-                                                        updateAgent({ tones });
-                                                    }}
-                                                    className={cn(
-                                                        "px-3 py-2 rounded-lg text-sm font-medium border transition-colors",
-                                                        editedAgent.tones.includes(option.value)
-                                                            ? "bg-indigo-50 border-indigo-300 text-indigo-700"
-                                                            : "bg-white border-gray-200 text-gray-600 hover:border-gray-300"
-                                                    )}
-                                                >
-                                                    {option.label}
-                                                </button>
-                                            ))}
-                                        </div>
-                                    </div>
-
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-2">Style</label>
-                                        <div className="grid sm:grid-cols-3 gap-2">
-                                            {STYLE_OPTIONS.map(option => (
-                                                <button
-                                                    key={option.value}
-                                                    onClick={() => updateAgent({ style: option.value })}
-                                                    className={cn(
-                                                        "p-3 rounded-lg border text-left transition-colors",
-                                                        editedAgent.style === option.value
-                                                            ? "bg-indigo-50 border-indigo-300"
-                                                            : "bg-white border-gray-200 hover:border-gray-300"
-                                                    )}
-                                                >
+                            {/* Style Selection */}
+                            <div className="bg-white rounded-xl border border-slate-200 p-5">
+                                <h3 className="font-semibold text-slate-900 mb-4">Communication Style</h3>
+                                <div className="grid gap-3">
+                                    {STYLE_OPTIONS.map(option => (
+                                        <button
+                                            key={option.value}
+                                            onClick={() => updateAgent({ style: option.value })}
+                                            className={cn(
+                                                "p-4 rounded-xl border-2 text-left transition-all",
+                                                editedAgent.style === option.value
+                                                    ? `${colors.light} ${colors.border}`
+                                                    : "bg-white border-slate-200 hover:border-slate-300"
+                                            )}
+                                        >
+                                            <div className="flex items-center justify-between">
+                                                <div>
                                                     <p className={cn(
-                                                        "text-sm font-medium",
-                                                        editedAgent.style === option.value ? "text-indigo-700" : "text-gray-900"
+                                                        "font-medium",
+                                                        editedAgent.style === option.value ? colors.text : "text-slate-900"
                                                     )}>
                                                         {option.label}
                                                     </p>
-                                                    <p className="text-xs text-gray-500 mt-0.5">{option.description}</p>
-                                                </button>
-                                            ))}
-                                        </div>
-                                    </div>
+                                                    <p className="text-sm text-slate-500 mt-0.5">{option.description}</p>
+                                                </div>
+                                                {editedAgent.style === option.value && (
+                                                    <CheckCircle2 className={cn("w-5 h-5", colors.text)} />
+                                                )}
+                                            </div>
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
 
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-2">Response Length</label>
-                                        <div className="grid sm:grid-cols-3 gap-2">
-                                            {LENGTH_OPTIONS.map(option => (
-                                                <button
-                                                    key={option.value}
-                                                    onClick={() => updateAgent({ responseLength: option.value })}
-                                                    className={cn(
-                                                        "p-3 rounded-lg border text-left transition-colors",
-                                                        editedAgent.responseLength === option.value
-                                                            ? "bg-indigo-50 border-indigo-300"
-                                                            : "bg-white border-gray-200 hover:border-gray-300"
-                                                    )}
-                                                >
-                                                    <p className={cn(
-                                                        "text-sm font-medium",
-                                                        editedAgent.responseLength === option.value ? "text-indigo-700" : "text-gray-900"
-                                                    )}>
-                                                        {option.label}
-                                                    </p>
-                                                    <p className="text-xs text-gray-500 mt-0.5">{option.description}</p>
-                                                </button>
-                                            ))}
-                                        </div>
-                                    </div>
+                            {/* Response Length */}
+                            <div className="bg-white rounded-xl border border-slate-200 p-5">
+                                <h3 className="font-semibold text-slate-900 mb-4">Response Length</h3>
+                                <div className="grid sm:grid-cols-3 gap-3">
+                                    {LENGTH_OPTIONS.map(option => (
+                                        <button
+                                            key={option.value}
+                                            onClick={() => updateAgent({ responseLength: option.value })}
+                                            className={cn(
+                                                "p-4 rounded-xl border-2 text-center transition-all",
+                                                editedAgent.responseLength === option.value
+                                                    ? `${colors.light} ${colors.border}`
+                                                    : "bg-white border-slate-200 hover:border-slate-300"
+                                            )}
+                                        >
+                                            <p className={cn(
+                                                "font-medium",
+                                                editedAgent.responseLength === option.value ? colors.text : "text-slate-900"
+                                            )}>
+                                                {option.label}
+                                            </p>
+                                            <p className="text-xs text-slate-500 mt-1">{option.example}</p>
+                                        </button>
+                                    ))}
                                 </div>
                             </div>
                         </div>
                     )}
 
+                    {/* DOCUMENTS TAB */}
+                    {activeTab === 'documents' && (
+                        <div className="space-y-6">
+                            <div className="bg-white rounded-xl border border-slate-200 p-5">
+                                <div className="flex items-center gap-2 mb-4">
+                                    <FileText className={cn("w-5 h-5", colors.text)} />
+                                    <h3 className="font-semibold text-slate-900">Knowledge Base</h3>
+                                </div>
+                                <p className="text-sm text-slate-500 mb-4">
+                                    Select which documents this agent can reference when answering questions.
+                                </p>
+
+                                {/* Use All Documents Toggle */}
+                                <label className="flex items-center gap-3 p-4 bg-slate-50 rounded-xl cursor-pointer hover:bg-slate-100 transition-colors mb-4">
+                                    <input
+                                        type="checkbox"
+                                        checked={editedAgent.useAllDocuments}
+                                        onChange={(e) => updateAgent({ useAllDocuments: e.target.checked })}
+                                        className="w-5 h-5 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500"
+                                    />
+                                    <div>
+                                        <p className="font-medium text-slate-900">Use all documents</p>
+                                        <p className="text-sm text-slate-500">
+                                            Agent will search all {documents.length} uploaded documents
+                                        </p>
+                                    </div>
+                                </label>
+
+                                {/* Individual Document Selection */}
+                                {!editedAgent.useAllDocuments && (
+                                    <div className="space-y-2 max-h-64 overflow-auto">
+                                        {documents.length === 0 ? (
+                                            <div className="text-center py-8 text-slate-500">
+                                                <FileText className="w-10 h-10 mx-auto mb-2 text-slate-300" />
+                                                <p className="text-sm">No documents uploaded yet</p>
+                                                <a href="/partner/documents" className="text-sm text-indigo-600 hover:underline">
+                                                    Upload documents
+                                                </a>
+                                            </div>
+                                        ) : (
+                                            documents.map(doc => (
+                                                <label
+                                                    key={doc.id}
+                                                    className="flex items-center gap-3 p-3 border border-slate-200 rounded-lg cursor-pointer hover:bg-slate-50 transition-colors"
+                                                >
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={editedAgent.attachedDocumentIds.includes(doc.id)}
+                                                        onChange={(e) => {
+                                                            if (e.target.checked) {
+                                                                updateAgent({
+                                                                    attachedDocumentIds: [...editedAgent.attachedDocumentIds, doc.id]
+                                                                });
+                                                            } else {
+                                                                updateAgent({
+                                                                    attachedDocumentIds: editedAgent.attachedDocumentIds.filter(id => id !== doc.id)
+                                                                });
+                                                            }
+                                                        }}
+                                                        className="w-4 h-4 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500"
+                                                    />
+                                                    <FileText className="w-4 h-4 text-slate-400" />
+                                                    <span className="text-sm text-slate-700 truncate">{doc.name}</span>
+                                                </label>
+                                            ))
+                                        )}
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    )}
+
+                    {/* RULES TAB */}
                     {activeTab === 'rules' && (
-                        <div className="space-y-4">
-                            <div className="bg-white rounded-xl border border-gray-200 p-4">
-                                <h3 className="font-medium text-gray-900 mb-1">Things to NEVER say</h3>
-                                <p className="text-sm text-gray-500 mb-4">Words or phrases your AI should avoid</p>
+                        <div className="space-y-6">
+                            {/* Never Say */}
+                            <div className="bg-white rounded-xl border border-slate-200 p-5">
+                                <h3 className="font-semibold text-slate-900 mb-1">Things to NEVER say</h3>
+                                <p className="text-sm text-slate-500 mb-4">Words or phrases your agent should avoid</p>
 
                                 <div className="space-y-2">
                                     {editedAgent.neverSay.map((item, index) => (
@@ -862,13 +468,14 @@ ${interactionsContent || 'No example interactions configured yet.'}
                                                     updated[index] = e.target.value;
                                                     updateAgent({ neverSay: updated });
                                                 }}
-                                                className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-sm"
+                                                placeholder="e.g., competitor names, specific phrases..."
+                                                className="flex-1 px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-sm"
                                             />
                                             <button
                                                 onClick={() => {
                                                     updateAgent({ neverSay: editedAgent.neverSay.filter((_, i) => i !== index) });
                                                 }}
-                                                className="p-2 text-gray-400 hover:text-red-500"
+                                                className="p-2 text-slate-400 hover:text-red-500"
                                             >
                                                 <X className="w-4 h-4" />
                                             </button>
@@ -879,14 +486,15 @@ ${interactionsContent || 'No example interactions configured yet.'}
                                         className="text-sm text-indigo-600 hover:text-indigo-700 font-medium flex items-center gap-1"
                                     >
                                         <Plus className="w-4 h-4" />
-                                        Add item
+                                        Add phrase to avoid
                                     </button>
                                 </div>
                             </div>
 
-                            <div className="bg-white rounded-xl border border-gray-200 p-4">
-                                <h3 className="font-medium text-gray-900 mb-1">Always include</h3>
-                                <p className="text-sm text-gray-500 mb-4">Things your AI should mention</p>
+                            {/* Always Include */}
+                            <div className="bg-white rounded-xl border border-slate-200 p-5">
+                                <h3 className="font-semibold text-slate-900 mb-1">Always include</h3>
+                                <p className="text-sm text-slate-500 mb-4">Things your agent should mention when relevant</p>
 
                                 <div className="space-y-2">
                                     {editedAgent.alwaysInclude.map((item, index) => (
@@ -899,13 +507,14 @@ ${interactionsContent || 'No example interactions configured yet.'}
                                                     updated[index] = e.target.value;
                                                     updateAgent({ alwaysInclude: updated });
                                                 }}
-                                                className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-sm"
+                                                placeholder="e.g., contact info, website link..."
+                                                className="flex-1 px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-sm"
                                             />
                                             <button
                                                 onClick={() => {
                                                     updateAgent({ alwaysInclude: editedAgent.alwaysInclude.filter((_, i) => i !== index) });
                                                 }}
-                                                className="p-2 text-gray-400 hover:text-red-500"
+                                                className="p-2 text-slate-400 hover:text-red-500"
                                             >
                                                 <X className="w-4 h-4" />
                                             </button>
@@ -916,46 +525,51 @@ ${interactionsContent || 'No example interactions configured yet.'}
                                         className="text-sm text-indigo-600 hover:text-indigo-700 font-medium flex items-center gap-1"
                                     >
                                         <Plus className="w-4 h-4" />
-                                        Add item
+                                        Add required phrase
                                     </button>
                                 </div>
                             </div>
 
-                            <div className="bg-white rounded-xl border border-gray-200 p-4">
-                                <h3 className="font-medium text-gray-900 mb-1">Custom Response Rules</h3>
-                                <p className="text-sm text-gray-500 mb-4">When customers say specific things, respond with exact text</p>
+                            {/* Custom Response Rules */}
+                            <div className="bg-white rounded-xl border border-slate-200 p-5">
+                                <h3 className="font-semibold text-slate-900 mb-1">Custom Response Rules</h3>
+                                <p className="text-sm text-slate-500 mb-4">Trigger specific responses for certain keywords</p>
 
-                                <div className="space-y-3">
+                                <div className="space-y-4">
                                     {editedAgent.responseRules.map((rule) => (
-                                        <div key={rule.id} className="bg-gray-50 rounded-lg p-3">
-                                            <div className="flex items-start gap-2 mb-2">
+                                        <div key={rule.id} className="bg-slate-50 rounded-xl p-4">
+                                            <div className="flex items-start justify-between gap-2 mb-3">
                                                 <div className="flex-1">
-                                                    <label className="block text-xs font-medium text-gray-500 mb-1">When customer says:</label>
+                                                    <label className="block text-xs font-medium text-slate-500 mb-1.5">
+                                                        When customer mentions:
+                                                    </label>
                                                     <input
                                                         type="text"
                                                         value={rule.triggerKeywords.join(', ')}
                                                         onChange={(e) => updateResponseRule(rule.id, {
-                                                            triggerKeywords: e.target.value.split(',').map(k => k.trim())
+                                                            triggerKeywords: e.target.value.split(',').map(k => k.trim()).filter(k => k)
                                                         })}
-                                                        placeholder="e.g., discount, promo code"
-                                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-sm"
+                                                        placeholder="discount, promo, coupon"
+                                                        className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-sm"
                                                     />
                                                 </div>
                                                 <button
                                                     onClick={() => removeResponseRule(rule.id)}
-                                                    className="p-1 text-gray-400 hover:text-red-500 mt-5"
+                                                    className="p-1.5 text-slate-400 hover:text-red-500 mt-5"
                                                 >
                                                     <Trash2 className="w-4 h-4" />
                                                 </button>
                                             </div>
                                             <div>
-                                                <label className="block text-xs font-medium text-gray-500 mb-1">Respond with:</label>
+                                                <label className="block text-xs font-medium text-slate-500 mb-1.5">
+                                                    Respond with:
+                                                </label>
                                                 <textarea
                                                     value={rule.response}
                                                     onChange={(e) => updateResponseRule(rule.id, { response: e.target.value })}
-                                                    placeholder="Your custom response..."
+                                                    placeholder="Your exact response text..."
                                                     rows={2}
-                                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-sm"
+                                                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-sm"
                                                 />
                                             </div>
                                         </div>
@@ -965,31 +579,30 @@ ${interactionsContent || 'No example interactions configured yet.'}
                                         className="text-sm text-indigo-600 hover:text-indigo-700 font-medium flex items-center gap-1"
                                     >
                                         <Plus className="w-4 h-4" />
-                                        Add rule
+                                        Add response rule
                                     </button>
                                 </div>
                             </div>
                         </div>
                     )}
 
+                    {/* ESCALATION TAB */}
                     {activeTab === 'escalation' && (
-                        <div className="space-y-4">
-                            <div className={cn("rounded-xl p-4 border", colors.light, colors.border)}>
+                        <div className="space-y-6">
+                            <div className={cn("rounded-xl p-4 border-2", colors.light, colors.border)}>
                                 <div className="flex items-start gap-3">
                                     <AlertTriangle className={cn("w-5 h-5 mt-0.5", colors.text)} />
                                     <div>
-                                        <p className="text-sm font-medium text-gray-900">
-                                            When should your AI get human help?
-                                        </p>
-                                        <p className="text-sm text-gray-500 mt-1">
-                                            These settings ensure customers get a real person when needed.
+                                        <p className="font-medium text-slate-900">When should your agent hand off to a human?</p>
+                                        <p className="text-sm text-slate-500 mt-1">
+                                            Configure when the agent should stop and notify your team.
                                         </p>
                                     </div>
                                 </div>
                             </div>
 
-                            <div className="bg-white rounded-xl border border-gray-200 p-4 space-y-4">
-                                <label className="flex items-start gap-3 cursor-pointer">
+                            <div className="bg-white rounded-xl border border-slate-200 p-5 space-y-4">
+                                <label className="flex items-start gap-3 cursor-pointer p-3 rounded-lg hover:bg-slate-50 transition-colors">
                                     <input
                                         type="checkbox"
                                         checked={editedAgent.escalationSettings.onHumanRequest}
@@ -999,15 +612,15 @@ ${interactionsContent || 'No example interactions configured yet.'}
                                                 onHumanRequest: e.target.checked
                                             }
                                         })}
-                                        className="w-4 h-4 mt-1 text-indigo-600 rounded border-gray-300 focus:ring-indigo-500"
+                                        className="w-5 h-5 mt-0.5 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500"
                                     />
                                     <div>
-                                        <p className="text-sm font-medium text-gray-900">When customer asks for a human</p>
-                                        <p className="text-xs text-gray-500">Triggers: "speak to a person", "human please"</p>
+                                        <p className="font-medium text-slate-900">Customer asks for human</p>
+                                        <p className="text-sm text-slate-500">When they say "speak to a person", "human", etc.</p>
                                     </div>
                                 </label>
 
-                                <label className="flex items-start gap-3 cursor-pointer">
+                                <label className="flex items-start gap-3 cursor-pointer p-3 rounded-lg hover:bg-slate-50 transition-colors">
                                     <input
                                         type="checkbox"
                                         checked={editedAgent.escalationSettings.onFrustration}
@@ -1017,15 +630,15 @@ ${interactionsContent || 'No example interactions configured yet.'}
                                                 onFrustration: e.target.checked
                                             }
                                         })}
-                                        className="w-4 h-4 mt-1 text-indigo-600 rounded border-gray-300 focus:ring-indigo-500"
+                                        className="w-5 h-5 mt-0.5 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500"
                                     />
                                     <div>
-                                        <p className="text-sm font-medium text-gray-900">When customer seems frustrated</p>
-                                        <p className="text-xs text-gray-500">AI detects repeated questions or negative sentiment</p>
+                                        <p className="font-medium text-slate-900">Customer seems frustrated</p>
+                                        <p className="text-sm text-slate-500">AI detects repeated questions or negative sentiment</p>
                                     </div>
                                 </label>
 
-                                <label className="flex items-start gap-3 cursor-pointer">
+                                <label className="flex items-start gap-3 cursor-pointer p-3 rounded-lg hover:bg-slate-50 transition-colors">
                                     <input
                                         type="checkbox"
                                         checked={editedAgent.escalationSettings.onNoAnswer}
@@ -1035,15 +648,15 @@ ${interactionsContent || 'No example interactions configured yet.'}
                                                 onNoAnswer: e.target.checked
                                             }
                                         })}
-                                        className="w-4 h-4 mt-1 text-indigo-600 rounded border-gray-300 focus:ring-indigo-500"
+                                        className="w-5 h-5 mt-0.5 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500"
                                     />
                                     <div>
-                                        <p className="text-sm font-medium text-gray-900">When AI can't answer</p>
-                                        <p className="text-xs text-gray-500">After {editedAgent.escalationSettings.noAnswerAttempts} attempts</p>
+                                        <p className="font-medium text-slate-900">Agent can't answer</p>
+                                        <p className="text-sm text-slate-500">After {editedAgent.escalationSettings.noAnswerAttempts} attempts without a good answer</p>
                                     </div>
                                 </label>
 
-                                <label className="flex items-start gap-3 cursor-pointer">
+                                <label className="flex items-start gap-3 cursor-pointer p-3 rounded-lg hover:bg-slate-50 transition-colors">
                                     <input
                                         type="checkbox"
                                         checked={editedAgent.escalationSettings.onSensitiveTopics}
@@ -1053,20 +666,22 @@ ${interactionsContent || 'No example interactions configured yet.'}
                                                 onSensitiveTopics: e.target.checked
                                             }
                                         })}
-                                        className="w-4 h-4 mt-1 text-indigo-600 rounded border-gray-300 focus:ring-indigo-500"
+                                        className="w-5 h-5 mt-0.5 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500"
                                     />
                                     <div>
-                                        <p className="text-sm font-medium text-gray-900">For sensitive topics</p>
-                                        <p className="text-xs text-gray-500">
-                                            Topics: {editedAgent.escalationSettings.sensitiveTopics.join(', ') || 'None set'}
+                                        <p className="font-medium text-slate-900">Sensitive topics</p>
+                                        <p className="text-sm text-slate-500">
+                                            Topics: {editedAgent.escalationSettings.sensitiveTopics.length > 0
+                                                ? editedAgent.escalationSettings.sensitiveTopics.join(', ')
+                                                : 'None configured'}
                                         </p>
                                     </div>
                                 </label>
                             </div>
 
-                            <div className="bg-white rounded-xl border border-gray-200 p-4">
-                                <h3 className="font-medium text-gray-900 mb-1">Escalation Message</h3>
-                                <p className="text-sm text-gray-500 mb-3">What your AI says when handing off</p>
+                            <div className="bg-white rounded-xl border border-slate-200 p-5">
+                                <h3 className="font-semibold text-slate-900 mb-1">Escalation Message</h3>
+                                <p className="text-sm text-slate-500 mb-3">What the agent says when handing off</p>
                                 <textarea
                                     value={editedAgent.escalationSettings.escalationMessage}
                                     onChange={(e) => updateAgent({
@@ -1076,9 +691,205 @@ ${interactionsContent || 'No example interactions configured yet.'}
                                         }
                                     })}
                                     rows={2}
-                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-sm"
-                                    placeholder="e.g., Let me connect you with a team member..."
+                                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-sm"
+                                    placeholder="Let me connect you with a team member who can help..."
                                 />
+                            </div>
+                        </div>
+                    )}
+
+                    {/* ADVANCED TAB - Sales Lead Capture */}
+                    {activeTab === 'advanced' && agent.role === AgentRole.SALES_ASSISTANT && (
+                        <div className="space-y-6">
+                            <div className="bg-gradient-to-r from-amber-50 to-orange-50 rounded-xl border border-amber-200 p-4">
+                                <div className="flex items-start gap-3">
+                                    <Target className="w-5 h-5 mt-0.5 text-amber-600" />
+                                    <div>
+                                        <p className="font-medium text-amber-900">Lead Qualification</p>
+                                        <p className="text-sm text-amber-700 mt-1">
+                                            Configure what questions to ask potential customers to qualify leads.
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="bg-white rounded-xl border border-slate-200 p-5 space-y-4">
+                                <h3 className="font-semibold text-slate-900">Qualification Questions</h3>
+
+                                <label className="flex items-start gap-3 cursor-pointer p-3 rounded-lg hover:bg-slate-50 transition-colors">
+                                    <input
+                                        type="checkbox"
+                                        checked={editedAgent.leadSettings?.askNeed}
+                                        onChange={(e) => updateAgent({
+                                            leadSettings: {
+                                                ...editedAgent.leadSettings!,
+                                                askNeed: e.target.checked
+                                            }
+                                        })}
+                                        className="w-5 h-5 mt-0.5 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500"
+                                    />
+                                    <div className="flex-1">
+                                        <p className="font-medium text-slate-900">Ask about needs</p>
+                                        <input
+                                            type="text"
+                                            value={editedAgent.leadSettings?.needQuestion || ''}
+                                            onChange={(e) => updateAgent({
+                                                leadSettings: {
+                                                    ...editedAgent.leadSettings!,
+                                                    needQuestion: e.target.value
+                                                }
+                                            })}
+                                            placeholder="What are you looking for today?"
+                                            className="mt-2 w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
+                                        />
+                                    </div>
+                                </label>
+
+                                <label className="flex items-start gap-3 cursor-pointer p-3 rounded-lg hover:bg-slate-50 transition-colors">
+                                    <input
+                                        type="checkbox"
+                                        checked={editedAgent.leadSettings?.askBudget}
+                                        onChange={(e) => updateAgent({
+                                            leadSettings: {
+                                                ...editedAgent.leadSettings!,
+                                                askBudget: e.target.checked
+                                            }
+                                        })}
+                                        className="w-5 h-5 mt-0.5 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500"
+                                    />
+                                    <div>
+                                        <p className="font-medium text-slate-900">Ask about budget</p>
+                                        <p className="text-sm text-slate-500">Understand their spending capacity</p>
+                                    </div>
+                                </label>
+
+                                <label className="flex items-start gap-3 cursor-pointer p-3 rounded-lg hover:bg-slate-50 transition-colors">
+                                    <input
+                                        type="checkbox"
+                                        checked={editedAgent.leadSettings?.askTimeline}
+                                        onChange={(e) => updateAgent({
+                                            leadSettings: {
+                                                ...editedAgent.leadSettings!,
+                                                askTimeline: e.target.checked
+                                            }
+                                        })}
+                                        className="w-5 h-5 mt-0.5 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500"
+                                    />
+                                    <div>
+                                        <p className="font-medium text-slate-900">Ask about timeline</p>
+                                        <p className="text-sm text-slate-500">When they need the product/service</p>
+                                    </div>
+                                </label>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* ADVANCED TAB - Marketing Campaigns */}
+                    {activeTab === 'advanced' && agent.role === AgentRole.MARKETING_COMMS && (
+                        <div className="space-y-6">
+                            <div className="bg-gradient-to-r from-purple-50 to-pink-50 rounded-xl border border-purple-200 p-4">
+                                <div className="flex items-start gap-3">
+                                    <Calendar className="w-5 h-5 mt-0.5 text-purple-600" />
+                                    <div>
+                                        <p className="font-medium text-purple-900">Campaign Settings</p>
+                                        <p className="text-sm text-purple-700 mt-1">
+                                            Configure automated messages for birthdays, welcome messages, and more.
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="bg-white rounded-xl border border-slate-200 p-5 space-y-4">
+                                <h3 className="font-semibold text-slate-900">Automated Messages</h3>
+
+                                <label className="flex items-start gap-3 cursor-pointer p-3 rounded-lg hover:bg-slate-50 transition-colors">
+                                    <input
+                                        type="checkbox"
+                                        checked={editedAgent.campaignSettings?.enableBirthday}
+                                        onChange={(e) => updateAgent({
+                                            campaignSettings: {
+                                                ...editedAgent.campaignSettings!,
+                                                enableBirthday: e.target.checked
+                                            }
+                                        })}
+                                        className="w-5 h-5 mt-0.5 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500"
+                                    />
+                                    <div>
+                                        <p className="font-medium text-slate-900">Birthday wishes</p>
+                                        <p className="text-sm text-slate-500">Send personalized birthday messages</p>
+                                    </div>
+                                </label>
+
+                                <label className="flex items-start gap-3 cursor-pointer p-3 rounded-lg hover:bg-slate-50 transition-colors">
+                                    <input
+                                        type="checkbox"
+                                        checked={editedAgent.campaignSettings?.enableWelcome}
+                                        onChange={(e) => updateAgent({
+                                            campaignSettings: {
+                                                ...editedAgent.campaignSettings!,
+                                                enableWelcome: e.target.checked
+                                            }
+                                        })}
+                                        className="w-5 h-5 mt-0.5 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500"
+                                    />
+                                    <div>
+                                        <p className="font-medium text-slate-900">Welcome messages</p>
+                                        <p className="text-sm text-slate-500">Greet new contacts automatically</p>
+                                    </div>
+                                </label>
+
+                                <label className="flex items-start gap-3 cursor-pointer p-3 rounded-lg hover:bg-slate-50 transition-colors">
+                                    <input
+                                        type="checkbox"
+                                        checked={editedAgent.campaignSettings?.enableThankYou}
+                                        onChange={(e) => updateAgent({
+                                            campaignSettings: {
+                                                ...editedAgent.campaignSettings!,
+                                                enableThankYou: e.target.checked
+                                            }
+                                        })}
+                                        className="w-5 h-5 mt-0.5 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500"
+                                    />
+                                    <div>
+                                        <p className="font-medium text-slate-900">Thank you messages</p>
+                                        <p className="text-sm text-slate-500">After purchases or interactions</p>
+                                    </div>
+                                </label>
+                            </div>
+
+                            <div className="bg-white rounded-xl border border-slate-200 p-5">
+                                <h3 className="font-semibold text-slate-900 mb-4">Quiet Hours</h3>
+                                <p className="text-sm text-slate-500 mb-3">Don't send messages during these hours</p>
+                                <div className="flex items-center gap-4">
+                                    <div>
+                                        <label className="block text-xs font-medium text-slate-500 mb-1">From</label>
+                                        <input
+                                            type="time"
+                                            value={editedAgent.campaignSettings?.quietHoursStart || '21:00'}
+                                            onChange={(e) => updateAgent({
+                                                campaignSettings: {
+                                                    ...editedAgent.campaignSettings!,
+                                                    quietHoursStart: e.target.value
+                                                }
+                                            })}
+                                            className="px-3 py-2 border border-slate-300 rounded-lg text-sm"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-medium text-slate-500 mb-1">To</label>
+                                        <input
+                                            type="time"
+                                            value={editedAgent.campaignSettings?.quietHoursEnd || '08:00'}
+                                            onChange={(e) => updateAgent({
+                                                campaignSettings: {
+                                                    ...editedAgent.campaignSettings!,
+                                                    quietHoursEnd: e.target.value
+                                                }
+                                            })}
+                                            className="px-3 py-2 border border-slate-300 rounded-lg text-sm"
+                                        />
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     )}
