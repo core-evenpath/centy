@@ -31,6 +31,8 @@ import {
     Globe,
     Lightbulb,
     ArrowUpRight,
+    Mail,
+    MapPin,
 } from 'lucide-react';
 import { AgentRole, EssentialAgent } from '@/lib/partnerhub-types';
 import AgentConfigPanel from '@/components/partner/core/AgentConfigPanel';
@@ -382,10 +384,37 @@ export default function AgentsPage() {
                                                                 {businessPhone}
                                                             </span>
                                                         )}
-                                                        {businessHours?.isOpen24x7 && (
+                                                        {businessPersona?.identity?.email && (
+                                                            <span className="inline-flex items-center gap-1.5 text-xs bg-white/60 px-2.5 py-1 rounded-full text-emerald-700">
+                                                                <Mail className="w-3 h-3" />
+                                                                {businessPersona.identity.email}
+                                                            </span>
+                                                        )}
+                                                        {businessHours?.isOpen24x7 ? (
                                                             <span className="inline-flex items-center gap-1.5 text-xs bg-white/60 px-2.5 py-1 rounded-full text-emerald-700">
                                                                 <Clock className="w-3 h-3" />
                                                                 Open 24/7
+                                                            </span>
+                                                        ) : businessHours?.appointmentOnly ? (
+                                                            <span className="inline-flex items-center gap-1.5 text-xs bg-white/60 px-2.5 py-1 rounded-full text-emerald-700">
+                                                                <Clock className="w-3 h-3" />
+                                                                By Appointment
+                                                            </span>
+                                                        ) : businessHours?.onlineAlways ? (
+                                                            <span className="inline-flex items-center gap-1.5 text-xs bg-white/60 px-2.5 py-1 rounded-full text-emerald-700">
+                                                                <Clock className="w-3 h-3" />
+                                                                Online 24/7
+                                                            </span>
+                                                        ) : businessHours?.schedule ? (
+                                                            <span className="inline-flex items-center gap-1.5 text-xs bg-white/60 px-2.5 py-1 rounded-full text-emerald-700">
+                                                                <Clock className="w-3 h-3" />
+                                                                Hours configured
+                                                            </span>
+                                                        ) : null}
+                                                        {businessPersona?.identity?.address?.city && (
+                                                            <span className="inline-flex items-center gap-1.5 text-xs bg-white/60 px-2.5 py-1 rounded-full text-emerald-700">
+                                                                <MapPin className="w-3 h-3" />
+                                                                {businessPersona.identity.address.city}{businessPersona.identity.address.state ? `, ${businessPersona.identity.address.state}` : ''}
                                                             </span>
                                                         )}
                                                         {businessPersona?.identity?.website && (
