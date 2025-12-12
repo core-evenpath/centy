@@ -21,9 +21,11 @@ import { ConversationSidebar } from '@/components/partner/inbox/ConversationSide
 import { ChatHeader } from '@/components/partner/inbox/ChatHeader';
 import { MessageInput } from '@/components/partner/inbox/MessageInput';
 import { EmptyState } from '@/components/partner/inbox/EmptyState';
+import { NewConversationDialog } from '@/components/partner/inbox/NewConversationDialog';
 import { MessageBubble } from '@/components/partner/chatspace/MessageBubble';
 import CoreMemorySuggestion from '@/components/partner/inbox/CoreMemorySuggestion';
 import { Badge } from '@/components/ui/badge';
+import { useContacts } from '@/hooks/useContacts';
 
 import type { MetaWhatsAppMessage } from '@/lib/types-meta-whatsapp';
 
@@ -57,6 +59,10 @@ export default function InboxPage() {
 
     // Mobile view state - show chat view when conversation is selected on mobile
     const [mobileShowChat, setMobileShowChat] = useState(false);
+
+    // New conversation dialog state
+    const [showNewConversationDialog, setShowNewConversationDialog] = useState(false);
+    const { contacts, loading: contactsLoading } = useContacts(currentPartnerId);
 
     const { messages, loading: msgsLoading } = useMetaMessages(selectedConversation?.id);
     const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -405,6 +411,41 @@ export default function InboxPage() {
         }
     };
 
+    const handleStartNewConversation = async (phoneNumber: string, contactName?: string) => {
+        if (!currentPartnerId) {
+            throw new Error('Partner not available');
+        }
+
+        if (!isWhatsAppConnected) {
+            throw new Error('WhatsApp is not connected. Please set up WhatsApp integration first.');
+        }
+
+        // Create a temporary conversation object to show immediately
+        const tempConversationId = `temp_${Date.now()}`;
+        const tempConversation: EnrichedMetaConversation = {
+            id: tempConversationId,
+            partnerId: currentPartnerId,
+            platform: 'meta_whatsapp',
+            customerPhone: phoneNumber.startsWith('+') ? phoneNumber : `+${phoneNumber}`,
+            customerWaId: phoneNumber.replace(/\D/g, ''),
+            phoneNumberId: '',
+            type: 'direct',
+            title: `WhatsApp: ${phoneNumber}`,
+            customerName: contactName,
+            isActive: true,
+            messageCount: 0,
+            unreadCount: 0,
+            lastMessageAt: new Date(),
+            createdAt: new Date(),
+        };
+
+        // Select the temp conversation
+        setSelectedConversation(tempConversation);
+        setMobileShowChat(true);
+
+        toast.success('Conversation started. Send a message to begin chatting.');
+    };
+
     if (authLoading || convsLoading) {
         return (
             <div className="flex items-center justify-center h-full bg-gray-50/50">
@@ -431,6 +472,7 @@ export default function InboxPage() {
                     onSearchChange={setSearchQuery}
                     loading={convsLoading}
                     isMobile={!mobileShowChat}
+                    onNewConversation={() => setShowNewConversationDialog(true)}
                 />
             </div>
 
@@ -533,6 +575,15 @@ export default function InboxPage() {
                     />
                 </div>
             )}
+
+            {/* New Conversation Dialog */}
+            <NewConversationDialog
+                open={showNewConversationDialog}
+                onOpenChange={setShowNewConversationDialog}
+                onStartConversation={handleStartNewConversation}
+                contacts={contacts}
+                contactsLoading={contactsLoading}
+            />
         </div>
     );
 }
