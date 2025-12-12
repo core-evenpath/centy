@@ -6,6 +6,7 @@ import {
     connectMetaWhatsApp,
     activateMetaWhatsApp,
     disconnectMetaWhatsApp,
+    deleteMetaWhatsAppAccount,
     getMetaWhatsAppStatus,
     subscribeToWebhookFields
 } from '@/actions/meta-whatsapp-actions';
@@ -23,7 +24,7 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { CheckCircle2, XCircle, Loader2, Copy, AlertCircle, Edit, RefreshCw } from 'lucide-react';
+import { CheckCircle2, XCircle, Loader2, Copy, AlertCircle, Edit, RefreshCw, Trash2, Unplug } from 'lucide-react';
 import type { MetaWhatsAppConfig } from '@/lib/types-meta-whatsapp';
 
 import Diagnostics from '@/components/whatsapp/Diagnostics';
@@ -65,6 +66,11 @@ export default function WhatsAppBusinessSettingsPage() {
     const [discoveredPhones, setDiscoveredPhones] = useState<any[]>([]);
     const [discoveringPhones, setDiscoveringPhones] = useState(false);
     const [showPhoneDiscovery, setShowPhoneDiscovery] = useState(false);
+
+    // Delete account state
+    const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+    const [deleteWithConversations, setDeleteWithConversations] = useState(false);
+    const [deleting, setDeleting] = useState(false);
 
     const webhookUrl = typeof window !== 'undefined'
         ? `${window.location.origin}/api/webhooks/meta/whatsapp`
@@ -150,7 +156,7 @@ export default function WhatsAppBusinessSettingsPage() {
     const handleDisconnect = async () => {
         if (!currentPartnerId) return;
 
-        if (!confirm('Are you sure you want to disconnect? This will stop message processing.')) {
+        if (!confirm('Are you sure you want to disconnect? This will pause message processing but keep your configuration.')) {
             return;
         }
 
@@ -158,9 +164,10 @@ export default function WhatsAppBusinessSettingsPage() {
         try {
             const result = await disconnectMetaWhatsApp(currentPartnerId);
             if (result.success) {
-                setSuccess('Disconnected successfully. You can now re-connect.');
-                setConfig(null); // This will show the connect form again
-                setFormData(prev => ({ ...prev, accessToken: '' }));
+                setSuccess(result.message);
+                // Reload status to show updated config
+                const status = await getMetaWhatsAppStatus(currentPartnerId);
+                setConfig(status.config);
             } else {
                 setError(result.message);
             }
@@ -168,6 +175,37 @@ export default function WhatsAppBusinessSettingsPage() {
             setError(err.message);
         } finally {
             setSaving(false);
+        }
+    };
+
+    const handleDelete = async () => {
+        if (!currentPartnerId) return;
+
+        setDeleting(true);
+        setError(null);
+        try {
+            const result = await deleteMetaWhatsAppAccount(currentPartnerId, deleteWithConversations);
+            if (result.success) {
+                setSuccess(result.message);
+                setConfig(null); // This will show the connect form again
+                setFormData({
+                    phoneNumberId: '',
+                    wabaId: '',
+                    accessToken: '',
+                    displayPhoneNumber: '',
+                    businessName: '',
+                    appId: '',
+                });
+                setVerifyToken(null);
+                setShowDeleteConfirm(false);
+                setDeleteWithConversations(false);
+            } else {
+                setError(result.message);
+            }
+        } catch (err: any) {
+            setError(err.message);
+        } finally {
+            setDeleting(false);
         }
     };
 
@@ -997,9 +1035,9 @@ export default function WhatsAppBusinessSettingsPage() {
                     {/* Connection Actions */}
                     <Card className="border-red-100">
                         <CardHeader>
-                            <CardTitle className="text-red-900">Danger Zone</CardTitle>
+                            <CardTitle className="text-red-900">Connection Management</CardTitle>
                             <CardDescription className="text-red-700">
-                                Manage your connection state
+                                Manage your WhatsApp Business connection
                             </CardDescription>
                         </CardHeader>
                         <CardContent>
@@ -1019,22 +1057,115 @@ export default function WhatsAppBusinessSettingsPage() {
                                     </div>
                                 )}
 
-                                <Button
-                                    variant="destructive"
-                                    onClick={handleDisconnect}
-                                    disabled={saving}
-                                    className="w-full"
-                                >
-                                    {saving ? (
-                                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                {/* Reconnect button - shown when disconnected */}
+                                {config?.status === 'disconnected' && (
+                                    <div className="p-4 bg-blue-50 rounded-lg border border-blue-200 mb-4">
+                                        <h4 className="font-semibold text-blue-900 mb-2">Reconnect</h4>
+                                        <p className="text-sm text-blue-800 mb-4">
+                                            Your WhatsApp Business is currently disconnected. Click below to reconnect with your existing configuration.
+                                        </p>
+                                        <Button
+                                            onClick={handleActivate}
+                                            disabled={saving}
+                                            className="w-full bg-blue-600 hover:bg-blue-700 text-white"
+                                        >
+                                            {saving ? (
+                                                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                            ) : (
+                                                <CheckCircle2 className="w-4 h-4 mr-2" />
+                                            )}
+                                            Reconnect WhatsApp Business
+                                        </Button>
+                                    </div>
+                                )}
+
+                                {/* Disconnect button - shown when active or pending */}
+                                {(isConnected || isPending) && (
+                                    <div className="p-4 bg-amber-50 rounded-lg border border-amber-200">
+                                        <h4 className="font-semibold text-amber-900 mb-2">Disconnect</h4>
+                                        <p className="text-sm text-amber-800 mb-4">
+                                            Temporarily pause message processing. Your configuration will be saved for easy reconnection.
+                                        </p>
+                                        <Button
+                                            variant="outline"
+                                            onClick={handleDisconnect}
+                                            disabled={saving}
+                                            className="w-full border-amber-600 text-amber-700 hover:bg-amber-100"
+                                        >
+                                            {saving ? (
+                                                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                            ) : (
+                                                <Unplug className="w-4 h-4 mr-2" />
+                                            )}
+                                            Disconnect WhatsApp Business
+                                        </Button>
+                                    </div>
+                                )}
+
+                                {/* Delete Account Section */}
+                                <div className="p-4 bg-red-50 rounded-lg border border-red-200">
+                                    <h4 className="font-semibold text-red-900 mb-2">Delete WhatsApp Account</h4>
+                                    <p className="text-sm text-red-800 mb-4">
+                                        Permanently remove your WhatsApp Business configuration. This allows you to connect a different WhatsApp Business account.
+                                    </p>
+
+                                    {!showDeleteConfirm ? (
+                                        <Button
+                                            variant="destructive"
+                                            onClick={() => setShowDeleteConfirm(true)}
+                                            className="w-full"
+                                        >
+                                            <Trash2 className="w-4 h-4 mr-2" />
+                                            Delete WhatsApp Account
+                                        </Button>
                                     ) : (
-                                        <XCircle className="w-4 h-4 mr-2" />
+                                        <div className="space-y-4">
+                                            <Alert variant="destructive">
+                                                <AlertCircle className="h-4 w-4" />
+                                                <AlertTitle>Are you sure?</AlertTitle>
+                                                <AlertDescription>
+                                                    This action cannot be undone. Your WhatsApp Business configuration will be permanently deleted.
+                                                </AlertDescription>
+                                            </Alert>
+
+                                            <label className="flex items-center gap-2 text-sm text-red-800 cursor-pointer">
+                                                <input
+                                                    type="checkbox"
+                                                    checked={deleteWithConversations}
+                                                    onChange={(e) => setDeleteWithConversations(e.target.checked)}
+                                                    className="rounded border-red-300 text-red-600 focus:ring-red-500"
+                                                />
+                                                Also delete all WhatsApp conversations and messages
+                                            </label>
+
+                                            <div className="flex gap-3">
+                                                <Button
+                                                    variant="destructive"
+                                                    onClick={handleDelete}
+                                                    disabled={deleting}
+                                                    className="flex-1"
+                                                >
+                                                    {deleting ? (
+                                                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                                    ) : (
+                                                        <Trash2 className="w-4 h-4 mr-2" />
+                                                    )}
+                                                    Yes, Delete Account
+                                                </Button>
+                                                <Button
+                                                    variant="outline"
+                                                    onClick={() => {
+                                                        setShowDeleteConfirm(false);
+                                                        setDeleteWithConversations(false);
+                                                    }}
+                                                    disabled={deleting}
+                                                >
+                                                    Cancel
+                                                </Button>
+                                            </div>
+                                        </div>
                                     )}
-                                    Disconnect & Reset Configuration
-                                </Button>
-                                <p className="text-xs text-gray-500 text-center mt-2">
-                                    This will allow you to re-enter your credentials.
-                                </p>
+                                </div>
                             </div>
                         </CardContent>
                     </Card>
