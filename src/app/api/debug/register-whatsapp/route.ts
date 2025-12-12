@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getDecryptedAccessToken } from '@/lib/meta-whatsapp-service';
+import { getDecryptedAccessToken, getPartnerMetaConfig } from '@/lib/meta-whatsapp-service';
 
 export async function POST(request: NextRequest) {
     try {
@@ -14,17 +14,19 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ error: 'PIN must be 6 digits' }, { status: 400 });
         }
 
-        // 1. Get the access token and phone number ID
-        const config = await getDecryptedAccessToken(partnerId);
-        if (!config) {
-            return NextResponse.json({ error: 'Partner configuration not found' }, { status: 404 });
+        // 1. Get the partner config for phoneNumberId
+        const config = await getPartnerMetaConfig(partnerId);
+        if (!config || !config.phoneNumberId) {
+            return NextResponse.json({ error: 'Partner configuration not found or missing phoneNumberId' }, { status: 404 });
         }
 
-        const { phoneNumberId, accessToken } = config;
+        // 2. Get the decrypted access token
+        const accessToken = await getDecryptedAccessToken(partnerId);
+        const phoneNumberId = config.phoneNumberId;
 
         console.log(`🔌 Registering Phone Number ID: ${phoneNumberId}`);
 
-        // 2. Call Meta Register Endpoint
+        // 3. Call Meta Register Endpoint
         const url = `https://graph.facebook.com/v18.0/${phoneNumberId}/register`;
 
         const response = await fetch(url, {
