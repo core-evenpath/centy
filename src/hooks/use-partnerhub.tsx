@@ -587,11 +587,11 @@ export function PartnerHubProvider({ children }: { children: ReactNode }) {
 
     // Save Essential Agent
     const saveEssentialAgent = useCallback(
-        async (agent: EssentialAgent) => {
-            if (!partnerId) return;
+        async (agent: EssentialAgent): Promise<{ success: boolean; error?: string }> => {
+            if (!partnerId) return { success: false, error: 'No partner ID' };
             // Serialize to plain object to avoid Firestore Timestamp serialization issues
             const serializedAgent = JSON.parse(JSON.stringify(agent));
-            await saveEssentialAgentAction(partnerId, serializedAgent);
+            return await saveEssentialAgentAction(partnerId, serializedAgent);
         },
         [partnerId]
     );

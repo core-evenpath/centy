@@ -3,6 +3,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { usePartnerHub } from '@/hooks/use-partnerhub';
 import { useMultiWorkspaceAuth } from '@/hooks/use-multi-workspace-auth';
+import { useToast } from '@/hooks/use-toast';
 import { getBusinessPersonaAction } from '@/actions/business-persona-actions';
 import { cn } from '@/lib/utils';
 import {
@@ -225,6 +226,7 @@ type PageView = 'list' | 'configure';
 export default function AgentsPage() {
     const { documents, customAgents, partnerId, saveEssentialAgent } = usePartnerHub();
     const { currentWorkspace } = useMultiWorkspaceAuth();
+    const { toast } = useToast();
     const [pageView, setPageView] = useState<PageView>('list');
     const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null);
     const [testingAgent, setTestingAgent] = useState<EssentialAgent | null>(null);
@@ -283,12 +285,20 @@ export default function AgentsPage() {
     };
 
     const handleSaveAgent = async (updatedAgent: EssentialAgent) => {
-        await saveEssentialAgent(updatedAgent);
+        const result = await saveEssentialAgent(updatedAgent);
+        if (result.success) {
+            toast({ title: 'Agent Saved', description: 'Your changes have been saved successfully.' });
+        } else {
+            toast({ variant: 'destructive', title: 'Save Failed', description: result.error || 'Failed to save agent configuration.' });
+        }
     };
 
     const handleToggleActive = async (agent: EssentialAgent, isActive: boolean) => {
         const updated = { ...agent, isActive, updatedAt: new Date() };
-        await saveEssentialAgent(updated);
+        const result = await saveEssentialAgent(updated);
+        if (!result.success) {
+            toast({ variant: 'destructive', title: 'Update Failed', description: result.error || 'Failed to update agent status.' });
+        }
     };
 
     const getDocumentCount = (agent: EssentialAgent) => {
