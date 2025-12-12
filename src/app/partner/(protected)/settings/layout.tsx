@@ -26,14 +26,14 @@ interface NavItem {
 
 const sidebarNavItems: NavItem[] = [
   {
-    title: "Overview",
-    description: "General workspace settings",
+    title: "Account",
+    description: "Your account & workspace",
     href: "/partner/settings",
     icon: <Settings className="w-5 h-5" />,
   },
   {
-    title: "Organization",
-    description: "Business profile & details",
+    title: "Business Data",
+    description: "Powers your AI agents",
     href: "/partner/settings/dashboard",
     icon: <Building2 className="w-5 h-5" />,
   },
