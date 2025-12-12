@@ -555,29 +555,6 @@ export async function updateAgentAction(
     }
 }
 
-export async function deleteAgentAction(
-    partnerId: string,
-    agentId: string
-): Promise<{ success: boolean; error?: string }> {
-    try {
-        const agentRef = db
-            .collection('partners')
-            .doc(partnerId)
-            .collection('hubAgents')
-            .doc(agentId);
-
-        await agentRef.update({
-            isActive: false,
-            updatedAt: Timestamp.now(),
-        });
-
-        return { success: true };
-    } catch (error: any) {
-        console.error('Delete agent error:', error);
-        return { success: false, error: error.message };
-    }
-}
-
 export async function saveEssentialAgentAction(
     partnerId: string,
     agent: EssentialAgent
@@ -604,6 +581,41 @@ export async function saveEssentialAgentAction(
         return { success: true };
     } catch (error: any) {
         console.error('Save essential agent error:', error);
+        return { success: false, error: error.message };
+    }
+}
+
+/**
+ * Delete an agent (only custom agents can be deleted)
+ */
+export async function deleteAgentAction(
+    partnerId: string,
+    agentId: string
+): Promise<{ success: boolean; error?: string }> {
+    try {
+        const agentRef = db
+            .collection('partners')
+            .doc(partnerId)
+            .collection('hubAgents')
+            .doc(agentId);
+
+        // Check if it's a custom agent before deleting
+        const agentDoc = await agentRef.get();
+        if (!agentDoc.exists) {
+            return { success: false, error: 'Agent not found' };
+        }
+
+        const agentData = agentDoc.data();
+        // Only allow deleting custom agents (those starting with 'custom-' or with isCustomAgent flag)
+        if (!agentId.startsWith('custom-') && !agentData?.isCustomAgent) {
+            return { success: false, error: 'Cannot delete default agents' };
+        }
+
+        await agentRef.delete();
+
+        return { success: true };
+    } catch (error: any) {
+        console.error('Delete agent error:', error);
         return { success: false, error: error.message };
     }
 }

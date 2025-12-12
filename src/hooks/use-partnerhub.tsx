@@ -52,6 +52,7 @@ import {
     addTagToDocumentAction,
     removeTagFromDocumentAction,
     saveEssentialAgentAction,
+    deleteAgentAction,
 } from '@/actions/partnerhub-actions';
 
 // ============================================================================
@@ -185,7 +186,8 @@ interface PartnerHubContextType {
     partnerId: string | null;
     createNewThread: (title: string, contextType?: ChatContextType, contextId?: string) => Promise<string | null>;
     deleteThread: (id: string) => Promise<void>;
-    saveEssentialAgent: (agent: EssentialAgent) => Promise<void>;
+    saveEssentialAgent: (agent: EssentialAgent) => Promise<{ success: boolean; error?: string }>;
+    deleteAgent: (agentId: string) => Promise<{ success: boolean; error?: string }>;
 }
 
 const PartnerHubContext = createContext<PartnerHubContextType | null>(null);
@@ -596,6 +598,15 @@ export function PartnerHubProvider({ children }: { children: ReactNode }) {
         [partnerId]
     );
 
+    // Delete Agent
+    const deleteAgent = useCallback(
+        async (agentId: string): Promise<{ success: boolean; error?: string }> => {
+            if (!partnerId) return { success: false, error: 'No partner ID' };
+            return await deleteAgentAction(partnerId, agentId);
+        },
+        [partnerId]
+    );
+
     // Switch context
     const switchContext = useCallback((context: ChatContext) => {
         setActiveContext(context);
@@ -642,6 +653,7 @@ export function PartnerHubProvider({ children }: { children: ReactNode }) {
         createNewThread,
         deleteThread,
         saveEssentialAgent,
+        deleteAgent,
     };
 
     return (
