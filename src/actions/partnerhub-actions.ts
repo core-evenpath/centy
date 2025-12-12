@@ -714,6 +714,14 @@ export async function testAgentAction(
         const personality = persona?.personality;
         const knowledge = persona?.knowledge;
 
+        // Debug logging for business persona
+        console.log('🔍 Business Persona Debug:', {
+            hasPartnerInfo: !!partnerInfo,
+            hasBusinessPersona: !!persona,
+            hasIdentity: !!identity,
+            operatingHours: identity?.operatingHours,
+        });
+
         const businessName = identity?.name || partnerInfo?.businessName || partnerInfo?.name || agentConfig?.businessName || 'the business';
         let systemPrompt = `You are ${agentConfig?.name || 'an AI assistant'} for ${businessName}.`;
 
@@ -744,6 +752,10 @@ export async function testAgentAction(
         if (identity?.operatingHours) {
             if (identity.operatingHours.isOpen24x7) {
                 businessDetails.push(`Operating Hours: Open 24/7`);
+            } else if (identity.operatingHours.appointmentOnly) {
+                businessDetails.push(`Operating Hours: By appointment only`);
+            } else if (identity.operatingHours.onlineAlways) {
+                businessDetails.push(`Operating Hours: Online services available 24/7`);
             } else if (identity.operatingHours.schedule) {
                 const dayOrder = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
                 const schedule = identity.operatingHours.schedule;
@@ -766,20 +778,22 @@ export async function testAgentAction(
 
                 if (hoursLines.length > 0) {
                     businessDetails.push(`Operating Hours:\n${hoursLines.join('\n')}`);
+                } else {
+                    businessDetails.push(`Operating Hours: Please contact us for hours`);
                 }
-            }
-            if (identity.operatingHours.appointmentOnly) {
-                businessDetails.push(`Note: By appointment only`);
-            }
-            if (identity.operatingHours.onlineAlways) {
-                businessDetails.push(`Note: Online services available 24/7`);
+            } else {
+                // No specific hours configured - provide helpful fallback
+                businessDetails.push(`Operating Hours: Please contact us for hours`);
             }
             if (identity.operatingHours.specialNote) {
-                businessDetails.push(`Special Note: ${identity.operatingHours.specialNote}`);
+                businessDetails.push(`Hours Note: ${identity.operatingHours.specialNote}`);
             }
             if (identity.operatingHours.holidays?.length > 0) {
                 businessDetails.push(`Closed on holidays: ${identity.operatingHours.holidays.join(', ')}`);
             }
+        } else {
+            // No operating hours set at all
+            businessDetails.push(`Operating Hours: Please contact us for availability`);
         }
 
         // Build business context that should ALWAYS be included (from Business Manager AI)
@@ -1244,6 +1258,10 @@ CUSTOMER PERSONA:
         if (identity?.operatingHours) {
             if (identity.operatingHours.isOpen24x7) {
                 businessDetails.push(`Operating Hours: Open 24/7`);
+            } else if (identity.operatingHours.appointmentOnly) {
+                businessDetails.push(`Operating Hours: By appointment only`);
+            } else if (identity.operatingHours.onlineAlways) {
+                businessDetails.push(`Operating Hours: Online services available 24/7`);
             } else if (identity.operatingHours.schedule) {
                 const dayOrder = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
                 const schedule = identity.operatingHours.schedule;
@@ -1266,20 +1284,22 @@ CUSTOMER PERSONA:
 
                 if (hoursLines.length > 0) {
                     businessDetails.push(`Operating Hours:\n${hoursLines.join('\n')}`);
+                } else {
+                    businessDetails.push(`Operating Hours: Please contact us for hours`);
                 }
-            }
-            if (identity.operatingHours.appointmentOnly) {
-                businessDetails.push(`Note: By appointment only`);
-            }
-            if (identity.operatingHours.onlineAlways) {
-                businessDetails.push(`Note: Online services available 24/7`);
+            } else {
+                // No specific hours configured - provide helpful fallback
+                businessDetails.push(`Operating Hours: Please contact us for hours`);
             }
             if (identity.operatingHours.specialNote) {
-                businessDetails.push(`Special Note: ${identity.operatingHours.specialNote}`);
+                businessDetails.push(`Hours Note: ${identity.operatingHours.specialNote}`);
             }
             if (identity.operatingHours.holidays?.length > 0) {
                 businessDetails.push(`Closed on holidays: ${identity.operatingHours.holidays.join(', ')}`);
             }
+        } else {
+            // No operating hours set at all
+            businessDetails.push(`Operating Hours: Please contact us for availability`);
         }
 
         if (businessDetails.length > 0) {
