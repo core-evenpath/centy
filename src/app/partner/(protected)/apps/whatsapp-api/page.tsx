@@ -23,6 +23,11 @@ import {
     Shield,
     Zap,
     RefreshCw,
+    Bug,
+    ChevronDown,
+    ChevronUp,
+    ExternalLink,
+    Copy,
 } from 'lucide-react';
 import type { EmbeddedSignupSessionInfo, EmbeddedSignupResponse } from '@/lib/types-meta-embedded';
 
@@ -39,6 +44,10 @@ export default function WhatsAppBusinessAPIPage() {
     const [error, setError] = useState<string | null>(null);
     const [success, setSuccess] = useState<string | null>(null);
     const [sdkLoaded, setSdkLoaded] = useState(false);
+    const [diagnostics, setDiagnostics] = useState<any>(null);
+    const [diagnosticsLoading, setDiagnosticsLoading] = useState(false);
+    const [showDiagnostics, setShowDiagnostics] = useState(false);
+    const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({});
 
     const sessionDataRef = useRef<{ wabaId: string; phoneNumberId: string } | null>(null);
 
@@ -279,6 +288,58 @@ export default function WhatsAppBusinessAPIPage() {
             }
         } catch (err: any) {
             setError(err.message);
+        }
+    };
+
+    const fetchDiagnostics = async () => {
+        if (!currentPartnerId) return;
+
+        setDiagnosticsLoading(true);
+        try {
+            const response = await fetch(`/api/diagnostics/meta-whatsapp-comprehensive?partnerId=${currentPartnerId}`);
+            const data = await response.json();
+            setDiagnostics(data);
+            setShowDiagnostics(true);
+        } catch (err: any) {
+            setError(`Failed to fetch diagnostics: ${err.message}`);
+        } finally {
+            setDiagnosticsLoading(false);
+        }
+    };
+
+    const toggleSection = (section: string) => {
+        setExpandedSections(prev => ({ ...prev, [section]: !prev[section] }));
+    };
+
+    const copyToClipboard = (text: string) => {
+        navigator.clipboard.writeText(text);
+        setSuccess('Copied to clipboard');
+        setTimeout(() => setSuccess(null), 2000);
+    };
+
+    const getStatusIcon = (status: string) => {
+        switch (status) {
+            case 'pass':
+                return <CheckCircle2 className="w-4 h-4 text-green-500" />;
+            case 'fail':
+                return <XCircle className="w-4 h-4 text-red-500" />;
+            case 'warn':
+                return <AlertCircle className="w-4 h-4 text-yellow-500" />;
+            default:
+                return <AlertCircle className="w-4 h-4 text-gray-400" />;
+        }
+    };
+
+    const getStatusBadge = (status: string) => {
+        switch (status) {
+            case 'pass':
+                return <Badge className="bg-green-100 text-green-800">Pass</Badge>;
+            case 'fail':
+                return <Badge variant="destructive">Fail</Badge>;
+            case 'warn':
+                return <Badge className="bg-yellow-100 text-yellow-800">Warning</Badge>;
+            default:
+                return <Badge variant="outline">Skipped</Badge>;
         }
     };
 
@@ -618,6 +679,189 @@ export default function WhatsAppBusinessAPIPage() {
                                 </CardContent>
                             </Card>
                         )}
+
+                        {/* Diagnostics Section */}
+                        <Card className="mb-6">
+                            <CardHeader>
+                                <div className="flex items-center justify-between">
+                                    <div>
+                                        <CardTitle className="flex items-center gap-2">
+                                            <Bug className="w-5 h-5" />
+                                            Diagnostics
+                                        </CardTitle>
+                                        <CardDescription>
+                                            Comprehensive system health check for your WhatsApp integration
+                                        </CardDescription>
+                                    </div>
+                                    <Button
+                                        variant="outline"
+                                        onClick={fetchDiagnostics}
+                                        disabled={diagnosticsLoading}
+                                    >
+                                        {diagnosticsLoading ? (
+                                            <>
+                                                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                                Running...
+                                            </>
+                                        ) : (
+                                            <>
+                                                <RefreshCw className="w-4 h-4 mr-2" />
+                                                Run Diagnostics
+                                            </>
+                                        )}
+                                    </Button>
+                                </div>
+                            </CardHeader>
+                            {showDiagnostics && diagnostics && (
+                                <CardContent>
+                                    {/* Summary */}
+                                    <div className="mb-6 p-4 bg-gray-50 rounded-lg">
+                                        <div className="flex items-center justify-between mb-2">
+                                            <h4 className="font-medium">Summary</h4>
+                                            <span className="text-sm text-gray-500">
+                                                {new Date(diagnostics.timestamp).toLocaleString()}
+                                            </span>
+                                        </div>
+                                        <div className="grid grid-cols-4 gap-4">
+                                            <div className="text-center">
+                                                <div className="text-2xl font-bold">{diagnostics.summary.totalChecks}</div>
+                                                <div className="text-xs text-gray-500">Total Checks</div>
+                                            </div>
+                                            <div className="text-center">
+                                                <div className="text-2xl font-bold text-green-600">{diagnostics.summary.passed}</div>
+                                                <div className="text-xs text-gray-500">Passed</div>
+                                            </div>
+                                            <div className="text-center">
+                                                <div className="text-2xl font-bold text-red-600">{diagnostics.summary.failed}</div>
+                                                <div className="text-xs text-gray-500">Failed</div>
+                                            </div>
+                                            <div className="text-center">
+                                                <div className="text-2xl font-bold text-yellow-600">{diagnostics.summary.warnings}</div>
+                                                <div className="text-xs text-gray-500">Warnings</div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* Individual Checks */}
+                                    <div className="space-y-3">
+                                        {Object.entries(diagnostics.checks).map(([key, check]: [string, any]) => (
+                                            <div key={key} className="border rounded-lg overflow-hidden">
+                                                <button
+                                                    className="w-full p-3 flex items-center justify-between hover:bg-gray-50 transition-colors"
+                                                    onClick={() => toggleSection(key)}
+                                                >
+                                                    <div className="flex items-center gap-3">
+                                                        {getStatusIcon(check.status)}
+                                                        <span className="font-medium capitalize">
+                                                            {key.replace(/([A-Z])/g, ' $1').trim()}
+                                                        </span>
+                                                    </div>
+                                                    <div className="flex items-center gap-2">
+                                                        {getStatusBadge(check.status)}
+                                                        {expandedSections[key] ? (
+                                                            <ChevronUp className="w-4 h-4 text-gray-400" />
+                                                        ) : (
+                                                            <ChevronDown className="w-4 h-4 text-gray-400" />
+                                                        )}
+                                                    </div>
+                                                </button>
+                                                {expandedSections[key] && (
+                                                    <div className="px-3 pb-3 border-t bg-gray-50">
+                                                        <p className="text-sm text-gray-700 mt-2">{check.message}</p>
+                                                        {check.details && (
+                                                            <div className="mt-2 p-2 bg-white rounded border">
+                                                                <pre className="text-xs overflow-auto whitespace-pre-wrap">
+                                                                    {JSON.stringify(check.details, null, 2)}
+                                                                </pre>
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        ))}
+                                    </div>
+
+                                    {/* Raw Data Section */}
+                                    <div className="mt-6 border-t pt-4">
+                                        <button
+                                            className="flex items-center gap-2 text-sm text-gray-600 hover:text-gray-900"
+                                            onClick={() => toggleSection('rawData')}
+                                        >
+                                            {expandedSections['rawData'] ? (
+                                                <ChevronUp className="w-4 h-4" />
+                                            ) : (
+                                                <ChevronDown className="w-4 h-4" />
+                                            )}
+                                            View Raw Data
+                                        </button>
+                                        {expandedSections['rawData'] && (
+                                            <div className="mt-2">
+                                                <div className="flex items-center justify-between mb-2">
+                                                    <span className="text-sm font-medium">Full Diagnostic Output</span>
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="sm"
+                                                        onClick={() => copyToClipboard(JSON.stringify(diagnostics, null, 2))}
+                                                    >
+                                                        <Copy className="w-3 h-3 mr-1" />
+                                                        Copy
+                                                    </Button>
+                                                </div>
+                                                <pre className="p-3 bg-gray-900 text-green-400 text-xs rounded-lg overflow-auto max-h-96">
+                                                    {JSON.stringify(diagnostics, null, 2)}
+                                                </pre>
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    {/* Quick Fix Suggestions */}
+                                    {diagnostics.summary.failed > 0 && (
+                                        <div className="mt-6 p-4 bg-red-50 border border-red-200 rounded-lg">
+                                            <h4 className="font-medium text-red-900 mb-2">Recommended Actions</h4>
+                                            <ul className="text-sm text-red-800 space-y-2">
+                                                {diagnostics.checks.phoneNumberStatus?.status === 'fail' &&
+                                                    diagnostics.checks.phoneNumberStatus?.details?.errorCode === 33 && (
+                                                    <li className="flex items-start gap-2">
+                                                        <span className="text-red-500">•</span>
+                                                        <span>
+                                                            <strong>Phone Number Deleted:</strong> The phone number has been removed from Meta.
+                                                            Click "Disconnect" below and reconnect with a new phone number.
+                                                        </span>
+                                                    </li>
+                                                )}
+                                                {diagnostics.checks.accessToken?.status === 'fail' && (
+                                                    <li className="flex items-start gap-2">
+                                                        <span className="text-red-500">•</span>
+                                                        <span>
+                                                            <strong>Invalid Access Token:</strong> The token is invalid or expired.
+                                                            Disconnect and reconnect your WhatsApp account.
+                                                        </span>
+                                                    </li>
+                                                )}
+                                                {diagnostics.checks.phoneMappings?.status === 'fail' && (
+                                                    <li className="flex items-start gap-2">
+                                                        <span className="text-red-500">•</span>
+                                                        <span>
+                                                            <strong>Phone Mapping Issue:</strong> Incoming messages may not be routed correctly.
+                                                            Try clicking "Fix Webhooks" to re-establish the connection.
+                                                        </span>
+                                                    </li>
+                                                )}
+                                                {diagnostics.checks.environment?.status === 'fail' && (
+                                                    <li className="flex items-start gap-2">
+                                                        <span className="text-red-500">•</span>
+                                                        <span>
+                                                            <strong>Missing Environment Variables:</strong> Contact your system administrator
+                                                            to ensure all required environment variables are configured.
+                                                        </span>
+                                                    </li>
+                                                )}
+                                            </ul>
+                                        </div>
+                                    )}
+                                </CardContent>
+                            )}
+                        </Card>
 
                         <Card className="border-red-100">
                             <CardHeader>
