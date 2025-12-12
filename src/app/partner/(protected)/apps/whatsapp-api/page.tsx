@@ -155,56 +155,60 @@ export default function WhatsAppBusinessAPIPage() {
 
         try {
             window.FB.login(
-                async (response: EmbeddedSignupResponse) => {
+                (response: EmbeddedSignupResponse) => {
                     console.log('📱 FB.login response:', response);
 
                     if (response.authResponse && response.authResponse.code) {
                         const code = response.authResponse.code;
                         console.log('✅ Authorization code received, length:', code.length);
 
-                        try {
-                            let attempts = 0;
-                            const maxAttempts = 60;
+                        // Handle async operations inside a regular callback
+                        (async () => {
+                            try {
+                                let attempts = 0;
+                                const maxAttempts = 60;
 
-                            while (!sessionDataRef.current && attempts < maxAttempts) {
-                                await new Promise(resolve => setTimeout(resolve, 500));
-                                attempts++;
+                                while (!sessionDataRef.current && attempts < maxAttempts) {
+                                    await new Promise(resolve => setTimeout(resolve, 500));
+                                    attempts++;
+                                }
+
+                                if (!sessionDataRef.current) {
+                                    throw new Error('Timeout waiting for WhatsApp session data. Please try again.');
+                                }
+
+                                console.log('✅ Session data available:', sessionDataRef.current);
+
+                                if (!currentPartnerId) {
+                                    throw new Error('Partner ID not available. Please refresh the page.');
+                                }
+
+                                const result = await completeEmbeddedSignup({
+                                    partnerId: currentPartnerId,
+                                    code,
+                                    wabaId: sessionDataRef.current.wabaId,
+                                    phoneNumberId: sessionDataRef.current.phoneNumberId,
+                                });
+
+                                if (result.success) {
+                                    setSuccess(result.message);
+                                    const status = await getEmbeddedSignupStatus(currentPartnerId);
+                                    setConfig(status.config);
+                                } else {
+                                    setError(result.message);
+                                }
+                            } catch (err: any) {
+                                console.error('❌ Signup completion error:', err);
+                                setError(err.message);
+                            } finally {
+                                setConnecting(false);
                             }
-
-                            if (!sessionDataRef.current) {
-                                throw new Error('Timeout waiting for WhatsApp session data. Please try again.');
-                            }
-
-                            console.log('✅ Session data available:', sessionDataRef.current);
-
-                            if (!currentPartnerId) {
-                                throw new Error('Partner ID not available. Please refresh the page.');
-                            }
-
-                            const result = await completeEmbeddedSignup({
-                                partnerId: currentPartnerId,
-                                code,
-                                wabaId: sessionDataRef.current.wabaId,
-                                phoneNumberId: sessionDataRef.current.phoneNumberId,
-                            });
-
-                            if (result.success) {
-                                setSuccess(result.message);
-                                const status = await getEmbeddedSignupStatus(currentPartnerId);
-                                setConfig(status.config);
-                            } else {
-                                setError(result.message);
-                            }
-                        } catch (err: any) {
-                            console.error('❌ Signup completion error:', err);
-                            setError(err.message);
-                        }
+                        })();
                     } else {
                         console.log('❌ User cancelled or authorization failed');
                         setError('Authorization was not completed. Please try again.');
+                        setConnecting(false);
                     }
-
-                    setConnecting(false);
                 },
                 {
                     config_id: META_CONFIG_ID,
