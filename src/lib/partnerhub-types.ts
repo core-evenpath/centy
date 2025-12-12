@@ -38,6 +38,7 @@ export enum AgentRole {
     CUSTOMER_CARE = 'customer_care',
     SALES_ASSISTANT = 'sales_assistant',
     MARKETING_COMMS = 'marketing_comms',
+    CUSTOM = 'custom',
 }
 
 export type AgentTone = 'professional' | 'friendly' | 'casual' | 'formal' | 'empathetic' | 'creative' | 'consultative';
@@ -232,6 +233,7 @@ export interface EssentialAgent {
     name: string;
     description: string;
     avatar: string;
+    isCustomAgent?: boolean; // True for user-created custom agents
 
     // Identity
     businessName: string;
