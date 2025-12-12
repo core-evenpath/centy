@@ -240,16 +240,30 @@ export default function SettingsPage() {
         </CardContent>
       </Card>
 
-      {/* Quick Links Section */}
+      {/* Business Data Section */}
       <div>
-        <h3 className="text-lg font-semibold mb-4">Manage Workspace</h3>
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+        <h3 className="text-lg font-semibold mb-2">Business Data</h3>
+        <p className="text-sm text-muted-foreground mb-4">
+          Configure the data that powers your AI agents
+        </p>
+        <div className="grid gap-4">
           <QuickLinkCard
             href="/partner/settings/dashboard"
             icon={<Building2 className="w-5 h-5" />}
-            title="Organization"
-            description="View and edit your business profile and details"
+            title="Business Data"
+            description="Manage the business information that powers your AI agents"
+            badge="AI-Powered"
           />
+        </div>
+      </div>
+
+      {/* Team Management Section */}
+      <div>
+        <h3 className="text-lg font-semibold mb-2">Team Management</h3>
+        <p className="text-sm text-muted-foreground mb-4">
+          Manage who has access to your workspace
+        </p>
+        <div className="grid gap-4 md:grid-cols-2">
           <QuickLinkCard
             href="/partner/settings/employees"
             icon={<Users className="w-5 h-5" />}

@@ -49,7 +49,10 @@ import {
   Wand2,
   Shield,
   Star,
+  Calendar,
+  Database,
 } from 'lucide-react';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { cn } from '@/lib/utils';
 import type { Partner } from '@/lib/types';
 import type { SetupProgress, BusinessPersona } from '@/lib/business-persona-types';
@@ -180,8 +183,8 @@ function ProfileSidebar({ persona, progress }: { persona: BusinessPersona | null
       <CardHeader className="bg-gradient-to-br from-slate-50 to-slate-100/50 border-b pb-4">
         <div className="flex items-center justify-between">
           <CardTitle className="text-base flex items-center gap-2">
-            <FileText className="w-4 h-4 text-slate-600" />
-            Profile Summary
+            <Database className="w-4 h-4 text-slate-600" />
+            Business Data Summary
           </CardTitle>
           {progress && (
             <Badge variant={progress.overallPercentage >= 80 ? 'default' : 'secondary'}
@@ -399,7 +402,7 @@ function AIManagerChat({
   const [messages, setMessages] = useState<Message[]>([
     {
       role: 'assistant',
-      content: `Hello! I'm your dedicated Business Manager AI. I can help you:\n\n- Update any part of your business profile\n- Add products, services, and FAQs\n- Configure your brand voice and communication style\n- Answer questions about your current settings\n\nJust tell me what you'd like to change or ask me anything about your profile!`
+      content: `Hello! I'm your Business Data Assistant. I help you manage the data that powers your AI agents.\n\nI can help you:\n- Update business details, contact info, and hours\n- Add products, services, and FAQs\n- Configure your brand voice and communication style\n\nThe more complete your business data, the better your AI agents can serve your customers!`
     }
   ]);
   const [input, setInput] = useState('');
@@ -465,13 +468,13 @@ function AIManagerChat({
           </div>
           <div className="flex-1">
             <CardTitle className="text-lg flex items-center gap-2">
-              Business Manager AI
+              Business Data Assistant
               <Badge variant="secondary" className="bg-white/20 text-white border-0 text-[10px]">
                 Powered by Gemini
               </Badge>
             </CardTitle>
             <CardDescription className="text-indigo-100">
-              Your dedicated assistant for managing your business profile
+              Manage the data that powers your AI agents
             </CardDescription>
           </div>
         </div>
@@ -668,7 +671,7 @@ export default function SettingsDashboardPage() {
             className="gap-2"
           >
             <ArrowRight className="w-4 h-4 rotate-180" />
-            Back to AI Manager
+            Back to Business Data
           </Button>
           {setupProgress && (
             <Badge
@@ -691,24 +694,77 @@ export default function SettingsDashboardPage() {
     );
   }
 
+  const userInitial = user?.displayName?.charAt(0)?.toUpperCase() ||
+                      user?.email?.charAt(0)?.toUpperCase() ||
+                      'U';
+  const userRole = user?.customClaims?.role;
+
+  const formatDate = (date: string | Date | undefined) => {
+    if (!date) return 'N/A';
+    return new Date(date).toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric'
+    });
+  };
+
   // Main AI Manager Interface
   return (
     <div className="space-y-6">
-      {/* Hero Header */}
+      {/* Account Info Bar */}
+      <Card className="border-slate-200">
+        <CardContent className="py-4">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+            <div className="flex items-center gap-3">
+              <Avatar className="h-10 w-10 border border-primary/20">
+                <AvatarImage src={user?.photoURL || undefined} alt={user?.displayName || 'User'} />
+                <AvatarFallback className="bg-primary/10 text-primary text-sm font-semibold">
+                  {userInitial}
+                </AvatarFallback>
+              </Avatar>
+              <div>
+                <div className="font-medium text-sm">{user?.displayName || 'Workspace User'}</div>
+                <div className="text-xs text-muted-foreground">{user?.email}</div>
+              </div>
+            </div>
+            <Separator orientation="vertical" className="hidden sm:block h-8" />
+            <div className="flex items-center gap-4 text-xs text-muted-foreground">
+              <div className="flex items-center gap-1.5">
+                <Badge variant={userRole === 'partner_admin' ? 'default' : 'secondary'} className="text-xs">
+                  {userRole === 'partner_admin' ? 'Admin' : 'Member'}
+                </Badge>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <Calendar className="w-3.5 h-3.5" />
+                <span>Joined {formatDate(user?.metadata?.creationTime)}</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <Building2 className="w-3.5 h-3.5" />
+                <span className="font-mono">{partnerId?.substring(0, 8)}...</span>
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Hero Header - Business Data */}
       <Card className="bg-gradient-to-r from-indigo-600 via-purple-600 to-indigo-700 text-white border-0 overflow-hidden relative">
         <div className="absolute inset-0 bg-grid-white/5 [mask-image:linear-gradient(0deg,transparent,white)]" />
         <CardContent className="py-6 relative">
           <div className="flex flex-col md:flex-row md:items-center gap-4">
             <div className="flex items-center gap-4 flex-1">
               <div className="w-14 h-14 rounded-2xl bg-white/20 flex items-center justify-center shadow-lg ring-2 ring-white/30">
-                <Wand2 className="w-7 h-7" />
+                <Database className="w-7 h-7" />
               </div>
               <div>
                 <h1 className="text-xl font-bold flex items-center gap-2">
-                  Business Profile Manager
+                  Business Data
+                  <Badge variant="secondary" className="bg-white/20 text-white border-0 text-[10px]">
+                    Powers AI Agents
+                  </Badge>
                 </h1>
                 <p className="text-indigo-100 text-sm mt-0.5">
-                  Your AI assistant to capture and manage every detail of your business
+                  This data is used by your AI agents to understand and represent your business
                 </p>
               </div>
             </div>
@@ -738,9 +794,9 @@ export default function SettingsDashboardPage() {
                   </span>
                 </div>
                 <div className="text-sm">
-                  <div className="font-medium">Profile</div>
+                  <div className="font-medium">Completeness</div>
                   <div className="text-indigo-200 text-xs">
-                    {(setupProgress?.overallPercentage || 0) >= 80 ? 'Complete!' : 'In progress'}
+                    {(setupProgress?.overallPercentage || 0) >= 80 ? 'Ready for AI!' : 'More data needed'}
                   </div>
                 </div>
               </div>
@@ -821,22 +877,22 @@ export default function SettingsDashboardPage() {
               <Lightbulb className="w-5 h-5 text-amber-600" />
             </div>
             <div>
-              <h4 className="font-medium text-amber-900">Tips for a Complete Profile</h4>
+              <h4 className="font-medium text-amber-900">Why Business Data Matters</h4>
               <p className="text-sm text-amber-700 mt-1">
-                A complete profile helps AI better represent your business. Try saying things like:
+                The more complete your business data, the better your AI agents can represent your business to customers. Try adding:
               </p>
               <div className="flex flex-wrap gap-2 mt-2">
                 <Badge variant="outline" className="bg-white/50 text-amber-800 border-amber-300">
-                  "Add my phone number: +1234567890"
+                  Contact details & hours
                 </Badge>
                 <Badge variant="outline" className="bg-white/50 text-amber-800 border-amber-300">
-                  "Set hours to 9 AM - 6 PM weekdays"
+                  Products & services
                 </Badge>
                 <Badge variant="outline" className="bg-white/50 text-amber-800 border-amber-300">
-                  "Add a product called Premium Package"
+                  FAQs for common questions
                 </Badge>
                 <Badge variant="outline" className="bg-white/50 text-amber-800 border-amber-300">
-                  "Change my brand voice to friendly and warm"
+                  Brand voice & tone
                 </Badge>
               </div>
             </div>
