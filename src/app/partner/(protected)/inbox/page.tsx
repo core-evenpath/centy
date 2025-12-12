@@ -79,6 +79,9 @@ export default function InboxPage() {
     const suggestionDebounceTimer = useRef<NodeJS.Timeout | null>(null);
     const assistantChangeTimer = useRef<NodeJS.Timeout | null>(null);
 
+    // Ref to store the latest handleGenerateSuggestion function to avoid stale closures
+    const handleGenerateSuggestionRef = useRef<(incomingMessage?: string, refinementInstruction?: string) => void>();
+
     const [messageInput, setMessageInput] = useState('');
     const [sending, setSending] = useState(false);
 
@@ -179,8 +182,11 @@ export default function InboxPage() {
             clearTimeout(suggestionDebounceTimer.current);
         }
 
+        // Capture the message content to use in the timeout
+        const messageContent = latestMessage.content;
         suggestionDebounceTimer.current = setTimeout(() => {
-            handleGenerateSuggestion(latestMessage.content);
+            // Use ref to get the latest function and avoid stale closures
+            handleGenerateSuggestionRef.current?.(messageContent);
         }, 300);
 
         return () => {
@@ -356,6 +362,11 @@ export default function InboxPage() {
     const handleGenerateSuggestion = (incomingMessage?: string, refinementInstruction?: string) => {
         handleGenerateSuggestionWithIds(incomingMessage, refinementInstruction, selectedAssistantIds);
     };
+
+    // Keep the ref updated with the latest handleGenerateSuggestion function
+    useEffect(() => {
+        handleGenerateSuggestionRef.current = handleGenerateSuggestion;
+    });
 
     const handleRefineSuggestion = (instruction: string) => {
         handleGenerateSuggestion(undefined, instruction);
