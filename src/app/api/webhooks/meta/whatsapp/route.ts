@@ -14,7 +14,7 @@ import type {
 } from '@/lib/types-meta-whatsapp';
 
 // Fallback to env var if platform config is not set
-const ENV_VERIFY_TOKEN = process.env.META_WHATSAPP_VERIFY_TOKEN;
+const ENV_VERIFY_TOKEN = process.env.META_WHATSAPP_VERIFY_TOKEN || 'centy_webhook_verify';
 
 export async function GET(request: NextRequest) {
     const searchParams = request.nextUrl.searchParams;

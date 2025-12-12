@@ -17,7 +17,7 @@ export default function AppsPage() {
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {/* WhatsApp Business Card */}
-                <Link href="/partner/apps/whatsapp" className="group">
+                <Link href="/partner/apps/whatsapp-api" className="group">
                     <Card className="h-full transition-all hover:shadow-lg hover:border-green-500 cursor-pointer">
                         <CardHeader>
                             <div className="flex items-start justify-between">
