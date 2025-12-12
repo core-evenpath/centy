@@ -15,6 +15,63 @@ import type { MetaPhoneMapping } from '@/lib/types-meta-whatsapp';
 const META_API_VERSION = 'v24.0';
 const META_API_BASE = `https://graph.facebook.com/${META_API_VERSION}`;
 
+// Helper function to subscribe to webhook fields at the app level
+async function subscribeWebhookFieldsForEmbeddedSignup(
+    wabaId: string,
+    accessToken: string
+): Promise<{ success: boolean; error?: string }> {
+    const appId = process.env.NEXT_PUBLIC_META_APP_ID;
+    const callbackUrl = process.env.NEXT_PUBLIC_APP_URL
+        ? `${process.env.NEXT_PUBLIC_APP_URL}/api/webhooks/meta/whatsapp`
+        : 'https://www.centy.dev/api/webhooks/meta/whatsapp';
+    const verifyToken = process.env.META_WHATSAPP_VERIFY_TOKEN || 'centy_webhook_verify';
+
+    if (!appId) {
+        console.error('Missing NEXT_PUBLIC_META_APP_ID for webhook subscription');
+        return { success: false, error: 'Meta App ID not configured' };
+    }
+
+    try {
+        console.log('🔄 Subscribing to webhook fields for app:', appId);
+        console.log('📍 Callback URL:', callbackUrl);
+
+        const response = await fetch(
+            `${META_API_BASE}/${appId}/subscriptions`,
+            {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: new URLSearchParams({
+                    object: 'whatsapp_business_account',
+                    callback_url: callbackUrl,
+                    fields: 'messages,message_template_status_update',
+                    verify_token: verifyToken,
+                    access_token: accessToken
+                }).toString()
+            }
+        );
+
+        const data = await response.json();
+
+        if (!response.ok) {
+            // Handle "already subscribed" or permission errors gracefully
+            if (data.error?.code === 100 || data.error?.message?.includes('already')) {
+                console.log('✅ Webhook fields already subscribed or skipped');
+                return { success: true };
+            }
+            console.error('❌ Webhook subscription failed:', data);
+            return { success: false, error: data.error?.message || 'Failed to subscribe to webhook fields' };
+        }
+
+        console.log('✅ Webhook fields subscribed successfully');
+        return { success: true };
+    } catch (error: any) {
+        console.error('❌ Webhook subscription error:', error);
+        return { success: false, error: error.message };
+    }
+}
+
 export async function exchangeCodeForToken(code: string): Promise<{
     success: boolean;
     accessToken?: string;
@@ -270,6 +327,13 @@ export async function completeEmbeddedSignup(
             console.warn('⚠️ App subscription warning:', subscribeResult.error);
         }
 
+        // Subscribe to webhook fields at the app level to ensure webhooks are delivered
+        const webhookResult = await subscribeWebhookFieldsForEmbeddedSignup(wabaId, accessToken);
+        if (!webhookResult.success) {
+            console.warn('⚠️ Webhook fields subscription warning:', webhookResult.error);
+            // Continue anyway - webhook may already be configured at platform level
+        }
+
         const registerResult = await registerPhoneNumber(phoneNumberId, accessToken);
         if (!registerResult.success) {
             console.warn('⚠️ Phone registration warning:', registerResult.error);
@@ -383,6 +447,56 @@ export async function activateEmbeddedSignup(
         return { success: true, message: 'WhatsApp Business API activated successfully' };
     } catch (error: any) {
         console.error('❌ Error activating Embedded Signup:', error);
+        return { success: false, message: error.message };
+    }
+}
+
+export async function resubscribeWebhooks(
+    partnerId: string
+): Promise<{ success: boolean; message: string }> {
+    if (!db) {
+        return { success: false, message: 'Database not available' };
+    }
+
+    try {
+        const partnerDoc = await db.collection('partners').doc(partnerId).get();
+        const config = partnerDoc.data()?.metaWhatsAppConfig;
+
+        if (!config) {
+            return { success: false, message: 'WhatsApp not configured for this partner' };
+        }
+
+        if (!config.encryptedAccessToken || !config.wabaId) {
+            return { success: false, message: 'Missing access token or WABA ID' };
+        }
+
+        const accessToken = decrypt(config.encryptedAccessToken);
+
+        // Re-subscribe app to WABA
+        const subscribeResult = await subscribeAppToWABA(config.wabaId, accessToken);
+        if (!subscribeResult.success) {
+            console.warn('⚠️ App subscription warning:', subscribeResult.error);
+        }
+
+        // Re-subscribe to webhook fields
+        const webhookResult = await subscribeWebhookFieldsForEmbeddedSignup(config.wabaId, accessToken);
+        if (!webhookResult.success) {
+            console.warn('⚠️ Webhook fields subscription warning:', webhookResult.error);
+        }
+
+        // Update the config to mark webhook as configured
+        await db.collection('partners').doc(partnerId).update({
+            'metaWhatsAppConfig.webhookConfigured': true,
+            'metaWhatsAppConfig.updatedAt': new Date().toISOString(),
+        });
+
+        console.log(`✅ Webhooks resubscribed for partner: ${partnerId}`);
+        return {
+            success: true,
+            message: 'Webhooks resubscribed successfully. Messages should now be delivered.',
+        };
+    } catch (error: any) {
+        console.error('❌ Error resubscribing webhooks:', error);
         return { success: false, message: error.message };
     }
 }
