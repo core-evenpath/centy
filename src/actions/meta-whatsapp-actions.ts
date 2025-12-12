@@ -2,7 +2,7 @@
 
 import { db } from '@/lib/firebase-admin';
 import { FieldValue, Timestamp } from 'firebase-admin/firestore';
-import { encrypt, generateVerifyToken } from '@/lib/encryption';
+import { encrypt, decrypt, generateVerifyToken } from '@/lib/encryption';
 import {
     sendMetaTextMessage,
     sendMetaMediaMessage,
@@ -172,6 +172,24 @@ export async function deleteMetaWhatsAppAccount(
     try {
         const partnerDoc = await db.collection('partners').doc(partnerId).get();
         const config = partnerDoc.data()?.metaWhatsAppConfig as MetaWhatsAppConfig;
+
+        // Unsubscribe app from WABA before deleting (allows reconnection later)
+        if (config?.wabaId && config?.encryptedAccessToken) {
+            try {
+                const { unsubscribeAppFromWABA } = await import('@/actions/meta-embedded-signup-actions');
+                const accessToken = decrypt(config.encryptedAccessToken);
+                const unsubResult = await unsubscribeAppFromWABA(config.wabaId, accessToken);
+                if (!unsubResult.success) {
+                    console.warn('⚠️ Failed to unsubscribe from WABA:', unsubResult.error);
+                    // Continue with delete even if unsubscribe fails
+                } else {
+                    console.log('✅ Unsubscribed app from WABA');
+                }
+            } catch (err) {
+                console.warn('⚠️ Could not unsubscribe from WABA:', err);
+                // Continue with delete even if unsubscribe fails
+            }
+        }
 
         // Delete phone mapping if exists
         if (config?.phoneNumberId && config.phoneNumberId !== 'pending') {

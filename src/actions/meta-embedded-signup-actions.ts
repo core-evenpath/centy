@@ -2,7 +2,7 @@
 
 import { db } from '@/lib/firebase-admin';
 import { FieldValue } from 'firebase-admin/firestore';
-import { encrypt, generateVerifyToken } from '@/lib/encryption';
+import { encrypt, decrypt, generateVerifyToken } from '@/lib/encryption';
 import type {
     EmbeddedSignupCompleteInput,
     EmbeddedSignupCompleteResult,
@@ -142,6 +142,11 @@ export async function subscribeAppToWABA(
         const data = await response.json();
 
         if (!response.ok) {
+            // Handle "already subscribed" error gracefully (error code 131060)
+            if (data.error?.code === 131060 || data.error?.message?.includes('already subscribed')) {
+                console.log('✅ App already subscribed to WABA');
+                return { success: true };
+            }
             console.error('❌ Failed to subscribe app to WABA:', data);
             return { success: false, error: data.error?.message || 'Failed to subscribe app to WABA' };
         }
@@ -150,6 +155,41 @@ export async function subscribeAppToWABA(
         return { success: data.success === true };
     } catch (error: any) {
         console.error('❌ WABA subscription error:', error);
+        return { success: false, error: error.message };
+    }
+}
+
+export async function unsubscribeAppFromWABA(
+    wabaId: string,
+    accessToken: string
+): Promise<{ success: boolean; error?: string }> {
+    try {
+        console.log('🔄 Unsubscribing app from WABA:', wabaId);
+
+        const response = await fetch(`${META_API_BASE}/${wabaId}/subscribed_apps`, {
+            method: 'DELETE',
+            headers: {
+                Authorization: `Bearer ${accessToken}`,
+                'Content-Type': 'application/json',
+            },
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+            // If not subscribed, that's fine - consider it a success
+            if (data.error?.message?.includes('not subscribed') || data.error?.code === 100) {
+                console.log('✅ App was not subscribed to WABA (already unsubscribed)');
+                return { success: true };
+            }
+            console.error('❌ Failed to unsubscribe app from WABA:', data);
+            return { success: false, error: data.error?.message || 'Failed to unsubscribe app from WABA' };
+        }
+
+        console.log('✅ App unsubscribed from WABA');
+        return { success: data.success === true };
+    } catch (error: any) {
+        console.error('❌ WABA unsubscription error:', error);
         return { success: false, error: error.message };
     }
 }
@@ -355,18 +395,32 @@ export async function disconnectEmbeddedSignup(
         const partnerDoc = await db.collection('partners').doc(partnerId).get();
         const config = partnerDoc.data()?.metaWhatsAppConfig;
 
+        // Unsubscribe app from WABA before disconnecting (allows reconnection later)
+        if (config?.wabaId && config?.encryptedAccessToken) {
+            try {
+                const accessToken = decrypt(config.encryptedAccessToken);
+                const unsubResult = await unsubscribeAppFromWABA(config.wabaId, accessToken);
+                if (!unsubResult.success) {
+                    console.warn('⚠️ Failed to unsubscribe from WABA:', unsubResult.error);
+                    // Continue with disconnect even if unsubscribe fails
+                }
+            } catch (err) {
+                console.warn('⚠️ Could not unsubscribe from WABA:', err);
+                // Continue with disconnect even if unsubscribe fails
+            }
+        }
+
         if (config?.phoneNumberId) {
             await db.collection('metaPhoneMappings').doc(config.phoneNumberId).delete();
         }
 
+        // Remove the entire config to allow fresh reconnection
         await db.collection('partners').doc(partnerId).update({
-            'metaWhatsAppConfig.status': 'disconnected',
-            'metaWhatsAppConfig.encryptedAccessToken': FieldValue.delete(),
-            'metaWhatsAppConfig.updatedAt': new Date().toISOString(),
+            metaWhatsAppConfig: FieldValue.delete(),
         });
 
         console.log(`✅ Embedded Signup disconnected for partner: ${partnerId}`);
-        return { success: true, message: 'WhatsApp Business API disconnected' };
+        return { success: true, message: 'WhatsApp Business API disconnected. You can now reconnect your business.' };
     } catch (error: any) {
         console.error('❌ Error disconnecting Embedded Signup:', error);
         return { success: false, message: error.message };
