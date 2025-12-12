@@ -13,6 +13,8 @@ import type {
     FrequentlyAskedQuestion,
     VoiceTone,
 } from '@/lib/business-persona-types';
+import { ProcessingStatus } from '@/lib/partnerhub-types';
+import { GoogleGenerativeAI, SchemaType } from '@google/generative-ai';
 
 /**
  * Helper function to serialize Firestore data for client components
@@ -702,7 +704,221 @@ export async function getBusinessPersonaSummaryAction(partnerId: string): Promis
         };
 
     } catch (error: any) {
+
         console.error('Error getting persona summary:', error);
         return { success: false };
+    }
+}
+
+/**
+ * Chat with the Business Persona Manager AI
+ * Allows users to ask questions, simulate interactions, and DIRECTLY update the profile via chat (Vibe Coding).
+ * Now includes RAG context from Partner Knowledge Base.
+ */
+export async function chatWithPersonaManagerAction(
+    partnerId: string,
+    messages: { role: 'user' | 'assistant' | 'system'; content: string }[],
+    currentPersona: BusinessPersona
+): Promise<{ success: boolean; response?: string; message?: string; dataUpdated?: boolean }> {
+    try {
+        if (!process.env.GEMINI_API_KEY) {
+            return { success: false, message: 'API Key missing' };
+        }
+
+        const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+
+        // Fetch Knowledge Base Documents (RAG / Long Context)
+        let documentContext = "";
+        try {
+            const docsSnapshot = await db.collection('partners').doc(partnerId).collection('hubDocuments')
+                .where('status', '==', ProcessingStatus.COMPLETED)
+                .limit(20) // 1.5 Flash has 1M context, safe to load many docs
+                .get();
+
+            const snippets = docsSnapshot.docs
+                .map(doc => {
+                    const data = doc.data();
+                    // Truncate individual docs slightly to ensure we don't hit edge cases if they are massive books
+                    const text = data.extractedText ? data.extractedText.substring(0, 30000) : "";
+                    return text ? `[Document: ${data.name}]\n${text} ` : null;
+                })
+                .filter(Boolean);
+
+            if (snippets.length > 0) {
+                documentContext = snippets.join('\n\n---\n\n');
+            }
+        } catch (e) {
+            console.warn("[PersonaManager] Failed to fetch document context:", e);
+        }
+
+        // Define Tools for Vibe Coding
+        const tools = [
+            {
+                functionDeclarations: [
+                    {
+                        name: "update_business_profile",
+                        description: "Updates a specific field in the business persona/profile. Use this to Apply user changes.",
+                        parameters: {
+                            type: SchemaType.OBJECT,
+                            properties: {
+                                field: {
+                                    type: SchemaType.STRING,
+                                    description: "The dot-notation path to update (e.g., 'identity.name', 'personality.voiceTone', 'knowledge.acceptedPayments', 'identity.address.country')."
+                                },
+                                value: {
+                                    type: SchemaType.STRING,
+                                    description: "The value to set, serialized as a JSON string. e.g. '\"New Name\"' for strings, '[\"Cash\"]' for arrays."
+                                }
+                            },
+                            required: ["field", "value"]
+                        } as any
+                    }
+                ]
+            }
+        ];
+
+        const model = genAI.getGenerativeModel({
+            model: 'gemini-2.0-flash',
+            tools: tools
+        });
+
+        // Construct System Prompt
+        const systemPrompt = `You are the Business Manager AI for ${currentPersona.identity?.name || 'this business'}. 
+Your role is to assist the business owner in configuring their Business Persona and understanding how their AI agents will behave.
+
+CURRENT CONFIGURATION:
+${JSON.stringify({
+            identity: currentPersona.identity,
+            personality: currentPersona.personality,
+            knowledge: {
+                productsOrServices: currentPersona.knowledge?.productsOrServices,
+                faqs: currentPersona.knowledge?.faqs,
+                acceptedPayments: currentPersona.knowledge?.acceptedPayments
+            }
+        }, null, 2)
+            }
+
+KNOWLEDGE BASE(UPLOADED DOCUMENTS):
+${documentContext || "No documents available in Vault."}
+
+        CAPABILITIES:
+        1. EXPLAIN & CRITIQUE: Analyze settings and suggest improvements.
+2. SIMULATION: If asked, pretend to be a Customer Support Agent using the current Voice & Tone.
+3. VIBE CODING(UPDATES): You can DIRECTLY update the profile.
+   - If the user says "Change name to XY", call 'update_business_profile'.
+   - If user says "Add products from the Menu PDF", READ the Menu PDF in the Knowledge Base above, extract items, and update 'knowledge.productsOrServices'.
+   - ALWAYS use valid JSON strings for the 'value' parameter.
+
+            GUIDANCE:
+            - Use the Knowledge Base to answer questions about the business's real data (e.g. "What's in my warranty doc ? ").
+                - If updating from a document, be precise.
+- Be helpful and professional.
+- When you update something, confirm the change to the user.
+- If the user request is ambiguous, ask for clarification before updating.
+`;
+
+        const chat = model.startChat({
+            history: [
+                {
+                    role: 'user',
+                    parts: [{ text: systemPrompt + "\n\nHello" }],
+                },
+                {
+                    role: 'model',
+                    parts: [{ text: "Hello! I am your Business Manager AI. I can update your profile directly. What would you like to change?" }],
+                },
+                ...messages.slice(0, -1).map(m => ({
+                    role: m.role === 'user' ? 'user' : 'model',
+                    parts: [{ text: m.content }]
+                }) as any)
+            ],
+        });
+
+        const result = await chat.sendMessage(messages[messages.length - 1].content);
+        const response = result.response;
+        const functionCalls = response.functionCalls();
+
+        let finalResponseText = "";
+        try {
+            if (response.text) {
+                finalResponseText = response.text();
+            }
+        } catch (e) {
+            // Ignore if no text (e.g. only function call)
+        }
+        let dataUpdated = false;
+
+        // Handle Tool Calls
+        if (functionCalls && functionCalls.length > 0) {
+            const toolParts = [];
+
+            for (const call of functionCalls) {
+                if (call.name === 'update_business_profile') {
+                    const args = call.args as any;
+                    const field = args.field;
+                    let value = args.value;
+
+                    console.log(`[VibeCoding] Request to update ${field} with raw value: `, value);
+
+                    let parsedValue;
+                    try {
+                        // Cleanup if the model adds markdown code blocks or quotes to the value string inappropriately
+                        if (typeof value === 'string') {
+                            // Handle case where model surrounds JSON with code blocks
+                            const cleaned = value.replace(/```json\n ?|\n ? ```/g, '').trim();
+                            parsedValue = JSON.parse(cleaned);
+                        } else {
+                            parsedValue = value;
+                        }
+                    } catch (e) {
+                        console.warn("[VibeCoding] JSON parse failed, using raw string.", e);
+                        parsedValue = value;
+                    }
+
+                    // Execute Update
+                    try {
+                        const updatePath = `businessPersona.${field}`;
+                        await db.collection('partners').doc(partnerId).update({
+                            [updatePath]: parsedValue,
+                            'businessPersona.identity.lastUpdated': FieldValue.serverTimestamp()
+                        });
+
+                        dataUpdated = true;
+
+                        toolParts.push({
+                            functionResponse: {
+                                name: 'update_business_profile',
+                                response: {
+                                    name: 'update_business_profile',
+                                    content: { success: true, message: `Successfully updated ${field}.` }
+                                }
+                            }
+                        });
+                    } catch (err: any) {
+                        console.error("[VibeCoding] DB Error:", err);
+                        toolParts.push({
+                            functionResponse: {
+                                name: 'update_business_profile',
+                                response: {
+                                    name: 'update_business_profile',
+                                    content: { success: false, message: `Failed to update: ${err.message} ` }
+                                }
+                            }
+                        });
+                    }
+                }
+            }
+
+            if (toolParts.length > 0) {
+                const result2 = await chat.sendMessage(toolParts as any);
+                finalResponseText = result2.response.text();
+            }
+        }
+
+        return { success: true, response: finalResponseText, dataUpdated };
+
+    } catch (error: any) {
+        console.error('Error in chatWithPersonaManagerAction:', error);
+        return { success: false, message: error.message };
     }
 }

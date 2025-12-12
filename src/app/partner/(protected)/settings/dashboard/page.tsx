@@ -23,9 +23,11 @@ import {
   CheckCircle2,
   Clock,
   ArrowRight,
+  Bot,
 } from 'lucide-react';
 import type { Partner } from '@/lib/types';
-import type { SetupProgress } from '@/lib/business-persona-types';
+import type { SetupProgress, BusinessPersona } from '@/lib/business-persona-types';
+import PersonaManagerAgent from '@/components/partner/settings/PersonaManagerAgent';
 
 function LoadingSkeleton() {
   return (
@@ -232,20 +234,23 @@ export default function SettingsDashboardPage() {
   const { user, loading: authLoading } = useAuth();
   const [partner, setPartner] = useState<Partner | null>(null);
   const [setupProgress, setSetupProgress] = useState<SetupProgress | null>(null);
+  const [businessPersona, setBusinessPersona] = useState<BusinessPersona | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'view' | 'edit'>('view');
+  const [activeTab, setActiveTab] = useState<string>('view');
 
   const partnerId = user?.customClaims?.partnerId;
 
-  const fetchData = async () => {
+  const fetchData = async (showLoading = true) => {
     if (!partnerId) {
       setError("Partner ID not found in user profile");
       setLoading(false);
       return;
     }
 
-    setLoading(true);
+    if (showLoading) {
+      setLoading(true);
+    }
     setError(null);
 
     try {
@@ -263,9 +268,13 @@ export default function SettingsDashboardPage() {
 
       if (personaResult.success && personaResult.setupProgress) {
         setSetupProgress(personaResult.setupProgress);
+        if (personaResult.persona) {
+          setBusinessPersona(personaResult.persona);
+        }
 
         // Auto-switch to edit mode if profile is very incomplete
-        if (personaResult.setupProgress.overallPercentage < 30) {
+        // Only do this on initial load (when showLoading is true)
+        if (showLoading && personaResult.setupProgress.overallPercentage < 30) {
           setActiveTab('edit');
         }
       }
@@ -274,7 +283,9 @@ export default function SettingsDashboardPage() {
       console.error('Error fetching data:', err);
       setError('An unexpected error occurred. Please try again.');
     } finally {
-      setLoading(false);
+      if (showLoading) {
+        setLoading(false);
+      }
     }
   };
 
@@ -315,7 +326,7 @@ export default function SettingsDashboardPage() {
       )}
 
       {/* Tab Navigation */}
-      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'view' | 'edit')}>
+      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v)}>
         <div className="flex items-center justify-between mb-4">
           <TabsList>
             <TabsTrigger value="view" className="gap-2">
@@ -325,6 +336,10 @@ export default function SettingsDashboardPage() {
             <TabsTrigger value="edit" className="gap-2">
               <Edit className="w-4 h-4" />
               Edit Profile
+            </TabsTrigger>
+            <TabsTrigger value="agent" className="gap-2">
+              <Bot className="w-4 h-4" />
+              AI Manager
             </TabsTrigger>
           </TabsList>
 
@@ -351,6 +366,16 @@ export default function SettingsDashboardPage() {
               fetchData(); // Refresh data
             }}
           />
+        </TabsContent>
+
+        <TabsContent value="agent" className="mt-0">
+          {businessPersona && (
+            <PersonaManagerAgent
+              partnerId={partnerId!}
+              persona={businessPersona}
+              onDataUpdate={() => fetchData(false)}
+            />
+          )}
         </TabsContent>
       </Tabs>
     </div>
