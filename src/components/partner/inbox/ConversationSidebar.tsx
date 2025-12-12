@@ -15,6 +15,7 @@ interface ConversationSidebarProps {
     onSearchChange: (query: string) => void;
     loading: boolean;
     isMobile?: boolean;
+    onNewConversation?: () => void;
 }
 
 // Generate consistent color from string
@@ -40,7 +41,8 @@ export function ConversationSidebar({
     searchQuery,
     onSearchChange,
     loading,
-    isMobile = false
+    isMobile = false,
+    onNewConversation
 }: ConversationSidebarProps) {
     const filteredConversations = React.useMemo(() => {
         if (!searchQuery.trim()) return conversations;
@@ -106,6 +108,7 @@ export function ConversationSidebar({
                     <Button
                         size="sm"
                         className="bg-blue-600 hover:bg-blue-700 text-white font-medium h-9 px-4"
+                        onClick={onNewConversation}
                     >
                         <Plus className="w-4 h-4 mr-1" />
                         New
