@@ -39,6 +39,7 @@ export default function WhatsAppBusinessAPIPage() {
     const [error, setError] = useState<string | null>(null);
     const [success, setSuccess] = useState<string | null>(null);
     const [sdkLoaded, setSdkLoaded] = useState(false);
+    const [sdkError, setSdkError] = useState<string | null>(null);
 
     const sessionDataRef = useRef<{ wabaId: string; phoneNumberId: string } | null>(null);
 
@@ -103,15 +104,43 @@ export default function WhatsAppBusinessAPIPage() {
 
     const initFacebookSDK = useCallback(() => {
         if (typeof window !== 'undefined' && window.FB) {
-            window.FB.init({
-                appId: META_APP_ID,
-                autoLogAppEvents: true,
-                xfbml: true,
-                version: 'v24.0',
-            });
-            setSdkLoaded(true);
-            console.log('✅ Facebook SDK initialized with App ID:', META_APP_ID);
+            try {
+                window.FB.init({
+                    appId: META_APP_ID,
+                    autoLogAppEvents: true,
+                    xfbml: true,
+                    version: 'v24.0',
+                });
+                setSdkLoaded(true);
+                setSdkError(null);
+                console.log('✅ Facebook SDK initialized with App ID:', META_APP_ID);
+            } catch (err: any) {
+                console.error('❌ Facebook SDK initialization error:', err);
+                if (err.message?.includes('Unknown Host') || err.message?.includes('domain')) {
+                    setSdkError('domain');
+                } else {
+                    setSdkError(err.message || 'Failed to initialize Facebook SDK');
+                }
+            }
         }
+    }, []);
+
+    // Listen for Facebook SDK errors via console or global error handler
+    useEffect(() => {
+        const originalConsoleError = console.error;
+        console.error = (...args) => {
+            const errorMessage = args.join(' ');
+            if (errorMessage.includes('Unknown Host') ||
+                errorMessage.includes('host domain') ||
+                errorMessage.includes('Javascript SDK host domain')) {
+                setSdkError('domain');
+            }
+            originalConsoleError.apply(console, args);
+        };
+
+        return () => {
+            console.error = originalConsoleError;
+        };
     }, []);
 
     useEffect(() => {
@@ -337,6 +366,41 @@ export default function WhatsAppBusinessAPIPage() {
                     </Alert>
                 )}
 
+                {sdkError === 'domain' && (
+                    <Alert variant="destructive" className="mb-6">
+                        <AlertCircle className="h-4 w-4" />
+                        <AlertTitle>Facebook SDK Domain Configuration Required</AlertTitle>
+                        <AlertDescription className="space-y-3">
+                            <p>
+                                The Facebook JavaScript SDK cannot load because this domain is not authorized in your Facebook App settings.
+                            </p>
+                            <div className="mt-3 p-3 bg-red-50 rounded border border-red-200">
+                                <p className="font-medium text-red-900 mb-2">To fix this issue:</p>
+                                <ol className="list-decimal list-inside space-y-1 text-sm text-red-800">
+                                    <li>
+                                        Go to{' '}
+                                        <a
+                                            href="https://developers.facebook.com/apps"
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="underline font-semibold inline-flex items-center gap-1"
+                                        >
+                                            Meta Developers Console
+                                            <ExternalLink className="w-3 h-3" />
+                                        </a>
+                                    </li>
+                                    <li>Select your app (App ID: {META_APP_ID})</li>
+                                    <li>Go to <strong>Settings → Basic</strong></li>
+                                    <li>Add <code className="px-1 py-0.5 bg-red-100 rounded">{typeof window !== 'undefined' ? window.location.hostname : 'your-domain.com'}</code> to <strong>App Domains</strong></li>
+                                    <li>Go to <strong>Facebook Login → Settings</strong></li>
+                                    <li>Add <code className="px-1 py-0.5 bg-red-100 rounded">{typeof window !== 'undefined' ? window.location.hostname : 'your-domain.com'}</code> to <strong>Allowed Domains for the JavaScript SDK</strong></li>
+                                    <li>Save changes and refresh this page</li>
+                                </ol>
+                            </div>
+                        </AlertDescription>
+                    </Alert>
+                )}
+
                 {!config && (
                     <>
                         <Card className="mb-6">
@@ -399,13 +463,18 @@ export default function WhatsAppBusinessAPIPage() {
 
                                     <Button
                                         onClick={launchEmbeddedSignup}
-                                        disabled={connecting || !sdkLoaded}
+                                        disabled={connecting || !sdkLoaded || sdkError === 'domain'}
                                         className="w-full bg-[#1877F2] hover:bg-[#166FE5] text-white h-12 text-lg"
                                     >
                                         {connecting ? (
                                             <>
                                                 <Loader2 className="w-5 h-5 mr-2 animate-spin" />
                                                 Connecting...
+                                            </>
+                                        ) : sdkError === 'domain' ? (
+                                            <>
+                                                <AlertCircle className="w-5 h-5 mr-2" />
+                                                Domain Not Configured
                                             </>
                                         ) : !sdkLoaded ? (
                                             <>
@@ -422,9 +491,15 @@ export default function WhatsAppBusinessAPIPage() {
                                         )}
                                     </Button>
 
-                                    {!sdkLoaded && (
+                                    {!sdkLoaded && !sdkError && (
                                         <p className="text-sm text-center text-gray-500">
                                             If the button stays on "Loading", please refresh the page or check if you have an ad blocker enabled.
+                                        </p>
+                                    )}
+
+                                    {sdkError === 'domain' && (
+                                        <p className="text-sm text-center text-red-600">
+                                            Please configure the domain in Meta Developer Console (see error message above) and refresh this page.
                                         </p>
                                     )}
                                 </div>
