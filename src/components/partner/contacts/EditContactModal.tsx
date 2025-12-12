@@ -97,18 +97,18 @@ export default function EditContactModal({
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
           <Tabs defaultValue="basic" className="w-full">
-            <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="basic">
-                <User className="w-4 h-4 mr-2" />
-                Basic Info
+            <TabsList className="grid w-full grid-cols-3">
+              <TabsTrigger value="basic" className="text-xs sm:text-sm">
+                <User className="w-4 h-4 mr-1.5" />
+                <span className="hidden sm:inline">Basic</span>
               </TabsTrigger>
-              <TabsTrigger value="business">
-                <Briefcase className="w-4 h-4 mr-2" />
-                Business Info
+              <TabsTrigger value="business" className="text-xs sm:text-sm">
+                <Briefcase className="w-4 h-4 mr-1.5" />
+                <span className="hidden sm:inline">Business</span>
               </TabsTrigger>
-              <TabsTrigger value="persona">
-                <Sparkles className="w-4 h-4 mr-2 text-purple-500" />
-                Persona
+              <TabsTrigger value="persona" className="text-xs sm:text-sm">
+                <Sparkles className="w-4 h-4 mr-1.5 text-purple-500" />
+                <span className="hidden sm:inline">Persona</span>
               </TabsTrigger>
             </TabsList>
 
