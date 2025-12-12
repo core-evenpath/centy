@@ -17,9 +17,7 @@ import {
     CheckCircle2,
     XCircle,
     Loader2,
-    Copy,
     AlertCircle,
-    ExternalLink,
     Smartphone,
     Shield,
     Zap,
@@ -41,10 +39,6 @@ export default function WhatsAppBusinessAPIPage() {
     const [sdkLoaded, setSdkLoaded] = useState(false);
 
     const sessionDataRef = useRef<{ wabaId: string; phoneNumberId: string } | null>(null);
-
-    const webhookUrl = typeof window !== 'undefined'
-        ? `${window.location.origin}/api/webhooks/meta/whatsapp`
-        : '';
 
     useEffect(() => {
         async function loadStatus() {
@@ -263,23 +257,6 @@ export default function WhatsAppBusinessAPIPage() {
             }
         } catch (err: any) {
             setError(err.message);
-        }
-    };
-
-    const copyToClipboard = (text: string) => {
-        if (navigator.clipboard) {
-            navigator.clipboard.writeText(text);
-            setSuccess('Copied to clipboard!');
-            setTimeout(() => setSuccess(null), 2000);
-        } else {
-            const textArea = document.createElement('textarea');
-            textArea.value = text;
-            document.body.appendChild(textArea);
-            textArea.select();
-            document.execCommand('copy');
-            document.body.removeChild(textArea);
-            setSuccess('Copied to clipboard!');
-            setTimeout(() => setSuccess(null), 2000);
         }
     };
 
@@ -564,71 +541,17 @@ export default function WhatsAppBusinessAPIPage() {
                         {isPending && (
                             <Card className="mb-6 border-amber-200 bg-amber-50">
                                 <CardHeader>
-                                    <CardTitle className="text-amber-900">⚠️ Webhook Configuration Required</CardTitle>
+                                    <CardTitle className="text-amber-900">⚠️ Activation Pending</CardTitle>
                                     <CardDescription className="text-amber-700">
-                                        Complete these final steps to start sending and receiving messages
+                                        Your WhatsApp Business account is connected but not yet activated
                                     </CardDescription>
                                 </CardHeader>
                                 <CardContent>
                                     <div className="space-y-4">
-                                        <div className="p-4 bg-white rounded-lg border">
-                                            <div className="flex items-center justify-between mb-2">
-                                                <p className="text-sm font-medium">Callback URL</p>
-                                                <Button
-                                                    variant="ghost"
-                                                    size="sm"
-                                                    onClick={() => copyToClipboard(webhookUrl)}
-                                                >
-                                                    <Copy className="w-4 h-4 mr-1" />
-                                                    Copy
-                                                </Button>
-                                            </div>
-                                            <code className="block p-2 bg-gray-100 rounded text-sm break-all font-mono">
-                                                {webhookUrl}
-                                            </code>
-                                        </div>
-
-                                        <div className="p-4 bg-white rounded-lg border">
-                                            <div className="flex items-center justify-between mb-2">
-                                                <p className="text-sm font-medium">Verify Token</p>
-                                                <Button
-                                                    variant="ghost"
-                                                    size="sm"
-                                                    onClick={() => copyToClipboard(config.verifyToken || '')}
-                                                >
-                                                    <Copy className="w-4 h-4 mr-1" />
-                                                    Copy
-                                                </Button>
-                                            </div>
-                                            <code className="block p-2 bg-gray-100 rounded text-sm font-mono">
-                                                {config.verifyToken}
-                                            </code>
-                                        </div>
-
-                                        <div className="space-y-2">
-                                            <h4 className="font-medium text-amber-900">Steps to complete:</h4>
-                                            <ol className="list-decimal list-inside space-y-2 text-sm text-amber-800">
-                                                <li>
-                                                    Go to{' '}
-                                                    <a
-                                                        href="https://developers.facebook.com/apps"
-                                                        target="_blank"
-                                                        rel="noopener noreferrer"
-                                                        className="underline font-semibold inline-flex items-center gap-1 text-blue-600"
-                                                    >
-                                                        Meta App Dashboard
-                                                        <ExternalLink className="w-3 h-3" />
-                                                    </a>
-                                                </li>
-                                                <li>Select your app and navigate to <strong>WhatsApp → Configuration</strong></li>
-                                                <li>In the <strong>Webhook</strong> section, click <strong>"Edit"</strong></li>
-                                                <li>Paste the <strong>Callback URL</strong> above</li>
-                                                <li>Paste the <strong>Verify Token</strong> above</li>
-                                                <li>Click <strong>"Verify and Save"</strong></li>
-                                                <li>Under Webhook Fields, click <strong>"Manage"</strong> and subscribe to <strong>"messages"</strong></li>
-                                                <li>Come back here and click the <strong>"Activate Connection"</strong> button below</li>
-                                            </ol>
-                                        </div>
+                                        <p className="text-sm text-amber-800">
+                                            Click the button below to activate your WhatsApp Business API integration
+                                            and start sending and receiving messages.
+                                        </p>
 
                                         <Button onClick={handleActivate} className="w-full" size="lg">
                                             <CheckCircle2 className="w-4 h-4 mr-2" />
@@ -647,11 +570,16 @@ export default function WhatsAppBusinessAPIPage() {
                                         Your WhatsApp Business API is connected and ready to use
                                     </CardDescription>
                                 </CardHeader>
-                                <CardContent>
+                                <CardContent className="space-y-4">
                                     <p className="text-sm text-green-800">
-                                        You can now send and receive WhatsApp messages through the ChatSpace.
+                                        You can now send and receive WhatsApp messages through the Inbox.
                                         Messages will be delivered to your connected phone number.
                                     </p>
+                                    <Button asChild className="bg-green-600 hover:bg-green-700">
+                                        <a href="/partner/inbox">
+                                            Go to Inbox →
+                                        </a>
+                                    </Button>
                                 </CardContent>
                             </Card>
                         )}

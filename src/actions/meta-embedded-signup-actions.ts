@@ -278,6 +278,8 @@ export async function completeEmbeddedSignup(
         const verifyToken = generateVerifyToken();
         const encryptedAccessToken = encrypt(accessToken);
 
+        // With embedded signup, the app subscription handles webhooks at the app level.
+        // The webhook is configured platform-wide in Admin settings, so we can auto-activate.
         const configData = {
             phoneNumberId,
             wabaId,
@@ -286,9 +288,10 @@ export async function completeEmbeddedSignup(
             displayPhoneNumber: phoneDetails.data.display_phone_number,
             verifiedName: phoneDetails.data.verified_name,
             qualityRating: phoneDetails.data.quality_rating,
-            webhookConfigured: false,
-            status: 'pending' as const,
+            webhookConfigured: true,  // App-level webhook handles all partners
+            status: 'active' as const, // Auto-activate for embedded signup
             integrationType: 'embedded_signup' as const,
+            lastVerifiedAt: new Date().toISOString(),
             tokenExpiresAt: tokenResult.expiresIn
                 ? new Date(Date.now() + tokenResult.expiresIn * 1000).toISOString()
                 : undefined,
@@ -310,11 +313,11 @@ export async function completeEmbeddedSignup(
 
         await db.collection('metaPhoneMappings').doc(phoneNumberId).set(phoneMapping);
 
-        console.log('✅ Embedded Signup completed successfully for partner:', partnerId);
+        console.log('✅ Embedded Signup completed and activated for partner:', partnerId);
 
         return {
             success: true,
-            message: 'WhatsApp Business API connected successfully. Please configure the webhook to activate.',
+            message: 'WhatsApp Business API connected and activated! You can now send and receive messages.',
             verifyToken,
         };
     } catch (error: any) {
