@@ -146,23 +146,92 @@ export async function disconnectMetaWhatsApp(
     }
 
     try {
-        const partnerDoc = await db.collection('partners').doc(partnerId).get();
-        const config = partnerDoc.data()?.metaWhatsAppConfig as MetaWhatsAppConfig;
-
-        if (config?.phoneNumberId) {
-            await db.collection('metaPhoneMappings').doc(config.phoneNumberId).delete();
-        }
-
+        // Only update status to disconnected - keep all config for easy reconnection
         await db.collection('partners').doc(partnerId).update({
             'metaWhatsAppConfig.status': 'disconnected',
-            'metaWhatsAppConfig.encryptedAccessToken': FieldValue.delete(),
+            'metaWhatsAppConfig.webhookConfigured': false,
             'metaWhatsAppConfig.updatedAt': new Date().toISOString(),
         });
 
-        console.log(`✅ Meta WhatsApp disconnected for partner: ${partnerId}`);
-        return { success: true, message: 'WhatsApp Business disconnected' };
+        console.log(`✅ Meta WhatsApp disconnected (paused) for partner: ${partnerId}`);
+        return { success: true, message: 'WhatsApp Business disconnected. You can reconnect anytime.' };
     } catch (error: any) {
         console.error('❌ Error disconnecting Meta WhatsApp:', error);
+        return { success: false, message: error.message };
+    }
+}
+
+export async function deleteMetaWhatsAppAccount(
+    partnerId: string,
+    deleteConversations: boolean = false
+): Promise<{ success: boolean; message: string }> {
+    if (!db) {
+        return { success: false, message: 'Database not available' };
+    }
+
+    try {
+        const partnerDoc = await db.collection('partners').doc(partnerId).get();
+        const config = partnerDoc.data()?.metaWhatsAppConfig as MetaWhatsAppConfig;
+
+        // Delete phone mapping if exists
+        if (config?.phoneNumberId && config.phoneNumberId !== 'pending') {
+            try {
+                await db.collection('metaPhoneMappings').doc(config.phoneNumberId).delete();
+                console.log(`✅ Deleted phone mapping: ${config.phoneNumberId}`);
+            } catch (err) {
+                console.warn(`⚠️ Could not delete phone mapping: ${config.phoneNumberId}`);
+            }
+        }
+
+        // Optionally delete all conversations and messages
+        if (deleteConversations) {
+            // Get all conversations for this partner
+            const conversationsSnapshot = await db
+                .collection('metaWhatsAppConversations')
+                .where('partnerId', '==', partnerId)
+                .get();
+
+            const batch = db.batch();
+            let deleteCount = 0;
+
+            for (const convDoc of conversationsSnapshot.docs) {
+                // Delete all messages in this conversation
+                const messagesSnapshot = await db
+                    .collection('metaWhatsAppMessages')
+                    .where('conversationId', '==', convDoc.id)
+                    .get();
+
+                messagesSnapshot.docs.forEach(msgDoc => {
+                    batch.delete(msgDoc.ref);
+                    deleteCount++;
+                });
+
+                // Delete the conversation
+                batch.delete(convDoc.ref);
+                deleteCount++;
+            }
+
+            if (deleteCount > 0) {
+                await batch.commit();
+                console.log(`✅ Deleted ${deleteCount} conversations/messages for partner: ${partnerId}`);
+            }
+        }
+
+        // Remove the entire metaWhatsAppConfig from the partner document
+        await db.collection('partners').doc(partnerId).update({
+            metaWhatsAppConfig: FieldValue.delete(),
+            updatedAt: FieldValue.serverTimestamp(),
+        });
+
+        console.log(`✅ Meta WhatsApp account deleted for partner: ${partnerId}`);
+        return {
+            success: true,
+            message: deleteConversations
+                ? 'WhatsApp Business account and all conversations deleted. You can now set up a new account.'
+                : 'WhatsApp Business account deleted. You can now set up a new account.'
+        };
+    } catch (error: any) {
+        console.error('❌ Error deleting Meta WhatsApp account:', error);
         return { success: false, message: error.message };
     }
 }
