@@ -11,8 +11,7 @@ import {
     updateConversationAgentsAction
 } from '@/actions/meta-whatsapp-actions';
 import { getEmbeddedSignupStatus } from '@/actions/meta-embedded-signup-actions';
-import { generateInboxSuggestionAction } from '@/actions/partnerhub-actions';
-import { getActiveAssistantsAction } from '@/actions/assistant-actions';
+import { generateInboxSuggestionAction, getActiveAgentsAction } from '@/actions/partnerhub-actions';
 import { cn } from '@/lib/utils';
 import { Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -107,9 +106,9 @@ export default function InboxPage() {
             });
 
             setAgentsLoading(true);
-            getActiveAssistantsAction(currentPartnerId).then(res => {
-                if (res.success && res.assistants) {
-                    setActiveAgents(res.assistants);
+            getActiveAgentsAction(currentPartnerId).then(res => {
+                if (res.success && res.agents) {
+                    setActiveAgents(res.agents);
                 }
                 setAgentsLoading(false);
             });
