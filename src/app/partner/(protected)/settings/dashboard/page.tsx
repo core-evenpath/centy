@@ -2,6 +2,7 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from 'react';
+import Link from 'next/link';
 import { useAuth } from '@/hooks/use-auth';
 import { getPartnerProfileAction } from '@/actions/get-partner-profile';
 import { getBusinessPersonaAction, chatWithPersonaManagerAction } from '@/actions/business-persona-actions';
@@ -18,12 +19,11 @@ import {
   AlertCircle,
   Building2,
   RefreshCw,
-  Eye,
   Edit,
   Sparkles,
   CheckCircle2,
   Clock,
-  ArrowRight,
+  ArrowLeft,
   Bot,
   Send,
   User,
@@ -32,27 +32,13 @@ import {
   MapPin,
   Globe,
   Package,
-  MessageSquare,
   Loader2,
   Lightbulb,
-  Zap,
-  Target,
   HelpCircle,
-  CreditCard,
-  Languages,
-  Heart,
-  Settings2,
   ChevronRight,
-  PenLine,
-  FileText,
-  PlayCircle,
-  Wand2,
-  Shield,
-  Star,
-  Calendar,
   Database,
+  ArrowRight,
 } from 'lucide-react';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { cn } from '@/lib/utils';
 import type { Partner } from '@/lib/types';
 import type { SetupProgress, BusinessPersona } from '@/lib/business-persona-types';
@@ -66,24 +52,17 @@ interface Message {
 // Loading Skeleton
 function LoadingSkeleton() {
   return (
-    <div className="space-y-6">
-      <Card className="bg-gradient-to-r from-indigo-500/10 to-purple-500/10 border-0">
-        <CardContent className="py-6">
-          <div className="flex items-center gap-4">
-            <Skeleton className="h-16 w-16 rounded-2xl" />
-            <div className="space-y-2 flex-1">
-              <Skeleton className="h-6 w-48" />
-              <Skeleton className="h-4 w-64" />
-            </div>
-            <Skeleton className="h-10 w-32" />
-          </div>
-        </CardContent>
-      </Card>
-      <div className="grid lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2">
-          <Skeleton className="h-[600px] rounded-xl" />
+    <div className="h-full flex flex-col bg-slate-50">
+      <div className="bg-white border-b border-slate-200 px-6 py-5">
+        <Skeleton className="h-6 w-48 mb-2" />
+        <Skeleton className="h-4 w-64" />
+      </div>
+      <div className="flex-1 overflow-auto p-6 space-y-6 max-w-5xl mx-auto w-full">
+        <Skeleton className="h-32 rounded-lg" />
+        <div className="grid lg:grid-cols-3 gap-6">
+          <Skeleton className="lg:col-span-2 h-[500px] rounded-lg" />
+          <Skeleton className="h-[500px] rounded-lg" />
         </div>
-        <Skeleton className="h-[600px] rounded-xl" />
       </div>
     </div>
   );
@@ -92,26 +71,26 @@ function LoadingSkeleton() {
 // Error State
 function ErrorState({ message, partnerId, onRetry }: { message: string; partnerId?: string; onRetry: () => void }) {
   return (
-    <Card className="border-destructive/50">
-      <CardContent className="pt-6">
-        <div className="flex flex-col items-center text-center py-6">
-          <div className="w-12 h-12 rounded-full bg-destructive/10 flex items-center justify-center mb-4">
-            <AlertCircle className="w-6 h-6 text-destructive" />
+    <div className="h-full flex flex-col bg-slate-50">
+      <div className="flex-1 flex items-center justify-center">
+        <div className="text-center p-8">
+          <div className="w-16 h-16 rounded-full bg-red-100 flex items-center justify-center mx-auto mb-4">
+            <AlertCircle className="w-8 h-8 text-red-600" />
           </div>
-          <h3 className="text-lg font-semibold text-destructive mb-2">Failed to Load Profile</h3>
-          <p className="text-sm text-muted-foreground mb-4 max-w-sm">{message}</p>
+          <h3 className="text-lg font-semibold text-slate-900 mb-2">Failed to Load Profile</h3>
+          <p className="text-slate-500 mb-4 max-w-sm">{message}</p>
           {partnerId && (
-            <p className="text-xs text-muted-foreground mb-4 font-mono bg-muted px-2 py-1 rounded">
+            <p className="text-xs text-slate-400 mb-4 font-mono bg-slate-100 px-2 py-1 rounded inline-block">
               Partner ID: {partnerId}
             </p>
           )}
-          <Button onClick={onRetry} variant="outline" size="sm">
-            <RefreshCw className="w-4 h-4 mr-2" />
+          <Button onClick={onRetry} variant="outline" size="sm" className="gap-2">
+            <RefreshCw className="w-4 h-4" />
             Try Again
           </Button>
         </div>
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   );
 }
 
@@ -122,7 +101,7 @@ function QuickActionCard({
   description,
   isComplete,
   onClick,
-  color = 'indigo'
+  color = 'slate'
 }: {
   icon: any;
   title: string;
@@ -131,39 +110,31 @@ function QuickActionCard({
   onClick: () => void;
   color?: string;
 }) {
-  const colors: Record<string, string> = {
-    indigo: 'bg-indigo-50 text-indigo-600 border-indigo-200 hover:border-indigo-400',
-    green: 'bg-green-50 text-green-600 border-green-200 hover:border-green-400',
-    purple: 'bg-purple-50 text-purple-600 border-purple-200 hover:border-purple-400',
-    amber: 'bg-amber-50 text-amber-600 border-amber-200 hover:border-amber-400',
-    blue: 'bg-blue-50 text-blue-600 border-blue-200 hover:border-blue-400',
-  };
-
   return (
     <button
       onClick={onClick}
       className={cn(
-        "p-3 rounded-xl border-2 text-left transition-all group",
-        isComplete ? "bg-green-50 border-green-300" : colors[color]
+        "p-4 rounded-xl border bg-white text-left transition-all group hover:shadow-sm",
+        isComplete ? "border-green-200 hover:border-green-300" : "border-slate-200 hover:border-slate-300"
       )}
     >
       <div className="flex items-start gap-3">
         <div className={cn(
-          "w-9 h-9 rounded-lg flex items-center justify-center shrink-0",
-          isComplete ? "bg-green-100" : `bg-${color}-100`
+          "w-10 h-10 rounded-lg flex items-center justify-center shrink-0 transition-colors",
+          isComplete ? "bg-green-100" : "bg-slate-100 group-hover:bg-slate-200"
         )}>
           {isComplete ? (
             <CheckCircle2 className="w-5 h-5 text-green-600" />
           ) : (
-            <Icon className="w-5 h-5" />
+            <Icon className="w-5 h-5 text-slate-600" />
           )}
         </div>
         <div className="min-w-0 flex-1">
-          <div className="font-medium text-sm text-gray-900 flex items-center gap-2">
+          <div className="font-medium text-sm text-slate-900 flex items-center gap-2">
             {title}
-            <ChevronRight className="w-3 h-3 opacity-0 -translate-x-1 group-hover:opacity-100 group-hover:translate-x-0 transition-all" />
+            <ChevronRight className="w-3 h-3 opacity-0 -translate-x-1 group-hover:opacity-100 group-hover:translate-x-0 transition-all text-slate-400" />
           </div>
-          <div className="text-xs text-muted-foreground mt-0.5 line-clamp-1">{description}</div>
+          <div className="text-xs text-slate-500 mt-0.5">{description}</div>
         </div>
       </div>
     </button>
@@ -179,31 +150,32 @@ function ProfileSidebar({ persona, progress }: { persona: BusinessPersona | null
   const knowledge = persona.knowledge;
 
   return (
-    <Card className="h-full border-2 overflow-hidden">
-      <CardHeader className="bg-gradient-to-br from-slate-50 to-slate-100/50 border-b pb-4">
+    <div className="bg-white rounded-xl border border-slate-200 overflow-hidden h-full flex flex-col">
+      <div className="px-5 py-4 bg-slate-50 border-b border-slate-200">
         <div className="flex items-center justify-between">
-          <CardTitle className="text-base flex items-center gap-2">
-            <Database className="w-4 h-4 text-slate-600" />
-            Business Data Summary
-          </CardTitle>
+          <h3 className="font-medium text-slate-900 flex items-center gap-2">
+            <Database className="w-4 h-4 text-slate-500" />
+            Data Summary
+          </h3>
           {progress && (
             <Badge variant={progress.overallPercentage >= 80 ? 'default' : 'secondary'}
-              className={progress.overallPercentage >= 80 ? 'bg-green-500' : ''}>
+              className={cn("text-xs", progress.overallPercentage >= 80 && 'bg-green-600')}>
               {progress.overallPercentage}%
             </Badge>
           )}
         </div>
         {progress && (
-          <Progress value={progress.overallPercentage} className="h-1.5 mt-2" />
+          <Progress value={progress.overallPercentage} className="h-1.5 mt-3" />
         )}
-      </CardHeader>
-      <ScrollArea className="h-[calc(100%-80px)]">
-        <CardContent className="pt-4 space-y-4">
+      </div>
+
+      <ScrollArea className="flex-1">
+        <div className="p-5 space-y-4">
           {/* Business Name & Industry */}
           <div>
-            <h3 className="font-semibold text-lg">{identity?.name || 'Your Business'}</h3>
+            <h4 className="font-semibold text-slate-900">{identity?.name || 'Your Business'}</h4>
             {identity?.industry?.name && (
-              <p className="text-sm text-muted-foreground flex items-center gap-1 mt-1">
+              <p className="text-sm text-slate-500 flex items-center gap-1 mt-1">
                 <span>{identity.industry.icon}</span>
                 {identity.industry.name}
               </p>
@@ -212,42 +184,40 @@ function ProfileSidebar({ persona, progress }: { persona: BusinessPersona | null
 
           {/* Description */}
           {personality?.description && (
-            <div>
-              <p className="text-sm text-muted-foreground line-clamp-3">{personality.description}</p>
-            </div>
+            <p className="text-sm text-slate-600 line-clamp-3">{personality.description}</p>
           )}
 
           <Separator />
 
           {/* Contact Info */}
           <div className="space-y-2">
-            <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Contact</h4>
+            <h5 className="text-xs font-medium text-slate-400 uppercase tracking-wide">Contact</h5>
             {identity?.phone && (
-              <div className="flex items-center gap-2 text-sm">
-                <Phone className="w-3.5 h-3.5 text-muted-foreground" />
+              <div className="flex items-center gap-2 text-sm text-slate-600">
+                <Phone className="w-3.5 h-3.5 text-slate-400" />
                 <span>{identity.phone}</span>
               </div>
             )}
             {identity?.email && (
-              <div className="flex items-center gap-2 text-sm">
-                <Mail className="w-3.5 h-3.5 text-muted-foreground" />
+              <div className="flex items-center gap-2 text-sm text-slate-600">
+                <Mail className="w-3.5 h-3.5 text-slate-400" />
                 <span className="truncate">{identity.email}</span>
               </div>
             )}
             {identity?.website && (
-              <div className="flex items-center gap-2 text-sm">
-                <Globe className="w-3.5 h-3.5 text-muted-foreground" />
+              <div className="flex items-center gap-2 text-sm text-slate-600">
+                <Globe className="w-3.5 h-3.5 text-slate-400" />
                 <span className="truncate">{identity.website}</span>
               </div>
             )}
             {identity?.address?.city && (
-              <div className="flex items-center gap-2 text-sm">
-                <MapPin className="w-3.5 h-3.5 text-muted-foreground" />
+              <div className="flex items-center gap-2 text-sm text-slate-600">
+                <MapPin className="w-3.5 h-3.5 text-slate-400" />
                 <span>{identity.address.city}{identity.address.state ? `, ${identity.address.state}` : ''}</span>
               </div>
             )}
             {!identity?.phone && !identity?.email && !identity?.website && !identity?.address?.city && (
-              <p className="text-xs text-muted-foreground italic">No contact info added yet</p>
+              <p className="text-xs text-slate-400 italic">No contact info added yet</p>
             )}
           </div>
 
@@ -255,7 +225,7 @@ function ProfileSidebar({ persona, progress }: { persona: BusinessPersona | null
 
           {/* Operating Hours */}
           <div className="space-y-2">
-            <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Hours</h4>
+            <h5 className="text-xs font-medium text-slate-400 uppercase tracking-wide">Hours</h5>
             {identity?.operatingHours?.isOpen24x7 ? (
               <div className="flex items-center gap-2 text-sm">
                 <Clock className="w-3.5 h-3.5 text-green-500" />
@@ -272,10 +242,7 @@ function ProfileSidebar({ persona, progress }: { persona: BusinessPersona | null
                 <span className="text-blue-600 font-medium">Online 24/7</span>
               </div>
             ) : (
-              <p className="text-xs text-muted-foreground italic">Hours not set</p>
-            )}
-            {identity?.operatingHours?.specialNote && (
-              <p className="text-xs text-muted-foreground">{identity.operatingHours.specialNote}</p>
+              <p className="text-xs text-slate-400 italic">Hours not set</p>
             )}
           </div>
 
@@ -283,7 +250,7 @@ function ProfileSidebar({ persona, progress }: { persona: BusinessPersona | null
 
           {/* Brand Voice */}
           <div className="space-y-2">
-            <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Brand Voice</h4>
+            <h5 className="text-xs font-medium text-slate-400 uppercase tracking-wide">Brand Voice</h5>
             {personality?.voiceTone && personality.voiceTone.length > 0 ? (
               <div className="flex flex-wrap gap-1">
                 {personality.voiceTone.map(tone => (
@@ -293,7 +260,7 @@ function ProfileSidebar({ persona, progress }: { persona: BusinessPersona | null
                 ))}
               </div>
             ) : (
-              <p className="text-xs text-muted-foreground italic">No voice tone set</p>
+              <p className="text-xs text-slate-400 italic">No voice tone set</p>
             )}
           </div>
 
@@ -302,7 +269,7 @@ function ProfileSidebar({ persona, progress }: { persona: BusinessPersona | null
             <>
               <Separator />
               <div className="space-y-2">
-                <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Unique Selling Points</h4>
+                <h5 className="text-xs font-medium text-slate-400 uppercase tracking-wide">Selling Points</h5>
                 <div className="flex flex-wrap gap-1">
                   {personality.uniqueSellingPoints.slice(0, 5).map((usp, i) => (
                     <Badge key={i} variant="secondary" className="text-xs">
@@ -319,23 +286,21 @@ function ProfileSidebar({ persona, progress }: { persona: BusinessPersona | null
             <>
               <Separator />
               <div className="space-y-2">
-                <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                  Products & Services ({knowledge.productsOrServices.length})
-                </h4>
+                <h5 className="text-xs font-medium text-slate-400 uppercase tracking-wide">
+                  Products ({knowledge.productsOrServices.length})
+                </h5>
                 <div className="space-y-1">
                   {knowledge.productsOrServices.slice(0, 3).map(product => (
-                    <div key={product.id} className="text-sm flex items-center gap-2">
-                      <Package className="w-3 h-3 text-muted-foreground" />
+                    <div key={product.id} className="text-sm flex items-center gap-2 text-slate-600">
+                      <Package className="w-3 h-3 text-slate-400" />
                       <span className="truncate">{product.name}</span>
                       {product.priceRange && (
-                        <span className="text-xs text-muted-foreground ml-auto">{product.priceRange}</span>
+                        <span className="text-xs text-slate-400 ml-auto">{product.priceRange}</span>
                       )}
                     </div>
                   ))}
                   {knowledge.productsOrServices.length > 3 && (
-                    <p className="text-xs text-muted-foreground">
-                      +{knowledge.productsOrServices.length - 3} more
-                    </p>
+                    <p className="text-xs text-slate-400">+{knowledge.productsOrServices.length - 3} more</p>
                   )}
                 </div>
               </div>
@@ -347,12 +312,12 @@ function ProfileSidebar({ persona, progress }: { persona: BusinessPersona | null
             <>
               <Separator />
               <div className="space-y-2">
-                <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                <h5 className="text-xs font-medium text-slate-400 uppercase tracking-wide">
                   FAQs ({knowledge.faqs.length})
-                </h4>
+                </h5>
                 <div className="space-y-1">
                   {knowledge.faqs.slice(0, 2).map(faq => (
-                    <div key={faq.id} className="text-xs text-muted-foreground">
+                    <div key={faq.id} className="text-xs text-slate-500">
                       <HelpCircle className="w-3 h-3 inline mr-1" />
                       {faq.question.length > 40 ? faq.question.slice(0, 40) + '...' : faq.question}
                     </div>
@@ -361,35 +326,13 @@ function ProfileSidebar({ persona, progress }: { persona: BusinessPersona | null
               </div>
             </>
           )}
-
-          {/* Languages */}
-          {personality?.languagePreference && personality.languagePreference.length > 0 && (
-            <>
-              <Separator />
-              <div className="space-y-2">
-                <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Languages</h4>
-                <p className="text-sm">{personality.languagePreference.join(', ')}</p>
-              </div>
-            </>
-          )}
-
-          {/* Payment Methods */}
-          {knowledge?.acceptedPayments && knowledge.acceptedPayments.length > 0 && (
-            <>
-              <Separator />
-              <div className="space-y-2">
-                <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Payments</h4>
-                <p className="text-sm">{knowledge.acceptedPayments.join(', ')}</p>
-              </div>
-            </>
-          )}
-        </CardContent>
+        </div>
       </ScrollArea>
-    </Card>
+    </div>
   );
 }
 
-// AI Manager Chat Interface - Enhanced
+// AI Manager Chat Interface
 function AIManagerChat({
   partnerId,
   persona,
@@ -452,57 +395,53 @@ function AIManagerChat({
     { icon: Phone, text: "Add contact details", prompt: "Help me add my contact information including phone, email and address" },
     { icon: Clock, text: "Set operating hours", prompt: "I want to set my operating hours" },
     { icon: Package, text: "Add a product/service", prompt: "I want to add a new product or service to my profile" },
-    { icon: HelpCircle, text: "Add an FAQ", prompt: "Help me add a frequently asked question" },
-    { icon: Heart, text: "Set brand voice", prompt: "Help me configure my brand voice and tone" },
-    { icon: PlayCircle, text: "Simulate conversation", prompt: "Simulate a conversation with a customer interested in my main product" },
-    { icon: Lightbulb, text: "Review my profile", prompt: "Review my profile and suggest improvements" },
   ];
 
   return (
-    <Card className="h-full flex flex-col border-2 border-indigo-100 overflow-hidden">
+    <div className="bg-white rounded-xl border border-slate-200 overflow-hidden h-full flex flex-col">
       {/* Header */}
-      <CardHeader className="bg-gradient-to-r from-indigo-600 to-purple-600 text-white pb-4 border-b-0">
+      <div className="px-5 py-4 bg-gradient-to-r from-slate-900 to-slate-800 text-white">
         <div className="flex items-center gap-3">
-          <div className="w-12 h-12 rounded-xl bg-white/20 flex items-center justify-center shadow-lg ring-2 ring-white/30">
-            <Bot className="w-7 h-7" />
+          <div className="w-10 h-10 rounded-lg bg-white/10 flex items-center justify-center">
+            <Bot className="w-5 h-5" />
           </div>
           <div className="flex-1">
-            <CardTitle className="text-lg flex items-center gap-2">
-              Business Data Assistant
-              <Badge variant="secondary" className="bg-white/20 text-white border-0 text-[10px]">
-                Powered by Gemini
+            <div className="flex items-center gap-2">
+              <h3 className="font-medium">Business Data Assistant</h3>
+              <Badge className="bg-white/20 text-white border-0 text-[10px]">
+                Powered by Centy
               </Badge>
-            </CardTitle>
-            <CardDescription className="text-indigo-100">
-              Manage the data that powers your AI agents
-            </CardDescription>
+            </div>
+            <p className="text-slate-300 text-xs mt-0.5">
+              Chat to manage your business data
+            </p>
           </div>
         </div>
-      </CardHeader>
+      </div>
 
       {/* Chat Messages */}
-      <CardContent className="flex-1 overflow-hidden p-0 flex flex-col bg-gradient-to-b from-slate-50/50 to-white">
+      <div className="flex-1 overflow-hidden flex flex-col">
         <ScrollArea className="flex-1 p-4">
-          <div className="space-y-4 max-w-2xl mx-auto">
+          <div className="space-y-4">
             {messages.map((m, i) => (
               <div
                 key={i}
                 className={cn(
-                  "flex gap-3 animate-in fade-in slide-in-from-bottom-2",
+                  "flex gap-3",
                   m.role === 'user' ? "flex-row-reverse" : ""
                 )}
               >
                 <div className={cn(
-                  "w-8 h-8 rounded-full flex items-center justify-center shrink-0 shadow-sm",
-                  m.role === 'user' ? "bg-slate-200" : "bg-gradient-to-br from-indigo-500 to-purple-600 text-white"
+                  "w-8 h-8 rounded-full flex items-center justify-center shrink-0",
+                  m.role === 'user' ? "bg-slate-200" : "bg-slate-900 text-white"
                 )}>
                   {m.role === 'user' ? <User className="w-4 h-4 text-slate-600" /> : <Sparkles className="w-4 h-4" />}
                 </div>
                 <div className={cn(
-                  "p-3 rounded-2xl max-w-[85%] text-sm shadow-sm",
+                  "p-3 rounded-xl max-w-[85%] text-sm",
                   m.role === 'user'
-                    ? "bg-white text-gray-900 rounded-tr-sm border"
-                    : "bg-gradient-to-br from-indigo-500 to-purple-600 text-white rounded-tl-sm"
+                    ? "bg-slate-100 text-slate-900 rounded-tr-sm"
+                    : "bg-slate-900 text-white rounded-tl-sm"
                 )}>
                   {m.content.split('\n').map((line, j) => (
                     <p key={j} className={j > 0 ? "mt-2" : ""}>{line}</p>
@@ -512,16 +451,16 @@ function AIManagerChat({
             ))}
             {isLoading && (
               <div className="flex gap-3">
-                <div className="w-8 h-8 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shrink-0 shadow-sm">
+                <div className="w-8 h-8 rounded-full bg-slate-900 flex items-center justify-center shrink-0">
                   <Loader2 className="w-4 h-4 animate-spin text-white" />
                 </div>
-                <div className="p-3 rounded-2xl rounded-tl-sm bg-indigo-50 text-sm text-indigo-700 border border-indigo-100">
+                <div className="p-3 rounded-xl rounded-tl-sm bg-slate-100 text-sm text-slate-600">
                   <span className="flex items-center gap-2">
-                    <span className="animate-pulse">Thinking</span>
+                    <span>Thinking</span>
                     <span className="flex gap-1">
-                      <span className="w-1 h-1 bg-indigo-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-                      <span className="w-1 h-1 bg-indigo-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-                      <span className="w-1 h-1 bg-indigo-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                      <span className="w-1 h-1 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                      <span className="w-1 h-1 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                      <span className="w-1 h-1 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
                     </span>
                   </span>
                 </div>
@@ -533,17 +472,17 @@ function AIManagerChat({
 
         {/* Quick Suggestions */}
         {messages.length < 4 && !isLoading && (
-          <div className="border-t bg-slate-50/80 p-3">
-            <p className="text-xs text-muted-foreground mb-2 px-1">Quick actions:</p>
+          <div className="border-t border-slate-100 bg-slate-50 p-3">
+            <p className="text-xs text-slate-500 mb-2">Quick actions:</p>
             <div className="grid grid-cols-2 gap-2">
-              {suggestions.slice(0, 4).map((s, i) => (
+              {suggestions.map((s, i) => (
                 <button
                   key={i}
                   onClick={() => handleSend(s.prompt)}
-                  className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs text-left bg-white border border-slate-200 hover:border-indigo-300 hover:bg-indigo-50 transition-colors"
+                  className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs text-left bg-white border border-slate-200 hover:border-slate-300 hover:bg-slate-50 transition-colors"
                 >
-                  <s.icon className="w-3.5 h-3.5 text-indigo-500" />
-                  <span className="truncate">{s.text}</span>
+                  <s.icon className="w-3.5 h-3.5 text-slate-500" />
+                  <span className="truncate text-slate-600">{s.text}</span>
                 </button>
               ))}
             </div>
@@ -551,28 +490,28 @@ function AIManagerChat({
         )}
 
         {/* Input Area */}
-        <div className="border-t bg-white p-3">
-          <div className="flex gap-2 max-w-2xl mx-auto">
+        <div className="border-t border-slate-200 bg-white p-3">
+          <div className="flex gap-2">
             <Input
               value={input}
               onChange={e => setInput(e.target.value)}
               placeholder="Tell me what you'd like to update..."
               onKeyDown={e => e.key === 'Enter' && !e.shiftKey && handleSend()}
               disabled={isLoading}
-              className="bg-slate-50 border-slate-200 focus-visible:ring-indigo-500"
+              className="bg-slate-50 border-slate-200"
             />
             <Button
               onClick={() => handleSend()}
               disabled={isLoading || !input.trim()}
               size="icon"
-              className="bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 shrink-0 shadow-md"
+              className="bg-slate-900 hover:bg-slate-800 shrink-0"
             >
               <Send className="w-4 h-4" />
             </Button>
           </div>
         </div>
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   );
 }
 
@@ -644,261 +583,231 @@ export default function SettingsDashboardPage() {
 
   if (!partner) {
     return (
-      <Card>
-        <CardContent className="pt-6">
-          <div className="flex flex-col items-center text-center py-8">
-            <div className="w-14 h-14 rounded-full bg-muted flex items-center justify-center mb-4">
-              <Building2 className="w-7 h-7 text-muted-foreground" />
+      <div className="h-full flex flex-col bg-slate-50">
+        <div className="flex-1 flex items-center justify-center">
+          <div className="text-center p-8">
+            <div className="w-16 h-16 rounded-full bg-slate-100 flex items-center justify-center mx-auto mb-4">
+              <Building2 className="w-8 h-8 text-slate-400" />
             </div>
-            <h3 className="text-lg font-semibold mb-2">No Organization Profile</h3>
-            <p className="text-sm text-muted-foreground max-w-sm">
+            <h3 className="text-lg font-semibold text-slate-900 mb-2">No Organization Profile</h3>
+            <p className="text-slate-500 max-w-sm">
               Your organization profile hasn't been set up yet.
             </p>
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
     );
   }
 
   // Manual Edit Mode
   if (showManualEdit) {
     return (
-      <div className="space-y-4">
-        <div className="flex items-center justify-between">
-          <Button
-            variant="ghost"
-            onClick={() => setShowManualEdit(false)}
-            className="gap-2"
-          >
-            <ArrowRight className="w-4 h-4 rotate-180" />
-            Back to Business Data
-          </Button>
-          {setupProgress && (
-            <Badge
-              variant={setupProgress.overallPercentage >= 80 ? 'default' : 'secondary'}
-              className={setupProgress.overallPercentage >= 80 ? 'bg-green-500' : ''}
+      <div className="h-full flex flex-col bg-slate-50">
+        <div className="bg-white border-b border-slate-200 px-6 py-4">
+          <div className="flex items-center justify-between max-w-5xl mx-auto">
+            <button
+              onClick={() => setShowManualEdit(false)}
+              className="flex items-center gap-2 text-slate-600 hover:text-slate-900 transition-colors text-sm"
             >
-              {setupProgress.overallPercentage}% Complete
-            </Badge>
-          )}
+              <ArrowLeft className="w-4 h-4" />
+              Back to Business Data
+            </button>
+            {setupProgress && (
+              <Badge
+                variant={setupProgress.overallPercentage >= 80 ? 'default' : 'secondary'}
+                className={cn("text-xs", setupProgress.overallPercentage >= 80 && 'bg-green-600')}
+              >
+                {setupProgress.overallPercentage}% Complete
+              </Badge>
+            )}
+          </div>
         </div>
-        <BusinessPersonaBuilder
-          partnerId={partnerId!}
-          mode="settings"
-          onComplete={() => {
-            setShowManualEdit(false);
-            fetchData();
-          }}
-        />
+        <div className="flex-1 overflow-auto">
+          <div className="p-6 max-w-5xl mx-auto">
+            <BusinessPersonaBuilder
+              partnerId={partnerId!}
+              mode="settings"
+              onComplete={() => {
+                setShowManualEdit(false);
+                fetchData();
+              }}
+            />
+          </div>
+        </div>
       </div>
     );
   }
 
-  const userInitial = user?.displayName?.charAt(0)?.toUpperCase() ||
-                      user?.email?.charAt(0)?.toUpperCase() ||
-                      'U';
-  const userRole = user?.customClaims?.role;
+  const businessName = businessPersona?.identity?.name || partner?.businessName || 'Your Business';
+  const completeness = setupProgress?.overallPercentage || 0;
 
-  const formatDate = (date: string | Date | undefined) => {
-    if (!date) return 'N/A';
-    return new Date(date).toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric'
-    });
-  };
-
-  // Main AI Manager Interface
   return (
-    <div className="space-y-6">
-      {/* Account Info Bar */}
-      <Card className="border-slate-200">
-        <CardContent className="py-4">
-          <div className="flex flex-col sm:flex-row sm:items-center gap-4">
-            <div className="flex items-center gap-3">
-              <Avatar className="h-10 w-10 border border-primary/20">
-                <AvatarImage src={user?.photoURL || undefined} alt={user?.displayName || 'User'} />
-                <AvatarFallback className="bg-primary/10 text-primary text-sm font-semibold">
-                  {userInitial}
-                </AvatarFallback>
-              </Avatar>
-              <div>
-                <div className="font-medium text-sm">{user?.displayName || 'Workspace User'}</div>
-                <div className="text-xs text-muted-foreground">{user?.email}</div>
-              </div>
+    <div className="h-full flex flex-col bg-slate-50">
+      {/* Header */}
+      <div className="bg-white border-b border-slate-200 px-6 py-5">
+        <div className="flex items-center justify-between max-w-5xl mx-auto">
+          <div className="flex items-center gap-4">
+            <Link
+              href="/partner/settings"
+              className="flex items-center gap-1.5 text-slate-500 hover:text-slate-900 transition-colors text-sm"
+            >
+              <ArrowLeft className="w-4 h-4" />
+              Settings
+            </Link>
+            <div className="h-4 w-px bg-slate-200" />
+            <div>
+              <h1 className="text-xl font-semibold text-slate-900">Business Data</h1>
+              <p className="text-slate-500 text-sm mt-0.5">
+                {businessName !== 'Your Business' ? `Manage data for ${businessName}` : 'Configure the data that powers your AI agents'}
+              </p>
             </div>
-            <Separator orientation="vertical" className="hidden sm:block h-8" />
-            <div className="flex items-center gap-4 text-xs text-muted-foreground">
-              <div className="flex items-center gap-1.5">
-                <Badge variant={userRole === 'partner_admin' ? 'default' : 'secondary'} className="text-xs">
-                  {userRole === 'partner_admin' ? 'Admin' : 'Member'}
-                </Badge>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <Calendar className="w-3.5 h-3.5" />
-                <span>Joined {formatDate(user?.metadata?.creationTime)}</span>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <Building2 className="w-3.5 h-3.5" />
-                <span className="font-mono">{partnerId?.substring(0, 8)}...</span>
+          </div>
+          <button
+            onClick={() => setShowManualEdit(true)}
+            className="flex items-center gap-2 px-4 py-2 bg-slate-900 text-white rounded-lg text-sm font-medium hover:bg-slate-800 transition-colors"
+          >
+            <Edit className="w-4 h-4" />
+            Manual Edit
+          </button>
+        </div>
+      </div>
+
+      <div className="flex-1 overflow-auto">
+        <div className="p-6 space-y-6 max-w-5xl mx-auto">
+
+          {/* Progress Banner */}
+          <div className={cn(
+            "rounded-xl border overflow-hidden",
+            completeness >= 80 ? "bg-green-50 border-green-200" : "bg-slate-900 border-slate-700"
+          )}>
+            <div className="p-5">
+              <div className="flex items-center gap-5">
+                {/* Progress Ring */}
+                <div className="relative w-16 h-16 flex-shrink-0">
+                  <svg className="w-16 h-16 -rotate-90">
+                    <circle
+                      cx="32" cy="32" r="28"
+                      fill="none"
+                      stroke={completeness >= 80 ? "rgba(22,163,74,0.2)" : "rgba(255,255,255,0.2)"}
+                      strokeWidth="6"
+                    />
+                    <circle
+                      cx="32" cy="32" r="28"
+                      fill="none"
+                      stroke={completeness >= 80 ? "#16a34a" : "white"}
+                      strokeWidth="6"
+                      strokeLinecap="round"
+                      strokeDasharray={`${completeness * 1.76} 176`}
+                    />
+                  </svg>
+                  <span className={cn(
+                    "absolute inset-0 flex items-center justify-center text-lg font-bold",
+                    completeness >= 80 ? "text-green-700" : "text-white"
+                  )}>
+                    {completeness}%
+                  </span>
+                </div>
+
+                {/* Content */}
+                <div className="flex-1">
+                  <h2 className={cn(
+                    "font-semibold text-lg",
+                    completeness >= 80 ? "text-green-900" : "text-white"
+                  )}>
+                    {completeness >= 80 ? 'Your Business Data is Ready!' : 'Complete Your Business Data'}
+                  </h2>
+                  <p className={cn(
+                    "text-sm mt-1",
+                    completeness >= 80 ? "text-green-700" : "text-slate-300"
+                  )}>
+                    {completeness >= 80
+                      ? 'Your AI agents have enough information to represent your business effectively.'
+                      : 'Add more information to help your AI agents serve customers better.'
+                    }
+                  </p>
+                </div>
+
+                {completeness < 80 && (
+                  <button
+                    onClick={() => setShowManualEdit(true)}
+                    className="flex items-center gap-2 px-4 py-2 bg-white text-slate-900 rounded-lg text-sm font-medium hover:bg-slate-100 transition-colors"
+                  >
+                    Add Data
+                    <ArrowRight className="w-4 h-4" />
+                  </button>
+                )}
               </div>
             </div>
           </div>
-        </CardContent>
-      </Card>
 
-      {/* Hero Header - Business Data */}
-      <Card className="bg-gradient-to-r from-indigo-600 via-purple-600 to-indigo-700 text-white border-0 overflow-hidden relative">
-        <div className="absolute inset-0 bg-grid-white/5 [mask-image:linear-gradient(0deg,transparent,white)]" />
-        <CardContent className="py-6 relative">
-          <div className="flex flex-col md:flex-row md:items-center gap-4">
-            <div className="flex items-center gap-4 flex-1">
-              <div className="w-14 h-14 rounded-2xl bg-white/20 flex items-center justify-center shadow-lg ring-2 ring-white/30">
-                <Database className="w-7 h-7" />
+          {/* Quick Actions */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <QuickActionCard
+              icon={Building2}
+              title="Business Info"
+              description="Name, industry, description"
+              isComplete={setupProgress?.basicInfo}
+              onClick={() => setShowManualEdit(true)}
+            />
+            <QuickActionCard
+              icon={Phone}
+              title="Contact Details"
+              description="Phone, email, location"
+              isComplete={setupProgress?.contactInfo}
+              onClick={() => setShowManualEdit(true)}
+            />
+            <QuickActionCard
+              icon={Clock}
+              title="Operating Hours"
+              description="When you're available"
+              isComplete={setupProgress?.operatingHours}
+              onClick={() => setShowManualEdit(true)}
+            />
+            <QuickActionCard
+              icon={Package}
+              title="Products & FAQs"
+              description="Offerings and questions"
+              isComplete={setupProgress?.productsServices && setupProgress?.faqs}
+              onClick={() => setShowManualEdit(true)}
+            />
+          </div>
+
+          {/* Main Content Grid */}
+          <div className="grid lg:grid-cols-3 gap-6">
+            {/* AI Manager - Takes 2 columns */}
+            <div className="lg:col-span-2 h-[500px]">
+              {businessPersona && (
+                <AIManagerChat
+                  partnerId={partnerId!}
+                  persona={businessPersona}
+                  onDataUpdate={() => fetchData(false)}
+                />
+              )}
+            </div>
+
+            {/* Profile Sidebar */}
+            <div className="h-[500px]">
+              <ProfileSidebar persona={businessPersona} progress={setupProgress} />
+            </div>
+          </div>
+
+          {/* Tips Section */}
+          <div className="bg-amber-50 rounded-xl border border-amber-200 p-5">
+            <div className="flex items-start gap-4">
+              <div className="w-10 h-10 rounded-lg bg-amber-100 flex items-center justify-center shrink-0">
+                <Lightbulb className="w-5 h-5 text-amber-600" />
               </div>
               <div>
-                <h1 className="text-xl font-bold flex items-center gap-2">
-                  Business Data
-                  <Badge variant="secondary" className="bg-white/20 text-white border-0 text-[10px]">
-                    Powers AI Agents
-                  </Badge>
-                </h1>
-                <p className="text-indigo-100 text-sm mt-0.5">
-                  This data is used by your AI agents to understand and represent your business
+                <h4 className="font-medium text-amber-900">Tips for Better AI Responses</h4>
+                <p className="text-sm text-amber-700 mt-1">
+                  The more complete your business data, the better your AI agents can represent your business. Try adding detailed FAQs, product descriptions with pricing, and your brand voice preferences.
                 </p>
               </div>
             </div>
-
-            <div className="flex items-center gap-3">
-              {/* Progress Ring */}
-              <div className="flex items-center gap-3 bg-white/10 rounded-xl px-4 py-2">
-                <div className="relative w-10 h-10">
-                  <svg className="w-10 h-10 -rotate-90">
-                    <circle
-                      cx="20" cy="20" r="16"
-                      fill="none"
-                      stroke="rgba(255,255,255,0.2)"
-                      strokeWidth="4"
-                    />
-                    <circle
-                      cx="20" cy="20" r="16"
-                      fill="none"
-                      stroke="white"
-                      strokeWidth="4"
-                      strokeLinecap="round"
-                      strokeDasharray={`${(setupProgress?.overallPercentage || 0) * 1.005} 100`}
-                    />
-                  </svg>
-                  <span className="absolute inset-0 flex items-center justify-center text-xs font-bold">
-                    {setupProgress?.overallPercentage || 0}%
-                  </span>
-                </div>
-                <div className="text-sm">
-                  <div className="font-medium">Completeness</div>
-                  <div className="text-indigo-200 text-xs">
-                    {(setupProgress?.overallPercentage || 0) >= 80 ? 'Ready for AI!' : 'More data needed'}
-                  </div>
-                </div>
-              </div>
-
-              <Button
-                variant="secondary"
-                onClick={() => setShowManualEdit(true)}
-                className="bg-white/20 hover:bg-white/30 text-white border-0"
-              >
-                <Edit className="w-4 h-4 mr-2" />
-                Manual Edit
-              </Button>
-            </div>
           </div>
-        </CardContent>
-      </Card>
 
-      {/* Quick Actions Row */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <QuickActionCard
-          icon={Building2}
-          title="Business Info"
-          description="Name, industry, description"
-          isComplete={setupProgress?.basicInfo}
-          onClick={() => setShowManualEdit(true)}
-          color="indigo"
-        />
-        <QuickActionCard
-          icon={Phone}
-          title="Contact Details"
-          description="Phone, email, location"
-          isComplete={setupProgress?.contactInfo}
-          onClick={() => setShowManualEdit(true)}
-          color="green"
-        />
-        <QuickActionCard
-          icon={Clock}
-          title="Operating Hours"
-          description="When you're available"
-          isComplete={setupProgress?.operatingHours}
-          onClick={() => setShowManualEdit(true)}
-          color="amber"
-        />
-        <QuickActionCard
-          icon={Package}
-          title="Products & FAQs"
-          description="Offerings and questions"
-          isComplete={setupProgress?.productsServices && setupProgress?.faqs}
-          onClick={() => setShowManualEdit(true)}
-          color="purple"
-        />
-      </div>
-
-      {/* Main Content Grid */}
-      <div className="grid lg:grid-cols-3 gap-6">
-        {/* AI Manager - Takes 2 columns */}
-        <div className="lg:col-span-2 h-[600px]">
-          {businessPersona && (
-            <AIManagerChat
-              partnerId={partnerId!}
-              persona={businessPersona}
-              onDataUpdate={() => fetchData(false)}
-            />
-          )}
-        </div>
-
-        {/* Profile Sidebar */}
-        <div className="h-[600px]">
-          <ProfileSidebar persona={businessPersona} progress={setupProgress} />
         </div>
       </div>
-
-      {/* Tips Section */}
-      <Card className="bg-gradient-to-r from-amber-50 to-orange-50 border-amber-200">
-        <CardContent className="py-4">
-          <div className="flex items-start gap-3">
-            <div className="w-10 h-10 rounded-xl bg-amber-100 flex items-center justify-center shrink-0">
-              <Lightbulb className="w-5 h-5 text-amber-600" />
-            </div>
-            <div>
-              <h4 className="font-medium text-amber-900">Why Business Data Matters</h4>
-              <p className="text-sm text-amber-700 mt-1">
-                The more complete your business data, the better your AI agents can represent your business to customers. Try adding:
-              </p>
-              <div className="flex flex-wrap gap-2 mt-2">
-                <Badge variant="outline" className="bg-white/50 text-amber-800 border-amber-300">
-                  Contact details & hours
-                </Badge>
-                <Badge variant="outline" className="bg-white/50 text-amber-800 border-amber-300">
-                  Products & services
-                </Badge>
-                <Badge variant="outline" className="bg-white/50 text-amber-800 border-amber-300">
-                  FAQs for common questions
-                </Badge>
-                <Badge variant="outline" className="bg-white/50 text-amber-800 border-amber-300">
-                  Brand voice & tone
-                </Badge>
-              </div>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
     </div>
   );
 }
