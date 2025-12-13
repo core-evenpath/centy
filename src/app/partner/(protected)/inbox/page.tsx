@@ -1,3 +1,5 @@
+"use client";
+
 import React, { useState, useEffect, useCallback, useRef, useLayoutEffect } from 'react';
 import { useMultiWorkspaceAuth } from '@/hooks/use-multi-workspace-auth';
 import { useEnrichedMetaConversations, EnrichedMetaConversation } from '@/hooks/useEnrichedMetaConversations';
