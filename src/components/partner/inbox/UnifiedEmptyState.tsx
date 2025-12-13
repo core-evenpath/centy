@@ -1,0 +1,107 @@
+import React from 'react';
+import { Inbox, Settings, MessageSquareMore, ArrowRight, AlertCircle, MessageCircle, Send } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import Link from 'next/link';
+
+interface UnifiedEmptyStateProps {
+    isWhatsAppConnected: boolean | null;
+    isTelegramConnected: boolean | null;
+    whatsAppStatus?: string | null;
+}
+
+export function UnifiedEmptyState({
+    isWhatsAppConnected,
+    isTelegramConnected,
+    whatsAppStatus
+}: UnifiedEmptyStateProps) {
+    const isPending = whatsAppStatus === 'pending';
+    const noConnections = !isWhatsAppConnected && !isTelegramConnected;
+
+    return (
+        <div className="flex-1 flex flex-col items-center justify-center p-8 text-center bg-gray-50/30">
+            <div className="relative mb-8 group">
+                <div className="absolute -inset-1 bg-gradient-to-r from-indigo-500 to-purple-600 rounded-full blur opacity-25 group-hover:opacity-40 transition duration-1000"></div>
+                <div className="relative w-24 h-24 bg-white rounded-full flex items-center justify-center shadow-xl border border-gray-100">
+                    <Inbox className="w-10 h-10 text-indigo-600" />
+                </div>
+                <div className="absolute -bottom-2 -right-2 w-10 h-10 bg-white rounded-full flex items-center justify-center shadow-lg border border-gray-100">
+                    <MessageSquareMore className="w-5 h-5 text-purple-500" />
+                </div>
+            </div>
+
+            <h2 className="text-2xl font-bold text-gray-900 mb-3 tracking-tight">
+                Welcome to your Unified Inbox
+            </h2>
+            <p className="text-gray-500 max-w-md text-base leading-relaxed mb-8">
+                Manage all your client communications from WhatsApp and Telegram in one place.
+                Select a conversation from the sidebar to start messaging.
+            </p>
+
+            <div className="flex items-center gap-4 mb-8">
+                <div className="flex items-center gap-2">
+                    <div className={`w-3 h-3 rounded-full ${isWhatsAppConnected ? 'bg-green-500' : 'bg-gray-300'}`} />
+                    <span className="text-sm text-gray-600">
+                        WhatsApp {isWhatsAppConnected ? 'Connected' : 'Not Connected'}
+                    </span>
+                </div>
+                <div className="w-px h-4 bg-gray-200" />
+                <div className="flex items-center gap-2">
+                    <div className={`w-3 h-3 rounded-full ${isTelegramConnected ? 'bg-blue-500' : 'bg-gray-300'}`} />
+                    <span className="text-sm text-gray-600">
+                        Telegram {isTelegramConnected ? 'Connected' : 'Not Connected'}
+                    </span>
+                </div>
+            </div>
+
+            <div className="flex flex-col gap-3 w-full max-w-xs">
+                {noConnections && (
+                    <div className="p-4 bg-amber-50 border border-amber-200 rounded-lg mb-2">
+                        <div className="flex items-start gap-2">
+                            <AlertCircle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
+                            <div className="text-left">
+                                <p className="text-sm font-medium text-amber-800">No channels connected</p>
+                                <p className="text-xs text-amber-700 mt-1">
+                                    Connect at least one messaging channel to start receiving messages.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {!isWhatsAppConnected && (
+                    <Link href="/partner/apps/whatsapp-api" className="w-full">
+                        <Button
+                            className={`w-full h-11 ${isPending
+                                    ? 'bg-amber-500 hover:bg-amber-600'
+                                    : 'bg-green-600 hover:bg-green-700'
+                                } text-white shadow-md flex items-center justify-center gap-2 group transition-all`}
+                        >
+                            <MessageCircle className="w-4 h-4" />
+                            <span>{isPending ? 'Complete WhatsApp Setup' : 'Connect WhatsApp'}</span>
+                            <ArrowRight className="w-4 h-4 opacity-50 group-hover:translate-x-1 transition-transform" />
+                        </Button>
+                    </Link>
+                )}
+
+                {!isTelegramConnected && (
+                    <Link href="/partner/apps/telegram-api" className="w-full">
+                        <Button
+                            className="w-full h-11 bg-blue-600 hover:bg-blue-700 text-white shadow-md flex items-center justify-center gap-2 group transition-all"
+                        >
+                            <Send className="w-4 h-4" />
+                            <span>Connect Telegram</span>
+                            <ArrowRight className="w-4 h-4 opacity-50 group-hover:translate-x-1 transition-transform" />
+                        </Button>
+                    </Link>
+                )}
+
+                <Link href="/partner/apps" className="w-full">
+                    <Button variant="outline" className="w-full h-11 border-gray-200 text-gray-600 hover:bg-white hover:text-indigo-600 hover:border-indigo-200 transition-all bg-white">
+                        <Settings className="w-4 h-4 mr-2" />
+                        Manage Integrations
+                    </Button>
+                </Link>
+            </div>
+        </div>
+    );
+}
