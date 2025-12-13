@@ -6,7 +6,6 @@ import {
     Sparkles,
     Bot,
     Send,
-    X,
     Copy,
     ChevronDown,
     ChevronUp,
@@ -18,15 +17,15 @@ import {
     Database,
     Wand2,
     CheckCircle2,
-    Zap,
-    MessageSquare,
     User,
     Lightbulb,
-    ArrowRight
+    ArrowRight,
+    X,
+    MessageSquare
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { AssistantSelector } from './AssistantSelector';
+import { AgentSelector } from './AgentSelector';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
 interface RAGSource {
@@ -35,6 +34,7 @@ interface RAGSource {
     excerpt: string;
     relevance: number;
     fromAssistant?: string;
+    fromAgent?: string;
 }
 
 interface RAGSuggestion {
@@ -44,6 +44,12 @@ interface RAGSuggestion {
     sources: RAGSource[];
     personaUsed?: boolean;
     assistantUsed?: {
+        id: string;
+        name: string;
+        avatar: string;
+        usedAsFallback: boolean;
+    };
+    agentUsed?: {
         id: string;
         name: string;
         avatar: string;
@@ -61,10 +67,10 @@ interface CoreMemorySuggestionProps {
     onRegenerate: () => void;
     onRefine: (instruction: string) => void;
     incomingMessage: string;
-    activeAssistants: any[];
-    selectedAssistantIds: string[];
-    onAssistantSelectionChange: (ids: string[]) => void;
-    assistantsLoading?: boolean;
+    activeAgents: any[];
+    selectedAgentIds: string[];
+    onAgentSelectionChange: (ids: string[]) => void;
+    agentsLoading?: boolean;
 }
 
 type LoadingStage = 'searching' | 'analyzing' | 'generating' | 'complete';
@@ -86,10 +92,10 @@ export default function CoreMemorySuggestion({
     onRegenerate,
     onRefine,
     incomingMessage,
-    activeAssistants,
-    selectedAssistantIds,
-    onAssistantSelectionChange,
-    assistantsLoading
+    activeAgents,
+    selectedAgentIds,
+    onAgentSelectionChange,
+    agentsLoading
 }: CoreMemorySuggestionProps) {
     const [loadingStage, setLoadingStage] = useState<LoadingStage>('searching');
     const [displayedText, setDisplayedText] = useState('');
@@ -176,7 +182,10 @@ export default function CoreMemorySuggestion({
     };
 
     const documentSources = suggestion?.sources?.filter(s => s.type === 'document') || [];
-    const isGeneralMode = selectedAssistantIds.includes('essential-general_mode');
+    const isGeneralMode = selectedAgentIds.includes('essential-general_mode');
+
+    // Helper to get agent/assistant used info
+    const usedAgent = suggestion?.agentUsed || suggestion?.assistantUsed;
 
     const getLoadingContent = () => {
         const stages = {
@@ -267,11 +276,11 @@ export default function CoreMemorySuggestion({
                         </Button>
                     </div>
 
-                    <AssistantSelector
-                        availableAssistants={activeAssistants}
-                        selectedAssistantIds={selectedAssistantIds}
-                        onSelectionChange={onAssistantSelectionChange}
-                        isLoading={assistantsLoading}
+                    <AgentSelector
+                        availableAgents={activeAgents}
+                        selectedAgentIds={selectedAgentIds}
+                        onSelectionChange={onAgentSelectionChange}
+                        isLoading={agentsLoading}
                     />
 
                     {isGeneralMode && (
@@ -341,16 +350,16 @@ export default function CoreMemorySuggestion({
                                     {/* Card Header */}
                                     <div className="p-3 md:p-4 bg-gradient-to-r from-gray-50/80 to-slate-50/80 border-b border-gray-100/80 flex items-center justify-between">
                                         <div className="flex items-center gap-2 flex-wrap">
-                                            {suggestion.assistantUsed && (
+                                            {usedAgent && (
                                                 <div className={cn(
                                                     "flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border",
-                                                    suggestion.assistantUsed.usedAsFallback
+                                                    usedAgent.usedAsFallback
                                                         ? "bg-amber-50 text-amber-700 border-amber-200"
                                                         : "bg-indigo-50 text-indigo-700 border-indigo-200"
                                                 )}>
-                                                    <span className="text-sm">{suggestion.assistantUsed.avatar}</span>
-                                                    <span>{suggestion.assistantUsed.name}</span>
-                                                    {suggestion.assistantUsed.usedAsFallback && (
+                                                    <span className="text-sm">{usedAgent.avatar}</span>
+                                                    <span>{usedAgent.name}</span>
+                                                    {usedAgent.usedAsFallback && (
                                                         <Badge variant="outline" className="h-4 px-1 text-[8px] bg-white border-amber-300">
                                                             Fallback
                                                         </Badge>
@@ -501,9 +510,9 @@ export default function CoreMemorySuggestion({
                                                                 <FileText className="w-3.5 h-3.5 text-indigo-400" />
                                                                 {source.name}
                                                             </span>
-                                                            {source.fromAssistant && (
+                                                            {(source.fromAgent || source.fromAssistant) && (
                                                                 <Badge variant="outline" className="text-[9px] md:text-[10px] h-4 md:h-5 px-1.5 bg-violet-50 text-violet-600 border-violet-200">
-                                                                    via {source.fromAssistant}
+                                                                    via {source.fromAgent || source.fromAssistant}
                                                                 </Badge>
                                                             )}
                                                         </div>
@@ -535,8 +544,8 @@ export default function CoreMemorySuggestion({
                                 </p>
                             </>
                         ) : null}
-                </div>
-            </ScrollArea>
+                    </div>
+                </ScrollArea>
             </div>
         </>
     );

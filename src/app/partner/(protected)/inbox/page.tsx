@@ -1,5 +1,3 @@
-"use client";
-
 import React, { useState, useEffect, useCallback, useRef, useLayoutEffect } from 'react';
 import { useMultiWorkspaceAuth } from '@/hooks/use-multi-workspace-auth';
 import { useEnrichedMetaConversations, EnrichedMetaConversation } from '@/hooks/useEnrichedMetaConversations';
@@ -8,11 +6,11 @@ import {
     sendMetaWhatsAppMessageAction,
     deleteMetaConversation,
     deleteMetaMessage,
-    updateConversationAssistantsAction
+    updateConversationAgentsAction
 } from '@/actions/meta-whatsapp-actions';
 import { getEmbeddedSignupStatus } from '@/actions/meta-embedded-signup-actions';
 import { generateInboxSuggestionAction } from '@/actions/partnerhub-actions';
-import { getActiveAssistantsAction } from '@/actions/assistant-actions';
+import { getActiveAgentsAction } from '@/actions/assistant-actions';
 import { cn } from '@/lib/utils';
 import { Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -39,9 +37,16 @@ interface RAGSuggestion {
         excerpt: string;
         relevance: number;
         fromAssistant?: string;
+        fromAgent?: string;
     }>;
     personaUsed?: boolean;
     assistantUsed?: {
+        id: string;
+        name: string;
+        avatar: string;
+        usedAsFallback: boolean;
+    };
+    agentUsed?: {
         id: string;
         name: string;
         avatar: string;
@@ -71,10 +76,10 @@ export default function InboxPage() {
     const [isWhatsAppConnected, setIsWhatsAppConnected] = useState<boolean | null>(null);
     const [whatsAppStatus, setWhatsAppStatus] = useState<string | null>(null);
 
-    const [activeAssistants, setActiveAssistants] = useState<any[]>([]);
-    const [assistantsLoading, setAssistantsLoading] = useState(false);
-    const [selectedAssistantIds, setSelectedAssistantIds] = useState<string[]>([]);
-    const previousAssistantIdsRef = useRef<string[]>([]);
+    const [activeAgents, setActiveAgents] = useState<any[]>([]);
+    const [agentsLoading, setAgentsLoading] = useState(false);
+    const [selectedAgentIds, setSelectedAgentIds] = useState<string[]>([]);
+    const previousAgentIdsRef = useRef<string[]>([]);
 
     const [showAISuggestion, setShowAISuggestion] = useState(false);
     const [aiSuggestion, setAISuggestion] = useState<RAGSuggestion | null>(null);
@@ -84,7 +89,7 @@ export default function InboxPage() {
     const processedMessageIds = useRef<Set<string>>(new Set());
     const lastSuggestionContext = useRef<string>('');
     const suggestionDebounceTimer = useRef<NodeJS.Timeout | null>(null);
-    const assistantChangeTimer = useRef<NodeJS.Timeout | null>(null);
+    const agentChangeTimer = useRef<NodeJS.Timeout | null>(null);
 
     // Ref to store the latest handleGenerateSuggestion function to avoid stale closures
     const handleGenerateSuggestionRef = useRef<(incomingMessage?: string, refinementInstruction?: string) => void>();
@@ -99,27 +104,29 @@ export default function InboxPage() {
                 setWhatsAppStatus(status.config?.status || null);
             });
 
-            setAssistantsLoading(true);
-            getActiveAssistantsAction(currentPartnerId).then(res => {
+            setAgentsLoading(true);
+            getActiveAgentsAction(currentPartnerId).then(res => {
                 if (res.success && res.assistants) {
-                    setActiveAssistants(res.assistants);
+                    // Map response to agents if needed, currently assumes same structure
+                    setActiveAgents(res.assistants);
                 }
-                setAssistantsLoading(false);
+                setAgentsLoading(false);
             });
         }
     }, [currentPartnerId]);
 
     useEffect(() => {
-        if (selectedConversation && activeAssistants.length > 0) {
-            const storedIds = selectedConversation.assignedAssistantIds || [];
-            const validIds = storedIds.filter(id => activeAssistants.some(a => a.id === id));
-            setSelectedAssistantIds(validIds);
-            previousAssistantIdsRef.current = validIds;
+        if (selectedConversation && activeAgents.length > 0) {
+            // Check for both old 'assignedAssistantIds' and potentially new 'assignedAgentIds' if we migrate DB
+            const storedIds = selectedConversation.assignedAssistantIds || selectedConversation.assignedAgentIds || [];
+            const validIds = storedIds.filter(id => activeAgents.some(a => a.id === id));
+            setSelectedAgentIds(validIds);
+            previousAgentIdsRef.current = validIds;
         } else {
-            setSelectedAssistantIds([]);
-            previousAssistantIdsRef.current = [];
+            setSelectedAgentIds([]);
+            previousAgentIdsRef.current = [];
         }
-    }, [selectedConversation?.id, activeAssistants]);
+    }, [selectedConversation?.id, activeAgents]);
 
     // Track if this is initial load vs new message
     const isInitialLoad = useRef(true);
@@ -215,17 +222,17 @@ export default function InboxPage() {
         setMessageInput('');
     }, [selectedConversation?.id]);
 
-    const handleAssistantSelectionChange = useCallback(async (ids: string[]) => {
-        const previousIds = previousAssistantIdsRef.current;
-        setSelectedAssistantIds(ids);
-        previousAssistantIdsRef.current = ids;
+    const handleAgentSelectionChange = useCallback(async (ids: string[]) => {
+        const previousIds = previousAgentIdsRef.current;
+        setSelectedAgentIds(ids);
+        previousAgentIdsRef.current = ids;
 
         if (currentPartnerId && selectedConversation) {
-            const result = await updateConversationAssistantsAction(currentPartnerId, selectedConversation.id, ids);
+            const result = await updateConversationAgentsAction(currentPartnerId, selectedConversation.id, ids);
             if (!result.success) {
-                toast.error("Failed to save assistant selection");
-                setSelectedAssistantIds(previousIds);
-                previousAssistantIdsRef.current = previousIds;
+                toast.error("Failed to save agent selection");
+                setSelectedAgentIds(previousIds);
+                previousAgentIdsRef.current = previousIds;
                 return;
             }
         }
@@ -233,12 +240,12 @@ export default function InboxPage() {
         const hasChanged = JSON.stringify(previousIds.sort()) !== JSON.stringify(ids.sort());
 
         if (hasChanged && showAISuggestion && pendingIncomingMessage) {
-            if (assistantChangeTimer.current) {
-                clearTimeout(assistantChangeTimer.current);
+            if (agentChangeTimer.current) {
+                clearTimeout(agentChangeTimer.current);
             }
 
-            assistantChangeTimer.current = setTimeout(() => {
-                console.log('🔄 Assistant selection changed, regenerating suggestion...');
+            agentChangeTimer.current = setTimeout(() => {
+                console.log('🔄 Agent selection changed, regenerating suggestion...');
                 handleGenerateSuggestionWithIds(pendingIncomingMessage, undefined, ids);
             }, 500);
         }
@@ -315,12 +322,12 @@ export default function InboxPage() {
     const handleGenerateSuggestionWithIds = async (
         incomingMessage?: string,
         refinementInstruction?: string,
-        assistantIds?: string[]
+        agentIds?: string[]
     ) => {
         if (!currentPartnerId || !selectedConversation) return;
 
         const messageToAnalyze = incomingMessage || pendingIncomingMessage || messages[messages.length - 1]?.content || "Hello";
-        const idsToUse = assistantIds ?? selectedAssistantIds;
+        const idsToUse = agentIds ?? selectedAgentIds;
 
         if (!refinementInstruction) {
             setPendingIncomingMessage(messageToAnalyze);
@@ -331,7 +338,7 @@ export default function InboxPage() {
         setIsLoadingSuggestion(true);
 
         try {
-            console.log('⚡ Core Memory RAG starting...', { assistantIds: idsToUse });
+            console.log('⚡ Core Memory RAG starting...', { agentIds: idsToUse });
 
             let context = messages.slice(-5).map(m => `${m.direction}: ${m.content}`).join('\n');
 
@@ -354,7 +361,8 @@ export default function InboxPage() {
                     reasoning: result.reasoning || 'Generated based on your business documents and conversation history.',
                     sources: (result.sources || []).map(s => ({ ...s, type: 'document' as const, excerpt: s.excerpt || '' })),
                     personaUsed: result.personaUsed,
-                    assistantUsed: result.assistantUsed
+                    assistantUsed: result.assistantUsed, // Keep for backward compatibility if needed unless action is updated
+                    agentUsed: result.agentUsed ?? result.assistantUsed
                 });
             } else {
                 toast.error(result.message || "Failed to generate suggestion");
@@ -370,7 +378,7 @@ export default function InboxPage() {
     };
 
     const handleGenerateSuggestion = (incomingMessage?: string, refinementInstruction?: string) => {
-        handleGenerateSuggestionWithIds(incomingMessage, refinementInstruction, selectedAssistantIds);
+        handleGenerateSuggestionWithIds(incomingMessage, refinementInstruction, selectedAgentIds);
     };
 
     // Keep the ref updated with the latest handleGenerateSuggestion function
@@ -575,10 +583,10 @@ export default function InboxPage() {
                         onRegenerate={() => handleGenerateSuggestion()}
                         onRefine={handleRefineSuggestion}
                         incomingMessage={pendingIncomingMessage}
-                        activeAssistants={activeAssistants}
-                        selectedAssistantIds={selectedAssistantIds}
-                        onAssistantSelectionChange={handleAssistantSelectionChange}
-                        assistantsLoading={assistantsLoading}
+                        activeAgents={activeAgents}
+                        selectedAgentIds={selectedAgentIds}
+                        onAgentSelectionChange={handleAgentSelectionChange}
+                        agentsLoading={agentsLoading}
                     />
                 </div>
             )}

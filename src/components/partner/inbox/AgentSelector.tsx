@@ -13,7 +13,7 @@ import {
     TooltipTrigger,
 } from '@/components/ui/tooltip';
 
-interface Assistant {
+interface Agent {
     id: string;
     name: string;
     avatar: string;
@@ -22,9 +22,9 @@ interface Assistant {
     description?: string;
 }
 
-interface AssistantSelectorProps {
-    availableAssistants: Assistant[];
-    selectedAssistantIds: string[];
+interface AgentSelectorProps {
+    availableAgents: Agent[];
+    selectedAgentIds: string[];
     onSelectionChange: (ids: string[]) => void;
     isLoading?: boolean;
 }
@@ -41,44 +41,44 @@ const colorClasses: Record<string, string> = {
     slate: 'bg-slate-100 text-slate-700 border-slate-200',
 };
 
-export function AssistantSelector({
-    availableAssistants,
-    selectedAssistantIds,
+export function AgentSelector({
+    availableAgents,
+    selectedAgentIds,
     onSelectionChange,
     isLoading
-}: AssistantSelectorProps) {
+}: AgentSelectorProps) {
     const [isOpen, setIsOpen] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
     const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0, width: 0 });
     const buttonRef = useRef<HTMLButtonElement>(null);
     const dropdownRef = useRef<HTMLDivElement>(null);
 
-    const filteredAssistants = availableAssistants.filter(a =>
+    const filteredAgents = availableAgents.filter(a =>
         a.name.toLowerCase().includes(searchQuery.toLowerCase())
     );
 
-    const handleToggle = (assistantId: string) => {
-        if (selectedAssistantIds.includes(assistantId)) {
-            onSelectionChange(selectedAssistantIds.filter(id => id !== assistantId));
+    const handleToggle = (agentId: string) => {
+        if (selectedAgentIds.includes(agentId)) {
+            onSelectionChange(selectedAgentIds.filter(id => id !== agentId));
         } else {
-            onSelectionChange([...selectedAssistantIds, assistantId]);
+            onSelectionChange([...selectedAgentIds, agentId]);
         }
     };
 
-    const handleRemove = (assistantId: string, e: React.MouseEvent) => {
+    const handleRemove = (agentId: string, e: React.MouseEvent) => {
         e.stopPropagation();
-        onSelectionChange(selectedAssistantIds.filter(id => id !== assistantId));
+        onSelectionChange(selectedAgentIds.filter(id => id !== agentId));
     };
 
-    const handleSetPrimary = (assistantId: string, e: React.MouseEvent) => {
+    const handleSetPrimary = (agentId: string, e: React.MouseEvent) => {
         e.stopPropagation();
-        const otherIds = selectedAssistantIds.filter(id => id !== assistantId);
-        onSelectionChange([assistantId, ...otherIds]);
+        const otherIds = selectedAgentIds.filter(id => id !== agentId);
+        onSelectionChange([agentId, ...otherIds]);
     };
 
-    const selectedAssistants = selectedAssistantIds
-        .map(id => availableAssistants.find(a => a.id === id))
-        .filter(Boolean) as Assistant[];
+    const selectedAgents = selectedAgentIds
+        .map(id => availableAgents.find(a => a.id === id))
+        .filter(Boolean) as Agent[];
 
     const updateDropdownPosition = () => {
         if (buttonRef.current) {
@@ -149,7 +149,7 @@ export function AssistantSelector({
                         <div className="relative">
                             <Search className="w-4 h-4 absolute left-2.5 top-2.5 text-gray-400" />
                             <Input
-                                placeholder="Search assistants..."
+                                placeholder="Search agents..."
                                 value={searchQuery}
                                 onChange={(e) => setSearchQuery(e.target.value)}
                                 className="h-9 pl-8 text-sm bg-gray-50 border-gray-200 focus-visible:ring-1 focus-visible:ring-indigo-500"
@@ -159,28 +159,28 @@ export function AssistantSelector({
                     </div>
 
                     <div className="overflow-y-auto" style={{ maxHeight: '260px' }}>
-                        {availableAssistants.length === 0 ? (
+                        {availableAgents.length === 0 ? (
                             <div className="p-4 text-center text-sm text-gray-500">
                                 <AlertCircle className="w-8 h-8 mx-auto mb-2 text-gray-300" />
-                                <p className="font-medium">No assistants available</p>
-                                <p className="text-xs mt-1">Create assistants in Core Memory first</p>
+                                <p className="font-medium">No agents available</p>
+                                <p className="text-xs mt-1">Create agents in Agents first</p>
                             </div>
-                        ) : filteredAssistants.length === 0 ? (
+                        ) : filteredAgents.length === 0 ? (
                             <div className="p-4 text-center text-sm text-gray-500">
                                 <Search className="w-6 h-6 mx-auto mb-2 text-gray-300" />
                                 <p>No matches for "{searchQuery}"</p>
                             </div>
                         ) : (
                             <div className="p-1">
-                                {filteredAssistants.map((assistant) => {
-                                    const isSelected = selectedAssistantIds.includes(assistant.id);
-                                    const isPrimary = selectedAssistantIds[0] === assistant.id;
-                                    const isGeneralMode = assistant.id === 'essential-general_mode';
+                                {filteredAgents.map((agent) => {
+                                    const isSelected = selectedAgentIds.includes(agent.id);
+                                    const isPrimary = selectedAgentIds[0] === agent.id;
+                                    const isGeneralMode = agent.id === 'essential-general_mode';
 
                                     return (
                                         <div
-                                            key={assistant.id}
-                                            onClick={() => handleToggle(assistant.id)}
+                                            key={agent.id}
+                                            onClick={() => handleToggle(agent.id)}
                                             className={cn(
                                                 "flex items-center gap-3 p-2.5 rounded-lg cursor-pointer transition-all",
                                                 isSelected
@@ -192,15 +192,15 @@ export function AssistantSelector({
                                                 "w-9 h-9 rounded-lg flex items-center justify-center text-lg shrink-0",
                                                 isGeneralMode ? "bg-slate-100" : "bg-gradient-to-br from-indigo-100 to-violet-100"
                                             )}>
-                                                {assistant.avatar}
+                                                {agent.avatar}
                                             </div>
 
                                             <div className="flex-1 min-w-0">
                                                 <div className="flex items-center gap-2">
                                                     <span className="font-medium text-sm text-gray-900 truncate">
-                                                        {assistant.name}
+                                                        {agent.name}
                                                     </span>
-                                                    {assistant.type === 'essential' && (
+                                                    {agent.type === 'essential' && (
                                                         <Badge variant="outline" className="text-[9px] h-4 px-1.5 border-indigo-200 text-indigo-600">
                                                             Essential
                                                         </Badge>
@@ -211,9 +211,9 @@ export function AssistantSelector({
                                                         </Badge>
                                                     )}
                                                 </div>
-                                                {assistant.description && (
+                                                {agent.description && (
                                                     <p className="text-xs text-gray-500 truncate mt-0.5">
-                                                        {assistant.description}
+                                                        {agent.description}
                                                     </p>
                                                 )}
                                             </div>
@@ -224,7 +224,7 @@ export function AssistantSelector({
                                                         <Tooltip>
                                                             <TooltipTrigger asChild>
                                                                 <button
-                                                                    onClick={(e) => handleSetPrimary(assistant.id, e)}
+                                                                    onClick={(e) => handleSetPrimary(agent.id, e)}
                                                                     className="p-1 hover:bg-indigo-100 rounded transition-colors"
                                                                 >
                                                                     <GripVertical className="w-4 h-4 text-gray-400" />
@@ -252,10 +252,10 @@ export function AssistantSelector({
                         )}
                     </div>
 
-                    {selectedAssistantIds.length > 0 && (
+                    {selectedAgentIds.length > 0 && (
                         <div className="p-2 border-t border-gray-100 bg-gray-50">
                             <p className="text-[10px] text-gray-500 text-center">
-                                {selectedAssistantIds.length} selected • First is Primary (used for document context)
+                                {selectedAgentIds.length} selected • First is Primary (used for document context)
                             </p>
                         </div>
                     )}
@@ -275,31 +275,31 @@ export function AssistantSelector({
                 disabled={isLoading}
             >
                 <div className="flex flex-wrap gap-1.5 items-center max-w-[calc(100%-24px)]">
-                    {selectedAssistantIds.length === 0 ? (
+                    {selectedAgentIds.length === 0 ? (
                         <span className="text-gray-400 text-sm flex items-center gap-2">
                             <Bot className="w-4 h-4" />
-                            Assign AI Assistants...
+                            Assign AI Agents...
                         </span>
                     ) : (
-                        selectedAssistants.map((assistant, index) => (
+                        selectedAgents.map((agent, index) => (
                             <Badge
-                                key={assistant.id}
+                                key={agent.id}
                                 variant="secondary"
                                 className={cn(
                                     "text-xs py-0.5 px-2 flex items-center gap-1.5 border",
-                                    colorClasses[assistant.color || 'blue'] || colorClasses.blue
+                                    colorClasses[agent.color || 'blue'] || colorClasses.blue
                                 )}
                             >
-                                <span className="text-sm">{assistant.avatar}</span>
-                                <span className="font-medium">{assistant.name}</span>
-                                {index === 0 && selectedAssistantIds.length > 1 && (
+                                <span className="text-sm">{agent.avatar}</span>
+                                <span className="font-medium">{agent.name}</span>
+                                {index === 0 && selectedAgentIds.length > 1 && (
                                     <span className="text-[9px] opacity-60 ml-0.5">(Primary)</span>
                                 )}
                                 <span
                                     role="button"
                                     tabIndex={0}
-                                    onClick={(e) => handleRemove(assistant.id, e)}
-                                    onKeyDown={(e) => e.key === 'Enter' && handleRemove(assistant.id, e as any)}
+                                    onClick={(e) => handleRemove(agent.id, e)}
+                                    onKeyDown={(e) => e.key === 'Enter' && handleRemove(agent.id, e as any)}
                                     className="ml-0.5 hover:bg-black/10 rounded-full p-0.5 transition-colors cursor-pointer"
                                 >
                                     <X className="w-3 h-3" />
