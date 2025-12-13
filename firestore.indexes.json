@@ -1,0 +1,59 @@
+{
+  "indexes": [
+    {
+      "collectionGroup": "telegramConversations",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "partnerId", "order": "ASCENDING" },
+        { "fieldPath": "lastMessageAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "telegramConversations",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "partnerId", "order": "ASCENDING" },
+        { "fieldPath": "chatId", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "telegramConversations",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "partnerId", "order": "ASCENDING" },
+        { "fieldPath": "unreadCount", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "telegramMessages",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "conversationId", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "telegramMessages",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "partnerId", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "telegramBotMappings",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "botId", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "telegramBotMappings",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "partnerId", "order": "ASCENDING" }
+      ]
+    }
+  ],
+  "fieldOverrides": []
+}

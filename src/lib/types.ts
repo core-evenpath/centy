@@ -152,6 +152,13 @@ export interface Partner {
   createdAt?: any | string;
   updatedAt?: any | string;
   tasksCompleted?: number;
+  telegramConfig?: {
+    botToken: string;
+    botUsername: string;
+    isConnected: boolean;
+    webhookUrl?: string;
+    connectedAt?: any;
+  };
 }
 
 export interface PartnerSettings {
@@ -556,6 +563,8 @@ export interface Contact {
   personaGenerationStatus?: 'idle' | 'pending' | 'generating' | 'completed' | 'failed' | 'outdated';
   totalMessageCount?: number;
   lastPersonaGenerationAt?: Date | Timestamp | null;
+  telegramId?: string;
+  telegramUsername?: string;
 }
 
 export interface ContactGroup {
