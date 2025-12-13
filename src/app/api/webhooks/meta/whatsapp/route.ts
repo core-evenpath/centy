@@ -54,7 +54,9 @@ export async function POST(request: NextRequest) {
     const signature = request.headers.get('x-hub-signature-256');
 
     // 2. Verify Signature if App Secret is configured
-    const appSecret = await getDecryptedAppSecret();
+    // 2. Verify Signature if App Secret is configured
+    const platformSecret = await getDecryptedAppSecret();
+    const appSecret = platformSecret || process.env.META_APP_SECRET;
 
     if (appSecret && signature) {
         const expectedSignature = 'sha256=' + crypto
@@ -64,11 +66,27 @@ export async function POST(request: NextRequest) {
 
         if (signature !== expectedSignature) {
             console.error('❌ Invalid Webhook Signature');
+
+            // Log signature failure to DB for diagnostics
+            if (db) {
+                await db.collection('webhookLogs').add({
+                    timestamp: FieldValue.serverTimestamp(),
+                    platform: 'meta_whatsapp',
+                    success: false,
+                    error: 'Invalid Webhook Signature',
+                    payload: {
+                        headers: { signature },
+                        bodySnippet: rawBody.substring(0, 100)
+                    },
+                    processingTimeMs: Date.now() - startTime,
+                });
+            }
+
             return NextResponse.json({ error: 'Invalid signature' }, { status: 401 });
         }
         console.log('🔐 Webhook Signature Verified');
     } else if (!appSecret) {
-        console.warn('⚠️ App Secret not configured in Admin - skipping signature verification');
+        console.warn('⚠️ App Secret not configured in Admin or Env - skipping signature verification');
     }
 
     const webhookLogData: any = {
