@@ -373,6 +373,8 @@ export async function getActiveAssistantsAction(
             return { success: false, error: 'Database unavailable' };
         }
 
+        // Only return agents that are explicitly stored in the partner's hubAgents collection and are active
+        // This ensures each partner only sees their own configured agents
         const snapshot = await db
             .collection('partners')
             .doc(partnerId)
@@ -392,18 +394,8 @@ export async function getActiveAssistantsAction(
             };
         });
 
-        const essentialDefaults = [
-            { id: 'essential-customer_care', name: 'Customer Care', avatar: '🎧', color: 'blue', type: 'essential', description: 'Uses your business documents' },
-            { id: 'essential-sales_assistant', name: 'Sales Assistant', avatar: '⚡', color: 'amber', type: 'essential', description: 'Uses your business documents' },
-            { id: 'essential-marketing_comms', name: 'Marketing Comms', avatar: '✨', color: 'violet', type: 'essential', description: 'Uses your business documents' },
-            { id: 'essential-general_mode', name: 'General Mode', avatar: '🤖', color: 'slate', type: 'essential', description: 'No document access - general AI only' },
-        ];
-
-        const existingIds = assistants.map(a => a.id);
-
-        const missingEssentials = essentialDefaults.filter(e => !existingIds.includes(e.id));
-
-        return { success: true, assistants: [...missingEssentials, ...assistants] };
+        // No longer adding essential defaults - only show agents that exist in the partner's collection
+        return { success: true, assistants };
     } catch (error: any) {
         console.error('Get active assistants error:', error);
         return { success: false, error: error.message };
