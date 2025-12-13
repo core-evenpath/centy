@@ -8,11 +8,10 @@ import {
     sendMetaWhatsAppMessageAction,
     deleteMetaConversation,
     deleteMetaMessage,
-    updateConversationAgentsAction
+    updateConversationAssistantsAction
 } from '@/actions/meta-whatsapp-actions';
 import { getEmbeddedSignupStatus } from '@/actions/meta-embedded-signup-actions';
-import { generateInboxSuggestionAction } from '@/actions/partnerhub-actions';
-import { getActiveAssistantsAction } from '@/actions/assistant-actions';
+import { generateInboxSuggestionAction, getActiveAgentsAction } from '@/actions/partnerhub-actions';
 import { cn } from '@/lib/utils';
 import { Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -107,9 +106,9 @@ export default function InboxPage() {
             });
 
             setAgentsLoading(true);
-            getActiveAssistantsAction(currentPartnerId).then(res => {
-                if (res.success && res.assistants) {
-                    setActiveAgents(res.assistants);
+            getActiveAgentsAction(currentPartnerId).then(res => {
+                if (res.success && res.agents) {
+                    setActiveAgents(res.agents);
                 }
                 setAgentsLoading(false);
             });
@@ -118,9 +117,8 @@ export default function InboxPage() {
 
     useEffect(() => {
         if (selectedConversation && activeAgents.length > 0) {
-            // Check for both old 'assignedAssistantIds' and potentially new 'assignedAgentIds' if we migrate DB
-            const storedIds = selectedConversation.assignedAssistantIds || selectedConversation.assignedAgentIds || [];
-            const validIds = storedIds.filter(id => activeAgents.some(a => a.id === id));
+            const storedIds = selectedConversation.assignedAssistantIds || [];
+            const validIds = storedIds.filter((id: string) => activeAgents.some(a => a.id === id));
             setSelectedAgentIds(validIds);
             previousAgentIdsRef.current = validIds;
         } else {
@@ -229,7 +227,7 @@ export default function InboxPage() {
         previousAgentIdsRef.current = ids;
 
         if (currentPartnerId && selectedConversation) {
-            const result = await updateConversationAgentsAction(currentPartnerId, selectedConversation.id, ids);
+            const result = await updateConversationAssistantsAction(currentPartnerId, selectedConversation.id, ids);
             if (!result.success) {
                 toast.error("Failed to save agent selection");
                 setSelectedAgentIds(previousIds);
@@ -362,8 +360,8 @@ export default function InboxPage() {
                     reasoning: result.reasoning || 'Generated based on your business documents and conversation history.',
                     sources: (result.sources || []).map(s => ({ ...s, type: 'document' as const, excerpt: s.excerpt || '' })),
                     personaUsed: result.personaUsed,
-                    assistantUsed: result.assistantUsed, // Keep for backward compatibility if needed unless action is updated
-                    agentUsed: result.agentUsed ?? result.assistantUsed
+                    assistantUsed: result.assistantUsed,
+                    agentUsed: result.assistantUsed
                 });
             } else {
                 toast.error(result.message || "Failed to generate suggestion");

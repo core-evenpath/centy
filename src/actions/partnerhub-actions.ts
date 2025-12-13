@@ -1408,3 +1408,54 @@ Respond in JSON format:
         };
     }
 }
+
+/**
+ * Get active agents for inbox selection
+ * Reads EssentialAgent types from Firestore hubAgents collection
+ */
+export async function getActiveAgentsAction(
+    partnerId: string
+): Promise<{
+    success: boolean;
+    agents?: Array<{
+        id: string;
+        name: string;
+        avatar: string;
+        description: string;
+        role: string;
+        isCustomAgent: boolean;
+        isActive: boolean;
+    }>;
+    error?: string;
+}> {
+    try {
+        if (!db) {
+            return { success: false, error: 'Database unavailable' };
+        }
+
+        const snapshot = await db
+            .collection('partners')
+            .doc(partnerId)
+            .collection('hubAgents')
+            .where('isActive', '==', true)
+            .get();
+
+        const agents = snapshot.docs.map(doc => {
+            const data = doc.data();
+            return {
+                id: doc.id,
+                name: data.name || 'Unnamed Agent',
+                avatar: data.avatar || '🤖',
+                description: data.description || '',
+                role: data.role || 'CUSTOM',
+                isCustomAgent: data.isCustomAgent || false,
+                isActive: data.isActive ?? true,
+            };
+        });
+
+        return { success: true, agents };
+    } catch (error: any) {
+        console.error('Get active agents error:', error);
+        return { success: false, error: error.message };
+    }
+}
