@@ -9,6 +9,7 @@ import {
     getFileCategory,
     generateId,
     EssentialAgent,
+    AgentRole,
 } from '@/lib/partnerhub-types';
 import {
     processDocumentWithGemini,
@@ -18,6 +19,8 @@ import {
 } from '@/lib/gemini-service';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { isGeneralModeAssistant, getEssentialAssistantById } from '@/lib/types-assistant';
+import { getAgentTemplatesForIndustry } from '@/lib/business-type-agents';
+import type { IndustryCategory } from '@/lib/business-persona-types';
 
 const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -1411,7 +1414,7 @@ Respond in JSON format:
 
 /**
  * Get active agents for inbox selection
- * Reads EssentialAgent types from Firestore hubAgents collection
+ * Uses industry templates merged with Firestore data (same logic as agents page)
  */
 export async function getActiveAgentsAction(
     partnerId: string
@@ -1433,25 +1436,79 @@ export async function getActiveAgentsAction(
             return { success: false, error: 'Database unavailable' };
         }
 
+        // 1. Fetch business persona to get industry category
+        const partnerDoc = await db.collection('partners').doc(partnerId).get();
+        let industryCategory: IndustryCategory = 'other';
+
+        if (partnerDoc.exists) {
+            const partnerData = partnerDoc.data();
+            industryCategory = partnerData?.businessPersona?.identity?.industry?.category || 'other';
+        }
+
+        // 2. Get industry-specific agent templates
+        const industryTemplates = getAgentTemplatesForIndustry(industryCategory);
+
+        // 3. Fetch saved agents from Firestore
         const snapshot = await db
             .collection('partners')
             .doc(partnerId)
             .collection('hubAgents')
-            .where('isActive', '==', true)
             .get();
 
-        const agents = snapshot.docs.map(doc => {
-            const data = doc.data();
-            return {
-                id: doc.id,
-                name: data.name || 'Unnamed Agent',
-                avatar: data.avatar || '🤖',
-                description: data.description || '',
-                role: data.role || 'CUSTOM',
-                isCustomAgent: data.isCustomAgent || false,
-                isActive: data.isActive ?? true,
-            };
+        const savedAgentsMap = new Map<string, any>();
+        snapshot.docs.forEach(doc => {
+            savedAgentsMap.set(doc.id, { id: doc.id, ...doc.data() });
         });
+
+        // 4. Build agents list: templates merged with saved data
+        const agents: Array<{
+            id: string;
+            name: string;
+            avatar: string;
+            description: string;
+            role: string;
+            isCustomAgent: boolean;
+            isActive: boolean;
+        }> = [];
+
+        // Add template-based agents (essential agents)
+        for (const template of industryTemplates) {
+            const templateId = `essential-${template.role}`;
+            const savedAgent = savedAgentsMap.get(templateId);
+
+            // Use saved data if exists, otherwise use template defaults
+            const isActive = savedAgent?.isActive ?? true; // Templates are active by default
+
+            if (isActive) {
+                agents.push({
+                    id: templateId,
+                    name: savedAgent?.name || template.name,
+                    avatar: savedAgent?.avatar || template.avatar,
+                    description: savedAgent?.description || template.description,
+                    role: template.role,
+                    isCustomAgent: false,
+                    isActive: true,
+                });
+            }
+
+            // Remove from map so we don't add it again
+            savedAgentsMap.delete(templateId);
+        }
+
+        // 5. Add custom agents (those not from templates)
+        for (const [id, agent] of savedAgentsMap) {
+            if (agent.isActive) {
+                agents.push({
+                    id,
+                    name: agent.name || 'Unnamed Agent',
+                    avatar: agent.avatar || '🤖',
+                    description: agent.description || '',
+                    role: agent.role || 'CUSTOM',
+                    isCustomAgent: agent.isCustomAgent ?? true,
+                    isActive: true,
+                });
+            }
+        }
 
         return { success: true, agents };
     } catch (error: any) {
