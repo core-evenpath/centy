@@ -43,6 +43,7 @@ import {
 import { AgentRole, EssentialAgent } from '@/lib/partnerhub-types';
 import AgentConfigPanel from '@/components/partner/core/AgentConfigPanel';
 import AgentTestPanel from '@/components/partner/core/AgentTestPanel';
+import AgentsPanel from '@/components/partner/core/AgentsPanel';
 import type { BusinessPersona, IndustryCategory } from '@/lib/business-persona-types';
 import {
     getAgentTemplatesForIndustry,
@@ -55,48 +56,7 @@ import {
 } from '@/lib/business-type-agents';
 
 // Agent visual info mapping
-const AGENT_VISUALS = {
-    [AgentRole.CUSTOMER_CARE]: {
-        icon: HeadphonesIcon,
-        color: 'blue',
-        gradient: 'from-blue-500 to-blue-600',
-        bgLight: 'bg-blue-50',
-        bgDark: 'bg-blue-500',
-        text: 'text-blue-600',
-        border: 'border-blue-200',
-        ring: 'ring-blue-500/20',
-    },
-    [AgentRole.SALES_ASSISTANT]: {
-        icon: TrendingUp,
-        color: 'amber',
-        gradient: 'from-amber-500 to-orange-500',
-        bgLight: 'bg-amber-50',
-        bgDark: 'bg-amber-500',
-        text: 'text-amber-600',
-        border: 'border-amber-200',
-        ring: 'ring-amber-500/20',
-    },
-    [AgentRole.MARKETING_COMMS]: {
-        icon: Megaphone,
-        color: 'purple',
-        gradient: 'from-purple-500 to-pink-500',
-        bgLight: 'bg-purple-50',
-        bgDark: 'bg-purple-500',
-        text: 'text-purple-600',
-        border: 'border-purple-200',
-        ring: 'ring-purple-500/20',
-    },
-    [AgentRole.CUSTOM]: {
-        icon: Bot,
-        color: 'slate',
-        gradient: 'from-indigo-500 to-violet-500',
-        bgLight: 'bg-indigo-50',
-        bgDark: 'bg-indigo-500',
-        text: 'text-indigo-600',
-        border: 'border-indigo-200',
-        ring: 'ring-indigo-500/20',
-    },
-};
+
 
 type PageView = 'list' | 'configure' | 'create';
 
@@ -157,7 +117,8 @@ export default function AgentsPage() {
             if (existingAgent) {
                 // Use saved agent with template defaults as fallback
                 return {
-                    ...existingAgent,
+                    ...template, // Ensure default fields exist
+                    ...(existingAgent as unknown as Partial<EssentialAgent>), // Override with saved data
                     id,
                 } as EssentialAgent;
             }
@@ -196,11 +157,37 @@ export default function AgentsPage() {
         });
 
         // Add any custom agents the user has created
-        const userCustomAgents = customAgents.filter(a =>
-            a.isCustomAgent || a.role === AgentRole.CUSTOM
-        );
+        // Add any custom agents the user has created
+        const customMappedAgents = customAgents
+            .filter(a => a.type === 'custom' || a.id.startsWith('custom-'))
+            .map(profile => ({
+                id: profile.id,
+                partnerId: profile.partnerId,
+                role: AgentRole.CUSTOM,
+                name: profile.name,
+                description: profile.description,
+                avatar: profile.avatar || 'Bot',
+                isCustomAgent: true,
+                businessName: businessPersona?.identity?.name || 'Your Business',
+                tones: ['professional'] as any,
+                style: 'conversational' as any,
+                responseLength: 'moderate' as any,
+                useAllDocuments: false,
+                attachedDocumentIds: profile.knowledgeDocIds || [],
+                responseRules: [],
+                neverSay: [],
+                alwaysInclude: [],
+                escalationSettings: BASE_AGENT_TEMPLATES[AgentRole.CUSTOM]?.escalationSettings || BASE_AGENT_TEMPLATES[AgentRole.CUSTOMER_CARE].escalationSettings,
+                conversationCount: profile.usageCount || 0,
+                messageCount: 0,
+                isActive: profile.isActive,
+                isDefault: profile.isDefault,
+                temperature: profile.temperature,
+                createdAt: profile.createdAt instanceof Date ? profile.createdAt : new Date(),
+                updatedAt: profile.updatedAt instanceof Date ? profile.updatedAt : new Date(),
+            } as EssentialAgent));
 
-        return [...templateAgents, ...userCustomAgents];
+        return [...templateAgents, ...customMappedAgents];
     }, [industryAgentTemplates, customAgents, partnerId, businessPersona]);
 
     const selectedAgent = selectedAgentId ? essentialAgents.find(a => a.id === selectedAgentId) : null;
@@ -287,10 +274,7 @@ export default function AgentsPage() {
         }
     };
 
-    const getDocumentCount = (agent: EssentialAgent) => {
-        if (agent.useAllDocuments) return documents.length;
-        return agent.attachedDocumentIds.length;
-    };
+
 
     // Check if business profile is set up
     const hasBusinessProfile = businessPersona?.identity?.name && businessPersona?.identity?.name !== '';
@@ -488,20 +472,12 @@ export default function AgentsPage() {
                                 </span>
                             </div>
 
-                            <div className="grid gap-4">
-                                {standardAgents.map((agent) => (
-                                    <AgentCard
-                                        key={agent.id}
-                                        agent={agent}
-                                        visuals={AGENT_VISUALS[agent.role] || AGENT_VISUALS[AgentRole.CUSTOM]}
-                                        docCount={getDocumentCount(agent)}
-                                        onConfigure={() => handleConfigureAgent(agent)}
-                                        onTest={() => setTestingAgent(agent)}
-                                        onToggleActive={(isActive) => handleToggleActive(agent, isActive)}
-                                        onDelete={undefined}
-                                    />
-                                ))}
-                            </div>
+                            <AgentsPanel
+                                agents={standardAgents}
+                                onConfigureAgent={handleConfigureAgent}
+                                onTestAgent={(agent) => setTestingAgent(agent)}
+                                onToggleActive={handleToggleActive}
+                            />
                         </div>
 
                         {/* Custom Agents Section */}
@@ -523,21 +499,14 @@ export default function AgentsPage() {
 
                                 {/* Existing custom agents */}
                                 {userCustomAgents.length > 0 && (
-                                    <div className="grid gap-4">
-                                        {userCustomAgents.map((agent) => (
-                                            <AgentCard
-                                                key={agent.id}
-                                                agent={agent}
-                                                visuals={AGENT_VISUALS[AgentRole.CUSTOM]}
-                                                docCount={getDocumentCount(agent)}
-                                                onConfigure={() => handleConfigureAgent(agent)}
-                                                onTest={() => setTestingAgent(agent)}
-                                                onToggleActive={(isActive) => handleToggleActive(agent, isActive)}
-                                                onDelete={() => handleDeleteAgent(agent)}
-                                                isCustom
-                                            />
-                                        ))}
-                                    </div>
+                                    <AgentsPanel
+                                        agents={userCustomAgents}
+                                        onConfigureAgent={handleConfigureAgent}
+                                        onTestAgent={(agent) => setTestingAgent(agent)}
+                                        onToggleActive={handleToggleActive}
+                                        onDeleteAgent={handleDeleteAgent}
+                                        isCustomSection
+                                    />
                                 )}
 
                                 {/* Suggested custom agents */}
@@ -633,186 +602,7 @@ export default function AgentsPage() {
     );
 }
 
-// ============================================================================
-// AGENT CARD COMPONENT
-// ============================================================================
 
-interface AgentCardProps {
-    agent: EssentialAgent;
-    visuals: typeof AGENT_VISUALS[AgentRole.CUSTOMER_CARE];
-    docCount: number;
-    onConfigure: () => void;
-    onTest: () => void;
-    onToggleActive: (isActive: boolean) => void;
-    onDelete?: () => void;
-    isCustom?: boolean;
-}
-
-function AgentCard({
-    agent,
-    visuals,
-    docCount,
-    onConfigure,
-    onTest,
-    onToggleActive,
-    onDelete,
-    isCustom,
-}: AgentCardProps) {
-    const Icon = visuals.icon;
-
-    return (
-        <div
-            className={cn(
-                "bg-white rounded-2xl border-2 overflow-hidden transition-all hover:shadow-lg",
-                agent.isActive ? visuals.border : "border-slate-200 opacity-75"
-            )}
-        >
-            <div className="p-5">
-                <div className="flex items-start gap-4">
-                    {/* Icon */}
-                    <div className={cn(
-                        "w-14 h-14 rounded-2xl flex items-center justify-center flex-shrink-0 bg-gradient-to-br",
-                        agent.isActive ? visuals.gradient : "from-slate-400 to-slate-500"
-                    )}>
-                        <Icon className="w-7 h-7 text-white" />
-                    </div>
-
-                    {/* Content */}
-                    <div className="flex-1 min-w-0">
-                        <div className="flex items-start justify-between gap-4">
-                            <div>
-                                <div className="flex items-center gap-3">
-                                    <h3 className="text-lg font-semibold text-slate-900">{agent.name}</h3>
-                                    {isCustom && (
-                                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-700 font-medium">
-                                            Custom
-                                        </span>
-                                    )}
-                                    {/* Active Toggle */}
-                                    <button
-                                        onClick={() => onToggleActive(!agent.isActive)}
-                                        className={cn(
-                                            "flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full font-medium transition-colors",
-                                            agent.isActive
-                                                ? "bg-emerald-100 text-emerald-700 hover:bg-emerald-200"
-                                                : "bg-slate-100 text-slate-500 hover:bg-slate-200"
-                                        )}
-                                    >
-                                        {agent.isActive ? (
-                                            <>
-                                                <ToggleRight className="w-3.5 h-3.5" />
-                                                Active
-                                            </>
-                                        ) : (
-                                            <>
-                                                <ToggleLeft className="w-3.5 h-3.5" />
-                                                Inactive
-                                            </>
-                                        )}
-                                    </button>
-                                </div>
-                                <p className="text-slate-500 mt-1">{agent.description}</p>
-                            </div>
-
-                            {/* Actions */}
-                            <div className="flex items-center gap-2">
-                                <button
-                                    onClick={onTest}
-                                    className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
-                                >
-                                    <Play className="w-4 h-4" />
-                                    Test
-                                </button>
-                                <button
-                                    onClick={onConfigure}
-                                    className={cn(
-                                        "flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-colors",
-                                        `bg-gradient-to-r ${visuals.gradient} text-white hover:shadow-md`
-                                    )}
-                                >
-                                    <Sliders className="w-4 h-4" />
-                                    Configure
-                                </button>
-                                {isCustom && onDelete && (
-                                    <button
-                                        onClick={onDelete}
-                                        className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
-                                        title="Delete agent"
-                                    >
-                                        <Trash2 className="w-4 h-4" />
-                                    </button>
-                                )}
-                            </div>
-                        </div>
-
-                        {/* Best For & Use Cases - only for standard agents */}
-                        {!isCustom && agent.role !== AgentRole.CUSTOM && (
-                            <div className="mt-4 grid sm:grid-cols-2 gap-4">
-                                <div>
-                                    <h4 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">
-                                        Best for
-                                    </h4>
-                                    <p className={cn("text-sm font-medium", visuals.text)}>
-                                        {BASE_AGENT_TEMPLATES[agent.role]?.bestFor || 'General customer interactions'}
-                                    </p>
-                                </div>
-                                <div>
-                                    <h4 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">
-                                        Handles
-                                    </h4>
-                                    <div className="flex flex-wrap gap-1.5">
-                                        {(BASE_AGENT_TEMPLATES[agent.role]?.useCases || []).slice(0, 3).map((useCase, i) => (
-                                            <span
-                                                key={i}
-                                                className={cn(
-                                                    "text-xs px-2 py-0.5 rounded-full",
-                                                    visuals.bgLight, visuals.text
-                                                )}
-                                            >
-                                                {useCase}
-                                            </span>
-                                        ))}
-                                    </div>
-                                </div>
-                            </div>
-                        )}
-                    </div>
-                </div>
-            </div>
-
-            {/* Footer */}
-            <div className={cn("px-5 py-3 border-t flex items-center justify-between", visuals.bgLight)}>
-                <div className="flex items-center gap-4 text-sm text-slate-600">
-                    <span className="flex items-center gap-1.5">
-                        <FileText className="w-4 h-4 text-slate-400" />
-                        {agent.useAllDocuments ? 'All' : docCount} documents
-                    </span>
-                    <span className="flex items-center gap-1.5">
-                        <MessageCircle className="w-4 h-4 text-slate-400" />
-                        {agent.tones.slice(0, 2).join(', ')} tone
-                    </span>
-                    {agent.escalationSettings.onHumanRequest && (
-                        <span className="flex items-center gap-1.5">
-                            <Shield className="w-4 h-4 text-slate-400" />
-                            Escalation enabled
-                        </span>
-                    )}
-                </div>
-                {/* Role-specific indicator */}
-                {agent.role === AgentRole.SALES_ASSISTANT && agent.leadSettings && (
-                    <span className="text-xs px-2 py-1 rounded-full bg-amber-200/50 text-amber-700">
-                        Lead qualification {agent.leadSettings.askNeed ? 'on' : 'off'}
-                    </span>
-                )}
-                {agent.role === AgentRole.MARKETING_COMMS && agent.campaignSettings && (
-                    <span className="text-xs px-2 py-1 rounded-full bg-purple-200/50 text-purple-700">
-                        Campaigns {agent.campaignSettings.enableBirthday ? 'enabled' : 'disabled'}
-                    </span>
-                )}
-            </div>
-        </div>
-    );
-}
 
 // ============================================================================
 // CREATE AGENT MODAL
