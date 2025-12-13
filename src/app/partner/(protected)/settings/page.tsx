@@ -4,11 +4,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/hooks/use-auth';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Skeleton } from '@/components/ui/skeleton';
-import { Badge } from '@/components/ui/badge';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { cn } from '@/lib/utils';
 import {
   Building2,
   Users,
@@ -18,69 +14,30 @@ import {
   ChevronRight,
   UserCircle,
   Clock,
-  CheckCircle2
+  CheckCircle,
+  Database,
+  ArrowRight,
 } from 'lucide-react';
 import { db } from '@/lib/firebase';
 import { collection, query, where, getDocs } from 'firebase/firestore';
 import { getPartnerProfileAction } from '@/actions/get-partner-profile';
 import type { Partner } from '@/lib/types';
 
-interface QuickLinkCardProps {
-  href: string;
-  icon: React.ReactNode;
-  title: string;
-  description: string;
-  badge?: string;
-}
-
-function QuickLinkCard({ href, icon, title, description, badge }: QuickLinkCardProps) {
-  return (
-    <Link href={href} className="block group">
-      <Card className="h-full transition-all hover:shadow-md hover:border-primary/50 cursor-pointer">
-        <CardContent className="p-5">
-          <div className="flex items-start justify-between">
-            <div className="flex items-start gap-4">
-              <div className="p-2.5 rounded-lg bg-primary/10 text-primary group-hover:bg-primary group-hover:text-primary-foreground transition-colors">
-                {icon}
-              </div>
-              <div>
-                <div className="flex items-center gap-2">
-                  <h3 className="font-semibold text-base">{title}</h3>
-                  {badge && (
-                    <Badge variant="secondary" className="text-xs">
-                      {badge}
-                    </Badge>
-                  )}
-                </div>
-                <p className="text-sm text-muted-foreground mt-1">{description}</p>
-              </div>
-            </div>
-            <ChevronRight className="w-5 h-5 text-muted-foreground group-hover:text-primary transition-colors" />
-          </div>
-        </CardContent>
-      </Card>
-    </Link>
-  );
-}
-
 function LoadingSkeleton() {
   return (
     <div className="space-y-6">
-      <Card>
-        <CardContent className="p-6">
-          <div className="flex items-center gap-4">
-            <Skeleton className="h-16 w-16 rounded-full" />
-            <div className="space-y-2">
-              <Skeleton className="h-5 w-48" />
-              <Skeleton className="h-4 w-32" />
-            </div>
+      <div className="bg-white rounded-lg border border-slate-200 p-6">
+        <div className="flex items-center gap-4">
+          <div className="h-14 w-14 rounded-full bg-slate-200 animate-pulse" />
+          <div className="space-y-2">
+            <div className="h-5 w-48 bg-slate-200 rounded animate-pulse" />
+            <div className="h-4 w-32 bg-slate-200 rounded animate-pulse" />
           </div>
-        </CardContent>
-      </Card>
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-        <Skeleton className="h-32" />
-        <Skeleton className="h-32" />
-        <Skeleton className="h-32" />
+        </div>
+      </div>
+      <div className="grid gap-4 md:grid-cols-2">
+        <div className="h-24 bg-slate-200 rounded-lg animate-pulse" />
+        <div className="h-24 bg-slate-200 rounded-lg animate-pulse" />
       </div>
     </div>
   );
@@ -159,18 +116,19 @@ export default function SettingsPage() {
 
   if (!partnerId) {
     return (
-      <Card>
-        <CardContent className="flex flex-col items-center justify-center py-12 text-center">
-          <UserCircle className="w-12 h-12 text-muted-foreground mb-4" />
-          <h3 className="text-lg font-semibold mb-2">Not Logged In</h3>
-          <p className="text-muted-foreground mb-4">
-            Please log in to access your settings.
-          </p>
-          <Button asChild>
-            <Link href="/partner/login">Sign In</Link>
-          </Button>
-        </CardContent>
-      </Card>
+      <div className="bg-white rounded-lg border border-slate-200 p-8 text-center">
+        <UserCircle className="w-12 h-12 text-slate-300 mx-auto mb-4" />
+        <h3 className="text-lg font-semibold text-slate-900 mb-2">Not Logged In</h3>
+        <p className="text-slate-500 mb-4">
+          Please log in to access your settings.
+        </p>
+        <Link
+          href="/partner/login"
+          className="inline-flex items-center gap-2 px-4 py-2 bg-slate-900 text-white rounded-lg text-sm font-medium hover:bg-slate-800 transition-colors"
+        >
+          Sign In
+        </Link>
+      </div>
     );
   }
 
@@ -190,117 +148,144 @@ export default function SettingsPage() {
 
   return (
     <div className="space-y-6">
-      {/* Account Overview Card */}
-      <Card>
-        <CardHeader className="pb-4">
-          <CardTitle className="text-lg">Account Overview</CardTitle>
-          <CardDescription>Your account information and workspace details</CardDescription>
-        </CardHeader>
-        <CardContent>
+      {/* Business Data CTA - Priority */}
+      <Link href="/partner/settings/dashboard" className="block group">
+        <div className="bg-slate-900 rounded-lg p-5 text-white hover:bg-slate-800 transition-colors">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 rounded-lg bg-white/10 flex items-center justify-center">
+                <Database className="w-6 h-6" />
+              </div>
+              <div>
+                <h2 className="font-semibold text-lg">Business Data</h2>
+                <p className="text-slate-300 text-sm">
+                  Configure the data that powers your AI agents
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 text-slate-300 group-hover:text-white transition-colors">
+              <span className="text-sm font-medium hidden sm:inline">Configure</span>
+              <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+            </div>
+          </div>
+        </div>
+      </Link>
+
+      {/* Account Overview */}
+      <div className="bg-white rounded-lg border border-slate-200">
+        <div className="px-5 py-4 border-b border-slate-100">
+          <h2 className="font-semibold text-slate-900">Account Overview</h2>
+          <p className="text-sm text-slate-500">Your profile and workspace details</p>
+        </div>
+        <div className="p-5">
           <div className="flex flex-col sm:flex-row sm:items-center gap-6">
             {/* Avatar & Name */}
             <div className="flex items-center gap-4">
-              <Avatar className="h-16 w-16 border-2 border-primary/20">
-                <AvatarImage src={user?.photoURL || undefined} alt={partner?.businessName || 'Business'} />
-                <AvatarFallback className="bg-primary/10 text-primary text-xl font-semibold">
-                  {businessInitial}
-                </AvatarFallback>
-              </Avatar>
+              <div className="w-14 h-14 rounded-full bg-slate-100 flex items-center justify-center text-slate-700 text-xl font-semibold">
+                {businessInitial}
+              </div>
               <div>
-                <h2 className="text-xl font-semibold">
+                <h3 className="text-lg font-semibold text-slate-900">
                   {partner?.businessName || 'Workspace User'}
-                </h2>
+                </h3>
                 <div className="flex items-center gap-2 mt-1">
-                  <Badge variant={userRole === 'partner_admin' ? 'default' : 'secondary'}>
+                  <span className={cn(
+                    "text-xs px-2 py-0.5 rounded font-medium",
+                    userRole === 'partner_admin'
+                      ? "bg-slate-900 text-white"
+                      : "bg-slate-100 text-slate-600"
+                  )}>
                     {userRole === 'partner_admin' ? 'Administrator' : 'Team Member'}
-                  </Badge>
-                  <Badge variant="outline" className="text-green-600 border-green-200 bg-green-50">
-                    <CheckCircle2 className="w-3 h-3 mr-1" />
+                  </span>
+                  <span className="text-xs px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 font-medium flex items-center gap-1">
+                    <CheckCircle className="w-3 h-3" />
                     Active
-                  </Badge>
+                  </span>
                 </div>
               </div>
             </div>
 
             {/* Account Details */}
-            <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6 pt-4 sm:pt-0 sm:pl-6 border-t sm:border-t-0 sm:border-l">
+            <div className="flex-1 grid grid-cols-2 gap-4 pt-4 sm:pt-0 sm:pl-6 border-t sm:border-t-0 sm:border-l border-slate-100">
               <div className="flex items-center gap-3">
-                <Mail className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+                <Mail className="w-4 h-4 text-slate-400" />
                 <div className="min-w-0">
-                  <p className="text-xs text-muted-foreground">Email</p>
-                  <p className="text-sm font-medium truncate">{user?.email || 'Not set'}</p>
+                  <p className="text-xs text-slate-500">Email</p>
+                  <p className="text-sm font-medium text-slate-900 truncate">{user?.email || 'Not set'}</p>
                 </div>
               </div>
               <div className="flex items-center gap-3">
-                <Calendar className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+                <Calendar className="w-4 h-4 text-slate-400" />
                 <div>
-                  <p className="text-xs text-muted-foreground">Member Since</p>
-                  <p className="text-sm font-medium">
+                  <p className="text-xs text-slate-500">Member Since</p>
+                  <p className="text-sm font-medium text-slate-900">
                     {formatDate(user?.metadata?.creationTime)}
                   </p>
                 </div>
               </div>
               <div className="flex items-center gap-3">
-                <Clock className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+                <Clock className="w-4 h-4 text-slate-400" />
                 <div>
-                  <p className="text-xs text-muted-foreground">Last Sign In</p>
-                  <p className="text-sm font-medium">
+                  <p className="text-xs text-slate-500">Last Sign In</p>
+                  <p className="text-sm font-medium text-slate-900">
                     {formatDate(user?.metadata?.lastSignInTime)}
                   </p>
                 </div>
               </div>
               <div className="flex items-center gap-3">
-                <Building2 className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+                <Building2 className="w-4 h-4 text-slate-400" />
                 <div>
-                  <p className="text-xs text-muted-foreground">Workspace ID</p>
-                  <p className="text-sm font-medium font-mono text-xs">
+                  <p className="text-xs text-slate-500">Workspace ID</p>
+                  <p className="text-sm font-medium text-slate-900 font-mono">
                     {partnerId?.substring(0, 12)}...
                   </p>
                 </div>
               </div>
             </div>
           </div>
-        </CardContent>
-      </Card>
-
-      {/* Business Data Section */}
-      <div>
-        <h3 className="text-lg font-semibold mb-2">Business Data</h3>
-        <p className="text-sm text-muted-foreground mb-4">
-          Configure the data that powers your AI agents
-        </p>
-        <div className="grid gap-4">
-          <QuickLinkCard
-            href="/partner/settings/dashboard"
-            icon={<Building2 className="w-5 h-5" />}
-            title="Business Data"
-            description="Manage the business information that powers your AI agents"
-            badge="AI-Powered"
-          />
         </div>
       </div>
 
-      {/* Team Management Section */}
+      {/* Team Management */}
       <div>
-        <h3 className="text-lg font-semibold mb-2">Team Management</h3>
-        <p className="text-sm text-muted-foreground mb-4">
-          Manage who has access to your workspace
-        </p>
-        <div className="grid gap-4 md:grid-cols-2">
-          <QuickLinkCard
-            href="/partner/settings/employees"
-            icon={<Users className="w-5 h-5" />}
-            title="Team Members"
-            description="Manage your team and invite new members"
-            badge={loadingStats ? '...' : `${teamCount} members`}
-          />
-          <QuickLinkCard
-            href="/partner/settings/admins"
-            icon={<Shield className="w-5 h-5" />}
-            title="Administrators"
-            description="Manage admin access and permissions"
-            badge={loadingStats ? '...' : `${adminCount} admins`}
-          />
+        <h3 className="text-sm font-medium text-slate-700 mb-3">Team Management</h3>
+        <div className="grid gap-3 md:grid-cols-2">
+          <Link href="/partner/settings/employees" className="group">
+            <div className="bg-white rounded-lg border border-slate-200 p-4 hover:border-slate-300 hover:shadow-sm transition-all">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-lg bg-slate-100 flex items-center justify-center group-hover:bg-slate-200 transition-colors">
+                    <Users className="w-5 h-5 text-slate-600" />
+                  </div>
+                  <div>
+                    <h4 className="font-medium text-slate-900">Team Members</h4>
+                    <p className="text-sm text-slate-500">
+                      {loadingStats ? '...' : `${teamCount} members`}
+                    </p>
+                  </div>
+                </div>
+                <ChevronRight className="w-5 h-5 text-slate-400 group-hover:text-slate-600 transition-colors" />
+              </div>
+            </div>
+          </Link>
+          <Link href="/partner/settings/admins" className="group">
+            <div className="bg-white rounded-lg border border-slate-200 p-4 hover:border-slate-300 hover:shadow-sm transition-all">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-lg bg-slate-100 flex items-center justify-center group-hover:bg-slate-200 transition-colors">
+                    <Shield className="w-5 h-5 text-slate-600" />
+                  </div>
+                  <div>
+                    <h4 className="font-medium text-slate-900">Administrators</h4>
+                    <p className="text-sm text-slate-500">
+                      {loadingStats ? '...' : `${adminCount} admins`}
+                    </p>
+                  </div>
+                </div>
+                <ChevronRight className="w-5 h-5 text-slate-400 group-hover:text-slate-600 transition-colors" />
+              </div>
+            </div>
+          </Link>
         </div>
       </div>
     </div>

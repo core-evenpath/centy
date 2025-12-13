@@ -14,7 +14,9 @@ import {
   Settings,
   Menu,
   Building2,
-  ChevronRight
+  ChevronRight,
+  Database,
+  UserCircle,
 } from 'lucide-react';
 
 interface NavItem {
@@ -22,72 +24,94 @@ interface NavItem {
   title: string;
   description: string;
   icon: React.ReactNode;
+  section?: 'business' | 'account';
 }
 
 const sidebarNavItems: NavItem[] = [
   {
-    title: "Account",
-    description: "Your account & workspace",
-    href: "/partner/settings",
-    icon: <Settings className="w-5 h-5" />,
-  },
-  {
     title: "Business Data",
     description: "Powers your AI agents",
     href: "/partner/settings/dashboard",
-    icon: <Building2 className="w-5 h-5" />,
+    icon: <Database className="w-5 h-5" />,
+    section: 'business',
+  },
+  {
+    title: "Account",
+    description: "Your profile & workspace",
+    href: "/partner/settings",
+    icon: <UserCircle className="w-5 h-5" />,
+    section: 'account',
   },
   {
     title: "Team Members",
     description: "Manage employees",
     href: "/partner/settings/employees",
     icon: <Users className="w-5 h-5" />,
+    section: 'account',
   },
   {
     title: "Administrators",
     description: "Admin access control",
     href: "/partner/settings/admins",
     icon: <Shield className="w-5 h-5" />,
+    section: 'account',
   },
 ];
 
 function SidebarNav({ className, onItemClick }: { className?: string; onItemClick?: () => void }) {
   const pathname = usePathname();
 
+  const businessItems = sidebarNavItems.filter(item => item.section === 'business');
+  const accountItems = sidebarNavItems.filter(item => item.section === 'account');
+
+  const renderNavItem = (item: NavItem) => {
+    const isActive = pathname === item.href;
+    return (
+      <Link
+        key={item.href}
+        href={item.href}
+        onClick={onItemClick}
+        className={cn(
+          "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition-all",
+          isActive
+            ? "bg-slate-900 text-white"
+            : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+        )}
+      >
+        <span className="flex-shrink-0">
+          {item.icon}
+        </span>
+        <div className="flex-1 min-w-0">
+          <div className="font-medium">{item.title}</div>
+        </div>
+        {isActive && (
+          <ChevronRight className="w-4 h-4 flex-shrink-0" />
+        )}
+      </Link>
+    );
+  };
+
   return (
-    <nav className={cn("flex flex-col space-y-1", className)}>
-      {sidebarNavItems.map((item) => {
-        const isActive = pathname === item.href;
-        return (
-          <Link
-            key={item.href}
-            href={item.href}
-            onClick={onItemClick}
-            className={cn(
-              "flex items-center gap-3 rounded-lg px-3 py-3 text-sm transition-all hover:bg-accent",
-              isActive
-                ? "bg-primary/10 text-primary border-l-2 border-primary"
-                : "text-muted-foreground hover:text-foreground"
-            )}
-          >
-            <span className={cn(
-              "flex-shrink-0",
-              isActive ? "text-primary" : "text-muted-foreground"
-            )}>
-              {item.icon}
-            </span>
-            <div className="flex-1 min-w-0">
-              <div className="font-medium truncate">{item.title}</div>
-              <div className="text-xs text-muted-foreground truncate hidden lg:block">
-                {item.description}
-              </div>
-            </div>
-            {isActive && (
-              <ChevronRight className="w-4 h-4 text-primary flex-shrink-0" />
-            )}
-          </Link>
-        );
-      })}
+    <nav className={cn("flex flex-col", className)}>
+      {/* Business Data Section - Priority */}
+      <div className="mb-4">
+        <p className="px-3 mb-2 text-[10px] font-medium text-slate-400 uppercase tracking-wider">
+          Business
+        </p>
+        <div className="space-y-1">
+          {businessItems.map(renderNavItem)}
+        </div>
+      </div>
+
+      {/* Account Section */}
+      <div>
+        <p className="px-3 mb-2 text-[10px] font-medium text-slate-400 uppercase tracking-wider">
+          Account
+        </p>
+        <div className="space-y-1">
+          {accountItems.map(renderNavItem)}
+        </div>
+      </div>
     </nav>
   );
 }
@@ -100,7 +124,7 @@ function MobileNav() {
   return (
     <Sheet open={open} onOpenChange={setOpen}>
       <SheetTrigger asChild>
-        <Button variant="outline" size="sm" className="md:hidden mb-4 w-full justify-between">
+        <Button variant="outline" size="sm" className="md:hidden mb-4 w-full justify-between border-slate-200">
           <div className="flex items-center gap-2">
             <Menu className="h-4 w-4" />
             <span>{currentItem?.title || 'Settings'}</span>
@@ -109,9 +133,9 @@ function MobileNav() {
         </Button>
       </SheetTrigger>
       <SheetContent side="left" className="w-[280px] p-0">
-        <div className="p-6 border-b">
-          <h2 className="text-lg font-semibold">Settings</h2>
-          <p className="text-sm text-muted-foreground">Manage your workspace</p>
+        <div className="p-5 border-b border-slate-200">
+          <h2 className="text-lg font-semibold text-slate-900">Settings</h2>
+          <p className="text-sm text-slate-500">Manage your workspace</p>
         </div>
         <ScrollArea className="h-[calc(100vh-100px)]">
           <div className="p-4">
@@ -129,18 +153,18 @@ export default function SettingsLayout({
   children: React.ReactNode;
 }) {
   return (
-    <div className="h-full bg-background overflow-y-auto">
-      <div className="container max-w-7xl mx-auto px-4 py-6 lg:py-10">
+    <div className="h-full bg-slate-50 overflow-y-auto">
+      <div className="container max-w-6xl mx-auto px-4 py-6 lg:py-8">
         {/* Header */}
-        <div className="mb-8">
-          <div className="flex items-center gap-3 mb-2">
-            <div className="p-2 rounded-lg bg-primary/10">
-              <Settings className="w-6 h-6 text-primary" />
+        <div className="mb-6">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-lg bg-slate-800 flex items-center justify-center">
+              <Settings className="w-5 h-5 text-white" />
             </div>
             <div>
-              <h1 className="text-2xl lg:text-3xl font-bold tracking-tight">Settings</h1>
-              <p className="text-muted-foreground text-sm lg:text-base">
-                Manage your workspace, team, and preferences
+              <h1 className="text-xl font-semibold text-slate-900">Settings</h1>
+              <p className="text-slate-500 text-sm">
+                Manage your business data and workspace
               </p>
             </div>
           </div>
@@ -150,11 +174,11 @@ export default function SettingsLayout({
         <MobileNav />
 
         {/* Main Content */}
-        <div className="flex flex-col md:flex-row gap-8 pb-8">
+        <div className="flex flex-col md:flex-row gap-6">
           {/* Desktop Sidebar */}
-          <aside className="hidden md:block w-64 flex-shrink-0">
+          <aside className="hidden md:block w-56 flex-shrink-0">
             <div className="sticky top-6">
-              <div className="rounded-xl border bg-card p-4">
+              <div className="bg-white rounded-lg border border-slate-200 p-3">
                 <SidebarNav />
               </div>
             </div>
