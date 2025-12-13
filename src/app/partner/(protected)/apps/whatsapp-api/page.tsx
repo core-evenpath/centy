@@ -30,6 +30,9 @@ import {
     Copy,
 } from 'lucide-react';
 import type { EmbeddedSignupSessionInfo, EmbeddedSignupResponse } from '@/lib/types-meta-embedded';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 
 const META_APP_ID = process.env.NEXT_PUBLIC_META_APP_ID || '1411415467214690';
 const META_CONFIG_ID = process.env.NEXT_PUBLIC_META_CONFIG_ID || '849551567857314';
@@ -48,6 +51,9 @@ export default function WhatsAppBusinessAPIPage() {
     const [diagnosticsLoading, setDiagnosticsLoading] = useState(false);
     const [showDiagnostics, setShowDiagnostics] = useState(false);
     const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({});
+    const [showPinDialog, setShowPinDialog] = useState(false);
+    const [pinCode, setPinCode] = useState('');
+    const [pinLoading, setPinLoading] = useState(false);
 
     const sessionDataRef = useRef<{ wabaId: string; phoneNumberId: string } | null>(null);
 
@@ -278,6 +284,12 @@ export default function WhatsAppBusinessAPIPage() {
         setSuccess(null);
         try {
             const result = await resubscribeWebhooks(currentPartnerId);
+
+            if (result.requiresPin) {
+                setShowPinDialog(true);
+                return;
+            }
+
             if (result.success) {
                 setSuccess(result.message);
                 // Refresh the config to show updated status
@@ -288,6 +300,39 @@ export default function WhatsAppBusinessAPIPage() {
             }
         } catch (err: any) {
             setError(err.message);
+        }
+    };
+
+    const handlePinSubmit = async () => {
+        if (!currentPartnerId || !pinCode || pinCode.length !== 6) return;
+
+        setPinLoading(true);
+        setError(null);
+
+        try {
+            const result = await resubscribeWebhooks(currentPartnerId, pinCode);
+
+            if (result.success) {
+                setSuccess(result.message);
+                setShowPinDialog(false);
+                setPinCode('');
+                // Refresh the config
+                const status = await getEmbeddedSignupStatus(currentPartnerId);
+                setConfig(status.config);
+            } else {
+                // If specific error about PIN
+                if (result.requiresPin) {
+                    setError('Incorrect PIN. Please try again.');
+                } else {
+                    setError(result.message);
+                    setShowPinDialog(false);
+                }
+            }
+        } catch (err: any) {
+            setError(err.message);
+            setShowPinDialog(false);
+        } finally {
+            setPinLoading(false);
         }
     };
 
@@ -670,11 +715,11 @@ export default function WhatsAppBusinessAPIPage() {
                                             className="border-green-600 text-green-700 hover:bg-green-100"
                                         >
                                             <RefreshCw className="w-4 h-4 mr-2" />
-                                            Fix Webhooks
+                                            Fix Connection
                                         </Button>
                                     </div>
                                     <p className="text-xs text-green-600">
-                                        Not receiving messages? Click "Fix Webhooks" to re-establish the connection.
+                                        Not receiving messages? Click "Fix Connection" to re-establish the connection.
                                     </p>
                                 </CardContent>
                             </Card>
@@ -803,13 +848,15 @@ export default function WhatsAppBusinessAPIPage() {
                                                         size="sm"
                                                         onClick={() => copyToClipboard(JSON.stringify(diagnostics, null, 2))}
                                                     >
-                                                        <Copy className="w-3 h-3 mr-1" />
-                                                        Copy
+                                                        <Copy className="w-4 h-4 mr-2" />
+                                                        Copy JSON
                                                     </Button>
                                                 </div>
-                                                <pre className="p-3 bg-gray-900 text-green-400 text-xs rounded-lg overflow-auto max-h-96">
-                                                    {JSON.stringify(diagnostics, null, 2)}
-                                                </pre>
+                                                <div className="bg-gray-900 text-gray-100 p-4 rounded-lg overflow-auto max-h-[400px]">
+                                                    <pre className="text-xs font-mono">
+                                                        {JSON.stringify(diagnostics, null, 2)}
+                                                    </pre>
+                                                </div>
                                             </div>
                                         )}
                                     </div>
@@ -821,14 +868,14 @@ export default function WhatsAppBusinessAPIPage() {
                                             <ul className="text-sm text-red-800 space-y-2">
                                                 {diagnostics.checks.phoneNumberStatus?.status === 'fail' &&
                                                     diagnostics.checks.phoneNumberStatus?.details?.errorCode === 33 && (
-                                                    <li className="flex items-start gap-2">
-                                                        <span className="text-red-500">•</span>
-                                                        <span>
-                                                            <strong>Phone Number Deleted:</strong> The phone number has been removed from Meta.
-                                                            Click "Disconnect" below and reconnect with a new phone number.
-                                                        </span>
-                                                    </li>
-                                                )}
+                                                        <li className="flex items-start gap-2">
+                                                            <span className="text-red-500">•</span>
+                                                            <span>
+                                                                <strong>Phone Number Deleted:</strong> The phone number has been removed from Meta.
+                                                                Click "Disconnect" below and reconnect with a new phone number.
+                                                            </span>
+                                                        </li>
+                                                    )}
                                                 {diagnostics.checks.accessToken?.status === 'fail' && (
                                                     <li className="flex items-start gap-2">
                                                         <span className="text-red-500">•</span>
@@ -888,6 +935,41 @@ export default function WhatsAppBusinessAPIPage() {
                     </>
                 )}
             </div>
+            <Dialog open={showPinDialog} onOpenChange={setShowPinDialog}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>Two-Step Verification Required</DialogTitle>
+                        <DialogDescription>
+                            Your WhatsApp Business account has Two-Step Verification enabled.
+                            Please enter your 6-digit PIN to register this phone number.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <div className="grid gap-4 py-4">
+                        <div className="grid grid-cols-4 items-center gap-4">
+                            <Label htmlFor="pin" className="text-right">
+                                6-Digit PIN
+                            </Label>
+                            <Input
+                                id="pin"
+                                value={pinCode}
+                                onChange={(e) => setPinCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                                className="col-span-3"
+                                placeholder="123456"
+                                maxLength={6}
+                                type="password"
+                                inputMode="numeric"
+                            />
+                        </div>
+                    </div>
+                    <DialogFooter>
+                        <Button variant="outline" onClick={() => setShowPinDialog(false)}>Cancel</Button>
+                        <Button onClick={handlePinSubmit} disabled={pinLoading || pinCode.length !== 6}>
+                            {pinLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                            Register Number
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
         </>
     );
 }

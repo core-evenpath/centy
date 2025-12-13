@@ -457,8 +457,9 @@ export async function activateEmbeddedSignup(
 }
 
 export async function resubscribeWebhooks(
-    partnerId: string
-): Promise<{ success: boolean; message: string }> {
+    partnerId: string,
+    pin?: string
+): Promise<{ success: boolean; message: string; requiresPin?: boolean }> {
     if (!db) {
         return { success: false, message: 'Database not available' };
     }
@@ -489,16 +490,36 @@ export async function resubscribeWebhooks(
             console.warn('⚠️ Webhook fields subscription warning:', webhookResult.error);
         }
 
+        // Ensure phone number is registered (fixes Error #133010)
+        // Pass the optional PIN if provided
+        if (config.phoneNumberId) {
+            const registerResult = await registerPhoneNumber(config.phoneNumberId, accessToken, pin);
+            if (!registerResult.success) {
+                console.warn('⚠️ Phone registration warning:', registerResult.error);
+
+                // Detect missing PIN error
+                if (registerResult.error?.includes('pin is required') || registerResult.error?.includes('(#100)')) {
+                    return {
+                        success: false,
+                        message: 'Two-step verification PIN is required to register this phone number.',
+                        requiresPin: true
+                    };
+                }
+            } else {
+                console.log('✅ Phone number registration confirmed');
+            }
+        }
+
         // Update the config to mark webhook as configured
         await db.collection('partners').doc(partnerId).update({
             'metaWhatsAppConfig.webhookConfigured': true,
             'metaWhatsAppConfig.updatedAt': new Date().toISOString(),
         });
 
-        console.log(`✅ Webhooks resubscribed for partner: ${partnerId}`);
+        console.log(`✅ Webhooks and registration repaired for partner: ${partnerId}`);
         return {
             success: true,
-            message: 'Webhooks resubscribed successfully. Messages should now be delivered.',
+            message: 'Connection repaired: Webhooks resubscribed and phone registration verified.',
         };
     } catch (error: any) {
         console.error('❌ Error resubscribing webhooks:', error);
