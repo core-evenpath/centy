@@ -119,17 +119,21 @@ export async function POST(request: NextRequest) {
                     }
                 }
 
-                if (value.messages && value.contacts) {
-                    for (let i = 0; i < value.messages.length; i++) {
-                        const message = value.messages[i];
-                        const contact = value.contacts[i] || value.contacts[0];
+                if (value.messages) {
+                    for (const message of value.messages) {
+                        // Find matching contact if available
+                        const contact = value.contacts?.find((c: any) => c.wa_id === message.from);
+
+                        // Fallback to sender number if name not available
+                        const customerName = contact?.profile?.name || message.from;
+                        const customerWaId = message.from;
 
                         await handleIncomingMessage(
                             partnerId,
                             phoneNumberId,
                             message,
-                            contact.profile.name,
-                            contact.wa_id
+                            customerName,
+                            customerWaId
                         );
                     }
                 }
