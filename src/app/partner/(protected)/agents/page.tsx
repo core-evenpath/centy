@@ -265,12 +265,21 @@ export default function AgentsPage() {
 
     if (pageView === 'configure' && selectedAgent) {
         return (
-            <AgentConfigPanel
-                agent={selectedAgent}
-                onBack={() => { setPageView('list'); setSelectedAgentId(null); }}
-                onSave={handleSaveAgent}
-                onTest={() => setTestingAgent(selectedAgent)}
-            />
+            <>
+                {testingAgent && partnerId && (
+                    <AgentTestPanel
+                        agent={testingAgent}
+                        partnerId={partnerId}
+                        onClose={() => setTestingAgent(null)}
+                    />
+                )}
+                <AgentConfigPanel
+                    agent={selectedAgent}
+                    onBack={() => { setPageView('list'); setSelectedAgentId(null); }}
+                    onSave={handleSaveAgent}
+                    onTest={() => setTestingAgent(selectedAgent)}
+                />
+            </>
         );
     }
 
@@ -320,7 +329,8 @@ export default function AgentsPage() {
                 <div className="flex-1 overflow-auto">
                     <div className="p-6 space-y-6 max-w-5xl mx-auto">
 
-                        {/* Business Context Banner */}
+                        {/* Business Context Banner - only show after loading */}
+                        {!loadingPersona && (
                         <div className={cn(
                             "rounded-lg border overflow-hidden",
                             hasBusinessProfile
@@ -420,6 +430,7 @@ export default function AgentsPage() {
                                 </div>
                             </div>
                         </div>
+                        )}
 
                         {/* Recommended Agents Section */}
                         <div className="space-y-3">
