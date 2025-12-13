@@ -33,7 +33,7 @@ export default function UnifiedPartnerSidebar() {
   const router = useRouter();
   const { toast } = useToast();
   const auth = getAuth(app);
-  const [isCollapsed, setIsCollapsed] = useState(false);
+  const [isCollapsed, setIsCollapsed] = useState(true);
 
   // Auto-collapse logic based on initial load or responsive (optional)
   // For now we persist specific state manually
@@ -54,11 +54,10 @@ export default function UnifiedPartnerSidebar() {
   };
 
   const isActiveRoute = (href: string) => {
-    // Special handling for Core Memory grouping
+    // Special handling for Core Memory - only includes documents, NOT agents
     if (href === '/partner/core') {
       return pathname === '/partner/core' ||
-        pathname.startsWith('/partner/documents') ||
-        pathname.startsWith('/partner/agents');
+        pathname.startsWith('/partner/documents');
     }
     return pathname === href || pathname.startsWith(href + '/');
   };
