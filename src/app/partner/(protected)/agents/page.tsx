@@ -8,37 +8,16 @@ import { getBusinessPersonaAction } from '@/actions/business-persona-actions';
 import { cn } from '@/lib/utils';
 import {
     Bot,
-    Zap,
-    Sparkles,
     Settings,
-    Play,
-    MessageCircle,
-    FileText,
-    Shield,
     Building2,
-    CheckCircle2,
-    Sliders,
-    ToggleLeft,
-    ToggleRight,
+    Plus,
+    ChevronRight,
+    ExternalLink,
+    Briefcase,
     Clock,
     Phone,
-    Globe,
-    Lightbulb,
-    ArrowUpRight,
     Mail,
-    MapPin,
-    Plus,
-    Star,
-    Wand2,
-    ChevronRight,
-    Trash2,
-    Copy,
-    MoreVertical,
-    Briefcase,
-    Users,
-    HeadphonesIcon,
-    TrendingUp,
-    Megaphone,
+    Info,
 } from 'lucide-react';
 import { AgentRole, EssentialAgent } from '@/lib/partnerhub-types';
 import AgentConfigPanel from '@/components/partner/core/AgentConfigPanel';
@@ -48,15 +27,11 @@ import type { BusinessPersona, IndustryCategory } from '@/lib/business-persona-t
 import {
     getAgentTemplatesForIndustry,
     getCustomAgentSuggestionsForIndustry,
-    getAgentTemplate,
     createBlankCustomAgent,
     mapVoiceTonesToAgentTones,
     BASE_AGENT_TEMPLATES,
     AgentTemplate,
 } from '@/lib/business-type-agents';
-
-// Agent visual info mapping
-
 
 type PageView = 'list' | 'configure' | 'create';
 
@@ -157,7 +132,6 @@ export default function AgentsPage() {
         });
 
         // Add any custom agents the user has created
-        // Add any custom agents the user has created
         const customMappedAgents = customAgents
             .filter(a => a.type === 'custom' || a.id.startsWith('custom-'))
             .map(profile => ({
@@ -215,6 +189,11 @@ export default function AgentsPage() {
     };
 
     const handleCreateCustomAgent = async (name: string, description: string, template?: AgentTemplate) => {
+        if (!name.trim()) {
+            toast({ variant: 'destructive', title: 'Name Required', description: 'Please enter a name for your agent.' });
+            return;
+        }
+
         const baseTemplate = template || createBlankCustomAgent();
         const newAgent: EssentialAgent = {
             id: `custom-${Date.now()}`,
@@ -274,8 +253,6 @@ export default function AgentsPage() {
         }
     };
 
-
-
     // Check if business profile is set up
     const hasBusinessProfile = businessPersona?.identity?.name && businessPersona?.identity?.name !== '';
     const businessName = businessPersona?.identity?.name || 'Your Business';
@@ -325,14 +302,14 @@ export default function AgentsPage() {
                             <h1 className="text-xl font-semibold text-slate-900">AI Agents</h1>
                             <p className="text-slate-500 text-sm mt-0.5">
                                 {hasBusinessProfile && businessPersona?.identity?.industry?.name
-                                    ? `Agents configured for ${businessPersona.identity.industry.name}`
-                                    : 'Specialized AI assistants for your inbox and customer conversations'
+                                    ? `Configured for ${businessPersona.identity.industry.name}`
+                                    : 'AI assistants for customer conversations'
                                 }
                             </p>
                         </div>
                         <button
                             onClick={() => setShowCreateModal(true)}
-                            className="flex items-center gap-2 px-4 py-2.5 bg-indigo-600 text-white rounded-xl text-sm font-medium hover:bg-indigo-700 transition-colors"
+                            className="flex items-center gap-2 px-4 py-2 bg-slate-900 text-white rounded-lg text-sm font-medium hover:bg-slate-800 transition-colors"
                         >
                             <Plus className="w-4 h-4" />
                             Create Agent
@@ -345,79 +322,79 @@ export default function AgentsPage() {
 
                         {/* Business Context Banner */}
                         <div className={cn(
-                            "rounded-2xl border-2 overflow-hidden transition-all",
+                            "rounded-lg border overflow-hidden",
                             hasBusinessProfile
-                                ? "bg-gradient-to-r from-emerald-50 to-teal-50 border-emerald-200"
-                                : "bg-gradient-to-r from-amber-50 to-orange-50 border-amber-200"
+                                ? "bg-white border-slate-200"
+                                : "bg-amber-50 border-amber-200"
                         )}>
-                            <div className="p-5">
+                            <div className="p-4">
                                 <div className="flex items-start gap-4">
                                     <div className={cn(
-                                        "w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0",
-                                        hasBusinessProfile ? "bg-emerald-100" : "bg-amber-100"
+                                        "w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0",
+                                        hasBusinessProfile ? "bg-slate-100" : "bg-amber-100"
                                     )}>
                                         <Building2 className={cn(
-                                            "w-6 h-6",
-                                            hasBusinessProfile ? "text-emerald-600" : "text-amber-600"
+                                            "w-5 h-5",
+                                            hasBusinessProfile ? "text-slate-600" : "text-amber-600"
                                         )} />
                                     </div>
                                     <div className="flex-1 min-w-0">
                                         <div className="flex items-start justify-between gap-4">
                                             <div>
                                                 <h2 className={cn(
-                                                    "font-semibold",
-                                                    hasBusinessProfile ? "text-emerald-900" : "text-amber-900"
+                                                    "font-medium",
+                                                    hasBusinessProfile ? "text-slate-900" : "text-amber-900"
                                                 )}>
-                                                    {hasBusinessProfile ? 'Business Context Connected' : 'Set Up Your Business Profile'}
+                                                    {hasBusinessProfile ? 'Business Profile Connected' : 'Set Up Your Business Profile'}
                                                 </h2>
                                                 <p className={cn(
-                                                    "text-sm mt-1",
-                                                    hasBusinessProfile ? "text-emerald-700" : "text-amber-700"
+                                                    "text-sm mt-0.5",
+                                                    hasBusinessProfile ? "text-slate-500" : "text-amber-700"
                                                 )}>
                                                     {hasBusinessProfile
-                                                        ? `Agents are configured for "${businessName}" (${businessPersona?.identity?.industry?.name || 'General Business'}).`
-                                                        : 'Your agents need business information to respond accurately. Set up your profile in Settings first.'
+                                                        ? `Agents are configured for "${businessName}" (${businessPersona?.identity?.industry?.name || 'General'}).`
+                                                        : 'Your agents need business information to respond accurately.'
                                                     }
                                                 </p>
 
                                                 {/* Quick Business Info Preview */}
                                                 {hasBusinessProfile && (
-                                                    <div className="flex flex-wrap gap-3 mt-3">
+                                                    <div className="flex flex-wrap gap-2 mt-3">
                                                         {businessPersona?.identity?.industry?.name && (
-                                                            <span className="inline-flex items-center gap-1.5 text-xs bg-white/60 px-2.5 py-1 rounded-full text-emerald-700">
+                                                            <span className="inline-flex items-center gap-1.5 text-xs bg-slate-100 px-2 py-1 rounded text-slate-600">
                                                                 <Briefcase className="w-3 h-3" />
                                                                 {businessPersona.identity.industry.name}
                                                             </span>
                                                         )}
                                                         {businessPhone && (
-                                                            <span className="inline-flex items-center gap-1.5 text-xs bg-white/60 px-2.5 py-1 rounded-full text-emerald-700">
+                                                            <span className="inline-flex items-center gap-1.5 text-xs bg-slate-100 px-2 py-1 rounded text-slate-600">
                                                                 <Phone className="w-3 h-3" />
                                                                 {businessPhone}
                                                             </span>
                                                         )}
                                                         {businessPersona?.identity?.email && (
-                                                            <span className="inline-flex items-center gap-1.5 text-xs bg-white/60 px-2.5 py-1 rounded-full text-emerald-700">
+                                                            <span className="inline-flex items-center gap-1.5 text-xs bg-slate-100 px-2 py-1 rounded text-slate-600">
                                                                 <Mail className="w-3 h-3" />
                                                                 {businessPersona.identity.email}
                                                             </span>
                                                         )}
                                                         {businessHours?.isOpen24x7 ? (
-                                                            <span className="inline-flex items-center gap-1.5 text-xs bg-white/60 px-2.5 py-1 rounded-full text-emerald-700">
+                                                            <span className="inline-flex items-center gap-1.5 text-xs bg-slate-100 px-2 py-1 rounded text-slate-600">
                                                                 <Clock className="w-3 h-3" />
                                                                 Open 24/7
                                                             </span>
                                                         ) : businessHours?.appointmentOnly ? (
-                                                            <span className="inline-flex items-center gap-1.5 text-xs bg-white/60 px-2.5 py-1 rounded-full text-emerald-700">
+                                                            <span className="inline-flex items-center gap-1.5 text-xs bg-slate-100 px-2 py-1 rounded text-slate-600">
                                                                 <Clock className="w-3 h-3" />
                                                                 By Appointment
                                                             </span>
                                                         ) : businessHours?.onlineAlways ? (
-                                                            <span className="inline-flex items-center gap-1.5 text-xs bg-white/60 px-2.5 py-1 rounded-full text-emerald-700">
+                                                            <span className="inline-flex items-center gap-1.5 text-xs bg-slate-100 px-2 py-1 rounded text-slate-600">
                                                                 <Clock className="w-3 h-3" />
                                                                 Online 24/7
                                                             </span>
                                                         ) : businessHours?.schedule ? (
-                                                            <span className="inline-flex items-center gap-1.5 text-xs bg-white/60 px-2.5 py-1 rounded-full text-emerald-700">
+                                                            <span className="inline-flex items-center gap-1.5 text-xs bg-slate-100 px-2 py-1 rounded text-slate-600">
                                                                 <Clock className="w-3 h-3" />
                                                                 Hours configured
                                                             </span>
@@ -428,45 +405,28 @@ export default function AgentsPage() {
                                             <a
                                                 href="/partner/settings/dashboard"
                                                 className={cn(
-                                                    "flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium transition-colors flex-shrink-0",
+                                                    "flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition-colors flex-shrink-0",
                                                     hasBusinessProfile
-                                                        ? "bg-emerald-600 text-white hover:bg-emerald-700"
+                                                        ? "bg-slate-100 text-slate-700 hover:bg-slate-200"
                                                         : "bg-amber-600 text-white hover:bg-amber-700"
                                                 )}
                                             >
                                                 <Settings className="w-4 h-4" />
-                                                {hasBusinessProfile ? 'Edit in Settings' : 'Set Up Profile'}
-                                                <ArrowUpRight className="w-3.5 h-3.5" />
+                                                {hasBusinessProfile ? 'Edit' : 'Set Up'}
+                                                <ExternalLink className="w-3 h-3" />
                                             </a>
                                         </div>
                                     </div>
                                 </div>
                             </div>
-
-                            {/* Info strip */}
-                            <div className={cn(
-                                "px-5 py-2.5 text-xs flex items-center gap-2 border-t",
-                                hasBusinessProfile
-                                    ? "bg-emerald-100/50 border-emerald-200/50 text-emerald-700"
-                                    : "bg-amber-100/50 border-amber-200/50 text-amber-700"
-                            )}>
-                                <Lightbulb className="w-3.5 h-3.5" />
-                                {hasBusinessProfile
-                                    ? 'Agent settings are pre-configured based on your business type. Customize them as needed.'
-                                    : 'Complete your business profile so agents can accurately represent your business.'
-                                }
-                            </div>
                         </div>
 
                         {/* Recommended Agents Section */}
-                        <div className="space-y-4">
+                        <div className="space-y-3">
                             <div className="flex items-center justify-between">
-                                <div className="flex items-center gap-2">
-                                    <Star className="w-4 h-4 text-amber-500" />
-                                    <h2 className="text-sm font-semibold text-slate-600 uppercase tracking-wider">
-                                        Recommended for {businessPersona?.identity?.industry?.name || 'Your Business'}
-                                    </h2>
-                                </div>
+                                <h2 className="text-sm font-medium text-slate-700">
+                                    Recommended Agents
+                                </h2>
                                 <span className="text-xs text-slate-500">
                                     {standardAgents.filter(a => a.isActive).length} of {standardAgents.length} active
                                 </span>
@@ -482,14 +442,11 @@ export default function AgentsPage() {
 
                         {/* Custom Agents Section */}
                         {(userCustomAgents.length > 0 || customAgentSuggestions.length > 0) && (
-                            <div className="space-y-4">
+                            <div className="space-y-3">
                                 <div className="flex items-center justify-between">
-                                    <div className="flex items-center gap-2">
-                                        <Wand2 className="w-4 h-4 text-indigo-500" />
-                                        <h2 className="text-sm font-semibold text-slate-600 uppercase tracking-wider">
-                                            Custom Agents
-                                        </h2>
-                                    </div>
+                                    <h2 className="text-sm font-medium text-slate-700">
+                                        Custom Agents
+                                    </h2>
                                     {userCustomAgents.length > 0 && (
                                         <span className="text-xs text-slate-500">
                                             {userCustomAgents.filter(a => a.isActive).length} of {userCustomAgents.length} active
@@ -512,10 +469,10 @@ export default function AgentsPage() {
                                 {/* Suggested custom agents */}
                                 {customAgentSuggestions.length > 0 && (
                                     <div className="mt-4">
-                                        <p className="text-xs text-slate-500 mb-3">
+                                        <p className="text-xs text-slate-500 mb-2">
                                             Suggested for your industry:
                                         </p>
-                                        <div className="grid sm:grid-cols-2 gap-3">
+                                        <div className="grid sm:grid-cols-2 gap-2">
                                             {customAgentSuggestions.map((suggestion, idx) => (
                                                 <button
                                                     key={idx}
@@ -529,20 +486,20 @@ export default function AgentsPage() {
                                                         } as AgentTemplate);
                                                         setShowCreateModal(true);
                                                     }}
-                                                    className="flex items-center gap-3 p-3 bg-white border border-dashed border-slate-300 rounded-xl hover:border-indigo-400 hover:bg-indigo-50/50 transition-all text-left group"
+                                                    className="flex items-center gap-3 p-3 bg-white border border-dashed border-slate-300 rounded-lg hover:border-slate-400 hover:bg-slate-50 transition-all text-left group"
                                                 >
-                                                    <div className="w-10 h-10 rounded-lg bg-slate-100 group-hover:bg-indigo-100 flex items-center justify-center flex-shrink-0 transition-colors">
-                                                        <Plus className="w-5 h-5 text-slate-400 group-hover:text-indigo-600 transition-colors" />
+                                                    <div className="w-9 h-9 rounded-lg bg-slate-100 group-hover:bg-slate-200 flex items-center justify-center flex-shrink-0 transition-colors">
+                                                        <Plus className="w-4 h-4 text-slate-500" />
                                                     </div>
                                                     <div className="flex-1 min-w-0">
-                                                        <p className="text-sm font-medium text-slate-700 group-hover:text-indigo-700">
+                                                        <p className="text-sm font-medium text-slate-700">
                                                             {suggestion.name}
                                                         </p>
                                                         <p className="text-xs text-slate-500 truncate">
                                                             {suggestion.description}
                                                         </p>
                                                     </div>
-                                                    <ChevronRight className="w-4 h-4 text-slate-400 group-hover:text-indigo-500 transition-colors" />
+                                                    <ChevronRight className="w-4 h-4 text-slate-400" />
                                                 </button>
                                             ))}
                                         </div>
@@ -553,30 +510,30 @@ export default function AgentsPage() {
                                 {userCustomAgents.length === 0 && customAgentSuggestions.length === 0 && (
                                     <button
                                         onClick={() => setShowCreateModal(true)}
-                                        className="w-full flex items-center justify-center gap-3 p-6 bg-white border-2 border-dashed border-slate-300 rounded-xl hover:border-indigo-400 hover:bg-indigo-50/50 transition-all"
+                                        className="w-full flex items-center justify-center gap-3 p-5 bg-white border border-dashed border-slate-300 rounded-lg hover:border-slate-400 hover:bg-slate-50 transition-all"
                                     >
                                         <Plus className="w-5 h-5 text-slate-400" />
-                                        <span className="text-slate-600 font-medium">Create a custom agent from scratch</span>
+                                        <span className="text-slate-600 font-medium">Create a custom agent</span>
                                     </button>
                                 )}
                             </div>
                         )}
 
                         {/* How It Works Section */}
-                        <div className="bg-white rounded-2xl border border-slate-200 p-6">
-                            <h3 className="font-semibold text-slate-900 mb-4">How Agents Work with Your Inbox</h3>
+                        <div className="bg-white rounded-lg border border-slate-200 p-5">
+                            <h3 className="font-medium text-slate-900 mb-4">How Agents Work</h3>
                             <div className="grid sm:grid-cols-3 gap-4">
                                 <div className="flex items-start gap-3">
-                                    <div className="w-8 h-8 rounded-lg bg-indigo-100 flex items-center justify-center flex-shrink-0 text-indigo-600 font-semibold text-sm">
+                                    <div className="w-7 h-7 rounded bg-slate-100 flex items-center justify-center flex-shrink-0 text-slate-700 font-medium text-sm">
                                         1
                                     </div>
                                     <div>
-                                        <p className="text-sm font-medium text-slate-900">Customer Sends Message</p>
+                                        <p className="text-sm font-medium text-slate-900">Customer Message</p>
                                         <p className="text-xs text-slate-500 mt-0.5">Via WhatsApp, web chat, or other channels</p>
                                     </div>
                                 </div>
                                 <div className="flex items-start gap-3">
-                                    <div className="w-8 h-8 rounded-lg bg-indigo-100 flex items-center justify-center flex-shrink-0 text-indigo-600 font-semibold text-sm">
+                                    <div className="w-7 h-7 rounded bg-slate-100 flex items-center justify-center flex-shrink-0 text-slate-700 font-medium text-sm">
                                         2
                                     </div>
                                     <div>
@@ -585,7 +542,7 @@ export default function AgentsPage() {
                                     </div>
                                 </div>
                                 <div className="flex items-start gap-3">
-                                    <div className="w-8 h-8 rounded-lg bg-indigo-100 flex items-center justify-center flex-shrink-0 text-indigo-600 font-semibold text-sm">
+                                    <div className="w-7 h-7 rounded bg-slate-100 flex items-center justify-center flex-shrink-0 text-slate-700 font-medium text-sm">
                                         3
                                     </div>
                                     <div>
@@ -603,7 +560,6 @@ export default function AgentsPage() {
 }
 
 
-
 // ============================================================================
 // CREATE AGENT MODAL
 // ============================================================================
@@ -619,9 +575,14 @@ function CreateAgentModal({ onClose, onCreate, template, suggestions }: CreateAg
     const [name, setName] = useState(template?.name || '');
     const [description, setDescription] = useState(template?.description || '');
     const [isCreating, setIsCreating] = useState(false);
+    const [error, setError] = useState<string | null>(null);
 
     const handleCreate = async () => {
-        if (!name.trim()) return;
+        if (!name.trim()) {
+            setError('Please enter a name for your agent');
+            return;
+        }
+        setError(null);
         setIsCreating(true);
         await onCreate(name.trim(), description.trim(), template || undefined);
         setIsCreating(false);
@@ -631,12 +592,12 @@ function CreateAgentModal({ onClose, onCreate, template, suggestions }: CreateAg
         <div className="fixed inset-0 z-50 flex items-center justify-center">
             {/* Backdrop */}
             <div
-                className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+                className="absolute inset-0 bg-black/50"
                 onClick={onClose}
             />
 
             {/* Modal */}
-            <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-4 overflow-hidden">
+            <div className="relative bg-white rounded-lg shadow-2xl w-full max-w-lg mx-4 overflow-hidden">
                 {/* Header */}
                 <div className="px-6 py-4 border-b border-slate-200">
                     <h2 className="text-lg font-semibold text-slate-900">
@@ -654,16 +615,25 @@ function CreateAgentModal({ onClose, onCreate, template, suggestions }: CreateAg
                 <div className="p-6 space-y-4">
                     <div>
                         <label className="block text-sm font-medium text-slate-700 mb-1.5">
-                            Agent Name
+                            Agent Name <span className="text-red-500">*</span>
                         </label>
                         <input
                             type="text"
                             value={name}
-                            onChange={(e) => setName(e.target.value)}
+                            onChange={(e) => {
+                                setName(e.target.value);
+                                if (error) setError(null);
+                            }}
                             placeholder="e.g., Appointment Scheduler"
-                            className="w-full px-3 py-2.5 border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                            className={cn(
+                                "w-full px-3 py-2.5 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-slate-900 focus:border-transparent",
+                                error ? "border-red-300" : "border-slate-200"
+                            )}
                             autoFocus
                         />
+                        {error && (
+                            <p className="text-xs text-red-600 mt-1">{error}</p>
+                        )}
                     </div>
 
                     <div>
@@ -675,20 +645,20 @@ function CreateAgentModal({ onClose, onCreate, template, suggestions }: CreateAg
                             onChange={(e) => setDescription(e.target.value)}
                             placeholder="What does this agent help with?"
                             rows={3}
-                            className="w-full px-3 py-2.5 border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent resize-none"
+                            className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-slate-900 focus:border-transparent resize-none"
                         />
                     </div>
 
                     {template?.useCases && template.useCases.length > 0 && (
                         <div>
                             <label className="block text-sm font-medium text-slate-700 mb-1.5">
-                                Suggested Use Cases
+                                Use Cases
                             </label>
-                            <div className="flex flex-wrap gap-2">
+                            <div className="flex flex-wrap gap-1.5">
                                 {template.useCases.map((useCase, i) => (
                                     <span
                                         key={i}
-                                        className="text-xs px-2.5 py-1 rounded-full bg-indigo-50 text-indigo-700"
+                                        className="text-xs px-2 py-1 rounded bg-slate-100 text-slate-600"
                                     >
                                         {useCase}
                                     </span>
@@ -711,7 +681,7 @@ function CreateAgentModal({ onClose, onCreate, template, suggestions }: CreateAg
                                             setName(suggestion.name);
                                             setDescription(suggestion.description);
                                         }}
-                                        className="w-full text-left p-3 border border-slate-200 rounded-xl hover:border-indigo-300 hover:bg-indigo-50/50 transition-colors"
+                                        className="w-full text-left p-3 border border-slate-200 rounded-lg hover:border-slate-300 hover:bg-slate-50 transition-colors"
                                     >
                                         <p className="text-sm font-medium text-slate-700">{suggestion.name}</p>
                                         <p className="text-xs text-slate-500">{suggestion.description}</p>
@@ -733,7 +703,7 @@ function CreateAgentModal({ onClose, onCreate, template, suggestions }: CreateAg
                     <button
                         onClick={handleCreate}
                         disabled={!name.trim() || isCreating}
-                        className="px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                        className="px-4 py-2 bg-slate-900 text-white text-sm font-medium rounded-lg hover:bg-slate-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                     >
                         {isCreating ? (
                             <>
