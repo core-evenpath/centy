@@ -12,7 +12,7 @@ import {
 } from '@/actions/meta-whatsapp-actions';
 import { getEmbeddedSignupStatus } from '@/actions/meta-embedded-signup-actions';
 import { generateInboxSuggestionAction } from '@/actions/partnerhub-actions';
-import { getActiveAgentsAction } from '@/actions/assistant-actions';
+import { getActiveAssistantsAction } from '@/actions/assistant-actions';
 import { cn } from '@/lib/utils';
 import { Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -107,9 +107,8 @@ export default function InboxPage() {
             });
 
             setAgentsLoading(true);
-            getActiveAgentsAction(currentPartnerId).then(res => {
+            getActiveAssistantsAction(currentPartnerId).then(res => {
                 if (res.success && res.assistants) {
-                    // Map response to agents if needed, currently assumes same structure
                     setActiveAgents(res.assistants);
                 }
                 setAgentsLoading(false);
