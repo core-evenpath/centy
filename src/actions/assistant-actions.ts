@@ -373,8 +373,7 @@ export async function getActiveAssistantsAction(
             return { success: false, error: 'Database unavailable' };
         }
 
-        // Only return agents that are explicitly stored in the partner's hubAgents collection and are active
-        // This ensures each partner only sees their own configured agents
+        // Query agents that are explicitly stored in the partner's hubAgents collection and are active
         const snapshot = await db
             .collection('partners')
             .doc(partnerId)
@@ -382,7 +381,7 @@ export async function getActiveAssistantsAction(
             .where('isActive', '==', true)
             .get();
 
-        const assistants = snapshot.docs.map(doc => {
+        const storedAssistants = snapshot.docs.map(doc => {
             const data = doc.data();
             return {
                 id: doc.id,
@@ -394,8 +393,25 @@ export async function getActiveAssistantsAction(
             };
         });
 
-        // No longer adding essential defaults - only show agents that exist in the partner's collection
-        return { success: true, assistants };
+        // Get the IDs of stored assistants
+        const storedIds = storedAssistants.map(a => a.id);
+
+        // Add essential defaults that aren't already stored
+        // This ensures partners always have access to essential agents in the inbox
+        const missingEssentials = ESSENTIAL_ASSISTANT_DEFAULTS
+            .filter(e => e.id && !storedIds.includes(e.id))
+            .map(e => ({
+                id: e.id!,
+                name: e.name || 'Unnamed',
+                avatar: e.avatar || '🤖',
+                color: e.color || 'blue',
+                type: e.type || 'essential',
+                description: e.description || '',
+            }));
+
+        const allAssistants = [...storedAssistants, ...missingEssentials];
+
+        return { success: true, assistants: allAssistants };
     } catch (error: any) {
         console.error('Get active assistants error:', error);
         return { success: false, error: error.message };
