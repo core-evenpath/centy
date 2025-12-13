@@ -7,12 +7,12 @@ import {
     X,
     Send,
     Bot,
-    Zap,
-    Sparkles,
     User,
     Loader2,
     RefreshCw,
-    MessageCircle
+    HeadphonesIcon,
+    TrendingUp,
+    Megaphone,
 } from 'lucide-react';
 import { testAgentAction } from '@/actions/partnerhub-actions';
 
@@ -30,15 +30,10 @@ interface TestMessage {
 }
 
 const AGENT_ICONS = {
-    [AgentRole.CUSTOMER_CARE]: Bot,
-    [AgentRole.SALES_ASSISTANT]: Zap,
-    [AgentRole.MARKETING_COMMS]: Sparkles,
-};
-
-const AGENT_COLORS = {
-    [AgentRole.CUSTOMER_CARE]: 'bg-blue-500',
-    [AgentRole.SALES_ASSISTANT]: 'bg-amber-500',
-    [AgentRole.MARKETING_COMMS]: 'bg-purple-500',
+    [AgentRole.CUSTOMER_CARE]: HeadphonesIcon,
+    [AgentRole.SALES_ASSISTANT]: TrendingUp,
+    [AgentRole.MARKETING_COMMS]: Megaphone,
+    [AgentRole.CUSTOM]: Bot,
 };
 
 const SAMPLE_PROMPTS = {
@@ -57,6 +52,11 @@ const SAMPLE_PROMPTS = {
         "Do you have any special offers?",
         "When is your next sale?",
     ],
+    [AgentRole.CUSTOM]: [
+        "Hello, how can you help me?",
+        "Tell me about your business",
+        "What can you do?",
+    ],
 };
 
 export default function AgentTestPanel({ agent, partnerId, onClose }: AgentTestPanelProps) {
@@ -66,9 +66,8 @@ export default function AgentTestPanel({ agent, partnerId, onClose }: AgentTestP
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const inputRef = useRef<HTMLInputElement>(null);
 
-    const Icon = AGENT_ICONS[agent.role];
-    const bgColor = AGENT_COLORS[agent.role];
-    const samplePrompts = SAMPLE_PROMPTS[agent.role];
+    const Icon = AGENT_ICONS[agent.role] || Bot;
+    const samplePrompts = SAMPLE_PROMPTS[agent.role] || SAMPLE_PROMPTS[AgentRole.CUSTOM];
 
     useEffect(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -141,19 +140,19 @@ export default function AgentTestPanel({ agent, partnerId, onClose }: AgentTestP
 
     return (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg h-[600px] flex flex-col overflow-hidden">
+            <div className="bg-white rounded-lg shadow-2xl w-full max-w-lg h-[600px] flex flex-col overflow-hidden">
                 {/* Header */}
-                <div className={cn("px-4 py-3 flex items-center justify-between text-white", bgColor)}>
+                <div className="px-4 py-3 flex items-center justify-between bg-slate-900 text-white">
                     <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center">
+                        <div className="w-9 h-9 rounded-lg bg-white/10 flex items-center justify-center">
                             <Icon className="w-5 h-5" />
                         </div>
                         <div>
-                            <h2 className="font-semibold">{agent.name}</h2>
-                            <p className="text-xs text-white/80">Test Mode • Responses are simulated</p>
+                            <h2 className="font-semibold text-sm">{agent.name}</h2>
+                            <p className="text-xs text-white/60">Test Mode</p>
                         </div>
                     </div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-1">
                         <button
                             onClick={resetChat}
                             className="p-2 hover:bg-white/10 rounded-lg transition-colors"
@@ -174,15 +173,15 @@ export default function AgentTestPanel({ agent, partnerId, onClose }: AgentTestP
                 <div className="flex-1 overflow-auto p-4 space-y-4 bg-slate-50">
                     {messages.length === 0 && (
                         <div className="text-center py-8">
-                            <div className={cn("w-16 h-16 rounded-2xl mx-auto mb-4 flex items-center justify-center", bgColor)}>
-                                <Icon className="w-8 h-8 text-white" />
+                            <div className="w-14 h-14 rounded-lg bg-slate-800 mx-auto mb-4 flex items-center justify-center">
+                                <Icon className="w-7 h-7 text-white" />
                             </div>
-                            <h3 className="font-medium text-slate-900 mb-2">Test {agent.name}</h3>
-                            <p className="text-sm text-slate-500 mb-4">
-                                Try asking questions to see how your agent responds
+                            <h3 className="font-medium text-slate-900 mb-1">Test {agent.name}</h3>
+                            <p className="text-sm text-slate-500 mb-6">
+                                Send a message to see how your agent responds
                             </p>
                             <div className="space-y-2">
-                                <p className="text-xs text-slate-400 uppercase tracking-wider">Try these:</p>
+                                <p className="text-xs text-slate-400 uppercase tracking-wide font-medium">Try these:</p>
                                 {samplePrompts.map((prompt, i) => (
                                     <button
                                         key={i}
@@ -205,13 +204,13 @@ export default function AgentTestPanel({ agent, partnerId, onClose }: AgentTestP
                             )}
                         >
                             {message.role === 'assistant' && (
-                                <div className={cn("w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0", bgColor)}>
+                                <div className="w-8 h-8 rounded-lg bg-slate-800 flex items-center justify-center flex-shrink-0">
                                     <Icon className="w-4 h-4 text-white" />
                                 </div>
                             )}
                             <div
                                 className={cn(
-                                    "max-w-[80%] rounded-xl px-4 py-2.5",
+                                    "max-w-[80%] rounded-lg px-4 py-2.5",
                                     message.role === 'user'
                                         ? "bg-slate-900 text-white"
                                         : "bg-white border border-slate-200 text-slate-900"
@@ -229,10 +228,10 @@ export default function AgentTestPanel({ agent, partnerId, onClose }: AgentTestP
 
                     {isLoading && (
                         <div className="flex gap-3 justify-start">
-                            <div className={cn("w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0", bgColor)}>
+                            <div className="w-8 h-8 rounded-lg bg-slate-800 flex items-center justify-center flex-shrink-0">
                                 <Icon className="w-4 h-4 text-white" />
                             </div>
-                            <div className="bg-white border border-slate-200 rounded-xl px-4 py-3">
+                            <div className="bg-white border border-slate-200 rounded-lg px-4 py-3">
                                 <Loader2 className="w-4 h-4 animate-spin text-slate-400" />
                             </div>
                         </div>
@@ -252,15 +251,15 @@ export default function AgentTestPanel({ agent, partnerId, onClose }: AgentTestP
                             onKeyDown={handleKeyDown}
                             placeholder="Type a message to test..."
                             disabled={isLoading}
-                            className="flex-1 px-4 py-2.5 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-slate-900 focus:border-transparent text-sm"
+                            className="flex-1 px-4 py-2.5 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-900 focus:border-transparent text-sm"
                         />
                         <button
                             onClick={handleSend}
                             disabled={!input.trim() || isLoading}
                             className={cn(
-                                "px-4 py-2.5 rounded-xl font-medium text-white transition-colors",
+                                "px-4 py-2.5 rounded-lg font-medium text-white transition-colors",
                                 input.trim() && !isLoading
-                                    ? `${bgColor} hover:opacity-90`
+                                    ? "bg-slate-900 hover:bg-slate-800"
                                     : "bg-slate-200 text-slate-400 cursor-not-allowed"
                             )}
                         >
