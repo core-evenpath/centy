@@ -622,7 +622,7 @@ export default function UnifiedInboxPage() {
 
                         <div
                             ref={messagesContainerRef}
-                            className="flex-1 overflow-y-auto overscroll-contain px-4 md:px-6 py-4"
+                            className="flex-1 overflow-y-auto overflow-x-hidden overscroll-contain px-4 md:px-6 py-4"
                             style={{ WebkitOverflowScrolling: 'touch' }}
                         >
                             {msgsLoading ? (
