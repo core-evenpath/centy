@@ -8,8 +8,7 @@ import { useTelegramMessages } from '@/hooks/useTelegram';
 import {
     sendMetaWhatsAppMessageAction,
     deleteMetaConversation,
-    deleteMetaMessage,
-    updateConversationAssistantsAction
+    deleteMetaMessage
 } from '@/actions/meta-whatsapp-actions';
 import {
     sendTelegramMessageAction,
@@ -18,7 +17,7 @@ import {
 } from '@/actions/telegram-actions';
 import { getEmbeddedSignupStatus } from '@/actions/meta-embedded-signup-actions';
 import { getTelegramStatus } from '@/actions/telegram-actions';
-import { generateInboxSuggestionAction, getActiveAgentsAction } from '@/actions/partnerhub-actions';
+import { generateInboxSuggestionAction } from '@/actions/partnerhub-actions';
 import { cn } from '@/lib/utils';
 import { Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -94,11 +93,6 @@ export default function UnifiedInboxPage() {
     const [messageInput, setMessageInput] = useState('');
     const [sending, setSending] = useState(false);
 
-    const [activeAgents, setActiveAgents] = useState<any[]>([]);
-    const [agentsLoading, setAgentsLoading] = useState(false);
-    const [selectedAgentIds, setSelectedAgentIds] = useState<string[]>([]);
-    const previousAgentIdsRef = useRef<string[]>([]);
-
     const [showAISuggestion, setShowAISuggestion] = useState(false);
     const [aiSuggestion, setAISuggestion] = useState<RAGSuggestion | null>(null);
     const [isLoadingSuggestion, setIsLoadingSuggestion] = useState(false);
@@ -107,7 +101,6 @@ export default function UnifiedInboxPage() {
     const processedMessageIds = useRef<Set<string>>(new Set());
     const lastSuggestionContext = useRef<string>('');
     const suggestionDebounceTimer = useRef<NodeJS.Timeout | null>(null);
-    const agentChangeTimer = useRef<NodeJS.Timeout | null>(null);
     const handleGenerateSuggestionRef = useRef<(incomingMessage?: string, refinementInstruction?: string) => void>();
 
     useEffect(() => {
@@ -131,37 +124,7 @@ export default function UnifiedInboxPage() {
         checkConnections();
     }, [currentPartnerId]);
 
-    useEffect(() => {
-        async function loadAgents() {
-            if (!currentPartnerId) return;
 
-            setAgentsLoading(true);
-            try {
-                const result = await getActiveAgentsAction(currentPartnerId);
-                if (result.success && result.agents) {
-                    setActiveAgents(result.agents);
-                }
-            } catch (err) {
-                console.error('Error loading agents:', err);
-            } finally {
-                setAgentsLoading(false);
-            }
-        }
-
-        loadAgents();
-    }, [currentPartnerId]);
-
-    useEffect(() => {
-        if (selectedConversation && activeAgents.length > 0) {
-            const storedIds = selectedConversation.assignedAssistantIds || [];
-            const validIds = storedIds.filter((id: string) => activeAgents.some(a => a.id === id));
-            setSelectedAgentIds(validIds);
-            previousAgentIdsRef.current = validIds;
-        } else {
-            setSelectedAgentIds([]);
-            previousAgentIdsRef.current = [];
-        }
-    }, [selectedConversation?.id, activeAgents]);
 
     const isInitialLoad = useRef(true);
     const prevMessagesLength = useRef(0);
@@ -371,44 +334,15 @@ export default function UnifiedInboxPage() {
         }
     };
 
-    const handleAgentSelectionChange = useCallback(async (ids: string[]) => {
-        const previousIds = previousAgentIdsRef.current;
-        setSelectedAgentIds(ids);
-        previousAgentIdsRef.current = ids;
 
-        if (currentPartnerId && selectedConversation && selectedConversation.platform === 'meta_whatsapp') {
-            const result = await updateConversationAssistantsAction(currentPartnerId, selectedConversation.id, ids);
-            if (!result.success) {
-                toast.error("Failed to save agent selection");
-                setSelectedAgentIds(previousIds);
-                previousAgentIdsRef.current = previousIds;
-                return;
-            }
-        }
 
-        const hasChanged = JSON.stringify(previousIds.sort()) !== JSON.stringify(ids.sort());
-
-        if (hasChanged && showAISuggestion && pendingIncomingMessage) {
-            if (agentChangeTimer.current) {
-                clearTimeout(agentChangeTimer.current);
-            }
-
-            agentChangeTimer.current = setTimeout(() => {
-                console.log('Agent selection changed, regenerating suggestion...');
-                handleGenerateSuggestionWithIds(pendingIncomingMessage, undefined, ids);
-            }, 500);
-        }
-    }, [currentPartnerId, selectedConversation, showAISuggestion, pendingIncomingMessage]);
-
-    const handleGenerateSuggestionWithIds = async (
+    const handleGenerateSuggestion = async (
         incomingMessage?: string,
-        refinementInstruction?: string,
-        agentIds?: string[]
+        refinementInstruction?: string
     ) => {
         if (!currentPartnerId || !selectedConversation) return;
 
         const messageToAnalyze = incomingMessage || pendingIncomingMessage || messages[messages.length - 1]?.content || "Hello";
-        const idsToUse = agentIds ?? selectedAgentIds;
 
         if (!refinementInstruction) {
             setPendingIncomingMessage(messageToAnalyze);
@@ -430,7 +364,7 @@ export default function UnifiedInboxPage() {
                 messageToAnalyze,
                 context,
                 selectedConversation?.contactId,
-                idsToUse
+                [] // No agent selection - use all documents
             );
 
             if (result.success && result.suggestedReply) {
@@ -454,10 +388,6 @@ export default function UnifiedInboxPage() {
         } finally {
             setIsLoadingSuggestion(false);
         }
-    };
-
-    const handleGenerateSuggestion = (incomingMessage?: string, refinementInstruction?: string) => {
-        handleGenerateSuggestionWithIds(incomingMessage, refinementInstruction, selectedAgentIds);
     };
 
     useEffect(() => {
@@ -687,10 +617,6 @@ export default function UnifiedInboxPage() {
                         onRegenerate={() => handleGenerateSuggestion()}
                         onRefine={handleRefineSuggestion}
                         incomingMessage={pendingIncomingMessage}
-                        activeAgents={activeAgents}
-                        selectedAgentIds={selectedAgentIds}
-                        onAgentSelectionChange={handleAgentSelectionChange}
-                        agentsLoading={agentsLoading}
                     />
                 </div>
             )}

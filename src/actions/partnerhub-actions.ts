@@ -206,13 +206,22 @@ export async function generatePartnerHubResponseAction(
         docsSnapshot.docs.forEach((doc) => {
             const data = doc.data();
             if (data && data.extractedText) {
-                const textLimit = options?.documentIds ? 15000 : 3000;
+                // Increase context limits significantly for better RAG performance
+                // For specific documents: up to 30K characters per document
+                // For all documents: up to 8K characters per document
+                const textLimit = options?.documentIds ? 30000 : 8000;
+                const text = data.extractedText.substring(0, textLimit);
+
                 contextSnippets.push({
                     source: data.name || doc.id,
-                    text: data.extractedText.substring(0, textLimit),
+                    text: text,
                 });
             }
         });
+
+        // Sort contextSnippets by relevance if we have the query
+        // For now, prioritize by text length (longer docs might have more info)
+        contextSnippets.sort((a, b) => b.text.length - a.text.length);
 
         const contextString = contextSnippets
             .map((c) => `[Source: ${c.source}]\n${c.text}`)

@@ -25,7 +25,6 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { AgentSelector } from './AgentSelector';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
 interface RAGSource {
@@ -67,10 +66,6 @@ interface CoreMemorySuggestionProps {
     onRegenerate: () => void;
     onRefine: (instruction: string) => void;
     incomingMessage: string;
-    activeAgents: any[];
-    selectedAgentIds: string[];
-    onAgentSelectionChange: (ids: string[]) => void;
-    agentsLoading?: boolean;
 }
 
 type LoadingStage = 'searching' | 'analyzing' | 'generating' | 'complete';
@@ -91,11 +86,7 @@ export default function CoreMemorySuggestion({
     onDismiss,
     onRegenerate,
     onRefine,
-    incomingMessage,
-    activeAgents,
-    selectedAgentIds,
-    onAgentSelectionChange,
-    agentsLoading
+    incomingMessage
 }: CoreMemorySuggestionProps) {
     const [loadingStage, setLoadingStage] = useState<LoadingStage>('searching');
     const [displayedText, setDisplayedText] = useState('');
@@ -182,7 +173,6 @@ export default function CoreMemorySuggestion({
     };
 
     const documentSources = suggestion?.sources?.filter(s => s.type === 'document') || [];
-    const isGeneralMode = selectedAgentIds.includes('essential-general_mode');
 
     // Helper to get agent/assistant used info
     const usedAgent = suggestion?.agentUsed || suggestion?.assistantUsed;
@@ -235,10 +225,10 @@ export default function CoreMemorySuggestion({
                 // Mobile: Bottom sheet style
                 "fixed inset-x-0 bottom-0 max-h-[85vh] rounded-t-2xl shadow-2xl bg-white",
                 "animate-in slide-in-from-bottom duration-300",
-                // Desktop: Integrated side panel style
-                "md:relative md:inset-auto md:w-[400px] md:max-w-[400px] md:h-full md:max-h-full",
-                "md:rounded-none md:shadow-none md:bg-gradient-to-b md:from-slate-50/80 md:to-white",
-                "md:border-l md:border-gray-200/80 md:shrink-0",
+                // Desktop: Integrated side panel style - cleaner and more polished
+                "md:relative md:inset-auto md:w-[420px] md:max-w-[420px] md:h-full md:max-h-full",
+                "md:rounded-none md:shadow-none md:bg-white",
+                "md:border-l md:border-gray-200 md:shrink-0",
                 "md:animate-in md:slide-in-from-right md:duration-300"
             )}>
                 {/* Mobile drag handle */}
@@ -246,77 +236,61 @@ export default function CoreMemorySuggestion({
                     <div className="w-10 h-1 rounded-full bg-gray-300" />
                 </div>
 
-                {/* Header */}
-                <div className="shrink-0 p-4 pt-2 md:pt-5 md:pb-4 border-b border-gray-100/80 bg-white/90 md:bg-transparent backdrop-blur-sm md:backdrop-blur-none">
-                    <div className="flex items-center justify-between mb-4">
+                {/* Header - More polished design */}
+                <div className="shrink-0 px-5 py-4 md:py-5 border-b border-gray-200 bg-white">
+                    <div className="flex items-center justify-between">
                         <div className="flex items-center gap-3">
                             <div className={cn(
-                                "w-9 h-9 md:w-10 md:h-10 rounded-xl flex items-center justify-center transition-all shadow-sm",
+                                "w-10 h-10 rounded-xl flex items-center justify-center transition-all",
                                 isLoading
-                                    ? "bg-indigo-100 animate-pulse"
-                                    : "bg-gradient-to-br from-indigo-500 via-indigo-600 to-violet-600"
+                                    ? "bg-indigo-50 animate-pulse"
+                                    : "bg-gradient-to-br from-indigo-500 to-violet-600 shadow-sm shadow-indigo-500/20"
                             )}>
                                 <Database className={cn(
-                                    "h-4 w-4 md:h-5 md:w-5",
-                                    isLoading ? "text-indigo-600" : "text-white"
+                                    "h-5 w-5",
+                                    isLoading ? "text-indigo-500" : "text-white"
                                 )} />
                             </div>
                             <div>
-                                <h3 className="text-sm md:text-base font-semibold text-gray-900">Core Memory</h3>
-                                <p className="text-[10px] md:text-xs text-gray-500">AI-Powered Suggestions</p>
+                                <h3 className="text-base font-semibold text-gray-900">AI Suggestions</h3>
+                                <p className="text-xs text-gray-500">From your knowledge base</p>
                             </div>
                         </div>
                         <Button
                             variant="ghost"
                             size="icon"
                             onClick={onDismiss}
-                            className="h-8 w-8 text-gray-400 hover:text-gray-600 hover:bg-gray-100/80 rounded-lg touch-manipulation transition-colors"
+                            className="h-9 w-9 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
                         >
                             <X className="h-4 w-4" />
                         </Button>
                     </div>
-
-                    <AgentSelector
-                        availableAgents={activeAgents}
-                        selectedAgentIds={selectedAgentIds}
-                        onSelectionChange={onAgentSelectionChange}
-                        isLoading={agentsLoading}
-                    />
-
-                    {isGeneralMode && (
-                        <div className="mt-3 px-3 py-2 bg-slate-50/80 border border-slate-200/60 rounded-lg">
-                            <p className="text-[10px] md:text-xs text-slate-600 flex items-center gap-1.5">
-                                <Bot className="w-3 h-3" />
-                                <span><strong>General Mode:</strong> Responding without business documents</span>
-                            </p>
-                        </div>
-                    )}
                 </div>
 
                 {/* Scrollable Content */}
-                <ScrollArea className="flex-1 min-h-0">
-                    <div className="p-4 md:p-5 space-y-4 md:space-y-5">
+                <ScrollArea className="flex-1 min-h-0 bg-gray-50/50">
+                    <div className="p-5 space-y-4">
                         {/* Customer Message Card */}
-                        <div className="bg-white md:bg-white/80 rounded-xl border border-gray-100 md:border-gray-200/60 p-3 md:p-4 shadow-sm">
-                            <div className="flex items-start gap-2.5">
-                                <div className="w-6 h-6 rounded-lg bg-gray-100 flex items-center justify-center shrink-0">
-                                    <MessageSquare className="w-3.5 h-3.5 text-gray-500" />
+                        <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
+                            <div className="flex items-start gap-3">
+                                <div className="w-8 h-8 rounded-lg bg-indigo-50 flex items-center justify-center shrink-0">
+                                    <MessageSquare className="w-4 h-4 text-indigo-600" />
                                 </div>
                                 <div className="flex-1 min-w-0">
-                                    <p className="text-[10px] md:text-xs font-medium text-gray-400 uppercase tracking-wider mb-1.5">Customer Message</p>
-                                    <p className="text-sm md:text-[15px] text-gray-700 leading-relaxed">"{incomingMessage}"</p>
+                                    <p className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-1.5">Customer Message</p>
+                                    <p className="text-sm text-gray-900 leading-relaxed">"{incomingMessage}"</p>
                                 </div>
                             </div>
                         </div>
 
                         {isLoading ? (
-                            <div className="bg-white md:bg-white/80 rounded-xl border border-gray-100 md:border-gray-200/60 p-6 md:p-8 shadow-sm">
+                            <div className="bg-white rounded-xl border border-gray-200 p-8 shadow-sm">
                                 <div className="flex flex-col items-center text-center">
-                                    <div className="w-14 h-14 md:w-16 md:h-16 rounded-2xl bg-gradient-to-br from-indigo-50 to-violet-50 flex items-center justify-center mb-5 shadow-sm">
-                                        <LoadingIcon className="w-7 h-7 md:w-8 md:h-8 text-indigo-600 animate-pulse" />
+                                    <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-indigo-50 to-violet-50 flex items-center justify-center mb-5">
+                                        <LoadingIcon className="w-8 h-8 text-indigo-600 animate-pulse" />
                                     </div>
-                                    <h4 className="text-sm md:text-base font-semibold text-gray-900 mb-1">{loadingContent.title}</h4>
-                                    <p className="text-xs md:text-sm text-gray-500 mb-5">{loadingContent.subtitle}</p>
+                                    <h4 className="text-base font-semibold text-gray-900 mb-1">{loadingContent.title}</h4>
+                                    <p className="text-sm text-gray-500 mb-5">{loadingContent.subtitle}</p>
 
                                     <div className="w-full bg-gray-100 rounded-full h-2 overflow-hidden">
                                         <div
@@ -325,7 +299,7 @@ export default function CoreMemorySuggestion({
                                         />
                                     </div>
 
-                                    <div className="flex items-center gap-3 md:gap-4 mt-5 text-[10px] md:text-xs text-gray-400">
+                                    <div className="flex items-center gap-4 mt-5 text-xs text-gray-400">
                                         <span className={cn(
                                             "transition-colors",
                                             loadingStage === 'searching' && 'text-indigo-600 font-semibold'
@@ -346,9 +320,9 @@ export default function CoreMemorySuggestion({
                         ) : suggestion ? (
                             <>
                                 {/* Suggestion Card */}
-                                <div className="bg-white md:bg-white/90 rounded-xl border border-gray-100 md:border-gray-200/60 shadow-sm overflow-hidden">
+                                <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
                                     {/* Card Header */}
-                                    <div className="p-3 md:p-4 bg-gradient-to-r from-gray-50/80 to-slate-50/80 border-b border-gray-100/80 flex items-center justify-between">
+                                    <div className="px-4 py-3 bg-gray-50 border-b border-gray-200 flex items-center justify-between">
                                         <div className="flex items-center gap-2 flex-wrap">
                                             {usedAgent && (
                                                 <div className={cn(
@@ -368,7 +342,7 @@ export default function CoreMemorySuggestion({
                                             )}
                                             <Badge
                                                 variant="outline"
-                                                className={cn("text-[10px] md:text-xs h-5 md:h-6 px-2 md:px-2.5 font-medium border", getConfidenceInfo(suggestion.confidence).color)}
+                                                className={cn("text-xs h-6 px-2.5 font-medium border", getConfidenceInfo(suggestion.confidence).color)}
                                             >
                                                 {Math.round(suggestion.confidence * 100)}% {getConfidenceInfo(suggestion.confidence).label}
                                             </Badge>
@@ -381,7 +355,7 @@ export default function CoreMemorySuggestion({
                                                             variant="ghost"
                                                             size="icon"
                                                             onClick={handleCopy}
-                                                            className="h-8 w-8 text-gray-400 hover:text-gray-600 hover:bg-gray-100/80 transition-colors"
+                                                            className="h-8 w-8 text-gray-400 hover:text-gray-600 hover:bg-white transition-colors"
                                                         >
                                                             {copied ? <CheckCircle2 className="h-4 w-4 text-green-500" /> : <Copy className="h-4 w-4" />}
                                                         </Button>
@@ -408,8 +382,8 @@ export default function CoreMemorySuggestion({
                                     </div>
 
                                     {/* Suggestion Text */}
-                                    <div className="p-4 md:p-5" ref={textRef}>
-                                        <p className="text-sm md:text-[15px] text-gray-800 leading-relaxed whitespace-pre-wrap">
+                                    <div className="p-5" ref={textRef}>
+                                        <p className="text-[15px] text-gray-900 leading-relaxed whitespace-pre-wrap">
                                             {displayedText}
                                             {isTyping && <span className="inline-block w-0.5 h-4 bg-indigo-500 animate-pulse ml-0.5" />}
                                         </p>
@@ -417,10 +391,10 @@ export default function CoreMemorySuggestion({
 
                                     {/* Action Buttons */}
                                     {!isTyping && (
-                                        <div className="px-4 md:px-5 pb-4 md:pb-5 flex gap-2.5">
+                                        <div className="px-5 pb-5 flex gap-2.5">
                                             <Button
                                                 onClick={() => onSend(suggestion.suggestedReply)}
-                                                className="flex-1 h-11 md:h-10 bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700 text-white shadow-sm touch-manipulation active:scale-[0.98] transition-all font-medium"
+                                                className="flex-1 h-10 bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700 text-white shadow-sm active:scale-[0.98] transition-all font-medium"
                                             >
                                                 <Send className="h-4 w-4 mr-2" />
                                                 Send
@@ -428,7 +402,7 @@ export default function CoreMemorySuggestion({
                                             <Button
                                                 variant="outline"
                                                 onClick={() => onEdit(suggestion.suggestedReply)}
-                                                className="h-11 md:h-10 px-5 border-gray-200 hover:bg-gray-50 hover:border-gray-300 touch-manipulation active:scale-[0.98] transition-all"
+                                                className="h-10 px-5 border-gray-300 hover:bg-gray-50 hover:border-gray-400 active:scale-[0.98] transition-all"
                                             >
                                                 <Edit3 className="h-4 w-4 mr-2" />
                                                 Edit
@@ -439,9 +413,9 @@ export default function CoreMemorySuggestion({
 
                                 {/* Quick Refine Section */}
                                 {!isTyping && (
-                                    <div className="space-y-4">
+                                    <div className="space-y-3">
                                         <div>
-                                            <p className="text-[10px] md:text-xs font-medium text-gray-400 uppercase tracking-wider mb-2.5 flex items-center gap-1.5">
+                                            <p className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-2.5 flex items-center gap-1.5">
                                                 <Lightbulb className="w-3.5 h-3.5" />
                                                 Quick Refine
                                             </p>
@@ -450,7 +424,7 @@ export default function CoreMemorySuggestion({
                                                     <button
                                                         key={item.label}
                                                         onClick={() => onRefine(item.instruction)}
-                                                        className="px-3.5 py-2 md:px-3 md:py-1.5 text-sm md:text-xs font-medium text-gray-600 bg-white md:bg-white/80 border border-gray-200 rounded-lg hover:bg-indigo-50 hover:text-indigo-700 hover:border-indigo-300 active:scale-[0.97] transition-all touch-manipulation shadow-sm"
+                                                        className="px-3.5 py-1.5 text-xs font-medium text-gray-600 bg-white border border-gray-300 rounded-lg hover:bg-indigo-50 hover:text-indigo-700 hover:border-indigo-400 active:scale-[0.97] transition-all shadow-sm"
                                                     >
                                                         {item.label}
                                                     </button>
@@ -463,7 +437,7 @@ export default function CoreMemorySuggestion({
                                                 value={customRefineInput}
                                                 onChange={(e) => setCustomRefineInput(e.target.value)}
                                                 placeholder="Custom instruction..."
-                                                className="h-10 md:h-9 text-sm bg-white md:bg-white/80 border-gray-200"
+                                                className="h-9 text-sm bg-white border-gray-300 focus-visible:ring-indigo-500"
                                                 onKeyDown={(e) => e.key === 'Enter' && handleCustomRefine()}
                                             />
                                             <Button
@@ -471,7 +445,7 @@ export default function CoreMemorySuggestion({
                                                 size="sm"
                                                 onClick={handleCustomRefine}
                                                 disabled={!customRefineInput.trim()}
-                                                className="h-10 md:h-9 px-3.5 border-gray-200 hover:bg-indigo-50 hover:text-indigo-600 hover:border-indigo-300 touch-manipulation transition-colors"
+                                                className="h-9 px-3.5 border-gray-300 hover:bg-indigo-50 hover:text-indigo-600 hover:border-indigo-400 transition-colors"
                                             >
                                                 <Wand2 className="h-4 w-4" />
                                             </Button>
@@ -481,16 +455,16 @@ export default function CoreMemorySuggestion({
 
                                 {/* Sources Section */}
                                 {documentSources.length > 0 && !isTyping && (
-                                    <div className="bg-white md:bg-white/80 rounded-xl border border-gray-100 md:border-gray-200/60 overflow-hidden shadow-sm">
+                                    <div className="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm">
                                         <button
                                             onClick={() => setShowSources(!showSources)}
-                                            className="w-full px-4 py-3.5 flex items-center justify-between hover:bg-gray-50/80 transition-colors"
+                                            className="w-full px-4 py-3.5 flex items-center justify-between hover:bg-gray-50 transition-colors"
                                         >
                                             <div className="flex items-center gap-2.5">
-                                                <div className="w-6 h-6 rounded-lg bg-indigo-50 flex items-center justify-center">
-                                                    <FileText className="w-3.5 h-3.5 text-indigo-500" />
+                                                <div className="w-7 h-7 rounded-lg bg-indigo-50 flex items-center justify-center">
+                                                    <FileText className="w-4 h-4 text-indigo-600" />
                                                 </div>
-                                                <span className="text-xs md:text-sm font-medium text-gray-700">
+                                                <span className="text-sm font-medium text-gray-700">
                                                     {documentSources.length} Source{documentSources.length > 1 ? 's' : ''} Used
                                                 </span>
                                             </div>
@@ -502,22 +476,22 @@ export default function CoreMemorySuggestion({
                                         </button>
 
                                         {showSources && (
-                                            <div className="border-t border-gray-100 divide-y divide-gray-50">
+                                            <div className="border-t border-gray-200 divide-y divide-gray-100">
                                                 {documentSources.map((source, idx) => (
-                                                    <div key={idx} className="p-3.5">
+                                                    <div key={idx} className="p-4">
                                                         <div className="flex items-start justify-between mb-1.5">
-                                                            <span className="text-xs md:text-sm font-medium text-gray-800 flex items-center gap-1.5">
-                                                                <FileText className="w-3.5 h-3.5 text-indigo-400" />
+                                                            <span className="text-sm font-medium text-gray-800 flex items-center gap-1.5">
+                                                                <FileText className="w-3.5 h-3.5 text-indigo-500" />
                                                                 {source.name}
                                                             </span>
                                                             {(source.fromAgent || source.fromAssistant) && (
-                                                                <Badge variant="outline" className="text-[9px] md:text-[10px] h-4 md:h-5 px-1.5 bg-violet-50 text-violet-600 border-violet-200">
+                                                                <Badge variant="outline" className="text-[10px] h-5 px-1.5 bg-violet-50 text-violet-600 border-violet-200">
                                                                     via {source.fromAgent || source.fromAssistant}
                                                                 </Badge>
                                                             )}
                                                         </div>
                                                         {source.excerpt && (
-                                                            <p className="text-[11px] md:text-xs text-gray-500 leading-relaxed line-clamp-2 pl-5">
+                                                            <p className="text-xs text-gray-500 leading-relaxed line-clamp-2 pl-5">
                                                                 "{source.excerpt}"
                                                             </p>
                                                         )}
@@ -530,16 +504,16 @@ export default function CoreMemorySuggestion({
 
                                 {/* Personalization Badge */}
                                 {suggestion.personaUsed && (
-                                    <div className="flex items-center gap-2.5 px-4 py-3 bg-violet-50/80 rounded-xl border border-violet-100">
-                                        <User className="w-4 h-4 text-violet-500" />
-                                        <span className="text-xs md:text-sm text-violet-700 font-medium">
+                                    <div className="flex items-center gap-2.5 px-4 py-3 bg-violet-50 rounded-xl border border-violet-200">
+                                        <User className="w-4 h-4 text-violet-600" />
+                                        <span className="text-sm text-violet-700 font-medium">
                                             Personalized using customer profile
                                         </span>
                                     </div>
                                 )}
 
                                 {/* Reasoning Footer */}
-                                <p className="text-[10px] md:text-xs text-gray-400 text-center pb-safe px-2 leading-relaxed">
+                                <p className="text-xs text-gray-400 text-center px-2 leading-relaxed">
                                     {suggestion.reasoning}
                                 </p>
                             </>

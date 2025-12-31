@@ -1,4 +1,4 @@
-import type {NextConfig} from 'next';
+import type { NextConfig } from 'next';
 
 const nextConfig: NextConfig = {
   /* config options here */
@@ -22,7 +22,7 @@ const nextConfig: NextConfig = {
         port: '',
         pathname: '/**',
       },
-       {
+      {
         protocol: 'https',
         hostname: 'storage.googleapis.com',
         port: '',
@@ -33,6 +33,9 @@ const nextConfig: NextConfig = {
   // Ensure experimental features are compatible
   experimental: {
     esmExternals: true,
+    serverActions: {
+      bodySizeLimit: '10mb', // Increase limit for image uploads
+    },
   },
   // Add webpack configuration for better module resolution
   webpack: (config, { isServer }) => {
@@ -41,7 +44,7 @@ const nextConfig: NextConfig = {
       ...config.resolve.fallback,
       fs: false,
     };
-    
+
     return config;
   },
 };

@@ -491,7 +491,49 @@ export default function ChatInterface({ onBack, showBackButton, hideCallButtons 
                                         </div>
                                     )}
 
-                                    <div className="whitespace-pre-wrap break-words">{msg.content}</div>
+                                    {/* Format message content with markdown-like rendering */}
+                                    <div className="whitespace-pre-wrap break-words">
+                                        {msg.content.split('\n').map((line, idx) => {
+                                            // Check for bold text like **text**
+                                            const boldRegex = /\*\*(.*?)\*\*/g;
+                                            const parts = [];
+                                            let lastIndex = 0;
+                                            let match;
+
+                                            while ((match = boldRegex.exec(line)) !== null) {
+                                                if (match.index > lastIndex) {
+                                                    parts.push(<span key={`text-${idx}-${lastIndex}`}>{line.substring(lastIndex, match.index)}</span>);
+                                                }
+                                                parts.push(<strong key={`bold-${idx}-${match.index}`} className="font-semibold">{match[1]}</strong>);
+                                                lastIndex = match.index + match[0].length;
+                                            }
+
+                                            if (lastIndex < line.length) {
+                                                parts.push(<span key={`text-${idx}-${lastIndex}`}>{line.substring(lastIndex)}</span>);
+                                            }
+
+                                            // Handle bullet points
+                                            const isBullet = line.trim().startsWith('•') || line.trim().startsWith('-');
+                                            const isNumbered = /^\d+\./.test(line.trim());
+
+                                            if (isBullet || isNumbered) {
+                                                return (
+                                                    <div key={idx} className="flex gap-2 my-1">
+                                                        <span className="shrink-0">{line.trim().split(' ')[0]}</span>
+                                                        <span className="flex-1">
+                                                            {parts.length > 0 ? parts : line.substring(line.indexOf(' ') + 1)}
+                                                        </span>
+                                                    </div>
+                                                );
+                                            }
+
+                                            return (
+                                                <div key={idx} className={line.trim() === '' ? 'h-2' : ''}>
+                                                    {parts.length > 0 ? parts : line}
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
 
                                     {msg.groundingChunks && msg.groundingChunks.length > 0 && (
                                         <div className="flex gap-1 mt-2 flex-wrap">

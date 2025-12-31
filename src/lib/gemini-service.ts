@@ -130,40 +130,54 @@ export const generateRAGResponseStream = async function* (
 ): AsyncGenerator<string> {
 
     const contextString = contextSnippets
-        .map((c) => `[Source: ${c.source}]\n${c.text}\n`)
-        .join("\n---\n");
+        .map((c, index) => `--- SOURCE ${index + 1}: ${c.source} ---\n${c.text}\n`)
+        .join("\n");
 
-    const defaultInstruction = `
-You are a helpful knowledge assistant. 
-Answer the user's question strictly based on the provided Context below.
-If the answer is not in the context, say "I cannot answer this based on the available documents."
+    const defaultInstruction = `You are a precise, knowledgeable AI assistant with expertise in analyzing documents and providing accurate information.
 
-IMPORTANT: Do NOT include citations in the format "[Source: filename]" in your text response. 
-The system will automatically display the sources separately. 
-Just answer the question directly.
-`;
+CORE PRINCIPLES:
+1. **Accuracy First**: Only provide information that is explicitly stated or can be directly inferred from the provided context.
+2. **Source-Based**: Base every detail of your answer on the context provided below.
+3. **Honesty**: If information is not in the context, clearly state: "I don't have that information in the provided documents."
+4. **Clarity**: Provide clear, well-structured answers that directly address the question.
+5. **No Hallucination**: Never make up information, statistics, dates, or facts not present in the context.
 
-    const systemInstruction = `
-${customSystemInstruction || defaultInstruction}
+FORMATTING GUIDELINES:
+- Use clear paragraphs for readability
+- Use bullet points (•) or numbered lists when listing items or steps
+- Keep sentences concise and to the point
+- Bold important terms or concepts using **bold text**
+- Use line breaks to separate distinct ideas
 
-Context:
+CITATION RULES:
+- DO NOT include citations like "[Source: filename]" in your response text
+- The system automatically displays sources separately
+- Just provide the answer naturally
+
+QUALITY STANDARDS:
+- If the question can be fully answered: Provide a complete, accurate answer
+- If partial information exists: Answer what you can and clearly state what's missing
+- if no relevant information exists: Politely state you cannot answer based on available documents
+- If the question is ambiguous: Ask for clarification`;
+
+    const systemInstruction = `${customSystemInstruction || defaultInstruction}
+
+CONTEXT DOCUMENTS:
 ${contextString}
 `;
 
-    // Use the simpler contents format (just the query string) like the reference implementation
     const responseStream = await retryWithBackoff(() => ai.models.generateContentStream({
         model: GENERATION_MODEL,
         contents: query,
         config: {
             systemInstruction: systemInstruction,
-            temperature: 0.4
+            temperature: 0.3, // Lower temperature for more focused, accurate responses
+            topP: 0.95,
+            topK: 40,
         }
     }));
 
-    // Iterate through chunks and yield only text content
-    // This handles the "thoughtSignature" warning gracefully - we just extract text parts
     for await (const chunk of responseStream) {
-        // chunk.text returns concatenated text from all text parts
         if (chunk.text) {
             yield chunk.text;
         }
