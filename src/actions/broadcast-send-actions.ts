@@ -35,11 +35,30 @@ export async function sendBroadcastCampaignAction(
     contactIds?: string[],
     groupIds?: string[]
 ): Promise<BroadcastSendResult> {
+    // Validate required parameters first
+    if (!partnerId) {
+        return { success: false, message: 'Partner ID is required' };
+    }
+    if (!campaignId) {
+        return { success: false, message: 'Campaign ID is required' };
+    }
+    if (!channel || (channel !== 'whatsapp' && channel !== 'telegram')) {
+        return { success: false, message: 'Valid channel (whatsapp/telegram) is required' };
+    }
+    if (!message) {
+        return { success: false, message: 'Message content is required' };
+    }
+    if (!recipientType) {
+        return { success: false, message: 'Recipient type is required' };
+    }
+
     if (!db) {
         return { success: false, message: 'Database not available' };
     }
 
     try {
+        console.log('sendBroadcastCampaignAction called:', { partnerId, campaignId, channel, recipientType });
+
         // 1. Get contacts based on selection type
         let recipients: Array<{ id: string; phone: string; name?: string; telegramChatId?: string }> = [];
 
@@ -314,9 +333,13 @@ export async function sendBroadcastCampaignAction(
 
     } catch (error: any) {
         console.error('Error sending broadcast campaign:', error);
+        // Ensure error message is always a string for proper serialization
+        const errorMessage = typeof error?.message === 'string'
+            ? error.message
+            : (typeof error === 'string' ? error : 'Failed to send broadcast');
         return {
             success: false,
-            message: error.message || 'Failed to send broadcast',
+            message: errorMessage,
         };
     }
 }
