@@ -5,7 +5,6 @@ import { sendMetaWhatsAppMessageAction } from './meta-whatsapp-actions';
 import { sendTelegramMessageAction } from './telegram-actions';
 import { updateCampaignAction } from './broadcast-actions';
 import { db } from '@/lib/firebase-admin';
-import { Timestamp } from 'firebase-admin/firestore';
 
 interface BroadcastSendResult {
     success: boolean;
@@ -36,6 +35,10 @@ export async function sendBroadcastCampaignAction(
     contactIds?: string[],
     groupIds?: string[]
 ): Promise<BroadcastSendResult> {
+    if (!db) {
+        return { success: false, message: 'Database not available' };
+    }
+
     try {
         // 1. Get contacts based on selection type
         let recipients: Array<{ id: string; phone: string; name?: string; telegramChatId?: string }> = [];
@@ -299,6 +302,10 @@ export async function getBroadcastRecipientsPreviewAction(
     count: number;
     preview: Array<{ id: string; name?: string; phone: string }>;
 }> {
+    if (!db) {
+        return { success: false, count: 0, preview: [] };
+    }
+
     try {
         let recipients: Array<{ id: string; phone: string; name?: string }> = [];
 
