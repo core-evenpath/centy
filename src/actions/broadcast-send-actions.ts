@@ -126,6 +126,36 @@ export async function sendBroadcastCampaignAction(
                 let result;
 
                 if (channel === 'whatsapp') {
+                    // Look up existing conversation by phone number (like inbox does)
+                    // Normalize phone for lookup (remove non-digits)
+                    const normalizedPhone = contact.phone.replace(/\D/g, '');
+                    let conversationId: string | undefined;
+
+                    // Try to find existing conversation by customerWaId or customerPhone
+                    const existingConvSnapshot = await db
+                        .collection('metaWhatsAppConversations')
+                        .where('partnerId', '==', partnerId)
+                        .where('customerWaId', '==', normalizedPhone)
+                        .limit(1)
+                        .get();
+
+                    if (!existingConvSnapshot.empty) {
+                        conversationId = existingConvSnapshot.docs[0].id;
+                    } else {
+                        // Also try with full phone format
+                        const phoneWithPlus = contact.phone.startsWith('+') ? contact.phone : `+${normalizedPhone}`;
+                        const altConvSnapshot = await db
+                            .collection('metaWhatsAppConversations')
+                            .where('partnerId', '==', partnerId)
+                            .where('customerPhone', '==', phoneWithPlus)
+                            .limit(1)
+                            .get();
+
+                        if (!altConvSnapshot.empty) {
+                            conversationId = altConvSnapshot.docs[0].id;
+                        }
+                    }
+
                     // Use the same WhatsApp sending action as inbox, with formatting
                     const formattedMessage = markdownToWhatsApp(message);
 
@@ -134,7 +164,8 @@ export async function sendBroadcastCampaignAction(
                         to: contact.phone,
                         message: formattedMessage,
                         mediaUrl,
-                        mediaType: mediaUrl ? 'image' : undefined, // Explicitly pass mediaType
+                        mediaType: mediaUrl ? 'image' : undefined,
+                        conversationId, // Pass the conversationId like inbox does
                     });
 
                 } else if (channel === 'telegram') {
@@ -151,12 +182,26 @@ export async function sendBroadcastCampaignAction(
                         continue;
                     }
 
+                    // Look up existing Telegram conversation by chatId (like inbox does)
+                    let conversationId: string | undefined;
+                    const existingConvSnapshot = await db
+                        .collection('telegramConversations')
+                        .where('partnerId', '==', partnerId)
+                        .where('chatId', '==', contact.telegramChatId)
+                        .limit(1)
+                        .get();
+
+                    if (!existingConvSnapshot.empty) {
+                        conversationId = existingConvSnapshot.docs[0].id;
+                    }
+
                     // Use the same Telegram sending action as inbox
                     result = await sendTelegramMessageAction({
                         partnerId,
                         chatId: contact.telegramChatId as any,
                         message,
                         mediaUrl,
+                        conversationId, // Pass the conversationId like inbox does
                     });
                 }
 
