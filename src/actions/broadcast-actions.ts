@@ -52,6 +52,10 @@ export interface BroadcastCampaign {
  * Get all broadcast groups for a partner
  */
 export async function getBroadcastGroupsAction(partnerId: string) {
+    if (!db) {
+        return { success: false, message: 'Database not available', groups: [] };
+    }
+
     try {
         const groupsSnapshot = await db
             .collection('partners')
@@ -81,6 +85,10 @@ export async function createBroadcastGroupAction(
     partnerId: string,
     data: { name: string; description?: string; contactIds: string[] }
 ) {
+    if (!db) {
+        return { success: false, message: 'Database not available' };
+    }
+
     try {
         const now = Timestamp.now();
         const groupRef = db
@@ -118,6 +126,10 @@ export async function updateBroadcastGroupAction(
     groupId: string,
     data: Partial<Pick<BroadcastGroup, 'name' | 'description' | 'contactIds'>>
 ) {
+    if (!db) {
+        return { success: false, message: 'Database not available' };
+    }
+
     try {
         const groupRef = db
             .collection('partners')
@@ -141,6 +153,10 @@ export async function updateBroadcastGroupAction(
  * Delete a broadcast group
  */
 export async function deleteBroadcastGroupAction(partnerId: string, groupId: string) {
+    if (!db) {
+        return { success: false, message: 'Database not available' };
+    }
+
     try {
         await db
             .collection('partners')
@@ -160,6 +176,10 @@ export async function deleteBroadcastGroupAction(partnerId: string, groupId: str
  * Get all campaigns for a partner
  */
 export async function getCampaignsAction(partnerId: string) {
+    if (!db) {
+        return { success: false, message: 'Database not available', campaigns: [] };
+    }
+
     try {
         const campaignsSnapshot = await db
             .collection('partners')
@@ -195,6 +215,10 @@ export async function createCampaignAction(
     userId: string,
     data: Omit<BroadcastCampaign, 'id' | 'partnerId' | 'createdBy' | 'createdAt' | 'updatedAt'>
 ) {
+    if (!db) {
+        return { success: false, message: 'Database not available' };
+    }
+
     try {
         const now = Timestamp.now();
         const campaignRef = db
@@ -233,6 +257,10 @@ export async function updateCampaignAction(
     campaignId: string,
     data: Partial<BroadcastCampaign>
 ) {
+    if (!db) {
+        return { success: false, message: 'Database not available' };
+    }
+
     try {
         const campaignRef = db
             .collection('partners')
@@ -263,6 +291,10 @@ export async function updateCampaignAction(
  * Delete a campaign
  */
 export async function deleteCampaignAction(partnerId: string, campaignId: string) {
+    if (!db) {
+        return { success: false, message: 'Database not available' };
+    }
+
     try {
         await db
             .collection('partners')
@@ -292,6 +324,10 @@ export async function sendCampaignAction(
         failed?: number;
     }
 ) {
+    if (!db) {
+        return { success: false, message: 'Database not available' };
+    }
+
     try {
         const campaignRef = db
             .collection('partners')
