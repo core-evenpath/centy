@@ -482,7 +482,11 @@ export async function sendMetaWhatsAppMessageAction(
 
     } catch (error: any) {
         console.error('❌ Error sending Meta WhatsApp message:', error);
-        return { success: false, message: error.message };
+        // Ensure error message is always a serializable string
+        const errorMsg = typeof error?.message === 'string'
+            ? error.message
+            : 'Failed to send message';
+        return { success: false, message: errorMsg };
     }
 }
 
