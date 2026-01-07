@@ -43,64 +43,72 @@ export async function sendBroadcastCampaignAction(
         // 1. Get contacts based on selection type
         let recipients: Array<{ id: string; phone: string; name?: string; telegramChatId?: string }> = [];
 
-        if (recipientType === 'all') {
-            // Get all active contacts
-            const contactsSnapshot = await db
-                .collection(`partners/${partnerId}/contacts`)
-                .where('status', '==', 'active')
-                .get();
+        try {
+            if (recipientType === 'all') {
+                // Get all active contacts
+                const contactsSnapshot = await db
+                    .collection(`partners/${partnerId}/contacts`)
+                    .where('status', '==', 'active')
+                    .get();
 
-            recipients = contactsSnapshot.docs.map(doc => ({
-                id: doc.id,
-                phone: doc.data().phone,
-                name: doc.data().name,
-                telegramChatId: doc.data().telegramChatId,
-            })).filter(c => c.phone); // Only include contacts with phone numbers
-
-        } else if (recipientType === 'individual' && contactIds && contactIds.length > 0) {
-            // Get specific contacts
-            const contactsPromises = contactIds.map(id =>
-                db.collection(`partners/${partnerId}/contacts`).doc(id).get()
-            );
-            const contactsDocs = await Promise.all(contactsPromises);
-
-            recipients = contactsDocs
-                .filter(doc => doc.exists && doc.data()?.phone)
-                .map(doc => ({
+                recipients = contactsSnapshot.docs.map(doc => ({
                     id: doc.id,
-                    phone: doc.data()!.phone,
-                    name: doc.data()!.name,
-                    telegramChatId: doc.data()!.telegramChatId,
-                }));
+                    phone: doc.data().phone,
+                    name: doc.data().name,
+                    telegramChatId: doc.data().telegramChatId,
+                })).filter(c => c.phone); // Only include contacts with phone numbers
 
-        } else if (recipientType === 'group' && groupIds && groupIds.length > 0) {
-            // Get contacts from broadcast groups
-            const groupsPromises = groupIds.map(id =>
-                db.collection(`partners/${partnerId}/broadcastGroups`).doc(id).get()
-            );
-            const groupsDocs = await Promise.all(groupsPromises);
+            } else if (recipientType === 'individual' && contactIds && contactIds.length > 0) {
+                // Get specific contacts
+                const contactsPromises = contactIds.map(id =>
+                    db.collection(`partners/${partnerId}/contacts`).doc(id).get()
+                );
+                const contactsDocs = await Promise.all(contactsPromises);
 
-            const allContactIds = groupsDocs
-                .filter(doc => doc.exists)
-                .flatMap(doc => doc.data()?.contactIds || []);
+                recipients = contactsDocs
+                    .filter(doc => doc.exists && doc.data()?.phone)
+                    .map(doc => ({
+                        id: doc.id,
+                        phone: doc.data()!.phone,
+                        name: doc.data()!.name,
+                        telegramChatId: doc.data()!.telegramChatId,
+                    }));
 
-            // Remove duplicates
-            const uniqueContactIds = Array.from(new Set(allContactIds));
+            } else if (recipientType === 'group' && groupIds && groupIds.length > 0) {
+                // Get contacts from broadcast groups
+                const groupsPromises = groupIds.map(id =>
+                    db.collection(`partners/${partnerId}/broadcastGroups`).doc(id).get()
+                );
+                const groupsDocs = await Promise.all(groupsPromises);
 
-            // Get contact details
-            const contactsPromises = uniqueContactIds.map(id =>
-                db.collection(`partners/${partnerId}/contacts`).doc(id).get()
-            );
-            const contactsDocs = await Promise.all(contactsPromises);
+                const allContactIds = groupsDocs
+                    .filter(doc => doc.exists)
+                    .flatMap(doc => doc.data()?.contactIds || []);
 
-            recipients = contactsDocs
-                .filter(doc => doc.exists && doc.data()?.phone)
-                .map(doc => ({
-                    id: doc.id,
-                    phone: doc.data()!.phone,
-                    name: doc.data()!.name,
-                    telegramChatId: doc.data()!.telegramChatId,
-                }));
+                // Remove duplicates
+                const uniqueContactIds = Array.from(new Set(allContactIds));
+
+                // Get contact details
+                const contactsPromises = uniqueContactIds.map(id =>
+                    db.collection(`partners/${partnerId}/contacts`).doc(id).get()
+                );
+                const contactsDocs = await Promise.all(contactsPromises);
+
+                recipients = contactsDocs
+                    .filter(doc => doc.exists && doc.data()?.phone)
+                    .map(doc => ({
+                        id: doc.id,
+                        phone: doc.data()!.phone,
+                        name: doc.data()!.name,
+                        telegramChatId: doc.data()!.telegramChatId,
+                    }));
+            }
+        } catch (fetchError: any) {
+            console.error('Error fetching recipients:', fetchError);
+            return {
+                success: false,
+                message: `Failed to fetch recipients: ${fetchError.message || 'Database error'}`,
+            };
         }
 
         if (recipients.length === 0) {
@@ -136,34 +144,40 @@ export async function sendBroadcastCampaignAction(
                     let phoneToUse = contact.phone; // Default to contact's phone
 
                     // Try to find existing conversation by customerWaId (like inbox does)
-                    const existingConvSnapshot = await db
-                        .collection('metaWhatsAppConversations')
-                        .where('partnerId', '==', partnerId)
-                        .where('customerWaId', '==', normalizedPhone)
-                        .limit(1)
-                        .get();
-
-                    if (!existingConvSnapshot.empty) {
-                        const convData = existingConvSnapshot.docs[0].data();
-                        conversationId = existingConvSnapshot.docs[0].id;
-                        // Use the conversation's customerPhone (exact inbox behavior)
-                        phoneToUse = convData.customerPhone || contact.phone;
-                    } else {
-                        // Also try with full phone format
-                        const phoneWithPlus = contact.phone.startsWith('+') ? contact.phone : `+${normalizedPhone}`;
-                        const altConvSnapshot = await db
+                    // Wrap in try-catch to handle Firestore connection errors
+                    try {
+                        const existingConvSnapshot = await db
                             .collection('metaWhatsAppConversations')
                             .where('partnerId', '==', partnerId)
-                            .where('customerPhone', '==', phoneWithPlus)
+                            .where('customerWaId', '==', normalizedPhone)
                             .limit(1)
                             .get();
 
-                        if (!altConvSnapshot.empty) {
-                            const convData = altConvSnapshot.docs[0].data();
-                            conversationId = altConvSnapshot.docs[0].id;
+                        if (!existingConvSnapshot.empty) {
+                            const convData = existingConvSnapshot.docs[0].data();
+                            conversationId = existingConvSnapshot.docs[0].id;
                             // Use the conversation's customerPhone (exact inbox behavior)
                             phoneToUse = convData.customerPhone || contact.phone;
+                        } else {
+                            // Also try with full phone format
+                            const phoneWithPlus = contact.phone.startsWith('+') ? contact.phone : `+${normalizedPhone}`;
+                            const altConvSnapshot = await db
+                                .collection('metaWhatsAppConversations')
+                                .where('partnerId', '==', partnerId)
+                                .where('customerPhone', '==', phoneWithPlus)
+                                .limit(1)
+                                .get();
+
+                            if (!altConvSnapshot.empty) {
+                                const convData = altConvSnapshot.docs[0].data();
+                                conversationId = altConvSnapshot.docs[0].id;
+                                // Use the conversation's customerPhone (exact inbox behavior)
+                                phoneToUse = convData.customerPhone || contact.phone;
+                            }
                         }
+                    } catch (lookupError) {
+                        // If conversation lookup fails, continue with contact's phone
+                        console.warn(`Conversation lookup failed for ${contact.phone}, using contact phone:`, lookupError);
                     }
 
                     // Use the same WhatsApp sending action as inbox, with formatting
@@ -197,18 +211,24 @@ export async function sendBroadcastCampaignAction(
                     let conversationId: string | undefined;
                     let chatIdToUse = contact.telegramChatId;
 
-                    const existingConvSnapshot = await db
-                        .collection('telegramConversations')
-                        .where('partnerId', '==', partnerId)
-                        .where('chatId', '==', contact.telegramChatId)
-                        .limit(1)
-                        .get();
+                    // Wrap in try-catch to handle Firestore connection errors
+                    try {
+                        const existingConvSnapshot = await db
+                            .collection('telegramConversations')
+                            .where('partnerId', '==', partnerId)
+                            .where('chatId', '==', contact.telegramChatId)
+                            .limit(1)
+                            .get();
 
-                    if (!existingConvSnapshot.empty) {
-                        const convData = existingConvSnapshot.docs[0].data();
-                        conversationId = existingConvSnapshot.docs[0].id;
-                        // Use the conversation's chatId (exact inbox behavior)
-                        chatIdToUse = convData.chatId || contact.telegramChatId;
+                        if (!existingConvSnapshot.empty) {
+                            const convData = existingConvSnapshot.docs[0].data();
+                            conversationId = existingConvSnapshot.docs[0].id;
+                            // Use the conversation's chatId (exact inbox behavior)
+                            chatIdToUse = convData.chatId || contact.telegramChatId;
+                        }
+                    } catch (lookupError) {
+                        // If conversation lookup fails, continue with contact's chatId
+                        console.warn(`Telegram conversation lookup failed for ${contact.telegramChatId}, using contact chatId:`, lookupError);
                     }
 
                     // EXACT INBOX LOGIC: Use the same Telegram sending action as inbox
