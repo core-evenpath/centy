@@ -1,38 +1,59 @@
 "use client";
 
 import React, { useState, useRef, useEffect } from 'react';
+import { useMultiWorkspaceAuth } from '@/hooks/use-multi-workspace-auth';
+import { createCampaignAction } from '@/actions/broadcast-actions';
+import { useToast } from '@/hooks/use-toast';
+import RecipientSelector from '@/components/partner/broadcast/RecipientSelector';
 
 // ============================================
 // CENTY BROADCAST - AI Marketing Co-pilot
 // Chat-based campaign creation with smart AI
 // Clean, modern YC-style design
+// Firebase-integrated for real data
 // ============================================
 
 const TEMPLATES = [
-  { id: 'intro', icon: '👋', title: 'Introduce Yourself', desc: 'First message to new clients', category: 'engagement', popular: true,
+  {
+    id: 'intro', icon: '👋', title: 'Introduce Yourself', desc: 'First message to new clients', category: 'engagement', popular: true,
     message: `Hi {{name}}! 👋\n\nI'm {{agent_name}} from *{{business_name}}*.\n\nI specialize in helping clients find their perfect property. Whether you're looking to buy, sell, or invest — I'm here to help.\n\nFeel free to reach out anytime!\n\nBest regards,\n{{agent_name}}`,
-    tips: ['Great for new leads', 'Sets professional tone', 'Builds trust early'] },
-  { id: 'listing', icon: '🏠', title: 'Property Alert', desc: 'Announce new listings', category: 'property', popular: true,
+    tips: ['Great for new leads', 'Sets professional tone', 'Builds trust early']
+  },
+  {
+    id: 'listing', icon: '🏠', title: 'Property Alert', desc: 'Announce new listings', category: 'property', popular: true,
     message: `Hi {{name}}! 🏠\n\nNew listing matching your criteria:\n\n📍 *{{property_name}}*\n💰 {{price}}\n\n✓ Prime location\n✓ Ready to move\n✓ Loan approved\n\nInterested in a visit this week?`,
-    tips: ['Include key specs upfront', 'Add image for 3x engagement', 'End with clear CTA'] },
-  { id: 'event', icon: '📅', title: 'Event Invitation', desc: 'Open house & launches', category: 'event', popular: true,
+    tips: ['Include key specs upfront', 'Add image for 3x engagement', 'End with clear CTA']
+  },
+  {
+    id: 'event', icon: '📅', title: 'Event Invitation', desc: 'Open house & launches', category: 'event', popular: true,
     message: `Hi {{name}}!\n\nYou're invited to an exclusive property showcase:\n\n📅 *{{date}}*\n🕐 10 AM - 4 PM\n📍 {{venue}}\n\n50+ buyers already confirmed.\n\nReply YES to reserve your spot.`,
-    tips: ['Social proof increases signups 45%', 'Clear date/time/venue', 'Simple RSVP mechanism'] },
-  { id: 'festive', icon: '🎉', title: 'Festive Greetings', desc: 'Seasonal wishes', category: 'engagement', popular: false,
+    tips: ['Social proof increases signups 45%', 'Clear date/time/venue', 'Simple RSVP mechanism']
+  },
+  {
+    id: 'festive', icon: '🎉', title: 'Festive Greetings', desc: 'Seasonal wishes', category: 'engagement', popular: false,
     message: `Happy {{festival}}, {{name}}! 🎉\n\nWishing you and your family joy, prosperity, and new beginnings.\n\nMay this year bring you closer to your dream home!\n\nWarm regards,\n{{agent_name}}\n*{{business_name}}*`,
-    tips: ['Send in morning for best engagement', 'Personal touch matters', 'Great for re-engagement'] },
-  { id: 'offer', icon: '🏷️', title: 'Special Offer', desc: 'Deals with urgency', category: 'promotional', popular: true,
+    tips: ['Send in morning for best engagement', 'Personal touch matters', 'Great for re-engagement']
+  },
+  {
+    id: 'offer', icon: '🏷️', title: 'Special Offer', desc: 'Deals with urgency', category: 'promotional', popular: true,
     message: `Hi {{name}}! 🎯\n\n*Limited Time Offer*\n\nBook before *{{deadline}}* and get:\n\n✓ Zero brokerage (Save ₹2L+)\n✓ Free registration\n✓ Priority support\n\n⏰ Only 5 slots left!\n\nInterested?`,
-    tips: ['Deadlines boost conversions 32%', 'Clear value proposition', 'Scarcity drives action'] },
-  { id: 'followup', icon: '🔄', title: 'Follow-up', desc: 'Re-engage leads', category: 'engagement', popular: false,
+    tips: ['Deadlines boost conversions 32%', 'Clear value proposition', 'Scarcity drives action']
+  },
+  {
+    id: 'followup', icon: '🔄', title: 'Follow-up', desc: 'Re-engage leads', category: 'engagement', popular: false,
     message: `Hi {{name}}!\n\nJust checking in — still exploring property options?\n\nI have some new listings that might interest you:\n\n🏠 New projects in your preferred areas\n💰 Better financing options available\n\nWhen's a good time for a quick chat?\n\n{{agent_name}}`,
-    tips: ['Non-pushy tone works best', 'Provide value/updates', 'Easy response path'] },
-  { id: 'pricedrop', icon: '📉', title: 'Price Drop', desc: 'Price reduction alerts', category: 'property', popular: false,
+    tips: ['Non-pushy tone works best', 'Provide value/updates', 'Easy response path']
+  },
+  {
+    id: 'pricedrop', icon: '📉', title: 'Price Drop', desc: 'Price reduction alerts', category: 'property', popular: false,
     message: `Hi {{name}}! 📉\n\nGreat news! A property you viewed has a *price drop*:\n\n🏠 *{{property_name}}*\n~~₹2.2 Cr~~ → *{{price}}*\n\nThat's ₹40 Lakhs savings!\n\nInterested in revisiting?`,
-    tips: ['Reference past interest', 'Show clear savings', 'Create urgency'] },
-  { id: 'review', icon: '⭐', title: 'Request Review', desc: 'Get testimonials', category: 'engagement', popular: false,
+    tips: ['Reference past interest', 'Show clear savings', 'Create urgency']
+  },
+  {
+    id: 'review', icon: '⭐', title: 'Request Review', desc: 'Get testimonials', category: 'engagement', popular: false,
     message: `Hi {{name}}! 🙏\n\nThank you for choosing *{{business_name}}*!\n\nYour feedback helps us improve. Would you mind sharing your experience?\n\n⭐ Takes just 2 minutes\n⭐ Helps other buyers decide\n\nThank you!\n{{agent_name}}`,
-    tips: ['Best sent post-transaction', 'Make it easy', 'Express gratitude'] },
+    tips: ['Best sent post-transaction', 'Make it easy', 'Express gratitude']
+  },
 ];
 
 const TEMPLATE_CATEGORIES = [
@@ -55,22 +76,8 @@ const VARIABLES = [
   { token: '{{festival}}', label: 'Festival', preview: 'New Year' },
 ];
 
-const GROUPS = [
-  { id: 'all', name: 'All Contacts', count: 156 },
-  { id: 'buyers', name: 'Active Buyers', count: 89 },
-  { id: 'investors', name: 'Investors', count: 34 },
-  { id: 'premium', name: 'Premium Clients', count: 23 },
-  { id: 'new', name: 'New Leads (30 days)', count: 45 },
-];
-
-const CLIENTS = [
-  { id: 1, name: 'Rajesh Kumar', initials: 'RK', phone: '+91 98765 43210', tags: ['buyer', 'premium'] },
-  { id: 2, name: 'Priya Mehta', initials: 'PM', phone: '+91 98765 43211', tags: ['investor'] },
-  { id: 3, name: 'Amit Shah', initials: 'AS', phone: '+91 98765 43212', tags: ['buyer'] },
-  { id: 4, name: 'Sneha Patel', initials: 'SP', phone: '+91 98765 43213', tags: ['premium'] },
-  { id: 5, name: 'Vikram Singh', initials: 'VS', phone: '+91 98765 43214', tags: ['investor'] },
-  { id: 6, name: 'Neha Sharma', initials: 'NS', phone: '+91 98765 43215', tags: ['buyer', 'new'] },
-];
+// GROUPS and CLIENTS are now loaded from Firebase Firestore
+// See RecipientSelector component for the implementation
 
 // Substitute variables for preview
 const sub = (t: string | undefined) => t?.replace(/\{\{name\}\}/g, 'Rajesh').replace(/\{\{agent_name\}\}/g, 'Priya').replace(/\{\{business_name\}\}/g, 'Prime Properties').replace(/\{\{property_name\}\}/g, '3BHK Sea View, Powai').replace(/\{\{price\}\}/g, '₹1.8 Cr').replace(/\{\{date\}\}/g, 'Sunday, Jan 12').replace(/\{\{venue\}\}/g, 'Powai, Mumbai').replace(/\{\{deadline\}\}/g, 'Jan 31').replace(/\{\{festival\}\}/g, 'New Year') || '';
@@ -170,7 +177,10 @@ interface Campaign {
   hasImage: boolean;
   buttons: string[];
   fromTemplate?: Template;
-  recipients?: number;
+  recipientType?: 'group' | 'individual' | 'all';
+  groupIds?: string[];
+  contactIds?: string[];
+  recipientCount?: number;
 }
 
 interface Message {
@@ -185,10 +195,14 @@ interface Message {
 // MAIN EXPORT
 // ============================================
 export default function BroadcastPage() {
+  const { currentWorkspace } = useMultiWorkspaceAuth();
+  const { toast } = useToast();
   const [view, setView] = useState<'home' | 'studio' | 'recipients' | 'review' | 'success'>('home');
   const [channel, setChannel] = useState<'whatsapp' | 'telegram'>('whatsapp');
   const [campaign, setCampaign] = useState<Campaign | null>(null);
   const [initialPrompt, setInitialPrompt] = useState('');
+
+  const partnerId = currentWorkspace?.partnerId;
 
   const startWithPrompt = (prompt: string) => {
     setInitialPrompt(prompt);
@@ -200,14 +214,54 @@ export default function BroadcastPage() {
     setView('studio');
   };
 
+  // Handle recipient selection
+  const handleRecipientsSelected = (recipientData: {
+    recipientType: 'group' | 'individual' | 'all';
+    groupIds?: string[];
+    contactIds?: string[];
+    recipientCount: number;
+  }) => {
+    setCampaign(prev => ({ ...prev!, ...recipientData }));
+    setView('review');
+  };
+
   if (view === 'studio') {
     return <CampaignStudio channel={channel} initialPrompt={initialPrompt} existingCampaign={campaign} onBack={() => { setView('home'); setInitialPrompt(''); setCampaign(null); }} onComplete={(data) => { setCampaign(data); setView('recipients'); }} />;
   }
-  if (view === 'recipients') {
-    return <RecipientsStep channel={channel} campaign={campaign!} onBack={() => setView('studio')} onContinue={(data) => { setCampaign(data); setView('review'); }} />;
+  if (view === 'recipients' && partnerId) {
+    return (
+      <RecipientSelector
+        channel={channel}
+        partnerId={partnerId}
+        onBack={() => setView('studio')}
+        onContinue={handleRecipientsSelected}
+      />
+    );
   }
   if (view === 'review') {
-    return <ReviewStep channel={channel} campaign={campaign!} onBack={() => setView('recipients')} onSend={() => setView('success')} />;
+    return <ReviewStep channel={channel} campaign={campaign!} onBack={() => setView('recipients')} onSend={async () => {
+      // Save campaign to Firebase before showing success
+      if (partnerId && currentWorkspace?.uid) {
+        try {
+          await createCampaignAction(partnerId, currentWorkspace.uid, {
+            title: campaign!.message.slice(0, 50) + '...',
+            channel,
+            status: 'draft', // Can be updated to 'sent' or 'scheduled'
+            message: campaign!.message,
+            hasImage: campaign!.hasImage || false,
+            buttons: campaign!.buttons || [],
+            recipientType: campaign!.recipientType || 'individual',
+            groupIds: campaign!.groupIds,
+            contactIds: campaign!.contactIds,
+            recipientCount: campaign!.recipientCount || 0,
+          });
+          toast({ title: 'Campaign Saved', description: 'Your campaign has been saved successfully.' });
+        } catch (error: any) {
+          toast({ variant: 'destructive', title: 'Error', description: 'Failed to save campaign: ' + error.message });
+        }
+      }
+      setView('success');
+    }} />;
   }
   if (view === 'success') {
     return <SuccessView channel={channel} campaign={campaign!} onDone={() => { setCampaign(null); setInitialPrompt(''); setView('home'); }} />;
@@ -405,7 +459,7 @@ function CampaignStudio({ channel, initialPrompt, existingCampaign, onBack, onCo
         suggestions: ['New year wishes', 'Announce a property', 'Send an offer', 'Browse templates'],
       }]);
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -806,11 +860,10 @@ function CampaignStudio({ channel, initialPrompt, existingCampaign, onBack, onCo
             {insights.length > 0 && (
               <div className="space-y-2">
                 {insights.map((insight, i) => (
-                  <div key={i} className={`flex items-start gap-2 px-4 py-3 rounded-xl text-sm ${
-                    insight.type === 'success' ? 'bg-emerald-50 text-emerald-800' :
+                  <div key={i} className={`flex items-start gap-2 px-4 py-3 rounded-xl text-sm ${insight.type === 'success' ? 'bg-emerald-50 text-emerald-800' :
                     insight.type === 'warning' ? 'bg-amber-50 text-amber-800' :
-                    'bg-stone-100 text-stone-700'
-                  }`}>
+                      'bg-stone-100 text-stone-700'
+                    }`}>
                     <span>{insight.icon}</span>
                     <span>{insight.text}</span>
                   </div>
@@ -868,122 +921,9 @@ function CampaignStudio({ channel, initialPrompt, existingCampaign, onBack, onCo
 }
 
 // ============================================
-// RECIPIENTS STEP
+// Recipients selection is now handled by RecipientSelector component
+// See: /src/components/partner/broadcast/RecipientSelector.tsx
 // ============================================
-interface RecipientsStepProps {
-  channel: 'whatsapp' | 'telegram';
-  campaign: Campaign;
-  onBack: () => void;
-  onContinue: (data: Campaign) => void;
-}
-
-function RecipientsStep({ channel, campaign, onBack, onContinue }: RecipientsStepProps) {
-  const [selectedGroup, setSelectedGroup] = useState<string | null>(null);
-  const [selectedClients, setSelectedClients] = useState<number[]>([]);
-  const [search, setSearch] = useState('');
-
-  const isWA = channel === 'whatsapp';
-  const filtered = search ? CLIENTS.filter(c => c.name.toLowerCase().includes(search.toLowerCase())) : CLIENTS;
-  const total = selectedGroup ? GROUPS.find(g => g.id === selectedGroup)?.count || 0 : selectedClients.length;
-
-  const toggleGroup = (id: string) => { setSelectedClients([]); setSelectedGroup(selectedGroup === id ? null : id); };
-  const toggleClient = (id: number) => { setSelectedGroup(null); setSelectedClients(prev => prev.includes(id) ? prev.filter(c => c !== id) : [...prev, id]); };
-
-  return (
-    <div className="min-h-screen bg-stone-50">
-      <div className="bg-white border-b border-stone-200 sticky top-0 z-20">
-        <div className="max-w-3xl mx-auto px-4 py-3 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <button onClick={onBack} className="w-9 h-9 flex items-center justify-center hover:bg-stone-100 rounded-lg text-stone-500">←</button>
-            <div>
-              <h1 className="font-semibold text-stone-900 text-sm">Select Recipients</h1>
-              <p className="text-xs text-stone-500">{total} selected</p>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div className="max-w-3xl mx-auto p-4">
-        {/* Message Preview */}
-        <div className="bg-white rounded-xl border border-stone-200 p-4 mb-4 flex items-center gap-4">
-          <div className={`w-11 h-11 rounded-lg flex items-center justify-center text-white text-lg ${isWA ? 'bg-emerald-600' : 'bg-sky-600'}`}>
-            {isWA ? '💬' : '✈️'}
-          </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-sm text-stone-700 truncate">{sub(campaign.message).slice(0, 70)}...</p>
-            <div className="flex gap-2 mt-1">
-              {campaign.hasImage && <span className="text-[10px] text-stone-400 bg-stone-100 px-2 py-0.5 rounded">Image</span>}
-              {campaign.buttons?.length > 0 && <span className="text-[10px] text-stone-400 bg-stone-100 px-2 py-0.5 rounded">{campaign.buttons.length} buttons</span>}
-            </div>
-          </div>
-        </div>
-
-        <div className="grid lg:grid-cols-2 gap-4">
-          {/* Groups */}
-          <div className="bg-white rounded-xl border border-stone-200 p-4">
-            <div className="text-xs font-medium text-stone-500 uppercase tracking-wide mb-3">Groups</div>
-            <div className="space-y-2">
-              {GROUPS.map(g => (
-                <button
-                  key={g.id}
-                  onClick={() => toggleGroup(g.id)}
-                  className={`w-full flex items-center justify-between p-3 rounded-lg transition-all ${
-                    selectedGroup === g.id
-                      ? `${isWA ? 'bg-emerald-600' : 'bg-sky-600'} text-white`
-                      : 'bg-stone-50 hover:bg-stone-100 text-stone-700'
-                  }`}
-                >
-                  <span className="font-medium text-sm">{g.name}</span>
-                  <div className="flex items-center gap-2">
-                    <span className={`text-sm ${selectedGroup === g.id ? 'text-white/80' : 'text-stone-400'}`}>{g.count}</span>
-                    {selectedGroup === g.id && <span>✓</span>}
-                  </div>
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Individual */}
-          <div className="bg-white rounded-xl border border-stone-200 p-4">
-            <div className="flex items-center justify-between mb-3">
-              <span className="text-xs font-medium text-stone-500 uppercase tracking-wide">Individual</span>
-              <button onClick={() => setSelectedClients(CLIENTS.map(c => c.id))} className="text-[10px] text-violet-600 hover:text-violet-700">Select all</button>
-            </div>
-            <div className="relative mb-3">
-              <input type="text" placeholder="Search..." value={search} onChange={(e) => setSearch(e.target.value)} className="w-full px-3 py-2 bg-stone-50 border border-stone-200 rounded-lg text-sm pl-9 focus:outline-none focus:ring-2 focus:ring-violet-500/20" />
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400 text-sm">🔍</span>
-            </div>
-            <div className="space-y-1 max-h-52 overflow-y-auto">
-              {filtered.map(c => {
-                const sel = selectedClients.includes(c.id);
-                return (
-                  <button key={c.id} onClick={() => toggleClient(c.id)} className={`w-full flex items-center gap-3 p-2.5 rounded-lg transition-all ${sel ? 'bg-stone-900 text-white' : 'hover:bg-stone-50'}`}>
-                    <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-medium ${sel ? 'bg-white text-stone-900' : 'bg-stone-100 text-stone-600'}`}>{c.initials}</div>
-                    <div className="flex-1 text-left">
-                      <div className={`text-sm font-medium ${sel ? 'text-white' : 'text-stone-900'}`}>{c.name}</div>
-                      <div className={`text-[10px] ${sel ? 'text-white/60' : 'text-stone-400'}`}>{c.phone}</div>
-                    </div>
-                    {sel && <span className="text-sm">✓</span>}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        </div>
-
-        <div className="mt-6 flex justify-end">
-          <button
-            onClick={() => onContinue({ ...campaign, recipients: total })}
-            disabled={!total}
-            className={`px-6 py-3 rounded-xl text-white font-medium text-sm disabled:opacity-40 transition-all ${isWA ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-sky-600 hover:bg-sky-700'}`}
-          >
-            Continue with {total} recipients →
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
 
 // ============================================
 // REVIEW STEP
