@@ -49,6 +49,7 @@ Changes made:
 - Integrated message sending for WhatsApp (Meta) and Telegram
 - Added success/failure tracking and campaign status updates
 - Added loading states and toasts in UI (using standard useToast)
+- **Replicated Inbox Logic**: Added `markdownToWhatsApp` formatting and proper media type handling for image broadcasts
 
 ## 📋 Next Steps for Full Integration
 

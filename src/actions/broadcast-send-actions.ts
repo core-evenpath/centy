@@ -112,17 +112,29 @@ export async function sendBroadcastCampaignAction(
         let failed = 0;
         const results: BroadcastSendResult['results'] = [];
 
+        // Helper to convert markdown to WhatsApp format (from Inbox)
+        function markdownToWhatsApp(text: string): string {
+            // Convert **bold** to *bold*
+            let formatted = text.replace(/\*\*(.*?)\*\*/g, '*$1*');
+            // Convert __italic__ to _italic_
+            formatted = formatted.replace(/__(.*?)__/g, '_$1_');
+            return formatted;
+        }
+
         for (const contact of recipients) {
             try {
                 let result;
 
                 if (channel === 'whatsapp') {
-                    // Use the same WhatsApp sending action as inbox
+                    // Use the same WhatsApp sending action as inbox, with formatting
+                    const formattedMessage = markdownToWhatsApp(message);
+
                     result = await sendMetaWhatsAppMessageAction({
                         partnerId,
                         to: contact.phone,
-                        message,
+                        message: formattedMessage,
                         mediaUrl,
+                        mediaType: mediaUrl ? 'image' : undefined, // Explicitly pass mediaType
                     });
 
                 } else if (channel === 'telegram') {
@@ -168,7 +180,7 @@ export async function sendBroadcastCampaignAction(
                 }
 
                 // Small delay to avoid rate limiting
-                await new Promise(resolve => setTimeout(resolve, 100));
+                await new Promise(resolve => setTimeout(resolve, 50));
 
             } catch (error: any) {
                 console.error(`Error sending to ${contact.phone}:`, error);
