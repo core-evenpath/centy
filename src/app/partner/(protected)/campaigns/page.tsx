@@ -345,11 +345,10 @@ export default function CampaignsPage() {
                 </p>
               </div>
             </div>
-            <div className={`px-3 py-1.5 rounded-lg text-xs font-medium ${
-              c.status === 'sent' ? 'bg-emerald-50 text-emerald-700' :
+            <div className={`px-3 py-1.5 rounded-lg text-xs font-medium ${c.status === 'sent' ? 'bg-emerald-50 text-emerald-700' :
               c.status === 'scheduled' ? 'bg-sky-50 text-sky-700' :
-              'bg-stone-100 text-stone-600'
-            }`}>
+                'bg-stone-100 text-stone-600'
+              }`}>
               {c.status === 'sent' ? '✓ Sent' : c.status === 'scheduled' ? '🕐 Scheduled' : '📄 Draft'}
             </div>
           </div>
@@ -437,11 +436,10 @@ export default function CampaignsPage() {
           {campaignInsights.length > 0 && (
             <div className="space-y-2 mb-4">
               {campaignInsights.map((insight, i) => (
-                <div key={i} className={`flex items-start gap-3 px-4 py-3 rounded-xl ${
-                  insight.type === 'success' ? 'bg-emerald-50 text-emerald-800' :
+                <div key={i} className={`flex items-start gap-3 px-4 py-3 rounded-xl ${insight.type === 'success' ? 'bg-emerald-50 text-emerald-800' :
                   insight.type === 'warning' ? 'bg-amber-50 text-amber-800' :
-                  'bg-stone-100 text-stone-700'
-                }`}>
+                    'bg-stone-100 text-stone-700'
+                  }`}>
                   <span className="text-lg">{insight.icon}</span>
                   <p className="text-sm">{insight.text}</p>
                 </div>
@@ -573,242 +571,239 @@ export default function CampaignsPage() {
   // MAIN LIST VIEW
   // ============================================
   return (
-    <div className="min-h-screen bg-stone-50">
-      <div className="max-w-4xl mx-auto px-4 py-8">
-        {/* Header */}
-        <div className="flex items-center justify-between mb-6">
-          <div>
-            <h1 className="text-2xl font-semibold text-stone-900">Campaigns</h1>
-            <p className="text-stone-500 mt-1">{stats.total} total campaigns</p>
-          </div>
-          <Link href="/partner/broadcast" className="px-5 py-2.5 bg-stone-900 text-white rounded-xl text-sm font-medium hover:bg-stone-800 transition-colors">
-            + New Campaign
-          </Link>
-        </div>
-
-        {/* Performance Overview */}
-        {metrics && (
-          <div className="bg-white rounded-xl border border-stone-200 p-5 mb-6">
-            <div className="text-xs font-medium text-stone-500 uppercase tracking-wide mb-4">Performance Overview</div>
-            <div className="grid grid-cols-4 gap-6">
-              <div className="text-center">
-                <div className="text-3xl font-semibold text-stone-900">{metrics.totalSent}</div>
-                <div className="text-xs text-stone-500 mt-1">Messages Sent</div>
-              </div>
-              <div className="text-center">
-                <div className="text-3xl font-semibold text-emerald-600">{metrics.deliveryRate}%</div>
-                <div className="text-xs text-stone-500 mt-1">Avg. Delivery</div>
-              </div>
-              <div className="text-center">
-                <div className="text-3xl font-semibold text-sky-600">{metrics.readRate}%</div>
-                <div className="text-xs text-stone-500 mt-1">Avg. Read Rate</div>
-              </div>
-              <div className="text-center">
-                <div className="text-3xl font-semibold text-violet-600">{metrics.replyRate}%</div>
-                <div className="text-xs text-stone-500 mt-1">Avg. Reply Rate</div>
-              </div>
+    <div className="h-full flex flex-col bg-stone-50 overflow-hidden">
+      <div className="flex-1 overflow-y-auto">
+        <div className="max-w-4xl mx-auto px-4 py-8">
+          {/* Header */}
+          <div className="flex items-center justify-between mb-6">
+            <div>
+              <h1 className="text-2xl font-semibold text-stone-900">Campaigns</h1>
+              <p className="text-stone-500 mt-1">{stats.total} total campaigns</p>
             </div>
+            <Link href="/partner/broadcast" className="px-5 py-2.5 bg-stone-900 text-white rounded-xl text-sm font-medium hover:bg-stone-800 transition-colors">
+              + New Campaign
+            </Link>
           </div>
-        )}
 
-        {/* AI Insights */}
-        {insights.length > 0 && (
-          <div className="bg-white rounded-xl border border-stone-200 p-4 mb-6">
-            <div className="flex items-center gap-2 mb-3">
-              <span className="text-violet-600">✨</span>
-              <span className="text-xs font-medium text-stone-500 uppercase tracking-wide">AI Insights</span>
-            </div>
-            <div className="space-y-3">
-              {insights.map((insight, i) => (
-                <div key={i} className={`flex items-start gap-3 p-3 rounded-lg ${
-                  insight.type === 'success' ? 'bg-emerald-50' :
-                  insight.type === 'warning' ? 'bg-amber-50' :
-                  insight.type === 'tip' ? 'bg-violet-50' :
-                  'bg-sky-50'
-                }`}>
-                  <span className="text-lg">{insight.icon}</span>
-                  <div>
-                    <div className={`font-medium text-sm ${
-                      insight.type === 'success' ? 'text-emerald-900' :
-                      insight.type === 'warning' ? 'text-amber-900' :
-                      insight.type === 'tip' ? 'text-violet-900' :
-                      'text-sky-900'
-                    }`}>{insight.title}</div>
-                    <div className={`text-sm ${
-                      insight.type === 'success' ? 'text-emerald-700' :
-                      insight.type === 'warning' ? 'text-amber-700' :
-                      insight.type === 'tip' ? 'text-violet-700' :
-                      'text-sky-700'
-                    }`}>{insight.text}</div>
-                  </div>
+          {/* Performance Overview */}
+          {metrics && (
+            <div className="bg-white rounded-xl border border-stone-200 p-5 mb-6">
+              <div className="text-xs font-medium text-stone-500 uppercase tracking-wide mb-4">Performance Overview</div>
+              <div className="grid grid-cols-4 gap-6">
+                <div className="text-center">
+                  <div className="text-3xl font-semibold text-stone-900">{metrics.totalSent}</div>
+                  <div className="text-xs text-stone-500 mt-1">Messages Sent</div>
                 </div>
-              ))}
+                <div className="text-center">
+                  <div className="text-3xl font-semibold text-emerald-600">{metrics.deliveryRate}%</div>
+                  <div className="text-xs text-stone-500 mt-1">Avg. Delivery</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-3xl font-semibold text-sky-600">{metrics.readRate}%</div>
+                  <div className="text-xs text-stone-500 mt-1">Avg. Read Rate</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-3xl font-semibold text-violet-600">{metrics.replyRate}%</div>
+                  <div className="text-xs text-stone-500 mt-1">Avg. Reply Rate</div>
+                </div>
+              </div>
             </div>
-          </div>
-        )}
+          )}
 
-        {/* Filters & Search */}
-        <div className="flex flex-col sm:flex-row gap-3 mb-4">
-          {/* Filter Tabs */}
-          <div className="flex gap-1 bg-white rounded-xl border border-stone-200 p-1">
-            {[
-              { id: 'all', label: 'All', count: stats.total },
-              { id: 'sent', label: 'Sent', count: stats.sent },
-              { id: 'scheduled', label: 'Scheduled', count: stats.scheduled },
-              { id: 'draft', label: 'Drafts', count: stats.drafts },
-            ].map(f => (
-              <button
-                key={f.id}
-                onClick={() => setFilter(f.id)}
-                className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-                  filter === f.id
+          {/* AI Insights */}
+          {insights.length > 0 && (
+            <div className="bg-white rounded-xl border border-stone-200 p-4 mb-6">
+              <div className="flex items-center gap-2 mb-3">
+                <span className="text-violet-600">✨</span>
+                <span className="text-xs font-medium text-stone-500 uppercase tracking-wide">AI Insights</span>
+              </div>
+              <div className="space-y-3">
+                {insights.map((insight, i) => (
+                  <div key={i} className={`flex items-start gap-3 p-3 rounded-lg ${insight.type === 'success' ? 'bg-emerald-50' :
+                    insight.type === 'warning' ? 'bg-amber-50' :
+                      insight.type === 'tip' ? 'bg-violet-50' :
+                        'bg-sky-50'
+                    }`}>
+                    <span className="text-lg">{insight.icon}</span>
+                    <div>
+                      <div className={`font-medium text-sm ${insight.type === 'success' ? 'text-emerald-900' :
+                        insight.type === 'warning' ? 'text-amber-900' :
+                          insight.type === 'tip' ? 'text-violet-900' :
+                            'text-sky-900'
+                        }`}>{insight.title}</div>
+                      <div className={`text-sm ${insight.type === 'success' ? 'text-emerald-700' :
+                        insight.type === 'warning' ? 'text-amber-700' :
+                          insight.type === 'tip' ? 'text-violet-700' :
+                            'text-sky-700'
+                        }`}>{insight.text}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Filters & Search */}
+          <div className="flex flex-col sm:flex-row gap-3 mb-4">
+            {/* Filter Tabs */}
+            <div className="flex gap-1 bg-white rounded-xl border border-stone-200 p-1">
+              {[
+                { id: 'all', label: 'All', count: stats.total },
+                { id: 'sent', label: 'Sent', count: stats.sent },
+                { id: 'scheduled', label: 'Scheduled', count: stats.scheduled },
+                { id: 'draft', label: 'Drafts', count: stats.drafts },
+              ].map(f => (
+                <button
+                  key={f.id}
+                  onClick={() => setFilter(f.id)}
+                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${filter === f.id
                     ? 'bg-stone-900 text-white'
                     : 'text-stone-500 hover:text-stone-700 hover:bg-stone-50'
-                }`}
-              >
-                {f.label}
-                {f.count > 0 && (
-                  <span className={`ml-1.5 ${filter === f.id ? 'text-white/70' : 'text-stone-400'}`}>
-                    {f.count}
-                  </span>
-                )}
-              </button>
-            ))}
-          </div>
-
-          {/* Search */}
-          <div className="flex-1 relative">
-            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400">🔍</span>
-            <input
-              type="text"
-              placeholder="Search campaigns..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="w-full pl-10 pr-4 py-2.5 bg-white border border-stone-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-300"
-            />
-          </div>
-        </div>
-
-        {/* Campaign List */}
-        <div className="space-y-3">
-          {filteredCampaigns.length === 0 ? (
-            <div className="bg-white rounded-xl border border-stone-200 p-12 text-center">
-              <span className="text-4xl block mb-3">📭</span>
-              <h3 className="font-semibold text-stone-900 mb-1">No campaigns found</h3>
-              <p className="text-sm text-stone-500">
-                {search ? 'Try a different search term' : 'Create your first campaign to get started'}
-              </p>
-            </div>
-          ) : (
-            filteredCampaigns.map(campaign => {
-              const isWA = campaign.channel === 'whatsapp';
-
-              return (
-                <div
-                  key={campaign.id}
-                  onClick={() => setSelectedCampaign(campaign)}
-                  className="bg-white rounded-xl border border-stone-200 p-4 hover:shadow-md hover:border-stone-300 transition-all cursor-pointer group"
+                    }`}
                 >
-                  <div className="flex items-start gap-4">
-                    {/* Channel Icon */}
-                    <div className={`w-12 h-12 rounded-xl flex items-center justify-center text-xl text-white flex-shrink-0 ${isWA ? 'bg-emerald-600' : 'bg-sky-600'}`}>
-                      {isWA ? '💬' : '✈️'}
-                    </div>
-
-                    {/* Content */}
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-start justify-between mb-1">
-                        <h3 className="font-semibold text-stone-900 group-hover:text-violet-600 transition-colors">
-                          {campaign.title}
-                        </h3>
-                        <span className={`px-2.5 py-1 rounded-lg text-xs font-medium flex-shrink-0 ml-3 ${
-                          campaign.status === 'sent' ? 'bg-emerald-50 text-emerald-700' :
-                          campaign.status === 'scheduled' ? 'bg-sky-50 text-sky-700' :
-                          'bg-stone-100 text-stone-600'
-                        }`}>
-                          {campaign.status === 'sent' ? '✓ Sent' : campaign.status === 'scheduled' ? '🕐 Scheduled' : '📄 Draft'}
-                        </span>
-                      </div>
-
-                      <p className="text-sm text-stone-500 truncate mb-2">
-                        {sub(campaign.message).slice(0, 80)}...
-                      </p>
-
-                      {/* Stats Row */}
-                      <div className="flex items-center gap-4 text-xs">
-                        {campaign.status === 'sent' && campaign.sentAt && (
-                          <>
-                            <span className="text-stone-500">
-                              <strong className="text-stone-700">{campaign.recipients}</strong> sent
-                            </span>
-                            <span>
-                              <strong className="text-emerald-600">{Math.round(((campaign.delivered || 0) / campaign.recipients) * 100)}%</strong>
-                              <span className="text-stone-400 ml-1">delivered</span>
-                            </span>
-                            <span>
-                              <strong className="text-sky-600">{Math.round(((campaign.read || 0) / (campaign.delivered || 1)) * 100)}%</strong>
-                              <span className="text-stone-400 ml-1">read</span>
-                            </span>
-                            <span>
-                              <strong className="text-violet-600">{Math.round(((campaign.replied || 0) / campaign.recipients) * 100)}%</strong>
-                              <span className="text-stone-400 ml-1">replied</span>
-                            </span>
-                            <span className="text-stone-400 ml-auto">{formatDate(campaign.sentAt)}</span>
-                          </>
-                        )}
-                        {campaign.status === 'scheduled' && campaign.scheduledFor && (
-                          <>
-                            <span className="text-sky-600">
-                              🕐 {formatScheduledDate(campaign.scheduledFor)}
-                            </span>
-                            <span className="text-stone-500">
-                              {campaign.recipients} recipients
-                            </span>
-                          </>
-                        )}
-                        {campaign.status === 'draft' && (
-                          <span className="text-stone-400">
-                            Not sent yet
-                          </span>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Arrow */}
-                    <span className="text-stone-300 group-hover:text-stone-500 group-hover:translate-x-1 transition-all self-center flex-shrink-0">
-                      →
+                  {f.label}
+                  {f.count > 0 && (
+                    <span className={`ml-1.5 ${filter === f.id ? 'text-white/70' : 'text-stone-400'}`}>
+                      {f.count}
                     </span>
-                  </div>
-                </div>
-              );
-            })
-          )}
-        </div>
+                  )}
+                </button>
+              ))}
+            </div>
 
-        {/* Tips */}
-        <div className="mt-8 bg-gradient-to-br from-violet-50 to-purple-50 rounded-xl border border-violet-100 p-5">
-          <div className="flex items-center gap-2 mb-3">
-            <span className="text-violet-600">💡</span>
-            <span className="font-medium text-violet-900 text-sm">Tips to Improve</span>
+            {/* Search */}
+            <div className="flex-1 relative">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400">🔍</span>
+              <input
+                type="text"
+                placeholder="Search campaigns..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="w-full pl-10 pr-4 py-2.5 bg-white border border-stone-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-300"
+              />
+            </div>
           </div>
-          <ul className="space-y-2 text-sm text-violet-700">
-            <li className="flex items-start gap-2">
-              <span className="text-violet-400">→</span>
-              Messages sent between 10 AM - 12 PM get 23% higher engagement
-            </li>
-            <li className="flex items-start gap-2">
-              <span className="text-violet-400">→</span>
-              Add images to property listings for 3x more responses
-            </li>
-            <li className="flex items-start gap-2">
-              <span className="text-violet-400">→</span>
-              Follow up with non-responders after 3-5 days for best results
-            </li>
-            <li className="flex items-start gap-2">
-              <span className="text-violet-400">→</span>
-              End messages with a question to encourage replies (+35% response rate)
-            </li>
-          </ul>
+
+          {/* Campaign List */}
+          <div className="space-y-3">
+            {filteredCampaigns.length === 0 ? (
+              <div className="bg-white rounded-xl border border-stone-200 p-12 text-center">
+                <span className="text-4xl block mb-3">📭</span>
+                <h3 className="font-semibold text-stone-900 mb-1">No campaigns found</h3>
+                <p className="text-sm text-stone-500">
+                  {search ? 'Try a different search term' : 'Create your first campaign to get started'}
+                </p>
+              </div>
+            ) : (
+              filteredCampaigns.map(campaign => {
+                const isWA = campaign.channel === 'whatsapp';
+
+                return (
+                  <div
+                    key={campaign.id}
+                    onClick={() => setSelectedCampaign(campaign)}
+                    className="bg-white rounded-xl border border-stone-200 p-4 hover:shadow-md hover:border-stone-300 transition-all cursor-pointer group"
+                  >
+                    <div className="flex items-start gap-4">
+                      {/* Channel Icon */}
+                      <div className={`w-12 h-12 rounded-xl flex items-center justify-center text-xl text-white flex-shrink-0 ${isWA ? 'bg-emerald-600' : 'bg-sky-600'}`}>
+                        {isWA ? '💬' : '✈️'}
+                      </div>
+
+                      {/* Content */}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-start justify-between mb-1">
+                          <h3 className="font-semibold text-stone-900 group-hover:text-violet-600 transition-colors">
+                            {campaign.title}
+                          </h3>
+                          <span className={`px-2.5 py-1 rounded-lg text-xs font-medium flex-shrink-0 ml-3 ${campaign.status === 'sent' ? 'bg-emerald-50 text-emerald-700' :
+                            campaign.status === 'scheduled' ? 'bg-sky-50 text-sky-700' :
+                              'bg-stone-100 text-stone-600'
+                            }`}>
+                            {campaign.status === 'sent' ? '✓ Sent' : campaign.status === 'scheduled' ? '🕐 Scheduled' : '📄 Draft'}
+                          </span>
+                        </div>
+
+                        <p className="text-sm text-stone-500 truncate mb-2">
+                          {sub(campaign.message).slice(0, 80)}...
+                        </p>
+
+                        {/* Stats Row */}
+                        <div className="flex items-center gap-4 text-xs">
+                          {campaign.status === 'sent' && campaign.sentAt && (
+                            <>
+                              <span className="text-stone-500">
+                                <strong className="text-stone-700">{campaign.recipients}</strong> sent
+                              </span>
+                              <span>
+                                <strong className="text-emerald-600">{Math.round(((campaign.delivered || 0) / campaign.recipients) * 100)}%</strong>
+                                <span className="text-stone-400 ml-1">delivered</span>
+                              </span>
+                              <span>
+                                <strong className="text-sky-600">{Math.round(((campaign.read || 0) / (campaign.delivered || 1)) * 100)}%</strong>
+                                <span className="text-stone-400 ml-1">read</span>
+                              </span>
+                              <span>
+                                <strong className="text-violet-600">{Math.round(((campaign.replied || 0) / campaign.recipients) * 100)}%</strong>
+                                <span className="text-stone-400 ml-1">replied</span>
+                              </span>
+                              <span className="text-stone-400 ml-auto">{formatDate(campaign.sentAt)}</span>
+                            </>
+                          )}
+                          {campaign.status === 'scheduled' && campaign.scheduledFor && (
+                            <>
+                              <span className="text-sky-600">
+                                🕐 {formatScheduledDate(campaign.scheduledFor)}
+                              </span>
+                              <span className="text-stone-500">
+                                {campaign.recipients} recipients
+                              </span>
+                            </>
+                          )}
+                          {campaign.status === 'draft' && (
+                            <span className="text-stone-400">
+                              Not sent yet
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Arrow */}
+                      <span className="text-stone-300 group-hover:text-stone-500 group-hover:translate-x-1 transition-all self-center flex-shrink-0">
+                        →
+                      </span>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+
+          {/* Tips */}
+          <div className="mt-8 bg-gradient-to-br from-violet-50 to-purple-50 rounded-xl border border-violet-100 p-5">
+            <div className="flex items-center gap-2 mb-3">
+              <span className="text-violet-600">💡</span>
+              <span className="font-medium text-violet-900 text-sm">Tips to Improve</span>
+            </div>
+            <ul className="space-y-2 text-sm text-violet-700">
+              <li className="flex items-start gap-2">
+                <span className="text-violet-400">→</span>
+                Messages sent between 10 AM - 12 PM get 23% higher engagement
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="text-violet-400">→</span>
+                Add images to property listings for 3x more responses
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="text-violet-400">→</span>
+                Follow up with non-responders after 3-5 days for best results
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="text-violet-400">→</span>
+                End messages with a question to encourage replies (+35% response rate)
+              </li>
+            </ul>
+          </div>
         </div>
       </div>
     </div>

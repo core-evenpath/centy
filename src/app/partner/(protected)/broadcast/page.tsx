@@ -3,7 +3,9 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useMultiWorkspaceAuth } from '@/hooks/use-multi-workspace-auth';
 import { createCampaignAction } from '@/actions/broadcast-actions';
+import { sendBroadcastCampaignAction } from '@/actions/broadcast-send-actions';
 import { useToast } from '@/hooks/use-toast';
+import { toast as sonnerToast } from 'sonner';
 import RecipientSelector from '@/components/partner/broadcast/RecipientSelector';
 
 // ============================================
@@ -195,7 +197,7 @@ interface Message {
 // MAIN EXPORT
 // ============================================
 export default function BroadcastPage() {
-  const { currentWorkspace } = useMultiWorkspaceAuth();
+  const { currentWorkspace, user } = useMultiWorkspaceAuth();
   const { toast } = useToast();
   const [view, setView] = useState<'home' | 'studio' | 'recipients' | 'review' | 'success'>('home');
   const [channel, setChannel] = useState<'whatsapp' | 'telegram'>('whatsapp');
@@ -203,6 +205,7 @@ export default function BroadcastPage() {
   const [initialPrompt, setInitialPrompt] = useState('');
 
   const partnerId = currentWorkspace?.partnerId;
+  const userId = user?.uid;
 
   const startWithPrompt = (prompt: string) => {
     setInitialPrompt(prompt);
@@ -240,27 +243,74 @@ export default function BroadcastPage() {
   }
   if (view === 'review') {
     return <ReviewStep channel={channel} campaign={campaign!} onBack={() => setView('recipients')} onSend={async () => {
-      // Save campaign to Firebase before showing success
-      if (partnerId && currentWorkspace?.uid) {
-        try {
-          await createCampaignAction(partnerId, currentWorkspace.uid, {
-            title: campaign!.message.slice(0, 50) + '...',
-            channel,
-            status: 'draft', // Can be updated to 'sent' or 'scheduled'
-            message: campaign!.message,
-            hasImage: campaign!.hasImage || false,
-            buttons: campaign!.buttons || [],
-            recipientType: campaign!.recipientType || 'individual',
-            groupIds: campaign!.groupIds,
-            contactIds: campaign!.contactIds,
-            recipientCount: campaign!.recipientCount || 0,
-          });
-          toast({ title: 'Campaign Saved', description: 'Your campaign has been saved successfully.' });
-        } catch (error: any) {
-          toast({ variant: 'destructive', title: 'Error', description: 'Failed to save campaign: ' + error.message });
-        }
+      // Save and send campaign
+      if (!partnerId || !currentWorkspace) {
+        toast({ variant: 'destructive', title: 'Error', description: 'Partner information not available' });
+        return;
       }
-      setView('success');
+
+      try {
+        // 1. Create campaign in Firestore
+        const campaignResult = await createCampaignAction(partnerId, userId || 'unknown', {
+          title: campaign!.message.slice(0, 50) + '...',
+          channel,
+          status: 'draft',
+          message: campaign!.message,
+          hasImage: campaign!.hasImage || false,
+          buttons: campaign!.buttons || [],
+          recipientType: campaign!.recipientType || 'individual',
+          groupIds: campaign!.groupIds,
+          contactIds: campaign!.contactIds,
+          recipientCount: campaign!.recipientCount || 0,
+        });
+
+        if (!campaignResult.success) {
+          toast({ variant: 'destructive', title: 'Error', description: 'Failed to create campaign' });
+          return;
+        }
+
+        const campaignId = (campaignResult as any).campaign?.id;
+
+        // 2. Send messages to all recipients (like inbox does)
+        sonnerToast.loading(`Sending to ${campaign!.recipientCount} recipients...`);
+
+        const sendResult = await sendBroadcastCampaignAction(
+          partnerId,
+          campaignId,
+          channel,
+          campaign!.message,
+          undefined, // mediaUrl - can be added later
+          campaign!.recipientType,
+          campaign!.contactIds,
+          campaign!.groupIds
+        );
+
+        sonnerToast.dismiss();
+
+        if (sendResult.success) {
+          // Store results in campaign state for success view
+          setCampaign(prev => ({
+            ...prev!,
+            ...sendResult,
+          }));
+
+          sonnerToast.success(
+            `Campaign sent! ${sendResult.delivered} delivered, ${sendResult.failed} failed`,
+            { duration: 5000 }
+          );
+          setView('success');
+        } else {
+          toast({
+            variant: 'destructive',
+            title: 'Send Failed',
+            description: sendResult.message || 'Failed to send campaign'
+          });
+        }
+      } catch (error: any) {
+        console.error('Error sending campaign:', error);
+        sonnerToast.dismiss();
+        toast({ variant: 'destructive', title: 'Error', description: error.message || 'Failed to send campaign' });
+      }
     }} />;
   }
   if (view === 'success') {
@@ -941,84 +991,86 @@ function ReviewStep({ channel, campaign, onBack, onSend }: ReviewStepProps) {
 
   if (sending) {
     return (
-      <div className="min-h-screen bg-stone-50 flex items-center justify-center">
+      <div className="h-full flex items-center justify-center bg-stone-50">
         <div className="text-center">
           <div className={`w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4 animate-pulse text-white text-2xl ${isWA ? 'bg-emerald-600' : 'bg-sky-600'}`}>📤</div>
           <h2 className="text-lg font-semibold text-stone-900">Sending campaign...</h2>
-          <p className="text-sm text-stone-500 mt-1">{campaign.recipients} messages</p>
+          <p className="text-sm text-stone-500 mt-1">{campaign.recipientCount} messages</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-stone-50">
-      <div className="bg-white border-b border-stone-200 sticky top-0 z-20">
-        <div className="max-w-3xl mx-auto px-4 py-3 flex items-center gap-3">
-          <button onClick={onBack} className="w-9 h-9 flex items-center justify-center hover:bg-stone-100 rounded-lg text-stone-500">←</button>
-          <h1 className="font-semibold text-stone-900 text-sm">Review & Send</h1>
-        </div>
-      </div>
-
-      <div className="max-w-3xl mx-auto p-4">
-        <div className="grid lg:grid-cols-5 gap-4">
-          <div className="lg:col-span-3 bg-white rounded-xl border border-stone-200 p-4">
-            <div className="text-xs font-medium text-stone-500 uppercase tracking-wide mb-3">Preview</div>
-            <div className={`rounded-xl overflow-hidden ${isWA ? 'bg-emerald-50/50' : 'bg-sky-50/50'}`}>
-              <div className={`px-4 py-2.5 ${isWA ? 'bg-emerald-700' : 'bg-sky-600'}`}>
-                <div className="flex items-center gap-2">
-                  <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center text-white text-xs font-bold">PP</div>
-                  <span className="text-white font-medium text-sm">Prime Properties</span>
-                </div>
-              </div>
-              <div className="p-4">
-                <div className="max-w-[90%] ml-auto">
-                  {campaign.hasImage && <div className="rounded-lg rounded-tr-sm mb-2 h-20 bg-white flex items-center justify-center text-stone-300 border">🖼️</div>}
-                  <div className="bg-white rounded-xl rounded-tr-sm p-3 shadow-sm">
-                    <p className="text-sm text-stone-800 whitespace-pre-wrap">{sub(campaign.message)}</p>
-                    <div className="text-[10px] text-stone-400 text-right mt-2">10:30 AM ✓✓</div>
-                  </div>
-                  {campaign.buttons?.map((btn, i) => (
-                    <div key={i} className={`mt-1.5 rounded-lg py-2 text-center text-sm font-medium bg-white shadow-sm ${isWA ? 'text-emerald-600' : 'text-sky-600'}`}>{btn}</div>
-                  ))}
-                </div>
-              </div>
-            </div>
+    <div className="h-full flex flex-col bg-stone-50 overflow-hidden">
+      <div className="flex-1 overflow-y-auto">
+        <div className="bg-white border-b border-stone-200 sticky top-0 z-20">
+          <div className="max-w-3xl mx-auto px-4 py-3 flex items-center gap-3">
+            <button onClick={onBack} className="w-9 h-9 flex items-center justify-center hover:bg-stone-100 rounded-lg text-stone-500">←</button>
+            <h1 className="font-semibold text-stone-900 text-sm">Review & Send</h1>
           </div>
+        </div>
 
-          <div className="lg:col-span-2 space-y-4">
-            <div className="bg-white rounded-xl border border-stone-200 p-4">
-              <div className="text-xs font-medium text-stone-500 uppercase tracking-wide mb-3">Summary</div>
-              <div className="space-y-3 text-sm">
-                <div className="flex justify-between py-2 border-b border-stone-100">
-                  <span className="text-stone-500">Channel</span>
-                  <span className={`font-medium ${isWA ? 'text-emerald-600' : 'text-sky-600'}`}>{isWA ? 'WhatsApp' : 'Telegram'}</span>
+        <div className="max-w-3xl mx-auto p-4">
+          <div className="grid lg:grid-cols-5 gap-4">
+            <div className="lg:col-span-3 bg-white rounded-xl border border-stone-200 p-4">
+              <div className="text-xs font-medium text-stone-500 uppercase tracking-wide mb-3">Preview</div>
+              <div className={`rounded-xl overflow-hidden ${isWA ? 'bg-emerald-50/50' : 'bg-sky-50/50'}`}>
+                <div className={`px-4 py-2.5 ${isWA ? 'bg-emerald-700' : 'bg-sky-600'}`}>
+                  <div className="flex items-center gap-2">
+                    <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center text-white text-xs font-bold">PP</div>
+                    <span className="text-white font-medium text-sm">Prime Properties</span>
+                  </div>
                 </div>
-                <div className="flex justify-between py-2 border-b border-stone-100">
-                  <span className="text-stone-500">Recipients</span>
-                  <span className="font-semibold text-stone-900">{campaign.recipients}</span>
-                </div>
-                <div className="flex justify-between py-2">
-                  <span className="text-stone-500">Est. time</span>
-                  <span className="text-stone-700">~{Math.ceil((campaign.recipients || 1) / 60)} min</span>
+                <div className="p-4">
+                  <div className="max-w-[90%] ml-auto">
+                    {campaign.hasImage && <div className="rounded-lg rounded-tr-sm mb-2 h-20 bg-white flex items-center justify-center text-stone-300 border">🖼️</div>}
+                    <div className="bg-white rounded-xl rounded-tr-sm p-3 shadow-sm">
+                      <p className="text-sm text-stone-800 whitespace-pre-wrap">{sub(campaign.message)}</p>
+                      <div className="text-[10px] text-stone-400 text-right mt-2">10:30 AM ✓✓</div>
+                    </div>
+                    {campaign.buttons?.map((btn, i) => (
+                      <div key={i} className={`mt-1.5 rounded-lg py-2 text-center text-sm font-medium bg-white shadow-sm ${isWA ? 'text-emerald-600' : 'text-sky-600'}`}>{btn}</div>
+                    ))}
+                  </div>
                 </div>
               </div>
             </div>
 
-            <div className="bg-violet-50 rounded-xl p-4">
-              <div className="flex items-start gap-2">
-                <span className="text-violet-600">✨</span>
-                <p className="text-sm text-violet-900">Based on similar campaigns, expect ~25% reply rate within 24 hours.</p>
+            <div className="lg:col-span-2 space-y-4">
+              <div className="bg-white rounded-xl border border-stone-200 p-4">
+                <div className="text-xs font-medium text-stone-500 uppercase tracking-wide mb-3">Summary</div>
+                <div className="space-y-3 text-sm">
+                  <div className="flex justify-between py-2 border-b border-stone-100">
+                    <span className="text-stone-500">Channel</span>
+                    <span className={`font-medium ${isWA ? 'text-emerald-600' : 'text-sky-600'}`}>{isWA ? 'WhatsApp' : 'Telegram'}</span>
+                  </div>
+                  <div className="flex justify-between py-2 border-b border-stone-100">
+                    <span className="text-stone-500">Recipients</span>
+                    <span className="font-semibold text-stone-900">{campaign.recipientCount}</span>
+                  </div>
+                  <div className="flex justify-between py-2">
+                    <span className="text-stone-500">Est. time</span>
+                    <span className="text-stone-700">~{Math.ceil((campaign.recipientCount || 1) / 60)} min</span>
+                  </div>
+                </div>
               </div>
-            </div>
 
-            <button onClick={() => { setSending(true); setTimeout(onSend, 2000); }} className={`w-full py-3.5 rounded-xl text-white font-semibold transition-all ${isWA ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-sky-600 hover:bg-sky-700'}`}>
-              Send to {campaign.recipients} contacts
-            </button>
+              <div className="bg-violet-50 rounded-xl p-4">
+                <div className="flex items-start gap-2">
+                  <span className="text-violet-600">✨</span>
+                  <p className="text-sm text-violet-900">Based on similar campaigns, expect ~25% reply rate within 24 hours.</p>
+                </div>
+              </div>
 
-            <div className="grid grid-cols-2 gap-2">
-              <button className="py-2.5 bg-white border border-stone-200 rounded-xl text-sm font-medium text-stone-600 hover:bg-stone-50">Schedule</button>
-              <button className="py-2.5 bg-white border border-stone-200 rounded-xl text-sm font-medium text-stone-600 hover:bg-stone-50">Save draft</button>
+              <button onClick={() => { setSending(true); setTimeout(onSend, 2000); }} className={`w-full py-3.5 rounded-xl text-white font-semibold transition-all ${isWA ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-sky-600 hover:bg-sky-700'}`}>
+                Send to {campaign.recipientCount} contacts
+              </button>
+
+              <div className="grid grid-cols-2 gap-2">
+                <button className="py-2.5 bg-white border border-stone-200 rounded-xl text-sm font-medium text-stone-600 hover:bg-stone-50">Schedule</button>
+                <button className="py-2.5 bg-white border border-stone-200 rounded-xl text-sm font-medium text-stone-600 hover:bg-stone-50">Save draft</button>
+              </div>
             </div>
           </div>
         </div>
@@ -1039,11 +1091,11 @@ interface SuccessViewProps {
 function SuccessView({ channel, campaign, onDone }: SuccessViewProps) {
   const isWA = channel === 'whatsapp';
   return (
-    <div className="min-h-screen bg-stone-50 flex items-center justify-center p-4">
+    <div className="h-full flex items-center justify-center bg-stone-50 p-4">
       <div className="text-center max-w-sm">
         <div className={`w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4 text-white text-2xl ${isWA ? 'bg-emerald-600' : 'bg-sky-600'}`}>✓</div>
         <h1 className="text-xl font-semibold text-stone-900 mb-1">Campaign sent!</h1>
-        <p className="text-stone-500 mb-6">{campaign.recipients} messages via {isWA ? 'WhatsApp' : 'Telegram'}</p>
+        <p className="text-stone-500 mb-6">{campaign.recipientCount} messages via {isWA ? 'WhatsApp' : 'Telegram'}</p>
 
         <div className="bg-white rounded-xl border border-stone-200 p-4 mb-6 text-left">
           <div className="text-xs font-medium text-stone-500 uppercase tracking-wide mb-3">What&apos;s next</div>
