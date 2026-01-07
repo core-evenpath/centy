@@ -328,7 +328,7 @@ export default function CampaignsPage() {
     }
 
     return (
-      <div className="min-h-screen bg-stone-50">
+      <div className="h-full overflow-y-auto bg-stone-50">
         {/* Header */}
         <div className="bg-white border-b border-stone-200 sticky top-0 z-20">
           <div className="max-w-4xl mx-auto px-4 py-3 flex items-center justify-between">
@@ -573,7 +573,7 @@ export default function CampaignsPage() {
   // MAIN LIST VIEW
   // ============================================
   return (
-    <div className="min-h-screen bg-stone-50">
+    <div className="h-full overflow-y-auto bg-stone-50">
       <div className="max-w-4xl mx-auto px-4 py-8">
         {/* Header */}
         <div className="flex items-center justify-between mb-6">

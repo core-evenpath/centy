@@ -1,6 +1,12 @@
 "use client";
 
 import React, { useState, useRef, useEffect } from 'react';
+import { useMultiWorkspaceAuth } from '@/hooks/use-multi-workspace-auth';
+import { useBroadcasts, useContactGroups, useBroadcastContacts } from '@/hooks/useBroadcasts';
+import { createBroadcastAction, sendBroadcastAction } from '@/actions/broadcast-actions';
+import { toast } from 'sonner';
+import { BROADCAST_TEMPLATES, BROADCAST_TEMPLATE_CATEGORIES, BROADCAST_VARIABLES, substituteVariables } from '@/lib/types-broadcast';
+import type { BroadcastChannel, BroadcastButton } from '@/lib/types-broadcast';
 
 // ============================================
 // CENTY BROADCAST - AI Marketing Co-pilot
@@ -171,6 +177,9 @@ interface Campaign {
   buttons: string[];
   fromTemplate?: Template;
   recipients?: number;
+  selectedContactIds?: string[];
+  selectedGroupId?: string | null;
+  imageUrl?: string;
 }
 
 interface Message {
@@ -185,10 +194,17 @@ interface Message {
 // MAIN EXPORT
 // ============================================
 export default function BroadcastPage() {
+  const { currentWorkspace } = useMultiWorkspaceAuth();
+  const partnerId = currentWorkspace?.partnerId;
+
   const [view, setView] = useState<'home' | 'studio' | 'recipients' | 'review' | 'success'>('home');
   const [channel, setChannel] = useState<'whatsapp' | 'telegram'>('whatsapp');
   const [campaign, setCampaign] = useState<Campaign | null>(null);
   const [initialPrompt, setInitialPrompt] = useState('');
+  const [broadcastId, setBroadcastId] = useState<string | null>(null);
+
+  // Fetch broadcast stats
+  const { stats, metrics } = useBroadcasts({ partnerId });
 
   const startWithPrompt = (prompt: string) => {
     setInitialPrompt(prompt);
@@ -204,13 +220,13 @@ export default function BroadcastPage() {
     return <CampaignStudio channel={channel} initialPrompt={initialPrompt} existingCampaign={campaign} onBack={() => { setView('home'); setInitialPrompt(''); setCampaign(null); }} onComplete={(data) => { setCampaign(data); setView('recipients'); }} />;
   }
   if (view === 'recipients') {
-    return <RecipientsStep channel={channel} campaign={campaign!} onBack={() => setView('studio')} onContinue={(data) => { setCampaign(data); setView('review'); }} />;
+    return <RecipientsStep channel={channel} campaign={campaign!} partnerId={partnerId} onBack={() => setView('studio')} onContinue={(data) => { setCampaign(data); setView('review'); }} />;
   }
   if (view === 'review') {
-    return <ReviewStep channel={channel} campaign={campaign!} onBack={() => setView('recipients')} onSend={() => setView('success')} />;
+    return <ReviewStep channel={channel} campaign={campaign!} partnerId={partnerId} onBack={() => setView('recipients')} onSend={async (id) => { setBroadcastId(id); setView('success'); }} />;
   }
   if (view === 'success') {
-    return <SuccessView channel={channel} campaign={campaign!} onDone={() => { setCampaign(null); setInitialPrompt(''); setView('home'); }} />;
+    return <SuccessView channel={channel} campaign={campaign!} broadcastId={broadcastId} onDone={() => { setCampaign(null); setInitialPrompt(''); setBroadcastId(null); setView('home'); }} />;
   }
 
   const isWA = channel === 'whatsapp';
@@ -219,7 +235,7 @@ export default function BroadcastPage() {
   // HOME VIEW
   // ============================================
   return (
-    <div className="min-h-screen bg-stone-50">
+    <div className="h-full overflow-y-auto bg-stone-50">
       <div className="max-w-3xl mx-auto px-4 py-8">
         {/* Header */}
         <div className="mb-8">
@@ -341,10 +357,10 @@ export default function BroadcastPage() {
         {/* Stats */}
         <div className="grid grid-cols-4 gap-3 mt-6">
           {[
-            { label: 'Campaigns', value: '12', color: 'text-stone-900' },
-            { label: 'Delivered', value: '98%', color: 'text-emerald-600' },
-            { label: 'Read Rate', value: '85%', color: 'text-sky-600' },
-            { label: 'Replies', value: '23%', color: 'text-violet-600' },
+            { label: 'Campaigns', value: stats.sent.toString(), color: 'text-stone-900' },
+            { label: 'Delivered', value: metrics ? `${metrics.deliveryRate}%` : '—', color: 'text-emerald-600' },
+            { label: 'Read Rate', value: metrics ? `${metrics.readRate}%` : '—', color: 'text-sky-600' },
+            { label: 'Replies', value: metrics ? `${metrics.replyRate}%` : '—', color: 'text-violet-600' },
           ].map((stat, i) => (
             <div key={i} className="bg-white rounded-xl border border-stone-200 p-4 text-center">
               <div className={`text-xl font-semibold ${stat.color}`}>{stat.value}</div>
@@ -554,7 +570,7 @@ function CampaignStudio({ channel, initialPrompt, existingCampaign, onBack, onCo
   const filteredTemplates = templateCategory === 'all' ? TEMPLATES : TEMPLATES.filter(t => t.category === templateCategory);
 
   return (
-    <div className="min-h-screen bg-stone-50">
+    <div className="h-full overflow-y-auto bg-stone-50">
       {/* Header */}
       <div className="bg-white border-b border-stone-200 sticky top-0 z-20">
         <div className="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between">
@@ -873,24 +889,28 @@ function CampaignStudio({ channel, initialPrompt, existingCampaign, onBack, onCo
 interface RecipientsStepProps {
   channel: 'whatsapp' | 'telegram';
   campaign: Campaign;
+  partnerId: string | undefined;
   onBack: () => void;
   onContinue: (data: Campaign) => void;
 }
 
-function RecipientsStep({ channel, campaign, onBack, onContinue }: RecipientsStepProps) {
+function RecipientsStep({ channel, campaign, partnerId, onBack, onContinue }: RecipientsStepProps) {
   const [selectedGroup, setSelectedGroup] = useState<string | null>(null);
-  const [selectedClients, setSelectedClients] = useState<number[]>([]);
+  const [selectedClients, setSelectedClients] = useState<string[]>([]);
   const [search, setSearch] = useState('');
 
+  // Use real contact data from hooks
+  const { groups } = useContactGroups(partnerId);
+  const { contacts } = useBroadcastContacts(partnerId, search);
+
   const isWA = channel === 'whatsapp';
-  const filtered = search ? CLIENTS.filter(c => c.name.toLowerCase().includes(search.toLowerCase())) : CLIENTS;
-  const total = selectedGroup ? GROUPS.find(g => g.id === selectedGroup)?.count || 0 : selectedClients.length;
+  const total = selectedGroup ? groups.find(g => g.id === selectedGroup)?.count || 0 : selectedClients.length;
 
   const toggleGroup = (id: string) => { setSelectedClients([]); setSelectedGroup(selectedGroup === id ? null : id); };
-  const toggleClient = (id: number) => { setSelectedGroup(null); setSelectedClients(prev => prev.includes(id) ? prev.filter(c => c !== id) : [...prev, id]); };
+  const toggleClient = (id: string) => { setSelectedGroup(null); setSelectedClients(prev => prev.includes(id) ? prev.filter(c => c !== id) : [...prev, id]); };
 
   return (
-    <div className="min-h-screen bg-stone-50">
+    <div className="h-full overflow-y-auto bg-stone-50">
       <div className="bg-white border-b border-stone-200 sticky top-0 z-20">
         <div className="max-w-3xl mx-auto px-4 py-3 flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -923,7 +943,7 @@ function RecipientsStep({ channel, campaign, onBack, onContinue }: RecipientsSte
           <div className="bg-white rounded-xl border border-stone-200 p-4">
             <div className="text-xs font-medium text-stone-500 uppercase tracking-wide mb-3">Groups</div>
             <div className="space-y-2">
-              {GROUPS.map(g => (
+              {groups.map(g => (
                 <button
                   key={g.id}
                   onClick={() => toggleGroup(g.id)}
@@ -947,14 +967,14 @@ function RecipientsStep({ channel, campaign, onBack, onContinue }: RecipientsSte
           <div className="bg-white rounded-xl border border-stone-200 p-4">
             <div className="flex items-center justify-between mb-3">
               <span className="text-xs font-medium text-stone-500 uppercase tracking-wide">Individual</span>
-              <button onClick={() => setSelectedClients(CLIENTS.map(c => c.id))} className="text-[10px] text-violet-600 hover:text-violet-700">Select all</button>
+              <button onClick={() => setSelectedClients(contacts.map(c => c.id))} className="text-[10px] text-violet-600 hover:text-violet-700">Select all</button>
             </div>
             <div className="relative mb-3">
               <input type="text" placeholder="Search..." value={search} onChange={(e) => setSearch(e.target.value)} className="w-full px-3 py-2 bg-stone-50 border border-stone-200 rounded-lg text-sm pl-9 focus:outline-none focus:ring-2 focus:ring-violet-500/20" />
               <span className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400 text-sm">🔍</span>
             </div>
             <div className="space-y-1 max-h-52 overflow-y-auto">
-              {filtered.map(c => {
+              {contacts.map(c => {
                 const sel = selectedClients.includes(c.id);
                 return (
                   <button key={c.id} onClick={() => toggleClient(c.id)} className={`w-full flex items-center gap-3 p-2.5 rounded-lg transition-all ${sel ? 'bg-stone-900 text-white' : 'hover:bg-stone-50'}`}>
@@ -973,7 +993,7 @@ function RecipientsStep({ channel, campaign, onBack, onContinue }: RecipientsSte
 
         <div className="mt-6 flex justify-end">
           <button
-            onClick={() => onContinue({ ...campaign, recipients: total })}
+            onClick={() => onContinue({ ...campaign, recipients: total, selectedContactIds: selectedClients, selectedGroupId: selectedGroup })}
             disabled={!total}
             className={`px-6 py-3 rounded-xl text-white font-medium text-sm disabled:opacity-40 transition-all ${isWA ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-sky-600 hover:bg-sky-700'}`}
           >
@@ -991,20 +1011,71 @@ function RecipientsStep({ channel, campaign, onBack, onContinue }: RecipientsSte
 interface ReviewStepProps {
   channel: 'whatsapp' | 'telegram';
   campaign: Campaign;
+  partnerId: string | undefined;
   onBack: () => void;
-  onSend: () => void;
+  onSend: (broadcastId: string) => void;
 }
 
-function ReviewStep({ channel, campaign, onBack, onSend }: ReviewStepProps) {
+function ReviewStep({ channel, campaign, partnerId, onBack, onSend }: ReviewStepProps) {
+  const { currentWorkspace } = useMultiWorkspaceAuth();
   const [sending, setSending] = useState(false);
+  const [sendProgress, setSendProgress] = useState<string>('Creating campaign...');
   const isWA = channel === 'whatsapp';
+
+  const handleSend = async () => {
+    if (!partnerId || !campaign.selectedContactIds?.length) {
+      toast.error('No recipients selected');
+      return;
+    }
+
+    setSending(true);
+    setSendProgress('Creating campaign...');
+
+    try {
+      // Create the broadcast
+      const createResult = await createBroadcastAction({
+        partnerId,
+        title: campaign.fromTemplate?.title || 'New Broadcast',
+        channel: channel as BroadcastChannel,
+        message: campaign.message,
+        hasImage: campaign.hasImage,
+        imageUrl: campaign.imageUrl,
+        buttons: campaign.buttons.map(btn => ({ text: btn, type: 'quick_reply' as const })),
+        templateId: campaign.fromTemplate?.id,
+        recipientContactIds: campaign.selectedContactIds,
+        recipientGroupId: campaign.selectedGroupId || undefined,
+        createdBy: currentWorkspace?.userId || 'unknown',
+        createdByName: currentWorkspace?.partnerData?.name,
+      });
+
+      if (!createResult.success || !createResult.broadcastId) {
+        throw new Error(createResult.message || 'Failed to create broadcast');
+      }
+
+      setSendProgress('Sending messages...');
+
+      // Send the broadcast
+      const sendResult = await sendBroadcastAction(createResult.broadcastId, partnerId);
+
+      if (sendResult.success) {
+        toast.success(`Sent to ${sendResult.totalSent} contacts`);
+        onSend(createResult.broadcastId);
+      } else {
+        throw new Error(sendResult.message || 'Failed to send broadcast');
+      }
+    } catch (error: any) {
+      console.error('Error sending broadcast:', error);
+      toast.error(error.message || 'Failed to send broadcast');
+      setSending(false);
+    }
+  };
 
   if (sending) {
     return (
-      <div className="min-h-screen bg-stone-50 flex items-center justify-center">
+      <div className="h-full overflow-y-auto bg-stone-50 flex items-center justify-center">
         <div className="text-center">
           <div className={`w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4 animate-pulse text-white text-2xl ${isWA ? 'bg-emerald-600' : 'bg-sky-600'}`}>📤</div>
-          <h2 className="text-lg font-semibold text-stone-900">Sending campaign...</h2>
+          <h2 className="text-lg font-semibold text-stone-900">{sendProgress}</h2>
           <p className="text-sm text-stone-500 mt-1">{campaign.recipients} messages</p>
         </div>
       </div>
@@ -1012,7 +1083,7 @@ function ReviewStep({ channel, campaign, onBack, onSend }: ReviewStepProps) {
   }
 
   return (
-    <div className="min-h-screen bg-stone-50">
+    <div className="h-full overflow-y-auto bg-stone-50">
       <div className="bg-white border-b border-stone-200 sticky top-0 z-20">
         <div className="max-w-3xl mx-auto px-4 py-3 flex items-center gap-3">
           <button onClick={onBack} className="w-9 h-9 flex items-center justify-center hover:bg-stone-100 rounded-lg text-stone-500">←</button>
@@ -1072,7 +1143,7 @@ function ReviewStep({ channel, campaign, onBack, onSend }: ReviewStepProps) {
               </div>
             </div>
 
-            <button onClick={() => { setSending(true); setTimeout(onSend, 2000); }} className={`w-full py-3.5 rounded-xl text-white font-semibold transition-all ${isWA ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-sky-600 hover:bg-sky-700'}`}>
+            <button onClick={handleSend} className={`w-full py-3.5 rounded-xl text-white font-semibold transition-all ${isWA ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-sky-600 hover:bg-sky-700'}`}>
               Send to {campaign.recipients} contacts
             </button>
 
@@ -1093,13 +1164,14 @@ function ReviewStep({ channel, campaign, onBack, onSend }: ReviewStepProps) {
 interface SuccessViewProps {
   channel: 'whatsapp' | 'telegram';
   campaign: Campaign;
+  broadcastId: string | null;
   onDone: () => void;
 }
 
-function SuccessView({ channel, campaign, onDone }: SuccessViewProps) {
+function SuccessView({ channel, campaign, broadcastId, onDone }: SuccessViewProps) {
   const isWA = channel === 'whatsapp';
   return (
-    <div className="min-h-screen bg-stone-50 flex items-center justify-center p-4">
+    <div className="h-full overflow-y-auto bg-stone-50 flex items-center justify-center p-4">
       <div className="text-center max-w-sm">
         <div className={`w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4 text-white text-2xl ${isWA ? 'bg-emerald-600' : 'bg-sky-600'}`}>✓</div>
         <h1 className="text-xl font-semibold text-stone-900 mb-1">Campaign sent!</h1>
