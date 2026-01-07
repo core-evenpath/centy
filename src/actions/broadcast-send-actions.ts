@@ -184,14 +184,20 @@ export async function sendBroadcastCampaignAction(
                     const formattedMessage = markdownToWhatsApp(message);
 
                     // EXACT INBOX LOGIC: Pass phone from conversation when available
-                    result = await sendMetaWhatsAppMessageAction({
-                        partnerId,
-                        to: phoneToUse,
-                        message: formattedMessage,
-                        mediaUrl,
-                        mediaType: mediaUrl ? 'image' : undefined,
-                        conversationId,
-                    });
+                    // Wrap send call in try-catch to handle any errors
+                    try {
+                        result = await sendMetaWhatsAppMessageAction({
+                            partnerId,
+                            to: phoneToUse,
+                            message: formattedMessage,
+                            mediaUrl,
+                            mediaType: mediaUrl ? 'image' : undefined,
+                            conversationId,
+                        });
+                    } catch (sendError: any) {
+                        console.error(`WhatsApp send error for ${contact.phone}:`, sendError);
+                        result = { success: false, message: sendError?.message || 'Failed to send WhatsApp message' };
+                    }
 
                 } else if (channel === 'telegram') {
                     // For Telegram, we need chatId
@@ -232,13 +238,19 @@ export async function sendBroadcastCampaignAction(
                     }
 
                     // EXACT INBOX LOGIC: Use the same Telegram sending action as inbox
-                    result = await sendTelegramMessageAction({
-                        partnerId,
-                        chatId: chatIdToUse as any,
-                        message,
-                        mediaUrl,
-                        conversationId,
-                    });
+                    // Wrap send call in try-catch to handle any errors
+                    try {
+                        result = await sendTelegramMessageAction({
+                            partnerId,
+                            chatId: chatIdToUse as any,
+                            message,
+                            mediaUrl,
+                            conversationId,
+                        });
+                    } catch (sendError: any) {
+                        console.error(`Telegram send error for ${contact.telegramChatId}:`, sendError);
+                        result = { success: false, message: sendError?.message || 'Failed to send Telegram message' };
+                    }
                 }
 
                 if (result?.success) {
