@@ -48,7 +48,7 @@ Changes made:
 - Created `actions/broadcast-send-actions.ts`
 - Integrated message sending for WhatsApp (Meta) and Telegram
 - Added success/failure tracking and campaign status updates
-- Added loading states and toasts in UI
+- Added loading states and toasts in UI (using standard useToast)
 
 ## 📋 Next Steps for Full Integration
 

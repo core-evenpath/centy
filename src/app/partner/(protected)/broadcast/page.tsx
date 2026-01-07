@@ -5,7 +5,7 @@ import { useMultiWorkspaceAuth } from '@/hooks/use-multi-workspace-auth';
 import { createCampaignAction } from '@/actions/broadcast-actions';
 import { sendBroadcastCampaignAction } from '@/actions/broadcast-send-actions';
 import { useToast } from '@/hooks/use-toast';
-import { toast as sonnerToast } from 'sonner';
+
 import RecipientSelector from '@/components/partner/broadcast/RecipientSelector';
 
 // ============================================
@@ -272,7 +272,7 @@ export default function BroadcastPage() {
         const campaignId = (campaignResult as any).campaign?.id;
 
         // 2. Send messages to all recipients (like inbox does)
-        sonnerToast.loading(`Sending to ${campaign!.recipientCount} recipients...`);
+        toast({ title: 'Sending...', description: `Sending to ${campaign!.recipientCount} recipients...` });
 
         const sendResult = await sendBroadcastCampaignAction(
           partnerId,
@@ -285,8 +285,6 @@ export default function BroadcastPage() {
           campaign!.groupIds
         );
 
-        sonnerToast.dismiss();
-
         if (sendResult.success) {
           // Store results in campaign state for success view
           setCampaign(prev => ({
@@ -294,10 +292,10 @@ export default function BroadcastPage() {
             ...sendResult,
           }));
 
-          sonnerToast.success(
-            `Campaign sent! ${sendResult.delivered} delivered, ${sendResult.failed} failed`,
-            { duration: 5000 }
-          );
+          toast({
+            title: 'Campaign Sent',
+            description: `${sendResult.delivered} delivered, ${sendResult.failed} failed`
+          });
           setView('success');
         } else {
           toast({
@@ -308,7 +306,6 @@ export default function BroadcastPage() {
         }
       } catch (error: any) {
         console.error('Error sending campaign:', error);
-        sonnerToast.dismiss();
         toast({ variant: 'destructive', title: 'Error', description: error.message || 'Failed to send campaign' });
       }
     }} />;
