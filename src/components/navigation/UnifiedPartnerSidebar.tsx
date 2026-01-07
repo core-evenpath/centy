@@ -13,7 +13,9 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   Database,
-  Bot
+  Bot,
+  Radio,
+  BarChart3
 } from 'lucide-react';
 import { Button } from '../ui/button';
 import { cn } from '@/lib/utils';
@@ -68,6 +70,16 @@ export default function UnifiedPartnerSidebar() {
       label: 'Inbox',
       href: '/partner/inbox',
       isInbox: true
+    },
+    {
+      icon: Radio,
+      label: 'Broadcast',
+      href: '/partner/broadcast'
+    },
+    {
+      icon: BarChart3,
+      label: 'Campaigns',
+      href: '/partner/campaigns'
     },
     {
       icon: Database,
