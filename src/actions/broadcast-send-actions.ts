@@ -126,12 +126,13 @@ export async function sendBroadcastCampaignAction(
                 let result;
 
                 if (channel === 'whatsapp') {
-                    // Look up existing conversation by phone number (like inbox does)
+                    // EXACT INBOX LOGIC: Look up existing conversation first
                     // Normalize phone for lookup (remove non-digits)
                     const normalizedPhone = contact.phone.replace(/\D/g, '');
                     let conversationId: string | undefined;
+                    let phoneToUse = contact.phone; // Default to contact's phone
 
-                    // Try to find existing conversation by customerWaId or customerPhone
+                    // Try to find existing conversation by customerWaId (like inbox does)
                     const existingConvSnapshot = await db
                         .collection('metaWhatsAppConversations')
                         .where('partnerId', '==', partnerId)
@@ -140,7 +141,10 @@ export async function sendBroadcastCampaignAction(
                         .get();
 
                     if (!existingConvSnapshot.empty) {
+                        const convData = existingConvSnapshot.docs[0].data();
                         conversationId = existingConvSnapshot.docs[0].id;
+                        // Use the conversation's customerPhone (exact inbox behavior)
+                        phoneToUse = convData.customerPhone || contact.phone;
                     } else {
                         // Also try with full phone format
                         const phoneWithPlus = contact.phone.startsWith('+') ? contact.phone : `+${normalizedPhone}`;
@@ -152,20 +156,24 @@ export async function sendBroadcastCampaignAction(
                             .get();
 
                         if (!altConvSnapshot.empty) {
+                            const convData = altConvSnapshot.docs[0].data();
                             conversationId = altConvSnapshot.docs[0].id;
+                            // Use the conversation's customerPhone (exact inbox behavior)
+                            phoneToUse = convData.customerPhone || contact.phone;
                         }
                     }
 
                     // Use the same WhatsApp sending action as inbox, with formatting
                     const formattedMessage = markdownToWhatsApp(message);
 
+                    // EXACT INBOX LOGIC: Pass phone from conversation when available
                     result = await sendMetaWhatsAppMessageAction({
                         partnerId,
-                        to: contact.phone,
+                        to: phoneToUse,
                         message: formattedMessage,
                         mediaUrl,
                         mediaType: mediaUrl ? 'image' : undefined,
-                        conversationId, // Pass the conversationId like inbox does
+                        conversationId,
                     });
 
                 } else if (channel === 'telegram') {
@@ -182,8 +190,10 @@ export async function sendBroadcastCampaignAction(
                         continue;
                     }
 
-                    // Look up existing Telegram conversation by chatId (like inbox does)
+                    // EXACT INBOX LOGIC: Look up existing Telegram conversation by chatId
                     let conversationId: string | undefined;
+                    let chatIdToUse = contact.telegramChatId;
+
                     const existingConvSnapshot = await db
                         .collection('telegramConversations')
                         .where('partnerId', '==', partnerId)
@@ -192,16 +202,19 @@ export async function sendBroadcastCampaignAction(
                         .get();
 
                     if (!existingConvSnapshot.empty) {
+                        const convData = existingConvSnapshot.docs[0].data();
                         conversationId = existingConvSnapshot.docs[0].id;
+                        // Use the conversation's chatId (exact inbox behavior)
+                        chatIdToUse = convData.chatId || contact.telegramChatId;
                     }
 
-                    // Use the same Telegram sending action as inbox
+                    // EXACT INBOX LOGIC: Use the same Telegram sending action as inbox
                     result = await sendTelegramMessageAction({
                         partnerId,
-                        chatId: contact.telegramChatId as any,
+                        chatId: chatIdToUse as any,
                         message,
                         mediaUrl,
-                        conversationId, // Pass the conversationId like inbox does
+                        conversationId,
                     });
                 }
 
