@@ -320,7 +320,7 @@ export default function BroadcastPage() {
   // HOME VIEW
   // ============================================
   return (
-    <div className="min-h-screen bg-stone-50">
+    <div className="h-full overflow-y-auto bg-stone-50">
       <div className="max-w-3xl mx-auto px-4 py-8">
         {/* Header */}
         <div className="mb-8">
@@ -655,7 +655,7 @@ function CampaignStudio({ channel, initialPrompt, existingCampaign, onBack, onCo
   const filteredTemplates = templateCategory === 'all' ? TEMPLATES : TEMPLATES.filter(t => t.category === templateCategory);
 
   return (
-    <div className="min-h-screen bg-stone-50">
+    <div className="h-full overflow-y-auto bg-stone-50">
       {/* Header */}
       <div className="bg-white border-b border-stone-200 sticky top-0 z-20">
         <div className="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between">

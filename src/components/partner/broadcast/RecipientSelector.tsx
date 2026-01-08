@@ -157,7 +157,7 @@ export default function RecipientSelector({
     const allGroups = [allContactsGroup, ...groups];
 
     return (
-        <div className="min-h-screen bg-stone-50">
+        <div className="h-full overflow-y-auto bg-stone-50">
             {/* Header */}
             <div className="bg-white border-b border-stone-200 sticky top-0 z-20">
                 <div className="max-w-3xl mx-auto px-4 py-3 flex items-center justify-between">
@@ -192,8 +192,8 @@ export default function RecipientSelector({
                                         key={g.id}
                                         onClick={() => toggleGroup(g.id)}
                                         className={`w-full flex items-center justify-between p-3 rounded-lg transition-all ${selectedGroup === g.id
-                                                ? `${isWA ? 'bg-emerald-600' : 'bg-sky-600'} text-white`
-                                                : 'bg-stone-50 hover:bg-stone-100 text-stone-700'
+                                            ? `${isWA ? 'bg-emerald-600' : 'bg-sky-600'} text-white`
+                                            : 'bg-stone-50 hover:bg-stone-100 text-stone-700'
                                             }`}
                                     >
                                         <span className="font-medium text-sm">{g.name}</span>
