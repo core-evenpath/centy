@@ -159,6 +159,21 @@ export async function deleteBroadcastGroupAction(partnerId: string, groupId: str
 /**
  * Get all campaigns for a partner
  */
+// Helper to serialize campaign data for client
+function serializeCampaign(data: any, id: string): any {
+    return {
+        id,
+        ...data,
+        createdAt: data.createdAt instanceof Timestamp ? data.createdAt.toDate().toISOString() : data.createdAt,
+        updatedAt: data.updatedAt instanceof Timestamp ? data.updatedAt.toDate().toISOString() : data.updatedAt,
+        sentAt: data.sentAt instanceof Timestamp ? data.sentAt.toDate().toISOString() : data.sentAt,
+        scheduledFor: data.scheduledFor instanceof Timestamp ? data.scheduledFor.toDate().toISOString() : data.scheduledFor,
+    };
+}
+
+/**
+ * Get all campaigns for a partner
+ */
 export async function getCampaignsAction(partnerId: string) {
     try {
         const campaignsSnapshot = await db
@@ -168,17 +183,7 @@ export async function getCampaignsAction(partnerId: string) {
             .orderBy('createdAt', 'desc')
             .get();
 
-        const campaigns = campaignsSnapshot.docs.map(doc => {
-            const data = doc.data();
-            return {
-                id: doc.id,
-                ...data,
-                createdAt: data.createdAt?.toDate?.()?.toISOString() || new Date().toISOString(),
-                updatedAt: data.updatedAt?.toDate?.()?.toISOString() || new Date().toISOString(),
-                sentAt: data.sentAt?.toDate?.()?.toISOString(),
-                scheduledFor: data.scheduledFor?.toDate?.()?.toISOString(),
-            };
-        });
+        const campaigns = campaignsSnapshot.docs.map(doc => serializeCampaign(doc.data(), doc.id));
 
         return { success: true, campaigns };
     } catch (error: any) {
@@ -217,7 +222,7 @@ export async function createCampaignAction(
 
         return {
             success: true,
-            campaign: { id: campaignRef.id, ...campaign },
+            campaign: serializeCampaign(campaign, campaignRef.id),
         };
     } catch (error: any) {
         console.error('Error creating campaign:', error);
