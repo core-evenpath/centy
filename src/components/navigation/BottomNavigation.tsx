@@ -26,7 +26,7 @@ export default function BottomNavigation({ userRole = 'employee' }: BottomNaviga
       case 'partner_admin':
         return [
           { name: 'Dashboard', href: '/partner', icon: Home },
-          { name: 'Mission', href: '/partner/mission-control', icon: Zap },
+
           { name: 'Chat', href: '/employee/chat', icon: MessageSquare },
           { name: 'Team', href: '/partner/team', icon: Users }
         ];
@@ -48,13 +48,13 @@ export default function BottomNavigation({ userRole = 'employee' }: BottomNaviga
     <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 md:hidden z-50 safe-area-bottom">
       <nav className="grid grid-cols-4 h-16">
         {navigationItems.map((item) => {
-          const isActive = pathname === item.href || 
+          const isActive = pathname === item.href ||
             (item.href !== '/employee/chat' && item.href !== '/employee' && pathname.startsWith(item.href)) ||
             (item.name === 'Home' && pathname === '/employee') ||
             (item.name === 'Chat' && (pathname === '/employee/chat' || pathname === '/employee'));
-          
+
           const Icon = item.icon;
-          
+
           return (
             <Link
               key={item.name}
@@ -70,7 +70,7 @@ export default function BottomNavigation({ userRole = 'employee' }: BottomNaviga
               {isActive && (
                 <div className="absolute top-0 left-1/2 transform -translate-x-1/2 w-8 h-0.5 bg-blue-600 rounded-full" />
               )}
-              
+
               <div className="flex flex-col items-center justify-center flex-1">
                 <Icon className="w-5 h-5 mb-1" />
                 <span className="text-xs font-medium leading-tight">{item.name}</span>

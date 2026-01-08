@@ -14,8 +14,9 @@ export function UnifiedEmptyState({
     isTelegramConnected,
     whatsAppStatus
 }: UnifiedEmptyStateProps) {
+    const isLoading = isWhatsAppConnected === null || isTelegramConnected === null;
     const isPending = whatsAppStatus === 'pending';
-    const noConnections = !isWhatsAppConnected && !isTelegramConnected;
+    const noConnections = !isLoading && !isWhatsAppConnected && !isTelegramConnected;
 
     return (
         <div className="flex-1 flex flex-col items-center justify-center p-8 text-center bg-gray-50/30">
@@ -39,16 +40,24 @@ export function UnifiedEmptyState({
 
             <div className="flex items-center gap-4 mb-8">
                 <div className="flex items-center gap-2">
-                    <div className={`w-3 h-3 rounded-full ${isWhatsAppConnected ? 'bg-green-500' : 'bg-gray-300'}`} />
+                    {isWhatsAppConnected === null ? (
+                        <div className="w-3 h-3 rounded-full bg-gray-200 animate-pulse" />
+                    ) : (
+                        <div className={`w-3 h-3 rounded-full ${isWhatsAppConnected ? 'bg-green-500' : 'bg-gray-300'}`} />
+                    )}
                     <span className="text-sm text-gray-600">
-                        WhatsApp {isWhatsAppConnected ? 'Connected' : 'Not Connected'}
+                        {isWhatsAppConnected === null ? 'Checking WhatsApp...' : `WhatsApp ${isWhatsAppConnected ? 'Connected' : 'Not Connected'}`}
                     </span>
                 </div>
                 <div className="w-px h-4 bg-gray-200" />
                 <div className="flex items-center gap-2">
-                    <div className={`w-3 h-3 rounded-full ${isTelegramConnected ? 'bg-blue-500' : 'bg-gray-300'}`} />
+                    {isTelegramConnected === null ? (
+                        <div className="w-3 h-3 rounded-full bg-gray-200 animate-pulse" />
+                    ) : (
+                        <div className={`w-3 h-3 rounded-full ${isTelegramConnected ? 'bg-blue-500' : 'bg-gray-300'}`} />
+                    )}
                     <span className="text-sm text-gray-600">
-                        Telegram {isTelegramConnected ? 'Connected' : 'Not Connected'}
+                        {isTelegramConnected === null ? 'Checking Telegram...' : `Telegram ${isTelegramConnected ? 'Connected' : 'Not Connected'}`}
                     </span>
                 </div>
             </div>
@@ -68,12 +77,12 @@ export function UnifiedEmptyState({
                     </div>
                 )}
 
-                {!isWhatsAppConnected && (
+                {!isLoading && !isWhatsAppConnected && (
                     <Link href="/partner/apps/whatsapp-api" className="w-full">
                         <Button
                             className={`w-full h-11 ${isPending
-                                    ? 'bg-amber-500 hover:bg-amber-600'
-                                    : 'bg-green-600 hover:bg-green-700'
+                                ? 'bg-amber-500 hover:bg-amber-600'
+                                : 'bg-green-600 hover:bg-green-700'
                                 } text-white shadow-md flex items-center justify-center gap-2 group transition-all`}
                         >
                             <MessageCircle className="w-4 h-4" />
@@ -83,7 +92,7 @@ export function UnifiedEmptyState({
                     </Link>
                 )}
 
-                {!isTelegramConnected && (
+                {!isLoading && !isTelegramConnected && (
                     <Link href="/partner/apps/telegram-api" className="w-full">
                         <Button
                             className="w-full h-11 bg-blue-600 hover:bg-blue-700 text-white shadow-md flex items-center justify-center gap-2 group transition-all"

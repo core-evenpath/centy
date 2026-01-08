@@ -108,7 +108,7 @@ export async function GET() {
       status: webhookLogsSnapshot.size > 0 ? 'OK' : 'WARNING',
       details: {
         count: webhookLogsSnapshot.size,
-        message: webhookLogsSnapshot.size === 0 
+        message: webhookLogsSnapshot.size === 0
           ? 'No webhook calls received - Twilio may not be configured to call this endpoint'
           : `Found ${webhookLogsSnapshot.size} recent webhook calls`,
         recentLogs: webhookLogsSnapshot.docs.slice(0, 3).map(doc => ({
@@ -196,7 +196,7 @@ export async function GET() {
       status: overallStatus ? 'OK' : 'ISSUES_FOUND',
       criticalIssues: diagnostics.issues.filter((i: any) => i.severity === 'CRITICAL').length,
       warnings: diagnostics.issues.filter((i: any) => i.severity === 'WARNING').length,
-      recommendation: overallStatus 
+      recommendation: overallStatus
         ? 'System is configured correctly. If issues persist, check Twilio Console → Monitor → Logs → Errors'
         : 'Critical issues found. Follow the solutions provided above.'
     };
@@ -206,7 +206,7 @@ export async function GET() {
         'Step 1: Fix all CRITICAL issues listed above',
         'Step 2: Send a test SMS to your Twilio number',
         'Step 3: Run this diagnostic again to verify',
-        'Step 4: Check webhook logs at /partner/messaging/webhook-test'
+        'Step 4: Check webhook logs'
       );
     }
 
