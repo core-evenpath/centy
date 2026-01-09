@@ -157,20 +157,20 @@ export default function RecipientSelector({
     const allGroups = [allContactsGroup, ...groups];
 
     return (
-        <div className="h-full overflow-y-auto bg-stone-50">
+        <div className="h-full overflow-y-auto bg-gray-50">
             {/* Header */}
-            <div className="bg-white border-b border-stone-200 sticky top-0 z-20">
+            <div className="bg-white border-b border-gray-200 sticky top-0 z-20">
                 <div className="max-w-3xl mx-auto px-4 py-3 flex items-center justify-between">
                     <div className="flex items-center gap-3">
                         <button
                             onClick={onBack}
-                            className="w-9 h-9 flex items-center justify-center hover:bg-stone-100 rounded-lg text-stone-500"
+                            className="w-9 h-9 flex items-center justify-center hover:bg-gray-100 rounded-lg text-gray-500"
                         >
                             ←
                         </button>
                         <div>
-                            <h1 className="font-semibold text-stone-900 text-sm">Select Recipients</h1>
-                            <p className="text-xs text-stone-500">{recipientCount} selected</p>
+                            <h1 className="font-semibold text-gray-900 text-sm">Select Recipients</h1>
+                            <p className="text-xs text-gray-500">{recipientCount} selected</p>
                         </div>
                     </div>
                 </div>
@@ -179,12 +179,12 @@ export default function RecipientSelector({
             <div className="max-w-3xl mx-auto p-4">
                 <div className="grid lg:grid-cols-2 gap-4">
                     {/* Groups */}
-                    <div className="bg-white rounded-xl border border-stone-200 p-4">
-                        <div className="text-xs font-medium text-stone-500 uppercase tracking-wide mb-3">
+                    <div className="bg-white rounded-xl border border-gray-200 p-4">
+                        <div className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-3">
                             Groups
                         </div>
                         {isLoading ? (
-                            <div className="text-center py-8 text-stone-400">Loading...</div>
+                            <div className="text-center py-8 text-gray-400">Loading...</div>
                         ) : (
                             <div className="space-y-2">
                                 {allGroups.map(g => (
@@ -193,13 +193,13 @@ export default function RecipientSelector({
                                         onClick={() => toggleGroup(g.id)}
                                         className={`w-full flex items-center justify-between p-3 rounded-lg transition-all ${selectedGroup === g.id
                                             ? `${isWA ? 'bg-emerald-600' : 'bg-sky-600'} text-white`
-                                            : 'bg-stone-50 hover:bg-stone-100 text-stone-700'
+                                            : 'bg-gray-50 hover:bg-gray-100 text-gray-700'
                                             }`}
                                     >
                                         <span className="font-medium text-sm">{g.name}</span>
                                         <div className="flex items-center gap-2">
                                             <span
-                                                className={`text-sm ${selectedGroup === g.id ? 'text-white/80' : 'text-stone-400'
+                                                className={`text-sm ${selectedGroup === g.id ? 'text-white/80' : 'text-gray-400'
                                                     }`}
                                             >
                                                 {g.contactIds?.length || 0}
@@ -213,9 +213,9 @@ export default function RecipientSelector({
                     </div>
 
                     {/* Individual Contacts */}
-                    <div className="bg-white rounded-xl border border-stone-200 p-4">
+                    <div className="bg-white rounded-xl border border-gray-200 p-4">
                         <div className="flex items-center justify-between mb-3">
-                            <span className="text-xs font-medium text-stone-500 uppercase tracking-wide">
+                            <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">
                                 Individual
                             </span>
                             <button
@@ -234,17 +234,17 @@ export default function RecipientSelector({
                                 placeholder="Search contacts..."
                                 value={search}
                                 onChange={(e) => setSearch(e.target.value)}
-                                className="w-full px-3 py-2 bg-stone-50 border border-stone-200 rounded-lg text-sm pl-9 focus:outline-none focus:ring-2 focus:ring-violet-500/20"
+                                className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm pl-9 focus:outline-none focus:ring-2 focus:ring-violet-500/20"
                             />
-                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400 text-sm">
+                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">
                                 🔍
                             </span>
                         </div>
                         <div className="space-y-1 max-h-52 overflow-y-auto">
                             {isLoading ? (
-                                <div className="text-center py-8 text-stone-400">Loading contacts...</div>
+                                <div className="text-center py-8 text-gray-400">Loading contacts...</div>
                             ) : filteredContacts.length === 0 ? (
-                                <div className="text-center py-8 text-stone-400">
+                                <div className="text-center py-8 text-gray-400">
                                     {search ? 'No contacts found' : 'No contacts available'}
                                 </div>
                             ) : (
@@ -254,24 +254,24 @@ export default function RecipientSelector({
                                         <button
                                             key={c.id}
                                             onClick={() => toggleContact(c.id)}
-                                            className={`w-full flex items-center gap-3 p-2.5 rounded-lg transition-all ${sel ? 'bg-stone-900 text-white' : 'hover:bg-stone-50'
+                                            className={`w-full flex items-center gap-3 p-2.5 rounded-lg transition-all ${sel ? 'bg-gray-900 text-white' : 'hover:bg-gray-50'
                                                 }`}
                                         >
                                             <div
-                                                className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-medium ${sel ? 'bg-white text-stone-900' : 'bg-stone-100 text-stone-600'
+                                                className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-medium ${sel ? 'bg-white text-gray-900' : 'bg-gray-100 text-gray-600'
                                                     }`}
                                             >
                                                 {getInitials(c.name || '?')}
                                             </div>
                                             <div className="flex-1 text-left">
                                                 <div
-                                                    className={`text-sm font-medium ${sel ? 'text-white' : 'text-stone-900'
+                                                    className={`text-sm font-medium ${sel ? 'text-white' : 'text-gray-900'
                                                         }`}
                                                 >
                                                     {c.name}
                                                 </div>
                                                 <div
-                                                    className={`text-[10px] ${sel ? 'text-white/60' : 'text-stone-400'
+                                                    className={`text-[10px] ${sel ? 'text-white/60' : 'text-gray-400'
                                                         }`}
                                                 >
                                                     {c.phone}
