@@ -432,6 +432,7 @@ const SettingsUltimate = () => {
           { key: 'categories', label: 'Product Categories', type: 'tags', required: true },
           { key: 'priceRange', label: 'Price Range', type: 'text' },
           { key: 'bestsellers', label: 'Bestsellers', type: 'tags' },
+          { key: 'productCatalog', label: 'Product Inventory', type: 'inventory', inventoryType: 'products', hint: 'Add your products with pricing and variants' },
         ]
       },
       payments: {
@@ -451,13 +452,6 @@ const SettingsUltimate = () => {
           { key: 'returnWindow', label: 'Return Window', type: 'select', options: ['7 days', '15 days', '30 days', 'No returns'] },
           { key: 'refundPolicy', label: 'Refund Policy', type: 'textarea' },
           { key: 'faqs', label: 'FAQs', type: 'faq' },
-        ]
-      },
-      inventory: {
-        title: 'Product Catalog',
-        icon: '🛍️',
-        fields: [
-          { key: 'productCatalog', label: 'Your Products', type: 'inventory', inventoryType: 'products', hint: 'Add your products with pricing and variants' },
         ]
       },
     },
@@ -493,12 +487,13 @@ const SettingsUltimate = () => {
         ]
       },
       properties: {
-        title: 'Property Types',
+        title: 'Property Types & Listings',
         icon: '🏘️',
         fields: [
           { key: 'types', label: 'Property Types', type: 'tags' },
           { key: 'segments', label: 'Segments', type: 'tags' },
           { key: 'priceRange', label: 'Price Range', type: 'text' },
+          { key: 'propertyListings', label: 'Your Listings', type: 'inventory', inventoryType: 'properties', hint: 'Add properties you are selling or renting' },
         ]
       },
       services: {
@@ -516,13 +511,6 @@ const SettingsUltimate = () => {
           { key: 'buyingProcess', label: 'Buying Process', type: 'textarea' },
           { key: 'documents', label: 'Documents Required', type: 'tags' },
           { key: 'faqs', label: 'FAQs', type: 'faq' },
-        ]
-      },
-      inventory: {
-        title: 'Property Listings',
-        icon: '🏘️',
-        fields: [
-          { key: 'propertyListings', label: 'Your Properties', type: 'inventory', inventoryType: 'properties', hint: 'Add properties you are selling or renting' },
         ]
       },
     },
@@ -617,6 +605,7 @@ const SettingsUltimate = () => {
           { key: 'specialties', label: 'Signature Dishes', type: 'tags' },
           { key: 'priceRange', label: 'Price Range (per person)', type: 'text' },
           { key: 'dietary', label: 'Dietary Options', type: 'tags' },
+          { key: 'menuItems', label: 'Menu Items', type: 'inventory', inventoryType: 'menu', hint: 'Add your dishes with pricing and dietary info' },
         ]
       },
       delivery: {
@@ -635,13 +624,6 @@ const SettingsUltimate = () => {
         fields: [
           { key: 'cateringMin', label: 'Catering Minimum', type: 'text' },
           { key: 'faqs', label: 'FAQs', type: 'faq' },
-        ]
-      },
-      inventory: {
-        title: 'Menu Items',
-        icon: '🍽️',
-        fields: [
-          { key: 'menuItems', label: 'Your Menu', type: 'inventory', inventoryType: 'menu', hint: 'Add your dishes with pricing and dietary info' },
         ]
       },
     },
@@ -777,10 +759,10 @@ const SettingsUltimate = () => {
         title: 'Rooms & Rates',
         icon: '🛏️',
         fields: [
-          { key: 'roomTypes', label: 'Room Types', type: 'tags' },
           { key: 'priceRange', label: 'Price Range', type: 'text' },
           { key: 'checkIn', label: 'Check-in Time', type: 'text' },
           { key: 'checkOut', label: 'Check-out Time', type: 'text' },
+          { key: 'roomTypes', label: 'Room Inventory', type: 'inventory', inventoryType: 'rooms', hint: 'Add your room categories with pricing' },
         ]
       },
       amenities: {
@@ -799,13 +781,6 @@ const SettingsUltimate = () => {
           { key: 'petPolicy', label: 'Pet Policy', type: 'text' },
           { key: 'childPolicy', label: 'Children Policy', type: 'text' },
           { key: 'faqs', label: 'FAQs', type: 'faq' },
-        ]
-      },
-      inventory: {
-        title: 'Room Types & Rates',
-        icon: '🛏️',
-        fields: [
-          { key: 'roomTypes', label: 'Room Types', type: 'inventory', inventoryType: 'rooms', hint: 'Add your room categories with pricing' },
         ]
       },
     },
@@ -1331,39 +1306,171 @@ const SettingsUltimate = () => {
                                         </button>
                                       </div>
                                     ) : field.type === 'inventory' ? (
-                                      <div className="p-4 bg-gradient-to-br from-indigo-50 to-purple-50 border border-indigo-200 rounded-xl">
-                                        <div className="flex items-center justify-between mb-3">
-                                          <div>
-                                            <p className="text-sm font-medium text-indigo-900">{field.label}</p>
-                                            {field.hint && <p className="text-xs text-indigo-600 mt-0.5">{field.hint}</p>}
+                                      <div className="p-4 bg-gradient-to-br from-slate-50 to-indigo-50 border border-slate-200 rounded-xl space-y-4">
+                                        {/* Quick Add Form */}
+                                        <div className="space-y-3">
+                                          <div className="flex items-center justify-between">
+                                            <p className="text-sm font-medium text-slate-800">Quick Add</p>
+                                            <span className="px-2 py-0.5 bg-indigo-100 text-indigo-700 text-xs font-medium rounded">
+                                              {field.inventoryType === 'properties' ? '🏠' :
+                                               field.inventoryType === 'products' ? '📦' :
+                                               field.inventoryType === 'menu' ? '🍽️' :
+                                               field.inventoryType === 'rooms' ? '🛏️' : '📋'}
+                                            </span>
                                           </div>
-                                          <span className="px-2 py-1 bg-indigo-100 text-indigo-700 text-xs font-medium rounded-lg">
-                                            {field.inventoryType === 'properties' ? '🏠 Properties' :
-                                             field.inventoryType === 'products' ? '📦 Products' :
-                                             field.inventoryType === 'menu' ? '🍽️ Menu' :
-                                             field.inventoryType === 'rooms' ? '🛏️ Rooms' : 'Items'}
-                                          </span>
+
+                                          {/* Dynamic fields based on inventory type */}
+                                          {field.inventoryType === 'products' && (
+                                            <div className="grid grid-cols-3 gap-2">
+                                              <input type="text" placeholder="Product name" className="col-span-2 px-3 py-2 border border-slate-200 rounded-lg text-sm" id={`${field.key}-name`} />
+                                              <input type="text" placeholder="Price (₹)" className="px-3 py-2 border border-slate-200 rounded-lg text-sm" id={`${field.key}-price`} />
+                                            </div>
+                                          )}
+                                          {field.inventoryType === 'properties' && (
+                                            <div className="grid grid-cols-4 gap-2">
+                                              <input type="text" placeholder="Property title" className="col-span-2 px-3 py-2 border border-slate-200 rounded-lg text-sm" id={`${field.key}-name`} />
+                                              <select className="px-3 py-2 border border-slate-200 rounded-lg text-sm bg-white" id={`${field.key}-type`}>
+                                                <option value="">Type</option>
+                                                <option value="apartment">Apartment</option>
+                                                <option value="villa">Villa</option>
+                                                <option value="plot">Plot</option>
+                                                <option value="commercial">Commercial</option>
+                                              </select>
+                                              <input type="text" placeholder="Price" className="px-3 py-2 border border-slate-200 rounded-lg text-sm" id={`${field.key}-price`} />
+                                            </div>
+                                          )}
+                                          {field.inventoryType === 'menu' && (
+                                            <div className="grid grid-cols-4 gap-2">
+                                              <input type="text" placeholder="Dish name" className="col-span-2 px-3 py-2 border border-slate-200 rounded-lg text-sm" id={`${field.key}-name`} />
+                                              <input type="text" placeholder="Price (₹)" className="px-3 py-2 border border-slate-200 rounded-lg text-sm" id={`${field.key}-price`} />
+                                              <select className="px-3 py-2 border border-slate-200 rounded-lg text-sm bg-white" id={`${field.key}-veg`}>
+                                                <option value="true">Veg</option>
+                                                <option value="false">Non-Veg</option>
+                                              </select>
+                                            </div>
+                                          )}
+                                          {field.inventoryType === 'rooms' && (
+                                            <div className="grid grid-cols-4 gap-2">
+                                              <input type="text" placeholder="Room type (e.g., Deluxe)" className="col-span-2 px-3 py-2 border border-slate-200 rounded-lg text-sm" id={`${field.key}-name`} />
+                                              <input type="text" placeholder="Price/night" className="px-3 py-2 border border-slate-200 rounded-lg text-sm" id={`${field.key}-price`} />
+                                              <input type="number" placeholder="Guests" className="px-3 py-2 border border-slate-200 rounded-lg text-sm" id={`${field.key}-guests`} />
+                                            </div>
+                                          )}
+
+                                          <div className="flex gap-2">
+                                            <button
+                                              onClick={() => {
+                                                const nameEl = document.getElementById(`${field.key}-name`) as HTMLInputElement;
+                                                const priceEl = document.getElementById(`${field.key}-price`) as HTMLInputElement;
+                                                if (nameEl?.value) {
+                                                  const newItem: any = {
+                                                    id: `${Date.now()}`,
+                                                    name: nameEl.value,
+                                                    price: priceEl?.value ? parseFloat(priceEl.value) : 0,
+                                                  };
+                                                  // Add type-specific fields
+                                                  if (field.inventoryType === 'menu') {
+                                                    const vegEl = document.getElementById(`${field.key}-veg`) as HTMLSelectElement;
+                                                    newItem.isVegetarian = vegEl?.value === 'true';
+                                                    newItem.isAvailable = true;
+                                                    newItem.isPopular = false;
+                                                  }
+                                                  if (field.inventoryType === 'properties') {
+                                                    const typeEl = document.getElementById(`${field.key}-type`) as HTMLSelectElement;
+                                                    newItem.type = typeEl?.value || 'apartment';
+                                                    newItem.transactionType = 'sale';
+                                                    newItem.status = 'available';
+                                                    newItem.title = newItem.name;
+                                                    newItem.locality = '';
+                                                    newItem.city = '';
+                                                    newItem.area = { value: 0, unit: 'sqft' };
+                                                    newItem.amenities = [];
+                                                    newItem.negotiable = true;
+                                                    newItem.isFeatured = false;
+                                                    newItem.listedAt = new Date();
+                                                    newItem.updatedAt = new Date();
+                                                  }
+                                                  if (field.inventoryType === 'rooms') {
+                                                    const guestsEl = document.getElementById(`${field.key}-guests`) as HTMLInputElement;
+                                                    newItem.maxGuests = guestsEl?.value ? parseInt(guestsEl.value) : 2;
+                                                    newItem.maxAdults = newItem.maxGuests;
+                                                    newItem.basePrice = newItem.price;
+                                                    newItem.currency = 'INR';
+                                                    newItem.beds = [];
+                                                    newItem.size = { value: 0, unit: 'sqft' };
+                                                    newItem.amenities = [];
+                                                    newItem.images = [];
+                                                    newItem.totalRooms = 1;
+                                                    newItem.isFeatured = false;
+                                                    newItem.description = '';
+                                                  }
+                                                  if (field.inventoryType === 'products') {
+                                                    newItem.currency = 'INR';
+                                                    newItem.inStock = true;
+                                                    newItem.trackInventory = false;
+                                                    newItem.hasVariants = false;
+                                                    newItem.description = '';
+                                                    newItem.images = [];
+                                                    newItem.isPopular = false;
+                                                    newItem.isFeatured = false;
+                                                    newItem.tags = [];
+                                                    newItem.category = '';
+                                                    newItem.createdAt = new Date();
+                                                    newItem.updatedAt = new Date();
+                                                  }
+                                                  const current = Array.isArray(fieldValue) ? fieldValue : [];
+                                                  handleFieldUpdate(schemaPath, [...current, newItem]);
+                                                  // Clear inputs
+                                                  nameEl.value = '';
+                                                  if (priceEl) priceEl.value = '';
+                                                }
+                                              }}
+                                              className="px-4 py-2 bg-slate-900 text-white rounded-lg text-sm font-medium hover:bg-slate-800 transition-colors"
+                                            >
+                                              + Add Item
+                                            </button>
+                                            <button
+                                              onClick={() => setShowAIChat(true)}
+                                              className="px-4 py-2 border border-indigo-300 text-indigo-700 rounded-lg text-sm font-medium hover:bg-indigo-50 transition-colors"
+                                            >
+                                              ✨ AI Assistant
+                                            </button>
+                                          </div>
                                         </div>
-                                        <div className="flex items-center gap-3">
-                                          <button
-                                            onClick={() => setShowAIChat(true)}
-                                            className="flex-1 px-4 py-2.5 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 transition-colors"
-                                          >
-                                            ✨ Add via AI Assistant
-                                          </button>
-                                          <button
-                                            className="px-4 py-2.5 border border-indigo-300 text-indigo-700 rounded-lg text-sm font-medium hover:bg-indigo-50 transition-colors"
-                                            title="Coming soon: Bulk import"
-                                          >
-                                            📥 Import
-                                          </button>
-                                        </div>
-                                        {/* Show count of existing items */}
+
+                                        {/* Existing Items List */}
                                         {fieldValue && Array.isArray(fieldValue) && fieldValue.length > 0 && (
-                                          <div className="mt-3 pt-3 border-t border-indigo-200">
-                                            <p className="text-xs text-indigo-700">
-                                              <span className="font-semibold">{fieldValue.length}</span> {field.inventoryType === 'properties' ? 'properties' : field.inventoryType === 'products' ? 'products' : field.inventoryType === 'menu' ? 'items' : 'rooms'} added
+                                          <div className="border-t border-slate-200 pt-3">
+                                            <p className="text-xs font-medium text-slate-600 mb-2">
+                                              {fieldValue.length} {field.inventoryType === 'properties' ? 'properties' : field.inventoryType === 'products' ? 'products' : field.inventoryType === 'menu' ? 'items' : 'rooms'}
                                             </p>
+                                            <div className="space-y-1.5 max-h-32 overflow-y-auto">
+                                              {fieldValue.slice(0, 5).map((item: any, idx: number) => (
+                                                <div key={item.id || idx} className="flex items-center justify-between py-1.5 px-2 bg-white rounded-lg border border-slate-100">
+                                                  <div className="flex items-center gap-2">
+                                                    <span className="text-sm text-slate-800">{item.name || item.title}</span>
+                                                    {item.price && <span className="text-xs text-slate-500">₹{item.price}</span>}
+                                                    {item.isVegetarian !== undefined && (
+                                                      <span className={`text-xs ${item.isVegetarian ? 'text-green-600' : 'text-red-600'}`}>
+                                                        {item.isVegetarian ? '●' : '●'}
+                                                      </span>
+                                                    )}
+                                                  </div>
+                                                  <button
+                                                    onClick={() => {
+                                                      const updated = fieldValue.filter((_: any, i: number) => i !== idx);
+                                                      handleFieldUpdate(schemaPath, updated);
+                                                    }}
+                                                    className="text-slate-400 hover:text-red-500 text-xs"
+                                                  >
+                                                    ✕
+                                                  </button>
+                                                </div>
+                                              ))}
+                                              {fieldValue.length > 5 && (
+                                                <p className="text-xs text-slate-500 text-center py-1">+{fieldValue.length - 5} more items</p>
+                                              )}
+                                            </div>
                                           </div>
                                         )}
                                       </div>
