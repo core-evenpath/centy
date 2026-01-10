@@ -990,3 +990,366 @@ export function createEmptyProfile(): Partial<BusinessPersona> {
     },
   };
 }
+
+// ============================================
+// INVENTORY MAPPING FUNCTIONS
+// Convert simplified auto-fill inventory to proper BusinessPersona schema
+// ============================================
+
+import type {
+  RoomType,
+  MenuItem,
+  MenuCategory,
+  RetailProduct,
+  PropertyListing,
+  HealthcareService,
+} from './business-persona-types';
+
+/**
+ * Generate a unique ID for inventory items
+ */
+function generateId(): string {
+  return `auto_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+}
+
+/**
+ * Map room inventory items to RoomType schema
+ */
+export function mapRoomsToRoomTypes(rooms: RoomInventoryItem[]): RoomType[] {
+  return rooms.map((room): RoomType => {
+    // Map category string to proper enum
+    const categoryMap: Record<string, RoomType['category']> = {
+      'standard': 'standard',
+      'deluxe': 'deluxe',
+      'superior': 'superior',
+      'premium': 'premium',
+      'suite': 'suite',
+      'villa': 'villa',
+      'cottage': 'cottage',
+      'dormitory': 'dormitory',
+      'apartment': 'apartment',
+      'penthouse': 'penthouse',
+    };
+
+    // Map bed type string to proper enum
+    const bedTypeMap: Record<string, 'single' | 'double' | 'twin' | 'queen' | 'king' | 'super_king'> = {
+      'single': 'single',
+      'double': 'double',
+      'twin': 'twin',
+      'queen': 'queen',
+      'king': 'king',
+      'super king': 'super_king',
+      'super_king': 'super_king',
+    };
+
+    const category = categoryMap[room.category?.toLowerCase() || ''] || 'standard';
+    const bedType = bedTypeMap[room.bedType?.toLowerCase() || ''] || 'double';
+
+    return {
+      id: generateId(),
+      name: room.name,
+      description: room.description || '',
+      category,
+      occupancy: {
+        baseOccupancy: Math.min(room.maxOccupancy || 2, 2),
+        maxOccupancy: room.maxOccupancy || 2,
+        maxAdults: room.maxOccupancy || 2,
+        maxChildren: Math.floor((room.maxOccupancy || 2) / 2),
+        infantsAllowed: true,
+        extraBedAvailable: (room.maxOccupancy || 2) > 2,
+      },
+      bedding: {
+        beds: [{
+          type: bedType,
+          count: 1,
+        }],
+      },
+      size: room.size ? {
+        value: parseInt(room.size) || 0,
+        unit: 'sqft',
+      } : undefined,
+      view: room.view,
+      pricing: {
+        basePrice: room.price || 0,
+        currency: 'INR',
+        priceType: 'per_night',
+        taxInclusive: false,
+      },
+      amenities: room.amenities?.map(a => ({
+        name: a,
+        icon: '✓',
+        included: true,
+      })) || [],
+      images: room.images?.map((url, idx) => ({
+        id: `img_${idx}`,
+        url,
+        isPrimary: idx === 0,
+      })) || [],
+      status: 'active',
+      inventory: {
+        totalRooms: 1,
+        availableRooms: 1,
+      },
+      source: 'auto_fill',
+    };
+  });
+}
+
+/**
+ * Map menu inventory items to MenuItem schema
+ */
+export function mapMenuToMenuItems(menuItems: MenuInventoryItem[]): { items: MenuItem[]; categories: MenuCategory[] } {
+  // Group items by category
+  const categoryMap = new Map<string, MenuInventoryItem[]>();
+  menuItems.forEach(item => {
+    const cat = item.category || 'Uncategorized';
+    if (!categoryMap.has(cat)) {
+      categoryMap.set(cat, []);
+    }
+    categoryMap.get(cat)!.push(item);
+  });
+
+  // Create categories
+  const categories: MenuCategory[] = Array.from(categoryMap.keys()).map((catName, idx): MenuCategory => ({
+    id: `cat_${generateId()}`,
+    name: catName,
+    description: '',
+    displayOrder: idx,
+    isActive: true,
+  }));
+
+  // Create menu items
+  const items: MenuItem[] = menuItems.map((item): MenuItem => {
+    const category = categories.find(c => c.name === (item.category || 'Uncategorized'));
+
+    // Map course from category name
+    const courseMap: Record<string, MenuItem['course']> = {
+      'appetizer': 'appetizer',
+      'appetizers': 'appetizer',
+      'starter': 'appetizer',
+      'starters': 'appetizer',
+      'soup': 'soup',
+      'soups': 'soup',
+      'salad': 'salad',
+      'salads': 'salad',
+      'main': 'main_course',
+      'main course': 'main_course',
+      'mains': 'main_course',
+      'rice': 'rice',
+      'biryani': 'rice',
+      'bread': 'bread',
+      'breads': 'bread',
+      'roti': 'bread',
+      'naan': 'bread',
+      'dessert': 'dessert',
+      'desserts': 'dessert',
+      'sweet': 'dessert',
+      'sweets': 'dessert',
+      'beverage': 'beverage',
+      'beverages': 'beverage',
+      'drinks': 'beverage',
+      'drink': 'beverage',
+      'combo': 'combo',
+      'combos': 'combo',
+      'meal': 'combo',
+      'thali': 'combo',
+    };
+
+    const course = courseMap[item.category?.toLowerCase() || ''] || 'main_course';
+
+    return {
+      id: generateId(),
+      name: item.name,
+      description: item.description || '',
+      categoryId: category?.id || '',
+      course,
+      pricing: {
+        price: item.price || 0,
+        currency: 'INR',
+        hasVariants: false,
+      },
+      dietary: {
+        isVegetarian: item.isVeg || false,
+        isVegan: item.isVegan || false,
+        isGlutenFree: false,
+        isJain: false,
+        isHalal: false,
+        containsEgg: false,
+        spiceLevel: (item.spiceLevel?.toLowerCase() as 'none' | 'mild' | 'medium' | 'hot' | 'extra_hot') || 'medium',
+        allergens: item.allergens || [],
+      },
+      availability: {
+        isAvailable: true,
+        isPopular: item.popular || false,
+        isChefSpecial: false,
+        isNewItem: false,
+        isSeasonal: false,
+      },
+      preparation: {
+        estimatedTime: 15,
+        canCustomize: true,
+      },
+      images: item.images?.map((url, idx) => ({
+        id: `img_${idx}`,
+        url,
+        isPrimary: idx === 0,
+      })) || [],
+      status: 'active',
+      source: 'auto_fill',
+    };
+  });
+
+  return { items, categories };
+}
+
+/**
+ * Map product inventory items to RetailProduct schema
+ */
+export function mapProductsToRetailProducts(products: ProductInventoryItem[]): RetailProduct[] {
+  return products.map((product): RetailProduct => ({
+    id: generateId(),
+    name: product.name,
+    description: product.description || '',
+    category: product.category || 'General',
+    brand: product.brand,
+    sku: product.sku,
+    pricing: {
+      price: product.price || 0,
+      mrp: product.mrp,
+      currency: 'INR',
+    },
+    inventory: {
+      trackInventory: true,
+      stockQuantity: product.inStock ? 100 : 0,
+      inStock: product.inStock ?? true,
+      stockStatus: product.inStock ? 'in_stock' : 'out_of_stock',
+    },
+    specifications: product.specifications,
+    images: product.images?.map((url, idx) => ({
+      id: `img_${idx}`,
+      url,
+      isPrimary: idx === 0,
+    })) || [],
+    status: 'active',
+    visibility: 'visible',
+    source: 'auto_fill',
+  }));
+}
+
+/**
+ * Map property inventory items to PropertyListing schema
+ */
+export function mapPropertiesToPropertyListings(properties: PropertyInventoryItem[]): PropertyListing[] {
+  return properties.map((property): PropertyListing => {
+    // Map property type
+    const typeMap: Record<string, PropertyListing['type']> = {
+      'apartment': 'apartment',
+      'flat': 'apartment',
+      'villa': 'villa',
+      'house': 'independent_house',
+      'independent house': 'independent_house',
+      'plot': 'plot',
+      'land': 'plot',
+      'commercial': 'commercial',
+      'office': 'office',
+      'shop': 'shop',
+      'warehouse': 'warehouse',
+      'pg': 'pg',
+      'penthouse': 'penthouse',
+      'studio': 'studio',
+      'farmhouse': 'farmhouse',
+    };
+
+    const propType = typeMap[property.type?.toLowerCase() || ''] || 'apartment';
+    const transactionType = (property.transactionType?.toLowerCase() === 'rent' ? 'rent' : 'sale') as 'sale' | 'rent';
+
+    return {
+      id: generateId(),
+      title: property.title,
+      description: property.description || '',
+      type: propType,
+      transactionType,
+      status: 'available',
+      location: {
+        locality: property.location || '',
+        city: '',
+        state: '',
+        country: 'India',
+      },
+      specifications: {
+        bedrooms: property.bedrooms,
+        bathrooms: property.bathrooms,
+        carpetArea: property.area ? {
+          value: parseInt(property.area) || 0,
+          unit: 'sqft',
+        } : undefined,
+      },
+      pricing: {
+        price: property.price || 0,
+        priceType: transactionType === 'rent' ? 'monthly' : 'total',
+        currency: 'INR',
+        negotiable: true,
+      },
+      amenities: property.amenities?.map(a => ({
+        name: a,
+        available: true,
+      })) || [],
+      images: property.images?.map((url, idx) => ({
+        id: `img_${idx}`,
+        url,
+        isPrimary: idx === 0,
+      })) || [],
+      source: 'auto_fill',
+    };
+  });
+}
+
+/**
+ * Map service inventory items to HealthcareService schema
+ */
+export function mapServicesToHealthcareServices(services: ServiceInventoryItem[]): HealthcareService[] {
+  return services.map((service): HealthcareService => {
+    // Map category
+    const categoryMap: Record<string, HealthcareService['category']> = {
+      'consultation': 'consultation',
+      'treatment': 'treatment',
+      'diagnostic': 'diagnostic',
+      'test': 'diagnostic',
+      'surgery': 'surgery',
+      'therapy': 'therapy',
+      'vaccination': 'vaccination',
+      'checkup': 'checkup',
+      'procedure': 'procedure',
+    };
+
+    const category = categoryMap[service.category?.toLowerCase() || ''] || 'consultation';
+
+    return {
+      id: generateId(),
+      name: service.name,
+      description: service.description || '',
+      category,
+      department: service.specialization,
+      specialization: service.specialization,
+      provider: service.doctor ? {
+        type: 'doctor',
+        name: service.doctor,
+      } : undefined,
+      pricing: {
+        price: service.price || 0,
+        priceType: 'fixed',
+        currency: 'INR',
+      },
+      duration: service.duration ? {
+        estimated: parseInt(service.duration) || 30,
+        unit: 'minutes',
+      } : undefined,
+      availability: {
+        isAvailable: true,
+        schedule: service.availability,
+      },
+      status: 'active',
+      source: 'auto_fill',
+    };
+  });
+}

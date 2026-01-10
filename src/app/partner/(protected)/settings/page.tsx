@@ -7,7 +7,7 @@ import { getPartnerProfileAction } from '@/actions/get-partner-profile';
 import { getBusinessPersonaAction, saveBusinessPersonaAction } from '@/actions/business-persona-actions';
 
 import { getPartnerInvitationCodesAction, generateEmployeeInvitationCodeAction, cancelInvitationCodeAction } from '@/actions/partner-invitation-management';
-import { searchBusinessesAction, autoFillProfileAction, getEmptyProfileAction } from '@/actions/business-autofill-actions';
+import { searchBusinessesAction, autoFillProfileAction, getEmptyProfileAction, mapInventoryToPersonaAction, processForRAGAction } from '@/actions/business-autofill-actions';
 import { db } from '@/lib/firebase';
 import { collection, query, where, getDocs, Timestamp } from 'firebase/firestore';
 import { toast } from 'sonner';
@@ -1856,39 +1856,14 @@ const SettingsUltimate = () => {
                         <button
                           onClick={async () => {
                             try {
-                              // Merge auto-fill data with existing persona
-                              const mergedPersona = {
-                                ...persona,
-                                identity: {
-                                  ...persona.identity,
-                                  ...autoFillPreviewData.identity,
-                                },
-                                personality: {
-                                  ...persona.personality,
-                                  ...autoFillPreviewData.personality,
-                                },
-                                customerProfile: {
-                                  ...persona.customerProfile,
-                                  ...autoFillPreviewData.customerProfile,
-                                },
-                                knowledge: {
-                                  ...persona.knowledge,
-                                  ...autoFillPreviewData.knowledge,
-                                },
-                                industrySpecificData: {
-                                  ...persona.industrySpecificData,
-                                  ...autoFillPreviewData.industrySpecificData,
-                                  // Store photos and reviews for RAG
-                                  fetchedPhotos: autoFillPreviewData.photos,
-                                  fetchedReviews: autoFillPreviewData.reviews,
-                                  onlinePresence: autoFillPreviewData.onlinePresence,
-                                  testimonials: autoFillPreviewData.testimonials,
-                                  // Store inventory data for RAG
-                                  inventory: autoFillPreviewData.inventory,
-                                  // Store "From the Web" data for RAG
-                                  fromTheWeb: autoFillPreviewData.fromTheWeb,
-                                },
-                              };
+                              // Use the server action to properly map inventory to schema
+                              const result = await mapInventoryToPersonaAction(autoFillPreviewData, persona);
+
+                              if (!result.success || !result.persona) {
+                                throw new Error(result.error || 'Failed to map inventory');
+                              }
+
+                              const mergedPersona = result.persona;
 
                               setPersona(mergedPersona);
                               await saveBusinessPersonaAction(partnerId!, mergedPersona);
@@ -1910,7 +1885,20 @@ const SettingsUltimate = () => {
                                 }
                               }
 
-                              toast.success('Profile updated with auto-filled data!');
+                              // Show success with inventory counts
+                              const inv = autoFillPreviewData.inventory;
+                              const counts = [];
+                              if (inv?.rooms?.length) counts.push(`${inv.rooms.length} rooms`);
+                              if (inv?.menuItems?.length) counts.push(`${inv.menuItems.length} menu items`);
+                              if (inv?.products?.length) counts.push(`${inv.products.length} products`);
+                              if (inv?.properties?.length) counts.push(`${inv.properties.length} properties`);
+                              if (inv?.services?.length) counts.push(`${inv.services.length} services`);
+
+                              const message = counts.length > 0
+                                ? `Profile updated! Imported: ${counts.join(', ')}`
+                                : 'Profile updated with auto-filled data!';
+
+                              toast.success(message);
                               setShowAutoFillPreview(false);
                               setAutoFillSearch('');
                               setSelectedPlace(null);
@@ -1921,6 +1909,25 @@ const SettingsUltimate = () => {
                           className="flex-1 px-4 py-2.5 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-xl font-medium text-sm hover:from-indigo-700 hover:to-purple-700 transition-all"
                         >
                           Apply to Profile
+                        </button>
+                        <button
+                          onClick={async () => {
+                            try {
+                              const result = await processForRAGAction(partnerId!, autoFillPreviewData);
+
+                              if (!result.success) {
+                                throw new Error(result.error || 'Failed to process for RAG');
+                              }
+
+                              toast.success(result.message || 'Data queued for RAG processing!');
+                              console.log('[RAG] Document ID:', result.ragDocumentId);
+                            } catch (err: any) {
+                              toast.error(err.message || 'Failed to process for RAG');
+                            }
+                          }}
+                          className="px-4 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 text-white rounded-xl font-medium text-sm hover:from-emerald-700 hover:to-teal-700 transition-all flex items-center gap-2"
+                        >
+                          <span>🧠</span> Process for RAG
                         </button>
                       </div>
                     </div>

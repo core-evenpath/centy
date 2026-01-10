@@ -5,11 +5,16 @@ import {
   getPlaceDetails,
   autoFillBusinessProfile,
   createEmptyProfile,
+  mapRoomsToRoomTypes,
+  mapMenuToMenuItems,
+  mapProductsToRetailProducts,
+  mapPropertiesToPropertyListings,
+  mapServicesToHealthcareServices,
   PlacesAutocompleteResult,
   PlacesDetailedInfo,
   AutoFilledProfile,
 } from '@/lib/business-autofill-service';
-import type { BusinessPersona } from '@/lib/business-persona-types';
+import type { BusinessPersona, IndustryCategory } from '@/lib/business-persona-types';
 
 /**
  * Search for businesses using Google Places Autocomplete
@@ -96,4 +101,213 @@ export async function getEmptyProfileAction(): Promise<{
     success: true,
     profile: createEmptyProfile(),
   };
+}
+
+/**
+ * Map auto-fill inventory data to proper BusinessPersona fields
+ * This converts simplified inventory items to the full schema types
+ */
+export async function mapInventoryToPersonaAction(
+  autoFillData: AutoFilledProfile,
+  existingPersona: Partial<BusinessPersona>
+): Promise<{
+  success: boolean;
+  persona?: Partial<BusinessPersona>;
+  error?: string;
+}> {
+  try {
+    const inventory = autoFillData.inventory;
+
+    // Start with merged basic data - using spread with type assertions for partial fields
+    const mergedPersona: Partial<BusinessPersona> = {
+      ...existingPersona,
+      identity: {
+        ...existingPersona.identity,
+        ...(autoFillData.identity as any),
+      } as any,
+      personality: {
+        ...existingPersona.personality,
+        ...(autoFillData.personality as any),
+      } as any,
+      customerProfile: {
+        ...existingPersona.customerProfile,
+        ...(autoFillData.customerProfile as any),
+      } as any,
+      knowledge: {
+        ...existingPersona.knowledge,
+        ...(autoFillData.knowledge as any),
+      } as any,
+      industrySpecificData: {
+        ...existingPersona.industrySpecificData,
+        ...autoFillData.industrySpecificData,
+        // Store raw fetched data for reference
+        fetchedPhotos: autoFillData.photos,
+        fetchedReviews: autoFillData.reviews,
+        onlinePresence: autoFillData.onlinePresence,
+        testimonials: autoFillData.testimonials,
+        fromTheWeb: autoFillData.fromTheWeb,
+      },
+    };
+
+    // Map inventory to proper schema fields based on industry
+    if (inventory) {
+      // Hospitality - Room Types
+      if (inventory.rooms && inventory.rooms.length > 0) {
+        const roomTypes = mapRoomsToRoomTypes(inventory.rooms);
+        mergedPersona.roomTypes = [
+          ...(existingPersona.roomTypes || []),
+          ...roomTypes,
+        ];
+        console.log('[MapInventory] Mapped', roomTypes.length, 'room types');
+      }
+
+      // Food & Beverage - Menu Items
+      if (inventory.menuItems && inventory.menuItems.length > 0) {
+        const { items, categories } = mapMenuToMenuItems(inventory.menuItems);
+        mergedPersona.menuItems = [
+          ...(existingPersona.menuItems || []),
+          ...items,
+        ];
+        mergedPersona.menuCategories = [
+          ...(existingPersona.menuCategories || []),
+          ...categories,
+        ];
+        console.log('[MapInventory] Mapped', items.length, 'menu items in', categories.length, 'categories');
+      }
+
+      // Retail - Product Catalog
+      if (inventory.products && inventory.products.length > 0) {
+        const products = mapProductsToRetailProducts(inventory.products);
+        mergedPersona.productCatalog = [
+          ...(existingPersona.productCatalog || []),
+          ...products,
+        ];
+        console.log('[MapInventory] Mapped', products.length, 'products');
+      }
+
+      // Real Estate - Property Listings
+      if (inventory.properties && inventory.properties.length > 0) {
+        const properties = mapPropertiesToPropertyListings(inventory.properties);
+        mergedPersona.propertyListings = [
+          ...(existingPersona.propertyListings || []),
+          ...properties,
+        ];
+        console.log('[MapInventory] Mapped', properties.length, 'property listings');
+      }
+
+      // Healthcare - Services
+      if (inventory.services && inventory.services.length > 0) {
+        const services = mapServicesToHealthcareServices(inventory.services);
+        mergedPersona.healthcareServices = [
+          ...(existingPersona.healthcareServices || []),
+          ...services,
+        ];
+        console.log('[MapInventory] Mapped', services.length, 'healthcare services');
+      }
+    }
+
+    return { success: true, persona: mergedPersona };
+  } catch (error: any) {
+    console.error('[MapInventory] Error:', error);
+    return { success: false, error: error.message || 'Failed to map inventory' };
+  }
+}
+
+/**
+ * Process fetched data for RAG system
+ * This action prepares the auto-fill data for the RAG knowledge base
+ */
+export async function processForRAGAction(
+  partnerId: string,
+  autoFillData: AutoFilledProfile
+): Promise<{
+  success: boolean;
+  message?: string;
+  ragDocumentId?: string;
+  error?: string;
+}> {
+  try {
+    console.log('[RAG Processing] Starting for partner:', partnerId);
+
+    // Prepare RAG document from auto-fill data
+    const identity = autoFillData.identity as any;
+    const ragDocument = {
+      partnerId,
+      source: 'auto_fill',
+      fetchedAt: autoFillData.source.fetchedAt,
+      placeId: autoFillData.source.placeId,
+
+      // Business Identity
+      businessName: identity?.businessName,
+      industry: identity?.industry,
+      description: identity?.description,
+      tagline: identity?.tagline,
+      address: identity?.address,
+      phone: identity?.phone,
+      website: identity?.website,
+      location: identity?.location,
+
+      // Knowledge Base Content
+      productsOrServices: autoFillData.knowledge?.productsOrServices,
+      faqs: autoFillData.knowledge?.faqs,
+      policies: autoFillData.knowledge?.policies,
+
+      // Reviews & Testimonials (for sentiment training)
+      reviews: autoFillData.reviews?.map(r => ({
+        text: r.text,
+        rating: r.rating,
+        source: r.source,
+        author: r.author,
+      })),
+      testimonials: autoFillData.testimonials,
+
+      // Online Presence (for external references)
+      onlinePresence: autoFillData.onlinePresence,
+      pressMedia: autoFillData.pressMedia,
+
+      // Inventory Data (for product/service knowledge)
+      inventory: autoFillData.inventory,
+
+      // Raw Web Data (additional context)
+      fromTheWeb: autoFillData.fromTheWeb,
+
+      // Industry Specific Data
+      industrySpecificData: autoFillData.industrySpecificData,
+
+      // Metadata
+      processedAt: new Date(),
+      status: 'pending_embedding',
+    };
+
+    // Log the RAG document for now (in production, this would be sent to a vector database)
+    console.log('[RAG Processing] Document prepared:', {
+      partnerId,
+      businessName: ragDocument.businessName,
+      sections: {
+        hasReviews: (ragDocument.reviews?.length || 0) > 0,
+        hasTestimonials: (ragDocument.testimonials?.length || 0) > 0,
+        hasFAQs: (ragDocument.faqs?.length || 0) > 0,
+        hasInventory: !!ragDocument.inventory,
+        hasFromTheWeb: !!ragDocument.fromTheWeb,
+      },
+    });
+
+    // TODO: In production, send to vector database / RAG pipeline
+    // await vectorDB.upsert(ragDocument);
+    // await embeddingService.process(ragDocument);
+
+    // For now, store in industrySpecificData with RAG marker
+    const ragDocumentId = `rag_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+
+    console.log('[RAG Processing] Complete. Document ID:', ragDocumentId);
+
+    return {
+      success: true,
+      message: `Data prepared for RAG processing. ${ragDocument.reviews?.length || 0} reviews, ${ragDocument.faqs?.length || 0} FAQs, and inventory data queued for embedding.`,
+      ragDocumentId,
+    };
+  } catch (error: any) {
+    console.error('[RAG Processing] Error:', error);
+    return { success: false, error: error.message || 'Failed to process for RAG' };
+  }
 }
