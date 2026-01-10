@@ -21,6 +21,8 @@ import type {
 } from '@/lib/business-persona-types';
 import SettingsAIChat from '@/components/partner/settings/SettingsAIChat';
 import ProfileDocuments from '@/components/partner/settings/ProfileDocuments';
+import ProfileSummary from '@/components/partner/settings/ProfileSummary';
+import FieldConnectionAudit from '@/components/partner/settings/FieldConnectionAudit';
 
 const SettingsUltimate = () => {
   const router = useRouter();
@@ -1223,6 +1225,11 @@ const SettingsUltimate = () => {
                     <ProfileDocuments partnerId={partnerId} />
                   </div>
                 )}
+
+                {/* Profile Summary Section */}
+                <div className="mt-6 bg-white rounded-2xl border border-slate-200 p-5">
+                  <ProfileSummary persona={persona} />
+                </div>
               </div>
             )}
 
@@ -1454,6 +1461,10 @@ const SettingsUltimate = () => {
                       </select>
                     </div>
                   </div>
+                </div>
+                {/* Field Connection Audit */}
+                <div className="bg-white rounded-2xl border border-slate-200 p-6">
+                  <FieldConnectionAudit />
                 </div>
               </div>
             )}
