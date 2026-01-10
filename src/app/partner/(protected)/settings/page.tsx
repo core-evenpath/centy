@@ -19,6 +19,7 @@ import type {
   ProductService,
   FrequentlyAskedQuestion
 } from '@/lib/business-persona-types';
+import SettingsAIChat from '@/components/partner/settings/SettingsAIChat';
 
 const SettingsUltimate = () => {
   const router = useRouter();
@@ -29,6 +30,7 @@ const SettingsUltimate = () => {
   const [selectedBusinessTypes, setSelectedBusinessTypes] = useState<string[]>([]);
   const [expandedSection, setExpandedSection] = useState<string | null>('identity');
   const [showAICoach, setShowAICoach] = useState(true);
+  const [showAIChat, setShowAIChat] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [showInviteModal, setShowInviteModal] = useState(false);
   const [inviteForm, setInviteForm] = useState<{ name: string; phone: string; role: 'employee' | 'partner_admin' }>({ name: '', phone: '', role: 'employee' });
@@ -202,6 +204,20 @@ const SettingsUltimate = () => {
       }
     } catch (er) {
       toast.error("Failed to cancel invitation");
+    }
+  };
+
+  // Refresh persona data after AI chat updates
+  const handlePersonaRefresh = async () => {
+    if (!partnerId) return;
+    try {
+      const personaResult = await getBusinessPersonaAction(partnerId);
+      if (personaResult.success && personaResult.persona) {
+        setPersona(personaResult.persona);
+        toast.success("Profile updated by AI");
+      }
+    } catch (error) {
+      console.error("Error refreshing persona:", error);
     }
   };
 
@@ -927,6 +943,14 @@ const SettingsUltimate = () => {
                     <h2 className="text-2xl font-bold text-slate-900">Business Profile</h2>
                     <p className="text-slate-500">Data that powers your AI agents</p>
                   </div>
+                  {/* Mobile AI Chat Button */}
+                  <button
+                    onClick={() => setShowAIChat(true)}
+                    className="xl:hidden flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-xl font-medium text-sm hover:from-indigo-700 hover:to-purple-700 transition-all shadow-sm"
+                  >
+                    <span>✨</span>
+                    <span className="hidden sm:inline">AI Update</span>
+                  </button>
                 </div>
 
                 {/* Business Types Selection Card */}
@@ -1417,6 +1441,32 @@ const SettingsUltimate = () => {
                 </div>
               </div>
 
+              {/* AI Chat Button */}
+              <button
+                onClick={() => setShowAIChat(true)}
+                className="w-full py-3 px-4 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-xl font-medium text-sm hover:from-indigo-700 hover:to-purple-700 transition-all shadow-sm flex items-center justify-center gap-2"
+              >
+                <span>✨</span>
+                Update Profile with AI
+              </button>
+
+              {/* Quick Tips */}
+              <div>
+                <h4 className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">Quick Tips</h4>
+                <div className="space-y-2">
+                  <div className="p-3 bg-indigo-50 rounded-lg border border-indigo-100">
+                    <p className="text-xs text-indigo-700">
+                      <strong>AI Chat:</strong> Say "Update my hours" or "Add a service" to make changes instantly
+                    </p>
+                  </div>
+                  <div className="p-3 bg-emerald-50 rounded-lg border border-emerald-100">
+                    <p className="text-xs text-emerald-700">
+                      <strong>Documents:</strong> AI can read your uploaded documents and extract business info
+                    </p>
+                  </div>
+                </div>
+              </div>
+
               {/* Suggestions */}
               <div>
                 <h4 className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">Priority Actions</h4>
@@ -1426,11 +1476,24 @@ const SettingsUltimate = () => {
               </div>
             </div>
 
-            {/* Chat Input */}
-            <div className="p-4 border-t border-slate-200">
-              <p className="text-xs text-center text-slate-500 mb-2">Use the chat below to update settings</p>
+            {/* Footer */}
+            <div className="p-4 border-t border-slate-200 bg-slate-50">
+              <p className="text-xs text-center text-slate-500">
+                Changes here sync to your Inbox AI automatically
+              </p>
             </div>
           </div>
+        )}
+
+        {/* AI Chat Panel */}
+        {partnerId && (
+          <SettingsAIChat
+            partnerId={partnerId}
+            persona={persona}
+            onPersonaUpdated={handlePersonaRefresh}
+            isOpen={showAIChat}
+            onClose={() => setShowAIChat(false)}
+          />
         )}
       </div>
 
