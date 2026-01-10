@@ -19,10 +19,10 @@ import type {
   ProductService,
   FrequentlyAskedQuestion
 } from '@/lib/business-persona-types';
-import SettingsAIChat from '@/components/partner/settings/SettingsAIChat';
 import ProfileDocuments from '@/components/partner/settings/ProfileDocuments';
 import ProfileSummary from '@/components/partner/settings/ProfileSummary';
 import FieldConnectionAudit from '@/components/partner/settings/FieldConnectionAudit';
+import BusinessProfileAgent from '@/components/partner/settings/BusinessProfileAgent';
 
 const SettingsUltimate = () => {
   const router = useRouter();
@@ -32,7 +32,6 @@ const SettingsUltimate = () => {
   const [activeTab, setActiveTab] = useState('profile');
   const [selectedBusinessTypes, setSelectedBusinessTypes] = useState<string[]>([]);
   const [expandedSection, setExpandedSection] = useState<string | null>('identity');
-  const [showAICoach, setShowAICoach] = useState(true);
   const [showAIChat, setShowAIChat] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [showInviteModal, setShowInviteModal] = useState(false);
@@ -895,7 +894,7 @@ const SettingsUltimate = () => {
         {activeTab === 'profile' && (
           <div className="p-3 border-t border-slate-100">
             <div
-              onClick={() => setShowAICoach(!showAICoach)}
+              onClick={() => setShowAIChat(true)}
               className="bg-gradient-to-br from-emerald-500 to-teal-600 rounded-xl p-4 text-white cursor-pointer hover:opacity-95 transition-opacity"
             >
               <div className="flex items-center justify-between mb-3">
@@ -907,7 +906,7 @@ const SettingsUltimate = () => {
               </div>
               <div className="flex items-center justify-between mt-2">
                 <span className="text-xs text-emerald-100">AI Suggestions</span>
-                <span className="text-xs text-emerald-100">{showAICoach ? 'Hide' : 'Show'} Coach →</span>
+                <span className="text-xs text-emerald-100">Open Agent →</span>
               </div>
             </div>
           </div>
@@ -934,7 +933,7 @@ const SettingsUltimate = () => {
 
       {/* Main Content */}
       <div className="flex-1 ml-64 min-w-0">
-        <div className={cn("transition-all duration-300", showAICoach && activeTab === 'profile' ? 'mr-0 xl:mr-80' : '')}>
+        <div className="transition-all duration-300">
           <div className="max-w-4xl mx-auto p-4 md:p-8">
 
             {/* ===== BUSINESS PROFILE TAB ===== */}
@@ -1481,89 +1480,14 @@ const SettingsUltimate = () => {
           </div>
         </div>
 
-        {/* AI Profile Coach Panel */}
-        {showAICoach && activeTab === 'profile' && (
-          <div className="hidden xl:flex w-80 bg-white border-l border-slate-200 fixed right-0 top-0 bottom-0 flex-col z-30 shadow-xl">
-            <div className="px-4 py-4 border-b border-slate-200 bg-gradient-to-r from-emerald-500 to-teal-600 text-white">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <span className="text-xl">🧠</span>
-                  <div>
-                    <h3 className="font-bold text-sm">AI Profile Coach</h3>
-                    <p className="text-xs text-emerald-100">Improving your AI</p>
-                  </div>
-                </div>
-                <button
-                  onClick={() => setShowAICoach(false)}
-                  className="text-white/70 hover:text-white text-lg"
-                >
-                  ×
-                </button>
-              </div>
-            </div>
-
-            <div className="flex-1 overflow-y-auto p-4 space-y-4">
-              {/* Score */}
-              <div className="bg-slate-50 rounded-xl p-4 text-center">
-                <div className="text-4xl font-bold text-slate-900">{profileScore}%</div>
-                <div className="text-sm text-slate-500 mb-3">Profile Score</div>
-                <div className="h-2 bg-slate-200 rounded-full overflow-hidden">
-                  <div className="h-full bg-gradient-to-r from-emerald-400 to-teal-500 rounded-full" style={{ width: `${profileScore}%` }} />
-                </div>
-              </div>
-
-              {/* AI Chat Button */}
-              <button
-                onClick={() => setShowAIChat(true)}
-                className="w-full py-3 px-4 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-xl font-medium text-sm hover:from-indigo-700 hover:to-purple-700 transition-all shadow-sm flex items-center justify-center gap-2"
-              >
-                <span>✨</span>
-                Update Profile with AI
-              </button>
-
-              {/* Quick Tips */}
-              <div>
-                <h4 className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">Quick Tips</h4>
-                <div className="space-y-2">
-                  <div className="p-3 bg-indigo-50 rounded-lg border border-indigo-100">
-                    <p className="text-xs text-indigo-700">
-                      <strong>AI Chat:</strong> Say "Update my hours" or "Add a service" to make changes instantly
-                    </p>
-                  </div>
-                  <div className="p-3 bg-emerald-50 rounded-lg border border-emerald-100">
-                    <p className="text-xs text-emerald-700">
-                      <strong>Documents:</strong> AI can read your uploaded documents and extract business info
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              {/* Suggestions */}
-              <div>
-                <h4 className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">Priority Actions</h4>
-                <div className="text-sm text-slate-500 text-center py-4">
-                  {profileScore === 100 ? "Great job! Profile complete." : "Add more details to reach 100%."}
-                </div>
-              </div>
-            </div>
-
-            {/* Footer */}
-            <div className="p-4 border-t border-slate-200 bg-slate-50">
-              <p className="text-xs text-center text-slate-500">
-                Changes here sync to your Inbox AI automatically
-              </p>
-            </div>
-          </div>
-        )}
-
-        {/* AI Chat Panel */}
+        {/* Business Profile Agent - Intercom-style Chat */}
         {partnerId && (
-          <SettingsAIChat
+          <BusinessProfileAgent
             partnerId={partnerId}
             persona={persona}
             onPersonaUpdated={handlePersonaRefresh}
-            isOpen={showAIChat}
-            onClose={() => setShowAIChat(false)}
+            open={showAIChat}
+            onOpenChange={setShowAIChat}
           />
         )}
       </div>
