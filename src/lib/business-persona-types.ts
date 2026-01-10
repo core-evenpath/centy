@@ -682,6 +682,9 @@ export interface BusinessPersona {
     customerProfile: CustomerProfile;
     knowledge: BusinessKnowledge;
 
+    // Industry specific extended data
+    industrySpecificData?: Record<string, any>;
+
     // Setup progress
     setupProgress: SetupProgress;
 

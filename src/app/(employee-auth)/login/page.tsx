@@ -7,8 +7,8 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Input } from '../../../components/ui/input';
 import { Label } from '../../../components/ui/label';
 import { useToast } from '../../../hooks/use-toast';
-import { getAuth, RecaptchaVerifier, signInWithPhoneNumber, ConfirmationResult } from 'firebase/auth';
-import { app } from '../../../lib/firebase';
+import { RecaptchaVerifier, signInWithPhoneNumber, ConfirmationResult } from 'firebase/auth';
+import { auth, app } from '../../../lib/firebase';
 import { Phone, KeyRound, Building2, AlertCircle, ArrowLeft, RefreshCw } from 'lucide-react';
 import Link from 'next/link';
 import { handlePhoneAuthAction } from '../../../actions/employee-phone-actions';
@@ -28,25 +28,43 @@ export default function EmployeeLoginPage() {
   const [recaptchaError, setRecaptchaError] = useState<string | null>(null);
   const router = useRouter();
   const { toast } = useToast();
-  const auth = getAuth(app);
   const recaptchaVerifierRef = useRef<RecaptchaVerifier | null>(null);
 
   useEffect(() => {
+    // Initialize reCAPTCHA verifier only if it doesn't exist
     if (!recaptchaVerifierRef.current) {
-        recaptchaVerifierRef.current = new RecaptchaVerifier(auth, 'recaptcha-container', {
+      try {
+        const container = document.getElementById('recaptcha-container');
+        if (container) {
+          recaptchaVerifierRef.current = new RecaptchaVerifier(auth, 'recaptcha-container', {
             'size': 'invisible',
             'callback': (response: any) => {
-                console.log("reCAPTCHA solved, automatically submitting form.");
+              console.log("reCAPTCHA solved, automatically submitting form.");
             },
             'expired-callback': () => {
-                setRecaptchaError("reCAPTCHA token expired. Please try sending the code again.");
+              setRecaptchaError("reCAPTCHA token expired. Please try sending the code again.");
             }
-        });
+          });
+        }
+      } catch (error: any) {
+        console.error("Error initializing reCAPTCHA:", error);
+        setRecaptchaError("reCAPTCHA initialization failed. Please refresh the page.");
+      }
     }
+
     return () => {
-      recaptchaVerifierRef.current?.clear();
+      if (recaptchaVerifierRef.current) {
+        try {
+          recaptchaVerifierRef.current.clear();
+        } catch (error: any) {
+          // Silent catch for internal-error as it's just cleanup
+          console.warn("Error clearing reCAPTCHA:", error);
+        } finally {
+          recaptchaVerifierRef.current = null;
+        }
+      }
     };
-  }, [auth]);
+  }, []);
 
 
   const formatPhoneNumber = (phone: string): string => {
@@ -61,11 +79,11 @@ export default function EmployeeLoginPage() {
     const phoneRegex = /^\+[1-9]\d{7,14}$/;
     return phoneRegex.test(phone);
   };
-  
+
   const handleAuthError = (error: any) => {
     let title = "Failed to Send OTP";
     let description = "Please try again.";
-    
+
     switch (error.code) {
       case 'auth/invalid-phone-number':
         description = "Invalid phone number format. Please include the country code (e.g., +1234567890).";
@@ -97,9 +115,9 @@ export default function EmployeeLoginPage() {
 
     const appVerifier = recaptchaVerifierRef.current;
     if (!appVerifier) {
-        toast({ variant: 'destructive', title: "Error", description: "reCAPTCHA not initialized. Please refresh." });
-        setIsLoading(false);
-        return;
+      toast({ variant: 'destructive', title: "Error", description: "reCAPTCHA not initialized. Please refresh." });
+      setIsLoading(false);
+      return;
     }
 
     try {
@@ -115,26 +133,26 @@ export default function EmployeeLoginPage() {
       setPhoneNumber(formattedPhone);
       toast({ title: "OTP Sent! 📱", description: "Please check your phone for the verification code." });
     } catch (error: any) {
-        handleAuthError(error);
-        // Fallback for certain environments where invisible reCAPTCHA fails.
-        if (error.code === 'auth/captcha-check-failed') {
-            try {
-                const widgetId = await appVerifier.render();
-                appVerifier.verify(widgetId).then(async (response) => {
-                    const confirmationResult = await signInWithPhoneNumber(auth, phoneNumber, appVerifier);
-                    window.confirmationResult = confirmationResult;
-                    setOtpSent(true);
-                    toast({ title: "reCAPTCHA Verified!", description: "OTP sent. Please check your phone." });
-                });
-            } catch (renderError) {
-                console.error("reCAPTCHA render fallback failed", renderError);
-            }
+      handleAuthError(error);
+      // Fallback for certain environments where invisible reCAPTCHA fails.
+      if (error.code === 'auth/captcha-check-failed') {
+        try {
+          const widgetId = await appVerifier.render();
+          appVerifier.verify().then(async () => {
+            const confirmationResult = await signInWithPhoneNumber(auth, phoneNumber, appVerifier);
+            window.confirmationResult = confirmationResult;
+            setOtpSent(true);
+            toast({ title: "reCAPTCHA Verified!", description: "OTP sent. Please check your phone." });
+          });
+        } catch (renderError) {
+          console.error("reCAPTCHA render fallback failed", renderError);
         }
+      }
     } finally {
       setIsLoading(false);
     }
   };
-  
+
   const handleVerifyOtp = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
@@ -145,17 +163,17 @@ export default function EmployeeLoginPage() {
 
       const userCredential = await window.confirmationResult.confirm(otp);
       const user = userCredential.user;
-      
+
       const setupResult = await handlePhoneAuthAction(user.phoneNumber!, user.uid);
-      if(!setupResult.success) {
+      if (!setupResult.success) {
         throw new Error(setupResult.message);
       }
-      
+
       toast({ title: "Login Successful! ✅", description: "Redirecting to your dashboard..." });
       router.push('/employee');
     } catch (error: any) {
       let description = "Please check the code and try again.";
-      if(error.code === 'auth/invalid-verification-code') {
+      if (error.code === 'auth/invalid-verification-code') {
         description = "Invalid verification code. Please check the 6-digit code from your SMS.";
       } else if (error.code === 'auth/code-expired') {
         description = "Verification code has expired. Please request a new one.";
@@ -171,7 +189,7 @@ export default function EmployeeLoginPage() {
     setOtp('');
     setRecaptchaError(null);
   };
-  
+
   return (
     <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-blue-50 to-indigo-50">
       <div className="w-full max-w-md space-y-6">
@@ -188,7 +206,7 @@ export default function EmployeeLoginPage() {
             </div>
             <CardTitle className="font-headline text-2xl">Employee Login</CardTitle>
             <CardDescription>
-              {otpSent 
+              {otpSent
                 ? "Enter the verification code sent to your phone"
                 : "Sign in with your phone number to access your workspace"
               }
@@ -197,7 +215,7 @@ export default function EmployeeLoginPage() {
 
           {recaptchaError && (
             <div className="mx-6 mb-4 p-3 bg-red-50 border border-red-200 rounded-lg">
-                <p className="text-sm text-red-800">{recaptchaError}</p>
+              <p className="text-sm text-red-800">{recaptchaError}</p>
             </div>
           )}
 
