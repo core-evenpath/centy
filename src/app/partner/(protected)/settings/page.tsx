@@ -1127,20 +1127,26 @@ const SettingsUltimate = () => {
                                       />
                                     ) : field.type === 'tags' ? (
                                       <div className="flex flex-wrap gap-2 p-2 border border-slate-200 rounded-xl min-h-[42px]">
-                                        {(fieldValue || []).map((tag: string) => (
-                                          <span key={tag} className="px-2.5 py-1 bg-slate-100 text-slate-700 rounded-lg text-sm flex items-center gap-1">
-                                            {tag}
-                                            <button
-                                              onClick={() => {
-                                                const newTags = (fieldValue || []).filter((t: string) => t !== tag);
-                                                handleFieldUpdate(schemaPath, newTags);
-                                              }}
-                                              className="text-slate-400 hover:text-slate-600"
-                                            >
-                                              ×
-                                            </button>
-                                          </span>
-                                        ))}
+                                        {(fieldValue || []).map((tag: any, idx: number) => {
+                                          // Handle both string tags and ProductService objects
+                                          const displayText = typeof tag === 'string' ? tag : (tag?.name || tag?.id || `Item ${idx + 1}`);
+                                          const tagKey = typeof tag === 'string' ? tag : (tag?.id || `tag-${idx}`);
+
+                                          return (
+                                            <span key={tagKey} className="px-2.5 py-1 bg-slate-100 text-slate-700 rounded-lg text-sm flex items-center gap-1">
+                                              {displayText}
+                                              <button
+                                                onClick={() => {
+                                                  const newTags = (fieldValue || []).filter((_: any, i: number) => i !== idx);
+                                                  handleFieldUpdate(schemaPath, newTags);
+                                                }}
+                                                className="text-slate-400 hover:text-slate-600"
+                                              >
+                                                ×
+                                              </button>
+                                            </span>
+                                          );
+                                        })}
                                         <input
                                           type="text"
                                           placeholder="Add & Enter..."
@@ -1150,7 +1156,12 @@ const SettingsUltimate = () => {
                                               e.preventDefault();
                                               const val = e.currentTarget.value.trim();
                                               if (val) {
-                                                const newTags = [...(fieldValue || []), val];
+                                                // For productsOrServices, create a ProductService object
+                                                const isProductField = schemaPath.includes('productsOrServices');
+                                                const newItem = isProductField
+                                                  ? { id: `ps-${Date.now()}`, name: val, description: '' }
+                                                  : val;
+                                                const newTags = [...(fieldValue || []), newItem];
                                                 handleFieldUpdate(schemaPath, newTags);
                                                 e.currentTarget.value = '';
                                               }
