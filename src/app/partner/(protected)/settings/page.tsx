@@ -7,6 +7,7 @@ import { getPartnerProfileAction } from '@/actions/get-partner-profile';
 import { getBusinessPersonaAction, saveBusinessPersonaAction } from '@/actions/business-persona-actions';
 
 import { getPartnerInvitationCodesAction, generateEmployeeInvitationCodeAction, cancelInvitationCodeAction } from '@/actions/partner-invitation-management';
+import { importHotelDataAction, searchHotelsAction } from '@/actions/hotel-import-actions';
 import { db } from '@/lib/firebase';
 import { collection, query, where, getDocs, Timestamp } from 'firebase/firestore';
 import { toast } from 'sonner';
@@ -40,6 +41,14 @@ const SettingsUltimate = () => {
   const [teamFilter, setTeamFilter] = useState('all');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+
+  // Hotel Import State
+  const [showHotelImport, setShowHotelImport] = useState(false);
+  const [hotelSearchQuery, setHotelSearchQuery] = useState('');
+  const [hotelLocation, setHotelLocation] = useState('');
+  const [hotelImporting, setHotelImporting] = useState(false);
+  const [hotelSearchResults, setHotelSearchResults] = useState<any[]>([]);
+  const [hotelImportData, setHotelImportData] = useState<any>(null);
 
   // Data State
   const [partner, setPartner] = useState<Partner | null>(null);
@@ -1415,6 +1424,18 @@ const SettingsUltimate = () => {
                                                 }}
                                               />
                                             </label>
+                                            {/* Hotel Import Button - Only for rooms */}
+                                            {field.inventoryType === 'rooms' && (
+                                              <button
+                                                onClick={() => setShowHotelImport(true)}
+                                                className="px-3 py-1.5 text-xs font-medium text-white bg-gradient-to-r from-blue-600 to-indigo-600 rounded-lg hover:from-blue-700 hover:to-indigo-700 transition-colors flex items-center gap-1"
+                                              >
+                                                <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor">
+                                                  <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/>
+                                                </svg>
+                                                Import from Google
+                                              </button>
+                                            )}
                                           </div>
                                         </div>
 
@@ -2426,6 +2447,211 @@ const SettingsUltimate = () => {
                   >
                     {saving ? 'Generating...' : 'Generate Invite Code'}
                   </button>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Hotel Import Modal */}
+      {showHotelImport && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl max-w-2xl w-full overflow-hidden shadow-2xl animate-in zoom-in-95 duration-200 max-h-[90vh] flex flex-col">
+            <div className="p-6 border-b border-slate-100 flex items-center justify-between bg-gradient-to-r from-blue-50 to-indigo-50">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center">
+                  <svg className="w-5 h-5 text-white" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/>
+                  </svg>
+                </div>
+                <div>
+                  <h2 className="text-lg font-bold text-slate-900">Import Hotel from Google</h2>
+                  <p className="text-xs text-slate-500">Uses Google Places + AI to fetch room data</p>
+                </div>
+              </div>
+              <button
+                onClick={() => {
+                  setShowHotelImport(false);
+                  setHotelSearchQuery('');
+                  setHotelLocation('');
+                  setHotelSearchResults([]);
+                  setHotelImportData(null);
+                }}
+                className="text-slate-400 hover:text-slate-600 text-2xl"
+              >
+                ×
+              </button>
+            </div>
+
+            <div className="p-6 space-y-4 overflow-y-auto flex-1">
+              {hotelImportData ? (
+                // Show imported data
+                <div className="space-y-4">
+                  <div className="flex items-center gap-3 p-4 bg-emerald-50 border border-emerald-200 rounded-xl">
+                    <div className="w-10 h-10 rounded-full bg-emerald-500 flex items-center justify-center text-white">✓</div>
+                    <div>
+                      <p className="font-semibold text-emerald-800">{hotelImportData.basic?.name || 'Hotel Data Imported'}</p>
+                      <p className="text-xs text-emerald-600">{hotelImportData.roomTypes?.length || 0} room types found</p>
+                    </div>
+                  </div>
+
+                  {/* Room Types Preview */}
+                  <div className="space-y-2">
+                    <p className="text-sm font-medium text-slate-700">Room Types Found:</p>
+                    <div className="max-h-60 overflow-y-auto space-y-2">
+                      {hotelImportData.roomTypes?.map((room: any, idx: number) => (
+                        <div key={idx} className="p-3 bg-slate-50 rounded-lg border border-slate-100">
+                          <div className="flex justify-between items-start">
+                            <div>
+                              <p className="font-medium text-slate-800">{room.name}</p>
+                              <p className="text-xs text-slate-500">
+                                {room.occupancy?.maxOccupancy || 2} guests • {room.bedding?.beds?.[0]?.type || 'Double'} bed
+                                {room.specifications?.view && ` • ${room.specifications.view}`}
+                              </p>
+                            </div>
+                            <p className="text-sm font-semibold text-slate-900">
+                              ₹{room.pricing?.basePrice?.toLocaleString() || '—'}/night
+                            </p>
+                          </div>
+                          {room.amenities?.inRoom && (
+                            <div className="mt-2 flex flex-wrap gap-1">
+                              {room.amenities.inRoom.slice(0, 5).map((a: string, i: number) => (
+                                <span key={i} className="px-2 py-0.5 bg-white text-xs text-slate-600 rounded border">{a}</span>
+                              ))}
+                              {room.amenities.inRoom.length > 5 && (
+                                <span className="px-2 py-0.5 text-xs text-slate-400">+{room.amenities.inRoom.length - 5} more</span>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Property Amenities */}
+                  {hotelImportData.amenities?.property?.length > 0 && (
+                    <div>
+                      <p className="text-sm font-medium text-slate-700 mb-2">Property Amenities:</p>
+                      <div className="flex flex-wrap gap-1.5">
+                        {hotelImportData.amenities.property.map((a: string, i: number) => (
+                          <span key={i} className="px-2 py-1 bg-blue-50 text-blue-700 text-xs rounded-full">{a}</span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Policies */}
+                  {hotelImportData.policies && (
+                    <div className="flex gap-4 text-xs">
+                      <span className="text-slate-600">Check-in: <b>{hotelImportData.policies.checkIn}</b></span>
+                      <span className="text-slate-600">Check-out: <b>{hotelImportData.policies.checkOut}</b></span>
+                    </div>
+                  )}
+
+                  <div className="flex gap-3 pt-4">
+                    <button
+                      onClick={() => {
+                        // Add rooms to inventory
+                        const roomsPath = getSchemaPath('roomTypes');
+                        const currentRooms = getFieldValue(roomsPath) || [];
+                        const newRooms = hotelImportData.roomTypes.map((r: any) => ({
+                          ...r,
+                          id: `imported-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+                          createdAt: new Date(),
+                          updatedAt: new Date(),
+                        }));
+                        handleFieldUpdate(roomsPath, [...currentRooms, ...newRooms]);
+                        toast.success(`Imported ${newRooms.length} room types!`);
+                        setShowHotelImport(false);
+                        setHotelImportData(null);
+                        setHotelSearchQuery('');
+                        setHotelLocation('');
+                      }}
+                      className="flex-1 py-3 bg-slate-900 text-white rounded-xl text-sm font-bold hover:bg-slate-800 transition-all"
+                    >
+                      Add {hotelImportData.roomTypes?.length || 0} Rooms to Inventory
+                    </button>
+                    <button
+                      onClick={() => {
+                        setHotelImportData(null);
+                        setHotelSearchResults([]);
+                      }}
+                      className="px-6 py-3 border border-slate-200 text-slate-600 rounded-xl text-sm font-medium hover:bg-slate-50 transition-all"
+                    >
+                      Search Again
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                // Search form
+                <>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="text-sm font-medium text-slate-700 mb-1.5 block">Hotel Name</label>
+                      <input
+                        type="text"
+                        placeholder="e.g., Taj Palace"
+                        className="w-full px-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                        value={hotelSearchQuery}
+                        onChange={(e) => setHotelSearchQuery(e.target.value)}
+                      />
+                    </div>
+                    <div>
+                      <label className="text-sm font-medium text-slate-700 mb-1.5 block">City/Location</label>
+                      <input
+                        type="text"
+                        placeholder="e.g., New Delhi"
+                        className="w-full px-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                        value={hotelLocation}
+                        onChange={(e) => setHotelLocation(e.target.value)}
+                      />
+                    </div>
+                  </div>
+
+                  <button
+                    disabled={hotelImporting || !hotelSearchQuery.trim() || !hotelLocation.trim()}
+                    onClick={async () => {
+                      setHotelImporting(true);
+                      try {
+                        toast.info('Searching Google Places + AI for hotel data...');
+                        const result = await importHotelDataAction(hotelSearchQuery, hotelLocation);
+                        if (result.success && result.data) {
+                          setHotelImportData(result.data);
+                          toast.success(`Found ${result.roomInventory?.length || 0} room types!`);
+                        } else {
+                          toast.error(result.error || 'Could not find hotel data');
+                        }
+                      } catch (error: any) {
+                        toast.error(error.message || 'Import failed');
+                      } finally {
+                        setHotelImporting(false);
+                      }
+                    }}
+                    className="w-full py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-xl text-sm font-bold hover:from-blue-700 hover:to-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2"
+                  >
+                    {hotelImporting ? (
+                      <>
+                        <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                        </svg>
+                        Fetching from Google + AI...
+                      </>
+                    ) : (
+                      <>
+                        <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
+                          <path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/>
+                        </svg>
+                        Search & Import Hotel Data
+                      </>
+                    )}
+                  </button>
+
+                  <div className="text-xs text-slate-500 text-center space-y-1 pt-2">
+                    <p>This uses <b>Google Places API</b> to find the hotel and <b>Gemini AI</b> with web search to fetch room types, amenities, and pricing.</p>
+                    <p className="text-slate-400">Data is sourced from hotel websites, booking platforms, and travel sites.</p>
+                  </div>
                 </>
               )}
             </div>
