@@ -1603,6 +1603,228 @@ const SettingsUltimate = () => {
                           )}
                         </div>
 
+                        {/* Inventory Section */}
+                        {autoFillPreviewData.inventory && (
+                          <div className="bg-orange-50 rounded-xl p-4 border border-orange-200">
+                            <h4 className="font-semibold text-slate-900 mb-3 flex items-center gap-2">
+                              <span>📋</span> Inventory Data
+                              <span className="ml-auto text-xs font-normal text-orange-600 bg-orange-100 px-2 py-0.5 rounded">
+                                Ready for Import
+                              </span>
+                            </h4>
+
+                            {/* Room Inventory */}
+                            {autoFillPreviewData.inventory.rooms?.length > 0 && (
+                              <div className="mb-4">
+                                <h5 className="text-sm font-medium text-slate-700 mb-2 flex items-center gap-1">
+                                  <span>🛏️</span> Rooms ({autoFillPreviewData.inventory.rooms.length})
+                                </h5>
+                                <div className="space-y-2 max-h-40 overflow-y-auto">
+                                  {autoFillPreviewData.inventory.rooms.map((room: any, i: number) => (
+                                    <div key={i} className="bg-white p-2 rounded-lg border border-orange-100 text-xs">
+                                      <div className="flex justify-between items-start">
+                                        <div>
+                                          <span className="font-medium text-slate-800">{room.name}</span>
+                                          {room.category && <span className="ml-2 text-slate-500">({room.category})</span>}
+                                        </div>
+                                        {room.price && (
+                                          <span className="font-semibold text-orange-600">₹{room.price?.toLocaleString()}{room.priceUnit ? `/${room.priceUnit}` : '/night'}</span>
+                                        )}
+                                      </div>
+                                      <div className="text-slate-500 mt-1">
+                                        {[room.bedType, room.maxOccupancy && `${room.maxOccupancy} guests`, room.size, room.view].filter(Boolean).join(' • ')}
+                                      </div>
+                                      {room.amenities?.length > 0 && (
+                                        <div className="flex flex-wrap gap-1 mt-1">
+                                          {room.amenities.slice(0, 4).map((a: string, j: number) => (
+                                            <span key={j} className="px-1.5 py-0.5 bg-orange-50 text-orange-700 rounded text-[10px]">{a}</span>
+                                          ))}
+                                          {room.amenities.length > 4 && <span className="text-slate-400">+{room.amenities.length - 4}</span>}
+                                        </div>
+                                      )}
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Menu Items */}
+                            {autoFillPreviewData.inventory.menuItems?.length > 0 && (
+                              <div className="mb-4">
+                                <h5 className="text-sm font-medium text-slate-700 mb-2 flex items-center gap-1">
+                                  <span>🍽️</span> Menu Items ({autoFillPreviewData.inventory.menuItems.length})
+                                </h5>
+                                <div className="grid grid-cols-2 gap-2 max-h-40 overflow-y-auto">
+                                  {autoFillPreviewData.inventory.menuItems.map((item: any, i: number) => (
+                                    <div key={i} className="bg-white p-2 rounded-lg border border-orange-100 text-xs">
+                                      <div className="flex justify-between items-start">
+                                        <div className="flex items-center gap-1">
+                                          {item.isVeg !== undefined && (
+                                            <span className={item.isVeg ? 'text-green-600' : 'text-red-600'}>
+                                              {item.isVeg ? '🟢' : '🔴'}
+                                            </span>
+                                          )}
+                                          <span className="font-medium text-slate-800">{item.name}</span>
+                                        </div>
+                                        {item.price && <span className="font-semibold text-orange-600">₹{item.price}</span>}
+                                      </div>
+                                      {item.category && <div className="text-slate-500">{item.category}</div>}
+                                      {item.popular && <span className="text-[10px] text-amber-600">⭐ Popular</span>}
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Products */}
+                            {autoFillPreviewData.inventory.products?.length > 0 && (
+                              <div className="mb-4">
+                                <h5 className="text-sm font-medium text-slate-700 mb-2 flex items-center gap-1">
+                                  <span>📦</span> Products ({autoFillPreviewData.inventory.products.length})
+                                </h5>
+                                <div className="grid grid-cols-2 gap-2 max-h-40 overflow-y-auto">
+                                  {autoFillPreviewData.inventory.products.map((product: any, i: number) => (
+                                    <div key={i} className="bg-white p-2 rounded-lg border border-orange-100 text-xs">
+                                      <div className="font-medium text-slate-800">{product.name}</div>
+                                      <div className="flex items-center gap-2 mt-1">
+                                        {product.price && <span className="font-semibold text-orange-600">₹{product.price}</span>}
+                                        {product.mrp && product.mrp > product.price && (
+                                          <span className="text-slate-400 line-through">₹{product.mrp}</span>
+                                        )}
+                                      </div>
+                                      {product.brand && <div className="text-slate-500">{product.brand}</div>}
+                                      {product.category && <div className="text-slate-400">{product.category}</div>}
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Services (Healthcare) */}
+                            {autoFillPreviewData.inventory.services?.length > 0 && (
+                              <div className="mb-4">
+                                <h5 className="text-sm font-medium text-slate-700 mb-2 flex items-center gap-1">
+                                  <span>💊</span> Services ({autoFillPreviewData.inventory.services.length})
+                                </h5>
+                                <div className="space-y-2 max-h-40 overflow-y-auto">
+                                  {autoFillPreviewData.inventory.services.map((service: any, i: number) => (
+                                    <div key={i} className="bg-white p-2 rounded-lg border border-orange-100 text-xs">
+                                      <div className="flex justify-between items-start">
+                                        <div>
+                                          <span className="font-medium text-slate-800">{service.name}</span>
+                                          {service.category && <span className="ml-2 text-slate-500">({service.category})</span>}
+                                        </div>
+                                        {service.price && <span className="font-semibold text-orange-600">₹{service.price}</span>}
+                                      </div>
+                                      <div className="text-slate-500 mt-1">
+                                        {[service.doctor, service.duration, service.specialization].filter(Boolean).join(' • ')}
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Properties (Real Estate) */}
+                            {autoFillPreviewData.inventory.properties?.length > 0 && (
+                              <div>
+                                <h5 className="text-sm font-medium text-slate-700 mb-2 flex items-center gap-1">
+                                  <span>🏠</span> Properties ({autoFillPreviewData.inventory.properties.length})
+                                </h5>
+                                <div className="space-y-2 max-h-40 overflow-y-auto">
+                                  {autoFillPreviewData.inventory.properties.map((property: any, i: number) => (
+                                    <div key={i} className="bg-white p-2 rounded-lg border border-orange-100 text-xs">
+                                      <div className="flex justify-between items-start">
+                                        <div>
+                                          <span className="font-medium text-slate-800">{property.title}</span>
+                                          {property.type && <span className="ml-2 text-slate-500">({property.type})</span>}
+                                        </div>
+                                        {property.price && (
+                                          <span className="font-semibold text-orange-600">
+                                            ₹{property.price?.toLocaleString()}{property.priceUnit === 'per month' ? '/mo' : ''}
+                                          </span>
+                                        )}
+                                      </div>
+                                      <div className="text-slate-500 mt-1">
+                                        {[property.bedrooms && `${property.bedrooms} BHK`, property.area, property.location].filter(Boolean).join(' • ')}
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        )}
+
+                        {/* From the Web Section */}
+                        {autoFillPreviewData.fromTheWeb && Object.keys(autoFillPreviewData.fromTheWeb).length > 0 && (
+                          <div className="bg-cyan-50 rounded-xl p-4 border border-cyan-200">
+                            <h4 className="font-semibold text-slate-900 mb-3 flex items-center gap-2">
+                              <span>🌐</span> From the Web
+                              <span className="ml-auto text-xs font-normal text-cyan-600 bg-cyan-100 px-2 py-0.5 rounded">
+                                Additional Data
+                              </span>
+                            </h4>
+
+                            {/* Website Content */}
+                            {autoFillPreviewData.fromTheWeb.websiteContent && (
+                              <div className="mb-3">
+                                <h5 className="text-xs font-medium text-slate-600 mb-1">Website Content</h5>
+                                <p className="text-xs text-slate-700 bg-white p-2 rounded border border-cyan-100 line-clamp-4">
+                                  {autoFillPreviewData.fromTheWeb.websiteContent}
+                                </p>
+                              </div>
+                            )}
+
+                            {/* Other Findings */}
+                            {autoFillPreviewData.fromTheWeb.otherFindings?.length > 0 && (
+                              <div className="mb-3">
+                                <h5 className="text-xs font-medium text-slate-600 mb-1">Other Findings</h5>
+                                <ul className="text-xs text-slate-700 space-y-1">
+                                  {autoFillPreviewData.fromTheWeb.otherFindings.map((finding: string, i: number) => (
+                                    <li key={i} className="flex items-start gap-1">
+                                      <span className="text-cyan-500 mt-0.5">•</span>
+                                      <span>{finding}</span>
+                                    </li>
+                                  ))}
+                                </ul>
+                              </div>
+                            )}
+
+                            {/* Raw Industry Data */}
+                            {autoFillPreviewData.fromTheWeb.rawIndustryData && Object.keys(autoFillPreviewData.fromTheWeb.rawIndustryData).length > 0 && (
+                              <div className="mb-3">
+                                <h5 className="text-xs font-medium text-slate-600 mb-1">Industry-Specific Details</h5>
+                                <div className="grid grid-cols-2 gap-2">
+                                  {Object.entries(autoFillPreviewData.fromTheWeb.rawIndustryData)
+                                    .filter(([_, v]) => v !== null && v !== undefined)
+                                    .slice(0, 8)
+                                    .map(([key, value]: [string, any]) => (
+                                      <div key={key} className="bg-white p-2 rounded border border-cyan-100 text-xs">
+                                        <div className="text-slate-500 capitalize text-[10px]">{key.replace(/([A-Z])/g, ' $1').trim()}</div>
+                                        <div className="font-medium text-slate-800 truncate">
+                                          {Array.isArray(value) ? value.slice(0, 2).join(', ') + (value.length > 2 ? '...' : '') : String(value)}
+                                        </div>
+                                      </div>
+                                    ))}
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Additional Info */}
+                            {autoFillPreviewData.fromTheWeb.additionalInfo && Object.keys(autoFillPreviewData.fromTheWeb.additionalInfo).length > 0 && (
+                              <div>
+                                <h5 className="text-xs font-medium text-slate-600 mb-1">Additional Information</h5>
+                                <div className="bg-white p-2 rounded border border-cyan-100 text-xs text-slate-700">
+                                  <pre className="whitespace-pre-wrap font-sans text-[10px] max-h-20 overflow-y-auto">
+                                    {JSON.stringify(autoFillPreviewData.fromTheWeb.additionalInfo, null, 2)}
+                                  </pre>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        )}
+
                         {/* Source Info */}
                         {autoFillPreviewData.source && (
                           <div className="text-xs text-slate-400 text-center pt-2 border-t border-slate-100">
@@ -1661,6 +1883,10 @@ const SettingsUltimate = () => {
                                   fetchedReviews: autoFillPreviewData.reviews,
                                   onlinePresence: autoFillPreviewData.onlinePresence,
                                   testimonials: autoFillPreviewData.testimonials,
+                                  // Store inventory data for RAG
+                                  inventory: autoFillPreviewData.inventory,
+                                  // Store "From the Web" data for RAG
+                                  fromTheWeb: autoFillPreviewData.fromTheWeb,
                                 },
                               };
 

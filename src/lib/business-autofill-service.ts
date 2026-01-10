@@ -130,6 +130,75 @@ export interface PlacesDetailedInfo {
   utcOffset?: number;
 }
 
+// Inventory item types
+export interface RoomInventoryItem {
+  name: string;
+  category?: string;
+  description?: string;
+  price?: number;
+  priceUnit?: string;
+  maxOccupancy?: number;
+  bedType?: string;
+  amenities?: string[];
+  size?: string;
+  view?: string;
+  images?: string[];
+}
+
+export interface MenuInventoryItem {
+  name: string;
+  category?: string;
+  description?: string;
+  price?: number;
+  isVeg?: boolean;
+  isVegan?: boolean;
+  spiceLevel?: string;
+  servingSize?: string;
+  calories?: number;
+  allergens?: string[];
+  popular?: boolean;
+  images?: string[];
+}
+
+export interface ProductInventoryItem {
+  name: string;
+  category?: string;
+  description?: string;
+  price?: number;
+  mrp?: number;
+  brand?: string;
+  sku?: string;
+  inStock?: boolean;
+  specifications?: Record<string, string>;
+  images?: string[];
+}
+
+export interface ServiceInventoryItem {
+  name: string;
+  category?: string;
+  description?: string;
+  price?: number;
+  duration?: string;
+  doctor?: string;
+  specialization?: string;
+  availability?: string;
+}
+
+export interface PropertyInventoryItem {
+  title: string;
+  type?: string;
+  transactionType?: string;
+  price?: number;
+  priceUnit?: string;
+  location?: string;
+  area?: string;
+  bedrooms?: number;
+  bathrooms?: number;
+  amenities?: string[];
+  description?: string;
+  images?: string[];
+}
+
 export interface AIResearchResult {
   description?: string;
   tagline?: string;
@@ -166,6 +235,21 @@ export interface AIResearchResult {
     date?: string;
   }[];
   industryData?: Record<string, any>;
+  // Inventory data
+  inventory?: {
+    rooms?: RoomInventoryItem[];
+    menuItems?: MenuInventoryItem[];
+    products?: ProductInventoryItem[];
+    services?: ServiceInventoryItem[];
+    properties?: PropertyInventoryItem[];
+  };
+  // Raw data from web that doesn't fit standard fields
+  rawWebData?: {
+    websiteContent?: string;
+    additionalInfo?: Record<string, any>;
+    scrapedData?: any[];
+    otherFindings?: string[];
+  };
 }
 
 export interface AutoFilledProfile {
@@ -199,6 +283,21 @@ export interface AutoFilledProfile {
     url?: string;
     date?: string;
   }[];
+  // Inventory data
+  inventory?: {
+    rooms?: RoomInventoryItem[];
+    menuItems?: MenuInventoryItem[];
+    products?: ProductInventoryItem[];
+    services?: ServiceInventoryItem[];
+    properties?: PropertyInventoryItem[];
+  };
+  // From the Web - unmapped data
+  fromTheWeb?: {
+    websiteContent?: string;
+    additionalInfo?: Record<string, any>;
+    otherFindings?: string[];
+    rawIndustryData?: Record<string, any>;
+  };
   source: {
     placeId?: string;
     placesData: boolean;
@@ -375,24 +474,63 @@ export async function researchBusinessWithAI(
     ? PLACES_TYPE_TO_INDUSTRY[existingInfo.types.find(t => PLACES_TYPE_TO_INDUSTRY[t])!]
     : 'general';
 
-  // Build industry-specific data request
+  // Build industry-specific inventory request
+  let inventoryRequest = '';
   let industrySpecificRequest = '';
+
   switch (industryHint) {
     case 'hospitality':
+      inventoryRequest = `
+  "inventory": {
+    "rooms": [
+      {
+        "name": "Room type name (e.g., Deluxe Room, Suite)",
+        "category": "Standard/Deluxe/Premium/Suite/Villa",
+        "description": "Room description",
+        "price": 5000,
+        "priceUnit": "per night",
+        "maxOccupancy": 2,
+        "bedType": "King/Queen/Twin",
+        "amenities": ["WiFi", "AC", "TV", "Mini Bar"],
+        "size": "350 sq ft",
+        "view": "Sea View/City View/Garden View"
+      }
+      // Include ALL room types you can find with pricing
+    ]
+  },`;
       industrySpecificRequest = `
     "industryData": {
       "starRating": "Official star rating (1-5)",
-      "roomTypes": ["Types of rooms available"],
+      "totalRooms": "Total number of rooms",
       "amenities": ["Hotel amenities like pool, gym, spa"],
       "checkInTime": "Check-in time",
       "checkOutTime": "Check-out time",
       "petPolicy": "Pet policy",
       "parkingInfo": "Parking availability and cost",
       "nearbyAttractions": ["Nearby tourist spots"],
-      "bookingPartners": ["OTAs where they're listed - MakeMyTrip, Booking.com, etc."]
+      "bookingPartners": ["OTAs where they're listed - MakeMyTrip, Booking.com, etc."],
+      "cancellationPolicy": "Cancellation policy summary"
     }`;
       break;
+
     case 'food_beverage':
+      inventoryRequest = `
+  "inventory": {
+    "menuItems": [
+      {
+        "name": "Dish name",
+        "category": "Starters/Main Course/Desserts/Beverages",
+        "description": "Dish description",
+        "price": 350,
+        "isVeg": true,
+        "isVegan": false,
+        "spiceLevel": "Mild/Medium/Spicy",
+        "servingSize": "Serves 1-2",
+        "popular": true
+      }
+      // Include as many menu items as possible with prices
+    ]
+  },`;
       industrySpecificRequest = `
     "industryData": {
       "cuisineTypes": ["Types of cuisine served"],
@@ -402,24 +540,60 @@ export async function researchBusinessWithAI(
       "deliveryPartners": ["Zomato, Swiggy, etc."],
       "specialties": ["Signature dishes or specialties"],
       "seatingCapacity": "Number of seats",
-      "reservationRequired": true/false,
-      "alcoholServed": true/false
+      "reservationRequired": true,
+      "alcoholServed": false,
+      "menuUrl": "Link to online menu if available"
     }`;
       break;
+
     case 'healthcare':
+      inventoryRequest = `
+  "inventory": {
+    "services": [
+      {
+        "name": "Service/Treatment name",
+        "category": "Consultation/Surgery/Diagnostic/Therapy",
+        "description": "Service description",
+        "price": 500,
+        "duration": "30 mins",
+        "doctor": "Dr. Name",
+        "specialization": "Cardiology/Orthopedics/etc.",
+        "availability": "Mon-Sat 9AM-5PM"
+      }
+      // Include all services, consultations, tests with pricing
+    ]
+  },`;
       industrySpecificRequest = `
     "industryData": {
       "specializations": ["Medical specializations offered"],
-      "doctors": ["Key doctors with their specializations"],
+      "doctors": [{"name": "Dr. Name", "specialization": "Field", "experience": "20 years"}],
       "facilities": ["Medical facilities available"],
       "insuranceAccepted": ["Insurance providers accepted"],
-      "emergencyServices": true/false,
+      "emergencyServices": true,
       "accreditations": ["NABH, JCI, etc."],
       "bedCount": "Number of beds if hospital",
-      "consultationTypes": ["In-person, Video, Home visit"]
+      "consultationTypes": ["In-person", "Video", "Home visit"],
+      "diagnosticTests": ["List of diagnostic tests available"]
     }`;
       break;
+
     case 'retail':
+      inventoryRequest = `
+  "inventory": {
+    "products": [
+      {
+        "name": "Product name",
+        "category": "Category",
+        "description": "Product description",
+        "price": 999,
+        "mrp": 1299,
+        "brand": "Brand name",
+        "inStock": true,
+        "specifications": {"Size": "M", "Color": "Blue"}
+      }
+      // Include popular products with prices
+    ]
+  },`;
       industrySpecificRequest = `
     "industryData": {
       "productCategories": ["Main product categories"],
@@ -428,21 +602,45 @@ export async function researchBusinessWithAI(
       "deliveryOptions": ["Home delivery, Store pickup, etc."],
       "returnPolicy": "Return policy summary",
       "loyaltyProgram": "Loyalty/membership program details",
-      "onlineStore": "E-commerce website if available"
+      "onlineStore": "E-commerce website if available",
+      "storeSize": "Store size in sq ft"
     }`;
       break;
+
     case 'real_estate':
+      inventoryRequest = `
+  "inventory": {
+    "properties": [
+      {
+        "title": "Property title",
+        "type": "Apartment/Villa/Plot/Commercial",
+        "transactionType": "Sale/Rent",
+        "price": 5000000,
+        "priceUnit": "total/per month",
+        "location": "Area, City",
+        "area": "1500 sq ft",
+        "bedrooms": 3,
+        "bathrooms": 2,
+        "amenities": ["Gym", "Pool", "Parking"],
+        "description": "Property description"
+      }
+      // Include current listings if available
+    ]
+  },`;
       industrySpecificRequest = `
     "industryData": {
       "propertyTypes": ["Types of properties dealt with"],
       "locations": ["Areas/localities served"],
-      "services": ["Buying, Selling, Renting, Property Management"],
+      "services": ["Buying", "Selling", "Renting", "Property Management"],
       "reraRegistration": "RERA registration number if available",
       "projectsCompleted": "Number of projects completed",
-      "developerName": "If a developer, the company name"
+      "developerName": "If a developer, the company name",
+      "priceRange": "Budget range of properties"
     }`;
       break;
+
     default:
+      inventoryRequest = '';
       industrySpecificRequest = `
     "industryData": {
       // Any industry-specific information relevant to this business
@@ -454,12 +652,13 @@ export async function researchBusinessWithAI(
 I need COMPREHENSIVE business information for auto-filling a business profile. This data will be used to train an AI agent to handle customer queries.
 
 Search these sources:
-1. Their official website
+1. Their official website (scrape menu/products/services if available)
 2. Google reviews and ratings
 3. Social media (Instagram, Facebook, LinkedIn, Twitter/X)
 4. Review platforms (TripAdvisor, Yelp, Zomato, Justdial, Practo, etc.)
 5. News articles and press coverage
 6. Business directories
+7. Booking/e-commerce platforms for pricing info
 
 Return the following in JSON format:
 
@@ -472,7 +671,7 @@ Return the following in JSON format:
   "uniqueSellingPoints": ["5-7 things that make this business stand out"],
   "faqs": [
     {"question": "Common question 1", "answer": "Detailed answer"},
-    {"question": "Common question 2", "answer": "Detailed answer"},
+    {"question": "Common question 2", "answer": "Detailed answer"}
     // Include 5-10 FAQs
   ],
   "socialMedia": {
@@ -519,7 +718,17 @@ Return the following in JSON format:
     }
   ],
 
-  ${industrySpecificRequest}
+  ${inventoryRequest}
+
+  ${industrySpecificRequest},
+
+  "rawWebData": {
+    "websiteContent": "Key content from their website that doesn't fit other fields",
+    "additionalInfo": {
+      // Any other useful information found that doesn't fit standard fields
+    },
+    "otherFindings": ["Other interesting facts or information about the business"]
+  }
 }
 
 Industry: ${industryHint}
@@ -527,6 +736,11 @@ ${existingInfo?.rating ? `Google Rating: ${existingInfo.rating}/5 (${existingInf
 ${existingInfo?.editorialSummary ? `Google Summary: ${existingInfo.editorialSummary}` : ''}
 
 IMPORTANT:
+- INVENTORY DATA IS CRITICAL - Search their website, menu pages, booking platforms for detailed pricing
+- For hotels: Find room types, rates from their website or booking.com/makemytrip
+- For restaurants: Find menu items with prices from their website or Zomato/Swiggy
+- For healthcare: Find consultation fees, test prices from their website or Practo
+- For retail: Find product catalog with prices if available
 - Search thoroughly and provide VERIFIED information only
 - Include source URLs wherever possible for verification
 - For testimonials, use ACTUAL reviews you find, not made up ones
@@ -556,6 +770,9 @@ IMPORTANT:
 
     const parsed = JSON.parse(jsonMatch[0]);
     console.log('[AutoFill] AI research complete with keys:', Object.keys(parsed));
+    if (parsed.inventory) {
+      console.log('[AutoFill] Inventory found:', Object.keys(parsed.inventory));
+    }
     return parsed;
   } catch (error) {
     console.error('[AutoFill] AI research error:', error);
@@ -658,7 +875,24 @@ export async function autoFillBusinessProfile(
     })),
   ];
 
-  // Step 5: Map to BusinessPersona schema
+  // Step 5: Build "From the Web" section with unmapped data
+  const fromTheWeb: AutoFilledProfile['fromTheWeb'] = {};
+
+  if (aiResearch.rawWebData?.websiteContent) {
+    fromTheWeb.websiteContent = aiResearch.rawWebData.websiteContent;
+  }
+  if (aiResearch.rawWebData?.additionalInfo && Object.keys(aiResearch.rawWebData.additionalInfo).length > 0) {
+    fromTheWeb.additionalInfo = aiResearch.rawWebData.additionalInfo;
+  }
+  if (aiResearch.rawWebData?.otherFindings?.length) {
+    fromTheWeb.otherFindings = aiResearch.rawWebData.otherFindings;
+  }
+  // Add any industry data that wasn't specifically mapped
+  if (aiResearch.industryData) {
+    fromTheWeb.rawIndustryData = aiResearch.industryData;
+  }
+
+  // Step 6: Map to BusinessPersona schema
   const profile: AutoFilledProfile = {
     identity: {
       businessName: placesInfo.name,
@@ -713,6 +947,8 @@ export async function autoFillBusinessProfile(
     testimonials: aiResearch.testimonials,
     onlinePresence: aiResearch.onlineReviews,
     pressMedia: aiResearch.pressMedia,
+    inventory: aiResearch.inventory,
+    fromTheWeb: Object.keys(fromTheWeb).length > 0 ? fromTheWeb : undefined,
     industrySpecificData: {
       googleRating: placesInfo.rating,
       googleReviewCount: placesInfo.reviewCount,
