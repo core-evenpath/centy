@@ -20,6 +20,7 @@ import type {
   FrequentlyAskedQuestion
 } from '@/lib/business-persona-types';
 import SettingsAIChat from '@/components/partner/settings/SettingsAIChat';
+import ProfileDocuments from '@/components/partner/settings/ProfileDocuments';
 
 const SettingsUltimate = () => {
   const router = useRouter();
@@ -1215,6 +1216,13 @@ const SettingsUltimate = () => {
                     );
                   })}
                 </div>
+
+                {/* Business Documents Section */}
+                {partnerId && (
+                  <div className="mt-6 bg-white rounded-2xl border border-slate-200 p-5">
+                    <ProfileDocuments partnerId={partnerId} />
+                  </div>
+                )}
               </div>
             )}
 

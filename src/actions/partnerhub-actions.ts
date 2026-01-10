@@ -1321,6 +1321,17 @@ CUSTOMER PERSONA:
             finalSystemPrompt += `\n\n${personaContext}\nUse this persona information to personalize your response appropriately.`;
         }
 
+        // Add recent profile changes context (if available)
+        try {
+            const { getProfileChangesContextAction } = await import('./profile-sync-actions');
+            const changesResult = await getProfileChangesContextAction(partnerId);
+            if (changesResult.success && changesResult.context) {
+                finalSystemPrompt += `\n\n${changesResult.context}\nYou may reference these recent updates if relevant to the customer's query.`;
+            }
+        } catch (e) {
+            // Non-blocking - continue without profile changes context
+        }
+
         if (usedAssistant?.behaviorRules) {
             const rules = usedAssistant.behaviorRules;
             if (rules.responseRules?.length > 0) {

@@ -378,6 +378,40 @@ export async function saveBusinessPersonaAction(
 
         await partnerRef.update(topLevelUpdates);
 
+        // Track significant changes and regenerate profile summary
+        try {
+            const { trackProfileChangeAction, generateProfileSummaryDocumentAction } = await import('./profile-sync-actions');
+
+            // Track changes for key fields
+            const fieldsToTrack = [
+                { path: 'identity.name', update: updates.identity?.name, existing: existingPersona.identity?.name },
+                { path: 'identity.phone', update: updates.identity?.phone, existing: existingPersona.identity?.phone },
+                { path: 'identity.email', update: updates.identity?.email, existing: existingPersona.identity?.email },
+                { path: 'personality.description', update: updates.personality?.description, existing: existingPersona.personality?.description },
+                { path: 'personality.tagline', update: updates.personality?.tagline, existing: existingPersona.personality?.tagline },
+                { path: 'knowledge.productsOrServices', update: updates.knowledge?.productsOrServices, existing: existingPersona.knowledge?.productsOrServices },
+            ];
+
+            let hasSignificantChange = false;
+            for (const field of fieldsToTrack) {
+                if (field.update !== undefined && JSON.stringify(field.update) !== JSON.stringify(field.existing)) {
+                    await trackProfileChangeAction(partnerId, field.path, field.existing, field.update, 'manual');
+                    hasSignificantChange = true;
+                }
+            }
+
+            // Regenerate profile summary if significant changes were made
+            if (hasSignificantChange) {
+                // Don't await - run in background
+                generateProfileSummaryDocumentAction(partnerId).catch(err =>
+                    console.error('Error regenerating profile summary:', err)
+                );
+            }
+        } catch (syncError) {
+            // Don't fail the save if sync fails
+            console.warn('Profile sync error (non-blocking):', syncError);
+        }
+
         console.log(`✅ Business persona saved for partner ${partnerId} (${setupProgress.overallPercentage}% complete)`);
 
         return {
