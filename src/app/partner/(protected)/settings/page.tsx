@@ -52,6 +52,15 @@ const SettingsUltimate = () => {
   const [autoFillPreviewData, setAutoFillPreviewData] = useState<any>(null);
   const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
+  // RAG Processing State
+  const [ragProcessing, setRagProcessing] = useState(false);
+  const [ragStatus, setRagStatus] = useState<{
+    processed: boolean;
+    lastProcessedAt?: Date;
+    documentId?: string;
+    itemCounts?: { reviews: number; faqs: number; inventory: boolean };
+  } | null>(null);
+
   // Debounced search function
   const debouncedSearch = useCallback(async (query: string) => {
     if (query.length < 3) {
@@ -125,6 +134,27 @@ const SettingsUltimate = () => {
             }
           } else if (personaResult.isNewPersona) {
             setShowOnboarding(true);
+          }
+
+          // Load RAG status from persona
+          const savedRagStatus = personaResult.persona.industrySpecificData?.ragStatus;
+          if (savedRagStatus?.processed) {
+            setRagStatus({
+              processed: true,
+              lastProcessedAt: savedRagStatus.lastProcessedAt,
+              documentId: savedRagStatus.documentId,
+              itemCounts: {
+                reviews: personaResult.persona.industrySpecificData?.fetchedReviews?.length || 0,
+                faqs: personaResult.persona.knowledge?.faqs?.length || 0,
+                inventory: !!(
+                  personaResult.persona.roomTypes?.length ||
+                  personaResult.persona.menuItems?.length ||
+                  personaResult.persona.productCatalog?.length ||
+                  personaResult.persona.propertyListings?.length ||
+                  personaResult.persona.healthcareServices?.length
+                ),
+              },
+            });
           }
         }
 
@@ -1250,6 +1280,195 @@ const SettingsUltimate = () => {
                   </p>
                 </div>
 
+                {/* RAG Processing Card */}
+                <div className="bg-gradient-to-r from-emerald-50 to-teal-50 rounded-2xl border border-emerald-200 p-5">
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="w-10 h-10 bg-gradient-to-r from-emerald-500 to-teal-500 rounded-xl flex items-center justify-center">
+                      <span className="text-white text-lg">🧠</span>
+                    </div>
+                    <div className="flex-1">
+                      <h3 className="font-semibold text-slate-900">AI Knowledge Base (RAG)</h3>
+                      <p className="text-sm text-slate-500">Process business data for AI training</p>
+                    </div>
+                    {/* Status Indicator */}
+                    {ragStatus?.processed && (
+                      <div className="flex items-center gap-2 px-3 py-1.5 bg-emerald-100 border border-emerald-200 rounded-lg">
+                        <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
+                        <span className="text-xs font-medium text-emerald-700">RAG Active</span>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* RAG Status Display */}
+                  {ragStatus?.processed && (
+                    <div className="mb-4 p-3 bg-white/80 border border-emerald-100 rounded-xl">
+                      <div className="flex items-center justify-between text-sm">
+                        <div className="flex items-center gap-4">
+                          <div>
+                            <span className="text-slate-500">Last processed:</span>{' '}
+                            <span className="font-medium text-slate-700">
+                              {ragStatus.lastProcessedAt
+                                ? new Date(ragStatus.lastProcessedAt).toLocaleString()
+                                : 'Unknown'}
+                            </span>
+                          </div>
+                          {ragStatus.documentId && (
+                            <div className="text-xs text-slate-400 font-mono">
+                              ID: {ragStatus.documentId.slice(0, 20)}...
+                            </div>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-3 text-xs">
+                          {ragStatus.itemCounts && (
+                            <>
+                              {ragStatus.itemCounts.reviews > 0 && (
+                                <span className="px-2 py-0.5 bg-blue-100 text-blue-700 rounded">
+                                  {ragStatus.itemCounts.reviews} reviews
+                                </span>
+                              )}
+                              {ragStatus.itemCounts.faqs > 0 && (
+                                <span className="px-2 py-0.5 bg-purple-100 text-purple-700 rounded">
+                                  {ragStatus.itemCounts.faqs} FAQs
+                                </span>
+                              )}
+                              {ragStatus.itemCounts.inventory && (
+                                <span className="px-2 py-0.5 bg-orange-100 text-orange-700 rounded">
+                                  Inventory
+                                </span>
+                              )}
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* RAG Actions */}
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      onClick={async () => {
+                        if (!partnerId) {
+                          toast.error('Partner ID not found');
+                          return;
+                        }
+
+                        // Check if we have data to process
+                        const hasData = persona.identity?.businessName ||
+                          persona.knowledge?.faqs?.length ||
+                          persona.knowledge?.productsOrServices?.length ||
+                          persona.industrySpecificData?.fetchedReviews?.length ||
+                          persona.roomTypes?.length ||
+                          persona.menuItems?.length ||
+                          persona.productCatalog?.length ||
+                          persona.propertyListings?.length ||
+                          persona.healthcareServices?.length;
+
+                        if (!hasData) {
+                          toast.error('No business data to process. Please auto-fill or add data first.');
+                          return;
+                        }
+
+                        setRagProcessing(true);
+                        try {
+                          // Build a combined data object from persona for RAG
+                          const ragData = {
+                            source: {
+                              fetchedAt: new Date(),
+                              placeId: persona.industrySpecificData?.placeId || 'manual',
+                            },
+                            identity: persona.identity,
+                            knowledge: persona.knowledge,
+                            personality: persona.personality,
+                            customerProfile: persona.customerProfile,
+                            reviews: persona.industrySpecificData?.fetchedReviews || [],
+                            testimonials: persona.industrySpecificData?.testimonials || [],
+                            onlinePresence: persona.industrySpecificData?.onlinePresence || [],
+                            pressMedia: [],
+                            photos: persona.industrySpecificData?.fetchedPhotos || [],
+                            inventory: {
+                              rooms: persona.roomTypes?.map(r => ({ name: r.name, description: r.description })),
+                              menuItems: persona.menuItems?.map(m => ({ name: m.name, description: m.description })),
+                              products: persona.productCatalog?.map(p => ({ name: p.name, description: p.description })),
+                              properties: persona.propertyListings?.map(p => ({ title: p.title, description: p.description })),
+                              services: persona.healthcareServices?.map(s => ({ name: s.name, description: s.description })),
+                            },
+                            fromTheWeb: persona.industrySpecificData?.fromTheWeb,
+                            industrySpecificData: persona.industrySpecificData,
+                          };
+
+                          const result = await processForRAGAction(partnerId, ragData as any);
+
+                          if (!result.success) {
+                            throw new Error(result.error || 'Failed to process for RAG');
+                          }
+
+                          // Update RAG status
+                          setRagStatus({
+                            processed: true,
+                            lastProcessedAt: new Date(),
+                            documentId: result.ragDocumentId,
+                            itemCounts: {
+                              reviews: ragData.reviews?.length || 0,
+                              faqs: persona.knowledge?.faqs?.length || 0,
+                              inventory: !!(
+                                persona.roomTypes?.length ||
+                                persona.menuItems?.length ||
+                                persona.productCatalog?.length ||
+                                persona.propertyListings?.length ||
+                                persona.healthcareServices?.length
+                              ),
+                            },
+                          });
+
+                          // Save RAG status to persona
+                          const updatedPersona = {
+                            ...persona,
+                            industrySpecificData: {
+                              ...persona.industrySpecificData,
+                              ragStatus: {
+                                processed: true,
+                                lastProcessedAt: new Date(),
+                                documentId: result.ragDocumentId,
+                              },
+                            },
+                          };
+                          await saveBusinessPersonaAction(partnerId, updatedPersona);
+                          setPersona(updatedPersona);
+
+                          toast.success(result.message || 'Data processed for AI training!');
+                        } catch (err: any) {
+                          toast.error(err.message || 'Failed to process for RAG');
+                        } finally {
+                          setRagProcessing(false);
+                        }
+                      }}
+                      disabled={ragProcessing}
+                      className={cn(
+                        "flex-1 px-4 py-2.5 rounded-xl font-medium text-sm transition-all flex items-center justify-center gap-2",
+                        ragProcessing
+                          ? "bg-slate-100 text-slate-400 cursor-not-allowed"
+                          : "bg-gradient-to-r from-emerald-600 to-teal-600 text-white hover:from-emerald-700 hover:to-teal-700"
+                      )}
+                    >
+                      {ragProcessing ? (
+                        <>
+                          <div className="w-4 h-4 border-2 border-slate-400 border-t-transparent rounded-full animate-spin" />
+                          <span>Processing...</span>
+                        </>
+                      ) : (
+                        <>
+                          <span>🧠</span>
+                          <span>{ragStatus?.processed ? 'Re-process for RAG' : 'Process for RAG'}</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+
+                  <p className="mt-3 text-xs text-slate-500">
+                    Processes your business profile, inventory, reviews, and FAQs for the AI knowledge base used in inbox and broadcast
+                  </p>
+                </div>
+
                 {/* Auto-Fill Preview Modal */}
                 {showAutoFillPreview && autoFillPreviewData && (
                   <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
@@ -1909,25 +2128,6 @@ const SettingsUltimate = () => {
                           className="flex-1 px-4 py-2.5 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-xl font-medium text-sm hover:from-indigo-700 hover:to-purple-700 transition-all"
                         >
                           Apply to Profile
-                        </button>
-                        <button
-                          onClick={async () => {
-                            try {
-                              const result = await processForRAGAction(partnerId!, autoFillPreviewData);
-
-                              if (!result.success) {
-                                throw new Error(result.error || 'Failed to process for RAG');
-                              }
-
-                              toast.success(result.message || 'Data queued for RAG processing!');
-                              console.log('[RAG] Document ID:', result.ragDocumentId);
-                            } catch (err: any) {
-                              toast.error(err.message || 'Failed to process for RAG');
-                            }
-                          }}
-                          className="px-4 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 text-white rounded-xl font-medium text-sm hover:from-emerald-700 hover:to-teal-700 transition-all flex items-center gap-2"
-                        >
-                          <span>🧠</span> Process for RAG
                         </button>
                       </div>
                     </div>
