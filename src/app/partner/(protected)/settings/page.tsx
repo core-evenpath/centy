@@ -1043,6 +1043,21 @@ const SettingsUltimate = () => {
                   )}
                 </div>
 
+                {/* Profile Summary Section - Primary View */}
+                <div className="bg-white rounded-2xl border border-slate-200 p-5">
+                  <ProfileSummary
+                    persona={persona}
+                    onFieldUpdate={handleFieldUpdate}
+                    onOpenAIChat={() => setShowAIChat(true)}
+                  />
+                </div>
+
+                {/* Detailed Sections Header */}
+                <div className="flex items-center justify-between mt-6 mb-3">
+                  <h4 className="text-sm font-semibold text-slate-900">Detailed Fields</h4>
+                  <span className="text-xs text-slate-500">Click to expand and edit</span>
+                </div>
+
                 {/* Sections */}
                 <div className="space-y-3">
                   {sections.map(([key, section]: any) => {
@@ -1225,11 +1240,6 @@ const SettingsUltimate = () => {
                     <ProfileDocuments partnerId={partnerId} />
                   </div>
                 )}
-
-                {/* Profile Summary Section */}
-                <div className="mt-6 bg-white rounded-2xl border border-slate-200 p-5">
-                  <ProfileSummary persona={persona} />
-                </div>
               </div>
             )}
 
