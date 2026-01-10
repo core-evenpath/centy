@@ -1112,14 +1112,14 @@ const SettingsUltimate = () => {
                                     {field.type === 'text' || field.type === 'phone' || field.type === 'email' || field.type === 'url' ? (
                                       <input
                                         type={field.type === 'phone' ? 'tel' : field.type === 'email' ? 'email' : 'text'}
-                                        value={fieldValue || ''}
+                                        value={typeof fieldValue === 'string' ? fieldValue : (typeof fieldValue === 'number' ? String(fieldValue) : '')}
                                         onChange={(e) => handleFieldUpdate(schemaPath, e.target.value)}
                                         placeholder={field.placeholder || ''}
                                         className="w-full px-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
                                       />
                                     ) : field.type === 'textarea' ? (
                                       <textarea
-                                        value={fieldValue || ''}
+                                        value={typeof fieldValue === 'string' ? fieldValue : ''}
                                         onChange={(e) => handleFieldUpdate(schemaPath, e.target.value)}
                                         placeholder={field.placeholder || ''}
                                         rows={3}
@@ -1128,9 +1128,11 @@ const SettingsUltimate = () => {
                                     ) : field.type === 'tags' ? (
                                       <div className="flex flex-wrap gap-2 p-2 border border-slate-200 rounded-xl min-h-[42px]">
                                         {Array.isArray(fieldValue) && fieldValue.map((tag: any, idx: number) => {
-                                          // Handle both string tags and ProductService objects
-                                          const displayText = typeof tag === 'string' ? tag : (tag?.name || tag?.id || `Item ${idx + 1}`);
-                                          const tagKey = typeof tag === 'string' ? tag : (tag?.id || `tag-${idx}`);
+                                          // Handle both string tags and ProductService objects - ensure displayText is always a string
+                                          const displayText = typeof tag === 'string'
+                                            ? tag
+                                            : String(tag?.name || tag?.id || `Item ${idx + 1}`);
+                                          const tagKey = typeof tag === 'string' ? tag : String(tag?.id || `tag-${idx}`);
 
                                           return (
                                             <span key={tagKey} className="px-2.5 py-1 bg-slate-100 text-slate-700 rounded-lg text-sm flex items-center gap-1">
@@ -1171,19 +1173,19 @@ const SettingsUltimate = () => {
                                       </div>
                                     ) : field.type === 'select' ? (
                                       <select
-                                        value={fieldValue || ''}
+                                        value={typeof fieldValue === 'string' ? fieldValue : ''}
                                         onChange={(e) => handleFieldUpdate(schemaPath, e.target.value)}
                                         className="w-full px-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent bg-white"
                                       >
                                         <option value="">Select...</option>
-                                        {(field.options || []).map((opt: string) => (
-                                          <option key={opt} value={opt}>{opt}</option>
+                                        {Array.isArray(field.options) && field.options.map((opt: string) => (
+                                          <option key={String(opt)} value={String(opt)}>{String(opt)}</option>
                                         ))}
                                       </select>
                                     ) : field.type === 'address' ? (
                                       <input
                                         type="text"
-                                        value={typeof fieldValue === 'string' ? fieldValue : (fieldValue?.street || fieldValue?.city || '')}
+                                        value={typeof fieldValue === 'string' ? fieldValue : (typeof fieldValue === 'object' && fieldValue !== null ? (fieldValue.street || fieldValue.city || '') : '')}
                                         onChange={(e) => handleFieldUpdate(schemaPath, e.target.value)}
                                         placeholder="Enter address..."
                                         className="w-full px-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
