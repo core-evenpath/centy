@@ -26,7 +26,7 @@ const SettingsUltimate = () => {
 
   // State
   const [activeTab, setActiveTab] = useState('profile');
-  const [businessType, setBusinessType] = useState<string>('professional');
+  const [selectedBusinessTypes, setSelectedBusinessTypes] = useState<string[]>([]);
   const [expandedSection, setExpandedSection] = useState<string | null>('identity');
   const [showAICoach, setShowAICoach] = useState(true);
   const [showOnboarding, setShowOnboarding] = useState(false);
@@ -79,8 +79,15 @@ const SettingsUltimate = () => {
         if (personaResult.success && personaResult.persona) {
           setPersona(personaResult.persona);
           // Set initial business type from persona
-          if (personaResult.persona.identity?.industry?.category) {
-            setBusinessType(personaResult.persona.identity.industry.category);
+          // Load saved business types (could be single category or array)
+          const savedCategory = personaResult.persona.identity?.industry?.category;
+          if (savedCategory) {
+            // Support both old single-value and new multi-value format
+            if (Array.isArray(savedCategory)) {
+              setSelectedBusinessTypes(savedCategory);
+            } else {
+              setSelectedBusinessTypes([savedCategory]);
+            }
           } else if (personaResult.isNewPersona) {
             setShowOnboarding(true);
           }
@@ -725,11 +732,50 @@ const SettingsUltimate = () => {
     },
   };
 
-  // Safe fallback for other industries to use the 'services' template structure but maybe with diff labels if needed
-  // Real implementation would fill all types. For now, we default to 'services' structure if exact match missing
-  // to ensure UI renders.
-  const currentIndustry = industryData[businessType] || industryData['services'];
-  const sections = Object.entries(currentIndustry);
+  // Merge sections from all selected business types
+  // This creates a combined set of sections, avoiding duplicates by section key
+  const getMergedSections = () => {
+    const typesToUse = selectedBusinessTypes.length > 0 ? selectedBusinessTypes : ['services'];
+    const mergedSections: Record<string, any> = {};
+    const sectionSources: Record<string, string[]> = {}; // Track which types contributed each section
+
+    typesToUse.forEach(type => {
+      const industryConfig = industryData[type] || {};
+      Object.entries(industryConfig).forEach(([sectionKey, sectionData]: [string, any]) => {
+        if (!mergedSections[sectionKey]) {
+          mergedSections[sectionKey] = { ...sectionData, fields: [...sectionData.fields] };
+          sectionSources[sectionKey] = [type];
+        } else {
+          // Merge fields from this type, avoiding duplicates by field key
+          const existingFieldKeys = new Set(mergedSections[sectionKey].fields.map((f: any) => f.key));
+          sectionData.fields.forEach((field: any) => {
+            if (!existingFieldKeys.has(field.key)) {
+              mergedSections[sectionKey].fields.push(field);
+            }
+          });
+          sectionSources[sectionKey].push(type);
+        }
+      });
+    });
+
+    return { sections: Object.entries(mergedSections), sectionSources };
+  };
+
+  const { sections, sectionSources } = getMergedSections();
+
+  // Helper to toggle business type selection
+  const toggleBusinessType = (typeId: string) => {
+    // Compute new types first
+    const newTypes = selectedBusinessTypes.includes(typeId)
+      ? selectedBusinessTypes.filter(t => t !== typeId)
+      : [...selectedBusinessTypes, typeId];
+
+    // Update local state
+    setSelectedBusinessTypes(newTypes);
+
+    // Save to backend (outside setState to avoid render-phase updates)
+    handleFieldUpdate('identity.industry.category', newTypes);
+  };
 
   const navItems = [
     { id: 'profile', label: 'Business Profile', icon: '🏢', desc: 'Your business data' },
@@ -738,14 +784,23 @@ const SettingsUltimate = () => {
     ...(isAdmin ? [{ id: 'admin', label: 'Admin', icon: '🔐', desc: 'Integrations & tools', badge: 'Admin' }] : []),
   ];
 
-  const getCompletionForSection = (sectionKey: string) => {
-    // Simple heuristic
-    const section = currentIndustry[sectionKey];
-    if (!section) return 100;
-    let filled = 60; // Mock calculation for UI visual
-    // Real calc: iterate section.fields, check getFieldValue(getFieldPath(sectionKey, field.key))
-    // We can implement real calc later.
-    return 75;
+  const getCompletionForSection = (sectionKey: string, sectionData: any) => {
+    // Calculate completion based on filled fields
+    if (!sectionData?.fields) return 100;
+
+    let filledCount = 0;
+    let totalCount = 0;
+
+    sectionData.fields.forEach((field: any) => {
+      totalCount++;
+      const schemaPath = getFieldPath(sectionKey, field.key);
+      const value = getFieldValue(schemaPath);
+      if (value && (Array.isArray(value) ? value.length > 0 : true)) {
+        filledCount++;
+      }
+    });
+
+    return totalCount > 0 ? Math.round((filledCount / totalCount) * 100) : 100;
   };
 
   const roleLabels: Record<string, string> = {
@@ -874,59 +929,98 @@ const SettingsUltimate = () => {
                   </div>
                 </div>
 
-                {/* Business Type Card */}
+                {/* Business Types Selection Card */}
                 <div className="bg-white rounded-2xl border border-slate-200 p-5">
                   <div className="flex items-center justify-between mb-4">
-                    <div className="flex items-center gap-3">
-                      <div className="w-12 h-12 bg-slate-100 rounded-xl flex items-center justify-center text-2xl">
-                        {businessTypes.find(t => t.id === businessType)?.icon || '🏢'}
-                      </div>
-                      <div>
-                        <h3 className="font-semibold text-slate-900">
-                          {businessTypes.find(t => t.id === businessType)?.name || 'General Business'}
-                        </h3>
-                        <p className="text-sm text-slate-500">
-                          {businessTypes.find(t => t.id === businessType)?.desc || ''}
-                        </p>
-                      </div>
+                    <div>
+                      <h3 className="font-semibold text-slate-900">What does your business do?</h3>
+                      <p className="text-sm text-slate-500">Select all that apply — we'll customize your profile fields</p>
                     </div>
-                    <button
-                      onClick={() => setShowOnboarding(true)}
-                      className="text-sm text-indigo-600 font-medium hover:text-indigo-700"
-                    >
-                      Change type →
-                    </button>
+                    {selectedBusinessTypes.length > 0 && (
+                      <span className="text-xs px-2.5 py-1 bg-indigo-100 text-indigo-700 rounded-full font-medium">
+                        {selectedBusinessTypes.length} selected
+                      </span>
+                    )}
                   </div>
 
-                  {/* Mini type selector */}
-                  <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
-                    {businessTypes.map(type => (
-                      <button
-                        key={type.id}
-                        onClick={() => {
-                          setBusinessType(type.id);
-                          // Also update backend preference if needed
-                          handleFieldUpdate('identity.industry.category', type.id);
-                        }}
-                        className={cn(
-                          "flex items-center gap-2 px-3 py-2 rounded-lg whitespace-nowrap transition-all",
-                          businessType === type.id
-                            ? 'bg-slate-900 text-white'
-                            : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                        )}
-                      >
-                        <span>{type.icon}</span>
-                        <span className="text-sm font-medium">{type.name}</span>
-                      </button>
-                    ))}
+                  {/* Selected Types Summary */}
+                  {selectedBusinessTypes.length > 0 && (
+                    <div className="flex flex-wrap gap-2 mb-4 p-3 bg-slate-50 rounded-xl">
+                      {selectedBusinessTypes.map(typeId => {
+                        const type = businessTypes.find(t => t.id === typeId);
+                        return type ? (
+                          <span
+                            key={typeId}
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-sm shadow-sm"
+                          >
+                            <span>{type.icon}</span>
+                            <span className="font-medium text-slate-700">{type.name}</span>
+                            <button
+                              onClick={() => toggleBusinessType(typeId)}
+                              className="ml-1 text-slate-400 hover:text-red-500 transition-colors"
+                            >
+                              ×
+                            </button>
+                          </span>
+                        ) : null;
+                      })}
+                    </div>
+                  )}
+
+                  {/* Business Type Grid */}
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                    {businessTypes.map(type => {
+                      const isSelected = selectedBusinessTypes.includes(type.id);
+                      return (
+                        <button
+                          key={type.id}
+                          onClick={() => toggleBusinessType(type.id)}
+                          className={cn(
+                            "relative flex flex-col items-center gap-2 p-4 rounded-xl border-2 transition-all text-center group",
+                            isSelected
+                              ? 'border-indigo-500 bg-indigo-50'
+                              : 'border-slate-100 bg-slate-50 hover:border-slate-200 hover:bg-slate-100'
+                          )}
+                        >
+                          {/* Checkbox indicator */}
+                          <div className={cn(
+                            "absolute top-2 right-2 w-5 h-5 rounded-full flex items-center justify-center text-xs transition-all",
+                            isSelected
+                              ? 'bg-indigo-500 text-white'
+                              : 'bg-slate-200 text-transparent group-hover:bg-slate-300'
+                          )}>
+                            ✓
+                          </div>
+                          <span className="text-2xl">{type.icon}</span>
+                          <span className={cn(
+                            "text-sm font-medium leading-tight",
+                            isSelected ? 'text-indigo-700' : 'text-slate-700'
+                          )}>
+                            {type.name}
+                          </span>
+                          <span className="text-[10px] text-slate-500 leading-tight hidden sm:block">
+                            {type.desc}
+                          </span>
+                        </button>
+                      );
+                    })}
                   </div>
+
+                  {/* Empty state prompt */}
+                  {selectedBusinessTypes.length === 0 && (
+                    <div className="mt-4 p-4 bg-amber-50 border border-amber-200 rounded-xl text-center">
+                      <p className="text-sm text-amber-800">
+                        👆 Select at least one business type to customize your profile fields
+                      </p>
+                    </div>
+                  )}
                 </div>
 
                 {/* Sections */}
                 <div className="space-y-3">
                   {sections.map(([key, section]: any) => {
                     const isExpanded = expandedSection === key;
-                    const completion = getCompletionForSection(key);
+                    const completion = getCompletionForSection(key, section);
 
                     return (
                       <div
@@ -946,6 +1040,12 @@ const SettingsUltimate = () => {
                           <div className="flex-1">
                             <div className="flex items-center gap-2">
                               <span className="font-semibold text-slate-900">{section.title}</span>
+                              {/* Show which business types contributed this section */}
+                              {sectionSources[key] && sectionSources[key].length > 1 && (
+                                <span className="text-[10px] px-1.5 py-0.5 bg-indigo-100 text-indigo-600 rounded ml-2">
+                                  {sectionSources[key].length} types
+                                </span>
+                              )}
                             </div>
                             <div className="flex items-center gap-2 mt-0.5">
                               <div className="w-24 h-1.5 bg-slate-100 rounded-full overflow-hidden">
@@ -1343,26 +1443,44 @@ const SettingsUltimate = () => {
               <p className="text-slate-500 mt-1">This customizes your profile fields and AI suggestions</p>
             </div>
             <div className="p-6 grid grid-cols-1 sm:grid-cols-2 gap-3 overflow-y-auto">
-              {businessTypes.map(type => (
-                <button
-                  key={type.id}
-                  onClick={() => {
-                    setBusinessType(type.id);
-                    handleFieldUpdate('identity.industry.category', type.id);
-                    setShowOnboarding(false);
-                  }}
-                  className={cn(
-                    "p-4 rounded-xl border-2 text-left transition-all",
-                    businessType === type.id
-                      ? 'border-indigo-500 bg-indigo-50'
-                      : 'border-slate-200 hover:border-slate-300'
-                  )}
-                >
-                  <div className="text-2xl mb-2">{type.icon}</div>
-                  <h3 className="font-semibold text-slate-900">{type.name}</h3>
-                  <p className="text-xs text-slate-500 mt-0.5">{type.desc}</p>
-                </button>
-              ))}
+              {businessTypes.map(type => {
+                const isSelected = selectedBusinessTypes.includes(type.id);
+                return (
+                  <button
+                    key={type.id}
+                    onClick={() => toggleBusinessType(type.id)}
+                    className={cn(
+                      "p-4 rounded-xl border-2 text-left transition-all relative",
+                      isSelected
+                        ? 'border-indigo-500 bg-indigo-50'
+                        : 'border-slate-200 hover:border-slate-300'
+                    )}
+                  >
+                    {/* Checkbox */}
+                    <div className={cn(
+                      "absolute top-3 right-3 w-6 h-6 rounded-full flex items-center justify-center text-sm",
+                      isSelected ? 'bg-indigo-500 text-white' : 'bg-slate-200 text-slate-400'
+                    )}>
+                      {isSelected ? '✓' : ''}
+                    </div>
+                    <div className="text-2xl mb-2">{type.icon}</div>
+                    <h3 className="font-semibold text-slate-900">{type.name}</h3>
+                    <p className="text-xs text-slate-500 mt-0.5">{type.desc}</p>
+                  </button>
+                );
+              })}
+            </div>
+            <div className="p-4 border-t border-slate-100 flex items-center justify-between bg-slate-50">
+              <span className="text-sm text-slate-600">
+                {selectedBusinessTypes.length} type{selectedBusinessTypes.length !== 1 ? 's' : ''} selected
+              </span>
+              <button
+                onClick={() => setShowOnboarding(false)}
+                disabled={selectedBusinessTypes.length === 0}
+                className="px-4 py-2 bg-slate-900 text-white rounded-xl text-sm font-medium hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Continue →
+              </button>
             </div>
           </div>
         </div>
