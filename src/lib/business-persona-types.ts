@@ -673,6 +673,294 @@ export interface QuickSetupTemplate {
     exampleProducts: ProductService[];
 }
 
+// ============================================
+// INDUSTRY-SPECIFIC INVENTORY TYPES
+// ============================================
+
+/**
+ * Real Estate - Property Listing
+ */
+export interface PropertyListing {
+    id: string;
+    title: string;
+    type: 'apartment' | 'villa' | 'plot' | 'commercial' | 'office' | 'shop' | 'warehouse' | 'pg' | 'other';
+    transactionType: 'sale' | 'rent' | 'lease';
+    status: 'available' | 'sold' | 'rented' | 'under_negotiation';
+
+    // Location
+    locality: string;
+    city: string;
+    state?: string;
+    project?: string;
+    landmark?: string;
+
+    // Specifications
+    bedrooms?: number;
+    bathrooms?: number;
+    balconies?: number;
+    area: { value: number; unit: 'sqft' | 'sqm' | 'sqyd' | 'acre' };
+    carpetArea?: { value: number; unit: 'sqft' | 'sqm' };
+    floor?: number;
+    totalFloors?: number;
+
+    // Pricing
+    price: number;
+    pricePerUnit?: number;
+    negotiable: boolean;
+    maintenanceCharges?: number;
+    securityDeposit?: number;
+    bookingAmount?: number;
+
+    // Features
+    amenities: string[];
+    facing?: 'north' | 'south' | 'east' | 'west' | 'north-east' | 'north-west' | 'south-east' | 'south-west';
+    furnishing?: 'unfurnished' | 'semi-furnished' | 'fully-furnished';
+    possession?: 'ready' | 'under_construction' | string;
+    ageOfProperty?: string;
+    parking?: { covered: number; open: number };
+
+    // Media
+    images?: string[];
+    videoUrl?: string;
+    virtualTourUrl?: string;
+    floorPlanUrl?: string;
+
+    // Legal & Meta
+    reraId?: string;
+    isFeatured: boolean;
+    isVerified?: boolean;
+    listedAt: Date;
+    updatedAt: Date;
+}
+
+/**
+ * E-Commerce - Product Catalog
+ */
+export interface RetailProduct {
+    id: string;
+    name: string;
+    sku?: string;
+    barcode?: string;
+    category: string;
+    subcategory?: string;
+    brand?: string;
+
+    // Pricing
+    price: number;
+    compareAtPrice?: number; // Original/MRP
+    costPrice?: number; // For margin calculation
+    currency: string;
+    taxRate?: number;
+
+    // Inventory
+    inStock: boolean;
+    stockQuantity?: number;
+    lowStockThreshold?: number;
+    trackInventory: boolean;
+    allowBackorder?: boolean;
+
+    // Variants
+    variants?: ProductVariant[];
+    hasVariants: boolean;
+
+    // Details
+    description: string;
+    shortDescription?: string;
+    specifications?: { key: string; value: string }[];
+    highlights?: string[];
+
+    // Media
+    images: string[];
+    videoUrl?: string;
+
+    // Shipping
+    weight?: { value: number; unit: 'g' | 'kg' | 'lb' };
+    dimensions?: { length: number; width: number; height: number; unit: 'cm' | 'in' };
+    shipsWithin?: string;
+    freeShipping?: boolean;
+
+    // Meta
+    isPopular: boolean;
+    isFeatured: boolean;
+    isNewArrival?: boolean;
+    tags: string[];
+
+    // SEO
+    metaTitle?: string;
+    metaDescription?: string;
+
+    createdAt: Date;
+    updatedAt: Date;
+}
+
+export interface ProductVariant {
+    id: string;
+    name: string; // "Red - Large"
+    attributes: Record<string, string>; // { color: 'Red', size: 'Large' }
+    price?: number; // Override base price
+    compareAtPrice?: number;
+    sku?: string;
+    barcode?: string;
+    inStock: boolean;
+    stockQuantity?: number;
+    image?: string;
+}
+
+/**
+ * Hospitality - Room Types & Inventory
+ */
+export interface RoomType {
+    id: string;
+    name: string; // "Deluxe Room", "Executive Suite"
+    description: string;
+    shortDescription?: string;
+
+    // Capacity
+    maxGuests: number;
+    maxAdults: number;
+    maxChildren?: number;
+    beds: { type: 'single' | 'double' | 'queen' | 'king' | 'sofa_bed'; count: number }[];
+
+    // Pricing
+    basePrice: number;
+    weekendPrice?: number;
+    currency: string;
+    seasonalPricing?: { seasonName: string; startDate: string; endDate: string; price: number }[];
+    extraPersonCharge?: number;
+    childCharge?: number;
+
+    // Room Features
+    size: { value: number; unit: 'sqft' | 'sqm' };
+    view?: string; // "Sea View", "Garden View"
+    amenities: string[];
+    roomFeatures?: string[]; // "Balcony", "Bathtub", "Work Desk"
+
+    // Policies
+    cancellationPolicy?: string;
+    prepaymentRequired?: boolean;
+
+    // Inventory
+    totalRooms: number;
+
+    // Media
+    images: string[];
+    floorPlan?: string;
+
+    // Meta
+    isFeatured: boolean;
+    isPopular?: boolean;
+    displayOrder?: number;
+}
+
+export interface HotelAmenity {
+    id: string;
+    name: string;
+    category: 'dining' | 'recreation' | 'wellness' | 'business' | 'transport' | 'services';
+    description?: string;
+    timing?: string;
+    isPaid: boolean;
+    price?: number;
+    icon?: string;
+}
+
+export interface HotelPolicy {
+    checkInTime: string;
+    checkOutTime: string;
+    cancellationPolicy: string;
+    childPolicy?: string;
+    petPolicy?: string;
+    smokingPolicy?: string;
+    idRequirements?: string;
+    paymentPolicy?: string;
+}
+
+/**
+ * Restaurant - Menu System
+ */
+export interface MenuItem {
+    id: string;
+    name: string;
+    description?: string;
+
+    // Pricing
+    price: number;
+    currency?: string;
+    variants?: { name: string; price: number }[]; // Half/Full, Small/Medium/Large
+
+    // Dietary Info
+    isVegetarian: boolean;
+    isVegan?: boolean;
+    isGlutenFree?: boolean;
+    isJainFriendly?: boolean;
+    spiceLevel?: 'none' | 'mild' | 'medium' | 'hot' | 'very_hot';
+    allergens?: string[];
+    calories?: number;
+
+    // Availability
+    isAvailable: boolean;
+    availableFor?: ('breakfast' | 'lunch' | 'dinner' | 'all_day')[];
+    availableDays?: string[];
+
+    // Meta
+    isPopular: boolean;
+    isChefSpecial?: boolean;
+    isNewItem?: boolean;
+    preparationTime?: string;
+    servingSize?: string;
+
+    // Media
+    image?: string;
+
+    // Ordering
+    customizations?: MenuCustomization[];
+    addons?: { id: string; name: string; price: number }[];
+
+    displayOrder?: number;
+}
+
+export interface MenuCustomization {
+    id: string;
+    name: string; // "Spice Level", "Cooking Style"
+    type: 'single' | 'multiple';
+    required: boolean;
+    options: { id: string; name: string; priceModifier?: number }[];
+}
+
+export interface MenuCategory {
+    id: string;
+    name: string;
+    description?: string;
+    image?: string;
+    displayOrder: number;
+    isActive: boolean;
+    items: MenuItem[];
+}
+
+// ============================================
+// CUSTOM FIELDS SUPPORT
+// ============================================
+
+/**
+ * User-defined custom field
+ */
+export interface CustomField {
+    id: string;
+    label: string;
+    type: 'text' | 'textarea' | 'number' | 'tags' | 'url' | 'email' | 'phone' | 'select' | 'date';
+    value: any;
+    options?: string[]; // For select type
+    placeholder?: string;
+    section: string; // Which section this belongs to
+    required?: boolean;
+    helpText?: string;
+    createdAt: Date;
+    updatedAt: Date;
+}
+
+// ============================================
+// UPDATED BUSINESS PERSONA
+// ============================================
+
 /**
  * Complete Business Persona - unified across the platform
  */
@@ -682,8 +970,38 @@ export interface BusinessPersona {
     customerProfile: CustomerProfile;
     knowledge: BusinessKnowledge;
 
-    // Industry specific extended data
+    // Industry specific extended data (legacy catch-all)
     industrySpecificData?: Record<string, any>;
+
+    // ========== NEW: Structured Industry Inventory ==========
+
+    // Real Estate
+    propertyListings?: PropertyListing[];
+
+    // E-Commerce / Retail
+    productCatalog?: RetailProduct[];
+    productCategories?: string[];
+
+    // Hospitality
+    roomTypes?: RoomType[];
+    hotelAmenities?: HotelAmenity[];
+    hotelPolicies?: HotelPolicy;
+
+    // Restaurant / Food
+    menuCategories?: MenuCategory[];
+    menuItems?: MenuItem[]; // Flat list for quick access
+    restaurantInfo?: {
+        cuisineTypes: string[];
+        diningStyles: string[];
+        seatingCapacity?: number;
+        averageCostForTwo?: number;
+        alcoholServed?: boolean;
+        pureVeg?: boolean;
+        deliveryPartners?: string[];
+    };
+
+    // ========== Custom Fields ==========
+    customFields?: CustomField[];
 
     // Setup progress
     setupProgress: SetupProgress;

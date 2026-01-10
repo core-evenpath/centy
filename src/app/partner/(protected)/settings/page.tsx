@@ -231,33 +231,40 @@ const SettingsUltimate = () => {
       'name': 'identity.name',
       'tagline': 'personality.tagline',
       'description': 'personality.description',
-      'founded': 'industrySpecificData.founded',
-      'teamSize': 'industrySpecificData.teamSize',
+      'foundedYear': 'personality.foundedYear',
       'usps': 'personality.uniqueSellingPoints',
-      'category': 'identity.industry.name', // Approximate
+      'category': 'identity.industry.name',
+      'languages': 'personality.languagePreference',
 
       // Contact
       'phone': 'identity.phone',
       'whatsapp': 'identity.whatsAppNumber',
       'email': 'identity.email',
       'website': 'identity.website',
-      'address': 'identity.address.street', // Simplified
+      'address': 'identity.address.street',
       'officeAddress': 'identity.address.street',
       'serviceAreas': 'identity.serviceArea',
 
+      // Social Media
+      'instagram': 'identity.socialMedia.instagram',
+      'facebook': 'identity.socialMedia.facebook',
+      'linkedin': 'identity.socialMedia.linkedin',
+      'youtube': 'identity.socialMedia.youtube',
+      'googleBusiness': 'identity.socialMedia.googleBusiness',
+
       // Availability
-      'hoursType': 'identity.operatingHours.specialNote', // Store type here or custom field
+      'hoursType': 'identity.operatingHours.specialNote',
       'schedule': 'identity.operatingHours.schedule',
       'responseTime': 'personality.responseTimeExpectation',
-      'bookingLink': 'industrySpecificData.bookingLink',
+      'bookingLink': 'identity.website', // Fallback to website if no dedicated field
 
       // Services / Products
       'services': 'knowledge.productsOrServices',
       'products': 'knowledge.productsOrServices',
       'consultationFee': 'knowledge.pricingHighlights',
       'paymentMethods': 'knowledge.acceptedPayments',
-      'pricingNote': 'industrySpecificData.pricingNote',
-      'priceRange': 'knowledge.pricingHighlights', // visual reuse
+      'pricingNote': 'knowledge.pricingHighlights',
+      'priceRange': 'knowledge.pricingHighlights',
 
       // Credentials / Policies
       'certifications': 'knowledge.certifications',
@@ -266,6 +273,23 @@ const SettingsUltimate = () => {
       'returnPolicy': 'knowledge.policies.returnPolicy',
       'refundPolicy': 'knowledge.policies.refundPolicy',
       'cancellation': 'knowledge.policies.cancellationPolicy',
+      'shippingPolicy': 'knowledge.policies.shippingInfo',
+      'deliveryPolicy': 'knowledge.policies.deliveryInfo',
+
+      // Restaurant specific
+      'cuisineTypes': 'restaurantInfo.cuisineTypes',
+      'diningStyles': 'restaurantInfo.diningStyles',
+      'seatingCapacity': 'restaurantInfo.seatingCapacity',
+      'averageCost': 'restaurantInfo.averageCostForTwo',
+      'pureVeg': 'restaurantInfo.pureVeg',
+      'alcoholServed': 'restaurantInfo.alcoholServed',
+      'deliveryPartners': 'restaurantInfo.deliveryPartners',
+
+      // Hospitality specific
+      'checkInTime': 'hotelPolicies.checkInTime',
+      'checkOutTime': 'hotelPolicies.checkOutTime',
+      'petPolicy': 'hotelPolicies.petPolicy',
+      'childPolicy': 'hotelPolicies.childPolicy',
     };
 
     return mappings[fieldKey] || `industrySpecificData.${fieldKey}`;
@@ -292,6 +316,7 @@ const SettingsUltimate = () => {
     { id: 'education', icon: '📚', name: 'Education', desc: 'Coaching, Courses, Tutoring' },
     { id: 'food_beverage', icon: '🍕', name: 'Food & Restaurant', desc: 'Restaurant, Cloud Kitchen' },
     { id: 'hospitality', icon: '🏨', name: 'Hospitality', desc: 'Hotels, Travel, Events' },
+    { id: 'custom', icon: '🔧', name: 'Custom / Other', desc: 'Build your own profile' },
   ];
 
   // Industry Fields Configuration
@@ -304,9 +329,9 @@ const SettingsUltimate = () => {
           { key: 'name', label: 'Business Name', type: 'text', required: true },
           { key: 'tagline', label: 'Tagline', type: 'text', placeholder: 'e.g., Your success is our mission' },
           { key: 'description', label: 'About', type: 'textarea', required: true },
-          { key: 'founded', label: 'Founded', type: 'text' },
-          { key: 'teamSize', label: 'Team Size', type: 'select', options: ['Solo', '2-5', '5-10', '10-50', '50+'] },
+          { key: 'foundedYear', label: 'Founded Year', type: 'text', placeholder: 'e.g., 2015' },
           { key: 'usps', label: 'What Makes You Special', type: 'tags' },
+          { key: 'languages', label: 'Languages Spoken', type: 'tags', placeholder: 'English, Hindi' },
         ]
       },
       contact: {
@@ -319,6 +344,8 @@ const SettingsUltimate = () => {
           { key: 'website', label: 'Website', type: 'url' },
           { key: 'address', label: 'Office Address', type: 'address' },
           { key: 'serviceAreas', label: 'Service Areas', type: 'tags' },
+          { key: 'instagram', label: 'Instagram', type: 'url', placeholder: '@yourbusiness' },
+          { key: 'linkedin', label: 'LinkedIn', type: 'url' },
         ]
       },
       availability: {
@@ -742,9 +769,68 @@ const SettingsUltimate = () => {
         icon: '📋',
         fields: [
           { key: 'cancellation', label: 'Cancellation Policy', type: 'textarea' },
-          { key: 'pets', label: 'Pet Policy', type: 'text' },
-          { key: 'children', label: 'Children Policy', type: 'text' },
+          { key: 'petPolicy', label: 'Pet Policy', type: 'text' },
+          { key: 'childPolicy', label: 'Children Policy', type: 'text' },
           { key: 'faqs', label: 'FAQs', type: 'faq' },
+        ]
+      },
+      inventory: {
+        title: 'Room Types & Rates',
+        icon: '🛏️',
+        fields: [
+          { key: 'roomTypes', label: 'Room Types', type: 'inventory', inventoryType: 'rooms', hint: 'Add your room categories with pricing' },
+        ]
+      },
+    },
+    // Custom / Other business type
+    custom: {
+      identity: {
+        title: 'Business Profile',
+        icon: '🏢',
+        fields: [
+          { key: 'name', label: 'Business Name', type: 'text', required: true },
+          { key: 'tagline', label: 'Tagline', type: 'text', placeholder: 'One line about your business' },
+          { key: 'description', label: 'What You Do', type: 'textarea', required: true, placeholder: 'Describe your business in detail' },
+          { key: 'usps', label: 'What Makes You Unique', type: 'tags' },
+          { key: 'languages', label: 'Languages', type: 'tags' },
+        ]
+      },
+      contact: {
+        title: 'Contact Information',
+        icon: '📞',
+        fields: [
+          { key: 'phone', label: 'Phone', type: 'phone', required: true },
+          { key: 'whatsapp', label: 'WhatsApp', type: 'phone' },
+          { key: 'email', label: 'Email', type: 'email' },
+          { key: 'website', label: 'Website', type: 'url' },
+          { key: 'address', label: 'Address', type: 'address' },
+        ]
+      },
+      availability: {
+        title: 'Availability',
+        icon: '🕐',
+        fields: [
+          { key: 'hoursType', label: 'Working Hours', type: 'select', options: ['24/7', 'Business Hours', 'By Appointment', 'Custom'] },
+          { key: 'schedule', label: 'Schedule', type: 'schedule' },
+          { key: 'responseTime', label: 'Response Time', type: 'select', options: ['Instant', 'Within 1 hour', 'Within 2 hours', 'Same day', 'Next business day'] },
+        ]
+      },
+      offerings: {
+        title: 'Products / Services',
+        icon: '📦',
+        fields: [
+          { key: 'services', label: 'What You Offer', type: 'list' },
+          { key: 'priceRange', label: 'Price Range', type: 'text', placeholder: 'e.g., Starting from ₹500' },
+          { key: 'paymentMethods', label: 'Payment Methods', type: 'tags' },
+        ]
+      },
+      knowledge: {
+        title: 'FAQs & Policies',
+        icon: '❓',
+        fields: [
+          { key: 'faqs', label: 'Frequently Asked Questions', type: 'faq' },
+          { key: 'refundPolicy', label: 'Refund/Return Policy', type: 'textarea' },
+          { key: 'cancellation', label: 'Cancellation Policy', type: 'textarea' },
         ]
       },
     },
