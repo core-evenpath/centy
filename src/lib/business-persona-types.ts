@@ -677,263 +677,1176 @@ export interface QuickSetupTemplate {
 // INDUSTRY-SPECIFIC INVENTORY TYPES
 // ============================================
 
+// ============================================
+// IMPORT/EXPORT CONFIGURATION
+// ============================================
+
 /**
- * Real Estate - Property Listing
+ * Data import configuration for bulk catalog management
  */
-export interface PropertyListing {
-    id: string;
-    title: string;
-    type: 'apartment' | 'villa' | 'plot' | 'commercial' | 'office' | 'shop' | 'warehouse' | 'pg' | 'other';
-    transactionType: 'sale' | 'rent' | 'lease';
-    status: 'available' | 'sold' | 'rented' | 'under_negotiation';
-
-    // Location
-    locality: string;
-    city: string;
-    state?: string;
-    project?: string;
-    landmark?: string;
-
-    // Specifications
-    bedrooms?: number;
-    bathrooms?: number;
-    balconies?: number;
-    area: { value: number; unit: 'sqft' | 'sqm' | 'sqyd' | 'acre' };
-    carpetArea?: { value: number; unit: 'sqft' | 'sqm' };
-    floor?: number;
-    totalFloors?: number;
-
-    // Pricing
-    price: number;
-    pricePerUnit?: number;
-    negotiable: boolean;
-    maintenanceCharges?: number;
-    securityDeposit?: number;
-    bookingAmount?: number;
-
-    // Features
-    amenities: string[];
-    facing?: 'north' | 'south' | 'east' | 'west' | 'north-east' | 'north-west' | 'south-east' | 'south-west';
-    furnishing?: 'unfurnished' | 'semi-furnished' | 'fully-furnished';
-    possession?: 'ready' | 'under_construction' | string;
-    ageOfProperty?: string;
-    parking?: { covered: number; open: number };
-
-    // Media
-    images?: string[];
-    videoUrl?: string;
-    virtualTourUrl?: string;
-    floorPlanUrl?: string;
-
-    // Legal & Meta
-    reraId?: string;
-    isFeatured: boolean;
-    isVerified?: boolean;
-    listedAt: Date;
-    updatedAt: Date;
+export interface CatalogImportConfig {
+    source: 'csv' | 'excel' | 'google_sheets' | 'json';
+    googleSheetId?: string;
+    googleSheetTab?: string;
+    fileUrl?: string;
+    columnMapping: Record<string, string>; // Maps CSV/Excel columns to field names
+    autoSync: boolean;
+    syncFrequency?: 'manual' | 'hourly' | 'daily' | 'weekly';
+    lastSyncAt?: Date;
+    lastSyncStatus?: 'success' | 'failed' | 'partial';
+    lastSyncError?: string;
 }
 
 /**
- * E-Commerce - Product Catalog
+ * Catalog metadata for inventory management
+ */
+export interface CatalogMeta {
+    totalItems: number;
+    activeItems: number;
+    lastUpdated: Date;
+    importConfig?: CatalogImportConfig;
+    whatsappSyncEnabled?: boolean;
+    whatsappCatalogId?: string;
+}
+
+// ============================================
+// REAL ESTATE - PROPERTY LISTINGS
+// ============================================
+
+/**
+ * Real Estate - Property Listing (Enhanced with WhatsApp-like catalog features)
+ */
+export interface PropertyListing {
+    id: string;
+
+    // === BASIC INFO (Like WhatsApp Product Name/Description) ===
+    title: string;
+    shortDescription?: string; // For quick display (max 100 chars)
+    description: string; // Full property description
+
+    // Property Classification
+    type: 'apartment' | 'villa' | 'independent_house' | 'plot' | 'commercial' | 'office' | 'shop' | 'warehouse' | 'pg' | 'penthouse' | 'studio' | 'farmhouse' | 'other';
+    subType?: string; // "Builder Floor", "Duplex", "1RK", etc.
+    transactionType: 'sale' | 'rent' | 'lease' | 'pg';
+    status: 'available' | 'sold' | 'rented' | 'under_negotiation' | 'upcoming' | 'draft';
+
+    // === LOCATION (Detailed) ===
+    location: {
+        address?: string;
+        locality: string;
+        subLocality?: string;
+        city: string;
+        state: string;
+        pincode?: string;
+        country: string;
+        landmark?: string;
+        directions?: string;
+        coordinates?: { lat: number; lng: number };
+        googleMapsUrl?: string;
+    };
+    project?: {
+        name: string;
+        developer?: string;
+        phase?: string;
+    };
+
+    // Neighborhood & Connectivity
+    nearbyPlaces?: {
+        type: 'school' | 'hospital' | 'metro' | 'bus' | 'market' | 'mall' | 'airport' | 'railway' | 'highway' | 'park' | 'temple' | 'atm' | 'restaurant';
+        name: string;
+        distance: string; // "500m", "2km"
+    }[];
+
+    // === SPECIFICATIONS ===
+    configuration: {
+        bedrooms?: number;
+        bathrooms?: number;
+        balconies?: number;
+        halls?: number;
+        kitchen?: number;
+        servantRoom?: boolean;
+        studyRoom?: boolean;
+        poojaRoom?: boolean;
+        storeRoom?: boolean;
+    };
+
+    area: {
+        superBuiltUp?: { value: number; unit: 'sqft' | 'sqm' | 'sqyd' };
+        builtUp?: { value: number; unit: 'sqft' | 'sqm' | 'sqyd' };
+        carpet: { value: number; unit: 'sqft' | 'sqm' | 'sqyd' };
+        plot?: { value: number; unit: 'sqft' | 'sqm' | 'sqyd' | 'acre' | 'gunta' | 'bigha' };
+    };
+
+    floor?: {
+        current: number;
+        total: number;
+        type?: 'low' | 'mid' | 'high' | 'top' | 'ground' | 'basement';
+    };
+
+    // === PRICING (Like WhatsApp Price + Sale Price) ===
+    pricing: {
+        price: number;
+        priceType: 'fixed' | 'negotiable' | 'call_for_price';
+        pricePerSqft?: number;
+        originalPrice?: number; // For discounts
+
+        // Additional Costs
+        maintenanceCharges?: { amount: number; frequency: 'monthly' | 'quarterly' | 'yearly' };
+        securityDeposit?: number; // For rent
+        bookingAmount?: number;
+        stampDuty?: number;
+        registrationCharges?: number;
+
+        // Finance Options
+        loanAvailable?: boolean;
+        preferredBanks?: string[];
+        emiCalculator?: { loanAmount: number; tenure: number; interestRate: number };
+    };
+
+    currency: string; // INR, USD, etc.
+
+    // === FEATURES & AMENITIES ===
+    features: {
+        facing?: 'north' | 'south' | 'east' | 'west' | 'north-east' | 'north-west' | 'south-east' | 'south-west';
+        furnishing: 'unfurnished' | 'semi-furnished' | 'fully-furnished';
+        furnishingDetails?: string[]; // "AC", "Beds", "Sofa", "Wardrobe"
+        flooring?: 'marble' | 'vitrified' | 'wooden' | 'granite' | 'cement' | 'mosaic' | 'other';
+        waterSupply?: 'municipal' | 'borewell' | 'both' | '24x7';
+        powerBackup?: 'full' | 'partial' | 'none' | 'inverter';
+        parking?: { covered: number; open: number; type?: 'reserved' | 'common' };
+
+        // Property Age & Possession
+        possession: 'ready_to_move' | 'under_construction' | string; // or "Dec 2024"
+        ageOfProperty?: 'new' | '0-1' | '1-5' | '5-10' | '10+';
+        constructionStatus?: 'new_launch' | 'under_construction' | 'ready' | 'resale';
+
+        // Special Features
+        gatedCommunity?: boolean;
+        cornerProperty?: boolean;
+        petFriendly?: boolean;
+        vaastuCompliant?: boolean;
+
+        // For Commercial
+        cabins?: number;
+        workstations?: number;
+        conferenceRooms?: number;
+        pantry?: boolean;
+        washrooms?: number;
+    };
+
+    amenities: string[]; // "Swimming Pool", "Gym", "Club House", "Security", etc.
+
+    // Society/Complex Amenities
+    societyAmenities?: string[]; // "Power Backup", "Lift", "Intercom", etc.
+
+    // === MEDIA (Like WhatsApp - up to 10 images) ===
+    media: {
+        images: { url: string; caption?: string; type: 'exterior' | 'interior' | 'bathroom' | 'kitchen' | 'bedroom' | 'balcony' | 'view' | 'amenity' | 'other' }[];
+        videos?: { url: string; type: 'walkthrough' | 'drone' | 'promo' }[];
+        virtualTourUrl?: string;
+        floorPlanUrl?: string;
+        brochureUrl?: string;
+        threeDModelUrl?: string;
+    };
+
+    // === LEGAL & VERIFICATION ===
+    legal: {
+        reraId?: string;
+        reraApproved?: boolean;
+        occupancyCertificate?: boolean;
+        propertyTax?: 'paid' | 'pending';
+        titleClear?: boolean;
+        bankApproved?: boolean;
+        approvedBanks?: string[];
+        encumbrance?: boolean;
+    };
+
+    // === AGENT/OWNER CONTACT ===
+    contact: {
+        type: 'owner' | 'agent' | 'builder';
+        name?: string;
+        phone?: string;
+        alternatePhone?: string;
+        email?: string;
+        whatsapp?: string;
+        preferredContactTime?: string;
+        preferredContactMethod?: 'call' | 'whatsapp' | 'email';
+    };
+
+    // === META & VISIBILITY (Like WhatsApp Status/Availability) ===
+    visibility: {
+        isActive: boolean;
+        isFeatured: boolean;
+        isPremium?: boolean;
+        isVerified?: boolean;
+        isExclusive?: boolean;
+        showPrice: boolean;
+        showContact: boolean;
+    };
+
+    // Analytics
+    stats?: {
+        views: number;
+        inquiries: number;
+        shares: number;
+        shortlisted: number;
+    };
+
+    // Listing Info
+    listingId?: string; // External reference
+    source?: string; // "Manual", "MagicBricks", "99Acres"
+    expiresAt?: Date;
+
+    // Timestamps
+    createdAt: Date;
+    updatedAt: Date;
+    publishedAt?: Date;
+}
+
+// ============================================
+// RETAIL & E-COMMERCE - PRODUCT CATALOG
+// ============================================
+
+/**
+ * E-Commerce - Product Catalog (WhatsApp Business Catalog Inspired)
+ *
+ * WhatsApp supports: name, price, description, link, code, sale price,
+ * category, condition, status, availability, brand, up to 10 images
  */
 export interface RetailProduct {
     id: string;
-    name: string;
-    sku?: string;
-    barcode?: string;
+
+    // === CORE FIELDS (WhatsApp Mandatory) ===
+    name: string; // Product name (max 200 chars)
+    description: string; // Full description
+    shortDescription?: string; // For quick view (max 100 chars)
+
+    // === IDENTIFIERS (Like WhatsApp Product Code) ===
+    sku?: string; // Stock Keeping Unit
+    barcode?: string; // EAN/UPC/ISBN
+    productCode?: string; // Custom product code (displayed in WhatsApp)
+    hsn?: string; // Harmonized System Code (for tax in India)
+
+    // === CATEGORIZATION (Like WhatsApp Collections) ===
     category: string;
     subcategory?: string;
+    collection?: string; // "Summer Collection", "Best Sellers"
+    collections?: string[]; // Multiple collections
     brand?: string;
+    manufacturer?: string;
 
-    // Pricing
-    price: number;
-    compareAtPrice?: number; // Original/MRP
-    costPrice?: number; // For margin calculation
-    currency: string;
-    taxRate?: number;
+    // === PRICING (Like WhatsApp Price + Sale Price) ===
+    pricing: {
+        price: number; // Selling price
+        mrp?: number; // Maximum Retail Price / Compare at price
+        costPrice?: number; // For margin tracking
+        salePrice?: number; // Discounted price
+        salePriceValidUntil?: Date;
+        currency: string;
 
-    // Inventory
-    inStock: boolean;
-    stockQuantity?: number;
-    lowStockThreshold?: number;
-    trackInventory: boolean;
-    allowBackorder?: boolean;
+        // Tax
+        taxInclusive: boolean;
+        taxRate?: number; // GST percentage
+        taxCategory?: 'gst_0' | 'gst_5' | 'gst_12' | 'gst_18' | 'gst_28' | 'exempt';
 
-    // Variants
-    variants?: ProductVariant[];
+        // Bulk/Wholesale Pricing
+        bulkPricing?: { minQty: number; price: number }[];
+        wholesalePrice?: number;
+        minimumOrderQty?: number;
+    };
+
+    // === INVENTORY (Like WhatsApp Availability) ===
+    inventory: {
+        trackInventory: boolean;
+        inStock: boolean;
+        stockQuantity?: number;
+        lowStockThreshold?: number;
+        allowBackorder: boolean;
+        backorderMessage?: string; // "Ships in 2 weeks"
+
+        // Location-wise stock (for multiple stores)
+        warehouseStock?: { location: string; quantity: number }[];
+
+        // Reservation
+        reservedQuantity?: number;
+        availableQuantity?: number;
+    };
+
+    // === CONDITION & STATUS (WhatsApp Extended Fields) ===
+    condition: 'new' | 'refurbished' | 'used' | 'like_new' | 'open_box';
+    status: 'active' | 'draft' | 'archived' | 'out_of_stock' | 'discontinued';
+    visibility: 'visible' | 'hidden' | 'catalog_only';
+
+    // === VARIANTS (Size, Color, etc.) ===
     hasVariants: boolean;
+    variantAttributes?: string[]; // ["Color", "Size"]
+    variants?: ProductVariant[];
 
-    // Details
-    description: string;
-    shortDescription?: string;
-    specifications?: { key: string; value: string }[];
-    highlights?: string[];
+    // Default variant for display
+    defaultVariantId?: string;
 
-    // Media
-    images: string[];
-    videoUrl?: string;
+    // === PRODUCT DETAILS ===
+    details: {
+        specifications?: { key: string; value: string; group?: string }[];
+        highlights?: string[]; // Bullet points
+        materials?: string[];
+        careInstructions?: string;
+        warranty?: { duration: string; type: string; terms?: string };
+        countryOfOrigin?: string;
+        importedBy?: string;
+        packedBy?: string;
+        expiryDate?: Date;
+        batchNumber?: string;
 
-    // Shipping
-    weight?: { value: number; unit: 'g' | 'kg' | 'lb' };
-    dimensions?: { length: number; width: number; height: number; unit: 'cm' | 'in' };
-    shipsWithin?: string;
-    freeShipping?: boolean;
+        // Dimensions & Weight
+        weight?: { value: number; unit: 'g' | 'kg' | 'lb' | 'oz' };
+        dimensions?: {
+            length: number;
+            width: number;
+            height: number;
+            unit: 'cm' | 'in' | 'mm';
+        };
+    };
 
-    // Meta
-    isPopular: boolean;
-    isFeatured: boolean;
-    isNewArrival?: boolean;
+    // === MEDIA (WhatsApp: up to 10 images) ===
+    media: {
+        images: {
+            url: string;
+            alt?: string;
+            position: number;
+            isDefault: boolean;
+            variantId?: string; // Link to variant
+        }[];
+        videos?: { url: string; thumbnail?: string; type: 'product' | 'review' | 'how_to' }[];
+        threeDModel?: string;
+    };
+
+    // === SHIPPING & DELIVERY ===
+    shipping: {
+        shipsWithin: string; // "1-2 business days"
+        freeShipping: boolean;
+        freeShippingMinOrder?: number;
+        shippingWeight?: { value: number; unit: 'g' | 'kg' };
+        shippingClass?: string; // "standard", "fragile", "oversized"
+        deliveryEstimate?: string; // "3-5 days"
+
+        // Restrictions
+        shipsTo?: string[]; // ["India", "USA"]
+        doesNotShipTo?: string[];
+        localPickupAvailable?: boolean;
+    };
+
+    // === VISIBILITY & PROMOTION ===
+    promotion: {
+        isPopular: boolean;
+        isFeatured: boolean;
+        isNewArrival: boolean;
+        isBestSeller?: boolean;
+        isLimitedEdition?: boolean;
+        isOnSale: boolean;
+        badgeText?: string; // "New", "Hot", "Sale"
+        promotionMessage?: string; // "Buy 2 Get 1 Free"
+    };
+
+    // Tags & Search
     tags: string[];
+    searchKeywords?: string[];
 
-    // SEO
-    metaTitle?: string;
-    metaDescription?: string;
+    // === LINKS (WhatsApp: Website Link) ===
+    links: {
+        websiteUrl?: string;
+        shopUrl?: string;
+        affiliateUrl?: string;
+        reviewsUrl?: string;
+    };
 
+    // === REVIEWS & RATINGS ===
+    ratings?: {
+        average: number;
+        count: number;
+        distribution?: { stars: number; count: number }[];
+    };
+
+    // === SEO ===
+    seo?: {
+        metaTitle?: string;
+        metaDescription?: string;
+        slug?: string;
+        canonicalUrl?: string;
+    };
+
+    // === RELATED PRODUCTS ===
+    related?: {
+        crossSells?: string[]; // Product IDs
+        upSells?: string[];
+        frequentlyBoughtTogether?: string[];
+    };
+
+    // === EXTERNAL SYNC ===
+    externalIds?: {
+        whatsappCatalogId?: string;
+        shopifyId?: string;
+        wooCommerceId?: string;
+        amazonASIN?: string;
+        flipkartId?: string;
+    };
+
+    // Timestamps
     createdAt: Date;
     updatedAt: Date;
+    publishedAt?: Date;
 }
 
 export interface ProductVariant {
     id: string;
     name: string; // "Red - Large"
-    attributes: Record<string, string>; // { color: 'Red', size: 'Large' }
-    price?: number; // Override base price
-    compareAtPrice?: number;
     sku?: string;
     barcode?: string;
+
+    // Attributes
+    attributes: Record<string, string>; // { color: 'Red', size: 'Large' }
+    attributeValues: { name: string; value: string }[];
+
+    // Pricing (overrides base)
+    price?: number;
+    compareAtPrice?: number;
+    costPrice?: number;
+
+    // Inventory
     inStock: boolean;
     stockQuantity?: number;
+    warehouseStock?: { location: string; quantity: number }[];
+
+    // Media
     image?: string;
+    images?: string[];
+
+    // Weight/Dimensions (if different)
+    weight?: { value: number; unit: 'g' | 'kg' };
+
+    // Status
+    isActive: boolean;
+    position: number;
+}
+
+// ============================================
+// HEALTHCARE SERVICES
+// ============================================
+
+/**
+ * Healthcare - Medical Services, Treatments & Consultations
+ */
+export interface HealthcareService {
+    id: string;
+
+    // === BASIC INFO ===
+    name: string;
+    shortDescription?: string;
+    description: string;
+    serviceCode?: string; // For insurance/billing
+
+    // === CATEGORIZATION ===
+    category: 'consultation' | 'treatment' | 'diagnostic' | 'surgery' | 'therapy' | 'vaccination' | 'checkup' | 'procedure' | 'other';
+    subcategory?: string;
+    department?: string; // "Cardiology", "Orthopedics"
+    specialization?: string;
+
+    // === PROVIDER ===
+    provider?: {
+        type: 'doctor' | 'clinic' | 'hospital' | 'lab' | 'therapist';
+        name?: string;
+        qualifications?: string[];
+        experience?: string;
+        registrationNumber?: string;
+    };
+
+    // === PRICING ===
+    pricing: {
+        price: number;
+        priceType: 'fixed' | 'starting_from' | 'range' | 'on_consultation';
+        maxPrice?: number; // For range
+        currency: string;
+
+        // Components
+        consultationFee?: number;
+        procedureFee?: number;
+        followUpFee?: number;
+
+        // Insurance
+        insuranceCovered: boolean;
+        cashlessAvailable?: boolean;
+        acceptedInsurers?: string[];
+        tpaApproved?: boolean;
+
+        // Packages
+        packages?: {
+            name: string;
+            includes: string[];
+            price: number;
+            validity?: string;
+        }[];
+    };
+
+    // === AVAILABILITY ===
+    availability: {
+        isAvailable: boolean;
+        slotDuration: number; // In minutes
+        advanceBookingDays?: number;
+        cancellationPolicy?: string;
+
+        // Online/Offline
+        consultationType: ('in_person' | 'video' | 'phone' | 'home_visit')[];
+        onlineConsultationFee?: number;
+        homeVisitFee?: number;
+
+        // Schedule
+        schedule?: {
+            day: string;
+            slots: { start: string; end: string }[];
+        }[];
+        holidays?: string[];
+        emergencyAvailable?: boolean;
+    };
+
+    // === SERVICE DETAILS ===
+    details: {
+        duration?: string; // "30 mins", "1-2 hours"
+        preparationRequired?: string; // "Fasting required"
+        whatToExpect?: string[];
+        reportDelivery?: string; // "Same day", "24 hours"
+        followUpIncluded?: boolean;
+        homeCollection?: boolean; // For diagnostics
+    };
+
+    // === INCLUDES & REQUIREMENTS ===
+    includes?: string[]; // "Blood test", "X-ray", "Consultation"
+    requirements?: string[]; // "Bring previous reports", "Valid ID"
+    contraindications?: string[]; // When not recommended
+
+    // === MEDIA ===
+    media: {
+        image?: string;
+        images?: string[];
+        procedureVideo?: string;
+        brochureUrl?: string;
+    };
+
+    // === VISIBILITY ===
+    visibility: {
+        isActive: boolean;
+        isFeatured: boolean;
+        isPopular: boolean;
+        showPrice: boolean;
+    };
+
+    // === SEO & LINKS ===
+    tags?: string[];
+    bookingUrl?: string;
+
+    // Timestamps
+    createdAt: Date;
+    updatedAt: Date;
 }
 
 /**
- * Hospitality - Room Types & Inventory
+ * Healthcare - Diagnostic Test
+ */
+export interface DiagnosticTest {
+    id: string;
+    name: string;
+    testCode?: string;
+    description?: string;
+
+    // Category
+    category: string; // "Blood Test", "Imaging", "Pathology"
+    subcategory?: string;
+    organ?: string; // "Liver", "Heart", "Kidney"
+
+    // Pricing
+    price: number;
+    mrp?: number;
+    currency: string;
+    homeCollectionFee?: number;
+
+    // Test Details
+    sampleType: string; // "Blood", "Urine", "Stool"
+    sampleVolume?: string;
+    fastingRequired: boolean;
+    fastingHours?: number;
+    preparationInstructions?: string;
+
+    // Reporting
+    reportTime: string; // "Same day", "24 hours", "3-5 days"
+    reportFormat?: ('online' | 'printed' | 'email')[];
+
+    // Parameters
+    parameters?: string[]; // List of things tested
+    parameterCount?: number;
+
+    // Availability
+    homeCollectionAvailable: boolean;
+    walkInAvailable: boolean;
+    appointmentRequired: boolean;
+
+    // Accreditation
+    nabl?: boolean;
+    capAccredited?: boolean;
+
+    // Status
+    isActive: boolean;
+    isPopular: boolean;
+    isPackage: boolean;
+
+    createdAt: Date;
+    updatedAt: Date;
+}
+
+// ============================================
+// HOSPITALITY - ROOMS & ACCOMMODATION
+// ============================================
+
+/**
+ * Hospitality - Room Types & Inventory (Enhanced)
  */
 export interface RoomType {
     id: string;
+
+    // === BASIC INFO ===
     name: string; // "Deluxe Room", "Executive Suite"
+    code?: string; // "DLX", "EXSUITE"
+    shortDescription?: string; // For quick display
     description: string;
-    shortDescription?: string;
 
-    // Capacity
-    maxGuests: number;
-    maxAdults: number;
-    maxChildren?: number;
-    beds: { type: 'single' | 'double' | 'queen' | 'king' | 'sofa_bed'; count: number }[];
+    // === ROOM CATEGORY ===
+    category: 'standard' | 'deluxe' | 'superior' | 'premium' | 'suite' | 'villa' | 'cottage' | 'dormitory' | 'apartment' | 'penthouse';
+    subcategory?: string; // "Ocean Suite", "Garden Villa"
 
-    // Pricing
-    basePrice: number;
-    weekendPrice?: number;
-    currency: string;
-    seasonalPricing?: { seasonName: string; startDate: string; endDate: string; price: number }[];
-    extraPersonCharge?: number;
-    childCharge?: number;
+    // === OCCUPANCY ===
+    occupancy: {
+        baseOccupancy: number; // Standard occupancy
+        maxOccupancy: number;
+        maxAdults: number;
+        maxChildren: number;
+        infantsAllowed: boolean;
+        extraBedAvailable: boolean;
+        extraBedCharge?: number;
+    };
 
-    // Room Features
-    size: { value: number; unit: 'sqft' | 'sqm' };
-    view?: string; // "Sea View", "Garden View"
-    amenities: string[];
-    roomFeatures?: string[]; // "Balcony", "Bathtub", "Work Desk"
+    // === BEDDING ===
+    bedding: {
+        beds: {
+            type: 'single' | 'double' | 'twin' | 'queen' | 'king' | 'super_king' | 'bunk' | 'sofa_bed' | 'murphy' | 'futon';
+            count: number;
+            size?: string; // "6x6 feet"
+        }[];
+        configurationType?: 'fixed' | 'flexible'; // Can beds be rearranged?
+        alternativeConfigs?: string[]; // "2 singles can be joined"
+    };
 
-    // Policies
-    cancellationPolicy?: string;
-    prepaymentRequired?: boolean;
+    // === ROOM SPECIFICATIONS ===
+    specifications: {
+        size: { value: number; unit: 'sqft' | 'sqm' };
+        floor?: string; // "Ground Floor", "1-5", "Penthouse Level"
+        view?: string; // "Sea View", "Garden View", "City View", "Pool View"
+        facing?: 'north' | 'south' | 'east' | 'west';
+        balcony?: boolean;
+        balconyType?: 'private' | 'shared';
+        terrace?: boolean;
+        privatePool?: boolean;
+        jacuzzi?: boolean;
+        kitchenette?: boolean;
+        livingArea?: boolean;
+        diningArea?: boolean;
+        connectingRooms?: boolean;
+        wheelchairAccessible?: boolean;
+        smokingAllowed?: boolean;
+    };
 
-    // Inventory
-    totalRooms: number;
+    // === AMENITIES ===
+    amenities: {
+        inRoom: string[]; // "AC", "TV", "WiFi", "Mini Bar"
+        bathroom: string[]; // "Bathtub", "Shower", "Toiletries"
+        entertainment: string[]; // "Smart TV", "Netflix", "Music System"
+        comfort: string[]; // "Blackout Curtains", "Safe", "Iron"
+        food: string[]; // "Coffee Maker", "Electric Kettle", "Mini Fridge"
+    };
 
-    // Media
-    images: string[];
-    floorPlan?: string;
+    // === PRICING (Dynamic) ===
+    pricing: {
+        basePrice: number;
+        currency: string;
 
-    // Meta
-    isFeatured: boolean;
-    isPopular?: boolean;
-    displayOrder?: number;
+        // Rate Types
+        rackRate?: number; // Published rate (MRP)
+        barRate?: number; // Best Available Rate
+
+        // Day-based Pricing
+        weekdayPrice?: number;
+        weekendPrice?: number; // Fri-Sun
+
+        // Seasonal Pricing
+        seasons?: {
+            name: string; // "Peak Season", "Diwali Special"
+            startDate: string;
+            endDate: string;
+            price: number;
+            minStay?: number;
+        }[];
+
+        // Meal Plans
+        mealPlans?: {
+            type: 'EP' | 'CP' | 'MAP' | 'AP'; // European, Continental, Modified American, American Plan
+            name: string; // "Room Only", "Bed & Breakfast"
+            price: number;
+            includes: string[];
+        }[];
+
+        // Extra Charges
+        extraAdultCharge?: number;
+        extraChildCharge?: number;
+        infantCharge?: number;
+        extraBedCharge?: number;
+
+        // Taxes
+        taxInclusive: boolean;
+        gstRate?: number;
+        serviceTax?: number;
+
+        // Long Stay Discounts
+        longStayDiscounts?: { nights: number; discountPercent: number }[];
+    };
+
+    // === AVAILABILITY & BOOKING ===
+    availability: {
+        totalRooms: number;
+        isActive: boolean;
+        minNights?: number;
+        maxNights?: number;
+        advanceBookingDays?: number;
+        cutoffTime?: string; // Last time to book for same day
+
+        // Instant Booking
+        instantBooking: boolean;
+        requiresApproval?: boolean;
+
+        // Cancellation
+        cancellationPolicy: 'free' | 'flexible' | 'moderate' | 'strict' | 'non_refundable';
+        cancellationDetails?: string;
+        freeCancellationDays?: number;
+
+        // Payment
+        prepaymentRequired: boolean;
+        prepaymentPercent?: number;
+        payAtProperty?: boolean;
+    };
+
+    // === MEDIA ===
+    media: {
+        images: { url: string; caption?: string; type: 'main' | 'bedroom' | 'bathroom' | 'view' | 'amenity' }[];
+        videos?: { url: string; type: 'walkthrough' | 'promo' }[];
+        virtualTourUrl?: string;
+        floorPlan?: string;
+        threeDView?: string;
+    };
+
+    // === SPECIAL FEATURES ===
+    special?: {
+        isFeatured: boolean;
+        isPopular: boolean;
+        isBestValue?: boolean;
+        isNewlyRenovated?: boolean;
+        exclusivePerks?: string[]; // "Butler Service", "Priority Check-in"
+        awards?: string[];
+    };
+
+    // === OTA SYNC ===
+    externalIds?: {
+        bookingComId?: string;
+        agodaId?: string;
+        makemytripId?: string;
+        goibiboId?: string;
+        airbnbId?: string;
+    };
+
+    displayOrder: number;
+    createdAt: Date;
+    updatedAt: Date;
 }
 
 export interface HotelAmenity {
     id: string;
     name: string;
-    category: 'dining' | 'recreation' | 'wellness' | 'business' | 'transport' | 'services';
+    category: 'dining' | 'recreation' | 'wellness' | 'business' | 'transport' | 'services' | 'safety' | 'accessibility';
+    subcategory?: string;
     description?: string;
-    timing?: string;
+
+    // Timing & Availability
+    timing?: { open: string; close: string };
+    is24Hours?: boolean;
+    daysAvailable?: string[];
+
+    // Pricing
     isPaid: boolean;
     price?: number;
+    pricingNote?: string; // "Per session", "Per hour"
+
+    // Location
+    location?: string; // "Ground Floor", "Rooftop"
+
+    // Media
     icon?: string;
+    image?: string;
+
+    // Status
+    isActive: boolean;
+    isPopular?: boolean;
+    displayOrder?: number;
 }
 
 export interface HotelPolicy {
-    checkInTime: string;
-    checkOutTime: string;
+    // Check-in/out
+    checkIn: { time: string; earlyCheckIn?: boolean; earlyCheckInFee?: number };
+    checkOut: { time: string; lateCheckOut?: boolean; lateCheckOutFee?: number };
+
+    // Cancellation
     cancellationPolicy: string;
-    childPolicy?: string;
-    petPolicy?: string;
-    smokingPolicy?: string;
-    idRequirements?: string;
-    paymentPolicy?: string;
+    cancellationRules?: { daysBeforeCheckIn: number; refundPercent: number }[];
+
+    // Guests
+    childPolicy: { freeUpToAge: number; chargeableFromAge: number; extraBedPolicy?: string };
+    infantPolicy?: { freeUpToAge: number; cribAvailable?: boolean };
+    petPolicy: { allowed: boolean; petFee?: number; restrictions?: string };
+    coupleFriendly?: boolean;
+    unmarriedCouplesAllowed?: boolean;
+
+    // General
+    smokingPolicy: 'no_smoking' | 'designated_areas' | 'allowed';
+    alcoholPolicy?: string;
+    partyPolicy?: string;
+    visitorPolicy?: string;
+
+    // ID & Documentation
+    idRequirements: string;
+    acceptedIdTypes?: string[]; // "Aadhaar", "Passport", "Driving License"
+    localIdRequired?: boolean;
+
+    // Payment
+    paymentPolicy: {
+        acceptedMethods: string[];
+        advanceRequired?: number; // Percentage
+        securityDeposit?: number;
+        depositRefundDays?: number;
+    };
+
+    // Special
+    accessibilityPolicy?: string;
+    housekeepingPolicy?: string;
+    roomServiceHours?: string;
 }
 
+// ============================================
+// FOOD & RESTAURANT - MENU SYSTEM
+// ============================================
+
 /**
- * Restaurant - Menu System
+ * Restaurant - Menu Item (Enhanced with Cloud Kitchen support)
  */
 export interface MenuItem {
     id: string;
+
+    // === BASIC INFO ===
     name: string;
-    description?: string;
+    localName?: string; // Regional name
+    shortDescription?: string; // For menu cards
+    description: string;
 
-    // Pricing
-    price: number;
-    currency?: string;
-    variants?: { name: string; price: number }[]; // Half/Full, Small/Medium/Large
+    // === CATEGORIZATION ===
+    categoryId: string;
+    subcategory?: string;
+    cuisine?: string; // "North Indian", "Chinese", "Italian"
+    course?: 'appetizer' | 'soup' | 'salad' | 'main_course' | 'rice' | 'bread' | 'dessert' | 'beverage' | 'combo' | 'side';
+    mealType?: ('breakfast' | 'brunch' | 'lunch' | 'snacks' | 'dinner' | 'late_night')[];
 
-    // Dietary Info
-    isVegetarian: boolean;
-    isVegan?: boolean;
-    isGlutenFree?: boolean;
-    isJainFriendly?: boolean;
-    spiceLevel?: 'none' | 'mild' | 'medium' | 'hot' | 'very_hot';
-    allergens?: string[];
-    calories?: number;
+    // === PRICING ===
+    pricing: {
+        price: number;
+        currency: string;
+        mrp?: number; // For packaged items
 
-    // Availability
-    isAvailable: boolean;
-    availableFor?: ('breakfast' | 'lunch' | 'dinner' | 'all_day')[];
-    availableDays?: string[];
+        // Variants (Half/Full, Size options)
+        hasVariants: boolean;
+        variants?: {
+            id: string;
+            name: string; // "Half", "Full", "Small", "Regular", "Large"
+            price: number;
+            servingSize?: string;
+            isDefault?: boolean;
+        }[];
+
+        // Combo Pricing
+        isCombo: boolean;
+        comboItems?: { itemId: string; quantity: number }[];
+        comboSavings?: number;
+
+        // GST
+        taxRate?: number;
+        taxInclusive: boolean;
+        packagingCharge?: number;
+    };
+
+    // === DIETARY & NUTRITION ===
+    dietary: {
+        type: 'veg' | 'non_veg' | 'egg' | 'vegan';
+        isVegetarian: boolean;
+        isVegan: boolean;
+        isEggless?: boolean;
+        isGlutenFree: boolean;
+        isDairyFree?: boolean;
+        isNutFree?: boolean;
+        isJainFriendly: boolean;
+        isHalal?: boolean;
+        isKosher?: boolean;
+        isOrganic?: boolean;
+        isHealthy?: boolean;
+        isSugarFree?: boolean;
+        isKeto?: boolean;
+    };
+
+    // Nutrition Info
+    nutrition?: {
+        calories?: number;
+        protein?: number;
+        carbs?: number;
+        fat?: number;
+        fiber?: number;
+        sodium?: number;
+        servingSize?: string;
+    };
+
+    // Allergens & Warnings
+    allergens?: string[]; // "Peanuts", "Gluten", "Shellfish"
+    allergenWarning?: string;
+    spiceLevel: 'none' | 'mild' | 'medium' | 'hot' | 'very_hot' | 'extra_hot';
+    adjustableSpice?: boolean;
+
+    // === AVAILABILITY ===
+    availability: {
+        isAvailable: boolean;
+        isActive: boolean;
+
+        // Time-based
+        availableFrom?: string; // "11:00"
+        availableUntil?: string; // "23:00"
+        availableDays?: ('monday' | 'tuesday' | 'wednesday' | 'thursday' | 'friday' | 'saturday' | 'sunday')[];
+
+        // Seasonal/Limited
+        isSeasonal?: boolean;
+        seasonalMessage?: string;
+        isLimitedEdition?: boolean;
+        limitedQuantity?: number;
+
+        // Platform availability
+        dineInOnly?: boolean;
+        deliveryOnly?: boolean;
+        takeawayAvailable?: boolean;
+        dineInAvailable?: boolean;
+        deliveryAvailable?: boolean;
+    };
+
+    // === PREPARATION ===
+    preparation: {
+        prepTime: string; // "15-20 mins"
+        cookingMethod?: string; // "Grilled", "Fried", "Steamed"
+        servingTemperature?: 'hot' | 'cold' | 'room_temp';
+        servesCount?: string; // "Serves 2-3"
+        portionSize?: string;
+        reheatingInstructions?: string; // For delivery
+    };
+
+    // === CUSTOMIZATIONS ===
+    customizations: {
+        enabled: boolean;
+        options: MenuCustomization[];
+    };
+
+    // Add-ons
+    addons?: {
+        id: string;
+        name: string;
+        price: number;
+        isVeg?: boolean;
+        category?: string; // "Extras", "Toppings"
+        maxQuantity?: number;
+    }[];
+
+    // === MEDIA ===
+    media: {
+        image?: string;
+        images?: { url: string; type: 'main' | 'plated' | 'ingredients' }[];
+        video?: string;
+    };
+
+    // === PROMOTIONS ===
+    promotion: {
+        isPopular: boolean;
+        isChefSpecial: boolean;
+        isNewItem: boolean;
+        isBestSeller: boolean;
+        isSignatureDish?: boolean;
+        isMustTry?: boolean;
+        badge?: string; // "New", "Bestseller", "Chef's Choice"
+        promotionText?: string; // "20% OFF this week!"
+    };
+
+    // === RATINGS ===
+    ratings?: {
+        average: number;
+        count: number;
+        orderCount?: number;
+    };
+
+    // === ORDERING ===
+    ordering: {
+        minQuantity?: number;
+        maxQuantity?: number;
+        specialInstructions?: boolean; // Allow notes
+    };
+
+    // External IDs (for aggregator sync)
+    externalIds?: {
+        zomatoId?: string;
+        swiggyId?: string;
+        uberEatsId?: string;
+    };
 
     // Meta
-    isPopular: boolean;
-    isChefSpecial?: boolean;
-    isNewItem?: boolean;
-    preparationTime?: string;
-    servingSize?: string;
+    tags?: string[];
+    internalNotes?: string;
+    displayOrder: number;
 
-    // Media
-    image?: string;
-
-    // Ordering
-    customizations?: MenuCustomization[];
-    addons?: { id: string; name: string; price: number }[];
-
-    displayOrder?: number;
+    createdAt: Date;
+    updatedAt: Date;
 }
 
 export interface MenuCustomization {
     id: string;
-    name: string; // "Spice Level", "Cooking Style"
+    name: string; // "Spice Level", "Cooking Style", "Toppings"
     type: 'single' | 'multiple';
     required: boolean;
-    options: { id: string; name: string; priceModifier?: number }[];
+    minSelections?: number; // For multiple
+    maxSelections?: number; // For multiple
+    options: {
+        id: string;
+        name: string;
+        priceModifier: number; // 0 for no extra charge
+        isDefault?: boolean;
+        isVeg?: boolean;
+        isPopular?: boolean;
+    }[];
+    displayOrder?: number;
 }
 
 export interface MenuCategory {
     id: string;
     name: string;
+    localName?: string; // Regional name
     description?: string;
+    shortDescription?: string;
+
+    // Hierarchy
+    parentCategoryId?: string;
+    subcategories?: MenuCategory[];
+
+    // Timing
+    availableFrom?: string;
+    availableUntil?: string;
+    availableMeals?: ('breakfast' | 'lunch' | 'dinner')[];
+
+    // Display
     image?: string;
+    icon?: string;
+    color?: string;
     displayOrder: number;
+
+    // Status
     isActive: boolean;
-    items: MenuItem[];
+    isPopular?: boolean;
+    isFeatured?: boolean;
+    itemCount?: number;
+
+    // Items (for flat structure)
+    items?: MenuItem[];
+}
+
+/**
+ * Restaurant Info (for restaurant profile)
+ */
+export interface RestaurantInfo {
+    // Cuisine & Style
+    cuisineTypes: string[]; // "North Indian", "South Indian", "Chinese"
+    primaryCuisine?: string;
+    diningStyles: ('fine_dining' | 'casual_dining' | 'cafe' | 'qsr' | 'dhaba' | 'food_court' | 'cloud_kitchen' | 'takeaway' | 'food_truck')[];
+
+    // Capacity & Seating
+    seatingCapacity?: number;
+    tableCount?: number;
+    seatingTypes?: ('indoor' | 'outdoor' | 'rooftop' | 'private_dining' | 'bar_seating' | 'booth')[];
+    reservationsRequired?: boolean;
+    reservationsRecommended?: boolean;
+    waitlistAvailable?: boolean;
+
+    // Cost & Pricing
+    averageCostForTwo: number;
+    currency: string;
+    priceRange: '$' | '$$' | '$$$' | '$$$$';
+
+    // Type of Establishment
+    pureVeg: boolean;
+    alcoholServed: boolean;
+    liquorLicense?: string;
+    hookahAvailable?: boolean;
+    liveMusic?: boolean;
+    liveKitchen?: boolean;
+
+    // Services
+    homeDelivery: boolean;
+    deliveryRadius?: string;
+    minimumOrder?: number;
+    deliveryFee?: number;
+    freeDeliveryAbove?: number;
+    takeaway: boolean;
+    curbsidePickup?: boolean;
+    tableService: boolean;
+    selfService?: boolean;
+
+    // Delivery Partners
+    deliveryPartners: string[]; // "Zomato", "Swiggy", "Own Delivery"
+    ownDeliveryFleet?: boolean;
+
+    // Special Features
+    features: string[]; // "Live Sports", "Private Dining", "Kids Play Area"
+    highlights?: string[];
+
+    // Payment & Offers
+    acceptedPayments: string[];
+    walletDiscounts?: { wallet: string; discount: string }[];
+
+    // Certifications
+    fssaiLicense?: string;
+    fssaiExpiry?: Date;
+    hygieneCertified?: boolean;
+    hygieneRating?: number;
+
+    // Popular Times
+    peakHours?: { day: string; hours: string[] }[];
+    recommendedTime?: string;
+
+    // Ratings
+    aggregateRating?: number;
+    reviewCount?: number;
+    zomatoRating?: number;
+    swiggyRating?: number;
+    googleRating?: number;
 }
 
 // ============================================
@@ -973,31 +1886,51 @@ export interface BusinessPersona {
     // Industry specific extended data (legacy catch-all)
     industrySpecificData?: Record<string, any>;
 
-    // ========== NEW: Structured Industry Inventory ==========
+    // ========== STRUCTURED INDUSTRY INVENTORY ==========
 
-    // Real Estate
+    // Real Estate - Property Listings
     propertyListings?: PropertyListing[];
+    propertyListingsMeta?: CatalogMeta;
 
-    // E-Commerce / Retail
+    // E-Commerce / Retail - Product Catalog
     productCatalog?: RetailProduct[];
     productCategories?: string[];
+    productCollections?: string[];
+    productCatalogMeta?: CatalogMeta;
 
-    // Hospitality
+    // Healthcare - Services & Diagnostics
+    healthcareServices?: HealthcareService[];
+    diagnosticTests?: DiagnosticTest[];
+    healthcareMeta?: CatalogMeta;
+
+    // Hospitality - Rooms & Accommodation
     roomTypes?: RoomType[];
     hotelAmenities?: HotelAmenity[];
     hotelPolicies?: HotelPolicy;
+    roomsMeta?: CatalogMeta;
 
-    // Restaurant / Food
+    // Restaurant / Food - Menu
     menuCategories?: MenuCategory[];
     menuItems?: MenuItem[]; // Flat list for quick access
-    restaurantInfo?: {
-        cuisineTypes: string[];
-        diningStyles: string[];
-        seatingCapacity?: number;
-        averageCostForTwo?: number;
-        alcoholServed?: boolean;
-        pureVeg?: boolean;
-        deliveryPartners?: string[];
+    restaurantInfo?: RestaurantInfo;
+    menuMeta?: CatalogMeta;
+
+    // ========== IMPORT/EXPORT CONFIGURATION ==========
+    catalogImports?: {
+        products?: CatalogImportConfig;
+        properties?: CatalogImportConfig;
+        menu?: CatalogImportConfig;
+        rooms?: CatalogImportConfig;
+        healthcare?: CatalogImportConfig;
+    };
+
+    // WhatsApp Business Catalog Sync
+    whatsappSync?: {
+        enabled: boolean;
+        catalogId?: string;
+        lastSyncAt?: Date;
+        autoSync: boolean;
+        syncFrequency?: 'realtime' | 'hourly' | 'daily';
     };
 
     // ========== Custom Fields ==========

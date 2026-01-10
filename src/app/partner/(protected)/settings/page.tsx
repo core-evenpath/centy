@@ -291,6 +291,15 @@ const SettingsUltimate = () => {
       'petPolicy': 'hotelPolicies.petPolicy',
       'childPolicy': 'hotelPolicies.childPolicy',
 
+      // Healthcare specific
+      'healthcareServices': 'healthcareServices',
+      'diagnosticTests': 'diagnosticTests',
+      'consultationFee': 'industrySpecificData.consultationFee',
+      'followUpFee': 'industrySpecificData.followUpFee',
+      'homeCollection': 'industrySpecificData.homeCollection',
+      'reportTime': 'industrySpecificData.reportTime',
+      'cashlessAvailable': 'industrySpecificData.cashlessAvailable',
+
       // Inventory fields (structured)
       'propertyListings': 'propertyListings',
       'productCatalog': 'productCatalog',
@@ -548,10 +557,18 @@ const SettingsUltimate = () => {
         title: 'Services & Fees',
         icon: '💊',
         fields: [
-          { key: 'services', label: 'Services', type: 'tags' },
-          { key: 'treatments', label: 'Treatments', type: 'tags' },
           { key: 'consultationFee', label: 'Consultation Fee', type: 'text', required: true },
           { key: 'followUpFee', label: 'Follow-up Fee', type: 'text' },
+          { key: 'healthcareServices', label: 'Services & Treatments', type: 'inventory', inventoryType: 'healthcare', hint: 'Add your consultations, treatments, and procedures with pricing' },
+        ]
+      },
+      diagnostics: {
+        title: 'Diagnostics & Tests',
+        icon: '🔬',
+        fields: [
+          { key: 'diagnosticTests', label: 'Tests & Packages', type: 'inventory', inventoryType: 'diagnostics', hint: 'Add lab tests and health packages you offer' },
+          { key: 'homeCollection', label: 'Home Sample Collection', type: 'select', options: ['Available', 'Not Available'] },
+          { key: 'reportTime', label: 'Report Delivery Time', type: 'text' },
         ]
       },
       insurance: {
@@ -560,6 +577,7 @@ const SettingsUltimate = () => {
         fields: [
           { key: 'insuranceAccepted', label: 'Insurance Accepted', type: 'tags' },
           { key: 'tpa', label: 'TPA Tie-ups', type: 'tags' },
+          { key: 'cashlessAvailable', label: 'Cashless Treatment', type: 'select', options: ['Available', 'Not Available'] },
           { key: 'paymentMethods', label: 'Payment Methods', type: 'tags' },
           { key: 'faqs', label: 'Patient FAQs', type: 'faq' },
         ]
@@ -1307,6 +1325,99 @@ const SettingsUltimate = () => {
                                       </div>
                                     ) : field.type === 'inventory' ? (
                                       <div className="p-4 bg-gradient-to-br from-slate-50 to-indigo-50 border border-slate-200 rounded-xl space-y-4">
+                                        {/* Import/Export Bar */}
+                                        <div className="flex items-center justify-between pb-3 border-b border-slate-200">
+                                          <div className="flex items-center gap-2">
+                                            <span className="text-lg">
+                                              {field.inventoryType === 'properties' ? '🏠' :
+                                               field.inventoryType === 'products' ? '📦' :
+                                               field.inventoryType === 'menu' ? '🍽️' :
+                                               field.inventoryType === 'rooms' ? '🛏️' :
+                                               field.inventoryType === 'healthcare' ? '💊' :
+                                               field.inventoryType === 'diagnostics' ? '🔬' : '📋'}
+                                            </span>
+                                            <div>
+                                              <p className="text-sm font-semibold text-slate-800">{field.label}</p>
+                                              <p className="text-xs text-slate-500">{field.hint || 'Manage your catalog'}</p>
+                                            </div>
+                                          </div>
+                                          <div className="flex items-center gap-2">
+                                            <button
+                                              onClick={() => {
+                                                // Export functionality - download as CSV
+                                                const items = Array.isArray(fieldValue) ? fieldValue : [];
+                                                if (items.length === 0) {
+                                                  alert('No items to export');
+                                                  return;
+                                                }
+                                                const headers = Object.keys(items[0]).filter(k => !['id', 'createdAt', 'updatedAt'].includes(k));
+                                                const csvContent = [
+                                                  headers.join(','),
+                                                  ...items.map(item => headers.map(h => {
+                                                    const val = item[h];
+                                                    if (val === null || val === undefined) return '';
+                                                    if (typeof val === 'object') return JSON.stringify(val).replace(/,/g, ';');
+                                                    return String(val).replace(/,/g, ';');
+                                                  }).join(','))
+                                                ].join('\n');
+                                                const blob = new Blob([csvContent], { type: 'text/csv' });
+                                                const url = URL.createObjectURL(blob);
+                                                const a = document.createElement('a');
+                                                a.href = url;
+                                                a.download = `${field.key}-export.csv`;
+                                                a.click();
+                                                URL.revokeObjectURL(url);
+                                              }}
+                                              className="px-3 py-1.5 text-xs font-medium text-slate-600 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors flex items-center gap-1"
+                                            >
+                                              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                                              </svg>
+                                              Export
+                                            </button>
+                                            <label className="px-3 py-1.5 text-xs font-medium text-slate-600 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors cursor-pointer flex items-center gap-1">
+                                              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                                              </svg>
+                                              Import CSV
+                                              <input
+                                                type="file"
+                                                accept=".csv"
+                                                className="hidden"
+                                                onChange={(e) => {
+                                                  const file = e.target.files?.[0];
+                                                  if (!file) return;
+                                                  const reader = new FileReader();
+                                                  reader.onload = (event) => {
+                                                    const text = event.target?.result as string;
+                                                    const lines = text.split('\n').filter(l => l.trim());
+                                                    if (lines.length < 2) return;
+                                                    const headers = lines[0].split(',').map(h => h.trim());
+                                                    const items = lines.slice(1).map((line, idx) => {
+                                                      const values = line.split(',');
+                                                      const item: any = { id: `import-${Date.now()}-${idx}` };
+                                                      headers.forEach((h, i) => {
+                                                        item[h] = values[i]?.trim() || '';
+                                                      });
+                                                      // Ensure required fields
+                                                      item.name = item.name || 'Imported Item';
+                                                      item.price = parseFloat(item.price) || 0;
+                                                      item.createdAt = new Date();
+                                                      item.updatedAt = new Date();
+                                                      return item;
+                                                    });
+                                                    const current = Array.isArray(fieldValue) ? fieldValue : [];
+                                                    handleFieldUpdate(schemaPath, [...current, ...items]);
+                                                    alert(`Imported ${items.length} items`);
+                                                  };
+                                                  reader.readAsText(file);
+                                                  e.target.value = '';
+                                                }}
+                                              />
+                                            </label>
+                                          </div>
+                                        </div>
+
                                         {/* Quick Add Form */}
                                         <div className="space-y-3">
                                           <div className="flex items-center justify-between">
@@ -1315,7 +1426,9 @@ const SettingsUltimate = () => {
                                               {field.inventoryType === 'properties' ? '🏠' :
                                                field.inventoryType === 'products' ? '📦' :
                                                field.inventoryType === 'menu' ? '🍽️' :
-                                               field.inventoryType === 'rooms' ? '🛏️' : '📋'}
+                                               field.inventoryType === 'rooms' ? '🛏️' :
+                                               field.inventoryType === 'healthcare' ? '💊' :
+                                               field.inventoryType === 'diagnostics' ? '🔬' : '📋'}
                                             </span>
                                           </div>
 
@@ -1354,6 +1467,26 @@ const SettingsUltimate = () => {
                                               <input type="text" placeholder="Room type (e.g., Deluxe)" className="col-span-2 px-3 py-2 border border-slate-200 rounded-lg text-sm" id={`${field.key}-name`} />
                                               <input type="text" placeholder="Price/night" className="px-3 py-2 border border-slate-200 rounded-lg text-sm" id={`${field.key}-price`} />
                                               <input type="number" placeholder="Guests" className="px-3 py-2 border border-slate-200 rounded-lg text-sm" id={`${field.key}-guests`} />
+                                            </div>
+                                          )}
+                                          {field.inventoryType === 'healthcare' && (
+                                            <div className="grid grid-cols-4 gap-2">
+                                              <input type="text" placeholder="Service name" className="col-span-2 px-3 py-2 border border-slate-200 rounded-lg text-sm" id={`${field.key}-name`} />
+                                              <input type="text" placeholder="Fee (₹)" className="px-3 py-2 border border-slate-200 rounded-lg text-sm" id={`${field.key}-price`} />
+                                              <select className="px-3 py-2 border border-slate-200 rounded-lg text-sm bg-white" id={`${field.key}-category`}>
+                                                <option value="consultation">Consultation</option>
+                                                <option value="treatment">Treatment</option>
+                                                <option value="procedure">Procedure</option>
+                                                <option value="therapy">Therapy</option>
+                                                <option value="checkup">Health Checkup</option>
+                                              </select>
+                                            </div>
+                                          )}
+                                          {field.inventoryType === 'diagnostics' && (
+                                            <div className="grid grid-cols-4 gap-2">
+                                              <input type="text" placeholder="Test name" className="col-span-2 px-3 py-2 border border-slate-200 rounded-lg text-sm" id={`${field.key}-name`} />
+                                              <input type="text" placeholder="Price (₹)" className="px-3 py-2 border border-slate-200 rounded-lg text-sm" id={`${field.key}-price`} />
+                                              <input type="text" placeholder="Report time (e.g., 24 hrs)" className="px-3 py-2 border border-slate-200 rounded-lg text-sm" id={`${field.key}-reportTime`} />
                                             </div>
                                           )}
 
@@ -1418,6 +1551,44 @@ const SettingsUltimate = () => {
                                                     newItem.createdAt = new Date();
                                                     newItem.updatedAt = new Date();
                                                   }
+                                                  if (field.inventoryType === 'healthcare') {
+                                                    const categoryEl = document.getElementById(`${field.key}-category`) as HTMLSelectElement;
+                                                    newItem.category = categoryEl?.value || 'consultation';
+                                                    newItem.pricing = {
+                                                      price: newItem.price,
+                                                      priceType: 'fixed',
+                                                      currency: 'INR',
+                                                      insuranceCovered: false,
+                                                    };
+                                                    newItem.availability = {
+                                                      isAvailable: true,
+                                                      slotDuration: 30,
+                                                      consultationType: ['in_person'],
+                                                    };
+                                                    newItem.visibility = {
+                                                      isActive: true,
+                                                      isFeatured: false,
+                                                      isPopular: false,
+                                                      showPrice: true,
+                                                    };
+                                                    newItem.createdAt = new Date();
+                                                    newItem.updatedAt = new Date();
+                                                  }
+                                                  if (field.inventoryType === 'diagnostics') {
+                                                    const reportTimeEl = document.getElementById(`${field.key}-reportTime`) as HTMLInputElement;
+                                                    newItem.currency = 'INR';
+                                                    newItem.reportTime = reportTimeEl?.value || '24 hours';
+                                                    newItem.sampleType = 'Blood';
+                                                    newItem.fastingRequired = false;
+                                                    newItem.homeCollectionAvailable = true;
+                                                    newItem.walkInAvailable = true;
+                                                    newItem.appointmentRequired = false;
+                                                    newItem.isActive = true;
+                                                    newItem.isPopular = false;
+                                                    newItem.isPackage = false;
+                                                    newItem.createdAt = new Date();
+                                                    newItem.updatedAt = new Date();
+                                                  }
                                                   const current = Array.isArray(fieldValue) ? fieldValue : [];
                                                   handleFieldUpdate(schemaPath, [...current, newItem]);
                                                   // Clear inputs
@@ -1442,7 +1613,12 @@ const SettingsUltimate = () => {
                                         {fieldValue && Array.isArray(fieldValue) && fieldValue.length > 0 && (
                                           <div className="border-t border-slate-200 pt-3">
                                             <p className="text-xs font-medium text-slate-600 mb-2">
-                                              {fieldValue.length} {field.inventoryType === 'properties' ? 'properties' : field.inventoryType === 'products' ? 'products' : field.inventoryType === 'menu' ? 'items' : 'rooms'}
+                                              {fieldValue.length} {field.inventoryType === 'properties' ? 'properties' :
+                                               field.inventoryType === 'products' ? 'products' :
+                                               field.inventoryType === 'menu' ? 'items' :
+                                               field.inventoryType === 'rooms' ? 'rooms' :
+                                               field.inventoryType === 'healthcare' ? 'services' :
+                                               field.inventoryType === 'diagnostics' ? 'tests' : 'items'}
                                             </p>
                                             <div className="space-y-1.5 max-h-32 overflow-y-auto">
                                               {fieldValue.slice(0, 5).map((item: any, idx: number) => (
