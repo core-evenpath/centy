@@ -11,8 +11,11 @@ import { GoogleGenAI, Type } from "@google/genai";
 const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_GENAI_API_KEY;
 const ai = new GoogleGenAI({ apiKey: apiKey });
 
-// Google Places API key (same or different key)
-const PLACES_API_KEY = process.env.GOOGLE_PLACES_API_KEY || process.env.GOOGLE_MAPS_API_KEY || process.env.GEMINI_API_KEY;
+// Google Places API key - check multiple possible env var names
+const PLACES_API_KEY = process.env.GOOGLE_PLACES_API_KEY
+  || process.env.GOOGLE_MAPS_API_KEY
+  || process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY
+  || process.env.GEMINI_API_KEY; // Gemini key often works for Places too
 
 // Types for hotel data
 export interface HotelBasicInfo {
@@ -96,18 +99,35 @@ export interface HotelFullData {
 export async function searchHotels(query: string, location?: string): Promise<HotelBasicInfo[]> {
   const searchQuery = location ? `${query} hotel ${location}` : `${query} hotel`;
 
+  // Debug: Log which API key is being used
+  console.log('[Hotel Import] Using Places API key:', PLACES_API_KEY ? `${PLACES_API_KEY.slice(0, 10)}...` : 'NOT SET');
+
+  if (!PLACES_API_KEY) {
+    console.error('[Hotel Import] No API key found. Please set GOOGLE_PLACES_API_KEY, GOOGLE_MAPS_API_KEY, or NEXT_PUBLIC_GOOGLE_MAPS_API_KEY');
+    throw new Error('Google Places API key not configured. Please add GOOGLE_PLACES_API_KEY to your environment variables.');
+  }
+
   const url = new URL('https://maps.googleapis.com/maps/api/place/textsearch/json');
   url.searchParams.set('query', searchQuery);
   url.searchParams.set('type', 'lodging');
-  url.searchParams.set('key', PLACES_API_KEY || '');
+  url.searchParams.set('key', PLACES_API_KEY);
+
+  console.log('[Hotel Import] Searching for:', searchQuery);
 
   try {
     const response = await fetch(url.toString());
     const data = await response.json();
 
+    console.log('[Hotel Import] Places API response status:', data.status);
+
     if (data.status !== 'OK' && data.status !== 'ZERO_RESULTS') {
-      console.error('Places API error:', data.status, data.error_message);
-      throw new Error(`Places API error: ${data.status}`);
+      console.error('[Hotel Import] Places API error:', data.status, data.error_message);
+
+      if (data.status === 'REQUEST_DENIED') {
+        throw new Error(`Google Places API access denied. Please ensure: 1) Places API is enabled in Google Cloud Console, 2) Your API key has Places API access, 3) Billing is enabled on your project.`);
+      }
+
+      throw new Error(`Places API error: ${data.status} - ${data.error_message || 'Unknown error'}`);
     }
 
     return (data.results || []).slice(0, 5).map((place: any) => ({
@@ -353,7 +373,7 @@ function getDefaultHotelData() {
 
 /**
  * Complete hotel import flow
- * 1. Search for hotel using Places API
+ * 1. Search for hotel using Places API (optional - falls back to AI only)
  * 2. Get detailed info from Places API
  * 3. Enrich with AI web search for room types and amenities
  */
@@ -361,48 +381,51 @@ export async function importHotelData(
   hotelName: string,
   location: string
 ): Promise<HotelFullData | null> {
+  let basicInfo: HotelBasicInfo = {
+    placeId: '',
+    name: hotelName,
+    address: location,
+  };
+
+  // Try Google Places API first (optional)
   try {
-    // Step 1: Search for the hotel
-    console.log(`Searching for hotel: ${hotelName} in ${location}`);
+    console.log(`[Hotel Import] Searching for hotel: ${hotelName} in ${location}`);
     const searchResults = await searchHotels(hotelName, location);
 
-    if (searchResults.length === 0) {
-      console.log('No hotels found');
-      // Still try AI enrichment even without Places data
-      const aiData = await enrichHotelDataWithAI(hotelName, location);
-      return {
-        basic: {
-          placeId: '',
-          name: hotelName,
-          address: location,
-        },
-        roomTypes: aiData.roomTypes,
-        amenities: aiData.amenities,
-        policies: aiData.policies,
-        source: 'ai_enriched',
-        fetchedAt: new Date(),
-      };
+    if (searchResults.length > 0) {
+      const bestMatch = searchResults[0];
+      console.log(`[Hotel Import] Found hotel via Places API: ${bestMatch.name}`);
+
+      try {
+        const details = await getHotelDetails(bestMatch.placeId);
+        basicInfo = details;
+      } catch (detailsError) {
+        console.warn('[Hotel Import] Could not get details, using search result:', detailsError);
+        basicInfo = bestMatch;
+      }
+    } else {
+      console.log('[Hotel Import] No hotels found via Places API, will use AI only');
     }
+  } catch (placesError: any) {
+    console.warn('[Hotel Import] Places API failed, falling back to AI only:', placesError.message);
+    // Continue with AI enrichment even if Places API fails
+  }
 
-    // Step 2: Get detailed info for the best match
-    const bestMatch = searchResults[0];
-    console.log(`Found hotel: ${bestMatch.name}`);
-    const details = await getHotelDetails(bestMatch.placeId);
-
-    // Step 3: Enrich with AI
-    console.log('Enriching with AI web search...');
-    const aiData = await enrichHotelDataWithAI(details.name, location);
+  // Always try AI enrichment for room data
+  try {
+    console.log('[Hotel Import] Enriching with AI web search...');
+    const aiData = await enrichHotelDataWithAI(basicInfo.name || hotelName, location);
 
     return {
-      basic: details,
+      basic: basicInfo,
       roomTypes: aiData.roomTypes,
       amenities: aiData.amenities,
       policies: aiData.policies,
-      source: 'ai_enriched',
+      source: basicInfo.placeId ? 'ai_enriched' : 'ai_enriched',
       fetchedAt: new Date(),
     };
-  } catch (error) {
-    console.error('Error importing hotel data:', error);
+  } catch (aiError) {
+    console.error('[Hotel Import] AI enrichment failed:', aiError);
     return null;
   }
 }

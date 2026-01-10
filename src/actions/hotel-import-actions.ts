@@ -10,6 +10,19 @@ import {
   HotelFullData,
 } from '@/lib/hotel-import-service';
 
+// Debug: Check if API keys are available on server
+const checkApiKeys = () => {
+  const placesKey = process.env.GOOGLE_PLACES_API_KEY
+    || process.env.GOOGLE_MAPS_API_KEY
+    || process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
+  const geminiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_GENAI_API_KEY;
+
+  console.log('[Hotel Import Action] Places API Key available:', !!placesKey);
+  console.log('[Hotel Import Action] Gemini API Key available:', !!geminiKey);
+
+  return { placesKey: !!placesKey, geminiKey: !!geminiKey };
+};
+
 /**
  * Search for hotels by name and location
  */
@@ -55,6 +68,22 @@ export async function importHotelDataAction(
   error?: string;
 }> {
   try {
+    // Check API keys
+    const keys = checkApiKeys();
+
+    // Gemini is required for AI enrichment
+    if (!keys.geminiKey) {
+      return {
+        success: false,
+        error: 'Gemini API key not configured. Please add GEMINI_API_KEY to your environment variables.'
+      };
+    }
+
+    // Places API is optional - will fall back to AI only
+    if (!keys.placesKey) {
+      console.log('[Hotel Import] No Places API key, will use AI-only mode');
+    }
+
     console.log(`[Hotel Import] Starting import for: ${hotelName} in ${location}`);
 
     const hotelData = await importHotelData(hotelName, location);
