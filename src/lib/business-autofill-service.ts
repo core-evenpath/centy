@@ -55,6 +55,14 @@ const PLACES_TYPE_TO_INDUSTRY: Record<string, IndustryCategory> = {
   'accounting': 'finance',
   'insurance_agency': 'finance',
   'finance': 'finance',
+  'gym': 'fitness',
+  'spa': 'wellness',
+  'beauty_salon': 'beauty',
+  'hair_care': 'beauty',
+  'lawyer': 'legal',
+  'car_dealer': 'automotive',
+  'car_repair': 'automotive',
+  'travel_agency': 'travel',
 };
 
 export interface PlacesAutocompleteResult {
@@ -62,6 +70,28 @@ export interface PlacesAutocompleteResult {
   description: string;
   mainText: string;
   secondaryText: string;
+}
+
+export interface PlacePhoto {
+  url: string;
+  photoReference: string;
+  width: number;
+  height: number;
+  attribution?: string;
+  selected?: boolean;
+}
+
+export interface PlaceReview {
+  author: string;
+  authorUrl?: string;
+  profilePhoto?: string;
+  rating: number;
+  text: string;
+  time: string;
+  timestamp?: number;
+  source: 'google' | 'ai_research';
+  sourceUrl?: string;
+  language?: string;
 }
 
 export interface PlacesDetailedInfo {
@@ -75,27 +105,100 @@ export interface PlacesDetailedInfo {
   priceLevel?: number;
   types?: string[];
   location?: { lat: number; lng: number };
+  googleMapsUrl?: string;
   openingHours?: {
     weekdayText: string[];
     isOpen?: boolean;
+    periods?: {
+      open: { day: number; time: string };
+      close: { day: number; time: string };
+    }[];
   };
-  photos?: string[];
-  reviews?: {
-    author: string;
-    rating: number;
-    text: string;
-    time: string;
-  }[];
+  photos?: PlacePhoto[];
+  reviews?: PlaceReview[];
   editorialSummary?: string;
   businessStatus?: string;
+  addressComponents?: {
+    city?: string;
+    state?: string;
+    country?: string;
+    postalCode?: string;
+    locality?: string;
+    neighborhood?: string;
+  };
+  plusCode?: string;
+  utcOffset?: number;
+}
+
+export interface AIResearchResult {
+  description?: string;
+  tagline?: string;
+  services?: string[];
+  products?: string[];
+  targetAudience?: string[];
+  uniqueSellingPoints?: string[];
+  faqs?: { question: string; answer: string }[];
+  socialMedia?: { instagram?: string; facebook?: string; linkedin?: string; twitter?: string; youtube?: string };
+  founders?: string;
+  yearEstablished?: string;
+  teamSize?: string;
+  awards?: string[];
+  certifications?: string[];
+  languages?: string[];
+  paymentMethods?: string[];
+  onlineReviews?: {
+    source: string;
+    sourceUrl: string;
+    rating?: number;
+    reviewCount?: number;
+    highlights?: string[];
+  }[];
+  testimonials?: {
+    quote: string;
+    author?: string;
+    source: string;
+    sourceUrl?: string;
+  }[];
+  pressMedia?: {
+    title: string;
+    source: string;
+    url?: string;
+    date?: string;
+  }[];
+  industryData?: Record<string, any>;
 }
 
 export interface AutoFilledProfile {
-  identity: Partial<BusinessPersona['identity']>;
+  identity: Partial<BusinessPersona['identity']> & {
+    location?: { lat: number; lng: number };
+    googleMapsUrl?: string;
+    plusCode?: string;
+  };
   personality: Partial<BusinessPersona['personality']>;
   customerProfile: Partial<BusinessPersona['customerProfile']>;
   knowledge: Partial<BusinessPersona['knowledge']>;
   industrySpecificData?: Record<string, any>;
+  photos?: PlacePhoto[];
+  reviews?: PlaceReview[];
+  testimonials?: {
+    quote: string;
+    author?: string;
+    source: string;
+    sourceUrl?: string;
+  }[];
+  onlinePresence?: {
+    source: string;
+    sourceUrl: string;
+    rating?: number;
+    reviewCount?: number;
+    highlights?: string[];
+  }[];
+  pressMedia?: {
+    title: string;
+    source: string;
+    url?: string;
+    date?: string;
+  }[];
   source: {
     placeId?: string;
     placesData: boolean;
@@ -159,6 +262,7 @@ export async function getPlaceDetails(placeId: string): Promise<PlacesDetailedIn
   url.searchParams.set('fields', [
     'name',
     'formatted_address',
+    'address_components',
     'formatted_phone_number',
     'international_phone_number',
     'website',
@@ -172,8 +276,11 @@ export async function getPlaceDetails(placeId: string): Promise<PlacesDetailedIn
     'reviews',
     'editorial_summary',
     'business_status',
-    'url'
+    'url',
+    'plus_code',
+    'utc_offset'
   ].join(','));
+  url.searchParams.set('reviews_sort', 'newest');
   url.searchParams.set('key', PLACES_API_KEY);
 
   try {
@@ -189,6 +296,24 @@ export async function getPlaceDetails(placeId: string): Promise<PlacesDetailedIn
 
     const place = data.result;
 
+    // Parse address components
+    const addressComponents: PlacesDetailedInfo['addressComponents'] = {};
+    if (place.address_components) {
+      for (const component of place.address_components) {
+        if (component.types.includes('locality')) {
+          addressComponents.city = component.long_name;
+        } else if (component.types.includes('administrative_area_level_1')) {
+          addressComponents.state = component.long_name;
+        } else if (component.types.includes('country')) {
+          addressComponents.country = component.long_name;
+        } else if (component.types.includes('postal_code')) {
+          addressComponents.postalCode = component.long_name;
+        } else if (component.types.includes('sublocality') || component.types.includes('neighborhood')) {
+          addressComponents.neighborhood = component.long_name;
+        }
+      }
+    }
+
     return {
       placeId,
       name: place.name,
@@ -200,21 +325,36 @@ export async function getPlaceDetails(placeId: string): Promise<PlacesDetailedIn
       priceLevel: place.price_level,
       types: place.types,
       location: place.geometry?.location,
+      googleMapsUrl: place.url,
       openingHours: place.opening_hours ? {
         weekdayText: place.opening_hours.weekday_text || [],
         isOpen: place.opening_hours.open_now,
+        periods: place.opening_hours.periods,
       } : undefined,
-      photos: place.photos?.slice(0, 5).map((p: any) =>
-        `https://maps.googleapis.com/maps/api/place/photo?maxwidth=800&photo_reference=${p.photo_reference}&key=${PLACES_API_KEY}`
-      ),
-      reviews: place.reviews?.slice(0, 5).map((r: any) => ({
+      photos: place.photos?.slice(0, 10).map((p: any) => ({
+        url: `https://maps.googleapis.com/maps/api/place/photo?maxwidth=800&photo_reference=${p.photo_reference}&key=${PLACES_API_KEY}`,
+        photoReference: p.photo_reference,
+        width: p.width,
+        height: p.height,
+        attribution: p.html_attributions?.[0],
+        selected: false,
+      })),
+      reviews: place.reviews?.map((r: any) => ({
         author: r.author_name,
+        authorUrl: r.author_url,
+        profilePhoto: r.profile_photo_url,
         rating: r.rating,
         text: r.text,
         time: r.relative_time_description,
+        timestamp: r.time,
+        source: 'google' as const,
+        language: r.language,
       })),
       editorialSummary: place.editorial_summary?.overview,
       businessStatus: place.business_status,
+      addressComponents,
+      plusCode: place.plus_code?.global_code,
+      utcOffset: place.utc_offset,
     };
   } catch (error) {
     console.error('[AutoFill] Place details fetch error:', error);
@@ -230,71 +370,167 @@ export async function researchBusinessWithAI(
   address: string,
   website?: string,
   existingInfo?: PlacesDetailedInfo
-): Promise<{
-  description?: string;
-  tagline?: string;
-  services?: string[];
-  products?: string[];
-  targetAudience?: string[];
-  uniqueSellingPoints?: string[];
-  faqs?: { question: string; answer: string }[];
-  socialMedia?: { instagram?: string; facebook?: string; linkedin?: string; twitter?: string };
-  founders?: string;
-  yearEstablished?: string;
-  teamSize?: string;
-  awards?: string[];
-  certifications?: string[];
-  languages?: string[];
-  paymentMethods?: string[];
-  additionalInfo?: Record<string, any>;
-}> {
+): Promise<AIResearchResult> {
   const industryHint = existingInfo?.types?.find(t => PLACES_TYPE_TO_INDUSTRY[t])
     ? PLACES_TYPE_TO_INDUSTRY[existingInfo.types.find(t => PLACES_TYPE_TO_INDUSTRY[t])!]
     : 'general';
 
-  const prompt = `Search the web and research "${businessName}" located at "${address}"${website ? ` with website ${website}` : ''}.
+  // Build industry-specific data request
+  let industrySpecificRequest = '';
+  switch (industryHint) {
+    case 'hospitality':
+      industrySpecificRequest = `
+    "industryData": {
+      "starRating": "Official star rating (1-5)",
+      "roomTypes": ["Types of rooms available"],
+      "amenities": ["Hotel amenities like pool, gym, spa"],
+      "checkInTime": "Check-in time",
+      "checkOutTime": "Check-out time",
+      "petPolicy": "Pet policy",
+      "parkingInfo": "Parking availability and cost",
+      "nearbyAttractions": ["Nearby tourist spots"],
+      "bookingPartners": ["OTAs where they're listed - MakeMyTrip, Booking.com, etc."]
+    }`;
+      break;
+    case 'food_beverage':
+      industrySpecificRequest = `
+    "industryData": {
+      "cuisineTypes": ["Types of cuisine served"],
+      "dietaryOptions": ["Veg, Non-veg, Vegan, Gluten-free options"],
+      "mealTypes": ["Breakfast, Lunch, Dinner, etc."],
+      "averageCost": "Average cost for two",
+      "deliveryPartners": ["Zomato, Swiggy, etc."],
+      "specialties": ["Signature dishes or specialties"],
+      "seatingCapacity": "Number of seats",
+      "reservationRequired": true/false,
+      "alcoholServed": true/false
+    }`;
+      break;
+    case 'healthcare':
+      industrySpecificRequest = `
+    "industryData": {
+      "specializations": ["Medical specializations offered"],
+      "doctors": ["Key doctors with their specializations"],
+      "facilities": ["Medical facilities available"],
+      "insuranceAccepted": ["Insurance providers accepted"],
+      "emergencyServices": true/false,
+      "accreditations": ["NABH, JCI, etc."],
+      "bedCount": "Number of beds if hospital",
+      "consultationTypes": ["In-person, Video, Home visit"]
+    }`;
+      break;
+    case 'retail':
+      industrySpecificRequest = `
+    "industryData": {
+      "productCategories": ["Main product categories"],
+      "brands": ["Brands carried"],
+      "priceRange": "Budget/Mid-range/Premium/Luxury",
+      "deliveryOptions": ["Home delivery, Store pickup, etc."],
+      "returnPolicy": "Return policy summary",
+      "loyaltyProgram": "Loyalty/membership program details",
+      "onlineStore": "E-commerce website if available"
+    }`;
+      break;
+    case 'real_estate':
+      industrySpecificRequest = `
+    "industryData": {
+      "propertyTypes": ["Types of properties dealt with"],
+      "locations": ["Areas/localities served"],
+      "services": ["Buying, Selling, Renting, Property Management"],
+      "reraRegistration": "RERA registration number if available",
+      "projectsCompleted": "Number of projects completed",
+      "developerName": "If a developer, the company name"
+    }`;
+      break;
+    default:
+      industrySpecificRequest = `
+    "industryData": {
+      // Any industry-specific information relevant to this business
+    }`;
+  }
 
-I need comprehensive business information to auto-fill a business profile. Search their website, social media, review sites, and any other sources.
+  const prompt = `Search the web thoroughly and research "${businessName}" located at "${address}"${website ? ` with website ${website}` : ''}.
 
-Please find and return the following in JSON format:
+I need COMPREHENSIVE business information for auto-filling a business profile. This data will be used to train an AI agent to handle customer queries.
+
+Search these sources:
+1. Their official website
+2. Google reviews and ratings
+3. Social media (Instagram, Facebook, LinkedIn, Twitter/X)
+4. Review platforms (TripAdvisor, Yelp, Zomato, Justdial, Practo, etc.)
+5. News articles and press coverage
+6. Business directories
+
+Return the following in JSON format:
 
 {
-  "description": "A compelling 2-3 sentence description of the business, what they do, and what makes them special",
-  "tagline": "A short catchy tagline or slogan if they have one",
-  "services": ["List of services they offer"],
+  "description": "A compelling 3-4 sentence description of the business - what they do, their history, and what makes them special",
+  "tagline": "Their official tagline or slogan if they have one",
+  "services": ["Comprehensive list of services they offer with details"],
   "products": ["List of products they sell, if applicable"],
-  "targetAudience": ["Who are their typical customers - be specific"],
-  "uniqueSellingPoints": ["What makes this business stand out from competitors"],
+  "targetAudience": ["Detailed customer segments - be specific about demographics, needs"],
+  "uniqueSellingPoints": ["5-7 things that make this business stand out"],
   "faqs": [
-    {"question": "Common question customers ask", "answer": "The answer"}
+    {"question": "Common question 1", "answer": "Detailed answer"},
+    {"question": "Common question 2", "answer": "Detailed answer"},
+    // Include 5-10 FAQs
   ],
   "socialMedia": {
-    "instagram": "Instagram handle or URL if found",
-    "facebook": "Facebook page URL if found",
-    "linkedin": "LinkedIn page URL if found",
-    "twitter": "Twitter/X handle if found"
+    "instagram": "Full Instagram URL",
+    "facebook": "Full Facebook page URL",
+    "linkedin": "Full LinkedIn page URL",
+    "twitter": "Full Twitter/X URL",
+    "youtube": "YouTube channel URL if exists"
   },
-  "founders": "Founder or owner names if publicly available",
+  "founders": "Founder/owner names with titles if publicly available",
   "yearEstablished": "Year the business was established",
-  "teamSize": "Approximate team size (e.g., '10-50 employees')",
-  "awards": ["Any awards or recognitions"],
+  "teamSize": "Team size (e.g., '50-100 employees')",
+  "awards": ["Awards and recognitions with year"],
   "certifications": ["Business certifications or accreditations"],
-  "languages": ["Languages spoken/supported"],
-  "paymentMethods": ["Accepted payment methods"],
-  "additionalInfo": {
-    // Any other relevant business-specific information
-    // For restaurants: cuisine types, dietary options, delivery partners
-    // For hotels: star rating, room types, amenities
-    // For healthcare: specializations, insurance accepted
-    // For retail: brands carried, delivery options
-  }
+  "languages": ["Languages spoken/supported by staff"],
+  "paymentMethods": ["All accepted payment methods - UPI, cards, wallets, etc."],
+
+  "onlineReviews": [
+    {
+      "source": "Platform name (TripAdvisor, Zomato, Yelp, Justdial, etc.)",
+      "sourceUrl": "Direct URL to their listing on that platform",
+      "rating": 4.5,
+      "reviewCount": 500,
+      "highlights": ["Common positive themes from reviews"]
+    }
+  ],
+
+  "testimonials": [
+    {
+      "quote": "Actual customer testimonial or review quote",
+      "author": "Customer name if available",
+      "source": "Where you found this (Google, TripAdvisor, etc.)",
+      "sourceUrl": "URL to the original review if possible"
+    }
+    // Include 3-5 notable testimonials
+  ],
+
+  "pressMedia": [
+    {
+      "title": "Article or feature title",
+      "source": "Publication name",
+      "url": "Article URL",
+      "date": "Publication date"
+    }
+  ],
+
+  ${industrySpecificRequest}
 }
 
-Industry hint: ${industryHint}
-${existingInfo?.rating ? `Google Rating: ${existingInfo.rating} (${existingInfo.reviewCount} reviews)` : ''}
+Industry: ${industryHint}
+${existingInfo?.rating ? `Google Rating: ${existingInfo.rating}/5 (${existingInfo.reviewCount} reviews)` : ''}
 ${existingInfo?.editorialSummary ? `Google Summary: ${existingInfo.editorialSummary}` : ''}
 
-Search thoroughly and return ONLY valid JSON. If information is not found, use null for that field.`;
+IMPORTANT:
+- Search thoroughly and provide VERIFIED information only
+- Include source URLs wherever possible for verification
+- For testimonials, use ACTUAL reviews you find, not made up ones
+- Return ONLY valid JSON. If information is not found, use null for that field.`;
 
   try {
     console.log('[AutoFill] Researching business with AI...');
@@ -303,7 +539,7 @@ Search thoroughly and return ONLY valid JSON. If information is not found, use n
       model: 'gemini-2.0-flash',
       contents: prompt,
       config: {
-        temperature: 0.2,
+        temperature: 0.1,
         tools: [{
           googleSearch: {}
         }],
@@ -318,7 +554,9 @@ Search thoroughly and return ONLY valid JSON. If information is not found, use n
       return {};
     }
 
-    return JSON.parse(jsonMatch[0]);
+    const parsed = JSON.parse(jsonMatch[0]);
+    console.log('[AutoFill] AI research complete with keys:', Object.keys(parsed));
+    return parsed;
   } catch (error) {
     console.error('[AutoFill] AI research error:', error);
     return {};
@@ -407,7 +645,20 @@ export async function autoFillBusinessProfile(
   // Step 3: Detect industry
   const industry = detectIndustry(placesInfo.types || []);
 
-  // Step 4: Map to BusinessPersona schema
+  // Step 4: Combine reviews from Google and AI research
+  const allReviews: PlaceReview[] = [
+    ...(placesInfo.reviews || []),
+    ...(aiResearch.testimonials || []).map(t => ({
+      author: t.author || 'Customer',
+      rating: 5,
+      text: t.quote,
+      time: '',
+      source: 'ai_research' as const,
+      sourceUrl: t.sourceUrl,
+    })),
+  ];
+
+  // Step 5: Map to BusinessPersona schema
   const profile: AutoFilledProfile = {
     identity: {
       businessName: placesInfo.name,
@@ -415,16 +666,18 @@ export async function autoFillBusinessProfile(
       description: aiResearch.description || placesInfo.editorialSummary,
       tagline: aiResearch.tagline,
       phone: placesInfo.phone,
-      email: undefined, // Not available from Places API
+      email: undefined,
       website: placesInfo.website,
       address: {
         street: placesInfo.formattedAddress,
-        city: '', // Would need geocoding to extract
-        state: '',
-        country: '',
-        pincode: '',
+        city: placesInfo.addressComponents?.city || '',
+        state: placesInfo.addressComponents?.state || '',
+        country: placesInfo.addressComponents?.country || '',
+        pincode: placesInfo.addressComponents?.postalCode || '',
       },
       location: placesInfo.location,
+      googleMapsUrl: placesInfo.googleMapsUrl,
+      plusCode: placesInfo.plusCode,
       operatingHours: placesInfo.openingHours?.weekdayText
         ? parseOperatingHours(placesInfo.openingHours.weekdayText)
         : undefined,
@@ -455,17 +708,20 @@ export async function autoFillBusinessProfile(
       })),
       paymentMethods: aiResearch.paymentMethods,
     },
+    photos: placesInfo.photos,
+    reviews: allReviews,
+    testimonials: aiResearch.testimonials,
+    onlinePresence: aiResearch.onlineReviews,
+    pressMedia: aiResearch.pressMedia,
     industrySpecificData: {
       googleRating: placesInfo.rating,
       googleReviewCount: placesInfo.reviewCount,
-      googlePhotos: placesInfo.photos,
-      googleReviews: placesInfo.reviews,
       priceLevel: placesInfo.priceLevel,
       awards: aiResearch.awards,
       certifications: aiResearch.certifications,
       founders: aiResearch.founders,
       teamSize: aiResearch.teamSize,
-      ...aiResearch.additionalInfo,
+      ...(aiResearch.industryData || {}),
     },
     source: {
       placeId: placesInfo.placeId,
