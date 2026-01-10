@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/use-auth';
 import { getPartnerProfileAction } from '@/actions/get-partner-profile';
@@ -8,6 +8,7 @@ import { getBusinessPersonaAction, saveBusinessPersonaAction } from '@/actions/b
 
 import { getPartnerInvitationCodesAction, generateEmployeeInvitationCodeAction, cancelInvitationCodeAction } from '@/actions/partner-invitation-management';
 import { importHotelDataAction, searchHotelsAction } from '@/actions/hotel-import-actions';
+import { searchBusinessesAction, autoFillProfileAction, getEmptyProfileAction } from '@/actions/business-autofill-actions';
 import { db } from '@/lib/firebase';
 import { collection, query, where, getDocs, Timestamp } from 'firebase/firestore';
 import { toast } from 'sonner';
@@ -49,6 +50,36 @@ const SettingsUltimate = () => {
   const [hotelImporting, setHotelImporting] = useState(false);
   const [hotelSearchResults, setHotelSearchResults] = useState<any[]>([]);
   const [hotelImportData, setHotelImportData] = useState<any>(null);
+
+  // Business Auto-Fill State
+  const [autoFillSearch, setAutoFillSearch] = useState('');
+  const [autoFillResults, setAutoFillResults] = useState<any[]>([]);
+  const [autoFillSearching, setAutoFillSearching] = useState(false);
+  const [autoFilling, setAutoFilling] = useState(false);
+  const [selectedPlace, setSelectedPlace] = useState<any>(null);
+  const [showAutoFillPreview, setShowAutoFillPreview] = useState(false);
+  const [autoFillPreviewData, setAutoFillPreviewData] = useState<any>(null);
+  const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Debounced search function
+  const debouncedSearch = useCallback(async (query: string) => {
+    if (query.length < 3) {
+      setAutoFillResults([]);
+      return;
+    }
+
+    setAutoFillSearching(true);
+    try {
+      const result = await searchBusinessesAction(query);
+      if (result.success && result.results) {
+        setAutoFillResults(result.results);
+      }
+    } catch (err) {
+      console.error('Search error:', err);
+    } finally {
+      setAutoFillSearching(false);
+    }
+  }, []);
 
   // Data State
   const [partner, setPartner] = useState<Partner | null>(null);
@@ -1069,6 +1100,380 @@ const SettingsUltimate = () => {
                     <span className="hidden sm:inline">AI Update</span>
                   </button>
                 </div>
+
+                {/* Business Auto-Fill Card */}
+                <div className="bg-gradient-to-r from-indigo-50 to-purple-50 rounded-2xl border border-indigo-200 p-5">
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="w-10 h-10 bg-gradient-to-r from-indigo-500 to-purple-500 rounded-xl flex items-center justify-center">
+                      <span className="text-white text-lg">🔍</span>
+                    </div>
+                    <div>
+                      <h3 className="font-semibold text-slate-900">Auto-Fill Business Profile</h3>
+                      <p className="text-sm text-slate-500">Search for your business to auto-populate fields from online data</p>
+                    </div>
+                  </div>
+
+                  {/* Search Input */}
+                  <div className="relative mb-3">
+                    <input
+                      type="text"
+                      value={autoFillSearch}
+                      onChange={(e) => {
+                        const query = e.target.value;
+                        setAutoFillSearch(query);
+                        setSelectedPlace(null);
+
+                        // Clear existing timeout
+                        if (searchTimeoutRef.current) {
+                          clearTimeout(searchTimeoutRef.current);
+                        }
+
+                        // Debounce search by 300ms
+                        searchTimeoutRef.current = setTimeout(() => {
+                          debouncedSearch(query);
+                        }, 300);
+                      }}
+                      placeholder="Search for your business (e.g., 'Taj Hotel Mumbai')"
+                      className="w-full px-4 py-3 pr-10 border border-slate-300 rounded-xl bg-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-sm"
+                    />
+                    {autoFillSearching && (
+                      <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                        <div className="w-5 h-5 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin" />
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Search Results Dropdown */}
+                  {autoFillResults.length > 0 && !selectedPlace && (
+                    <div className="mb-3 bg-white border border-slate-200 rounded-xl shadow-lg overflow-hidden max-h-64 overflow-y-auto">
+                      {autoFillResults.map((place) => (
+                        <button
+                          key={place.placeId}
+                          onClick={() => {
+                            setSelectedPlace(place);
+                            setAutoFillSearch(place.mainText);
+                            setAutoFillResults([]);
+                          }}
+                          className="w-full px-4 py-3 text-left hover:bg-indigo-50 border-b border-slate-100 last:border-b-0 transition-colors"
+                        >
+                          <div className="font-medium text-slate-900">{place.mainText}</div>
+                          <div className="text-sm text-slate-500">{place.secondaryText}</div>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Selected Place + Action Buttons */}
+                  {selectedPlace && (
+                    <div className="mb-3 p-3 bg-white border border-indigo-200 rounded-xl">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <div className="font-medium text-slate-900">{selectedPlace.mainText}</div>
+                          <div className="text-sm text-slate-500">{selectedPlace.secondaryText}</div>
+                        </div>
+                        <button
+                          onClick={() => {
+                            setSelectedPlace(null);
+                            setAutoFillSearch('');
+                          }}
+                          className="text-slate-400 hover:text-red-500 p-1"
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Action Buttons */}
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      onClick={async () => {
+                        if (!selectedPlace) {
+                          toast.error('Please search and select a business first');
+                          return;
+                        }
+
+                        setAutoFilling(true);
+                        try {
+                          const result = await autoFillProfileAction(selectedPlace.placeId);
+                          if (result.success && result.profile) {
+                            setAutoFillPreviewData(result.profile);
+                            setShowAutoFillPreview(true);
+                          } else {
+                            toast.error(result.error || 'Failed to fetch business data');
+                          }
+                        } catch (err: any) {
+                          toast.error(err.message || 'Auto-fill failed');
+                        } finally {
+                          setAutoFilling(false);
+                        }
+                      }}
+                      disabled={!selectedPlace || autoFilling}
+                      className={cn(
+                        "flex-1 px-4 py-2.5 rounded-xl font-medium text-sm transition-all flex items-center justify-center gap-2",
+                        selectedPlace && !autoFilling
+                          ? "bg-gradient-to-r from-indigo-600 to-purple-600 text-white hover:from-indigo-700 hover:to-purple-700"
+                          : "bg-slate-100 text-slate-400 cursor-not-allowed"
+                      )}
+                    >
+                      {autoFilling ? (
+                        <>
+                          <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                          <span>Researching...</span>
+                        </>
+                      ) : (
+                        <>
+                          <span>✨</span>
+                          <span>Auto-Fill Profile</span>
+                        </>
+                      )}
+                    </button>
+
+                    <button
+                      onClick={async () => {
+                        if (confirm('Are you sure you want to clear all business profile data? This cannot be undone.')) {
+                          try {
+                            const result = await getEmptyProfileAction();
+                            if (result.success && result.profile) {
+                              setPersona(result.profile);
+                              setSelectedBusinessTypes([]);
+                              await saveBusinessPersonaAction(partnerId!, result.profile);
+                              toast.success('All profile data cleared');
+                              setAutoFillSearch('');
+                              setSelectedPlace(null);
+                            }
+                          } catch (err: any) {
+                            toast.error(err.message || 'Failed to clear data');
+                          }
+                        }
+                      }}
+                      className="px-4 py-2.5 border border-red-200 text-red-600 rounded-xl font-medium text-sm hover:bg-red-50 transition-all flex items-center gap-2"
+                    >
+                      <span>🗑️</span>
+                      <span>Clear All</span>
+                    </button>
+                  </div>
+
+                  <p className="mt-3 text-xs text-slate-500">
+                    Uses Google Places API + AI research to find and fill business information from the web
+                  </p>
+                </div>
+
+                {/* Auto-Fill Preview Modal */}
+                {showAutoFillPreview && autoFillPreviewData && (
+                  <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+                    <div className="bg-white rounded-2xl max-w-2xl w-full max-h-[80vh] overflow-hidden flex flex-col">
+                      <div className="p-5 border-b border-slate-200 flex items-center justify-between">
+                        <div>
+                          <h3 className="text-lg font-semibold text-slate-900">Review Auto-Filled Data</h3>
+                          <p className="text-sm text-slate-500">Check the data before applying to your profile</p>
+                        </div>
+                        <button
+                          onClick={() => setShowAutoFillPreview(false)}
+                          className="text-slate-400 hover:text-slate-600 p-1"
+                        >
+                          ✕
+                        </button>
+                      </div>
+
+                      <div className="flex-1 overflow-y-auto p-5 space-y-4">
+                        {/* Identity Section */}
+                        {autoFillPreviewData.identity && (
+                          <div className="bg-slate-50 rounded-xl p-4">
+                            <h4 className="font-semibold text-slate-900 mb-3 flex items-center gap-2">
+                              <span>🏢</span> Business Identity
+                            </h4>
+                            <div className="grid grid-cols-2 gap-3 text-sm">
+                              {autoFillPreviewData.identity.businessName && (
+                                <div>
+                                  <span className="text-slate-500">Name:</span>
+                                  <span className="ml-2 font-medium">{autoFillPreviewData.identity.businessName}</span>
+                                </div>
+                              )}
+                              {autoFillPreviewData.identity.industry && (
+                                <div>
+                                  <span className="text-slate-500">Industry:</span>
+                                  <span className="ml-2 font-medium">{autoFillPreviewData.identity.industry}</span>
+                                </div>
+                              )}
+                              {autoFillPreviewData.identity.phone && (
+                                <div>
+                                  <span className="text-slate-500">Phone:</span>
+                                  <span className="ml-2 font-medium">{autoFillPreviewData.identity.phone}</span>
+                                </div>
+                              )}
+                              {autoFillPreviewData.identity.website && (
+                                <div>
+                                  <span className="text-slate-500">Website:</span>
+                                  <span className="ml-2 font-medium truncate">{autoFillPreviewData.identity.website}</span>
+                                </div>
+                              )}
+                              {autoFillPreviewData.identity.address?.street && (
+                                <div className="col-span-2">
+                                  <span className="text-slate-500">Address:</span>
+                                  <span className="ml-2 font-medium">{autoFillPreviewData.identity.address.street}</span>
+                                </div>
+                              )}
+                            </div>
+                            {autoFillPreviewData.identity.description && (
+                              <div className="mt-3">
+                                <span className="text-slate-500 text-sm">Description:</span>
+                                <p className="mt-1 text-sm text-slate-700">{autoFillPreviewData.identity.description}</p>
+                              </div>
+                            )}
+                          </div>
+                        )}
+
+                        {/* Personality Section */}
+                        {autoFillPreviewData.personality?.uniqueSellingPoints?.length > 0 && (
+                          <div className="bg-slate-50 rounded-xl p-4">
+                            <h4 className="font-semibold text-slate-900 mb-3 flex items-center gap-2">
+                              <span>✨</span> Unique Selling Points
+                            </h4>
+                            <div className="flex flex-wrap gap-2">
+                              {autoFillPreviewData.personality.uniqueSellingPoints.map((usp: string, i: number) => (
+                                <span key={i} className="px-3 py-1 bg-indigo-100 text-indigo-700 rounded-full text-sm">
+                                  {usp}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Customer Profile Section */}
+                        {autoFillPreviewData.customerProfile?.targetAudience?.length > 0 && (
+                          <div className="bg-slate-50 rounded-xl p-4">
+                            <h4 className="font-semibold text-slate-900 mb-3 flex items-center gap-2">
+                              <span>👥</span> Target Audience
+                            </h4>
+                            <div className="flex flex-wrap gap-2">
+                              {autoFillPreviewData.customerProfile.targetAudience.map((audience: string, i: number) => (
+                                <span key={i} className="px-3 py-1 bg-green-100 text-green-700 rounded-full text-sm">
+                                  {audience}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Knowledge Section */}
+                        {autoFillPreviewData.knowledge?.productsOrServices?.length > 0 && (
+                          <div className="bg-slate-50 rounded-xl p-4">
+                            <h4 className="font-semibold text-slate-900 mb-3 flex items-center gap-2">
+                              <span>📦</span> Products & Services ({autoFillPreviewData.knowledge.productsOrServices.length})
+                            </h4>
+                            <div className="flex flex-wrap gap-2">
+                              {autoFillPreviewData.knowledge.productsOrServices.slice(0, 10).map((item: any, i: number) => (
+                                <span key={i} className="px-3 py-1 bg-purple-100 text-purple-700 rounded-full text-sm">
+                                  {item.name}
+                                </span>
+                              ))}
+                              {autoFillPreviewData.knowledge.productsOrServices.length > 10 && (
+                                <span className="px-3 py-1 bg-slate-200 text-slate-600 rounded-full text-sm">
+                                  +{autoFillPreviewData.knowledge.productsOrServices.length - 10} more
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* FAQs Section */}
+                        {autoFillPreviewData.knowledge?.faqs?.length > 0 && (
+                          <div className="bg-slate-50 rounded-xl p-4">
+                            <h4 className="font-semibold text-slate-900 mb-3 flex items-center gap-2">
+                              <span>❓</span> FAQs ({autoFillPreviewData.knowledge.faqs.length})
+                            </h4>
+                            <div className="space-y-2">
+                              {autoFillPreviewData.knowledge.faqs.slice(0, 3).map((faq: any, i: number) => (
+                                <div key={i} className="text-sm">
+                                  <div className="font-medium text-slate-900">Q: {faq.question}</div>
+                                  <div className="text-slate-600 ml-3">A: {faq.answer}</div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Source Info */}
+                        {autoFillPreviewData.source && (
+                          <div className="text-xs text-slate-400 text-center">
+                            Source: {autoFillPreviewData.source.placesData ? 'Google Places' : ''}
+                            {autoFillPreviewData.source.aiEnriched ? ' + AI Research' : ''}
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="p-5 border-t border-slate-200 flex gap-3">
+                        <button
+                          onClick={() => setShowAutoFillPreview(false)}
+                          className="flex-1 px-4 py-2.5 border border-slate-200 rounded-xl font-medium text-sm text-slate-600 hover:bg-slate-50 transition-all"
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          onClick={async () => {
+                            try {
+                              // Merge auto-fill data with existing persona
+                              const mergedPersona = {
+                                ...persona,
+                                identity: {
+                                  ...persona.identity,
+                                  ...autoFillPreviewData.identity,
+                                },
+                                personality: {
+                                  ...persona.personality,
+                                  ...autoFillPreviewData.personality,
+                                },
+                                customerProfile: {
+                                  ...persona.customerProfile,
+                                  ...autoFillPreviewData.customerProfile,
+                                },
+                                knowledge: {
+                                  ...persona.knowledge,
+                                  ...autoFillPreviewData.knowledge,
+                                },
+                                industrySpecificData: {
+                                  ...persona.industrySpecificData,
+                                  ...autoFillPreviewData.industrySpecificData,
+                                },
+                              };
+
+                              setPersona(mergedPersona);
+                              await saveBusinessPersonaAction(partnerId!, mergedPersona);
+
+                              // Set business type based on detected industry
+                              if (autoFillPreviewData.identity?.industry) {
+                                const industryMap: Record<string, string> = {
+                                  'hospitality': 'hospitality',
+                                  'food_beverage': 'food_restaurant',
+                                  'retail': 'retail_ecommerce',
+                                  'healthcare': 'healthcare',
+                                  'real_estate': 'real_estate',
+                                  'education': 'education',
+                                  'finance': 'finance',
+                                };
+                                const mappedType = industryMap[autoFillPreviewData.identity.industry];
+                                if (mappedType && !selectedBusinessTypes.includes(mappedType)) {
+                                  setSelectedBusinessTypes([...selectedBusinessTypes, mappedType]);
+                                }
+                              }
+
+                              toast.success('Profile updated with auto-filled data!');
+                              setShowAutoFillPreview(false);
+                              setAutoFillSearch('');
+                              setSelectedPlace(null);
+                            } catch (err: any) {
+                              toast.error(err.message || 'Failed to apply data');
+                            }
+                          }}
+                          className="flex-1 px-4 py-2.5 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-xl font-medium text-sm hover:from-indigo-700 hover:to-purple-700 transition-all"
+                        >
+                          Apply to Profile
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
 
                 {/* Business Types Selection Card */}
                 <div className="bg-white rounded-2xl border border-slate-200 p-5">
