@@ -1434,59 +1434,210 @@ const SettingsUltimate = () => {
 
                                           {/* Dynamic fields based on inventory type */}
                                           {field.inventoryType === 'products' && (
-                                            <div className="grid grid-cols-3 gap-2">
-                                              <input type="text" placeholder="Product name" className="col-span-2 px-3 py-2 border border-slate-200 rounded-lg text-sm" id={`${field.key}-name`} />
-                                              <input type="text" placeholder="Price (₹)" className="px-3 py-2 border border-slate-200 rounded-lg text-sm" id={`${field.key}-price`} />
+                                            <div className="space-y-2">
+                                              <div className="grid grid-cols-4 gap-2">
+                                                <input type="text" placeholder="Product name *" className="col-span-2 px-3 py-2 border border-slate-200 rounded-lg text-sm" id={`${field.key}-name`} />
+                                                <input type="text" placeholder="SKU/Code" className="px-3 py-2 border border-slate-200 rounded-lg text-sm" id={`${field.key}-sku`} />
+                                                <input type="text" placeholder="Price (₹) *" className="px-3 py-2 border border-slate-200 rounded-lg text-sm" id={`${field.key}-price`} />
+                                              </div>
+                                              <div className="grid grid-cols-4 gap-2">
+                                                <input type="text" placeholder="MRP (₹)" className="px-3 py-2 border border-slate-200 rounded-lg text-sm" id={`${field.key}-mrp`} />
+                                                <input type="text" placeholder="Category" className="px-3 py-2 border border-slate-200 rounded-lg text-sm" id={`${field.key}-category`} />
+                                                <input type="number" placeholder="Stock Qty" className="px-3 py-2 border border-slate-200 rounded-lg text-sm" id={`${field.key}-stock`} />
+                                                <select className="px-3 py-2 border border-slate-200 rounded-lg text-sm bg-white" id={`${field.key}-condition`}>
+                                                  <option value="new">New</option>
+                                                  <option value="refurbished">Refurbished</option>
+                                                  <option value="used">Used</option>
+                                                </select>
+                                              </div>
+                                              <textarea placeholder="Short description..." className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm" rows={2} id={`${field.key}-desc`} />
                                             </div>
                                           )}
                                           {field.inventoryType === 'properties' && (
-                                            <div className="grid grid-cols-4 gap-2">
-                                              <input type="text" placeholder="Property title" className="col-span-2 px-3 py-2 border border-slate-200 rounded-lg text-sm" id={`${field.key}-name`} />
-                                              <select className="px-3 py-2 border border-slate-200 rounded-lg text-sm bg-white" id={`${field.key}-type`}>
-                                                <option value="">Type</option>
-                                                <option value="apartment">Apartment</option>
-                                                <option value="villa">Villa</option>
-                                                <option value="plot">Plot</option>
-                                                <option value="commercial">Commercial</option>
-                                              </select>
-                                              <input type="text" placeholder="Price" className="px-3 py-2 border border-slate-200 rounded-lg text-sm" id={`${field.key}-price`} />
+                                            <div className="space-y-2">
+                                              <div className="grid grid-cols-4 gap-2">
+                                                <input type="text" placeholder="Property title *" className="col-span-2 px-3 py-2 border border-slate-200 rounded-lg text-sm" id={`${field.key}-name`} />
+                                                <select className="px-3 py-2 border border-slate-200 rounded-lg text-sm bg-white" id={`${field.key}-type`}>
+                                                  <option value="apartment">Apartment</option>
+                                                  <option value="villa">Villa</option>
+                                                  <option value="independent_house">Independent House</option>
+                                                  <option value="plot">Plot</option>
+                                                  <option value="commercial">Commercial</option>
+                                                  <option value="office">Office</option>
+                                                  <option value="shop">Shop</option>
+                                                  <option value="pg">PG/Hostel</option>
+                                                </select>
+                                                <select className="px-3 py-2 border border-slate-200 rounded-lg text-sm bg-white" id={`${field.key}-transaction`}>
+                                                  <option value="sale">For Sale</option>
+                                                  <option value="rent">For Rent</option>
+                                                  <option value="lease">For Lease</option>
+                                                </select>
+                                              </div>
+                                              <div className="grid grid-cols-5 gap-2">
+                                                <input type="text" placeholder="Price (₹) *" className="px-3 py-2 border border-slate-200 rounded-lg text-sm" id={`${field.key}-price`} />
+                                                <input type="number" placeholder="BHK" className="px-3 py-2 border border-slate-200 rounded-lg text-sm" id={`${field.key}-bedrooms`} />
+                                                <input type="number" placeholder="Baths" className="px-3 py-2 border border-slate-200 rounded-lg text-sm" id={`${field.key}-bathrooms`} />
+                                                <input type="number" placeholder="Sq.ft" className="px-3 py-2 border border-slate-200 rounded-lg text-sm" id={`${field.key}-area`} />
+                                                <select className="px-3 py-2 border border-slate-200 rounded-lg text-sm bg-white" id={`${field.key}-furnishing`}>
+                                                  <option value="unfurnished">Unfurnished</option>
+                                                  <option value="semi-furnished">Semi-Furnished</option>
+                                                  <option value="fully-furnished">Fully Furnished</option>
+                                                </select>
+                                              </div>
+                                              <div className="grid grid-cols-3 gap-2">
+                                                <input type="text" placeholder="Locality *" className="px-3 py-2 border border-slate-200 rounded-lg text-sm" id={`${field.key}-locality`} />
+                                                <input type="text" placeholder="City *" className="px-3 py-2 border border-slate-200 rounded-lg text-sm" id={`${field.key}-city`} />
+                                                <input type="text" placeholder="RERA ID (if any)" className="px-3 py-2 border border-slate-200 rounded-lg text-sm" id={`${field.key}-rera`} />
+                                              </div>
                                             </div>
                                           )}
                                           {field.inventoryType === 'menu' && (
-                                            <div className="grid grid-cols-4 gap-2">
-                                              <input type="text" placeholder="Dish name" className="col-span-2 px-3 py-2 border border-slate-200 rounded-lg text-sm" id={`${field.key}-name`} />
-                                              <input type="text" placeholder="Price (₹)" className="px-3 py-2 border border-slate-200 rounded-lg text-sm" id={`${field.key}-price`} />
-                                              <select className="px-3 py-2 border border-slate-200 rounded-lg text-sm bg-white" id={`${field.key}-veg`}>
-                                                <option value="true">Veg</option>
-                                                <option value="false">Non-Veg</option>
-                                              </select>
+                                            <div className="space-y-2">
+                                              <div className="grid grid-cols-5 gap-2">
+                                                <input type="text" placeholder="Dish name *" className="col-span-2 px-3 py-2 border border-slate-200 rounded-lg text-sm" id={`${field.key}-name`} />
+                                                <input type="text" placeholder="Price (₹) *" className="px-3 py-2 border border-slate-200 rounded-lg text-sm" id={`${field.key}-price`} />
+                                                <select className="px-3 py-2 border border-slate-200 rounded-lg text-sm bg-white" id={`${field.key}-veg`}>
+                                                  <option value="veg">🟢 Veg</option>
+                                                  <option value="non_veg">🔴 Non-Veg</option>
+                                                  <option value="egg">🟡 Egg</option>
+                                                  <option value="vegan">🌱 Vegan</option>
+                                                </select>
+                                                <select className="px-3 py-2 border border-slate-200 rounded-lg text-sm bg-white" id={`${field.key}-spice`}>
+                                                  <option value="none">No Spice</option>
+                                                  <option value="mild">Mild 🌶️</option>
+                                                  <option value="medium">Medium 🌶️🌶️</option>
+                                                  <option value="hot">Hot 🌶️🌶️🌶️</option>
+                                                </select>
+                                              </div>
+                                              <div className="grid grid-cols-4 gap-2">
+                                                <input type="text" placeholder="Category (e.g., Starters)" className="px-3 py-2 border border-slate-200 rounded-lg text-sm" id={`${field.key}-category`} />
+                                                <input type="text" placeholder="Cuisine (e.g., North Indian)" className="px-3 py-2 border border-slate-200 rounded-lg text-sm" id={`${field.key}-cuisine`} />
+                                                <input type="text" placeholder="Prep time (e.g., 15 mins)" className="px-3 py-2 border border-slate-200 rounded-lg text-sm" id={`${field.key}-prepTime`} />
+                                                <input type="text" placeholder="Serves (e.g., 2-3)" className="px-3 py-2 border border-slate-200 rounded-lg text-sm" id={`${field.key}-serves`} />
+                                              </div>
+                                              <div className="flex gap-4 text-xs">
+                                                <label className="flex items-center gap-1.5">
+                                                  <input type="checkbox" id={`${field.key}-bestseller`} className="rounded" /> Bestseller
+                                                </label>
+                                                <label className="flex items-center gap-1.5">
+                                                  <input type="checkbox" id={`${field.key}-chefSpecial`} className="rounded" /> Chef's Special
+                                                </label>
+                                                <label className="flex items-center gap-1.5">
+                                                  <input type="checkbox" id={`${field.key}-jain`} className="rounded" /> Jain Option
+                                                </label>
+                                                <label className="flex items-center gap-1.5">
+                                                  <input type="checkbox" id={`${field.key}-glutenFree`} className="rounded" /> Gluten-Free
+                                                </label>
+                                              </div>
                                             </div>
                                           )}
                                           {field.inventoryType === 'rooms' && (
-                                            <div className="grid grid-cols-4 gap-2">
-                                              <input type="text" placeholder="Room type (e.g., Deluxe)" className="col-span-2 px-3 py-2 border border-slate-200 rounded-lg text-sm" id={`${field.key}-name`} />
-                                              <input type="text" placeholder="Price/night" className="px-3 py-2 border border-slate-200 rounded-lg text-sm" id={`${field.key}-price`} />
-                                              <input type="number" placeholder="Guests" className="px-3 py-2 border border-slate-200 rounded-lg text-sm" id={`${field.key}-guests`} />
+                                            <div className="space-y-2">
+                                              <div className="grid grid-cols-4 gap-2">
+                                                <input type="text" placeholder="Room name (e.g., Deluxe) *" className="col-span-2 px-3 py-2 border border-slate-200 rounded-lg text-sm" id={`${field.key}-name`} />
+                                                <select className="px-3 py-2 border border-slate-200 rounded-lg text-sm bg-white" id={`${field.key}-category`}>
+                                                  <option value="standard">Standard</option>
+                                                  <option value="deluxe">Deluxe</option>
+                                                  <option value="superior">Superior</option>
+                                                  <option value="premium">Premium</option>
+                                                  <option value="suite">Suite</option>
+                                                  <option value="villa">Villa</option>
+                                                </select>
+                                                <input type="text" placeholder="Price/night (₹) *" className="px-3 py-2 border border-slate-200 rounded-lg text-sm" id={`${field.key}-price`} />
+                                              </div>
+                                              <div className="grid grid-cols-5 gap-2">
+                                                <input type="number" placeholder="Max Guests *" className="px-3 py-2 border border-slate-200 rounded-lg text-sm" id={`${field.key}-guests`} />
+                                                <input type="number" placeholder="Adults" className="px-3 py-2 border border-slate-200 rounded-lg text-sm" id={`${field.key}-adults`} />
+                                                <input type="number" placeholder="Children" className="px-3 py-2 border border-slate-200 rounded-lg text-sm" id={`${field.key}-children`} />
+                                                <input type="number" placeholder="Size (sq.ft)" className="px-3 py-2 border border-slate-200 rounded-lg text-sm" id={`${field.key}-size`} />
+                                                <input type="number" placeholder="Total Rooms" className="px-3 py-2 border border-slate-200 rounded-lg text-sm" id={`${field.key}-totalRooms`} />
+                                              </div>
+                                              <div className="grid grid-cols-3 gap-2">
+                                                <select className="px-3 py-2 border border-slate-200 rounded-lg text-sm bg-white" id={`${field.key}-bedType`}>
+                                                  <option value="king">King Bed</option>
+                                                  <option value="queen">Queen Bed</option>
+                                                  <option value="double">Double Bed</option>
+                                                  <option value="twin">Twin Beds</option>
+                                                  <option value="single">Single Bed</option>
+                                                </select>
+                                                <input type="text" placeholder="View (e.g., Sea View)" className="px-3 py-2 border border-slate-200 rounded-lg text-sm" id={`${field.key}-view`} />
+                                                <select className="px-3 py-2 border border-slate-200 rounded-lg text-sm bg-white" id={`${field.key}-cancellation`}>
+                                                  <option value="free">Free Cancellation</option>
+                                                  <option value="flexible">Flexible</option>
+                                                  <option value="moderate">Moderate</option>
+                                                  <option value="strict">Strict</option>
+                                                  <option value="non_refundable">Non-Refundable</option>
+                                                </select>
+                                              </div>
+                                              <input type="text" placeholder="Amenities (comma separated: AC, TV, WiFi, Mini Bar...)" className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm" id={`${field.key}-amenities`} />
                                             </div>
                                           )}
                                           {field.inventoryType === 'healthcare' && (
-                                            <div className="grid grid-cols-4 gap-2">
-                                              <input type="text" placeholder="Service name" className="col-span-2 px-3 py-2 border border-slate-200 rounded-lg text-sm" id={`${field.key}-name`} />
-                                              <input type="text" placeholder="Fee (₹)" className="px-3 py-2 border border-slate-200 rounded-lg text-sm" id={`${field.key}-price`} />
-                                              <select className="px-3 py-2 border border-slate-200 rounded-lg text-sm bg-white" id={`${field.key}-category`}>
-                                                <option value="consultation">Consultation</option>
-                                                <option value="treatment">Treatment</option>
-                                                <option value="procedure">Procedure</option>
-                                                <option value="therapy">Therapy</option>
-                                                <option value="checkup">Health Checkup</option>
-                                              </select>
+                                            <div className="space-y-2">
+                                              <div className="grid grid-cols-4 gap-2">
+                                                <input type="text" placeholder="Service name *" className="col-span-2 px-3 py-2 border border-slate-200 rounded-lg text-sm" id={`${field.key}-name`} />
+                                                <input type="text" placeholder="Fee (₹) *" className="px-3 py-2 border border-slate-200 rounded-lg text-sm" id={`${field.key}-price`} />
+                                                <select className="px-3 py-2 border border-slate-200 rounded-lg text-sm bg-white" id={`${field.key}-category`}>
+                                                  <option value="consultation">Consultation</option>
+                                                  <option value="treatment">Treatment</option>
+                                                  <option value="procedure">Procedure</option>
+                                                  <option value="therapy">Therapy</option>
+                                                  <option value="checkup">Health Checkup</option>
+                                                  <option value="surgery">Surgery</option>
+                                                  <option value="vaccination">Vaccination</option>
+                                                </select>
+                                              </div>
+                                              <div className="grid grid-cols-4 gap-2">
+                                                <input type="text" placeholder="Duration (e.g., 30 mins)" className="px-3 py-2 border border-slate-200 rounded-lg text-sm" id={`${field.key}-duration`} />
+                                                <input type="text" placeholder="Department" className="px-3 py-2 border border-slate-200 rounded-lg text-sm" id={`${field.key}-department`} />
+                                                <input type="text" placeholder="Follow-up fee (₹)" className="px-3 py-2 border border-slate-200 rounded-lg text-sm" id={`${field.key}-followUpFee`} />
+                                                <select className="px-3 py-2 border border-slate-200 rounded-lg text-sm bg-white" id={`${field.key}-consultType`}>
+                                                  <option value="in_person">In-Person</option>
+                                                  <option value="video">Video Call</option>
+                                                  <option value="phone">Phone</option>
+                                                  <option value="home_visit">Home Visit</option>
+                                                </select>
+                                              </div>
+                                              <div className="flex gap-4 text-xs">
+                                                <label className="flex items-center gap-1.5">
+                                                  <input type="checkbox" id={`${field.key}-insurance`} className="rounded" /> Insurance Covered
+                                                </label>
+                                                <label className="flex items-center gap-1.5">
+                                                  <input type="checkbox" id={`${field.key}-emergency`} className="rounded" /> Emergency Available
+                                                </label>
+                                              </div>
                                             </div>
                                           )}
                                           {field.inventoryType === 'diagnostics' && (
-                                            <div className="grid grid-cols-4 gap-2">
-                                              <input type="text" placeholder="Test name" className="col-span-2 px-3 py-2 border border-slate-200 rounded-lg text-sm" id={`${field.key}-name`} />
-                                              <input type="text" placeholder="Price (₹)" className="px-3 py-2 border border-slate-200 rounded-lg text-sm" id={`${field.key}-price`} />
-                                              <input type="text" placeholder="Report time (e.g., 24 hrs)" className="px-3 py-2 border border-slate-200 rounded-lg text-sm" id={`${field.key}-reportTime`} />
+                                            <div className="space-y-2">
+                                              <div className="grid grid-cols-4 gap-2">
+                                                <input type="text" placeholder="Test name *" className="col-span-2 px-3 py-2 border border-slate-200 rounded-lg text-sm" id={`${field.key}-name`} />
+                                                <input type="text" placeholder="Price (₹) *" className="px-3 py-2 border border-slate-200 rounded-lg text-sm" id={`${field.key}-price`} />
+                                                <input type="text" placeholder="MRP (₹)" className="px-3 py-2 border border-slate-200 rounded-lg text-sm" id={`${field.key}-mrp`} />
+                                              </div>
+                                              <div className="grid grid-cols-4 gap-2">
+                                                <input type="text" placeholder="Category (e.g., Blood Test)" className="px-3 py-2 border border-slate-200 rounded-lg text-sm" id={`${field.key}-category`} />
+                                                <select className="px-3 py-2 border border-slate-200 rounded-lg text-sm bg-white" id={`${field.key}-sampleType`}>
+                                                  <option value="Blood">Blood</option>
+                                                  <option value="Urine">Urine</option>
+                                                  <option value="Stool">Stool</option>
+                                                  <option value="Swab">Swab</option>
+                                                  <option value="None">None (Imaging)</option>
+                                                </select>
+                                                <input type="text" placeholder="Report time (e.g., 24 hrs)" className="px-3 py-2 border border-slate-200 rounded-lg text-sm" id={`${field.key}-reportTime`} />
+                                                <input type="number" placeholder="Parameters" className="px-3 py-2 border border-slate-200 rounded-lg text-sm" id={`${field.key}-parameters`} />
+                                              </div>
+                                              <div className="flex gap-4 text-xs">
+                                                <label className="flex items-center gap-1.5">
+                                                  <input type="checkbox" id={`${field.key}-fasting`} className="rounded" /> Fasting Required
+                                                </label>
+                                                <label className="flex items-center gap-1.5">
+                                                  <input type="checkbox" id={`${field.key}-homeCollection`} className="rounded" defaultChecked /> Home Collection
+                                                </label>
+                                                <label className="flex items-center gap-1.5">
+                                                  <input type="checkbox" id={`${field.key}-isPackage`} className="rounded" /> Health Package
+                                                </label>
+                                              </div>
                                             </div>
                                           )}
 
@@ -1500,98 +1651,304 @@ const SettingsUltimate = () => {
                                                     id: `${Date.now()}`,
                                                     name: nameEl.value,
                                                     price: priceEl?.value ? parseFloat(priceEl.value) : 0,
+                                                    createdAt: new Date(),
+                                                    updatedAt: new Date(),
                                                   };
-                                                  // Add type-specific fields
-                                                  if (field.inventoryType === 'menu') {
-                                                    const vegEl = document.getElementById(`${field.key}-veg`) as HTMLSelectElement;
-                                                    newItem.isVegetarian = vegEl?.value === 'true';
-                                                    newItem.isAvailable = true;
-                                                    newItem.isPopular = false;
+
+                                                  // Products - E-Commerce
+                                                  if (field.inventoryType === 'products') {
+                                                    const skuEl = document.getElementById(`${field.key}-sku`) as HTMLInputElement;
+                                                    const mrpEl = document.getElementById(`${field.key}-mrp`) as HTMLInputElement;
+                                                    const categoryEl = document.getElementById(`${field.key}-category`) as HTMLInputElement;
+                                                    const stockEl = document.getElementById(`${field.key}-stock`) as HTMLInputElement;
+                                                    const conditionEl = document.getElementById(`${field.key}-condition`) as HTMLSelectElement;
+                                                    const descEl = document.getElementById(`${field.key}-desc`) as HTMLTextAreaElement;
+
+                                                    newItem.sku = skuEl?.value || '';
+                                                    newItem.productCode = skuEl?.value || '';
+                                                    newItem.category = categoryEl?.value || '';
+                                                    newItem.condition = conditionEl?.value || 'new';
+                                                    newItem.description = descEl?.value || '';
+                                                    newItem.shortDescription = descEl?.value?.substring(0, 100) || '';
+                                                    newItem.pricing = {
+                                                      price: newItem.price,
+                                                      mrp: mrpEl?.value ? parseFloat(mrpEl.value) : undefined,
+                                                      currency: 'INR',
+                                                      taxInclusive: true,
+                                                    };
+                                                    newItem.inventory = {
+                                                      trackInventory: !!stockEl?.value,
+                                                      inStock: true,
+                                                      stockQuantity: stockEl?.value ? parseInt(stockEl.value) : undefined,
+                                                      allowBackorder: false,
+                                                    };
+                                                    newItem.status = 'active';
+                                                    newItem.visibility = 'visible';
+                                                    newItem.hasVariants = false;
+                                                    newItem.media = { images: [] };
+                                                    newItem.shipping = { shipsWithin: '2-3 days', freeShipping: false };
+                                                    newItem.promotion = { isPopular: false, isFeatured: false, isNewArrival: true, isOnSale: !!mrpEl?.value };
+                                                    newItem.tags = [];
+                                                    // Clear extra fields
+                                                    if (skuEl) skuEl.value = '';
+                                                    if (mrpEl) mrpEl.value = '';
+                                                    if (categoryEl) categoryEl.value = '';
+                                                    if (stockEl) stockEl.value = '';
+                                                    if (descEl) descEl.value = '';
                                                   }
+
+                                                  // Properties - Real Estate
                                                   if (field.inventoryType === 'properties') {
                                                     const typeEl = document.getElementById(`${field.key}-type`) as HTMLSelectElement;
-                                                    newItem.type = typeEl?.value || 'apartment';
-                                                    newItem.transactionType = 'sale';
-                                                    newItem.status = 'available';
+                                                    const transactionEl = document.getElementById(`${field.key}-transaction`) as HTMLSelectElement;
+                                                    const bedroomsEl = document.getElementById(`${field.key}-bedrooms`) as HTMLInputElement;
+                                                    const bathroomsEl = document.getElementById(`${field.key}-bathrooms`) as HTMLInputElement;
+                                                    const areaEl = document.getElementById(`${field.key}-area`) as HTMLInputElement;
+                                                    const furnishingEl = document.getElementById(`${field.key}-furnishing`) as HTMLSelectElement;
+                                                    const localityEl = document.getElementById(`${field.key}-locality`) as HTMLInputElement;
+                                                    const cityEl = document.getElementById(`${field.key}-city`) as HTMLInputElement;
+                                                    const reraEl = document.getElementById(`${field.key}-rera`) as HTMLInputElement;
+
                                                     newItem.title = newItem.name;
-                                                    newItem.locality = '';
-                                                    newItem.city = '';
-                                                    newItem.area = { value: 0, unit: 'sqft' };
+                                                    newItem.type = typeEl?.value || 'apartment';
+                                                    newItem.transactionType = transactionEl?.value || 'sale';
+                                                    newItem.status = 'available';
+                                                    newItem.location = {
+                                                      locality: localityEl?.value || '',
+                                                      city: cityEl?.value || '',
+                                                      state: '',
+                                                      country: 'India',
+                                                    };
+                                                    newItem.configuration = {
+                                                      bedrooms: bedroomsEl?.value ? parseInt(bedroomsEl.value) : undefined,
+                                                      bathrooms: bathroomsEl?.value ? parseInt(bathroomsEl.value) : undefined,
+                                                    };
+                                                    newItem.area = {
+                                                      carpet: { value: areaEl?.value ? parseInt(areaEl.value) : 0, unit: 'sqft' },
+                                                    };
+                                                    newItem.pricing = {
+                                                      price: newItem.price,
+                                                      priceType: 'negotiable',
+                                                    };
+                                                    newItem.features = {
+                                                      furnishing: furnishingEl?.value || 'unfurnished',
+                                                      possession: 'ready_to_move',
+                                                    };
                                                     newItem.amenities = [];
-                                                    newItem.negotiable = true;
-                                                    newItem.isFeatured = false;
-                                                    newItem.listedAt = new Date();
-                                                    newItem.updatedAt = new Date();
+                                                    newItem.media = { images: [] };
+                                                    newItem.legal = { reraId: reraEl?.value || undefined };
+                                                    newItem.contact = { type: 'owner' };
+                                                    newItem.visibility = { isActive: true, isFeatured: false, showPrice: true, showContact: true };
+                                                    newItem.currency = 'INR';
+                                                    // Clear extra fields
+                                                    if (localityEl) localityEl.value = '';
+                                                    if (cityEl) cityEl.value = '';
+                                                    if (bedroomsEl) bedroomsEl.value = '';
+                                                    if (bathroomsEl) bathroomsEl.value = '';
+                                                    if (areaEl) areaEl.value = '';
+                                                    if (reraEl) reraEl.value = '';
                                                   }
+
+                                                  // Menu Items - Restaurant
+                                                  if (field.inventoryType === 'menu') {
+                                                    const vegEl = document.getElementById(`${field.key}-veg`) as HTMLSelectElement;
+                                                    const spiceEl = document.getElementById(`${field.key}-spice`) as HTMLSelectElement;
+                                                    const categoryEl = document.getElementById(`${field.key}-category`) as HTMLInputElement;
+                                                    const cuisineEl = document.getElementById(`${field.key}-cuisine`) as HTMLInputElement;
+                                                    const prepTimeEl = document.getElementById(`${field.key}-prepTime`) as HTMLInputElement;
+                                                    const servesEl = document.getElementById(`${field.key}-serves`) as HTMLInputElement;
+                                                    const bestsellerEl = document.getElementById(`${field.key}-bestseller`) as HTMLInputElement;
+                                                    const chefSpecialEl = document.getElementById(`${field.key}-chefSpecial`) as HTMLInputElement;
+                                                    const jainEl = document.getElementById(`${field.key}-jain`) as HTMLInputElement;
+                                                    const glutenFreeEl = document.getElementById(`${field.key}-glutenFree`) as HTMLInputElement;
+
+                                                    const vegType = vegEl?.value || 'veg';
+                                                    newItem.categoryId = categoryEl?.value || '';
+                                                    newItem.cuisine = cuisineEl?.value || '';
+                                                    newItem.pricing = {
+                                                      price: newItem.price,
+                                                      currency: 'INR',
+                                                      hasVariants: false,
+                                                      isCombo: false,
+                                                      taxInclusive: true,
+                                                    };
+                                                    newItem.dietary = {
+                                                      type: vegType,
+                                                      isVegetarian: vegType === 'veg' || vegType === 'vegan',
+                                                      isVegan: vegType === 'vegan',
+                                                      isGlutenFree: glutenFreeEl?.checked || false,
+                                                      isJainFriendly: jainEl?.checked || false,
+                                                    };
+                                                    newItem.spiceLevel = spiceEl?.value || 'medium';
+                                                    newItem.availability = {
+                                                      isAvailable: true,
+                                                      isActive: true,
+                                                    };
+                                                    newItem.preparation = {
+                                                      prepTime: prepTimeEl?.value || '15-20 mins',
+                                                      servesCount: servesEl?.value || '',
+                                                    };
+                                                    newItem.customizations = { enabled: false, options: [] };
+                                                    newItem.media = {};
+                                                    newItem.promotion = {
+                                                      isPopular: bestsellerEl?.checked || false,
+                                                      isChefSpecial: chefSpecialEl?.checked || false,
+                                                      isNewItem: true,
+                                                      isBestSeller: bestsellerEl?.checked || false,
+                                                    };
+                                                    newItem.ordering = {};
+                                                    newItem.displayOrder = 0;
+                                                    // Clear extra fields
+                                                    if (categoryEl) categoryEl.value = '';
+                                                    if (cuisineEl) cuisineEl.value = '';
+                                                    if (prepTimeEl) prepTimeEl.value = '';
+                                                    if (servesEl) servesEl.value = '';
+                                                    if (bestsellerEl) bestsellerEl.checked = false;
+                                                    if (chefSpecialEl) chefSpecialEl.checked = false;
+                                                    if (jainEl) jainEl.checked = false;
+                                                    if (glutenFreeEl) glutenFreeEl.checked = false;
+                                                  }
+
+                                                  // Rooms - Hospitality
                                                   if (field.inventoryType === 'rooms') {
+                                                    const categoryEl = document.getElementById(`${field.key}-category`) as HTMLSelectElement;
                                                     const guestsEl = document.getElementById(`${field.key}-guests`) as HTMLInputElement;
-                                                    newItem.maxGuests = guestsEl?.value ? parseInt(guestsEl.value) : 2;
-                                                    newItem.maxAdults = newItem.maxGuests;
-                                                    newItem.basePrice = newItem.price;
-                                                    newItem.currency = 'INR';
-                                                    newItem.beds = [];
-                                                    newItem.size = { value: 0, unit: 'sqft' };
-                                                    newItem.amenities = [];
-                                                    newItem.images = [];
-                                                    newItem.totalRooms = 1;
-                                                    newItem.isFeatured = false;
-                                                    newItem.description = '';
+                                                    const adultsEl = document.getElementById(`${field.key}-adults`) as HTMLInputElement;
+                                                    const childrenEl = document.getElementById(`${field.key}-children`) as HTMLInputElement;
+                                                    const sizeEl = document.getElementById(`${field.key}-size`) as HTMLInputElement;
+                                                    const totalRoomsEl = document.getElementById(`${field.key}-totalRooms`) as HTMLInputElement;
+                                                    const bedTypeEl = document.getElementById(`${field.key}-bedType`) as HTMLSelectElement;
+                                                    const viewEl = document.getElementById(`${field.key}-view`) as HTMLInputElement;
+                                                    const cancellationEl = document.getElementById(`${field.key}-cancellation`) as HTMLSelectElement;
+                                                    const amenitiesEl = document.getElementById(`${field.key}-amenities`) as HTMLInputElement;
+
+                                                    newItem.category = categoryEl?.value || 'deluxe';
+                                                    newItem.occupancy = {
+                                                      baseOccupancy: 2,
+                                                      maxOccupancy: guestsEl?.value ? parseInt(guestsEl.value) : 2,
+                                                      maxAdults: adultsEl?.value ? parseInt(adultsEl.value) : 2,
+                                                      maxChildren: childrenEl?.value ? parseInt(childrenEl.value) : 0,
+                                                      infantsAllowed: true,
+                                                      extraBedAvailable: true,
+                                                    };
+                                                    newItem.bedding = {
+                                                      beds: [{ type: bedTypeEl?.value || 'king', count: 1 }],
+                                                    };
+                                                    newItem.specifications = {
+                                                      size: { value: sizeEl?.value ? parseInt(sizeEl.value) : 300, unit: 'sqft' },
+                                                      view: viewEl?.value || '',
+                                                    };
+                                                    newItem.amenities = {
+                                                      inRoom: amenitiesEl?.value?.split(',').map(s => s.trim()).filter(Boolean) || ['AC', 'TV', 'WiFi'],
+                                                      bathroom: ['Shower', 'Toiletries'],
+                                                      entertainment: [],
+                                                      comfort: [],
+                                                      food: ['Electric Kettle'],
+                                                    };
+                                                    newItem.pricing = {
+                                                      basePrice: newItem.price,
+                                                      currency: 'INR',
+                                                      taxInclusive: false,
+                                                    };
+                                                    newItem.availability = {
+                                                      totalRooms: totalRoomsEl?.value ? parseInt(totalRoomsEl.value) : 1,
+                                                      isActive: true,
+                                                      instantBooking: true,
+                                                      cancellationPolicy: cancellationEl?.value || 'flexible',
+                                                      prepaymentRequired: true,
+                                                    };
+                                                    newItem.media = { images: [] };
+                                                    newItem.displayOrder = 0;
+                                                    // Clear extra fields
+                                                    if (guestsEl) guestsEl.value = '';
+                                                    if (adultsEl) adultsEl.value = '';
+                                                    if (childrenEl) childrenEl.value = '';
+                                                    if (sizeEl) sizeEl.value = '';
+                                                    if (totalRoomsEl) totalRoomsEl.value = '';
+                                                    if (viewEl) viewEl.value = '';
+                                                    if (amenitiesEl) amenitiesEl.value = '';
                                                   }
-                                                  if (field.inventoryType === 'products') {
-                                                    newItem.currency = 'INR';
-                                                    newItem.inStock = true;
-                                                    newItem.trackInventory = false;
-                                                    newItem.hasVariants = false;
-                                                    newItem.description = '';
-                                                    newItem.images = [];
-                                                    newItem.isPopular = false;
-                                                    newItem.isFeatured = false;
-                                                    newItem.tags = [];
-                                                    newItem.category = '';
-                                                    newItem.createdAt = new Date();
-                                                    newItem.updatedAt = new Date();
-                                                  }
+
+                                                  // Healthcare Services
                                                   if (field.inventoryType === 'healthcare') {
                                                     const categoryEl = document.getElementById(`${field.key}-category`) as HTMLSelectElement;
+                                                    const durationEl = document.getElementById(`${field.key}-duration`) as HTMLInputElement;
+                                                    const departmentEl = document.getElementById(`${field.key}-department`) as HTMLInputElement;
+                                                    const followUpFeeEl = document.getElementById(`${field.key}-followUpFee`) as HTMLInputElement;
+                                                    const consultTypeEl = document.getElementById(`${field.key}-consultType`) as HTMLSelectElement;
+                                                    const insuranceEl = document.getElementById(`${field.key}-insurance`) as HTMLInputElement;
+                                                    const emergencyEl = document.getElementById(`${field.key}-emergency`) as HTMLInputElement;
+
                                                     newItem.category = categoryEl?.value || 'consultation';
+                                                    newItem.department = departmentEl?.value || '';
                                                     newItem.pricing = {
                                                       price: newItem.price,
                                                       priceType: 'fixed',
                                                       currency: 'INR',
-                                                      insuranceCovered: false,
+                                                      followUpFee: followUpFeeEl?.value ? parseFloat(followUpFeeEl.value) : undefined,
+                                                      insuranceCovered: insuranceEl?.checked || false,
                                                     };
                                                     newItem.availability = {
                                                       isAvailable: true,
                                                       slotDuration: 30,
-                                                      consultationType: ['in_person'],
+                                                      consultationType: [consultTypeEl?.value || 'in_person'],
+                                                      emergencyAvailable: emergencyEl?.checked || false,
                                                     };
+                                                    newItem.details = {
+                                                      duration: durationEl?.value || '30 mins',
+                                                    };
+                                                    newItem.media = {};
                                                     newItem.visibility = {
                                                       isActive: true,
                                                       isFeatured: false,
                                                       isPopular: false,
                                                       showPrice: true,
                                                     };
-                                                    newItem.createdAt = new Date();
-                                                    newItem.updatedAt = new Date();
+                                                    // Clear extra fields
+                                                    if (durationEl) durationEl.value = '';
+                                                    if (departmentEl) departmentEl.value = '';
+                                                    if (followUpFeeEl) followUpFeeEl.value = '';
+                                                    if (insuranceEl) insuranceEl.checked = false;
+                                                    if (emergencyEl) emergencyEl.checked = false;
                                                   }
+
+                                                  // Diagnostic Tests
                                                   if (field.inventoryType === 'diagnostics') {
+                                                    const mrpEl = document.getElementById(`${field.key}-mrp`) as HTMLInputElement;
+                                                    const categoryEl = document.getElementById(`${field.key}-category`) as HTMLInputElement;
+                                                    const sampleTypeEl = document.getElementById(`${field.key}-sampleType`) as HTMLSelectElement;
                                                     const reportTimeEl = document.getElementById(`${field.key}-reportTime`) as HTMLInputElement;
+                                                    const parametersEl = document.getElementById(`${field.key}-parameters`) as HTMLInputElement;
+                                                    const fastingEl = document.getElementById(`${field.key}-fasting`) as HTMLInputElement;
+                                                    const homeCollectionEl = document.getElementById(`${field.key}-homeCollection`) as HTMLInputElement;
+                                                    const isPackageEl = document.getElementById(`${field.key}-isPackage`) as HTMLInputElement;
+
+                                                    newItem.category = categoryEl?.value || 'Blood Test';
+                                                    newItem.mrp = mrpEl?.value ? parseFloat(mrpEl.value) : undefined;
                                                     newItem.currency = 'INR';
+                                                    newItem.sampleType = sampleTypeEl?.value || 'Blood';
                                                     newItem.reportTime = reportTimeEl?.value || '24 hours';
-                                                    newItem.sampleType = 'Blood';
-                                                    newItem.fastingRequired = false;
-                                                    newItem.homeCollectionAvailable = true;
+                                                    newItem.parameterCount = parametersEl?.value ? parseInt(parametersEl.value) : undefined;
+                                                    newItem.fastingRequired = fastingEl?.checked || false;
+                                                    newItem.homeCollectionAvailable = homeCollectionEl?.checked || true;
                                                     newItem.walkInAvailable = true;
                                                     newItem.appointmentRequired = false;
                                                     newItem.isActive = true;
                                                     newItem.isPopular = false;
-                                                    newItem.isPackage = false;
-                                                    newItem.createdAt = new Date();
-                                                    newItem.updatedAt = new Date();
+                                                    newItem.isPackage = isPackageEl?.checked || false;
+                                                    // Clear extra fields
+                                                    if (mrpEl) mrpEl.value = '';
+                                                    if (categoryEl) categoryEl.value = '';
+                                                    if (reportTimeEl) reportTimeEl.value = '';
+                                                    if (parametersEl) parametersEl.value = '';
+                                                    if (fastingEl) fastingEl.checked = false;
+                                                    if (homeCollectionEl) homeCollectionEl.checked = true;
+                                                    if (isPackageEl) isPackageEl.checked = false;
                                                   }
+
                                                   const current = Array.isArray(fieldValue) ? fieldValue : [];
                                                   handleFieldUpdate(schemaPath, [...current, newItem]);
-                                                  // Clear inputs
+                                                  // Clear main inputs
                                                   nameEl.value = '';
                                                   if (priceEl) priceEl.value = '';
                                                 }
