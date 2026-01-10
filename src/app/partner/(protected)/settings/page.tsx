@@ -1127,7 +1127,7 @@ const SettingsUltimate = () => {
                                       />
                                     ) : field.type === 'tags' ? (
                                       <div className="flex flex-wrap gap-2 p-2 border border-slate-200 rounded-xl min-h-[42px]">
-                                        {(fieldValue || []).map((tag: any, idx: number) => {
+                                        {Array.isArray(fieldValue) && fieldValue.map((tag: any, idx: number) => {
                                           // Handle both string tags and ProductService objects
                                           const displayText = typeof tag === 'string' ? tag : (tag?.name || tag?.id || `Item ${idx + 1}`);
                                           const tagKey = typeof tag === 'string' ? tag : (tag?.id || `tag-${idx}`);
@@ -1161,13 +1161,42 @@ const SettingsUltimate = () => {
                                                 const newItem = isProductField
                                                   ? { id: `ps-${Date.now()}`, name: val, description: '' }
                                                   : val;
-                                                const newTags = [...(fieldValue || []), newItem];
+                                                const newTags = [...(Array.isArray(fieldValue) ? fieldValue : []), newItem];
                                                 handleFieldUpdate(schemaPath, newTags);
                                                 e.currentTarget.value = '';
                                               }
                                             }
                                           }}
                                         />
+                                      </div>
+                                    ) : field.type === 'select' ? (
+                                      <select
+                                        value={fieldValue || ''}
+                                        onChange={(e) => handleFieldUpdate(schemaPath, e.target.value)}
+                                        className="w-full px-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent bg-white"
+                                      >
+                                        <option value="">Select...</option>
+                                        {(field.options || []).map((opt: string) => (
+                                          <option key={opt} value={opt}>{opt}</option>
+                                        ))}
+                                      </select>
+                                    ) : field.type === 'address' ? (
+                                      <input
+                                        type="text"
+                                        value={typeof fieldValue === 'string' ? fieldValue : (fieldValue?.street || fieldValue?.city || '')}
+                                        onChange={(e) => handleFieldUpdate(schemaPath, e.target.value)}
+                                        placeholder="Enter address..."
+                                        className="w-full px-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                                      />
+                                    ) : field.type === 'schedule' || field.type === 'faq' || field.type === 'list' ? (
+                                      <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl">
+                                        <p className="text-xs text-slate-500 mb-2">Use the AI assistant to manage {field.label.toLowerCase()}</p>
+                                        <button
+                                          onClick={() => setShowAIChat(true)}
+                                          className="text-xs text-indigo-600 hover:text-indigo-700 font-medium"
+                                        >
+                                          ✨ Open AI Assistant
+                                        </button>
                                       </div>
                                     ) : (
                                       <div className="p-2 border border-dashed border-slate-300 rounded-xl text-xs text-slate-500">
