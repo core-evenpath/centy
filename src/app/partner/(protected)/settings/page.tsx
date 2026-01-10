@@ -290,6 +290,12 @@ const SettingsUltimate = () => {
       'checkOutTime': 'hotelPolicies.checkOutTime',
       'petPolicy': 'hotelPolicies.petPolicy',
       'childPolicy': 'hotelPolicies.childPolicy',
+
+      // Inventory fields (structured)
+      'propertyListings': 'propertyListings',
+      'productCatalog': 'productCatalog',
+      'menuItems': 'menuItems',
+      'roomTypes': 'roomTypes',
     };
 
     return mappings[fieldKey] || `industrySpecificData.${fieldKey}`;
@@ -447,6 +453,13 @@ const SettingsUltimate = () => {
           { key: 'faqs', label: 'FAQs', type: 'faq' },
         ]
       },
+      inventory: {
+        title: 'Product Catalog',
+        icon: '🛍️',
+        fields: [
+          { key: 'productCatalog', label: 'Your Products', type: 'inventory', inventoryType: 'products', hint: 'Add your products with pricing and variants' },
+        ]
+      },
     },
     real_estate: {
       identity: {
@@ -503,6 +516,13 @@ const SettingsUltimate = () => {
           { key: 'buyingProcess', label: 'Buying Process', type: 'textarea' },
           { key: 'documents', label: 'Documents Required', type: 'tags' },
           { key: 'faqs', label: 'FAQs', type: 'faq' },
+        ]
+      },
+      inventory: {
+        title: 'Property Listings',
+        icon: '🏘️',
+        fields: [
+          { key: 'propertyListings', label: 'Your Properties', type: 'inventory', inventoryType: 'properties', hint: 'Add properties you are selling or renting' },
         ]
       },
     },
@@ -615,6 +635,13 @@ const SettingsUltimate = () => {
         fields: [
           { key: 'cateringMin', label: 'Catering Minimum', type: 'text' },
           { key: 'faqs', label: 'FAQs', type: 'faq' },
+        ]
+      },
+      inventory: {
+        title: 'Menu Items',
+        icon: '🍽️',
+        fields: [
+          { key: 'menuItems', label: 'Your Menu', type: 'inventory', inventoryType: 'menu', hint: 'Add your dishes with pricing and dietary info' },
         ]
       },
     },
@@ -1199,7 +1226,7 @@ const SettingsUltimate = () => {
                                 return (
                                   <div
                                     key={field.key}
-                                    className={cn(field.type === 'textarea' || field.type === 'faq' || field.type === 'list' || field.type === 'schedule' ? 'col-span-1 md:col-span-2' : '')}
+                                    className={cn(field.type === 'textarea' || field.type === 'faq' || field.type === 'list' || field.type === 'schedule' || field.type === 'inventory' ? 'col-span-1 md:col-span-2' : '')}
                                   >
                                     <label className="flex items-center gap-1.5 text-sm font-medium text-slate-700 mb-1.5">
                                       {field.label}
@@ -1302,6 +1329,43 @@ const SettingsUltimate = () => {
                                         >
                                           ✨ Open AI Assistant
                                         </button>
+                                      </div>
+                                    ) : field.type === 'inventory' ? (
+                                      <div className="p-4 bg-gradient-to-br from-indigo-50 to-purple-50 border border-indigo-200 rounded-xl">
+                                        <div className="flex items-center justify-between mb-3">
+                                          <div>
+                                            <p className="text-sm font-medium text-indigo-900">{field.label}</p>
+                                            {field.hint && <p className="text-xs text-indigo-600 mt-0.5">{field.hint}</p>}
+                                          </div>
+                                          <span className="px-2 py-1 bg-indigo-100 text-indigo-700 text-xs font-medium rounded-lg">
+                                            {field.inventoryType === 'properties' ? '🏠 Properties' :
+                                             field.inventoryType === 'products' ? '📦 Products' :
+                                             field.inventoryType === 'menu' ? '🍽️ Menu' :
+                                             field.inventoryType === 'rooms' ? '🛏️ Rooms' : 'Items'}
+                                          </span>
+                                        </div>
+                                        <div className="flex items-center gap-3">
+                                          <button
+                                            onClick={() => setShowAIChat(true)}
+                                            className="flex-1 px-4 py-2.5 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 transition-colors"
+                                          >
+                                            ✨ Add via AI Assistant
+                                          </button>
+                                          <button
+                                            className="px-4 py-2.5 border border-indigo-300 text-indigo-700 rounded-lg text-sm font-medium hover:bg-indigo-50 transition-colors"
+                                            title="Coming soon: Bulk import"
+                                          >
+                                            📥 Import
+                                          </button>
+                                        </div>
+                                        {/* Show count of existing items */}
+                                        {fieldValue && Array.isArray(fieldValue) && fieldValue.length > 0 && (
+                                          <div className="mt-3 pt-3 border-t border-indigo-200">
+                                            <p className="text-xs text-indigo-700">
+                                              <span className="font-semibold">{fieldValue.length}</span> {field.inventoryType === 'properties' ? 'properties' : field.inventoryType === 'products' ? 'products' : field.inventoryType === 'menu' ? 'items' : 'rooms'} added
+                                            </p>
+                                          </div>
+                                        )}
                                       </div>
                                     ) : (
                                       <div className="p-2 border border-dashed border-slate-300 rounded-xl text-xs text-slate-500">
