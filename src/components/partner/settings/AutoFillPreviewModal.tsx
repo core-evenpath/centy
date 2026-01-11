@@ -3,7 +3,7 @@
 import React, { useState, useMemo } from 'react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
-import { Check, ChevronDown, ChevronRight, X, Download, Globe, MapPin, Star, Building2, Package, Users, HelpCircle, Utensils, Bed, Home, Stethoscope, CheckSquare, Square, MinusSquare } from 'lucide-react';
+import { Check, ChevronDown, ChevronRight, X, Download, Globe, MapPin, Star, Building2, Package, Users, HelpCircle, Utensils, Bed, Home, Stethoscope, CheckSquare, Square, MinusSquare, GraduationCap, Sparkles, Dumbbell, Car, CalendarDays, Scale, Landmark, ExternalLink, AlertTriangle } from 'lucide-react';
 
 // Types for selection tracking
 interface SelectionState {
@@ -63,11 +63,20 @@ interface SelectionState {
   };
   inventory: {
     selected: boolean;
+    // Existing types
     rooms: boolean[];
     menuItems: boolean[];
     products: boolean[];
     services: boolean[];
     properties: boolean[];
+    // New types
+    courses: boolean[];
+    treatments: boolean[];
+    memberships: boolean[];
+    vehicles: boolean[];
+    venuePackages: boolean[];
+    legalServices: boolean[];
+    financialProducts: boolean[];
   };
   fromTheWeb: {
     selected: boolean;
@@ -152,13 +161,29 @@ function initializeSelectionState(data: any): SelectionState {
         data.inventory.menuItems?.length ||
         data.inventory.products?.length ||
         data.inventory.services?.length ||
-        data.inventory.properties?.length
+        data.inventory.properties?.length ||
+        data.inventory.courses?.length ||
+        data.inventory.treatments?.length ||
+        data.inventory.memberships?.length ||
+        data.inventory.vehicles?.length ||
+        data.inventory.venuePackages?.length ||
+        data.inventory.legalServices?.length ||
+        data.inventory.financialProducts?.length
       )),
+      // Existing types
       rooms: (data?.inventory?.rooms || []).map(() => true),
       menuItems: (data?.inventory?.menuItems || []).map(() => true),
       products: (data?.inventory?.products || []).map(() => true),
       services: (data?.inventory?.services || []).map(() => true),
       properties: (data?.inventory?.properties || []).map(() => true),
+      // New types
+      courses: (data?.inventory?.courses || []).map(() => true),
+      treatments: (data?.inventory?.treatments || []).map(() => true),
+      memberships: (data?.inventory?.memberships || []).map(() => true),
+      vehicles: (data?.inventory?.vehicles || []).map(() => true),
+      venuePackages: (data?.inventory?.venuePackages || []).map(() => true),
+      legalServices: (data?.inventory?.legalServices || []).map(() => true),
+      financialProducts: (data?.inventory?.financialProducts || []).map(() => true),
     },
     fromTheWeb: {
       selected: !!data?.fromTheWeb && Object.keys(data.fromTheWeb).length > 0,
@@ -271,6 +296,7 @@ function buildSelectedData(data: any, selection: SelectionState): any {
   // Inventory
   if (selection.inventory.selected && data.inventory) {
     result.inventory = {};
+    // Existing types
     if (data.inventory.rooms?.length > 0) {
       result.inventory.rooms = data.inventory.rooms.filter((_: any, i: number) => selection.inventory.rooms[i]);
     }
@@ -285,6 +311,28 @@ function buildSelectedData(data: any, selection: SelectionState): any {
     }
     if (data.inventory.properties?.length > 0) {
       result.inventory.properties = data.inventory.properties.filter((_: any, i: number) => selection.inventory.properties[i]);
+    }
+    // New types
+    if (data.inventory.courses?.length > 0) {
+      result.inventory.courses = data.inventory.courses.filter((_: any, i: number) => selection.inventory.courses[i]);
+    }
+    if (data.inventory.treatments?.length > 0) {
+      result.inventory.treatments = data.inventory.treatments.filter((_: any, i: number) => selection.inventory.treatments[i]);
+    }
+    if (data.inventory.memberships?.length > 0) {
+      result.inventory.memberships = data.inventory.memberships.filter((_: any, i: number) => selection.inventory.memberships[i]);
+    }
+    if (data.inventory.vehicles?.length > 0) {
+      result.inventory.vehicles = data.inventory.vehicles.filter((_: any, i: number) => selection.inventory.vehicles[i]);
+    }
+    if (data.inventory.venuePackages?.length > 0) {
+      result.inventory.venuePackages = data.inventory.venuePackages.filter((_: any, i: number) => selection.inventory.venuePackages[i]);
+    }
+    if (data.inventory.legalServices?.length > 0) {
+      result.inventory.legalServices = data.inventory.legalServices.filter((_: any, i: number) => selection.inventory.legalServices[i]);
+    }
+    if (data.inventory.financialProducts?.length > 0) {
+      result.inventory.financialProducts = data.inventory.financialProducts.filter((_: any, i: number) => selection.inventory.financialProducts[i]);
     }
   }
 
@@ -418,6 +466,62 @@ function SelectableItem({
   );
 }
 
+// Source Badge - shows where data came from
+function SourceBadge({ source }: { source: { platform: string; url?: string; confidence: string } }) {
+  const platformColors: Record<string, string> = {
+    official_website: 'bg-green-100 text-green-700',
+    zomato: 'bg-red-100 text-red-700',
+    swiggy: 'bg-orange-100 text-orange-700',
+    booking: 'bg-blue-100 text-blue-700',
+    makemytrip: 'bg-blue-100 text-blue-700',
+    practo: 'bg-cyan-100 text-cyan-700',
+    google: 'bg-blue-100 text-blue-700',
+    justdial: 'bg-yellow-100 text-yellow-700',
+    amazon: 'bg-amber-100 text-amber-700',
+    flipkart: 'bg-yellow-100 text-yellow-700',
+    shiksha: 'bg-purple-100 text-purple-700',
+    urbanclap: 'bg-indigo-100 text-indigo-700',
+    other: 'bg-slate-100 text-slate-700',
+  };
+
+  const confidenceIcons: Record<string, string> = {
+    high: '✓',
+    medium: '~',
+    low: '?',
+  };
+
+  return (
+    <div className="flex items-center gap-1 mt-1">
+      <span className={cn(
+        "text-[9px] px-1.5 py-0.5 rounded-full font-medium",
+        platformColors[source.platform] || platformColors.other
+      )}>
+        {source.platform.replace('_', ' ')}
+      </span>
+      <span className={cn(
+        "text-[9px] px-1 py-0.5 rounded",
+        source.confidence === 'high' ? 'bg-green-50 text-green-600' :
+        source.confidence === 'medium' ? 'bg-yellow-50 text-yellow-600' :
+        'bg-red-50 text-red-600'
+      )}>
+        {confidenceIcons[source.confidence]} {source.confidence}
+      </span>
+      {source.url && (
+        <a
+          href={source.url}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-[9px] text-blue-600 hover:text-blue-800 flex items-center gap-0.5"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <ExternalLink className="w-2.5 h-2.5" />
+          verify
+        </a>
+      )}
+    </div>
+  );
+}
+
 // Select All / Deselect All for array sections
 function SelectAllControls({
   items,
@@ -481,13 +585,20 @@ export default function AutoFillPreviewModal({
     total += selection.reviews.items.length;
     if (selection.reviews.selected) selected += selection.reviews.items.filter(Boolean).length;
 
-    // Inventory items
+    // Inventory items (existing + new types)
     const invItems = [
       ...selection.inventory.rooms,
       ...selection.inventory.menuItems,
       ...selection.inventory.products,
       ...selection.inventory.services,
       ...selection.inventory.properties,
+      ...selection.inventory.courses,
+      ...selection.inventory.treatments,
+      ...selection.inventory.memberships,
+      ...selection.inventory.vehicles,
+      ...selection.inventory.venuePackages,
+      ...selection.inventory.legalServices,
+      ...selection.inventory.financialProducts,
     ];
     total += invItems.length;
     if (selection.inventory.selected) selected += invItems.filter(Boolean).length;
@@ -591,7 +702,14 @@ export default function AutoFillPreviewModal({
           data.inventory.menuItems?.length ||
           data.inventory.products?.length ||
           data.inventory.services?.length ||
-          data.inventory.properties?.length
+          data.inventory.properties?.length ||
+          data.inventory.courses?.length ||
+          data.inventory.treatments?.length ||
+          data.inventory.memberships?.length ||
+          data.inventory.vehicles?.length ||
+          data.inventory.venuePackages?.length ||
+          data.inventory.legalServices?.length ||
+          data.inventory.financialProducts?.length
         ));
       case 'fromTheWeb':
         return !!data?.fromTheWeb && Object.keys(data.fromTheWeb).length > 0;
@@ -1346,6 +1464,371 @@ export default function AutoFillPreviewModal({
                         <div className="text-[10px] text-slate-500 mt-0.5">
                           {[property.bedrooms && `${property.bedrooms} BHK`, property.area, property.location].filter(Boolean).join(' • ')}
                         </div>
+                        {property._source && (
+                          <SourceBadge source={property._source} />
+                        )}
+                      </SelectableItem>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Courses (Education) */}
+              {data.inventory?.courses?.length > 0 && (
+                <div className="mt-4">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs font-medium text-slate-600 flex items-center gap-1">
+                      <GraduationCap className="w-3 h-3" /> Courses ({data.inventory.courses.length})
+                    </span>
+                    <SelectAllControls
+                      items={selection.inventory.courses}
+                      onSelectAll={() => setSelection(prev => ({
+                        ...prev,
+                        inventory: { ...prev.inventory, courses: prev.inventory.courses.map(() => true) }
+                      }))}
+                      onDeselectAll={() => setSelection(prev => ({
+                        ...prev,
+                        inventory: { ...prev.inventory, courses: prev.inventory.courses.map(() => false) }
+                      }))}
+                    />
+                  </div>
+                  <div className="space-y-2 max-h-40 overflow-y-auto">
+                    {data.inventory.courses.map((course: any, i: number) => (
+                      <SelectableItem
+                        key={i}
+                        selected={selection.inventory.courses[i] && selection.inventory.selected}
+                        onToggle={() => setSelection(prev => {
+                          const courses = [...prev.inventory.courses];
+                          courses[i] = !courses[i];
+                          return { ...prev, inventory: { ...prev.inventory, courses } };
+                        })}
+                      >
+                        <div className="flex justify-between items-start">
+                          <div>
+                            <span className="font-medium text-xs text-slate-800">{course.name}</span>
+                            {course.type && <span className="ml-2 text-[10px] text-slate-500">({course.type})</span>}
+                          </div>
+                          {course.fee && (
+                            <span className="font-semibold text-xs text-orange-600">
+                              ₹{course.fee?.toLocaleString()}{course.feeStructure ? `/${course.feeStructure}` : ''}
+                            </span>
+                          )}
+                        </div>
+                        <div className="text-[10px] text-slate-500 mt-0.5">
+                          {[course.duration, course.mode, course.eligibility].filter(Boolean).join(' • ')}
+                        </div>
+                        {course._source && (
+                          <SourceBadge source={course._source} />
+                        )}
+                      </SelectableItem>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Treatments (Beauty/Wellness) */}
+              {data.inventory?.treatments?.length > 0 && (
+                <div className="mt-4">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs font-medium text-slate-600 flex items-center gap-1">
+                      <Sparkles className="w-3 h-3" /> Treatments ({data.inventory.treatments.length})
+                    </span>
+                    <SelectAllControls
+                      items={selection.inventory.treatments}
+                      onSelectAll={() => setSelection(prev => ({
+                        ...prev,
+                        inventory: { ...prev.inventory, treatments: prev.inventory.treatments.map(() => true) }
+                      }))}
+                      onDeselectAll={() => setSelection(prev => ({
+                        ...prev,
+                        inventory: { ...prev.inventory, treatments: prev.inventory.treatments.map(() => false) }
+                      }))}
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 max-h-40 overflow-y-auto">
+                    {data.inventory.treatments.map((treatment: any, i: number) => (
+                      <SelectableItem
+                        key={i}
+                        selected={selection.inventory.treatments[i] && selection.inventory.selected}
+                        onToggle={() => setSelection(prev => {
+                          const treatments = [...prev.inventory.treatments];
+                          treatments[i] = !treatments[i];
+                          return { ...prev, inventory: { ...prev.inventory, treatments } };
+                        })}
+                      >
+                        <div className="flex justify-between items-start">
+                          <span className="font-medium text-xs text-slate-800">{treatment.name}</span>
+                          {treatment.price && <span className="font-semibold text-xs text-orange-600">₹{treatment.price}</span>}
+                        </div>
+                        <div className="text-[10px] text-slate-500">
+                          {[treatment.category, treatment.duration].filter(Boolean).join(' • ')}
+                        </div>
+                        {treatment._source && (
+                          <SourceBadge source={treatment._source} />
+                        )}
+                      </SelectableItem>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Memberships (Fitness) */}
+              {data.inventory?.memberships?.length > 0 && (
+                <div className="mt-4">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs font-medium text-slate-600 flex items-center gap-1">
+                      <Dumbbell className="w-3 h-3" /> Memberships ({data.inventory.memberships.length})
+                    </span>
+                    <SelectAllControls
+                      items={selection.inventory.memberships}
+                      onSelectAll={() => setSelection(prev => ({
+                        ...prev,
+                        inventory: { ...prev.inventory, memberships: prev.inventory.memberships.map(() => true) }
+                      }))}
+                      onDeselectAll={() => setSelection(prev => ({
+                        ...prev,
+                        inventory: { ...prev.inventory, memberships: prev.inventory.memberships.map(() => false) }
+                      }))}
+                    />
+                  </div>
+                  <div className="space-y-2 max-h-40 overflow-y-auto">
+                    {data.inventory.memberships.map((membership: any, i: number) => (
+                      <SelectableItem
+                        key={i}
+                        selected={selection.inventory.memberships[i] && selection.inventory.selected}
+                        onToggle={() => setSelection(prev => {
+                          const memberships = [...prev.inventory.memberships];
+                          memberships[i] = !memberships[i];
+                          return { ...prev, inventory: { ...prev.inventory, memberships } };
+                        })}
+                      >
+                        <div className="flex justify-between items-start">
+                          <div>
+                            <span className="font-medium text-xs text-slate-800">{membership.name}</span>
+                            {membership.type && <span className="ml-2 text-[10px] text-slate-500">({membership.type})</span>}
+                          </div>
+                          {membership.price && (
+                            <span className="font-semibold text-xs text-orange-600">
+                              ₹{membership.price?.toLocaleString()}{membership.validity ? `/${membership.validity}` : ''}
+                            </span>
+                          )}
+                        </div>
+                        {membership.inclusions?.length > 0 && (
+                          <div className="text-[10px] text-slate-500 mt-0.5">{membership.inclusions.slice(0, 3).join(', ')}</div>
+                        )}
+                        {membership._source && (
+                          <SourceBadge source={membership._source} />
+                        )}
+                      </SelectableItem>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Vehicles (Automotive) */}
+              {data.inventory?.vehicles?.length > 0 && (
+                <div className="mt-4">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs font-medium text-slate-600 flex items-center gap-1">
+                      <Car className="w-3 h-3" /> Vehicles ({data.inventory.vehicles.length})
+                    </span>
+                    <SelectAllControls
+                      items={selection.inventory.vehicles}
+                      onSelectAll={() => setSelection(prev => ({
+                        ...prev,
+                        inventory: { ...prev.inventory, vehicles: prev.inventory.vehicles.map(() => true) }
+                      }))}
+                      onDeselectAll={() => setSelection(prev => ({
+                        ...prev,
+                        inventory: { ...prev.inventory, vehicles: prev.inventory.vehicles.map(() => false) }
+                      }))}
+                    />
+                  </div>
+                  <div className="space-y-2 max-h-40 overflow-y-auto">
+                    {data.inventory.vehicles.map((vehicle: any, i: number) => (
+                      <SelectableItem
+                        key={i}
+                        selected={selection.inventory.vehicles[i] && selection.inventory.selected}
+                        onToggle={() => setSelection(prev => {
+                          const vehicles = [...prev.inventory.vehicles];
+                          vehicles[i] = !vehicles[i];
+                          return { ...prev, inventory: { ...prev.inventory, vehicles } };
+                        })}
+                      >
+                        <div className="flex justify-between items-start">
+                          <div>
+                            <span className="font-medium text-xs text-slate-800">{vehicle.brand} {vehicle.name}</span>
+                            {vehicle.variant && <span className="ml-2 text-[10px] text-slate-500">({vehicle.variant})</span>}
+                          </div>
+                          {vehicle.price && (
+                            <span className="font-semibold text-xs text-orange-600">
+                              ₹{vehicle.price?.toLocaleString()}{vehicle.priceType ? ` (${vehicle.priceType})` : ''}
+                            </span>
+                          )}
+                        </div>
+                        <div className="text-[10px] text-slate-500 mt-0.5">
+                          {[vehicle.fuelType, vehicle.transmission, vehicle.mileage].filter(Boolean).join(' • ')}
+                        </div>
+                        {vehicle._source && (
+                          <SourceBadge source={vehicle._source} />
+                        )}
+                      </SelectableItem>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Venue Packages (Events) */}
+              {data.inventory?.venuePackages?.length > 0 && (
+                <div className="mt-4">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs font-medium text-slate-600 flex items-center gap-1">
+                      <CalendarDays className="w-3 h-3" /> Venue Packages ({data.inventory.venuePackages.length})
+                    </span>
+                    <SelectAllControls
+                      items={selection.inventory.venuePackages}
+                      onSelectAll={() => setSelection(prev => ({
+                        ...prev,
+                        inventory: { ...prev.inventory, venuePackages: prev.inventory.venuePackages.map(() => true) }
+                      }))}
+                      onDeselectAll={() => setSelection(prev => ({
+                        ...prev,
+                        inventory: { ...prev.inventory, venuePackages: prev.inventory.venuePackages.map(() => false) }
+                      }))}
+                    />
+                  </div>
+                  <div className="space-y-2 max-h-40 overflow-y-auto">
+                    {data.inventory.venuePackages.map((pkg: any, i: number) => (
+                      <SelectableItem
+                        key={i}
+                        selected={selection.inventory.venuePackages[i] && selection.inventory.selected}
+                        onToggle={() => setSelection(prev => {
+                          const venuePackages = [...prev.inventory.venuePackages];
+                          venuePackages[i] = !venuePackages[i];
+                          return { ...prev, inventory: { ...prev.inventory, venuePackages } };
+                        })}
+                      >
+                        <div className="flex justify-between items-start">
+                          <div>
+                            <span className="font-medium text-xs text-slate-800">{pkg.name}</span>
+                            {pkg.type && <span className="ml-2 text-[10px] text-slate-500">({pkg.type})</span>}
+                          </div>
+                          {pkg.price && (
+                            <span className="font-semibold text-xs text-orange-600">
+                              ₹{pkg.price?.toLocaleString()}{pkg.priceUnit ? `/${pkg.priceUnit}` : ''}
+                            </span>
+                          )}
+                        </div>
+                        <div className="text-[10px] text-slate-500 mt-0.5">
+                          {pkg.capacity && `${pkg.capacity.min}-${pkg.capacity.max} guests`}
+                          {pkg.venueType && ` • ${pkg.venueType}`}
+                        </div>
+                        {pkg._source && (
+                          <SourceBadge source={pkg._source} />
+                        )}
+                      </SelectableItem>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Legal Services */}
+              {data.inventory?.legalServices?.length > 0 && (
+                <div className="mt-4">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs font-medium text-slate-600 flex items-center gap-1">
+                      <Scale className="w-3 h-3" /> Legal Services ({data.inventory.legalServices.length})
+                    </span>
+                    <SelectAllControls
+                      items={selection.inventory.legalServices}
+                      onSelectAll={() => setSelection(prev => ({
+                        ...prev,
+                        inventory: { ...prev.inventory, legalServices: prev.inventory.legalServices.map(() => true) }
+                      }))}
+                      onDeselectAll={() => setSelection(prev => ({
+                        ...prev,
+                        inventory: { ...prev.inventory, legalServices: prev.inventory.legalServices.map(() => false) }
+                      }))}
+                    />
+                  </div>
+                  <div className="space-y-2 max-h-40 overflow-y-auto">
+                    {data.inventory.legalServices.map((service: any, i: number) => (
+                      <SelectableItem
+                        key={i}
+                        selected={selection.inventory.legalServices[i] && selection.inventory.selected}
+                        onToggle={() => setSelection(prev => {
+                          const legalServices = [...prev.inventory.legalServices];
+                          legalServices[i] = !legalServices[i];
+                          return { ...prev, inventory: { ...prev.inventory, legalServices } };
+                        })}
+                      >
+                        <div className="flex justify-between items-start">
+                          <div>
+                            <span className="font-medium text-xs text-slate-800">{service.name}</span>
+                            {service.category && <span className="ml-2 text-[10px] text-slate-500">({service.category})</span>}
+                          </div>
+                          {service.consultationFee && (
+                            <span className="font-semibold text-xs text-orange-600">₹{service.consultationFee} consultation</span>
+                          )}
+                        </div>
+                        {service.estimatedFee && (
+                          <div className="text-[10px] text-slate-500 mt-0.5">Est: {service.estimatedFee}</div>
+                        )}
+                        {service._source && (
+                          <SourceBadge source={service._source} />
+                        )}
+                      </SelectableItem>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Financial Products */}
+              {data.inventory?.financialProducts?.length > 0 && (
+                <div className="mt-4">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs font-medium text-slate-600 flex items-center gap-1">
+                      <Landmark className="w-3 h-3" /> Financial Products ({data.inventory.financialProducts.length})
+                    </span>
+                    <SelectAllControls
+                      items={selection.inventory.financialProducts}
+                      onSelectAll={() => setSelection(prev => ({
+                        ...prev,
+                        inventory: { ...prev.inventory, financialProducts: prev.inventory.financialProducts.map(() => true) }
+                      }))}
+                      onDeselectAll={() => setSelection(prev => ({
+                        ...prev,
+                        inventory: { ...prev.inventory, financialProducts: prev.inventory.financialProducts.map(() => false) }
+                      }))}
+                    />
+                  </div>
+                  <div className="space-y-2 max-h-40 overflow-y-auto">
+                    {data.inventory.financialProducts.map((product: any, i: number) => (
+                      <SelectableItem
+                        key={i}
+                        selected={selection.inventory.financialProducts[i] && selection.inventory.selected}
+                        onToggle={() => setSelection(prev => {
+                          const financialProducts = [...prev.inventory.financialProducts];
+                          financialProducts[i] = !financialProducts[i];
+                          return { ...prev, inventory: { ...prev.inventory, financialProducts } };
+                        })}
+                      >
+                        <div className="flex justify-between items-start">
+                          <div>
+                            <span className="font-medium text-xs text-slate-800">{product.name}</span>
+                            {product.type && <span className="ml-2 text-[10px] text-slate-500">({product.type})</span>}
+                          </div>
+                          {product.interestRate && (
+                            <span className="font-semibold text-xs text-orange-600">{product.interestRate}</span>
+                          )}
+                        </div>
+                        <div className="text-[10px] text-slate-500 mt-0.5">
+                          {product.tenure && `Tenure: ${product.tenure}`}
+                          {product.minAmount && product.maxAmount && ` • ₹${product.minAmount.toLocaleString()} - ₹${product.maxAmount.toLocaleString()}`}
+                        </div>
+                        {product._source && (
+                          <SourceBadge source={product._source} />
+                        )}
                       </SelectableItem>
                     ))}
                   </div>

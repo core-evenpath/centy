@@ -19,18 +19,28 @@ const PLACES_API_KEY = process.env.GOOGLE_PLACES_API_KEY
   || process.env.GEMINI_API_KEY;
 
 // Industry mapping from Google Places types
-const PLACES_TYPE_TO_INDUSTRY: Record<string, IndustryCategory> = {
+const PLACES_TYPE_TO_INDUSTRY: Record<string, string> = {
+  // Real Estate
   'real_estate_agency': 'real_estate',
+
+  // Hospitality
   'lodging': 'hospitality',
   'hotel': 'hospitality',
   'resort': 'hospitality',
   'guest_house': 'hospitality',
+  'motel': 'hospitality',
+  'campground': 'hospitality',
+
+  // Food & Beverage
   'restaurant': 'food_beverage',
   'cafe': 'food_beverage',
   'bakery': 'food_beverage',
   'bar': 'food_beverage',
   'meal_delivery': 'food_beverage',
   'meal_takeaway': 'food_beverage',
+  'night_club': 'food_beverage',
+
+  // Retail
   'store': 'retail',
   'shopping_mall': 'retail',
   'clothing_store': 'retail',
@@ -40,6 +50,13 @@ const PLACES_TYPE_TO_INDUSTRY: Record<string, IndustryCategory> = {
   'shoe_store': 'retail',
   'supermarket': 'retail',
   'convenience_store': 'retail',
+  'department_store': 'retail',
+  'book_store': 'retail',
+  'hardware_store': 'retail',
+  'pet_store': 'retail',
+  'florist': 'retail',
+
+  // Healthcare
   'hospital': 'healthcare',
   'doctor': 'healthcare',
   'dentist': 'healthcare',
@@ -47,22 +64,54 @@ const PLACES_TYPE_TO_INDUSTRY: Record<string, IndustryCategory> = {
   'physiotherapist': 'healthcare',
   'veterinary_care': 'healthcare',
   'health': 'healthcare',
+  'medical_lab': 'healthcare',
+
+  // Education
   'school': 'education',
   'university': 'education',
   'primary_school': 'education',
   'secondary_school': 'education',
+  'library': 'education',
+  'training_centre': 'education',
+
+  // Finance
   'bank': 'finance',
   'accounting': 'finance',
   'insurance_agency': 'finance',
   'finance': 'finance',
+  'atm': 'finance',
+
+  // Fitness & Wellness
   'gym': 'fitness',
   'spa': 'wellness',
+  'yoga_studio': 'fitness',
+
+  // Beauty
   'beauty_salon': 'beauty',
   'hair_care': 'beauty',
+  'nail_salon': 'beauty',
+
+  // Legal
   'lawyer': 'legal',
+  'courthouse': 'legal',
+
+  // Automotive
   'car_dealer': 'automotive',
   'car_repair': 'automotive',
+  'car_rental': 'automotive',
+  'car_wash': 'automotive',
+  'gas_station': 'automotive',
+  'parking': 'automotive',
+
+  // Events & Venues
+  'event_venue': 'events',
+  'wedding_venue': 'events',
+  'banquet_hall': 'events',
+  'convention_center': 'events',
+
+  // Travel
   'travel_agency': 'travel',
+  'tourist_attraction': 'travel',
 };
 
 export interface PlacesAutocompleteResult {
@@ -199,6 +248,154 @@ export interface PropertyInventoryItem {
   images?: string[];
 }
 
+// ========== NEW INVENTORY TYPES ==========
+
+// Source tracking for all inventory items - ensures data accuracy
+export interface InventorySource {
+  platform: 'official_website' | 'zomato' | 'swiggy' | 'booking' | 'makemytrip' | 'practo' | 'google' | 'justdial' | 'amazon' | 'flipkart' | 'shiksha' | 'sulekha' | 'urbanclap' | 'other';
+  url?: string;              // Direct URL to verify the data
+  fetchedAt?: string;        // ISO date string when data was captured
+  confidence: 'high' | 'medium' | 'low';  // Based on source reliability
+}
+
+// Price verification when data comes from multiple sources
+export interface PriceVerification {
+  sources: { platform: string; price: number; url?: string }[];
+  hasVariance: boolean;      // True if prices differ between sources
+  lowestPrice?: number;
+  highestPrice?: number;
+}
+
+// Education - Courses & Programs
+export interface CourseInventoryItem {
+  name: string;
+  category?: string;         // e.g., "Engineering", "Medical", "Arts"
+  type?: string;             // e.g., "Degree", "Diploma", "Certificate", "Coaching"
+  description?: string;
+  fee?: number;
+  feeStructure?: string;     // e.g., "Per Semester", "Full Course", "Per Month"
+  duration?: string;         // e.g., "4 years", "6 months", "3 months"
+  eligibility?: string;      // e.g., "10+2 with Science"
+  batchTiming?: string;      // e.g., "Morning 9-12", "Weekend"
+  startDate?: string;
+  seats?: number;
+  mode?: 'online' | 'offline' | 'hybrid';
+  certificationBody?: string; // e.g., "University name", "ISO certified"
+  placement?: boolean;
+  placementRate?: string;
+  _source?: InventorySource;
+  _priceVerification?: PriceVerification;
+}
+
+// Beauty & Wellness - Treatments & Services
+export interface TreatmentInventoryItem {
+  name: string;
+  category?: string;         // e.g., "Facial", "Massage", "Hair", "Nail"
+  description?: string;
+  price?: number;
+  duration?: string;         // e.g., "60 mins", "90 mins"
+  therapist?: string;        // Specialist name if applicable
+  packageDeal?: boolean;     // Is this part of a package?
+  packageDetails?: string;   // e.g., "5 sessions for price of 4"
+  benefits?: string[];
+  suitableFor?: string;      // e.g., "All skin types", "Dry skin"
+  ingredients?: string[];    // Key ingredients used
+  _source?: InventorySource;
+  _priceVerification?: PriceVerification;
+}
+
+// Fitness - Memberships & Classes
+export interface MembershipInventoryItem {
+  name: string;
+  type?: string;             // e.g., "Monthly", "Annual", "Pay-per-class"
+  description?: string;
+  price?: number;
+  validity?: string;         // e.g., "1 month", "1 year"
+  inclusions?: string[];     // e.g., ["Gym access", "Pool", "Classes"]
+  classes?: string[];        // e.g., ["Yoga", "Zumba", "CrossFit"]
+  timings?: string;          // e.g., "5 AM - 10 PM"
+  trainerIncluded?: boolean;
+  freezePolicy?: string;     // Can membership be paused?
+  guestPasses?: number;
+  _source?: InventorySource;
+  _priceVerification?: PriceVerification;
+}
+
+// Automotive - Vehicles
+export interface VehicleInventoryItem {
+  name: string;              // Model name
+  brand?: string;
+  variant?: string;          // e.g., "Base", "Top", "Mid"
+  type?: string;             // e.g., "SUV", "Sedan", "Hatchback", "Bike"
+  price?: number;
+  priceType?: 'ex-showroom' | 'on-road' | 'used';
+  year?: number;
+  fuelType?: string;         // e.g., "Petrol", "Diesel", "Electric", "Hybrid"
+  transmission?: string;     // e.g., "Manual", "Automatic"
+  mileage?: string;          // e.g., "18 kmpl"
+  kmDriven?: number;         // For used vehicles
+  color?: string;
+  availability?: 'in_stock' | 'booking_open' | 'on_order';
+  emi?: string;              // e.g., "Starting ₹15,000/month"
+  _source?: InventorySource;
+  _priceVerification?: PriceVerification;
+}
+
+// Events & Hospitality - Venue Packages
+export interface VenuePackageInventoryItem {
+  name: string;
+  type?: string;             // e.g., "Wedding", "Conference", "Birthday", "Corporate"
+  description?: string;
+  price?: number;
+  priceUnit?: string;        // e.g., "per plate", "per day", "per event"
+  capacity?: {
+    min?: number;
+    max?: number;
+  };
+  inclusions?: string[];     // e.g., ["Catering", "Decoration", "DJ"]
+  venueType?: string;        // e.g., "Indoor", "Outdoor", "Poolside"
+  duration?: string;         // e.g., "4 hours", "Full day"
+  cateringOptions?: string[];
+  decorIncluded?: boolean;
+  accommodationIncluded?: boolean;
+  _source?: InventorySource;
+  _priceVerification?: PriceVerification;
+}
+
+// Legal Services
+export interface LegalServiceInventoryItem {
+  name: string;
+  category?: string;         // e.g., "Criminal", "Civil", "Corporate", "Family"
+  description?: string;
+  consultationFee?: number;
+  feeType?: string;          // e.g., "Per hearing", "Fixed", "Retainer"
+  estimatedFee?: string;     // e.g., "₹50,000 - ₹2,00,000"
+  experience?: string;       // Lawyer's experience
+  courtsPracticed?: string[]; // e.g., ["Supreme Court", "High Court"]
+  successRate?: string;
+  languages?: string[];
+  _source?: InventorySource;
+  _priceVerification?: PriceVerification;
+}
+
+// Financial Products
+export interface FinancialProductInventoryItem {
+  name: string;
+  type?: string;             // e.g., "Personal Loan", "Home Loan", "Insurance", "Investment"
+  description?: string;
+  interestRate?: string;     // e.g., "10.5% - 12%"
+  tenure?: string;           // e.g., "1-5 years"
+  minAmount?: number;
+  maxAmount?: number;
+  processingFee?: string;    // e.g., "1% of loan amount"
+  eligibility?: string;
+  documents?: string[];      // Required documents
+  features?: string[];
+  provider?: string;         // Bank/NBFC name
+  _source?: InventorySource;
+  _priceVerification?: PriceVerification;
+}
+
 export interface AIResearchResult {
   description?: string;
   tagline?: string;
@@ -235,13 +432,22 @@ export interface AIResearchResult {
     date?: string;
   }[];
   industryData?: Record<string, any>;
-  // Inventory data
+  // Inventory data - comprehensive inventory for all industries
   inventory?: {
+    // Existing types
     rooms?: RoomInventoryItem[];
     menuItems?: MenuInventoryItem[];
     products?: ProductInventoryItem[];
     services?: ServiceInventoryItem[];
     properties?: PropertyInventoryItem[];
+    // New types
+    courses?: CourseInventoryItem[];
+    treatments?: TreatmentInventoryItem[];
+    memberships?: MembershipInventoryItem[];
+    vehicles?: VehicleInventoryItem[];
+    venuePackages?: VenuePackageInventoryItem[];
+    legalServices?: LegalServiceInventoryItem[];
+    financialProducts?: FinancialProductInventoryItem[];
   };
   // Raw data from web that doesn't fit standard fields
   rawWebData?: {
@@ -283,13 +489,22 @@ export interface AutoFilledProfile {
     url?: string;
     date?: string;
   }[];
-  // Inventory data
+  // Inventory data - comprehensive for all industries
   inventory?: {
+    // Existing types
     rooms?: RoomInventoryItem[];
     menuItems?: MenuInventoryItem[];
     products?: ProductInventoryItem[];
     services?: ServiceInventoryItem[];
     properties?: PropertyInventoryItem[];
+    // New types
+    courses?: CourseInventoryItem[];
+    treatments?: TreatmentInventoryItem[];
+    memberships?: MembershipInventoryItem[];
+    vehicles?: VehicleInventoryItem[];
+    venuePackages?: VenuePackageInventoryItem[];
+    legalServices?: LegalServiceInventoryItem[];
+    financialProducts?: FinancialProductInventoryItem[];
   };
   // From the Web - unmapped data
   fromTheWeb?: {
@@ -622,9 +837,10 @@ export async function researchBusinessWithAI(
         "bedrooms": 3,
         "bathrooms": 2,
         "amenities": ["Gym", "Pool", "Parking"],
-        "description": "Property description"
+        "description": "Property description",
+        "_source": { "platform": "official_website", "url": "source URL", "confidence": "high" }
       }
-      // Include current listings if available
+      // Include current listings from 99acres, MagicBricks, Housing.com, or official website
     ]
   },`;
       industrySpecificRequest = `
@@ -636,6 +852,264 @@ export async function researchBusinessWithAI(
       "projectsCompleted": "Number of projects completed",
       "developerName": "If a developer, the company name",
       "priceRange": "Budget range of properties"
+    }`;
+      break;
+
+    case 'education':
+      inventoryRequest = `
+  "inventory": {
+    "courses": [
+      {
+        "name": "Course/Program name",
+        "category": "Engineering/Medical/Arts/Commerce/Science",
+        "type": "Degree/Diploma/Certificate/Coaching/Tuition",
+        "description": "Course description",
+        "fee": 150000,
+        "feeStructure": "Per Year/Per Semester/Full Course",
+        "duration": "4 years/6 months/3 months",
+        "eligibility": "10+2 with Science, 50% marks",
+        "batchTiming": "Morning 9-12/Evening 5-8/Weekend",
+        "mode": "offline/online/hybrid",
+        "certificationBody": "University/Board name",
+        "placement": true,
+        "placementRate": "85%",
+        "_source": { "platform": "official_website", "url": "source URL", "confidence": "high" }
+      }
+      // Search Shiksha, Collegedunia, Careers360, official website for courses and fees
+    ]
+  },`;
+      industrySpecificRequest = `
+    "industryData": {
+      "institutionType": "School/College/University/Coaching/Training Institute",
+      "affiliations": ["University/Board affiliations"],
+      "accreditations": ["NAAC, NBA, AICTE, UGC approved"],
+      "rankings": ["Any notable rankings"],
+      "totalStudents": "Approximate student count",
+      "facultyCount": "Number of faculty members",
+      "campusFacilities": ["Library", "Labs", "Hostel", "Sports"],
+      "placementPartners": ["Companies that recruit from here"],
+      "averagePackage": "Average placement package",
+      "admissionProcess": "Admission process summary"
+    }`;
+      break;
+
+    case 'beauty':
+    case 'wellness':
+    case 'spa':
+      inventoryRequest = `
+  "inventory": {
+    "treatments": [
+      {
+        "name": "Treatment/Service name",
+        "category": "Facial/Massage/Hair/Nail/Body/Makeup",
+        "description": "Treatment description",
+        "price": 2500,
+        "duration": "60 mins/90 mins",
+        "therapist": "Specialist name if applicable",
+        "packageDeal": false,
+        "packageDetails": "Package offer details if any",
+        "benefits": ["Relaxation", "Skin rejuvenation"],
+        "suitableFor": "All skin types/Oily skin/Dry skin",
+        "_source": { "platform": "official_website", "url": "source URL", "confidence": "high" }
+      }
+      // Search UrbanClap/Urban Company, official website, Justdial for services and prices
+    ]
+  },`;
+      industrySpecificRequest = `
+    "industryData": {
+      "salonType": "Unisex/Men/Women",
+      "specializations": ["Bridal", "Hair Color", "Spa", "Makeup"],
+      "brands": ["Product brands used - L'Oreal, Schwarzkopf, etc."],
+      "stylists": [{"name": "Stylist name", "specialization": "Hair/Makeup", "experience": "10 years"}],
+      "packages": ["Popular package deals"],
+      "membershipPlans": ["Any membership or loyalty programs"],
+      "homeService": true,
+      "bookingPlatforms": ["UrbanClap, Justdial, etc."]
+    }`;
+      break;
+
+    case 'fitness':
+    case 'gym':
+      inventoryRequest = `
+  "inventory": {
+    "memberships": [
+      {
+        "name": "Membership plan name",
+        "type": "Monthly/Quarterly/Annual/Pay-per-class",
+        "description": "Plan description",
+        "price": 3000,
+        "validity": "1 month/3 months/1 year",
+        "inclusions": ["Gym access", "Pool", "Group classes", "Personal training"],
+        "classes": ["Yoga", "Zumba", "CrossFit", "Spinning"],
+        "timings": "5 AM - 10 PM",
+        "trainerIncluded": false,
+        "freezePolicy": "Can pause for 1 month",
+        "_source": { "platform": "official_website", "url": "source URL", "confidence": "high" }
+      }
+      // Search Cult.fit, official website, Justdial for membership plans
+    ]
+  },`;
+      industrySpecificRequest = `
+    "industryData": {
+      "facilityType": "Gym/Fitness Studio/CrossFit Box/Yoga Studio",
+      "equipment": ["Types of equipment available"],
+      "classTypes": ["Classes offered - Yoga, Zumba, etc."],
+      "trainers": [{"name": "Trainer name", "certification": "ACE/ISSA", "specialization": "Strength training"}],
+      "operatingHours": "Gym operating hours",
+      "trialSession": "Free trial available?",
+      "personalTrainingRates": "PT session rates",
+      "amenities": ["Locker", "Shower", "Parking", "Cafe"]
+    }`;
+      break;
+
+    case 'legal':
+    case 'lawyer':
+      inventoryRequest = `
+  "inventory": {
+    "legalServices": [
+      {
+        "name": "Service/Practice area",
+        "category": "Criminal/Civil/Corporate/Family/Property/Tax",
+        "description": "Service description",
+        "consultationFee": 2000,
+        "feeType": "Per hearing/Fixed/Retainer",
+        "estimatedFee": "₹50,000 - ₹2,00,000 depending on complexity",
+        "experience": "15 years in this practice area",
+        "courtsPracticed": ["Supreme Court", "High Court", "District Court"],
+        "_source": { "platform": "official_website", "url": "source URL", "confidence": "high" }
+      }
+      // Search LegalKart, Vakil Search, official website for services
+    ]
+  },`;
+      industrySpecificRequest = `
+    "industryData": {
+      "practiceAreas": ["All practice areas"],
+      "barCouncilRegistration": "Bar Council registration number",
+      "courtsPracticed": ["Courts where they practice"],
+      "notableCases": ["Notable cases handled if public"],
+      "teamSize": "Number of lawyers in firm",
+      "consultationModes": ["In-person", "Video", "Phone"],
+      "proBonoServices": "Do they offer pro-bono services?",
+      "languages": ["Languages for consultation"]
+    }`;
+      break;
+
+    case 'finance':
+    case 'insurance_agency':
+      inventoryRequest = `
+  "inventory": {
+    "financialProducts": [
+      {
+        "name": "Product name",
+        "type": "Personal Loan/Home Loan/Car Loan/Insurance/Investment/Credit Card",
+        "description": "Product description",
+        "interestRate": "10.5% - 12% p.a.",
+        "tenure": "1-5 years/5-30 years",
+        "minAmount": 50000,
+        "maxAmount": 5000000,
+        "processingFee": "1% of loan amount",
+        "eligibility": "Salaried, min income 25k, age 21-58",
+        "documents": ["Aadhaar", "PAN", "Salary slips", "Bank statements"],
+        "provider": "Bank/NBFC name if applicable",
+        "_source": { "platform": "official_website", "url": "source URL", "confidence": "high" }
+      }
+      // Search BankBazaar, PaisaBazaar, official website for products
+    ]
+  },`;
+      industrySpecificRequest = `
+    "industryData": {
+      "serviceTypes": ["Loans", "Insurance", "Investments", "Tax Planning"],
+      "registrations": ["RBI registered", "SEBI registered", "IRDA licensed"],
+      "partneredBanks": ["Banks/NBFCs they work with"],
+      "minimumInvestment": "Minimum investment amount if applicable",
+      "advisoryFee": "Fee structure for advisory services",
+      "onlineServices": "Online application/tracking available?",
+      "branchNetwork": "Number of branches"
+    }`;
+      break;
+
+    case 'automotive':
+    case 'car_dealer':
+    case 'car_repair':
+      inventoryRequest = `
+  "inventory": {
+    "vehicles": [
+      {
+        "name": "Model name",
+        "brand": "Brand name",
+        "variant": "Base/Mid/Top variant",
+        "type": "SUV/Sedan/Hatchback/Bike/Scooter",
+        "price": 1500000,
+        "priceType": "ex-showroom/on-road",
+        "year": 2024,
+        "fuelType": "Petrol/Diesel/Electric/CNG/Hybrid",
+        "transmission": "Manual/Automatic/CVT",
+        "mileage": "18 kmpl",
+        "availability": "in_stock/booking_open/on_order",
+        "emi": "Starting ₹15,000/month",
+        "_source": { "platform": "official_website", "url": "source URL", "confidence": "high" }
+      }
+      // Search CarDekho, CarWale, official website for inventory
+    ],
+    "services": [
+      {
+        "name": "Service type",
+        "category": "Regular Service/Repair/Denting-Painting/Accessories",
+        "price": 5000,
+        "duration": "4 hours",
+        "_source": { "platform": "official_website", "url": "source URL", "confidence": "high" }
+      }
+    ]
+  },`;
+      industrySpecificRequest = `
+    "industryData": {
+      "dealerType": "Authorized Dealer/Multi-brand/Used Cars/Service Center",
+      "brands": ["Brands dealt with"],
+      "servicesOffered": ["Sales", "Service", "Spare Parts", "Insurance", "Finance"],
+      "workshopFacilities": ["Service bays", "Painting", "Denting"],
+      "pickupDrop": "Pickup & drop service available?",
+      "loanFacility": "On-site finance available?",
+      "exchangePolicy": "Old car exchange policy",
+      "warranty": "Warranty terms offered"
+    }`;
+      break;
+
+    case 'events':
+    case 'hospitality_venue':
+      inventoryRequest = `
+  "inventory": {
+    "venuePackages": [
+      {
+        "name": "Package name",
+        "type": "Wedding/Conference/Birthday/Corporate/Exhibition",
+        "description": "Package description",
+        "price": 150000,
+        "priceUnit": "per plate/per day/per event",
+        "capacity": { "min": 50, "max": 500 },
+        "inclusions": ["Catering", "Decoration", "DJ", "Valet"],
+        "venueType": "Indoor/Outdoor/Poolside/Lawn/Banquet Hall",
+        "duration": "4 hours/8 hours/Full day",
+        "cateringOptions": ["Veg", "Non-veg", "Multi-cuisine"],
+        "decorIncluded": true,
+        "_source": { "platform": "official_website", "url": "source URL", "confidence": "high" }
+      }
+      // Search WedMeGood, ShaadiSaga, official website for packages
+    ],
+    "rooms": [
+      // Include if they have accommodation
+    ]
+  },`;
+      industrySpecificRequest = `
+    "industryData": {
+      "venueTypes": ["Types of venues available"],
+      "totalCapacity": "Maximum guest capacity",
+      "cateringType": "In-house/External allowed",
+      "decorPolicy": "In-house/External decorator allowed",
+      "djPolicy": "In-house DJ/External allowed",
+      "alcoholPolicy": "Alcohol serving policy",
+      "parkingCapacity": "Number of parking spots",
+      "accommodationAvailable": true,
+      "nearbyAttractions": ["Nearby tourist/photo spots"]
     }`;
       break;
 
@@ -735,16 +1209,39 @@ Industry: ${industryHint}
 ${existingInfo?.rating ? `Google Rating: ${existingInfo.rating}/5 (${existingInfo.reviewCount} reviews)` : ''}
 ${existingInfo?.editorialSummary ? `Google Summary: ${existingInfo.editorialSummary}` : ''}
 
-IMPORTANT:
-- INVENTORY DATA IS CRITICAL - Search their website, menu pages, booking platforms for detailed pricing
-- For hotels: Find room types, rates from their website or booking.com/makemytrip
-- For restaurants: Find menu items with prices from their website or Zomato/Swiggy
-- For healthcare: Find consultation fees, test prices from their website or Practo
-- For retail: Find product catalog with prices if available
-- Search thoroughly and provide VERIFIED information only
-- Include source URLs wherever possible for verification
-- For testimonials, use ACTUAL reviews you find, not made up ones
-- Return ONLY valid JSON. If information is not found, use null for that field.`;
+CRITICAL INSTRUCTIONS - DATA ACCURACY IS PARAMOUNT:
+
+1. SOURCE TRACKING - For ALL inventory items, include "_source" with:
+   - "platform": Where you found this data (official_website, zomato, swiggy, booking, makemytrip, practo, justdial, amazon, flipkart, shiksha, urbanclap, etc.)
+   - "url": Direct URL to verify the information
+   - "confidence": "high" (official source/verified), "medium" (aggregator), "low" (inferred)
+
+2. INVENTORY & PRICING - This is the MOST important data:
+   - Hotels: Search Booking.com, MakeMyTrip, Agoda, Goibibo, AND official website for room rates
+   - Restaurants: Search Zomato, Swiggy, EazyDiner, AND official website/menu for prices
+   - Healthcare: Search Practo, Lybrate, 1mg, AND official website for consultation fees
+   - Retail: Search official store, Amazon, Flipkart for product prices
+   - Education: Search Shiksha, Collegedunia, Careers360, AND official website for course fees
+   - Fitness: Search Cult.fit, ClassPass, AND official website for membership prices
+   - Beauty: Search Urban Company, Justdial, AND official website for service prices
+   - Automotive: Search CarDekho, CarWale, BikeWale, AND official website for prices
+   - Events: Search WedMeGood, ShaadiSaga, AND official website for package prices
+   - Legal/Finance: Search official website, LegalKart, BankBazaar for fee structures
+
+3. VERIFICATION RULES:
+   - ONLY include data you can VERIFY from actual sources
+   - DO NOT hallucinate or make up prices, services, or features
+   - If price differs between sources, note the range and sources
+   - Prefer official website data over aggregator data
+   - If information is not found, use null - DO NOT guess
+
+4. WHAT TO CAPTURE:
+   - All services/products with EXACT prices where available
+   - Package deals, discounts, and offers
+   - Operating hours and availability
+   - Booking/ordering methods
+
+Return ONLY valid JSON. If information cannot be verified, use null for that field.`;
 
   try {
     console.log('[AutoFill] Researching business with AI...');
