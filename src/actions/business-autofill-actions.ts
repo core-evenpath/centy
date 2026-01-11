@@ -106,6 +106,7 @@ export async function getEmptyProfileAction(): Promise<{
 /**
  * Map auto-fill inventory data to proper BusinessPersona fields
  * This converts simplified inventory items to the full schema types
+ * NOTE: This REPLACES existing data with Auto-Fill data (not merge/append)
  */
 export async function mapInventoryToPersonaAction(
   autoFillData: AutoFilledProfile,
@@ -117,92 +118,216 @@ export async function mapInventoryToPersonaAction(
 }> {
   try {
     const inventory = autoFillData.inventory;
+    const autoFillIdentity = autoFillData.identity as any;
 
-    // Start with merged basic data - using spread with type assertions for partial fields
+    // Helper to safely extract string value
+    const getString = (val: any): string => {
+      if (typeof val === 'string') return val;
+      if (typeof val === 'object' && val !== null) {
+        return val.name || val.text || val.value || '';
+      }
+      return String(val || '');
+    };
+
+    // Helper to safely extract array of strings
+    const getStringArray = (arr: any[]): string[] => {
+      if (!Array.isArray(arr)) return [];
+      return arr.map(item => getString(item)).filter(s => s.length > 0);
+    };
+
+    // Build identity - prioritize auto-fill data, fall back to existing
+    const mergedIdentity = {
+      ...existingPersona.identity,
+      // Override with auto-fill data if present
+      ...(autoFillIdentity?.businessName && { name: getString(autoFillIdentity.businessName) }),
+      ...(autoFillIdentity?.industry && { industry: getString(autoFillIdentity.industry) }),
+      ...(autoFillIdentity?.phone && { phone: getString(autoFillIdentity.phone) }),
+      ...(autoFillIdentity?.email && { email: getString(autoFillIdentity.email) }),
+      ...(autoFillIdentity?.website && { website: getString(autoFillIdentity.website) }),
+      ...(autoFillIdentity?.description && { description: getString(autoFillIdentity.description) }),
+      // Handle address as nested object
+      address: {
+        ...existingPersona.identity?.address,
+        ...(autoFillIdentity?.address?.street && { street: getString(autoFillIdentity.address.street) }),
+        ...(autoFillIdentity?.address?.city && { city: getString(autoFillIdentity.address.city) }),
+        ...(autoFillIdentity?.address?.state && { state: getString(autoFillIdentity.address.state) }),
+        ...(autoFillIdentity?.address?.country && { country: getString(autoFillIdentity.address.country) }),
+        ...(autoFillIdentity?.address?.postalCode && { postalCode: getString(autoFillIdentity.address.postalCode) }),
+      },
+      // Store location coordinates if available
+      ...(autoFillIdentity?.location && { location: autoFillIdentity.location }),
+      ...(autoFillIdentity?.googleMapsUrl && { googleMapsUrl: autoFillIdentity.googleMapsUrl }),
+      ...(autoFillIdentity?.plusCode && { plusCode: autoFillIdentity.plusCode }),
+    };
+
+    // Build personality - prioritize auto-fill data
+    const autoFillPersonality = autoFillData.personality as any;
+    const mergedPersonality = {
+      ...existingPersona.personality,
+      ...(autoFillPersonality?.description && { description: getString(autoFillPersonality.description) }),
+      ...(autoFillPersonality?.tagline && { tagline: getString(autoFillPersonality.tagline) }),
+      ...(autoFillPersonality?.uniqueSellingPoints?.length && {
+        uniqueSellingPoints: getStringArray(autoFillPersonality.uniqueSellingPoints)
+      }),
+      ...(autoFillPersonality?.voiceTone && { voiceTone: getString(autoFillPersonality.voiceTone) }),
+    };
+
+    // Build customer profile - prioritize auto-fill data
+    const autoFillCustomerProfile = autoFillData.customerProfile as any;
+    const mergedCustomerProfile = {
+      ...existingPersona.customerProfile,
+      ...(autoFillCustomerProfile?.targetAudience && {
+        targetAudience: Array.isArray(autoFillCustomerProfile.targetAudience)
+          ? getStringArray(autoFillCustomerProfile.targetAudience).join(', ')
+          : getString(autoFillCustomerProfile.targetAudience)
+      }),
+      ...(autoFillCustomerProfile?.commonQueries?.length && {
+        commonQueries: getStringArray(autoFillCustomerProfile.commonQueries)
+      }),
+    };
+
+    // Build knowledge - prioritize auto-fill data
+    const autoFillKnowledge = autoFillData.knowledge as any;
+    const mergedKnowledge = {
+      ...existingPersona.knowledge,
+      // REPLACE products/services and FAQs (not append)
+      ...(autoFillKnowledge?.productsOrServices?.length && {
+        productsOrServices: autoFillKnowledge.productsOrServices.map((item: any) => ({
+          name: getString(item.name || item.title),
+          category: getString(item.category || item.type || ''),
+          description: getString(item.description || ''),
+          price: typeof item.price === 'number' ? item.price :
+                 typeof item.price === 'object' ? item.price?.value :
+                 parseFloat(item.price) || undefined,
+        })).filter((item: any) => item.name)
+      }),
+      ...(autoFillKnowledge?.faqs?.length && {
+        faqs: autoFillKnowledge.faqs.map((faq: any) => ({
+          question: getString(faq.question),
+          answer: getString(faq.answer),
+        })).filter((faq: any) => faq.question && faq.answer)
+      }),
+    };
+
+    // Build merged persona with REPLACEMENT strategy for inventory
     const mergedPersona: Partial<BusinessPersona> = {
       ...existingPersona,
-      identity: {
-        ...existingPersona.identity,
-        ...(autoFillData.identity as any),
-      } as any,
-      personality: {
-        ...existingPersona.personality,
-        ...(autoFillData.personality as any),
-      } as any,
-      customerProfile: {
-        ...existingPersona.customerProfile,
-        ...(autoFillData.customerProfile as any),
-      } as any,
-      knowledge: {
-        ...existingPersona.knowledge,
-        ...(autoFillData.knowledge as any),
-      } as any,
+      identity: mergedIdentity as any,
+      personality: mergedPersonality as any,
+      customerProfile: mergedCustomerProfile as any,
+      knowledge: mergedKnowledge as any,
+      // REPLACE industry-specific data (not merge)
       industrySpecificData: {
-        ...existingPersona.industrySpecificData,
+        // Only keep non-fetched existing data
+        ...(existingPersona.industrySpecificData?.googleRating && {
+          googleRating: existingPersona.industrySpecificData.googleRating
+        }),
+        ...(existingPersona.industrySpecificData?.googleReviewCount && {
+          googleReviewCount: existingPersona.industrySpecificData.googleReviewCount
+        }),
+        // Store NEW fetched data (replaces old)
         ...autoFillData.industrySpecificData,
-        // Store raw fetched data for reference
-        fetchedPhotos: autoFillData.photos,
-        fetchedReviews: autoFillData.reviews,
-        onlinePresence: autoFillData.onlinePresence,
-        testimonials: autoFillData.testimonials,
-        fromTheWeb: autoFillData.fromTheWeb,
+        fetchedPhotos: autoFillData.photos || [],
+        fetchedReviews: autoFillData.reviews || [],
+        onlinePresence: autoFillData.onlinePresence || [],
+        testimonials: autoFillData.testimonials || [],
+        fromTheWeb: autoFillData.fromTheWeb || null,
       },
     };
 
-    // Map inventory to proper schema fields based on industry
+    // Map inventory to proper schema fields - REPLACE (not append)
     if (inventory) {
-      // Hospitality - Room Types
+      // Hospitality - Room Types (REPLACE)
       if (inventory.rooms && inventory.rooms.length > 0) {
         const roomTypes = mapRoomsToRoomTypes(inventory.rooms);
-        mergedPersona.roomTypes = [
-          ...(existingPersona.roomTypes || []),
-          ...roomTypes,
-        ];
-        console.log('[MapInventory] Mapped', roomTypes.length, 'room types');
+        mergedPersona.roomTypes = roomTypes;
+        console.log('[MapInventory] Replaced with', roomTypes.length, 'room types');
       }
 
-      // Food & Beverage - Menu Items
+      // Food & Beverage - Menu Items (REPLACE)
       if (inventory.menuItems && inventory.menuItems.length > 0) {
         const { items, categories } = mapMenuToMenuItems(inventory.menuItems);
-        mergedPersona.menuItems = [
-          ...(existingPersona.menuItems || []),
-          ...items,
-        ];
-        mergedPersona.menuCategories = [
-          ...(existingPersona.menuCategories || []),
-          ...categories,
-        ];
-        console.log('[MapInventory] Mapped', items.length, 'menu items in', categories.length, 'categories');
+        mergedPersona.menuItems = items;
+        mergedPersona.menuCategories = categories;
+        console.log('[MapInventory] Replaced with', items.length, 'menu items in', categories.length, 'categories');
       }
 
-      // Retail - Product Catalog
+      // Retail - Product Catalog (REPLACE)
       if (inventory.products && inventory.products.length > 0) {
         const products = mapProductsToRetailProducts(inventory.products);
-        mergedPersona.productCatalog = [
-          ...(existingPersona.productCatalog || []),
-          ...products,
-        ];
-        console.log('[MapInventory] Mapped', products.length, 'products');
+        mergedPersona.productCatalog = products;
+        console.log('[MapInventory] Replaced with', products.length, 'products');
       }
 
-      // Real Estate - Property Listings
+      // Real Estate - Property Listings (REPLACE)
       if (inventory.properties && inventory.properties.length > 0) {
         const properties = mapPropertiesToPropertyListings(inventory.properties);
-        mergedPersona.propertyListings = [
-          ...(existingPersona.propertyListings || []),
-          ...properties,
-        ];
-        console.log('[MapInventory] Mapped', properties.length, 'property listings');
+        mergedPersona.propertyListings = properties;
+        console.log('[MapInventory] Replaced with', properties.length, 'property listings');
       }
 
-      // Healthcare - Services
+      // Healthcare - Services (REPLACE)
       if (inventory.services && inventory.services.length > 0) {
         const services = mapServicesToHealthcareServices(inventory.services);
-        mergedPersona.healthcareServices = [
-          ...(existingPersona.healthcareServices || []),
-          ...services,
-        ];
-        console.log('[MapInventory] Mapped', services.length, 'healthcare services');
+        mergedPersona.healthcareServices = services;
+        console.log('[MapInventory] Replaced with', services.length, 'healthcare services');
+      }
+
+      // Also map new inventory types if present
+      if (inventory.courses && inventory.courses.length > 0) {
+        mergedPersona.industrySpecificData = {
+          ...mergedPersona.industrySpecificData,
+          courses: inventory.courses,
+        };
+        console.log('[MapInventory] Stored', inventory.courses.length, 'courses');
+      }
+
+      if (inventory.treatments && inventory.treatments.length > 0) {
+        mergedPersona.industrySpecificData = {
+          ...mergedPersona.industrySpecificData,
+          treatments: inventory.treatments,
+        };
+        console.log('[MapInventory] Stored', inventory.treatments.length, 'treatments');
+      }
+
+      if (inventory.memberships && inventory.memberships.length > 0) {
+        mergedPersona.industrySpecificData = {
+          ...mergedPersona.industrySpecificData,
+          memberships: inventory.memberships,
+        };
+        console.log('[MapInventory] Stored', inventory.memberships.length, 'memberships');
+      }
+
+      if (inventory.vehicles && inventory.vehicles.length > 0) {
+        mergedPersona.industrySpecificData = {
+          ...mergedPersona.industrySpecificData,
+          vehicles: inventory.vehicles,
+        };
+        console.log('[MapInventory] Stored', inventory.vehicles.length, 'vehicles');
+      }
+
+      if (inventory.venuePackages && inventory.venuePackages.length > 0) {
+        mergedPersona.industrySpecificData = {
+          ...mergedPersona.industrySpecificData,
+          venuePackages: inventory.venuePackages,
+        };
+        console.log('[MapInventory] Stored', inventory.venuePackages.length, 'venue packages');
+      }
+
+      if (inventory.legalServices && inventory.legalServices.length > 0) {
+        mergedPersona.industrySpecificData = {
+          ...mergedPersona.industrySpecificData,
+          legalServices: inventory.legalServices,
+        };
+        console.log('[MapInventory] Stored', inventory.legalServices.length, 'legal services');
+      }
+
+      if (inventory.financialProducts && inventory.financialProducts.length > 0) {
+        mergedPersona.industrySpecificData = {
+          ...mergedPersona.industrySpecificData,
+          financialProducts: inventory.financialProducts,
+        };
+        console.log('[MapInventory] Stored', inventory.financialProducts.length, 'financial products');
       }
     }
 

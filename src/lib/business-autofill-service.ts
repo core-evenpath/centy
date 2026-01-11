@@ -1475,15 +1475,60 @@ export function createEmptyProfile(): Partial<BusinessPersona> {
     identity: {
       businessName: '',
       industry: 'custom',
+      phone: '',
+      email: '',
+      website: '',
+      address: {
+        street: '',
+        city: '',
+        state: '',
+        country: '',
+        postalCode: '',
+      },
+      operatingHours: {},
     },
-    personality: {},
-    customerProfile: {},
-    knowledge: {},
-    industrySpecificData: {},
+    personality: {
+      voiceTone: 'professional',
+      description: '',
+      tagline: '',
+      uniqueSellingPoints: [],
+    },
+    customerProfile: {
+      targetAudience: '',
+      commonQueries: [],
+      customerPainPoints: [],
+    },
+    knowledge: {
+      productsOrServices: [],
+      faqs: [],
+      policies: {},
+    },
+    // Explicitly clear all industry-specific data
+    industrySpecificData: {
+      fetchedPhotos: [],
+      fetchedReviews: [],
+      onlinePresence: [],
+      testimonials: [],
+      fromTheWeb: null,
+    },
+    // Explicitly clear all inventory arrays
+    roomTypes: [],
+    menuItems: [],
+    menuCategories: [],
+    productCatalog: [],
+    propertyListings: [],
+    healthcareServices: [],
+    diagnosticTests: [],
+    // Clear other industry fields
+    restaurantInfo: {},
+    hotelPolicies: {},
+    hotelAmenities: [],
+    // Reset progress
     setupProgress: {
       completedSections: [],
       totalSections: 0,
       percentComplete: 0,
+      overallPercentage: 0,
     },
   };
 }
