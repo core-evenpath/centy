@@ -1555,6 +1555,39 @@ function generateId(): string {
 }
 
 /**
+ * Safely extract price value from various formats
+ * Handles: number, string, or object with {value, unit} structure
+ */
+function extractPrice(price: any): number {
+  if (price === null || price === undefined) return 0;
+  if (typeof price === 'number') return price;
+  if (typeof price === 'string') {
+    const parsed = parseFloat(price.replace(/[^0-9.]/g, ''));
+    return isNaN(parsed) ? 0 : parsed;
+  }
+  if (typeof price === 'object') {
+    // Handle {value, unit} or {price} structure
+    const val = price.value ?? price.price ?? price.amount ?? 0;
+    if (typeof val === 'number') return val;
+    if (typeof val === 'string') {
+      const parsed = parseFloat(val.replace(/[^0-9.]/g, ''));
+      return isNaN(parsed) ? 0 : parsed;
+    }
+  }
+  return 0;
+}
+
+/**
+ * Safely extract price unit from various formats
+ */
+function extractPriceUnit(price: any, defaultUnit: string = ''): string {
+  if (typeof price === 'object' && price !== null) {
+    return price.unit || price.priceUnit || price.per || defaultUnit;
+  }
+  return defaultUnit;
+}
+
+/**
  * Map room inventory items to RoomType schema
  */
 export function mapRoomsToRoomTypes(rooms: RoomInventoryItem[]): RoomType[] {
@@ -1612,7 +1645,7 @@ export function mapRoomsToRoomTypes(rooms: RoomInventoryItem[]): RoomType[] {
       } : undefined,
       view: room.view,
       pricing: {
-        basePrice: room.price || 0,
+        basePrice: extractPrice(room.price),
         currency: 'INR',
         priceType: 'per_night',
         taxInclusive: false,
@@ -1706,7 +1739,7 @@ export function mapMenuToMenuItems(menuItems: MenuInventoryItem[]): { items: Men
       categoryId: category?.id || '',
       course,
       pricing: {
-        price: item.price || 0,
+        price: extractPrice(item.price),
         currency: 'INR',
         hasVariants: false,
       },
@@ -1756,8 +1789,8 @@ export function mapProductsToRetailProducts(products: ProductInventoryItem[]): R
     brand: product.brand,
     sku: product.sku,
     pricing: {
-      price: product.price || 0,
-      mrp: product.mrp,
+      price: extractPrice(product.price),
+      mrp: extractPrice(product.mrp) || undefined,
       currency: 'INR',
     },
     inventory: {
@@ -1827,7 +1860,7 @@ export function mapPropertiesToPropertyListings(properties: PropertyInventoryIte
         } : undefined,
       },
       pricing: {
-        price: property.price || 0,
+        price: extractPrice(property.price),
         priceType: transactionType === 'rent' ? 'monthly' : 'total',
         currency: 'INR',
         negotiable: true,
@@ -1878,7 +1911,7 @@ export function mapServicesToHealthcareServices(services: ServiceInventoryItem[]
         name: service.doctor,
       } : undefined,
       pricing: {
-        price: service.price || 0,
+        price: extractPrice(service.price),
         priceType: 'fixed',
         currency: 'INR',
       },

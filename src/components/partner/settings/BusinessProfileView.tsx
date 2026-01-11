@@ -32,15 +32,32 @@ function EditableField({
   className,
 }: {
   label: string;
-  value: string | undefined;
+  value: string | undefined | null | { [key: string]: any };
   type?: 'text' | 'email' | 'phone' | 'url';
   placeholder?: string;
   onSave: (value: string) => void;
   multiline?: boolean;
   className?: string;
 }) {
+  // Safely extract string value
+  const getStringValue = (val: any): string => {
+    if (val === null || val === undefined) return '';
+    if (typeof val === 'string') return val;
+    if (typeof val === 'number') return String(val);
+    if (typeof val === 'object') {
+      return val.name || val.value || val.text || val.title || '';
+    }
+    return String(val);
+  };
+
+  const stringValue = getStringValue(value);
   const [isEditing, setIsEditing] = useState(false);
-  const [editValue, setEditValue] = useState(value || '');
+  const [editValue, setEditValue] = useState(stringValue);
+
+  // Update editValue when value prop changes
+  React.useEffect(() => {
+    setEditValue(getStringValue(value));
+  }, [value]);
 
   const handleSave = () => {
     onSave(editValue);
@@ -48,7 +65,7 @@ function EditableField({
   };
 
   const handleCancel = () => {
-    setEditValue(value || '');
+    setEditValue(stringValue);
     setIsEditing(false);
   };
 
@@ -89,8 +106,8 @@ function EditableField({
       className={cn("group flex items-center gap-2 cursor-pointer hover:bg-slate-50 px-2 py-1 -mx-2 rounded-lg transition-colors", className)}
       onClick={() => setIsEditing(true)}
     >
-      <span className={cn("text-sm", value ? "text-slate-700" : "text-slate-400 italic")}>
-        {value || placeholder || `Add ${label.toLowerCase()}`}
+      <span className={cn("text-sm", stringValue ? "text-slate-700" : "text-slate-400 italic")}>
+        {stringValue || placeholder || `Add ${label.toLowerCase()}`}
       </span>
       <Edit2 className="w-3 h-3 text-slate-400 opacity-0 group-hover:opacity-100 transition-opacity" />
     </div>
@@ -676,7 +693,9 @@ export default function BusinessProfileView({
   // Helper to get inventory items based on industry
   const getInventoryItems = () => {
     const items: { type: string; data: any[]; icon: React.ElementType }[] = [];
+    const isd = persona.industrySpecificData || {};
 
+    // Primary inventory fields
     if (persona.roomTypes?.length) {
       items.push({ type: 'Room Types', data: persona.roomTypes, icon: Bed });
     }
@@ -694,6 +713,34 @@ export default function BusinessProfileView({
     }
     if (persona.diagnosticTests?.length) {
       items.push({ type: 'Diagnostic Tests', data: persona.diagnosticTests, icon: Stethoscope });
+    }
+
+    // Check industrySpecificData for additional inventory types
+    if (isd.courses?.length) {
+      items.push({ type: 'Courses', data: isd.courses, icon: GraduationCap });
+    }
+    if (isd.treatments?.length) {
+      items.push({ type: 'Treatments', data: isd.treatments, icon: Heart });
+    }
+    if (isd.memberships?.length) {
+      items.push({ type: 'Memberships', data: isd.memberships, icon: Users });
+    }
+    if (isd.vehicles?.length) {
+      items.push({ type: 'Vehicles', data: isd.vehicles, icon: Car });
+    }
+    if (isd.venuePackages?.length) {
+      items.push({ type: 'Venue Packages', data: isd.venuePackages, icon: Calendar });
+    }
+    if (isd.legalServices?.length) {
+      items.push({ type: 'Legal Services', data: isd.legalServices, icon: Scale });
+    }
+    if (isd.financialProducts?.length) {
+      items.push({ type: 'Financial Products', data: isd.financialProducts, icon: Landmark });
+    }
+
+    // Also check for products/services in knowledge if main inventory is empty
+    if (items.length === 0 && persona.knowledge?.productsOrServices?.length) {
+      items.push({ type: 'Products & Services', data: persona.knowledge.productsOrServices, icon: Package });
     }
 
     return items;
