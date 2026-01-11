@@ -489,21 +489,54 @@ function PriceTag({
   originalPrice,
   className,
 }: {
-  price: number | string;
-  unit?: string;
-  originalPrice?: number;
+  price: number | string | { value?: number; unit?: string };
+  unit?: string | { value?: string; unit?: string };
+  originalPrice?: number | { value?: number };
   className?: string;
 }) {
-  const formattedPrice = typeof price === 'number' ? price.toLocaleString('en-IN') : price;
+  // Safely extract price value
+  let priceValue: number | string | undefined;
+  let extractedUnit: string | undefined;
+
+  if (typeof price === 'object' && price !== null) {
+    priceValue = price.value;
+    extractedUnit = price.unit;
+  } else {
+    priceValue = price;
+  }
+
+  // Safely extract unit value
+  if (typeof unit === 'object' && unit !== null) {
+    extractedUnit = extractedUnit || unit.value || unit.unit;
+  } else if (typeof unit === 'string') {
+    extractedUnit = extractedUnit || unit;
+  }
+
+  // Safely extract original price
+  let origPriceValue: number | undefined;
+  if (typeof originalPrice === 'object' && originalPrice !== null) {
+    origPriceValue = originalPrice.value;
+  } else if (typeof originalPrice === 'number') {
+    origPriceValue = originalPrice;
+  }
+
+  // If no valid price, don't render
+  if (priceValue === undefined || priceValue === null) {
+    return null;
+  }
+
+  const formattedPrice = typeof priceValue === 'number' ? priceValue.toLocaleString('en-IN') : String(priceValue);
+  const numericPrice = typeof priceValue === 'number' ? priceValue : parseFloat(String(priceValue)) || 0;
+
   return (
     <div className={cn("flex items-center gap-1", className)}>
       <span className="inline-flex items-center gap-0.5 px-2 py-0.5 bg-gradient-to-r from-orange-500 to-amber-500 text-white rounded-full text-xs font-bold shadow-sm">
         <IndianRupee className="w-3 h-3" />
         {formattedPrice}
-        {unit && <span className="font-normal opacity-90">/{unit}</span>}
+        {extractedUnit && typeof extractedUnit === 'string' && <span className="font-normal opacity-90">/{extractedUnit}</span>}
       </span>
-      {originalPrice && originalPrice > (typeof price === 'number' ? price : 0) && (
-        <span className="text-[10px] text-slate-400 line-through">₹{originalPrice.toLocaleString('en-IN')}</span>
+      {origPriceValue && origPriceValue > numericPrice && (
+        <span className="text-[10px] text-slate-400 line-through">₹{origPriceValue.toLocaleString('en-IN')}</span>
       )}
     </div>
   );
