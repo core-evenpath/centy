@@ -28,6 +28,18 @@ import {
     ExternalLink,
     Import,
     Globe,
+    Bed,
+    UtensilsCrossed,
+    Home,
+    ShoppingBag,
+    Scissors,
+    Stethoscope,
+    Truck,
+    ListOrdered,
+    Quote,
+    CreditCard,
+    Target,
+    Package,
 } from 'lucide-react';
 import {
     searchBusinessAndResearchAction,
@@ -60,7 +72,11 @@ export default function AutoFillBusinessProfile({
     const [isSearching, setIsSearching] = useState(false);
     const [searchResults, setSearchResults] = useState<BusinessResearchResult | null>(null);
     const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set());
-    const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set(['identity', 'contact', 'services', 'reviews_positive']));
+    const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set([
+        'identity', 'contact', 'inventory_hotel', 'inventory_restaurant', 'inventory_realestate',
+        'inventory_retail', 'inventory_salon', 'inventory_healthcare', 'inventory_general',
+        'services', 'directory_listings', 'testimonials', 'reviews_positive'
+    ]));
     const [error, setError] = useState<string | null>(null);
 
     // Auto-suggest state
@@ -270,6 +286,49 @@ export default function AutoFillBusinessProfile({
                 icon: <Clock className="w-4 h-4" />,
                 items: [],
             },
+            // Business-type specific inventory categories
+            inventory_hotel: {
+                id: 'inventory_hotel',
+                title: 'Rooms & Amenities',
+                icon: <Bed className="w-4 h-4" />,
+                items: [],
+            },
+            inventory_restaurant: {
+                id: 'inventory_restaurant',
+                title: 'Menu & Cuisines',
+                icon: <UtensilsCrossed className="w-4 h-4" />,
+                items: [],
+            },
+            inventory_realestate: {
+                id: 'inventory_realestate',
+                title: 'Properties & Listings',
+                icon: <Home className="w-4 h-4" />,
+                items: [],
+            },
+            inventory_retail: {
+                id: 'inventory_retail',
+                title: 'Products & Brands',
+                icon: <ShoppingBag className="w-4 h-4" />,
+                items: [],
+            },
+            inventory_salon: {
+                id: 'inventory_salon',
+                title: 'Services & Treatments',
+                icon: <Scissors className="w-4 h-4" />,
+                items: [],
+            },
+            inventory_healthcare: {
+                id: 'inventory_healthcare',
+                title: 'Specializations & Doctors',
+                icon: <Stethoscope className="w-4 h-4" />,
+                items: [],
+            },
+            inventory_general: {
+                id: 'inventory_general',
+                title: 'Services & Products',
+                icon: <Package className="w-4 h-4" />,
+                items: [],
+            },
             services: {
                 id: 'services',
                 title: 'Services & Products',
@@ -280,6 +339,24 @@ export default function AutoFillBusinessProfile({
                 id: 'pricing',
                 title: 'Pricing Information',
                 icon: <DollarSign className="w-4 h-4" />,
+                items: [],
+            },
+            delivery: {
+                id: 'delivery',
+                title: 'Delivery & Online Ordering',
+                icon: <Truck className="w-4 h-4" />,
+                items: [],
+            },
+            directory_listings: {
+                id: 'directory_listings',
+                title: 'Directory Rankings',
+                icon: <ListOrdered className="w-4 h-4" />,
+                items: [],
+            },
+            testimonials: {
+                id: 'testimonials',
+                title: 'Customer Testimonials',
+                icon: <Quote className="w-4 h-4" />,
                 items: [],
             },
             reviews_positive: {
@@ -294,22 +371,34 @@ export default function AutoFillBusinessProfile({
                 icon: <AlertTriangle className="w-4 h-4" />,
                 items: [],
             },
-            faqs: {
-                id: 'faqs',
-                title: 'Common Questions',
-                icon: <HelpCircle className="w-4 h-4" />,
-                items: [],
-            },
             credentials: {
                 id: 'credentials',
                 title: 'Credentials & Awards',
                 icon: <Award className="w-4 h-4" />,
                 items: [],
             },
+            faqs: {
+                id: 'faqs',
+                title: 'Common Questions',
+                icon: <HelpCircle className="w-4 h-4" />,
+                items: [],
+            },
             social: {
                 id: 'social',
                 title: 'Social Media & Web',
                 icon: <Globe className="w-4 h-4" />,
+                items: [],
+            },
+            payments: {
+                id: 'payments',
+                title: 'Payment Methods',
+                icon: <CreditCard className="w-4 h-4" />,
+                items: [],
+            },
+            usp: {
+                id: 'usp',
+                title: 'Unique Selling Points',
+                icon: <Target className="w-4 h-4" />,
                 items: [],
             },
         };
@@ -319,12 +408,45 @@ export default function AutoFillBusinessProfile({
             if (groups[category]) {
                 groups[category].items.push(item);
             } else {
-                groups.identity.items.push(item);
+                // Fallback to general inventory or identity
+                if (category.startsWith('inventory_')) {
+                    groups.inventory_general.items.push(item);
+                } else {
+                    groups.identity.items.push(item);
+                }
             }
         });
 
-        // Return only non-empty groups
-        return Object.values(groups).filter(g => g.items.length > 0);
+        // Define priority order for categories (business-specific inventory first)
+        const categoryOrder = [
+            'identity',
+            'contact',
+            'hours',
+            'inventory_hotel',
+            'inventory_restaurant',
+            'inventory_realestate',
+            'inventory_retail',
+            'inventory_salon',
+            'inventory_healthcare',
+            'inventory_general',
+            'services',
+            'pricing',
+            'delivery',
+            'directory_listings',
+            'testimonials',
+            'reviews_positive',
+            'credentials',
+            'faqs',
+            'social',
+            'payments',
+            'usp',
+            'reviews_negative', // Negative reviews last
+        ];
+
+        // Return non-empty groups in priority order
+        return categoryOrder
+            .map(id => groups[id])
+            .filter(g => g && g.items.length > 0);
     }, [searchResults]);
 
     const selectedCount = selectedItems.size;
@@ -507,7 +629,14 @@ export default function AutoFillBusinessProfile({
                                                 {searchResults.businessName.charAt(0)}
                                             </div>
                                             <div className="flex-1 min-w-0">
-                                                <h3 className="font-bold text-slate-900 text-lg">{searchResults.businessName}</h3>
+                                                <div className="flex items-center gap-2 flex-wrap">
+                                                    <h3 className="font-bold text-slate-900 text-lg">{searchResults.businessName}</h3>
+                                                    {searchResults.businessType && (
+                                                        <Badge variant="secondary" className="text-xs bg-indigo-100 text-indigo-700">
+                                                            {searchResults.businessType}
+                                                        </Badge>
+                                                    )}
+                                                </div>
                                                 {searchResults.summary && (
                                                     <p className="text-sm text-slate-600 mt-1 line-clamp-2">{searchResults.summary}</p>
                                                 )}

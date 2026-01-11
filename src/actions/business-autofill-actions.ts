@@ -18,6 +18,7 @@ export interface ResearchDataItem {
 
 export interface BusinessResearchResult {
     businessName: string;
+    businessType?: string;
     summary?: string;
     rating?: number;
     reviewCount?: number;
@@ -157,15 +158,31 @@ export async function searchBusinessAndResearchAction(
 
 Search Query: "${searchQuery}"
 
-Research this business and extract ALL available information that would be useful for creating a comprehensive business profile knowledge base. Include:
+STEP 1: DETECT BUSINESS TYPE
+First, identify what type of business this is:
+- Hotel/Resort/Accommodation
+- Restaurant/Cafe/Food Service
+- Real Estate/Property
+- Retail Store/Shop
+- Salon/Spa/Beauty
+- Healthcare/Clinic/Medical
+- Professional Services (Law, Accounting, etc.)
+- Fitness/Gym/Sports
+- Education/Training
+- Automotive/Car Services
+- Other (specify)
+
+STEP 2: RESEARCH COMPREHENSIVE DATA
+Research this business and extract ALL available information. Include:
 
 1. **Business Identity**
    - Official business name
-   - Business type/category
+   - Business type/category (from Step 1)
    - Description/About
    - Tagline
    - Year founded
    - Team size estimate
+   - Owner/Founder name (if public)
 
 2. **Contact Information**
    - Phone number
@@ -180,60 +197,148 @@ Research this business and extract ALL available information that would be usefu
    - Special hours (holidays, etc.)
    - 24/7 status
 
-4. **Services & Products**
-   - List of main services/products offered
-   - Pricing information (ranges)
-   - Popular/featured items
-   - Categories
+4. **BUSINESS-TYPE-SPECIFIC INVENTORY** (CRITICAL - Based on detected business type)
+
+   FOR HOTELS/RESORTS:
+   - Room types (Standard, Deluxe, Suite, etc.) with descriptions
+   - Room amenities (AC, WiFi, TV, minibar, etc.)
+   - Property amenities (Pool, Gym, Restaurant, Spa, Parking)
+   - Check-in/Check-out times
+   - Price ranges per room type
+   - Total room count
+   - Star rating/category
+
+   FOR RESTAURANTS/CAFES:
+   - Menu categories (Starters, Mains, Desserts, Beverages)
+   - Signature dishes with descriptions and prices
+   - Cuisine type(s)
+   - Dietary options (Vegan, Vegetarian, Gluten-free, Halal)
+   - Seating capacity
+   - Reservation availability
+   - Delivery platforms available (Swiggy, Zomato, DoorDash, UberEats, GrubHub)
+   - Takeaway/Dine-in options
+
+   FOR REAL ESTATE:
+   - Property types (Apartments, Villas, Commercial, Plots)
+   - Current listings with details (size, bedrooms, price range)
+   - Areas/localities served
+   - Property features commonly offered
+   - RERA registration (if applicable)
+   - Builder/Developer partnerships
+
+   FOR RETAIL/SHOPS:
+   - Product categories
+   - Top-selling items
+   - Brand partnerships
+   - Price ranges
+   - Inventory highlights
+
+   FOR SALONS/SPAS:
+   - Services menu with prices
+   - Specialists/stylists
+   - Products used/sold
+   - Appointment booking info
+
+   FOR HEALTHCARE/CLINICS:
+   - Specializations
+   - Doctors/Practitioners with qualifications
+   - Services offered with fees
+   - Insurance accepted
+   - Appointment process
 
 5. **Reviews & Reputation**
-   - Overall rating
+   - Overall rating (out of 5)
    - Total review count
    - POSITIVE highlights from reviews (what customers love)
    - NEGATIVE feedback from reviews (complaints, issues) - MARK THESE AS NEGATIVE
+   - Customer TESTIMONIALS (direct quotes from satisfied customers)
 
-6. **Credentials & Trust**
+6. **Directory Listings & Rankings**
+   - Google Business rating and review count
+   - Yelp rating and review count (if applicable)
+   - TripAdvisor rating (for hotels/restaurants)
+   - Zomato rating (for restaurants in India)
+   - Justdial/Sulekha listing (for Indian businesses)
+   - Industry-specific directories
+   - Awards from platforms (e.g., "TripAdvisor Travelers Choice")
+
+7. **Delivery & Online Presence** (for applicable businesses)
+   - Food delivery platforms (Swiggy, Zomato, DoorDash, UberEats)
+   - E-commerce platforms (if retail)
+   - Online ordering availability
+   - Delivery radius/areas
+   - Delivery fees/minimum order
+
+8. **Credentials & Trust**
    - Certifications
-   - Awards
+   - Awards (local, national, industry)
    - Years of experience
    - Licenses
+   - Memberships (industry associations)
 
-7. **Common FAQs**
+9. **Common FAQs**
    - Questions customers typically ask
-   - With suggested answers
+   - With detailed answers
 
-8. **Social Media**
-   - Instagram
-   - Facebook
-   - Twitter/X
-   - LinkedIn
-   - YouTube
+10. **Social Media**
+    - Instagram (handle + follower count if significant)
+    - Facebook (page + followers)
+    - Twitter/X
+    - LinkedIn
+    - YouTube
 
-9. **Payment Methods**
-   - Accepted payment types
+11. **Payment Methods**
+    - Accepted payment types
+    - Online payment options
+    - EMI/financing options (if applicable)
 
-10. **Unique Selling Points**
+12. **Unique Selling Points**
     - What makes this business special
+    - Competitive advantages
+    - Special features/offerings
 
 Return your response as a valid JSON object with this structure:
 {
   "businessName": "Exact business name",
+  "businessType": "detected business type",
   "summary": "Brief 1-2 sentence summary of the business",
   "rating": 4.5,
   "reviewCount": 150,
   "items": [
     {
       "id": "unique-id",
-      "category": "identity|contact|hours|services|pricing|reviews_positive|reviews_negative|faqs|credentials|social",
+      "category": "category_name",
       "label": "Human readable label",
       "value": "The actual value or data",
-      "fieldPath": "identity.name",
+      "fieldPath": "schema.field.path",
       "isNegative": false,
       "confidence": 0.9,
       "source": "web research"
     }
   ]
 }
+
+CATEGORY NAMES (use these exact category names based on business type):
+- identity: Business name, type, description, tagline, founded year
+- contact: Phone, email, website, address
+- hours: Operating hours, special schedules
+- inventory_hotel: Room types, amenities, check-in/out (FOR HOTELS)
+- inventory_restaurant: Menu items, cuisines, dietary options (FOR RESTAURANTS)
+- inventory_realestate: Property listings, areas served (FOR REAL ESTATE)
+- inventory_retail: Products, brands, categories (FOR RETAIL)
+- inventory_salon: Services, specialists, products (FOR SALONS)
+- inventory_healthcare: Specializations, doctors, services (FOR HEALTHCARE)
+- inventory_general: Services/Products for other business types
+- delivery: Delivery platforms, online ordering options
+- directory_listings: Google, Yelp, TripAdvisor, Zomato rankings
+- testimonials: Direct customer quotes and testimonials
+- reviews_positive: Positive feedback highlights
+- reviews_negative: Negative feedback and complaints (MARK isNegative: true)
+- credentials: Certifications, awards, licenses
+- faqs: Frequently asked questions with answers
+- social: Social media handles and presence
+- payments: Payment methods accepted
+- usp: Unique selling points
 
 IMPORTANT RULES:
 1. For negative reviews/feedback, set "isNegative": true and "category": "reviews_negative"
@@ -244,6 +349,10 @@ IMPORTANT RULES:
 6. Include confidence scores (0.9+ for verified data, 0.7-0.9 for inferred data)
 7. Generate realistic FAQs with actual answers
 8. If you cannot find real data, generate realistic plausible data based on the business type
+9. ALWAYS include business-type-specific inventory items (this is critical!)
+10. Include at least 2-3 customer testimonials as direct quotes
+11. Include directory listings with ratings where applicable
+12. For restaurants, ALWAYS include delivery platform presence
 
 Field path mappings:
 - identity.name, identity.phone, identity.email, identity.website
@@ -251,8 +360,12 @@ Field path mappings:
 - identity.operatingHours.schedule
 - personality.description, personality.tagline, personality.uniqueSellingPoints
 - knowledge.productsOrServices, knowledge.pricingHighlights, knowledge.acceptedPayments
+- knowledge.inventory (array of items with name, description, price)
 - knowledge.faqs (array of {question, answer})
 - knowledge.policies.returnPolicy, knowledge.policies.cancellationPolicy
+- knowledge.deliveryOptions (array of platform names)
+- knowledge.directoryListings (array of {platform, rating, reviewCount, url})
+- knowledge.testimonials (array of {quote, author, date})
 - identity.socialMedia.instagram, identity.socialMedia.facebook, etc.
 
 Return ONLY the JSON object, no markdown formatting or explanation.`;
