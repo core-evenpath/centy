@@ -325,6 +325,32 @@ export async function saveBusinessPersonaAction(
             },
         };
 
+        // Deep merge industrySpecificData (critical for all industry-specific fields)
+        const mergedIndustrySpecificData = {
+            ...existingPersona.industrySpecificData,
+            ...updates.industrySpecificData,
+        };
+
+        // Deep merge restaurantInfo (for Food & Restaurant)
+        const mergedRestaurantInfo = {
+            ...existingPersona.restaurantInfo,
+            ...updates.restaurantInfo,
+        };
+
+        // Deep merge hotelPolicies (for Hospitality)
+        const mergedHotelPolicies = {
+            ...existingPersona.hotelPolicies,
+            ...updates.hotelPolicies,
+            checkIn: {
+                ...existingPersona.hotelPolicies?.checkIn,
+                ...updates.hotelPolicies?.checkIn,
+            },
+            checkOut: {
+                ...existingPersona.hotelPolicies?.checkOut,
+                ...updates.hotelPolicies?.checkOut,
+            },
+        };
+
         // Merge updates with existing persona
         const updatedPersona = {
             ...existingPersona,
@@ -335,6 +361,19 @@ export async function saveBusinessPersonaAction(
                 ...updates.customerProfile,
             },
             knowledge: mergedKnowledge,
+            // Industry-specific data sections
+            industrySpecificData: mergedIndustrySpecificData,
+            restaurantInfo: mergedRestaurantInfo,
+            hotelPolicies: mergedHotelPolicies,
+            hotelAmenities: updates.hotelAmenities ?? existingPersona.hotelAmenities,
+            // Inventory types (arrays - replace entirely if provided)
+            healthcareServices: updates.healthcareServices ?? existingPersona.healthcareServices,
+            diagnosticTests: updates.diagnosticTests ?? existingPersona.diagnosticTests,
+            menuItems: updates.menuItems ?? existingPersona.menuItems,
+            roomTypes: updates.roomTypes ?? existingPersona.roomTypes,
+            propertyListings: updates.propertyListings ?? existingPersona.propertyListings,
+            productCatalog: updates.productCatalog ?? existingPersona.productCatalog,
+            // Timestamps and version
             updatedAt: new Date(),
             version: (existingPersona.version || 0) + 1,
             createdAt: existingPersona.createdAt || new Date(),

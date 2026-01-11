@@ -75,46 +75,169 @@ const FIELD_VALIDATORS: Record<string, (value: any) => { valid: boolean; message
 // ============================================
 
 export const FIELD_PATH_MAPPINGS: Record<string, string> = {
-    // Identity
+    // ============ IDENTITY ============
     'name': 'identity.name',
     'businessName': 'identity.name',
     'tagline': 'personality.tagline',
     'description': 'personality.description',
+    'foundedYear': 'personality.foundedYear',
     'founded': 'industrySpecificData.founded',
     'teamSize': 'industrySpecificData.teamSize',
     'usps': 'personality.uniqueSellingPoints',
+    'category': 'identity.industry.name',
+    'languages': 'personality.languagePreference',
 
-    // Contact
+    // ============ CONTACT ============
     'phone': 'identity.phone',
     'whatsapp': 'identity.whatsAppNumber',
     'email': 'identity.email',
     'website': 'identity.website',
     'address': 'identity.address.street',
+    'officeAddress': 'identity.address.street',
+    'office': 'identity.address.street',
     'city': 'identity.address.city',
     'state': 'identity.address.state',
     'serviceAreas': 'identity.serviceArea',
 
-    // Operating Hours
+    // ============ SOCIAL MEDIA ============
+    'instagram': 'identity.socialMedia.instagram',
+    'facebook': 'identity.socialMedia.facebook',
+    'linkedin': 'identity.socialMedia.linkedin',
+    'youtube': 'identity.socialMedia.youtube',
+    'googleBusiness': 'identity.socialMedia.googleBusiness',
+    'twitter': 'identity.socialMedia.twitter',
+
+    // ============ AVAILABILITY / HOURS ============
     'hoursType': 'identity.operatingHours.specialNote',
     'schedule': 'identity.operatingHours.schedule',
     'responseTime': 'personality.responseTimeExpectation',
     'bookingLink': 'industrySpecificData.bookingLink',
+    'supportHours': 'identity.operatingHours.specialNote',
 
-    // Services/Products
+    // ============ SERVICES / PRODUCTS ============
     'services': 'knowledge.productsOrServices',
     'products': 'knowledge.productsOrServices',
-    'pricing': 'knowledge.pricingHighlights',
+    'consultationFee': 'knowledge.pricingHighlights',
     'paymentMethods': 'knowledge.acceptedPayments',
+    'pricingNote': 'knowledge.pricingHighlights',
+    'priceRange': 'knowledge.pricingHighlights',
+    'pricing': 'knowledge.pricingHighlights',
 
-    // Credentials
+    // ============ CREDENTIALS / EXPERIENCE ============
     'certifications': 'knowledge.certifications',
     'awards': 'knowledge.awards',
-    'faqs': 'knowledge.faqs',
+    'experience': 'industrySpecificData.experience',
+    'clients': 'industrySpecificData.notableClients',
 
-    // Policies
+    // ============ POLICIES ============
+    'faqs': 'knowledge.faqs',
     'returnPolicy': 'knowledge.policies.returnPolicy',
     'refundPolicy': 'knowledge.policies.refundPolicy',
+    'refund': 'knowledge.policies.refundPolicy',
     'cancellation': 'knowledge.policies.cancellationPolicy',
+    'shippingPolicy': 'knowledge.policies.shippingInfo',
+    'deliveryPolicy': 'knowledge.policies.deliveryInfo',
+    'returnWindow': 'industrySpecificData.returnWindow',
+
+    // ============ RETAIL / E-COMMERCE ============
+    'deliveryZones': 'industrySpecificData.deliveryZones',
+    'deliveryTime': 'industrySpecificData.deliveryTime',
+    'shippingCost': 'industrySpecificData.shippingCost',
+    'freeShippingMin': 'industrySpecificData.freeShippingMin',
+    'categories': 'knowledge.serviceCategories',
+    'bestsellers': 'industrySpecificData.bestsellers',
+    'codLimit': 'industrySpecificData.codLimit',
+    'currentOffers': 'knowledge.currentOffers',
+
+    // ============ REAL ESTATE ============
+    'reraNumber': 'industrySpecificData.reraNumber',
+    'specialization': 'industrySpecificData.specialization',
+    'cities': 'industrySpecificData.citiesCovered',
+    'localities': 'industrySpecificData.keyLocalities',
+    'projects': 'industrySpecificData.featuredProjects',
+    'types': 'industrySpecificData.propertyTypes',
+    'segments': 'industrySpecificData.segments',
+    'commission': 'industrySpecificData.commissionStructure',
+    'buyingProcess': 'industrySpecificData.buyingProcess',
+    'documents': 'industrySpecificData.documentsRequired',
+
+    // ============ HEALTHCARE ============
+    'type': 'industrySpecificData.establishmentType',
+    'emergency': 'industrySpecificData.emergencyNumber',
+    'emergencyHours': 'industrySpecificData.emergencyHours',
+    'healthcareServices': 'healthcareServices',
+    'diagnosticTests': 'diagnosticTests',
+    'followUpFee': 'industrySpecificData.followUpFee',
+    'homeCollection': 'industrySpecificData.homeCollection',
+    'reportTime': 'industrySpecificData.reportTime',
+    'insuranceAccepted': 'industrySpecificData.insuranceAccepted',
+    'tpa': 'industrySpecificData.tpaPartners',
+    'cashlessAvailable': 'industrySpecificData.cashlessAvailable',
+
+    // ============ FOOD & RESTAURANT ============
+    'cuisine': 'restaurantInfo.cuisineTypes',
+    'cuisineTypes': 'restaurantInfo.cuisineTypes',
+    'diningStyles': 'restaurantInfo.diningStyles',
+    'ambiance': 'industrySpecificData.ambiance',
+    'reservationLink': 'industrySpecificData.reservationLink',
+    'seating': 'restaurantInfo.seatingCapacity',
+    'seatingCapacity': 'restaurantInfo.seatingCapacity',
+    'averageCost': 'restaurantInfo.averageCostForTwo',
+    'pureVeg': 'restaurantInfo.pureVeg',
+    'alcoholServed': 'restaurantInfo.alcoholServed',
+    'delivery': 'industrySpecificData.deliveryHours',
+    'lastOrder': 'industrySpecificData.lastOrderTime',
+    'happyHours': 'industrySpecificData.happyHours',
+    'specialties': 'industrySpecificData.signatureDishes',
+    'dietary': 'industrySpecificData.dietaryOptions',
+    'platforms': 'restaurantInfo.deliveryPartners',
+    'deliveryPartners': 'restaurantInfo.deliveryPartners',
+    'deliveryRadius': 'restaurantInfo.deliveryRadius',
+    'minOrder': 'restaurantInfo.minimumOrder',
+    'deliveryFee': 'restaurantInfo.deliveryFee',
+    'cateringMin': 'industrySpecificData.cateringMinimum',
+    'menuItems': 'menuItems',
+
+    // ============ EDUCATION ============
+    'subjects': 'industrySpecificData.subjects',
+    'courses': 'knowledge.productsOrServices',
+    'boards': 'industrySpecificData.boards',
+    'ageGroups': 'industrySpecificData.ageGroups',
+    'feeRange': 'knowledge.pricingHighlights',
+    'batches': 'industrySpecificData.batchTimings',
+    'batchSize': 'industrySpecificData.batchSize',
+    'faculty': 'industrySpecificData.facultyMembers',
+    'method': 'industrySpecificData.teachingMethods',
+    'eligibility': 'industrySpecificData.eligibility',
+    'results': 'industrySpecificData.resultsAndPlacements',
+
+    // ============ FINANCE ============
+    'registrations': 'industrySpecificData.registrations',
+    'minInvestment': 'industrySpecificData.minimumInvestment',
+    'feeStructure': 'industrySpecificData.feeStructure',
+    'aum': 'industrySpecificData.aum',
+    'riskDisclosure': 'industrySpecificData.riskDisclosure',
+    'disclaimer': 'industrySpecificData.disclaimer',
+
+    // ============ HOSPITALITY ============
+    'starRating': 'industrySpecificData.starRating',
+    'nearbyAttractions': 'industrySpecificData.nearbyAttractions',
+    'checkIn': 'hotelPolicies.checkIn.time',
+    'checkOut': 'hotelPolicies.checkOut.time',
+    'checkInTime': 'hotelPolicies.checkIn.time',
+    'checkOutTime': 'hotelPolicies.checkOut.time',
+    'petPolicy': 'hotelPolicies.petPolicy',
+    'childPolicy': 'hotelPolicies.childPolicy',
+    'amenities': 'hotelAmenities',
+    'dining': 'industrySpecificData.diningOptions',
+    'policies': 'industrySpecificData.hotelPoliciesText',
+    'eventsCapacity': 'industrySpecificData.eventsCapacity',
+    'eventServices': 'industrySpecificData.eventServices',
+    'roomTypes': 'roomTypes',
+
+    // ============ INVENTORY FIELDS ============
+    'propertyListings': 'propertyListings',
+    'productCatalog': 'productCatalog',
 };
 
 // ============================================
