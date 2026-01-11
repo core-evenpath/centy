@@ -20,6 +20,7 @@ import type {
   FrequentlyAskedQuestion
 } from '@/lib/business-persona-types';
 import SettingsAIChat from '@/components/partner/settings/SettingsAIChat';
+import AutoFillBusinessProfile from '@/components/partner/settings/AutoFillBusinessProfile';
 
 const SettingsUltimate = () => {
   const router = useRouter();
@@ -32,6 +33,7 @@ const SettingsUltimate = () => {
   const [showAICoach, setShowAICoach] = useState(true);
   const [showAIChat, setShowAIChat] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(false);
+  const [showAutoFill, setShowAutoFill] = useState(false);
   const [showInviteModal, setShowInviteModal] = useState(false);
   const [inviteForm, setInviteForm] = useState<{ name: string; phone: string; role: 'employee' | 'partner_admin' }>({ name: '', phone: '', role: 'employee' });
   const [generatedCode, setGeneratedCode] = useState<string | null>(null);
@@ -218,6 +220,46 @@ const SettingsUltimate = () => {
       }
     } catch (error) {
       console.error("Error refreshing persona:", error);
+    }
+  };
+
+  // Handle auto-fill data selection
+  const handleAutoFillDataSelected = async (selectedData: Partial<BusinessPersona>) => {
+    if (!partnerId) return;
+
+    try {
+      // Merge selected data with current persona
+      const mergedPersona = { ...persona };
+
+      // Deep merge the selected data
+      const deepMerge = (target: any, source: any): any => {
+        const output = { ...target };
+        for (const key in source) {
+          if (source.hasOwnProperty(key)) {
+            if (source[key] && typeof source[key] === 'object' && !Array.isArray(source[key])) {
+              output[key] = deepMerge(target[key] || {}, source[key]);
+            } else {
+              output[key] = source[key];
+            }
+          }
+        }
+        return output;
+      };
+
+      const updatedPersona = deepMerge(mergedPersona, selectedData);
+      setPersona(updatedPersona);
+
+      // Save to backend
+      await saveBusinessPersonaAction(partnerId, selectedData);
+
+      toast.success("Profile updated with selected data");
+      setShowAutoFill(false);
+
+      // Refresh to get updated progress
+      handlePersonaRefresh();
+    } catch (error) {
+      console.error("Error applying auto-fill data:", error);
+      toast.error("Failed to apply auto-fill data");
     }
   };
 
@@ -943,14 +985,25 @@ const SettingsUltimate = () => {
                     <h2 className="text-2xl font-bold text-slate-900">Business Profile</h2>
                     <p className="text-slate-500">Data that powers your AI agents</p>
                   </div>
-                  {/* Mobile AI Chat Button */}
-                  <button
-                    onClick={() => setShowAIChat(true)}
-                    className="xl:hidden flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-xl font-medium text-sm hover:from-indigo-700 hover:to-purple-700 transition-all shadow-sm"
-                  >
-                    <span>✨</span>
-                    <span className="hidden sm:inline">AI Update</span>
-                  </button>
+                  {/* Action Buttons */}
+                  <div className="flex items-center gap-2">
+                    {/* Auto-Fill Button */}
+                    <button
+                      onClick={() => setShowAutoFill(true)}
+                      className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-emerald-500 to-teal-600 text-white rounded-xl font-medium text-sm hover:from-emerald-600 hover:to-teal-700 transition-all shadow-sm"
+                    >
+                      <span>🔍</span>
+                      <span className="hidden sm:inline">Auto-Fill</span>
+                    </button>
+                    {/* Mobile AI Chat Button */}
+                    <button
+                      onClick={() => setShowAIChat(true)}
+                      className="xl:hidden flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-xl font-medium text-sm hover:from-indigo-700 hover:to-purple-700 transition-all shadow-sm"
+                    >
+                      <span>✨</span>
+                      <span className="hidden sm:inline">AI Update</span>
+                    </button>
+                  </div>
                 </div>
 
                 {/* Business Types Selection Card */}
@@ -1441,6 +1494,15 @@ const SettingsUltimate = () => {
                 </div>
               </div>
 
+              {/* Auto-Fill Button */}
+              <button
+                onClick={() => setShowAutoFill(true)}
+                className="w-full py-3 px-4 bg-gradient-to-r from-emerald-500 to-teal-600 text-white rounded-xl font-medium text-sm hover:from-emerald-600 hover:to-teal-700 transition-all shadow-sm flex items-center justify-center gap-2 mb-2"
+              >
+                <span>🔍</span>
+                Auto-Fill from Web
+              </button>
+
               {/* AI Chat Button */}
               <button
                 onClick={() => setShowAIChat(true)}
@@ -1454,6 +1516,11 @@ const SettingsUltimate = () => {
               <div>
                 <h4 className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">Quick Tips</h4>
                 <div className="space-y-2">
+                  <div className="p-3 bg-teal-50 rounded-lg border border-teal-100">
+                    <p className="text-xs text-teal-700">
+                      <strong>Auto-Fill:</strong> Search your business to import details from the web automatically
+                    </p>
+                  </div>
                   <div className="p-3 bg-indigo-50 rounded-lg border border-indigo-100">
                     <p className="text-xs text-indigo-700">
                       <strong>AI Chat:</strong> Say "Update my hours" or "Add a service" to make changes instantly
@@ -1493,6 +1560,15 @@ const SettingsUltimate = () => {
             onPersonaUpdated={handlePersonaRefresh}
             isOpen={showAIChat}
             onClose={() => setShowAIChat(false)}
+          />
+        )}
+
+        {/* Auto-Fill Business Profile Modal */}
+        {partnerId && showAutoFill && (
+          <AutoFillBusinessProfile
+            partnerId={partnerId}
+            onDataSelected={handleAutoFillDataSelected}
+            onClose={() => setShowAutoFill(false)}
           />
         )}
       </div>
