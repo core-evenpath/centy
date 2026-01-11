@@ -54,6 +54,33 @@ function serializeForClient(obj: any): any {
 }
 
 /**
+ * Normalize industry field to always be an object or null
+ * Handles legacy data where industry might be stored as just a string
+ */
+function normalizeIndustry(industry: any): any {
+    if (!industry) return null;
+
+    // If it's already an object with expected properties, return it
+    if (typeof industry === 'object' && industry !== null) {
+        return industry;
+    }
+
+    // If it's a string (legacy format), convert to object format
+    if (typeof industry === 'string') {
+        return {
+            id: industry,
+            name: industry.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()), // e.g., 'food_beverage' -> 'Food Beverage'
+            category: industry, // The string itself is the category
+            icon: '🏢',
+            suggestedQuestions: [],
+            typicalPolicies: [],
+        };
+    }
+
+    return null;
+}
+
+/**
  * Calculate setup progress based on filled fields
  */
 function calculateSetupProgress(data: Partial<BusinessPersona>): SetupProgress {
@@ -181,12 +208,18 @@ export async function getBusinessPersonaAction(partnerId: string): Promise<{
         // If businessPersona exists, return it
         if (partnerData?.businessPersona) {
             // Serialize to convert Firestore Timestamps to plain objects
-            const persona = serializeForClient(partnerData.businessPersona) as BusinessPersona;
-            const progress = calculateSetupProgress(persona);
+            const rawPersona = serializeForClient(partnerData.businessPersona) as BusinessPersona;
+
+            // Normalize industry field in case it's stored in legacy string format
+            if (rawPersona.identity) {
+                rawPersona.identity.industry = normalizeIndustry(rawPersona.identity.industry);
+            }
+
+            const progress = calculateSetupProgress(rawPersona);
             return {
                 success: true,
                 message: 'Business persona retrieved',
-                persona,
+                persona: rawPersona,
                 setupProgress: progress,
             };
         }
@@ -195,7 +228,7 @@ export async function getBusinessPersonaAction(partnerId: string): Promise<{
         const basicPersona: Partial<BusinessPersona> = {
             identity: {
                 name: partnerData?.businessName || partnerData?.name || '',
-                industry: serializeForClient(partnerData?.industry) || null,
+                industry: normalizeIndustry(partnerData?.industry),
                 email: partnerData?.email || '',
                 phone: partnerData?.phone || '',
                 whatsAppNumber: partnerData?.whatsAppPhone || '',

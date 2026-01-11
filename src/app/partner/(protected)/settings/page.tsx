@@ -124,7 +124,16 @@ const SettingsUltimate = () => {
           setPersona(personaResult.persona);
           // Set initial business type from persona
           // Load saved business types (could be single category or array)
-          const savedCategory = personaResult.persona.identity?.industry?.category;
+          // Handle both old string-only format and new object format for industry
+          const industryField = personaResult.persona.identity?.industry;
+          let savedCategory: string | string[] | undefined;
+          if (typeof industryField === 'string') {
+            // Legacy format: industry is just a string like 'food_beverage'
+            savedCategory = industryField;
+          } else if (industryField && typeof industryField === 'object') {
+            // New format: industry is an object with category property
+            savedCategory = industryField.category;
+          }
           if (savedCategory) {
             // Support both old single-value and new multi-value format
             if (Array.isArray(savedCategory)) {
@@ -204,7 +213,10 @@ const SettingsUltimate = () => {
       const keys = path.split('.');
       let current: any = newData;
       for (let i = 0; i < keys.length - 1; i++) {
-        if (!current[keys[i]]) current[keys[i]] = {};
+        // If the current key doesn't exist or is a primitive (not an object), create a new object
+        if (!current[keys[i]] || typeof current[keys[i]] !== 'object' || current[keys[i]] === null) {
+          current[keys[i]] = {};
+        }
         current = current[keys[i]];
       }
       current[keys[keys.length - 1]] = value;
@@ -2482,11 +2494,11 @@ const SettingsUltimate = () => {
                                           <div className="flex items-center gap-2">
                                             <span className="text-lg">
                                               {field.inventoryType === 'properties' ? '🏠' :
-                                               field.inventoryType === 'products' ? '📦' :
-                                               field.inventoryType === 'menu' ? '🍽️' :
-                                               field.inventoryType === 'rooms' ? '🛏️' :
-                                               field.inventoryType === 'healthcare' ? '💊' :
-                                               field.inventoryType === 'diagnostics' ? '🔬' : '📋'}
+                                                field.inventoryType === 'products' ? '📦' :
+                                                  field.inventoryType === 'menu' ? '🍽️' :
+                                                    field.inventoryType === 'rooms' ? '🛏️' :
+                                                      field.inventoryType === 'healthcare' ? '💊' :
+                                                        field.inventoryType === 'diagnostics' ? '🔬' : '📋'}
                                             </span>
                                             <div>
                                               <p className="text-sm font-semibold text-slate-800">{field.label}</p>
@@ -2576,11 +2588,11 @@ const SettingsUltimate = () => {
                                             <p className="text-sm font-medium text-slate-800">Quick Add</p>
                                             <span className="px-2 py-0.5 bg-indigo-100 text-indigo-700 text-xs font-medium rounded">
                                               {field.inventoryType === 'properties' ? '🏠' :
-                                               field.inventoryType === 'products' ? '📦' :
-                                               field.inventoryType === 'menu' ? '🍽️' :
-                                               field.inventoryType === 'rooms' ? '🛏️' :
-                                               field.inventoryType === 'healthcare' ? '💊' :
-                                               field.inventoryType === 'diagnostics' ? '🔬' : '📋'}
+                                                field.inventoryType === 'products' ? '📦' :
+                                                  field.inventoryType === 'menu' ? '🍽️' :
+                                                    field.inventoryType === 'rooms' ? '🛏️' :
+                                                      field.inventoryType === 'healthcare' ? '💊' :
+                                                        field.inventoryType === 'diagnostics' ? '🔬' : '📋'}
                                             </span>
                                           </div>
 
@@ -3123,11 +3135,11 @@ const SettingsUltimate = () => {
                                           <div className="border-t border-slate-200 pt-3">
                                             <p className="text-xs font-medium text-slate-600 mb-2">
                                               {fieldValue.length} {field.inventoryType === 'properties' ? 'properties' :
-                                               field.inventoryType === 'products' ? 'products' :
-                                               field.inventoryType === 'menu' ? 'items' :
-                                               field.inventoryType === 'rooms' ? 'rooms' :
-                                               field.inventoryType === 'healthcare' ? 'services' :
-                                               field.inventoryType === 'diagnostics' ? 'tests' : 'items'}
+                                                field.inventoryType === 'products' ? 'products' :
+                                                  field.inventoryType === 'menu' ? 'items' :
+                                                    field.inventoryType === 'rooms' ? 'rooms' :
+                                                      field.inventoryType === 'healthcare' ? 'services' :
+                                                        field.inventoryType === 'diagnostics' ? 'tests' : 'items'}
                                             </p>
                                             <div className="space-y-1.5 max-h-32 overflow-y-auto">
                                               {fieldValue.slice(0, 5).map((item: any, idx: number) => (
