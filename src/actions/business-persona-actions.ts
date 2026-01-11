@@ -466,6 +466,121 @@ export async function saveBusinessPersonaAction(
 }
 
 /**
+ * Clear all business persona data - FULL REPLACE (not merge)
+ * This completely replaces the business persona with an empty template
+ */
+export async function clearBusinessPersonaAction(
+    partnerId: string
+): Promise<{
+    success: boolean;
+    message: string;
+    persona?: Partial<BusinessPersona>;
+}> {
+    if (!db) {
+        return { success: false, message: 'Database unavailable' };
+    }
+
+    try {
+        const partnerRef = db.collection('partners').doc(partnerId);
+        const partnerDoc = await partnerRef.get();
+
+        if (!partnerDoc.exists) {
+            return { success: false, message: 'Partner not found' };
+        }
+
+        // Create a completely fresh persona (no merge with existing)
+        const freshPersona: Partial<BusinessPersona> = {
+            identity: {
+                name: '',
+                businessName: '',
+                industry: 'custom',
+                phone: '',
+                email: '',
+                website: '',
+                address: {
+                    street: '',
+                    city: '',
+                    state: '',
+                    country: '',
+                    postalCode: '',
+                },
+                operatingHours: {},
+                socialMedia: {},
+            },
+            personality: {
+                voiceTone: 'professional',
+                description: '',
+                tagline: '',
+                uniqueSellingPoints: [],
+                escalationPreferences: {},
+            },
+            customerProfile: {
+                targetAudience: '',
+                commonQueries: [],
+                customerPainPoints: [],
+            },
+            knowledge: {
+                productsOrServices: [],
+                faqs: [],
+                policies: {},
+            },
+            // Clear ALL industry-specific data completely
+            industrySpecificData: {},
+            // Clear ALL inventory arrays
+            roomTypes: [],
+            menuItems: [],
+            menuCategories: [],
+            productCatalog: [],
+            propertyListings: [],
+            healthcareServices: [],
+            diagnosticTests: [],
+            // Clear other industry-specific objects
+            restaurantInfo: {},
+            hotelPolicies: {},
+            hotelAmenities: [],
+            // Reset metadata
+            setupProgress: {
+                completedSections: [],
+                totalSections: 6,
+                percentComplete: 0,
+                overallPercentage: 0,
+                nextStep: 'basicInfo',
+                sectionProgress: {
+                    basicInfo: false,
+                    contactInfo: false,
+                    operatingHours: false,
+                    businessDescription: false,
+                    productsServices: false,
+                    faqs: false,
+                },
+            },
+            updatedAt: new Date(),
+            createdAt: partnerDoc.data()?.businessPersona?.createdAt || new Date(),
+            version: (partnerDoc.data()?.businessPersona?.version || 0) + 1,
+        };
+
+        // FULL REPLACE - not merge
+        await partnerRef.update({
+            businessPersona: freshPersona,
+            aiProfileCompleteness: 0,
+            updatedAt: FieldValue.serverTimestamp(),
+        });
+
+        console.log(`✅ Business persona CLEARED for partner ${partnerId}`);
+
+        return {
+            success: true,
+            message: 'All business profile data has been cleared',
+            persona: freshPersona,
+        };
+
+    } catch (error: any) {
+        console.error('Error clearing business persona:', error);
+        return { success: false, message: `Failed to clear: ${error.message}` };
+    }
+}
+
+/**
  * Quick update for a specific section (for lazy updates)
  */
 export async function quickUpdatePersonaSection(

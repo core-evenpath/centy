@@ -4,7 +4,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/use-auth';
 import { getPartnerProfileAction } from '@/actions/get-partner-profile';
-import { getBusinessPersonaAction, saveBusinessPersonaAction } from '@/actions/business-persona-actions';
+import { getBusinessPersonaAction, saveBusinessPersonaAction, clearBusinessPersonaAction } from '@/actions/business-persona-actions';
 
 import { getPartnerInvitationCodesAction, generateEmployeeInvitationCodeAction, cancelInvitationCodeAction } from '@/actions/partner-invitation-management';
 import { searchBusinessesAction, autoFillProfileAction, getEmptyProfileAction, mapInventoryToPersonaAction, processForRAGAction } from '@/actions/business-autofill-actions';
@@ -1334,16 +1334,18 @@ const SettingsUltimate = () => {
 
                     <button
                       onClick={async () => {
-                        if (confirm('Are you sure you want to clear all business profile data? This cannot be undone.')) {
+                        if (confirm('Are you sure you want to clear all business profile data? This will remove ALL data including inventory, reviews, and industry-specific information. This cannot be undone.')) {
                           try {
-                            const result = await getEmptyProfileAction();
-                            if (result.success && result.profile) {
-                              setPersona(result.profile);
+                            // Use the dedicated clear function that does FULL REPLACE (not merge)
+                            const result = await clearBusinessPersonaAction(partnerId!);
+                            if (result.success && result.persona) {
+                              setPersona(result.persona);
                               setSelectedBusinessTypes([]);
-                              await saveBusinessPersonaAction(partnerId!, result.profile);
-                              toast.success('All profile data cleared');
                               setAutoFillSearch('');
                               setSelectedPlace(null);
+                              toast.success('All profile data has been cleared completely');
+                            } else {
+                              toast.error(result.message || 'Failed to clear data');
                             }
                           } catch (err: any) {
                             toast.error(err.message || 'Failed to clear data');

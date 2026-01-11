@@ -161,16 +161,33 @@ export async function mapInventoryToPersonaAction(
     };
 
     // Build personality - prioritize auto-fill data
+    // NOTE: description can come from personality.description OR identity.description
     const autoFillPersonality = autoFillData.personality as any;
+    const descriptionFromPersonality = autoFillPersonality?.description ? getString(autoFillPersonality.description) : '';
+    const descriptionFromIdentity = autoFillIdentity?.description ? getString(autoFillIdentity.description) : '';
+    const taglineFromPersonality = autoFillPersonality?.tagline ? getString(autoFillPersonality.tagline) : '';
+    const taglineFromIdentity = autoFillIdentity?.tagline ? getString(autoFillIdentity.tagline) : '';
+
+    // Use the best available description (prefer personality, fallback to identity)
+    const bestDescription = descriptionFromPersonality || descriptionFromIdentity || '';
+    const bestTagline = taglineFromPersonality || taglineFromIdentity || '';
+
     const mergedPersonality = {
       ...existingPersona.personality,
-      ...(autoFillPersonality?.description && { description: getString(autoFillPersonality.description) }),
-      ...(autoFillPersonality?.tagline && { tagline: getString(autoFillPersonality.tagline) }),
+      // Always set description if we have one from auto-fill (even if empty in personality but available in identity)
+      ...(bestDescription && { description: bestDescription }),
+      ...(bestTagline && { tagline: bestTagline }),
       ...(autoFillPersonality?.uniqueSellingPoints?.length && {
         uniqueSellingPoints: getStringArray(autoFillPersonality.uniqueSellingPoints)
       }),
       ...(autoFillPersonality?.voiceTone && { voiceTone: getString(autoFillPersonality.voiceTone) }),
     };
+
+    console.log('[MapInventory] Description mapping:', {
+      fromPersonality: descriptionFromPersonality?.substring(0, 50),
+      fromIdentity: descriptionFromIdentity?.substring(0, 50),
+      using: bestDescription?.substring(0, 50),
+    });
 
     // Build customer profile - prioritize auto-fill data
     const autoFillCustomerProfile = autoFillData.customerProfile as any;
