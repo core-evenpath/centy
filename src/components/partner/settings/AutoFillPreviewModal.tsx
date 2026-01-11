@@ -3,7 +3,7 @@
 import React, { useState, useMemo } from 'react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
-import { Check, ChevronDown, ChevronRight, X, Download, Globe, MapPin, Star, Building2, Package, Users, HelpCircle, Utensils, Bed, Home, Stethoscope, CheckSquare, Square, MinusSquare, GraduationCap, Sparkles, Dumbbell, Car, CalendarDays, Scale, Landmark, ExternalLink, AlertTriangle } from 'lucide-react';
+import { Check, ChevronDown, ChevronRight, X, Download, Globe, MapPin, Star, Building2, Package, Users, HelpCircle, Utensils, Bed, Home, Stethoscope, CheckSquare, Square, MinusSquare, GraduationCap, Sparkles, Dumbbell, Car, CalendarDays, Scale, Landmark, ExternalLink, AlertTriangle, IndianRupee, Tag } from 'lucide-react';
 
 // Types for selection tracking
 interface SelectionState {
@@ -39,11 +39,17 @@ interface SelectionState {
       uniqueSellingPoints: boolean;
       tagline: boolean;
     };
+    items: {
+      uniqueSellingPoints: boolean[];
+    };
   };
   customerProfile: {
     selected: boolean;
     fields: {
       targetAudience: boolean;
+    };
+    items: {
+      targetAudience: boolean[];
     };
   };
   knowledge: {
@@ -130,11 +136,17 @@ function initializeSelectionState(data: any): SelectionState {
         uniqueSellingPoints: (data?.personality?.uniqueSellingPoints?.length || 0) > 0,
         tagline: !!data?.personality?.tagline,
       },
+      items: {
+        uniqueSellingPoints: (data?.personality?.uniqueSellingPoints || []).map(() => true),
+      },
     },
     customerProfile: {
       selected: true,
       fields: {
         targetAudience: (data?.customerProfile?.targetAudience?.length || 0) > 0,
+      },
+      items: {
+        targetAudience: (data?.customerProfile?.targetAudience || []).map(() => true),
       },
     },
     knowledge: {
@@ -253,7 +265,9 @@ function buildSelectedData(data: any, selection: SelectionState): any {
   if (selection.personality.selected) {
     result.personality = {};
     if (selection.personality.fields.uniqueSellingPoints && data.personality?.uniqueSellingPoints?.length > 0) {
-      result.personality.uniqueSellingPoints = data.personality.uniqueSellingPoints;
+      result.personality.uniqueSellingPoints = data.personality.uniqueSellingPoints.filter(
+        (_: any, i: number) => selection.personality.items.uniqueSellingPoints[i]
+      );
     }
     if (selection.personality.fields.tagline && data.personality?.tagline) {
       result.personality.tagline = data.personality.tagline;
@@ -264,7 +278,9 @@ function buildSelectedData(data: any, selection: SelectionState): any {
   if (selection.customerProfile.selected) {
     result.customerProfile = {};
     if (selection.customerProfile.fields.targetAudience && data.customerProfile?.targetAudience?.length > 0) {
-      result.customerProfile.targetAudience = data.customerProfile.targetAudience;
+      result.customerProfile.targetAudience = data.customerProfile.targetAudience.filter(
+        (_: any, i: number) => selection.customerProfile.items.targetAudience[i]
+      );
     }
   }
 
@@ -466,6 +482,33 @@ function SelectableItem({
   );
 }
 
+// Price Tag - prominent pricing display
+function PriceTag({
+  price,
+  unit,
+  originalPrice,
+  className,
+}: {
+  price: number | string;
+  unit?: string;
+  originalPrice?: number;
+  className?: string;
+}) {
+  const formattedPrice = typeof price === 'number' ? price.toLocaleString('en-IN') : price;
+  return (
+    <div className={cn("flex items-center gap-1", className)}>
+      <span className="inline-flex items-center gap-0.5 px-2 py-0.5 bg-gradient-to-r from-orange-500 to-amber-500 text-white rounded-full text-xs font-bold shadow-sm">
+        <IndianRupee className="w-3 h-3" />
+        {formattedPrice}
+        {unit && <span className="font-normal opacity-90">/{unit}</span>}
+      </span>
+      {originalPrice && originalPrice > (typeof price === 'number' ? price : 0) && (
+        <span className="text-[10px] text-slate-400 line-through">₹{originalPrice.toLocaleString('en-IN')}</span>
+      )}
+    </div>
+  );
+}
+
 // Source Badge - shows where data came from
 function SourceBadge({ source }: { source: { platform: string; url?: string; confidence: string } }) {
   const platformColors: Record<string, string> = {
@@ -584,6 +627,18 @@ export default function AutoFillPreviewModal({
     // Reviews
     total += selection.reviews.items.length;
     if (selection.reviews.selected) selected += selection.reviews.items.filter(Boolean).length;
+
+    // USPs (individual items)
+    total += selection.personality.items.uniqueSellingPoints.length;
+    if (selection.personality.selected && selection.personality.fields.uniqueSellingPoints) {
+      selected += selection.personality.items.uniqueSellingPoints.filter(Boolean).length;
+    }
+
+    // Target Audience (individual items)
+    total += selection.customerProfile.items.targetAudience.length;
+    if (selection.customerProfile.selected && selection.customerProfile.fields.targetAudience) {
+      selected += selection.customerProfile.items.targetAudience.filter(Boolean).length;
+    }
 
     // Inventory items (existing + new types)
     const invItems = [
@@ -1079,9 +1134,42 @@ export default function AutoFillPreviewModal({
                   expanded={expandedSections.has('personality')}
                   onExpandToggle={() => toggleExpanded('personality')}
                 >
-                  <div className="flex flex-wrap gap-2 mt-3">
+                  <SelectAllControls
+                    items={selection.personality.items.uniqueSellingPoints}
+                    onSelectAll={() => setSelection(prev => ({
+                      ...prev,
+                      personality: {
+                        ...prev.personality,
+                        items: { ...prev.personality.items, uniqueSellingPoints: prev.personality.items.uniqueSellingPoints.map(() => true) }
+                      }
+                    }))}
+                    onDeselectAll={() => setSelection(prev => ({
+                      ...prev,
+                      personality: {
+                        ...prev.personality,
+                        items: { ...prev.personality.items, uniqueSellingPoints: prev.personality.items.uniqueSellingPoints.map(() => false) }
+                      }
+                    }))}
+                  />
+                  <div className="flex flex-wrap gap-2 mt-1">
                     {data.personality?.uniqueSellingPoints?.map((usp: string, i: number) => (
-                      <span key={i} className="px-2 py-1 bg-indigo-100 text-indigo-700 rounded-full text-xs">
+                      <span
+                        key={i}
+                        onClick={() => setSelection(prev => {
+                          const items = [...prev.personality.items.uniqueSellingPoints];
+                          items[i] = !items[i];
+                          return {
+                            ...prev,
+                            personality: { ...prev.personality, items: { ...prev.personality.items, uniqueSellingPoints: items } }
+                          };
+                        })}
+                        className={cn(
+                          "px-2 py-1 rounded-full text-xs cursor-pointer transition-all",
+                          selection.personality.items.uniqueSellingPoints[i] && selection.personality.selected
+                            ? "bg-indigo-100 text-indigo-700"
+                            : "bg-slate-100 text-slate-400 line-through"
+                        )}
+                      >
                         {usp}
                       </span>
                     ))}
@@ -1099,9 +1187,42 @@ export default function AutoFillPreviewModal({
                   expanded={expandedSections.has('customerProfile')}
                   onExpandToggle={() => toggleExpanded('customerProfile')}
                 >
-                  <div className="flex flex-wrap gap-2 mt-3">
+                  <SelectAllControls
+                    items={selection.customerProfile.items.targetAudience}
+                    onSelectAll={() => setSelection(prev => ({
+                      ...prev,
+                      customerProfile: {
+                        ...prev.customerProfile,
+                        items: { ...prev.customerProfile.items, targetAudience: prev.customerProfile.items.targetAudience.map(() => true) }
+                      }
+                    }))}
+                    onDeselectAll={() => setSelection(prev => ({
+                      ...prev,
+                      customerProfile: {
+                        ...prev.customerProfile,
+                        items: { ...prev.customerProfile.items, targetAudience: prev.customerProfile.items.targetAudience.map(() => false) }
+                      }
+                    }))}
+                  />
+                  <div className="flex flex-wrap gap-2 mt-1">
                     {data.customerProfile?.targetAudience?.map((audience: string, i: number) => (
-                      <span key={i} className="px-2 py-1 bg-green-100 text-green-700 rounded-full text-xs">
+                      <span
+                        key={i}
+                        onClick={() => setSelection(prev => {
+                          const items = [...prev.customerProfile.items.targetAudience];
+                          items[i] = !items[i];
+                          return {
+                            ...prev,
+                            customerProfile: { ...prev.customerProfile, items: { ...prev.customerProfile.items, targetAudience: items } }
+                          };
+                        })}
+                        className={cn(
+                          "px-2 py-1 rounded-full text-xs cursor-pointer transition-all",
+                          selection.customerProfile.items.targetAudience[i] && selection.customerProfile.selected
+                            ? "bg-green-100 text-green-700"
+                            : "bg-slate-100 text-slate-400 line-through"
+                        )}
+                      >
                         {audience}
                       </span>
                     ))}
@@ -1219,20 +1340,27 @@ export default function AutoFillPreviewModal({
           {/* Inventory Section */}
           {hasData('inventory') && (
             <SectionHeader
-              icon={Package}
-              title="Inventory Data"
+              icon={Tag}
+              title="Inventory & Pricing"
               count={
                 (data.inventory?.rooms?.length || 0) +
                 (data.inventory?.menuItems?.length || 0) +
                 (data.inventory?.products?.length || 0) +
                 (data.inventory?.services?.length || 0) +
-                (data.inventory?.properties?.length || 0)
+                (data.inventory?.properties?.length || 0) +
+                (data.inventory?.courses?.length || 0) +
+                (data.inventory?.treatments?.length || 0) +
+                (data.inventory?.memberships?.length || 0) +
+                (data.inventory?.vehicles?.length || 0) +
+                (data.inventory?.venuePackages?.length || 0) +
+                (data.inventory?.legalServices?.length || 0) +
+                (data.inventory?.financialProducts?.length || 0)
               }
               selected={selection.inventory.selected}
               onToggle={() => toggleSection('inventory')}
               expanded={expandedSections.has('inventory')}
               onExpandToggle={() => toggleExpanded('inventory')}
-              badge="Ready for Import"
+              badge="What They Sell"
             >
               {/* Rooms */}
               {data.inventory?.rooms?.length > 0 && (
@@ -1270,9 +1398,7 @@ export default function AutoFillPreviewModal({
                             {room.category && <span className="ml-2 text-xs text-slate-500">({room.category})</span>}
                           </div>
                           {room.price && (
-                            <span className="font-semibold text-sm text-orange-600">
-                              ₹{room.price?.toLocaleString()}{room.priceUnit ? `/${room.priceUnit}` : '/night'}
-                            </span>
+                            <PriceTag price={room.price} unit={room.priceUnit || 'night'} />
                           )}
                         </div>
                         <div className="text-xs text-slate-500 mt-0.5">
@@ -1323,7 +1449,7 @@ export default function AutoFillPreviewModal({
                             )}
                             <span className="font-medium text-xs text-slate-800">{item.name}</span>
                           </div>
-                          {item.price && <span className="font-semibold text-xs text-orange-600">₹{item.price}</span>}
+                          {item.price && <PriceTag price={item.price} />}
                         </div>
                         {item.category && <div className="text-[10px] text-slate-500">{item.category}</div>}
                       </SelectableItem>
@@ -1364,10 +1490,7 @@ export default function AutoFillPreviewModal({
                       >
                         <div className="font-medium text-xs text-slate-800">{product.name}</div>
                         <div className="flex items-center gap-2 mt-0.5">
-                          {product.price && <span className="font-semibold text-xs text-orange-600">₹{product.price}</span>}
-                          {product.mrp && product.mrp > product.price && (
-                            <span className="text-[10px] text-slate-400 line-through">₹{product.mrp}</span>
-                          )}
+                          {product.price && <PriceTag price={product.price} originalPrice={product.mrp} />}
                         </div>
                         {product.brand && <div className="text-[10px] text-slate-500">{product.brand}</div>}
                       </SelectableItem>
@@ -1411,7 +1534,7 @@ export default function AutoFillPreviewModal({
                             <span className="font-medium text-xs text-slate-800">{service.name}</span>
                             {service.category && <span className="ml-2 text-[10px] text-slate-500">({service.category})</span>}
                           </div>
-                          {service.price && <span className="font-semibold text-xs text-orange-600">₹{service.price}</span>}
+                          {service.price && <PriceTag price={service.price} />}
                         </div>
                         {service.doctor && <div className="text-[10px] text-slate-500">{service.doctor}</div>}
                       </SelectableItem>
@@ -1456,9 +1579,7 @@ export default function AutoFillPreviewModal({
                             {property.type && <span className="ml-2 text-[10px] text-slate-500">({property.type})</span>}
                           </div>
                           {property.price && (
-                            <span className="font-semibold text-xs text-orange-600">
-                              ₹{property.price?.toLocaleString()}{property.priceUnit === 'per month' ? '/mo' : ''}
-                            </span>
+                            <PriceTag price={property.price} unit={property.priceUnit === 'per month' ? 'mo' : undefined} />
                           )}
                         </div>
                         <div className="text-[10px] text-slate-500 mt-0.5">
@@ -1509,9 +1630,7 @@ export default function AutoFillPreviewModal({
                             {course.type && <span className="ml-2 text-[10px] text-slate-500">({course.type})</span>}
                           </div>
                           {course.fee && (
-                            <span className="font-semibold text-xs text-orange-600">
-                              ₹{course.fee?.toLocaleString()}{course.feeStructure ? `/${course.feeStructure}` : ''}
-                            </span>
+                            <PriceTag price={course.fee} unit={course.feeStructure} />
                           )}
                         </div>
                         <div className="text-[10px] text-slate-500 mt-0.5">
@@ -1558,7 +1677,7 @@ export default function AutoFillPreviewModal({
                       >
                         <div className="flex justify-between items-start">
                           <span className="font-medium text-xs text-slate-800">{treatment.name}</span>
-                          {treatment.price && <span className="font-semibold text-xs text-orange-600">₹{treatment.price}</span>}
+                          {treatment.price && <PriceTag price={treatment.price} />}
                         </div>
                         <div className="text-[10px] text-slate-500">
                           {[treatment.category, treatment.duration].filter(Boolean).join(' • ')}
@@ -1608,9 +1727,7 @@ export default function AutoFillPreviewModal({
                             {membership.type && <span className="ml-2 text-[10px] text-slate-500">({membership.type})</span>}
                           </div>
                           {membership.price && (
-                            <span className="font-semibold text-xs text-orange-600">
-                              ₹{membership.price?.toLocaleString()}{membership.validity ? `/${membership.validity}` : ''}
-                            </span>
+                            <PriceTag price={membership.price} unit={membership.validity} />
                           )}
                         </div>
                         {membership.inclusions?.length > 0 && (
@@ -1661,9 +1778,7 @@ export default function AutoFillPreviewModal({
                             {vehicle.variant && <span className="ml-2 text-[10px] text-slate-500">({vehicle.variant})</span>}
                           </div>
                           {vehicle.price && (
-                            <span className="font-semibold text-xs text-orange-600">
-                              ₹{vehicle.price?.toLocaleString()}{vehicle.priceType ? ` (${vehicle.priceType})` : ''}
-                            </span>
+                            <PriceTag price={vehicle.price} unit={vehicle.priceType} />
                           )}
                         </div>
                         <div className="text-[10px] text-slate-500 mt-0.5">
@@ -1714,9 +1829,7 @@ export default function AutoFillPreviewModal({
                             {pkg.type && <span className="ml-2 text-[10px] text-slate-500">({pkg.type})</span>}
                           </div>
                           {pkg.price && (
-                            <span className="font-semibold text-xs text-orange-600">
-                              ₹{pkg.price?.toLocaleString()}{pkg.priceUnit ? `/${pkg.priceUnit}` : ''}
-                            </span>
+                            <PriceTag price={pkg.price} unit={pkg.priceUnit} />
                           )}
                         </div>
                         <div className="text-[10px] text-slate-500 mt-0.5">
@@ -1768,7 +1881,7 @@ export default function AutoFillPreviewModal({
                             {service.category && <span className="ml-2 text-[10px] text-slate-500">({service.category})</span>}
                           </div>
                           {service.consultationFee && (
-                            <span className="font-semibold text-xs text-orange-600">₹{service.consultationFee} consultation</span>
+                            <PriceTag price={service.consultationFee} unit="consult" />
                           )}
                         </div>
                         {service.estimatedFee && (
@@ -1819,12 +1932,14 @@ export default function AutoFillPreviewModal({
                             {product.type && <span className="ml-2 text-[10px] text-slate-500">({product.type})</span>}
                           </div>
                           {product.interestRate && (
-                            <span className="font-semibold text-xs text-orange-600">{product.interestRate}</span>
+                            <span className="inline-flex items-center gap-0.5 px-2 py-0.5 bg-gradient-to-r from-green-500 to-emerald-500 text-white rounded-full text-xs font-bold shadow-sm">
+                              {product.interestRate}
+                            </span>
                           )}
                         </div>
                         <div className="text-[10px] text-slate-500 mt-0.5">
                           {product.tenure && `Tenure: ${product.tenure}`}
-                          {product.minAmount && product.maxAmount && ` • ₹${product.minAmount.toLocaleString()} - ₹${product.maxAmount.toLocaleString()}`}
+                          {product.minAmount && product.maxAmount && ` • ₹${product.minAmount.toLocaleString('en-IN')} - ₹${product.maxAmount.toLocaleString('en-IN')}`}
                         </div>
                         {product._source && (
                           <SourceBadge source={product._source} />
