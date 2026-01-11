@@ -240,7 +240,7 @@ function InventoryCard({
 }: {
   name: string;
   category?: string;
-  price?: number;
+  price?: number | { value?: number; unit?: string } | string;
   priceUnit?: string;
   description?: string;
   details?: string;
@@ -249,6 +249,30 @@ function InventoryCard({
   onRemove?: () => void;
 }) {
   const IconComponent = Icon || Package;
+
+  // Safely extract price value and unit
+  const getPriceDisplay = () => {
+    if (price === undefined || price === null) return null;
+
+    let priceValue: number | undefined;
+    let unit = priceUnit;
+
+    if (typeof price === 'object' && price !== null) {
+      priceValue = price.value;
+      unit = price.unit || priceUnit;
+    } else if (typeof price === 'number') {
+      priceValue = price;
+    } else if (typeof price === 'string') {
+      priceValue = parseFloat(price);
+      if (isNaN(priceValue)) return null;
+    }
+
+    if (priceValue === undefined) return null;
+
+    return { value: priceValue, unit };
+  };
+
+  const priceDisplay = getPriceDisplay();
 
   return (
     <div className="group relative p-4 bg-slate-50 rounded-lg border border-slate-100 hover:border-slate-200 transition-colors">
@@ -260,26 +284,28 @@ function InventoryCard({
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2">
               <h4 className="font-medium text-sm text-slate-800 truncate">{name}</h4>
-              {category && (
+              {category && typeof category === 'string' && (
                 <span className="px-2 py-0.5 bg-slate-200 text-slate-600 rounded text-[10px] uppercase tracking-wide">
                   {category}
                 </span>
               )}
             </div>
-            {description && (
+            {description && typeof description === 'string' && (
               <p className="text-xs text-slate-500 mt-1 line-clamp-2">{description}</p>
             )}
-            {details && (
+            {details && typeof details === 'string' && (
               <p className="text-xs text-slate-400 mt-1">{details}</p>
             )}
           </div>
         </div>
-        {price !== undefined && (
+        {priceDisplay && (
           <div className="flex-shrink-0">
             <span className="inline-flex items-center gap-0.5 px-2.5 py-1 bg-gradient-to-r from-orange-500 to-amber-500 text-white rounded-full text-xs font-bold shadow-sm">
               <IndianRupee className="w-3 h-3" />
-              {price.toLocaleString('en-IN')}
-              {priceUnit && <span className="font-normal opacity-90">/{priceUnit}</span>}
+              {priceDisplay.value.toLocaleString('en-IN')}
+              {priceDisplay.unit && typeof priceDisplay.unit === 'string' && (
+                <span className="font-normal opacity-90">/{priceDisplay.unit}</span>
+              )}
             </span>
           </div>
         )}
@@ -879,7 +905,7 @@ export default function BusinessProfileView({
                 <div className="flex flex-wrap gap-2">
                   {persona.customerProfile.commonQueries.map((query, i) => (
                     <span key={i} className="px-2 py-1 bg-slate-100 text-slate-600 rounded-full text-xs">
-                      {query}
+                      {typeof query === 'string' ? query : (typeof query === 'object' ? JSON.stringify(query) : String(query))}
                     </span>
                   ))}
                 </div>
@@ -912,18 +938,43 @@ export default function BusinessProfileView({
                   </button>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                  {category.data.slice(0, 9).map((item: any, index: number) => (
-                    <InventoryCard
-                      key={index}
-                      name={item.name || item.title || `Item ${index + 1}`}
-                      category={item.category || item.type}
-                      price={item.price || item.fee || item.rate}
-                      priceUnit={item.priceUnit || item.feeStructure}
-                      description={item.description}
-                      details={item.duration || item.size || item.area}
-                      icon={category.icon}
-                    />
-                  ))}
+                  {category.data.slice(0, 9).map((item: any, index: number) => {
+                    // Safely extract string values
+                    const getName = () => {
+                      const val = item.name || item.title;
+                      if (typeof val === 'string') return val;
+                      if (typeof val === 'object' && val !== null) return val.name || val.title || val.text || `Item ${index + 1}`;
+                      return `Item ${index + 1}`;
+                    };
+                    const getCategory = () => {
+                      const val = item.category || item.type;
+                      if (typeof val === 'string') return val;
+                      return undefined;
+                    };
+                    const getDescription = () => {
+                      const val = item.description;
+                      if (typeof val === 'string') return val;
+                      return undefined;
+                    };
+                    const getDetails = () => {
+                      const val = item.duration || item.size || item.area;
+                      if (typeof val === 'string') return val;
+                      if (typeof val === 'number') return String(val);
+                      return undefined;
+                    };
+                    return (
+                      <InventoryCard
+                        key={index}
+                        name={getName()}
+                        category={getCategory()}
+                        price={item.price || item.fee || item.rate}
+                        priceUnit={typeof (item.priceUnit || item.feeStructure) === 'string' ? (item.priceUnit || item.feeStructure) : undefined}
+                        description={getDescription()}
+                        details={getDetails()}
+                        icon={category.icon}
+                      />
+                    );
+                  })}
                 </div>
                 {category.data.length > 9 && (
                   <button className="mt-3 text-sm text-blue-600 hover:text-blue-700">
@@ -948,10 +999,10 @@ export default function BusinessProfileView({
             {persona.knowledge.productsOrServices.map((item, index) => (
               <InventoryCard
                 key={index}
-                name={item.name}
-                category={item.category}
+                name={typeof item.name === 'string' ? item.name : `Item ${index + 1}`}
+                category={typeof item.category === 'string' ? item.category : undefined}
                 price={item.price}
-                description={item.description}
+                description={typeof item.description === 'string' ? item.description : undefined}
                 icon={Package}
               />
             ))}
@@ -970,8 +1021,12 @@ export default function BusinessProfileView({
           <div className="space-y-3">
             {persona.knowledge.faqs.map((faq, index) => (
               <div key={index} className="p-4 bg-slate-50 rounded-lg">
-                <h4 className="font-medium text-slate-800 mb-2">{faq.question}</h4>
-                <p className="text-sm text-slate-600">{faq.answer}</p>
+                <h4 className="font-medium text-slate-800 mb-2">
+                  {typeof faq.question === 'string' ? faq.question : `Question ${index + 1}`}
+                </h4>
+                <p className="text-sm text-slate-600">
+                  {typeof faq.answer === 'string' ? faq.answer : (typeof faq.answer === 'object' ? JSON.stringify(faq.answer) : String(faq.answer || ''))}
+                </p>
               </div>
             ))}
           </div>
@@ -988,22 +1043,27 @@ export default function BusinessProfileView({
           defaultExpanded={false}
         >
           <div className="space-y-4">
-            {persona.industrySpecificData.fetchedReviews.slice(0, 5).map((review: any, index: number) => (
-              <div key={index} className="p-4 bg-slate-50 rounded-lg">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="font-medium text-sm text-slate-800">{review.author || 'Anonymous'}</span>
-                  <div className="flex items-center gap-1">
-                    {[...Array(5)].map((_, i) => (
-                      <Star
-                        key={i}
-                        className={cn("w-3 h-3", i < (review.rating || 0) ? "text-yellow-400 fill-yellow-400" : "text-slate-300")}
-                      />
-                    ))}
+            {persona.industrySpecificData.fetchedReviews.slice(0, 5).map((review: any, index: number) => {
+              const author = typeof review.author === 'string' ? review.author : 'Anonymous';
+              const text = typeof review.text === 'string' ? review.text : (typeof review.text === 'object' ? JSON.stringify(review.text) : '');
+              const rating = typeof review.rating === 'number' ? review.rating : 0;
+              return (
+                <div key={index} className="p-4 bg-slate-50 rounded-lg">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="font-medium text-sm text-slate-800">{author}</span>
+                    <div className="flex items-center gap-1">
+                      {[...Array(5)].map((_, i) => (
+                        <Star
+                          key={i}
+                          className={cn("w-3 h-3", i < rating ? "text-yellow-400 fill-yellow-400" : "text-slate-300")}
+                        />
+                      ))}
+                    </div>
                   </div>
+                  <p className="text-sm text-slate-600 line-clamp-3">{text}</p>
                 </div>
-                <p className="text-sm text-slate-600 line-clamp-3">{review.text}</p>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </SectionCard>
       ) : null}
