@@ -30,6 +30,113 @@ interface SearchResult {
     message?: string;
 }
 
+export interface AddressSuggestion {
+    id: string;
+    mainText: string;
+    secondaryText?: string;
+    displayName: string;
+    type?: string;
+    placeId?: string;
+}
+
+interface SuggestionsResult {
+    success: boolean;
+    suggestions?: AddressSuggestion[];
+    message?: string;
+}
+
+/**
+ * Gets address/business suggestions based on user input query.
+ * Uses AI to generate realistic suggestions for businesses and places.
+ */
+export async function getAddressSuggestionsAction(
+    query: string
+): Promise<SuggestionsResult> {
+    try {
+        if (!query || query.length < 2) {
+            return { success: true, suggestions: [] };
+        }
+
+        const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
+
+        const suggestionsPrompt = `You are a business/place search autocomplete assistant. Generate 5-8 realistic business or place suggestions based on this search query.
+
+Search Query: "${query}"
+
+Return a JSON array of suggestions. Each suggestion should include:
+- id: unique identifier
+- mainText: The primary name of the business/place
+- secondaryText: Address or location details
+- displayName: Full display name (mainText + location context)
+- type: Category like "Restaurant", "Retail Store", "Cafe", "Salon", "Clinic", "Hotel", etc.
+
+Consider that the user might be searching for:
+1. A specific business name
+2. A type of business + location (e.g., "coffee shop in Mumbai")
+3. A neighborhood or area + business type
+4. Just a business type (suggest popular/common ones)
+
+Make the suggestions diverse and realistic. Include:
+- Different business types if the query is generic
+- Specific locations if the query mentions an area
+- Well-known chains and local businesses mix
+
+Return ONLY a valid JSON array, no markdown:
+[
+  {
+    "id": "1",
+    "mainText": "Starbucks",
+    "secondaryText": "Koramangala, Bangalore",
+    "displayName": "Starbucks, Koramangala, Bangalore",
+    "type": "Cafe"
+  }
+]`;
+
+        const result = await model.generateContent(suggestionsPrompt);
+        const response = result.response.text();
+
+        // Parse the JSON response
+        let suggestions: AddressSuggestion[];
+        try {
+            const cleanedResponse = response
+                .replace(/```json\n?/g, '')
+                .replace(/```\n?/g, '')
+                .trim();
+
+            suggestions = JSON.parse(cleanedResponse);
+        } catch (parseError) {
+            console.error('Failed to parse suggestions:', parseError);
+            return { success: true, suggestions: [] };
+        }
+
+        // Validate array
+        if (!Array.isArray(suggestions)) {
+            return { success: true, suggestions: [] };
+        }
+
+        // Ensure proper structure
+        suggestions = suggestions.map((s, i) => ({
+            id: s.id || `suggestion-${i}`,
+            mainText: s.mainText || query,
+            secondaryText: s.secondaryText || '',
+            displayName: s.displayName || s.mainText || query,
+            type: s.type || 'Business',
+        }));
+
+        return {
+            success: true,
+            suggestions: suggestions.slice(0, 8), // Max 8 suggestions
+        };
+
+    } catch (error: any) {
+        console.error('Suggestions error:', error);
+        return {
+            success: true,
+            suggestions: [], // Return empty on error, don't fail
+        };
+    }
+}
+
 /**
  * Searches for business information and uses AI to research and extract
  * comprehensive data for the business profile knowledge base.

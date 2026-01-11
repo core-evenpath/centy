@@ -1,10 +1,9 @@
 "use client";
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import {
@@ -13,14 +12,9 @@ import {
     Loader2,
     MapPin,
     Building2,
-    Phone,
-    Mail,
-    Globe,
     Clock,
     Star,
-    MessageSquare,
     ThumbsUp,
-    ThumbsDown,
     AlertTriangle,
     CheckCircle2,
     X,
@@ -28,14 +22,20 @@ import {
     ChevronUp,
     Zap,
     FileText,
-    Users,
     DollarSign,
     Award,
     HelpCircle,
     ExternalLink,
     Import,
+    Globe,
 } from 'lucide-react';
-import { searchBusinessAndResearchAction, type BusinessResearchResult, type ResearchDataItem } from '@/actions/business-autofill-actions';
+import {
+    searchBusinessAndResearchAction,
+    getAddressSuggestionsAction,
+    type BusinessResearchResult,
+    type ResearchDataItem,
+    type AddressSuggestion
+} from '@/actions/business-autofill-actions';
 import type { BusinessPersona } from '@/lib/business-persona-types';
 
 interface AutoFillBusinessProfileProps {
@@ -63,15 +63,97 @@ export default function AutoFillBusinessProfile({
     const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set(['identity', 'contact', 'services', 'reviews_positive']));
     const [error, setError] = useState<string | null>(null);
 
-    const handleSearch = async () => {
-        if (!searchQuery.trim()) return;
+    // Auto-suggest state
+    const [suggestions, setSuggestions] = useState<AddressSuggestion[]>([]);
+    const [showSuggestions, setShowSuggestions] = useState(false);
+    const [isLoadingSuggestions, setIsLoadingSuggestions] = useState(false);
+    const suggestionsRef = useRef<HTMLDivElement>(null);
+    const inputRef = useRef<HTMLInputElement>(null);
+    const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+    // Debounced suggestion fetch
+    const fetchSuggestions = useCallback(async (query: string) => {
+        if (query.length < 2) {
+            setSuggestions([]);
+            setShowSuggestions(false);
+            return;
+        }
+
+        setIsLoadingSuggestions(true);
+        try {
+            const result = await getAddressSuggestionsAction(query);
+            if (result.success && result.suggestions) {
+                setSuggestions(result.suggestions);
+                setShowSuggestions(true);
+            }
+        } catch (err) {
+            console.error('Failed to fetch suggestions:', err);
+        } finally {
+            setIsLoadingSuggestions(false);
+        }
+    }, []);
+
+    // Handle input change with debounce
+    const handleInputChange = (value: string) => {
+        setSearchQuery(value);
+
+        // Clear previous timer
+        if (debounceTimerRef.current) {
+            clearTimeout(debounceTimerRef.current);
+        }
+
+        // Set new debounced timer
+        debounceTimerRef.current = setTimeout(() => {
+            fetchSuggestions(value);
+        }, 300);
+    };
+
+    // Handle suggestion selection
+    const handleSuggestionSelect = (suggestion: AddressSuggestion) => {
+        setSearchQuery(suggestion.displayName);
+        setShowSuggestions(false);
+        setSuggestions([]);
+        // Auto-trigger search
+        handleSearch(suggestion.displayName);
+    };
+
+    // Close suggestions when clicking outside
+    useEffect(() => {
+        const handleClickOutside = (event: MouseEvent) => {
+            if (
+                suggestionsRef.current &&
+                !suggestionsRef.current.contains(event.target as Node) &&
+                inputRef.current &&
+                !inputRef.current.contains(event.target as Node)
+            ) {
+                setShowSuggestions(false);
+            }
+        };
+
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, []);
+
+    // Cleanup debounce timer
+    useEffect(() => {
+        return () => {
+            if (debounceTimerRef.current) {
+                clearTimeout(debounceTimerRef.current);
+            }
+        };
+    }, []);
+
+    const handleSearch = async (query?: string) => {
+        const searchTerm = query || searchQuery;
+        if (!searchTerm.trim()) return;
 
         setIsSearching(true);
         setError(null);
         setSearchResults(null);
+        setShowSuggestions(false);
 
         try {
-            const result = await searchBusinessAndResearchAction(partnerId, searchQuery);
+            const result = await searchBusinessAndResearchAction(partnerId, searchTerm);
 
             if (result.success && result.data) {
                 setSearchResults(result.data);
@@ -250,7 +332,7 @@ export default function AutoFillBusinessProfile({
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl max-h-[90vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-200">
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl h-[90vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-200">
                 {/* Header */}
                 <div className="shrink-0 px-6 py-4 border-b border-slate-200 bg-gradient-to-r from-indigo-600 to-purple-600">
                     <div className="flex items-center justify-between">
@@ -274,24 +356,80 @@ export default function AutoFillBusinessProfile({
                     </div>
                 </div>
 
-                {/* Search Section */}
+                {/* Search Section with Auto-suggest */}
                 <div className="shrink-0 px-6 py-4 border-b border-slate-100 bg-slate-50">
                     <div className="flex gap-3">
                         <div className="relative flex-1">
-                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 z-10" />
                             <Input
+                                ref={inputRef}
                                 value={searchQuery}
-                                onChange={(e) => setSearchQuery(e.target.value)}
-                                onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+                                onChange={(e) => handleInputChange(e.target.value)}
+                                onKeyDown={(e) => {
+                                    if (e.key === 'Enter') {
+                                        setShowSuggestions(false);
+                                        handleSearch();
+                                    }
+                                    if (e.key === 'Escape') {
+                                        setShowSuggestions(false);
+                                    }
+                                }}
+                                onFocus={() => {
+                                    if (suggestions.length > 0) {
+                                        setShowSuggestions(true);
+                                    }
+                                }}
                                 placeholder="Search your business name or location..."
                                 className="pl-10 h-11"
                                 disabled={isSearching}
                             />
+
+                            {/* Auto-suggest Dropdown */}
+                            {showSuggestions && (suggestions.length > 0 || isLoadingSuggestions) && (
+                                <div
+                                    ref={suggestionsRef}
+                                    className="absolute top-full left-0 right-0 mt-1 bg-white rounded-xl border border-slate-200 shadow-lg z-50 overflow-hidden"
+                                >
+                                    {isLoadingSuggestions ? (
+                                        <div className="px-4 py-3 flex items-center gap-2 text-slate-500">
+                                            <Loader2 className="w-4 h-4 animate-spin" />
+                                            <span className="text-sm">Searching...</span>
+                                        </div>
+                                    ) : (
+                                        <div className="max-h-64 overflow-y-auto">
+                                            {suggestions.map((suggestion, index) => (
+                                                <button
+                                                    key={suggestion.id || index}
+                                                    onClick={() => handleSuggestionSelect(suggestion)}
+                                                    className="w-full px-4 py-3 flex items-start gap-3 hover:bg-slate-50 transition-colors text-left border-b border-slate-100 last:border-b-0"
+                                                >
+                                                    <MapPin className="w-4 h-4 text-indigo-500 mt-0.5 shrink-0" />
+                                                    <div className="flex-1 min-w-0">
+                                                        <p className="font-medium text-sm text-slate-900 truncate">
+                                                            {suggestion.mainText}
+                                                        </p>
+                                                        {suggestion.secondaryText && (
+                                                            <p className="text-xs text-slate-500 truncate mt-0.5">
+                                                                {suggestion.secondaryText}
+                                                            </p>
+                                                        )}
+                                                    </div>
+                                                    {suggestion.type && (
+                                                        <Badge variant="secondary" className="text-[10px] shrink-0">
+                                                            {suggestion.type}
+                                                        </Badge>
+                                                    )}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+                            )}
                         </div>
                         <Button
-                            onClick={handleSearch}
+                            onClick={() => handleSearch()}
                             disabled={isSearching || !searchQuery.trim()}
-                            className="h-11 px-6 bg-indigo-600 hover:bg-indigo-700"
+                            className="h-11 px-6 bg-indigo-600 hover:bg-indigo-700 shrink-0"
                         >
                             {isSearching ? (
                                 <>
@@ -307,255 +445,257 @@ export default function AutoFillBusinessProfile({
                         </Button>
                     </div>
                     <p className="text-xs text-slate-500 mt-2">
-                        Enter your business name, address, or location to find publicly available information
+                        Start typing to see suggestions, or enter your business name and location
                     </p>
                 </div>
 
-                {/* Results Section */}
-                <ScrollArea className="flex-1 p-6">
-                    {/* Loading State */}
-                    {isSearching && (
-                        <div className="flex flex-col items-center justify-center py-12 text-center">
-                            <div className="w-16 h-16 rounded-full bg-indigo-100 flex items-center justify-center mb-4">
-                                <Loader2 className="w-8 h-8 text-indigo-600 animate-spin" />
-                            </div>
-                            <h3 className="font-semibold text-slate-900 mb-2">Researching your business...</h3>
-                            <p className="text-sm text-slate-500 max-w-md">
-                                AI is searching the web for your business information. This may take a few moments.
-                            </p>
-                        </div>
-                    )}
-
-                    {/* Error State */}
-                    {error && !isSearching && (
-                        <div className="flex flex-col items-center justify-center py-12 text-center">
-                            <div className="w-16 h-16 rounded-full bg-red-100 flex items-center justify-center mb-4">
-                                <AlertTriangle className="w-8 h-8 text-red-600" />
-                            </div>
-                            <h3 className="font-semibold text-slate-900 mb-2">Search Failed</h3>
-                            <p className="text-sm text-slate-500 max-w-md">{error}</p>
-                            <Button
-                                variant="outline"
-                                onClick={() => setError(null)}
-                                className="mt-4"
-                            >
-                                Try Again
-                            </Button>
-                        </div>
-                    )}
-
-                    {/* Empty State */}
-                    {!searchResults && !isSearching && !error && (
-                        <div className="flex flex-col items-center justify-center py-12 text-center">
-                            <div className="w-16 h-16 rounded-full bg-slate-100 flex items-center justify-center mb-4">
-                                <Search className="w-8 h-8 text-slate-400" />
-                            </div>
-                            <h3 className="font-semibold text-slate-900 mb-2">Search for your business</h3>
-                            <p className="text-sm text-slate-500 max-w-md">
-                                Enter your business name or location above to automatically find and fill your profile with publicly available information.
-                            </p>
-                        </div>
-                    )}
-
-                    {/* Results */}
-                    {searchResults && !isSearching && (
-                        <div className="space-y-4">
-                            {/* Business Summary Header */}
-                            {searchResults.businessName && (
-                                <div className="p-4 bg-indigo-50 rounded-xl border border-indigo-100">
-                                    <div className="flex items-start gap-3">
-                                        <div className="w-12 h-12 rounded-xl bg-indigo-600 flex items-center justify-center text-white font-bold text-lg shrink-0">
-                                            {searchResults.businessName.charAt(0)}
-                                        </div>
-                                        <div className="flex-1 min-w-0">
-                                            <h3 className="font-bold text-slate-900 text-lg">{searchResults.businessName}</h3>
-                                            {searchResults.summary && (
-                                                <p className="text-sm text-slate-600 mt-1 line-clamp-2">{searchResults.summary}</p>
-                                            )}
-                                            {searchResults.rating && (
-                                                <div className="flex items-center gap-2 mt-2">
-                                                    <div className="flex items-center gap-1">
-                                                        <Star className="w-4 h-4 text-yellow-500 fill-yellow-500" />
-                                                        <span className="font-semibold text-sm">{searchResults.rating}</span>
-                                                    </div>
-                                                    {searchResults.reviewCount && (
-                                                        <span className="text-xs text-slate-500">
-                                                            ({searchResults.reviewCount} reviews)
-                                                        </span>
-                                                    )}
-                                                </div>
-                                            )}
-                                        </div>
-                                    </div>
+                {/* Results Section - Fixed height with overflow scroll */}
+                <div className="flex-1 overflow-y-auto min-h-0">
+                    <div className="p-6">
+                        {/* Loading State */}
+                        {isSearching && (
+                            <div className="flex flex-col items-center justify-center py-12 text-center">
+                                <div className="w-16 h-16 rounded-full bg-indigo-100 flex items-center justify-center mb-4">
+                                    <Loader2 className="w-8 h-8 text-indigo-600 animate-spin" />
                                 </div>
-                            )}
-
-                            {/* Selection Summary */}
-                            <div className="flex items-center justify-between p-3 bg-slate-100 rounded-lg">
-                                <span className="text-sm text-slate-600">
-                                    <strong>{selectedCount}</strong> of {totalCount} items selected
-                                </span>
-                                <div className="flex gap-2">
-                                    <Button
-                                        variant="ghost"
-                                        size="sm"
-                                        onClick={() => setSelectedItems(new Set(searchResults.items.filter(i => !i.isNegative).map(i => i.id)))}
-                                        className="text-xs"
-                                    >
-                                        Select Positive
-                                    </Button>
-                                    <Button
-                                        variant="ghost"
-                                        size="sm"
-                                        onClick={() => setSelectedItems(new Set(searchResults.items.map(i => i.id)))}
-                                        className="text-xs"
-                                    >
-                                        Select All
-                                    </Button>
-                                    <Button
-                                        variant="ghost"
-                                        size="sm"
-                                        onClick={() => setSelectedItems(new Set())}
-                                        className="text-xs"
-                                    >
-                                        Clear All
-                                    </Button>
-                                </div>
+                                <h3 className="font-semibold text-slate-900 mb-2">Researching your business...</h3>
+                                <p className="text-sm text-slate-500 max-w-md">
+                                    AI is searching the web for your business information. This may take a few moments.
+                                </p>
                             </div>
+                        )}
 
-                            {/* Grouped Items */}
-                            <div className="space-y-3">
-                                {groupedItems.map((group) => {
-                                    const isExpanded = expandedCategories.has(group.id);
-                                    const selectedInGroup = group.items.filter(item => selectedItems.has(item.id)).length;
-                                    const isNegativeGroup = group.id === 'reviews_negative';
+                        {/* Error State */}
+                        {error && !isSearching && (
+                            <div className="flex flex-col items-center justify-center py-12 text-center">
+                                <div className="w-16 h-16 rounded-full bg-red-100 flex items-center justify-center mb-4">
+                                    <AlertTriangle className="w-8 h-8 text-red-600" />
+                                </div>
+                                <h3 className="font-semibold text-slate-900 mb-2">Search Failed</h3>
+                                <p className="text-sm text-slate-500 max-w-md">{error}</p>
+                                <Button
+                                    variant="outline"
+                                    onClick={() => setError(null)}
+                                    className="mt-4"
+                                >
+                                    Try Again
+                                </Button>
+                            </div>
+                        )}
 
-                                    return (
-                                        <div
-                                            key={group.id}
-                                            className={cn(
-                                                "border rounded-xl overflow-hidden transition-all",
-                                                isNegativeGroup ? "border-amber-200 bg-amber-50/50" : "border-slate-200 bg-white"
-                                            )}
-                                        >
-                                            {/* Category Header */}
-                                            <button
-                                                onClick={() => toggleCategory(group.id)}
-                                                className={cn(
-                                                    "w-full px-4 py-3 flex items-center gap-3 text-left hover:bg-slate-50 transition-colors",
-                                                    isNegativeGroup && "hover:bg-amber-100/50"
+                        {/* Empty State */}
+                        {!searchResults && !isSearching && !error && (
+                            <div className="flex flex-col items-center justify-center py-12 text-center">
+                                <div className="w-16 h-16 rounded-full bg-slate-100 flex items-center justify-center mb-4">
+                                    <Search className="w-8 h-8 text-slate-400" />
+                                </div>
+                                <h3 className="font-semibold text-slate-900 mb-2">Search for your business</h3>
+                                <p className="text-sm text-slate-500 max-w-md">
+                                    Enter your business name or location above to automatically find and fill your profile with publicly available information.
+                                </p>
+                            </div>
+                        )}
+
+                        {/* Results */}
+                        {searchResults && !isSearching && (
+                            <div className="space-y-4">
+                                {/* Business Summary Header */}
+                                {searchResults.businessName && (
+                                    <div className="p-4 bg-indigo-50 rounded-xl border border-indigo-100">
+                                        <div className="flex items-start gap-3">
+                                            <div className="w-12 h-12 rounded-xl bg-indigo-600 flex items-center justify-center text-white font-bold text-lg shrink-0">
+                                                {searchResults.businessName.charAt(0)}
+                                            </div>
+                                            <div className="flex-1 min-w-0">
+                                                <h3 className="font-bold text-slate-900 text-lg">{searchResults.businessName}</h3>
+                                                {searchResults.summary && (
+                                                    <p className="text-sm text-slate-600 mt-1 line-clamp-2">{searchResults.summary}</p>
                                                 )}
-                                            >
-                                                <div className={cn(
-                                                    "w-8 h-8 rounded-lg flex items-center justify-center",
-                                                    isNegativeGroup ? "bg-amber-100 text-amber-600" : "bg-indigo-100 text-indigo-600"
-                                                )}>
-                                                    {group.icon}
-                                                </div>
-                                                <div className="flex-1">
-                                                    <div className="flex items-center gap-2">
-                                                        <span className="font-semibold text-slate-900">{group.title}</span>
-                                                        <Badge variant="secondary" className="text-xs">
-                                                            {selectedInGroup}/{group.items.length}
-                                                        </Badge>
-                                                        {isNegativeGroup && (
-                                                            <Badge variant="outline" className="text-xs text-amber-700 border-amber-300 bg-amber-100">
-                                                                Review before including
-                                                            </Badge>
+                                                {searchResults.rating && (
+                                                    <div className="flex items-center gap-2 mt-2">
+                                                        <div className="flex items-center gap-1">
+                                                            <Star className="w-4 h-4 text-yellow-500 fill-yellow-500" />
+                                                            <span className="font-semibold text-sm">{searchResults.rating}</span>
+                                                        </div>
+                                                        {searchResults.reviewCount && (
+                                                            <span className="text-xs text-slate-500">
+                                                                ({searchResults.reviewCount} reviews)
+                                                            </span>
                                                         )}
                                                     </div>
-                                                </div>
-                                                {isExpanded ? (
-                                                    <ChevronUp className="w-4 h-4 text-slate-400" />
-                                                ) : (
-                                                    <ChevronDown className="w-4 h-4 text-slate-400" />
                                                 )}
-                                            </button>
-
-                                            {/* Category Items */}
-                                            {isExpanded && (
-                                                <div className="px-4 pb-4 space-y-2">
-                                                    {/* Category Actions */}
-                                                    <div className="flex gap-2 mb-2">
-                                                        <button
-                                                            onClick={() => selectAllInCategory(group.items)}
-                                                            className="text-xs text-indigo-600 hover:underline"
-                                                        >
-                                                            Select all in category
-                                                        </button>
-                                                        <span className="text-slate-300">|</span>
-                                                        <button
-                                                            onClick={() => deselectAllInCategory(group.items)}
-                                                            className="text-xs text-slate-500 hover:underline"
-                                                        >
-                                                            Deselect all
-                                                        </button>
-                                                    </div>
-
-                                                    {/* Items */}
-                                                    {group.items.map((item) => (
-                                                        <label
-                                                            key={item.id}
-                                                            className={cn(
-                                                                "flex items-start gap-3 p-3 rounded-lg cursor-pointer transition-colors",
-                                                                selectedItems.has(item.id)
-                                                                    ? item.isNegative
-                                                                        ? "bg-amber-100 border border-amber-300"
-                                                                        : "bg-indigo-50 border border-indigo-200"
-                                                                    : "bg-slate-50 border border-transparent hover:bg-slate-100"
-                                                            )}
-                                                        >
-                                                            <Checkbox
-                                                                checked={selectedItems.has(item.id)}
-                                                                onCheckedChange={() => toggleItem(item.id)}
-                                                                className="mt-0.5"
-                                                            />
-                                                            <div className="flex-1 min-w-0">
-                                                                <div className="flex items-center gap-2">
-                                                                    <span className="font-medium text-sm text-slate-900">
-                                                                        {item.label}
-                                                                    </span>
-                                                                    {item.isNegative && (
-                                                                        <AlertTriangle className="w-3.5 h-3.5 text-amber-500" />
-                                                                    )}
-                                                                    {item.confidence && item.confidence >= 0.9 && (
-                                                                        <CheckCircle2 className="w-3.5 h-3.5 text-green-500" />
-                                                                    )}
-                                                                </div>
-                                                                <p className="text-sm text-slate-600 mt-0.5">
-                                                                    {typeof item.value === 'string' ? item.value : JSON.stringify(item.value)}
-                                                                </p>
-                                                                {item.source && (
-                                                                    <span className="text-[10px] text-slate-400 mt-1 flex items-center gap-1">
-                                                                        <ExternalLink className="w-3 h-3" />
-                                                                        {item.source}
-                                                                    </span>
-                                                                )}
-                                                            </div>
-                                                        </label>
-                                                    ))}
-                                                </div>
-                                            )}
+                                            </div>
                                         </div>
-                                    );
-                                })}
-                            </div>
+                                    </div>
+                                )}
 
-                            {/* Warning for negative items */}
-                            {selectedItems.size > 0 && searchResults.items.some(item => item.isNegative && selectedItems.has(item.id)) && (
-                                <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl flex items-start gap-3">
-                                    <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
-                                    <div>
-                                        <p className="font-medium text-amber-900 text-sm">Negative feedback selected</p>
-                                        <p className="text-xs text-amber-700 mt-1">
-                                            You have selected items marked as negative feedback. These may not represent your business positively. Review carefully before importing.
-                                        </p>
+                                {/* Selection Summary */}
+                                <div className="flex items-center justify-between p-3 bg-slate-100 rounded-lg">
+                                    <span className="text-sm text-slate-600">
+                                        <strong>{selectedCount}</strong> of {totalCount} items selected
+                                    </span>
+                                    <div className="flex gap-2">
+                                        <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            onClick={() => setSelectedItems(new Set(searchResults.items.filter(i => !i.isNegative).map(i => i.id)))}
+                                            className="text-xs"
+                                        >
+                                            Select Positive
+                                        </Button>
+                                        <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            onClick={() => setSelectedItems(new Set(searchResults.items.map(i => i.id)))}
+                                            className="text-xs"
+                                        >
+                                            Select All
+                                        </Button>
+                                        <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            onClick={() => setSelectedItems(new Set())}
+                                            className="text-xs"
+                                        >
+                                            Clear All
+                                        </Button>
                                     </div>
                                 </div>
-                            )}
-                        </div>
-                    )}
-                </ScrollArea>
+
+                                {/* Grouped Items */}
+                                <div className="space-y-3">
+                                    {groupedItems.map((group) => {
+                                        const isExpanded = expandedCategories.has(group.id);
+                                        const selectedInGroup = group.items.filter(item => selectedItems.has(item.id)).length;
+                                        const isNegativeGroup = group.id === 'reviews_negative';
+
+                                        return (
+                                            <div
+                                                key={group.id}
+                                                className={cn(
+                                                    "border rounded-xl overflow-hidden transition-all",
+                                                    isNegativeGroup ? "border-amber-200 bg-amber-50/50" : "border-slate-200 bg-white"
+                                                )}
+                                            >
+                                                {/* Category Header */}
+                                                <button
+                                                    onClick={() => toggleCategory(group.id)}
+                                                    className={cn(
+                                                        "w-full px-4 py-3 flex items-center gap-3 text-left hover:bg-slate-50 transition-colors",
+                                                        isNegativeGroup && "hover:bg-amber-100/50"
+                                                    )}
+                                                >
+                                                    <div className={cn(
+                                                        "w-8 h-8 rounded-lg flex items-center justify-center",
+                                                        isNegativeGroup ? "bg-amber-100 text-amber-600" : "bg-indigo-100 text-indigo-600"
+                                                    )}>
+                                                        {group.icon}
+                                                    </div>
+                                                    <div className="flex-1">
+                                                        <div className="flex items-center gap-2">
+                                                            <span className="font-semibold text-slate-900">{group.title}</span>
+                                                            <Badge variant="secondary" className="text-xs">
+                                                                {selectedInGroup}/{group.items.length}
+                                                            </Badge>
+                                                            {isNegativeGroup && (
+                                                                <Badge variant="outline" className="text-xs text-amber-700 border-amber-300 bg-amber-100">
+                                                                    Review before including
+                                                                </Badge>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                    {isExpanded ? (
+                                                        <ChevronUp className="w-4 h-4 text-slate-400" />
+                                                    ) : (
+                                                        <ChevronDown className="w-4 h-4 text-slate-400" />
+                                                    )}
+                                                </button>
+
+                                                {/* Category Items */}
+                                                {isExpanded && (
+                                                    <div className="px-4 pb-4 space-y-2">
+                                                        {/* Category Actions */}
+                                                        <div className="flex gap-2 mb-2">
+                                                            <button
+                                                                onClick={() => selectAllInCategory(group.items)}
+                                                                className="text-xs text-indigo-600 hover:underline"
+                                                            >
+                                                                Select all in category
+                                                            </button>
+                                                            <span className="text-slate-300">|</span>
+                                                            <button
+                                                                onClick={() => deselectAllInCategory(group.items)}
+                                                                className="text-xs text-slate-500 hover:underline"
+                                                            >
+                                                                Deselect all
+                                                            </button>
+                                                        </div>
+
+                                                        {/* Items */}
+                                                        {group.items.map((item) => (
+                                                            <label
+                                                                key={item.id}
+                                                                className={cn(
+                                                                    "flex items-start gap-3 p-3 rounded-lg cursor-pointer transition-colors",
+                                                                    selectedItems.has(item.id)
+                                                                        ? item.isNegative
+                                                                            ? "bg-amber-100 border border-amber-300"
+                                                                            : "bg-indigo-50 border border-indigo-200"
+                                                                        : "bg-slate-50 border border-transparent hover:bg-slate-100"
+                                                                )}
+                                                            >
+                                                                <Checkbox
+                                                                    checked={selectedItems.has(item.id)}
+                                                                    onCheckedChange={() => toggleItem(item.id)}
+                                                                    className="mt-0.5"
+                                                                />
+                                                                <div className="flex-1 min-w-0">
+                                                                    <div className="flex items-center gap-2">
+                                                                        <span className="font-medium text-sm text-slate-900">
+                                                                            {item.label}
+                                                                        </span>
+                                                                        {item.isNegative && (
+                                                                            <AlertTriangle className="w-3.5 h-3.5 text-amber-500" />
+                                                                        )}
+                                                                        {item.confidence && item.confidence >= 0.9 && (
+                                                                            <CheckCircle2 className="w-3.5 h-3.5 text-green-500" />
+                                                                        )}
+                                                                    </div>
+                                                                    <p className="text-sm text-slate-600 mt-0.5">
+                                                                        {typeof item.value === 'string' ? item.value : JSON.stringify(item.value)}
+                                                                    </p>
+                                                                    {item.source && (
+                                                                        <span className="text-[10px] text-slate-400 mt-1 flex items-center gap-1">
+                                                                            <ExternalLink className="w-3 h-3" />
+                                                                            {item.source}
+                                                                        </span>
+                                                                    )}
+                                                                </div>
+                                                            </label>
+                                                        ))}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+
+                                {/* Warning for negative items */}
+                                {selectedItems.size > 0 && searchResults.items.some(item => item.isNegative && selectedItems.has(item.id)) && (
+                                    <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl flex items-start gap-3">
+                                        <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+                                        <div>
+                                            <p className="font-medium text-amber-900 text-sm">Negative feedback selected</p>
+                                            <p className="text-xs text-amber-700 mt-1">
+                                                You have selected items marked as negative feedback. These may not represent your business positively. Review carefully before importing.
+                                            </p>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        )}
+                    </div>
+                </div>
 
                 {/* Footer */}
                 {searchResults && (
