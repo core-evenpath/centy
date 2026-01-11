@@ -24,6 +24,7 @@ import ProfileDocuments from '@/components/partner/settings/ProfileDocuments';
 import ProfileSummary from '@/components/partner/settings/ProfileSummary';
 import FieldConnectionAudit from '@/components/partner/settings/FieldConnectionAudit';
 import BusinessProfileAgent from '@/components/partner/settings/BusinessProfileAgent';
+import AutoFillPreviewModal from '@/components/partner/settings/AutoFillPreviewModal';
 
 const SettingsUltimate = () => {
   const router = useRouter();
@@ -50,6 +51,7 @@ const SettingsUltimate = () => {
   const [selectedPlace, setSelectedPlace] = useState<any>(null);
   const [showAutoFillPreview, setShowAutoFillPreview] = useState(false);
   const [autoFillPreviewData, setAutoFillPreviewData] = useState<any>(null);
+  const [isApplyingAutoFill, setIsApplyingAutoFill] = useState(false);
   const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // RAG Processing State
@@ -1550,667 +1552,67 @@ const SettingsUltimate = () => {
 
                 {/* Auto-Fill Preview Modal */}
                 {showAutoFillPreview && autoFillPreviewData && (
-                  <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-                    <div className="bg-white rounded-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col">
-                      <div className="p-5 border-b border-slate-200 flex items-center justify-between bg-gradient-to-r from-indigo-50 to-purple-50">
-                        <div>
-                          <h3 className="text-lg font-semibold text-slate-900">Review Auto-Filled Data</h3>
-                          <p className="text-sm text-slate-500">
-                            {autoFillPreviewData.identity?.businessName || 'Business Profile'} - Check the data before applying
-                          </p>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          {/* Save as JSON button */}
-                          <button
-                            onClick={() => {
-                              const dataStr = JSON.stringify(autoFillPreviewData, null, 2);
-                              const blob = new Blob([dataStr], { type: 'application/json' });
-                              const url = URL.createObjectURL(blob);
-                              const a = document.createElement('a');
-                              a.href = url;
-                              a.download = `${autoFillPreviewData.identity?.businessName?.replace(/\s+/g, '_') || 'business'}_profile.json`;
-                              a.click();
-                              URL.revokeObjectURL(url);
-                              toast.success('Profile data saved as JSON!');
-                            }}
-                            className="px-3 py-1.5 text-xs font-medium text-indigo-600 bg-white border border-indigo-200 rounded-lg hover:bg-indigo-50 transition-all flex items-center gap-1"
-                          >
-                            <span>💾</span> Save JSON
-                          </button>
-                          <button
-                            onClick={() => setShowAutoFillPreview(false)}
-                            className="text-slate-400 hover:text-slate-600 p-1 text-xl"
-                          >
-                            ✕
-                          </button>
-                        </div>
-                      </div>
+                  <AutoFillPreviewModal
+                    data={autoFillPreviewData}
+                    onClose={() => setShowAutoFillPreview(false)}
+                    isApplying={isApplyingAutoFill}
+                    onApply={async (selectedData) => {
+                      try {
+                        setIsApplyingAutoFill(true);
 
-                      <div className="flex-1 overflow-y-auto p-5 space-y-4">
-                        {/* Photos Section */}
-                        {autoFillPreviewData.photos?.length > 0 && (
-                          <div className="bg-slate-50 rounded-xl p-4">
-                            <div className="flex items-center justify-between mb-3">
-                              <h4 className="font-semibold text-slate-900 flex items-center gap-2">
-                                <span>📸</span> Photos ({autoFillPreviewData.photos.length})
-                              </h4>
-                              <button
-                                onClick={() => {
-                                  const selectedPhotos = autoFillPreviewData.photos.filter((p: any) => p.selected);
-                                  if (selectedPhotos.length === 0) {
-                                    toast.error('Select at least one photo to export');
-                                    return;
-                                  }
-                                  // Create text file with URLs
-                                  const urls = selectedPhotos.map((p: any) => p.url).join('\n');
-                                  const blob = new Blob([urls], { type: 'text/plain' });
-                                  const url = URL.createObjectURL(blob);
-                                  const a = document.createElement('a');
-                                  a.href = url;
-                                  a.download = 'selected_photos.txt';
-                                  a.click();
-                                  URL.revokeObjectURL(url);
-                                  toast.success(`Exported ${selectedPhotos.length} photo URLs!`);
-                                }}
-                                className="text-xs text-indigo-600 hover:text-indigo-800 font-medium"
-                              >
-                                Export Selected
-                              </button>
-                            </div>
-                            <div className="grid grid-cols-5 gap-2">
-                              {autoFillPreviewData.photos.map((photo: any, i: number) => (
-                                <div
-                                  key={i}
-                                  onClick={() => {
-                                    const updated = { ...autoFillPreviewData };
-                                    updated.photos[i].selected = !updated.photos[i].selected;
-                                    setAutoFillPreviewData({ ...updated });
-                                  }}
-                                  className={cn(
-                                    "relative aspect-square rounded-lg overflow-hidden cursor-pointer border-2 transition-all",
-                                    photo.selected ? "border-indigo-500 ring-2 ring-indigo-200" : "border-transparent hover:border-slate-300"
-                                  )}
-                                >
-                                  <img src={photo.url} alt="" className="w-full h-full object-cover" />
-                                  {photo.selected && (
-                                    <div className="absolute top-1 right-1 w-5 h-5 bg-indigo-500 rounded-full flex items-center justify-center text-white text-xs">
-                                      ✓
-                                    </div>
-                                  )}
-                                </div>
-                              ))}
-                            </div>
-                            <p className="text-xs text-slate-500 mt-2">Click photos to select for export</p>
-                          </div>
-                        )}
+                        // Use the server action to properly map inventory to schema
+                        const result = await mapInventoryToPersonaAction(selectedData, persona);
 
-                        {/* Geolocation Section */}
-                        {autoFillPreviewData.identity?.location && (
-                          <div className="bg-blue-50 rounded-xl p-4">
-                            <h4 className="font-semibold text-slate-900 mb-3 flex items-center gap-2">
-                              <span>📍</span> Location
-                            </h4>
-                            <div className="flex items-center gap-4 text-sm">
-                              <div>
-                                <span className="text-slate-500">Coordinates:</span>
-                                <span className="ml-2 font-mono text-slate-700">
-                                  {autoFillPreviewData.identity.location.lat.toFixed(6)}, {autoFillPreviewData.identity.location.lng.toFixed(6)}
-                                </span>
-                              </div>
-                              {autoFillPreviewData.identity.googleMapsUrl && (
-                                <a
-                                  href={autoFillPreviewData.identity.googleMapsUrl}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="text-blue-600 hover:text-blue-800 font-medium flex items-center gap-1"
-                                >
-                                  <span>Open in Maps</span>
-                                  <span>↗</span>
-                                </a>
-                              )}
-                              {autoFillPreviewData.identity.plusCode && (
-                                <div>
-                                  <span className="text-slate-500">Plus Code:</span>
-                                  <span className="ml-2 font-mono text-slate-700">{autoFillPreviewData.identity.plusCode}</span>
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        )}
+                        if (!result.success || !result.persona) {
+                          throw new Error(result.error || 'Failed to map inventory');
+                        }
 
-                        {/* Identity Section */}
-                        {autoFillPreviewData.identity && (
-                          <div className="bg-slate-50 rounded-xl p-4">
-                            <h4 className="font-semibold text-slate-900 mb-3 flex items-center gap-2">
-                              <span>🏢</span> Business Identity
-                            </h4>
-                            <div className="grid grid-cols-2 gap-3 text-sm">
-                              {autoFillPreviewData.identity.businessName && (
-                                <div>
-                                  <span className="text-slate-500">Name:</span>
-                                  <span className="ml-2 font-medium">{autoFillPreviewData.identity.businessName}</span>
-                                </div>
-                              )}
-                              {autoFillPreviewData.identity.industry && (
-                                <div>
-                                  <span className="text-slate-500">Industry:</span>
-                                  <span className="ml-2 font-medium">{autoFillPreviewData.identity.industry}</span>
-                                </div>
-                              )}
-                              {autoFillPreviewData.identity.phone && (
-                                <div>
-                                  <span className="text-slate-500">Phone:</span>
-                                  <span className="ml-2 font-medium">{autoFillPreviewData.identity.phone}</span>
-                                </div>
-                              )}
-                              {autoFillPreviewData.identity.website && (
-                                <div>
-                                  <span className="text-slate-500">Website:</span>
-                                  <a href={autoFillPreviewData.identity.website} target="_blank" rel="noopener noreferrer" className="ml-2 font-medium text-blue-600 hover:underline truncate">
-                                    {autoFillPreviewData.identity.website}
-                                  </a>
-                                </div>
-                              )}
-                              {autoFillPreviewData.identity.address?.city && (
-                                <div className="col-span-2">
-                                  <span className="text-slate-500">Location:</span>
-                                  <span className="ml-2 font-medium">
-                                    {[autoFillPreviewData.identity.address.city, autoFillPreviewData.identity.address.state, autoFillPreviewData.identity.address.country].filter(Boolean).join(', ')}
-                                  </span>
-                                </div>
-                              )}
-                              {autoFillPreviewData.identity.address?.street && (
-                                <div className="col-span-2">
-                                  <span className="text-slate-500">Address:</span>
-                                  <span className="ml-2 font-medium">{autoFillPreviewData.identity.address.street}</span>
-                                </div>
-                              )}
-                            </div>
-                            {autoFillPreviewData.identity.description && (
-                              <div className="mt-3">
-                                <span className="text-slate-500 text-sm">Description:</span>
-                                <p className="mt-1 text-sm text-slate-700">{autoFillPreviewData.identity.description}</p>
-                              </div>
-                            )}
-                          </div>
-                        )}
+                        const mergedPersona = result.persona;
 
-                        {/* Reviews Section */}
-                        {autoFillPreviewData.reviews?.length > 0 && (
-                          <div className="bg-amber-50 rounded-xl p-4">
-                            <h4 className="font-semibold text-slate-900 mb-3 flex items-center gap-2">
-                              <span>⭐</span> Reviews & Testimonials ({autoFillPreviewData.reviews.length})
-                              {autoFillPreviewData.industrySpecificData?.googleRating && (
-                                <span className="ml-auto text-sm font-normal text-slate-600">
-                                  Google: {autoFillPreviewData.industrySpecificData.googleRating}/5 ({autoFillPreviewData.industrySpecificData.googleReviewCount} reviews)
-                                </span>
-                              )}
-                            </h4>
-                            <div className="space-y-3 max-h-60 overflow-y-auto">
-                              {autoFillPreviewData.reviews.slice(0, 5).map((review: any, i: number) => (
-                                <div key={i} className="bg-white p-3 rounded-lg border border-amber-200">
-                                  <div className="flex items-center justify-between mb-1">
-                                    <div className="flex items-center gap-2">
-                                      <span className="font-medium text-sm text-slate-800">{review.author}</span>
-                                      <div className="flex text-amber-500 text-xs">
-                                        {'★'.repeat(review.rating)}{'☆'.repeat(5 - review.rating)}
-                                      </div>
-                                    </div>
-                                    <div className="flex items-center gap-2 text-xs text-slate-500">
-                                      <span className={cn(
-                                        "px-1.5 py-0.5 rounded",
-                                        review.source === 'google' ? 'bg-blue-100 text-blue-700' : 'bg-purple-100 text-purple-700'
-                                      )}>
-                                        {review.source === 'google' ? 'Google' : 'Web'}
-                                      </span>
-                                      {review.time && <span>{review.time}</span>}
-                                    </div>
-                                  </div>
-                                  <p className="text-sm text-slate-600 line-clamp-3">{review.text}</p>
-                                  {review.sourceUrl && (
-                                    <a href={review.sourceUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 hover:underline mt-1 inline-block">
-                                      View source ↗
-                                    </a>
-                                  )}
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        )}
+                        setPersona(mergedPersona);
+                        await saveBusinessPersonaAction(partnerId!, mergedPersona);
 
-                        {/* Online Presence Section */}
-                        {autoFillPreviewData.onlinePresence?.length > 0 && (
-                          <div className="bg-green-50 rounded-xl p-4">
-                            <h4 className="font-semibold text-slate-900 mb-3 flex items-center gap-2">
-                              <span>🌐</span> Online Presence
-                            </h4>
-                            <div className="grid grid-cols-2 gap-2">
-                              {autoFillPreviewData.onlinePresence.map((presence: any, i: number) => (
-                                <a
-                                  key={i}
-                                  href={presence.sourceUrl}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="bg-white p-3 rounded-lg border border-green-200 hover:border-green-400 transition-all"
-                                >
-                                  <div className="flex items-center justify-between">
-                                    <span className="font-medium text-sm text-slate-800">{presence.source}</span>
-                                    {presence.rating && (
-                                      <span className="text-sm font-semibold text-amber-600">{presence.rating}★</span>
-                                    )}
-                                  </div>
-                                  {presence.reviewCount && (
-                                    <p className="text-xs text-slate-500">{presence.reviewCount} reviews</p>
-                                  )}
-                                  {presence.highlights?.length > 0 && (
-                                    <p className="text-xs text-green-700 mt-1">{presence.highlights[0]}</p>
-                                  )}
-                                </a>
-                              ))}
-                            </div>
-                          </div>
-                        )}
+                        // Set business type based on detected industry
+                        if (selectedData.identity?.industry) {
+                          const industryMap: Record<string, string> = {
+                            'hospitality': 'hospitality',
+                            'food_beverage': 'food_restaurant',
+                            'retail': 'retail_ecommerce',
+                            'healthcare': 'healthcare',
+                            'real_estate': 'real_estate',
+                            'education': 'education',
+                            'finance': 'finance',
+                          };
+                          const mappedType = industryMap[selectedData.identity.industry];
+                          if (mappedType && !selectedBusinessTypes.includes(mappedType)) {
+                            setSelectedBusinessTypes([...selectedBusinessTypes, mappedType]);
+                          }
+                        }
 
-                        {/* Industry Specific Data */}
-                        {autoFillPreviewData.industrySpecificData && Object.keys(autoFillPreviewData.industrySpecificData).filter(k => !['googleRating', 'googleReviewCount', 'priceLevel', 'awards', 'certifications', 'founders', 'teamSize'].includes(k)).length > 0 && (
-                          <div className="bg-purple-50 rounded-xl p-4">
-                            <h4 className="font-semibold text-slate-900 mb-3 flex items-center gap-2">
-                              <span>🎯</span> Industry-Specific Data
-                            </h4>
-                            <div className="grid grid-cols-2 gap-3 text-sm">
-                              {Object.entries(autoFillPreviewData.industrySpecificData)
-                                .filter(([k]) => !['googleRating', 'googleReviewCount', 'priceLevel', 'awards', 'certifications', 'founders', 'teamSize', 'googlePhotos', 'googleReviews'].includes(k))
-                                .map(([key, value]: [string, any]) => (
-                                  value && (
-                                    <div key={key} className="bg-white p-2 rounded-lg border border-purple-200">
-                                      <span className="text-slate-500 text-xs capitalize">{key.replace(/([A-Z])/g, ' $1').trim()}:</span>
-                                      <div className="font-medium text-slate-800 mt-0.5">
-                                        {Array.isArray(value) ? value.join(', ') : typeof value === 'object' ? JSON.stringify(value) : String(value)}
-                                      </div>
-                                    </div>
-                                  )
-                                ))}
-                            </div>
-                          </div>
-                        )}
+                        // Show success with inventory counts
+                        const inv = selectedData.inventory;
+                        const counts = [];
+                        if (inv?.rooms?.length) counts.push(`${inv.rooms.length} rooms`);
+                        if (inv?.menuItems?.length) counts.push(`${inv.menuItems.length} menu items`);
+                        if (inv?.products?.length) counts.push(`${inv.products.length} products`);
+                        if (inv?.properties?.length) counts.push(`${inv.properties.length} properties`);
+                        if (inv?.services?.length) counts.push(`${inv.services.length} services`);
 
-                        {/* USPs & Target Audience */}
-                        <div className="grid grid-cols-2 gap-4">
-                          {autoFillPreviewData.personality?.uniqueSellingPoints?.length > 0 && (
-                            <div className="bg-slate-50 rounded-xl p-4">
-                              <h4 className="font-semibold text-slate-900 mb-3 flex items-center gap-2">
-                                <span>✨</span> Unique Selling Points
-                              </h4>
-                              <div className="flex flex-wrap gap-2">
-                                {autoFillPreviewData.personality.uniqueSellingPoints.map((usp: string, i: number) => (
-                                  <span key={i} className="px-2 py-1 bg-indigo-100 text-indigo-700 rounded-full text-xs">
-                                    {usp}
-                                  </span>
-                                ))}
-                              </div>
-                            </div>
-                          )}
+                        const message = counts.length > 0
+                          ? `Profile updated! Imported: ${counts.join(', ')}`
+                          : 'Profile updated with selected data!';
 
-                          {autoFillPreviewData.customerProfile?.targetAudience?.length > 0 && (
-                            <div className="bg-slate-50 rounded-xl p-4">
-                              <h4 className="font-semibold text-slate-900 mb-3 flex items-center gap-2">
-                                <span>👥</span> Target Audience
-                              </h4>
-                              <div className="flex flex-wrap gap-2">
-                                {autoFillPreviewData.customerProfile.targetAudience.map((audience: string, i: number) => (
-                                  <span key={i} className="px-2 py-1 bg-green-100 text-green-700 rounded-full text-xs">
-                                    {audience}
-                                  </span>
-                                ))}
-                              </div>
-                            </div>
-                          )}
-                        </div>
-
-                        {/* Products/Services & FAQs */}
-                        <div className="grid grid-cols-2 gap-4">
-                          {autoFillPreviewData.knowledge?.productsOrServices?.length > 0 && (
-                            <div className="bg-slate-50 rounded-xl p-4">
-                              <h4 className="font-semibold text-slate-900 mb-3 flex items-center gap-2">
-                                <span>📦</span> Products & Services ({autoFillPreviewData.knowledge.productsOrServices.length})
-                              </h4>
-                              <div className="flex flex-wrap gap-1.5 max-h-32 overflow-y-auto">
-                                {autoFillPreviewData.knowledge.productsOrServices.map((item: any, i: number) => (
-                                  <span key={i} className="px-2 py-1 bg-purple-100 text-purple-700 rounded-full text-xs">
-                                    {item.name}
-                                  </span>
-                                ))}
-                              </div>
-                            </div>
-                          )}
-
-                          {autoFillPreviewData.knowledge?.faqs?.length > 0 && (
-                            <div className="bg-slate-50 rounded-xl p-4">
-                              <h4 className="font-semibold text-slate-900 mb-3 flex items-center gap-2">
-                                <span>❓</span> FAQs ({autoFillPreviewData.knowledge.faqs.length})
-                              </h4>
-                              <div className="space-y-2 max-h-32 overflow-y-auto">
-                                {autoFillPreviewData.knowledge.faqs.slice(0, 3).map((faq: any, i: number) => (
-                                  <div key={i} className="text-xs">
-                                    <div className="font-medium text-slate-800">Q: {faq.question}</div>
-                                    <div className="text-slate-600 ml-2 line-clamp-2">A: {faq.answer}</div>
-                                  </div>
-                                ))}
-                              </div>
-                            </div>
-                          )}
-                        </div>
-
-                        {/* Inventory Section */}
-                        {autoFillPreviewData.inventory && (
-                          <div className="bg-orange-50 rounded-xl p-4 border border-orange-200">
-                            <h4 className="font-semibold text-slate-900 mb-3 flex items-center gap-2">
-                              <span>📋</span> Inventory Data
-                              <span className="ml-auto text-xs font-normal text-orange-600 bg-orange-100 px-2 py-0.5 rounded">
-                                Ready for Import
-                              </span>
-                            </h4>
-
-                            {/* Room Inventory */}
-                            {autoFillPreviewData.inventory.rooms?.length > 0 && (
-                              <div className="mb-4">
-                                <h5 className="text-sm font-medium text-slate-700 mb-2 flex items-center gap-1">
-                                  <span>🛏️</span> Rooms ({autoFillPreviewData.inventory.rooms.length})
-                                </h5>
-                                <div className="space-y-2 max-h-40 overflow-y-auto">
-                                  {autoFillPreviewData.inventory.rooms.map((room: any, i: number) => (
-                                    <div key={i} className="bg-white p-2 rounded-lg border border-orange-100 text-xs">
-                                      <div className="flex justify-between items-start">
-                                        <div>
-                                          <span className="font-medium text-slate-800">{room.name}</span>
-                                          {room.category && <span className="ml-2 text-slate-500">({room.category})</span>}
-                                        </div>
-                                        {room.price && (
-                                          <span className="font-semibold text-orange-600">₹{room.price?.toLocaleString()}{room.priceUnit ? `/${room.priceUnit}` : '/night'}</span>
-                                        )}
-                                      </div>
-                                      <div className="text-slate-500 mt-1">
-                                        {[room.bedType, room.maxOccupancy && `${room.maxOccupancy} guests`, room.size, room.view].filter(Boolean).join(' • ')}
-                                      </div>
-                                      {room.amenities?.length > 0 && (
-                                        <div className="flex flex-wrap gap-1 mt-1">
-                                          {room.amenities.slice(0, 4).map((a: string, j: number) => (
-                                            <span key={j} className="px-1.5 py-0.5 bg-orange-50 text-orange-700 rounded text-[10px]">{a}</span>
-                                          ))}
-                                          {room.amenities.length > 4 && <span className="text-slate-400">+{room.amenities.length - 4}</span>}
-                                        </div>
-                                      )}
-                                    </div>
-                                  ))}
-                                </div>
-                              </div>
-                            )}
-
-                            {/* Menu Items */}
-                            {autoFillPreviewData.inventory.menuItems?.length > 0 && (
-                              <div className="mb-4">
-                                <h5 className="text-sm font-medium text-slate-700 mb-2 flex items-center gap-1">
-                                  <span>🍽️</span> Menu Items ({autoFillPreviewData.inventory.menuItems.length})
-                                </h5>
-                                <div className="grid grid-cols-2 gap-2 max-h-40 overflow-y-auto">
-                                  {autoFillPreviewData.inventory.menuItems.map((item: any, i: number) => (
-                                    <div key={i} className="bg-white p-2 rounded-lg border border-orange-100 text-xs">
-                                      <div className="flex justify-between items-start">
-                                        <div className="flex items-center gap-1">
-                                          {item.isVeg !== undefined && (
-                                            <span className={item.isVeg ? 'text-green-600' : 'text-red-600'}>
-                                              {item.isVeg ? '🟢' : '🔴'}
-                                            </span>
-                                          )}
-                                          <span className="font-medium text-slate-800">{item.name}</span>
-                                        </div>
-                                        {item.price && <span className="font-semibold text-orange-600">₹{item.price}</span>}
-                                      </div>
-                                      {item.category && <div className="text-slate-500">{item.category}</div>}
-                                      {item.popular && <span className="text-[10px] text-amber-600">⭐ Popular</span>}
-                                    </div>
-                                  ))}
-                                </div>
-                              </div>
-                            )}
-
-                            {/* Products */}
-                            {autoFillPreviewData.inventory.products?.length > 0 && (
-                              <div className="mb-4">
-                                <h5 className="text-sm font-medium text-slate-700 mb-2 flex items-center gap-1">
-                                  <span>📦</span> Products ({autoFillPreviewData.inventory.products.length})
-                                </h5>
-                                <div className="grid grid-cols-2 gap-2 max-h-40 overflow-y-auto">
-                                  {autoFillPreviewData.inventory.products.map((product: any, i: number) => (
-                                    <div key={i} className="bg-white p-2 rounded-lg border border-orange-100 text-xs">
-                                      <div className="font-medium text-slate-800">{product.name}</div>
-                                      <div className="flex items-center gap-2 mt-1">
-                                        {product.price && <span className="font-semibold text-orange-600">₹{product.price}</span>}
-                                        {product.mrp && product.mrp > product.price && (
-                                          <span className="text-slate-400 line-through">₹{product.mrp}</span>
-                                        )}
-                                      </div>
-                                      {product.brand && <div className="text-slate-500">{product.brand}</div>}
-                                      {product.category && <div className="text-slate-400">{product.category}</div>}
-                                    </div>
-                                  ))}
-                                </div>
-                              </div>
-                            )}
-
-                            {/* Services (Healthcare) */}
-                            {autoFillPreviewData.inventory.services?.length > 0 && (
-                              <div className="mb-4">
-                                <h5 className="text-sm font-medium text-slate-700 mb-2 flex items-center gap-1">
-                                  <span>💊</span> Services ({autoFillPreviewData.inventory.services.length})
-                                </h5>
-                                <div className="space-y-2 max-h-40 overflow-y-auto">
-                                  {autoFillPreviewData.inventory.services.map((service: any, i: number) => (
-                                    <div key={i} className="bg-white p-2 rounded-lg border border-orange-100 text-xs">
-                                      <div className="flex justify-between items-start">
-                                        <div>
-                                          <span className="font-medium text-slate-800">{service.name}</span>
-                                          {service.category && <span className="ml-2 text-slate-500">({service.category})</span>}
-                                        </div>
-                                        {service.price && <span className="font-semibold text-orange-600">₹{service.price}</span>}
-                                      </div>
-                                      <div className="text-slate-500 mt-1">
-                                        {[service.doctor, service.duration, service.specialization].filter(Boolean).join(' • ')}
-                                      </div>
-                                    </div>
-                                  ))}
-                                </div>
-                              </div>
-                            )}
-
-                            {/* Properties (Real Estate) */}
-                            {autoFillPreviewData.inventory.properties?.length > 0 && (
-                              <div>
-                                <h5 className="text-sm font-medium text-slate-700 mb-2 flex items-center gap-1">
-                                  <span>🏠</span> Properties ({autoFillPreviewData.inventory.properties.length})
-                                </h5>
-                                <div className="space-y-2 max-h-40 overflow-y-auto">
-                                  {autoFillPreviewData.inventory.properties.map((property: any, i: number) => (
-                                    <div key={i} className="bg-white p-2 rounded-lg border border-orange-100 text-xs">
-                                      <div className="flex justify-between items-start">
-                                        <div>
-                                          <span className="font-medium text-slate-800">{property.title}</span>
-                                          {property.type && <span className="ml-2 text-slate-500">({property.type})</span>}
-                                        </div>
-                                        {property.price && (
-                                          <span className="font-semibold text-orange-600">
-                                            ₹{property.price?.toLocaleString()}{property.priceUnit === 'per month' ? '/mo' : ''}
-                                          </span>
-                                        )}
-                                      </div>
-                                      <div className="text-slate-500 mt-1">
-                                        {[property.bedrooms && `${property.bedrooms} BHK`, property.area, property.location].filter(Boolean).join(' • ')}
-                                      </div>
-                                    </div>
-                                  ))}
-                                </div>
-                              </div>
-                            )}
-                          </div>
-                        )}
-
-                        {/* From the Web Section */}
-                        {autoFillPreviewData.fromTheWeb && Object.keys(autoFillPreviewData.fromTheWeb).length > 0 && (
-                          <div className="bg-cyan-50 rounded-xl p-4 border border-cyan-200">
-                            <h4 className="font-semibold text-slate-900 mb-3 flex items-center gap-2">
-                              <span>🌐</span> From the Web
-                              <span className="ml-auto text-xs font-normal text-cyan-600 bg-cyan-100 px-2 py-0.5 rounded">
-                                Additional Data
-                              </span>
-                            </h4>
-
-                            {/* Website Content */}
-                            {autoFillPreviewData.fromTheWeb.websiteContent && (
-                              <div className="mb-3">
-                                <h5 className="text-xs font-medium text-slate-600 mb-1">Website Content</h5>
-                                <p className="text-xs text-slate-700 bg-white p-2 rounded border border-cyan-100 line-clamp-4">
-                                  {autoFillPreviewData.fromTheWeb.websiteContent}
-                                </p>
-                              </div>
-                            )}
-
-                            {/* Other Findings */}
-                            {autoFillPreviewData.fromTheWeb.otherFindings?.length > 0 && (
-                              <div className="mb-3">
-                                <h5 className="text-xs font-medium text-slate-600 mb-1">Other Findings</h5>
-                                <ul className="text-xs text-slate-700 space-y-1">
-                                  {autoFillPreviewData.fromTheWeb.otherFindings.map((finding: string, i: number) => (
-                                    <li key={i} className="flex items-start gap-1">
-                                      <span className="text-cyan-500 mt-0.5">•</span>
-                                      <span>{finding}</span>
-                                    </li>
-                                  ))}
-                                </ul>
-                              </div>
-                            )}
-
-                            {/* Raw Industry Data */}
-                            {autoFillPreviewData.fromTheWeb.rawIndustryData && Object.keys(autoFillPreviewData.fromTheWeb.rawIndustryData).length > 0 && (
-                              <div className="mb-3">
-                                <h5 className="text-xs font-medium text-slate-600 mb-1">Industry-Specific Details</h5>
-                                <div className="grid grid-cols-2 gap-2">
-                                  {Object.entries(autoFillPreviewData.fromTheWeb.rawIndustryData)
-                                    .filter(([_, v]) => v !== null && v !== undefined)
-                                    .slice(0, 8)
-                                    .map(([key, value]: [string, any]) => (
-                                      <div key={key} className="bg-white p-2 rounded border border-cyan-100 text-xs">
-                                        <div className="text-slate-500 capitalize text-[10px]">{key.replace(/([A-Z])/g, ' $1').trim()}</div>
-                                        <div className="font-medium text-slate-800 truncate">
-                                          {Array.isArray(value) ? value.slice(0, 2).join(', ') + (value.length > 2 ? '...' : '') : String(value)}
-                                        </div>
-                                      </div>
-                                    ))}
-                                </div>
-                              </div>
-                            )}
-
-                            {/* Additional Info */}
-                            {autoFillPreviewData.fromTheWeb.additionalInfo && Object.keys(autoFillPreviewData.fromTheWeb.additionalInfo).length > 0 && (
-                              <div>
-                                <h5 className="text-xs font-medium text-slate-600 mb-1">Additional Information</h5>
-                                <div className="bg-white p-2 rounded border border-cyan-100 text-xs text-slate-700">
-                                  <pre className="whitespace-pre-wrap font-sans text-[10px] max-h-20 overflow-y-auto">
-                                    {JSON.stringify(autoFillPreviewData.fromTheWeb.additionalInfo, null, 2)}
-                                  </pre>
-                                </div>
-                              </div>
-                            )}
-                          </div>
-                        )}
-
-                        {/* Source Info */}
-                        {autoFillPreviewData.source && (
-                          <div className="text-xs text-slate-400 text-center pt-2 border-t border-slate-100">
-                            Data fetched: {new Date(autoFillPreviewData.source.fetchedAt).toLocaleString()} |
-                            Source: {autoFillPreviewData.source.placesData ? 'Google Places' : ''}
-                            {autoFillPreviewData.source.aiEnriched ? ' + AI Web Research' : ''}
-                          </div>
-                        )}
-                      </div>
-
-                      <div className="p-5 border-t border-slate-200 flex gap-3 bg-slate-50">
-                        <button
-                          onClick={() => setShowAutoFillPreview(false)}
-                          className="px-4 py-2.5 border border-slate-200 rounded-xl font-medium text-sm text-slate-600 hover:bg-white transition-all"
-                        >
-                          Cancel
-                        </button>
-                        <button
-                          onClick={() => {
-                            // Log data to console for testing
-                            console.log('=== AUTO-FILL DATA (for testing) ===');
-                            console.log(JSON.stringify(autoFillPreviewData, null, 2));
-                            toast.success('Data logged to console (F12 to view)');
-                          }}
-                          className="px-4 py-2.5 border border-slate-200 rounded-xl font-medium text-sm text-slate-600 hover:bg-white transition-all"
-                        >
-                          Log to Console
-                        </button>
-                        <button
-                          onClick={async () => {
-                            try {
-                              // Use the server action to properly map inventory to schema
-                              const result = await mapInventoryToPersonaAction(autoFillPreviewData, persona);
-
-                              if (!result.success || !result.persona) {
-                                throw new Error(result.error || 'Failed to map inventory');
-                              }
-
-                              const mergedPersona = result.persona;
-
-                              setPersona(mergedPersona);
-                              await saveBusinessPersonaAction(partnerId!, mergedPersona);
-
-                              // Set business type based on detected industry
-                              if (autoFillPreviewData.identity?.industry) {
-                                const industryMap: Record<string, string> = {
-                                  'hospitality': 'hospitality',
-                                  'food_beverage': 'food_restaurant',
-                                  'retail': 'retail_ecommerce',
-                                  'healthcare': 'healthcare',
-                                  'real_estate': 'real_estate',
-                                  'education': 'education',
-                                  'finance': 'finance',
-                                };
-                                const mappedType = industryMap[autoFillPreviewData.identity.industry];
-                                if (mappedType && !selectedBusinessTypes.includes(mappedType)) {
-                                  setSelectedBusinessTypes([...selectedBusinessTypes, mappedType]);
-                                }
-                              }
-
-                              // Show success with inventory counts
-                              const inv = autoFillPreviewData.inventory;
-                              const counts = [];
-                              if (inv?.rooms?.length) counts.push(`${inv.rooms.length} rooms`);
-                              if (inv?.menuItems?.length) counts.push(`${inv.menuItems.length} menu items`);
-                              if (inv?.products?.length) counts.push(`${inv.products.length} products`);
-                              if (inv?.properties?.length) counts.push(`${inv.properties.length} properties`);
-                              if (inv?.services?.length) counts.push(`${inv.services.length} services`);
-
-                              const message = counts.length > 0
-                                ? `Profile updated! Imported: ${counts.join(', ')}`
-                                : 'Profile updated with auto-filled data!';
-
-                              toast.success(message);
-                              setShowAutoFillPreview(false);
-                              setAutoFillSearch('');
-                              setSelectedPlace(null);
-                            } catch (err: any) {
-                              toast.error(err.message || 'Failed to apply data');
-                            }
-                          }}
-                          className="flex-1 px-4 py-2.5 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-xl font-medium text-sm hover:from-indigo-700 hover:to-purple-700 transition-all"
-                        >
-                          Apply to Profile
-                        </button>
-                      </div>
-                    </div>
-                  </div>
+                        toast.success(message);
+                        setShowAutoFillPreview(false);
+                        setAutoFillSearch('');
+                        setSelectedPlace(null);
+                      } catch (err: any) {
+                        toast.error(err.message || 'Failed to apply data');
+                      } finally {
+                        setIsApplyingAutoFill(false);
+                      }
+                    }}
+                  />
                 )}
 
                 {/* Business Types Selection Card */}
