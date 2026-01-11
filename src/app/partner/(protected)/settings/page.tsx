@@ -25,6 +25,7 @@ import ProfileSummary from '@/components/partner/settings/ProfileSummary';
 import FieldConnectionAudit from '@/components/partner/settings/FieldConnectionAudit';
 import BusinessProfileAgent from '@/components/partner/settings/BusinessProfileAgent';
 import AutoFillPreviewModal from '@/components/partner/settings/AutoFillPreviewModal';
+import BusinessProfileView from '@/components/partner/settings/BusinessProfileView';
 
 const SettingsUltimate = () => {
   const router = useRouter();
@@ -1702,20 +1703,26 @@ const SettingsUltimate = () => {
                   )}
                 </div>
 
-                {/* Profile Summary Section - Primary View */}
-                <div className="bg-white rounded-2xl border border-slate-200 p-5">
-                  <ProfileSummary
-                    persona={persona}
-                    onFieldUpdate={handleFieldUpdate}
-                    onOpenAIChat={() => setShowAIChat(true)}
-                  />
-                </div>
+                {/* New Business Profile View - Modern Card-Based UI */}
+                <BusinessProfileView
+                  persona={persona}
+                  partnerId={partnerId!}
+                  onFieldUpdate={handleFieldUpdate}
+                  onRefresh={handlePersonaRefresh}
+                  isAdmin={isAdmin}
+                />
 
-                {/* Detailed Sections Header */}
-                <div className="flex items-center justify-between mt-6 mb-3">
-                  <h4 className="text-sm font-semibold text-slate-900">Detailed Fields</h4>
-                  <span className="text-xs text-slate-500">Click to expand and edit</span>
-                </div>
+                {/* Legacy Detailed Sections Header - Hidden by default, toggle to show */}
+                <details className="mt-6 group">
+                  <summary className="flex items-center justify-between cursor-pointer list-none">
+                    <h4 className="text-sm font-semibold text-slate-900 flex items-center gap-2">
+                      <span>Detailed Fields</span>
+                      <span className="text-xs text-slate-400 font-normal">(Advanced)</span>
+                    </h4>
+                    <span className="text-xs text-slate-500 group-open:hidden">Click to expand</span>
+                    <span className="text-xs text-slate-500 hidden group-open:inline">Click to collapse</span>
+                  </summary>
+                  <div className="mt-3">
 
                 {/* Sections */}
                 <div className="space-y-3">
@@ -2576,6 +2583,8 @@ const SettingsUltimate = () => {
                     );
                   })}
                 </div>
+                  </div>
+                </details>
 
                 {/* Business Documents Section */}
                 {partnerId && (
