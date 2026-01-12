@@ -261,7 +261,8 @@ export async function getBusinessPersonaAction(partnerId: string): Promise<{
  */
 export async function saveBusinessPersonaAction(
     partnerId: string,
-    updates: Partial<BusinessPersona>
+    updates: Partial<BusinessPersona>,
+    overwrite: boolean = false
 ): Promise<{
     success: boolean;
     message: string;
@@ -280,7 +281,8 @@ export async function saveBusinessPersonaAction(
         }
 
         const existingData = partnerDoc.data();
-        const existingPersona = existingData?.businessPersona || {};
+        // If overwrite is true, ignore existing persona data to allow full reset
+        const existingPersona = overwrite ? {} : (existingData?.businessPersona || {});
 
         // Deep merge identity
         const mergedIdentity = {
@@ -392,26 +394,29 @@ export async function saveBusinessPersonaAction(
         };
 
         // Sync critical fields to top level for other systems that need them
-        if (updates.identity?.name) {
+        if (updates.identity?.name !== undefined) {
             topLevelUpdates.businessName = updates.identity.name;
             topLevelUpdates.name = updates.identity.name;
         }
-        if (updates.identity?.phone) {
+        if (updates.identity?.phone !== undefined) {
             topLevelUpdates.phone = updates.identity.phone;
         }
-        if (updates.identity?.email) {
+        if (updates.identity?.email !== undefined) {
             topLevelUpdates.email = updates.identity.email;
         }
-        if (updates.identity?.whatsAppNumber) {
+        if (updates.identity?.whatsAppNumber !== undefined) {
             topLevelUpdates.whatsAppPhone = updates.identity.whatsAppNumber;
         }
         if (updates.identity?.address) {
+            const city = updates.identity.address.city;
+            const state = updates.identity.address.state;
+
             topLevelUpdates.location = {
-                city: updates.identity.address.city || existingData?.location?.city || '',
-                state: updates.identity.address.state || existingData?.location?.state || '',
+                city: city !== undefined ? city : (existingData?.location?.city || ''),
+                state: state !== undefined ? state : (existingData?.location?.state || ''),
             };
         }
-        if (updates.identity?.industry) {
+        if (updates.identity?.industry !== undefined) {
             topLevelUpdates.industry = updates.identity.industry;
         }
 

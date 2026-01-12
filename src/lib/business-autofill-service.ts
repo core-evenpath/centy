@@ -976,17 +976,24 @@ export async function autoFillBusinessProfile(
 export function createEmptyProfile(): Partial<BusinessPersona> {
   return {
     identity: {
-      businessName: '',
-      industry: 'custom',
+      name: '',
+      industry: null,
     },
     personality: {},
     customerProfile: {},
     knowledge: {},
     industrySpecificData: {},
     setupProgress: {
-      completedSections: [],
-      totalSections: 0,
-      percentComplete: 0,
+      basicInfo: false,
+      contactInfo: false,
+      operatingHours: false,
+      businessDescription: false,
+      customerProfile: false,
+      productsServices: false,
+      policies: false,
+      faqs: false,
+      overallPercentage: 0,
+      nextRecommendedStep: 'basicInfo',
     },
   };
 }

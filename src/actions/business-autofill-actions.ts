@@ -117,18 +117,57 @@ export async function mapInventoryToPersonaAction(
 }> {
   try {
     const inventory = autoFillData.inventory;
+    const autoIdentity = autoFillData.identity as any;
+    const autoPersonality = autoFillData.personality as any;
 
-    // Start with merged basic data - using spread with type assertions for partial fields
+    // Map auto-fill identity fields to BusinessPersona identity fields
+    const mappedIdentity = {
+      ...existingPersona.identity,
+      // Core identity fields - map businessName to name
+      name: autoIdentity?.businessName || autoIdentity?.name || existingPersona.identity?.name,
+      phone: autoIdentity?.phone || existingPersona.identity?.phone,
+      email: autoIdentity?.email || existingPersona.identity?.email,
+      website: autoIdentity?.website || existingPersona.identity?.website,
+      whatsAppNumber: autoIdentity?.whatsAppNumber || existingPersona.identity?.whatsAppNumber,
+      // Industry
+      industry: autoIdentity?.industry ? {
+        category: typeof autoIdentity.industry === 'string' ? autoIdentity.industry : autoIdentity.industry.category,
+        name: typeof autoIdentity.industry === 'string' ? autoIdentity.industry : autoIdentity.industry.name,
+      } : existingPersona.identity?.industry,
+      // Address
+      address: {
+        ...existingPersona.identity?.address,
+        ...autoIdentity?.address,
+      },
+      // Social media
+      socialMedia: {
+        ...existingPersona.identity?.socialMedia,
+        ...autoIdentity?.socialMedia,
+      },
+      // Operating hours
+      operatingHours: autoIdentity?.operatingHours || existingPersona.identity?.operatingHours,
+    };
+
+    // Map auto-fill personality fields to BusinessPersona personality fields
+    const mappedPersonality = {
+      ...existingPersona.personality,
+      // Description (could come from identity or personality in auto-fill)
+      description: autoPersonality?.description || autoIdentity?.description || existingPersona.personality?.description,
+      // Tagline (could come from identity or personality in auto-fill)
+      tagline: autoIdentity?.tagline || autoPersonality?.tagline || existingPersona.personality?.tagline,
+      // Founded year - map yearEstablished to foundedYear
+      foundedYear: autoIdentity?.yearEstablished || autoPersonality?.foundedYear || existingPersona.personality?.foundedYear,
+      // USPs
+      uniqueSellingPoints: autoPersonality?.uniqueSellingPoints || existingPersona.personality?.uniqueSellingPoints,
+      // Voice tone
+      voiceTone: autoPersonality?.voiceTone || existingPersona.personality?.voiceTone,
+    };
+
+    // Start with merged basic data
     const mergedPersona: Partial<BusinessPersona> = {
       ...existingPersona,
-      identity: {
-        ...existingPersona.identity,
-        ...(autoFillData.identity as any),
-      } as any,
-      personality: {
-        ...existingPersona.personality,
-        ...(autoFillData.personality as any),
-      } as any,
+      identity: mappedIdentity as any,
+      personality: mappedPersonality as any,
       customerProfile: {
         ...existingPersona.customerProfile,
         ...(autoFillData.customerProfile as any),
@@ -136,6 +175,13 @@ export async function mapInventoryToPersonaAction(
       knowledge: {
         ...existingPersona.knowledge,
         ...(autoFillData.knowledge as any),
+        // Awards and certifications often come in industrySpecificData from auto-fill
+        awards: (autoFillData.knowledge as any)?.awards ||
+          (autoFillData.industrySpecificData as any)?.awards ||
+          existingPersona.knowledge?.awards,
+        certifications: (autoFillData.knowledge as any)?.certifications ||
+          (autoFillData.industrySpecificData as any)?.certifications ||
+          existingPersona.knowledge?.certifications,
       } as any,
       industrySpecificData: {
         ...existingPersona.industrySpecificData,
