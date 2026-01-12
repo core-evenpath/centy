@@ -40,7 +40,6 @@ function EditableField({
   multiline?: boolean;
   className?: string;
 }) {
-  // Safely extract string value
   const getStringValue = (val: any): string => {
     if (val === null || val === undefined) return '';
     if (typeof val === 'string') return val;
@@ -55,7 +54,6 @@ function EditableField({
   const [isEditing, setIsEditing] = useState(false);
   const [editValue, setEditValue] = useState(stringValue);
 
-  // Update editValue when value prop changes
   React.useEffect(() => {
     setEditValue(getStringValue(value));
   }, [value]);
@@ -78,7 +76,7 @@ function EditableField({
             value={editValue}
             onChange={(e) => setEditValue(e.target.value)}
             placeholder={placeholder}
-            className="flex-1 px-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+            className="flex-1 px-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none"
             rows={3}
             autoFocus
           />
@@ -88,7 +86,7 @@ function EditableField({
             value={editValue}
             onChange={(e) => setEditValue(e.target.value)}
             placeholder={placeholder}
-            className="flex-1 px-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="flex-1 px-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
             autoFocus
           />
         )}
@@ -147,7 +145,7 @@ function EditableTags({
       {tags.map((tag, index) => (
         <span
           key={index}
-          className="inline-flex items-center gap-1 px-3 py-1 bg-blue-50 text-blue-700 rounded-full text-sm group"
+          className="inline-flex items-center gap-1 px-3 py-1 bg-indigo-50 text-indigo-700 rounded-full text-sm group"
         >
           {tag}
           <button
@@ -166,7 +164,7 @@ function EditableTags({
             onChange={(e) => setNewTag(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && handleAdd()}
             placeholder={placeholder}
-            className="w-32 px-2 py-1 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-32 px-2 py-1 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
             autoFocus
           />
           <button onClick={handleAdd} className="p-1 text-green-600 hover:bg-green-50 rounded">
@@ -179,7 +177,7 @@ function EditableTags({
       ) : tags.length < maxTags ? (
         <button
           onClick={() => setIsAdding(true)}
-          className="inline-flex items-center gap-1 px-3 py-1 border border-dashed border-slate-300 text-slate-500 rounded-full text-sm hover:border-blue-400 hover:text-blue-600 transition-colors"
+          className="inline-flex items-center gap-1 px-3 py-1 border border-dashed border-slate-300 text-slate-500 rounded-full text-sm hover:border-indigo-400 hover:text-indigo-600 transition-colors"
         >
           <Plus className="w-3 h-3" /> Add
         </button>
@@ -244,104 +242,434 @@ function SectionCard({
   );
 }
 
-// Inventory item card
-function InventoryCard({
-  name,
-  category,
-  price,
-  priceUnit,
-  description,
-  details,
+// Editable Inventory Item with inline editing
+function EditableInventoryCard({
+  item,
+  index,
+  type,
   icon: Icon,
-  onEdit,
+  onUpdate,
   onRemove,
 }: {
-  name: string;
-  category?: string;
-  price?: number | { value?: number; unit?: string } | string;
-  priceUnit?: string;
-  description?: string;
-  details?: string;
-  icon?: React.ElementType;
-  onEdit?: () => void;
-  onRemove?: () => void;
+  item: any;
+  index: number;
+  type: string;
+  icon: React.ElementType;
+  onUpdate: (updatedItem: any) => void;
+  onRemove: () => void;
 }) {
-  const IconComponent = Icon || Package;
+  const [isEditing, setIsEditing] = useState(false);
+  const [editedItem, setEditedItem] = useState(item);
 
-  // Safely extract price value and unit
-  const getPriceDisplay = () => {
-    if (price === undefined || price === null) return null;
-
-    let priceValue: number | undefined;
-    let unit = priceUnit;
-
-    if (typeof price === 'object' && price !== null) {
-      priceValue = price.value;
-      unit = price.unit || priceUnit;
-    } else if (typeof price === 'number') {
-      priceValue = price;
-    } else if (typeof price === 'string') {
-      priceValue = parseFloat(price);
-      if (isNaN(priceValue)) return null;
-    }
-
-    if (priceValue === undefined) return null;
-
-    return { value: priceValue, unit };
+  const getName = () => {
+    const val = item.name || item.title;
+    if (typeof val === 'string') return val;
+    if (typeof val === 'object' && val !== null) return val.name || val.title || val.text || `Item ${index + 1}`;
+    return `Item ${index + 1}`;
   };
 
-  const priceDisplay = getPriceDisplay();
+  const getPrice = () => {
+    const price = item.price || item.fee || item.rate;
+    if (typeof price === 'number') return price;
+    if (typeof price === 'object' && price !== null) return price.value || 0;
+    if (typeof price === 'string') {
+      const parsed = parseFloat(price.replace(/[^0-9.]/g, ''));
+      return isNaN(parsed) ? 0 : parsed;
+    }
+    return 0;
+  };
+
+  const getDescription = () => {
+    const val = item.description;
+    if (typeof val === 'string') return val;
+    return '';
+  };
+
+  const getCategory = () => {
+    const val = item.category || item.type;
+    if (typeof val === 'string') return val;
+    return '';
+  };
+
+  const handleSave = () => {
+    onUpdate(editedItem);
+    setIsEditing(false);
+    toast.success('Item updated');
+  };
+
+  if (isEditing) {
+    return (
+      <div className="p-4 bg-white border-2 border-indigo-200 rounded-lg space-y-3">
+        <div className="flex items-center justify-between">
+          <span className="text-xs font-medium text-indigo-600 uppercase">{type}</span>
+          <div className="flex gap-1">
+            <button onClick={handleSave} className="p-1.5 text-green-600 hover:bg-green-50 rounded">
+              <Check className="w-4 h-4" />
+            </button>
+            <button onClick={() => { setEditedItem(item); setIsEditing(false); }} className="p-1.5 text-slate-400 hover:bg-slate-50 rounded">
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+        <input
+          type="text"
+          value={editedItem.name || ''}
+          onChange={(e) => setEditedItem({ ...editedItem, name: e.target.value })}
+          placeholder="Item name"
+          className="w-full px-3 py-2 text-sm border border-slate-200 rounded focus:outline-none focus:ring-2 focus:ring-indigo-500"
+        />
+        <div className="grid grid-cols-2 gap-2">
+          <input
+            type="number"
+            value={typeof editedItem.price === 'number' ? editedItem.price : ''}
+            onChange={(e) => setEditedItem({ ...editedItem, price: parseFloat(e.target.value) || 0 })}
+            placeholder="Price (INR)"
+            className="px-3 py-2 text-sm border border-slate-200 rounded focus:outline-none focus:ring-2 focus:ring-indigo-500"
+          />
+          <input
+            type="text"
+            value={editedItem.category || editedItem.type || ''}
+            onChange={(e) => setEditedItem({ ...editedItem, category: e.target.value })}
+            placeholder="Category"
+            className="px-3 py-2 text-sm border border-slate-200 rounded focus:outline-none focus:ring-2 focus:ring-indigo-500"
+          />
+        </div>
+        <textarea
+          value={editedItem.description || ''}
+          onChange={(e) => setEditedItem({ ...editedItem, description: e.target.value })}
+          placeholder="Description"
+          className="w-full px-3 py-2 text-sm border border-slate-200 rounded focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none"
+          rows={2}
+        />
+      </div>
+    );
+  }
+
+  const price = getPrice();
 
   return (
-    <div className="group relative p-4 bg-slate-50 rounded-lg border border-slate-100 hover:border-slate-200 transition-colors">
+    <div className="group relative p-4 bg-slate-50 rounded-lg border border-slate-100 hover:border-indigo-200 transition-colors">
       <div className="flex items-start justify-between gap-3">
         <div className="flex items-start gap-3 flex-1 min-w-0">
           <div className="p-2 bg-white rounded-lg border border-slate-100">
-            <IconComponent className="w-4 h-4 text-slate-500" />
+            <Icon className="w-4 h-4 text-slate-500" />
           </div>
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2">
-              <h4 className="font-medium text-sm text-slate-800 truncate">{name}</h4>
-              {category && typeof category === 'string' && (
+              <h4 className="font-medium text-sm text-slate-800 truncate">{getName()}</h4>
+              {getCategory() && (
                 <span className="px-2 py-0.5 bg-slate-200 text-slate-600 rounded text-[10px] uppercase tracking-wide">
-                  {category}
+                  {getCategory()}
                 </span>
               )}
             </div>
-            {description && typeof description === 'string' && (
-              <p className="text-xs text-slate-500 mt-1 line-clamp-2">{description}</p>
-            )}
-            {details && typeof details === 'string' && (
-              <p className="text-xs text-slate-400 mt-1">{details}</p>
+            {getDescription() && (
+              <p className="text-xs text-slate-500 mt-1 line-clamp-2">{getDescription()}</p>
             )}
           </div>
         </div>
-        {priceDisplay && (
+        {price > 0 && (
           <div className="flex-shrink-0">
             <span className="inline-flex items-center gap-0.5 px-2.5 py-1 bg-gradient-to-r from-orange-500 to-amber-500 text-white rounded-full text-xs font-bold shadow-sm">
               <IndianRupee className="w-3 h-3" />
-              {priceDisplay.value.toLocaleString('en-IN')}
-              {priceDisplay.unit && typeof priceDisplay.unit === 'string' && (
-                <span className="font-normal opacity-90">/{priceDisplay.unit}</span>
-              )}
+              {price.toLocaleString('en-IN')}
             </span>
           </div>
         )}
       </div>
 
-      {/* Edit/Remove buttons (on hover) */}
+      {/* Edit/Remove buttons */}
       <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity flex gap-1">
-        {onEdit && (
-          <button onClick={onEdit} className="p-1 bg-white rounded shadow-sm hover:bg-blue-50 text-blue-600">
-            <Edit2 className="w-3 h-3" />
-          </button>
-        )}
-        {onRemove && (
-          <button onClick={onRemove} className="p-1 bg-white rounded shadow-sm hover:bg-red-50 text-red-600">
-            <Trash2 className="w-3 h-3" />
-          </button>
-        )}
+        <button onClick={() => setIsEditing(true)} className="p-1.5 bg-white rounded shadow-sm hover:bg-indigo-50 text-indigo-600">
+          <Edit2 className="w-3 h-3" />
+        </button>
+        <button onClick={onRemove} className="p-1.5 bg-white rounded shadow-sm hover:bg-red-50 text-red-600">
+          <Trash2 className="w-3 h-3" />
+        </button>
       </div>
+    </div>
+  );
+}
+
+// Add New Item Dialog
+function AddItemDialog({
+  type,
+  icon: Icon,
+  onAdd,
+  onClose,
+}: {
+  type: string;
+  icon: React.ElementType;
+  onAdd: (item: any) => void;
+  onClose: () => void;
+}) {
+  const [item, setItem] = useState({ name: '', price: 0, category: '', description: '' });
+
+  const handleAdd = () => {
+    if (item.name.trim()) {
+      onAdd(item);
+      toast.success('Item added');
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-xl max-w-md w-full p-6">
+        <div className="flex items-center gap-3 mb-4">
+          <div className="p-2 bg-indigo-100 rounded-lg">
+            <Icon className="w-5 h-5 text-indigo-600" />
+          </div>
+          <h3 className="font-semibold text-lg text-slate-800">Add {type}</h3>
+        </div>
+        <div className="space-y-3">
+          <input
+            type="text"
+            value={item.name}
+            onChange={(e) => setItem({ ...item, name: e.target.value })}
+            placeholder="Name *"
+            className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            autoFocus
+          />
+          <div className="grid grid-cols-2 gap-3">
+            <input
+              type="number"
+              value={item.price || ''}
+              onChange={(e) => setItem({ ...item, price: parseFloat(e.target.value) || 0 })}
+              placeholder="Price (INR)"
+              className="px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            />
+            <input
+              type="text"
+              value={item.category}
+              onChange={(e) => setItem({ ...item, category: e.target.value })}
+              placeholder="Category"
+              className="px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            />
+          </div>
+          <textarea
+            value={item.description}
+            onChange={(e) => setItem({ ...item, description: e.target.value })}
+            placeholder="Description"
+            className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none"
+            rows={3}
+          />
+        </div>
+        <div className="flex justify-end gap-2 mt-6">
+          <button onClick={onClose} className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg">
+            Cancel
+          </button>
+          <button
+            onClick={handleAdd}
+            disabled={!item.name.trim()}
+            className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            Add Item
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Editable FAQ
+function EditableFAQ({
+  faq,
+  index,
+  onUpdate,
+  onRemove,
+}: {
+  faq: any;
+  index: number;
+  onUpdate: (faq: any) => void;
+  onRemove: () => void;
+}) {
+  const [isEditing, setIsEditing] = useState(false);
+  const [editedFaq, setEditedFaq] = useState(faq);
+
+  const question = typeof faq.question === 'string' ? faq.question : `Question ${index + 1}`;
+  const answer = typeof faq.answer === 'string' ? faq.answer : '';
+
+  const handleSave = () => {
+    onUpdate(editedFaq);
+    setIsEditing(false);
+    toast.success('FAQ updated');
+  };
+
+  if (isEditing) {
+    return (
+      <div className="p-4 bg-white border-2 border-indigo-200 rounded-lg space-y-3">
+        <input
+          type="text"
+          value={editedFaq.question || ''}
+          onChange={(e) => setEditedFaq({ ...editedFaq, question: e.target.value })}
+          placeholder="Question"
+          className="w-full px-3 py-2 text-sm font-medium border border-slate-200 rounded focus:outline-none focus:ring-2 focus:ring-indigo-500"
+        />
+        <textarea
+          value={editedFaq.answer || ''}
+          onChange={(e) => setEditedFaq({ ...editedFaq, answer: e.target.value })}
+          placeholder="Answer"
+          className="w-full px-3 py-2 text-sm border border-slate-200 rounded focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none"
+          rows={3}
+        />
+        <div className="flex justify-end gap-2">
+          <button onClick={() => { setEditedFaq(faq); setIsEditing(false); }} className="px-3 py-1.5 text-slate-600 hover:bg-slate-100 rounded">
+            Cancel
+          </button>
+          <button onClick={handleSave} className="px-3 py-1.5 bg-indigo-600 text-white rounded hover:bg-indigo-700">
+            Save
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="group relative p-4 bg-slate-50 rounded-lg hover:border-indigo-200 border border-transparent transition-colors">
+      <h4 className="font-medium text-slate-800 mb-2 pr-16">{question}</h4>
+      <p className="text-sm text-slate-600">{answer}</p>
+      <div className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity flex gap-1">
+        <button onClick={() => setIsEditing(true)} className="p-1.5 bg-white rounded shadow-sm hover:bg-indigo-50 text-indigo-600">
+          <Edit2 className="w-3 h-3" />
+        </button>
+        <button onClick={onRemove} className="p-1.5 bg-white rounded shadow-sm hover:bg-red-50 text-red-600">
+          <Trash2 className="w-3 h-3" />
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// Operating Hours Editor
+function OperatingHoursEditor({
+  hours,
+  onSave,
+}: {
+  hours: any;
+  onSave: (hours: any) => void;
+}) {
+  const [isEditing, setIsEditing] = useState(false);
+  const [editedHours, setEditedHours] = useState(hours || {});
+
+  const days = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
+
+  const handleToggle24x7 = () => {
+    onSave({ ...editedHours, isOpen24x7: !editedHours.isOpen24x7 });
+  };
+
+  const handleToggleAppointmentOnly = () => {
+    onSave({ ...editedHours, appointmentOnly: !editedHours.appointmentOnly });
+  };
+
+  const handleDayChange = (day: string, field: 'open' | 'close', value: string) => {
+    const newSchedule = { ...(editedHours.schedule || {}) };
+    newSchedule[day] = { ...(newSchedule[day] || {}), [field]: value };
+    setEditedHours({ ...editedHours, schedule: newSchedule });
+  };
+
+  const handleSaveSchedule = () => {
+    onSave(editedHours);
+    setIsEditing(false);
+    toast.success('Hours updated');
+  };
+
+  if (hours?.isOpen24x7) {
+    return (
+      <div className="space-y-3">
+        <div className="flex items-center gap-2 p-3 bg-green-50 rounded-lg text-green-700">
+          <Check className="w-4 h-4" />
+          <span className="text-sm font-medium">Open 24/7</span>
+          <button onClick={handleToggle24x7} className="ml-auto text-xs text-green-600 hover:text-green-800">
+            Change
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (hours?.appointmentOnly) {
+    return (
+      <div className="space-y-3">
+        <div className="flex items-center gap-2 p-3 bg-blue-50 rounded-lg text-blue-700">
+          <Calendar className="w-4 h-4" />
+          <span className="text-sm font-medium">By Appointment Only</span>
+          <button onClick={handleToggleAppointmentOnly} className="ml-auto text-xs text-blue-600 hover:text-blue-800">
+            Change
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (isEditing) {
+    return (
+      <div className="space-y-3">
+        <div className="space-y-2">
+          {days.map((day) => (
+            <div key={day} className="flex items-center gap-2">
+              <span className="w-24 text-sm font-medium text-slate-600 capitalize">{day}</span>
+              <input
+                type="time"
+                value={editedHours.schedule?.[day]?.open || '09:00'}
+                onChange={(e) => handleDayChange(day, 'open', e.target.value)}
+                className="px-2 py-1 text-sm border border-slate-200 rounded focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              />
+              <span className="text-slate-400">to</span>
+              <input
+                type="time"
+                value={editedHours.schedule?.[day]?.close || '18:00'}
+                onChange={(e) => handleDayChange(day, 'close', e.target.value)}
+                className="px-2 py-1 text-sm border border-slate-200 rounded focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              />
+            </div>
+          ))}
+        </div>
+        <div className="flex justify-between items-center pt-2 border-t border-slate-100">
+          <div className="flex gap-2">
+            <button onClick={handleToggle24x7} className="text-xs text-indigo-600 hover:text-indigo-800">
+              Set 24/7
+            </button>
+            <button onClick={handleToggleAppointmentOnly} className="text-xs text-indigo-600 hover:text-indigo-800">
+              Appointment Only
+            </button>
+          </div>
+          <div className="flex gap-2">
+            <button onClick={() => setIsEditing(false)} className="px-3 py-1.5 text-slate-600 hover:bg-slate-100 rounded text-sm">
+              Cancel
+            </button>
+            <button onClick={handleSaveSchedule} className="px-3 py-1.5 bg-indigo-600 text-white rounded hover:bg-indigo-700 text-sm">
+              Save
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (hours?.schedule) {
+    return (
+      <div className="space-y-2">
+        {Object.entries(hours.schedule).map(([day, dayHours]: [string, any]) => (
+          <div key={day} className="flex items-center justify-between py-2 border-b border-slate-100 last:border-0">
+            <span className="text-sm font-medium text-slate-600 capitalize">{day}</span>
+            <span className="text-sm text-slate-700">
+              {dayHours?.open && dayHours?.close ? `${dayHours.open} - ${dayHours.close}` : 'Closed'}
+            </span>
+          </div>
+        ))}
+        <button onClick={() => setIsEditing(true)} className="mt-2 text-sm text-indigo-600 hover:text-indigo-800 flex items-center gap-1">
+          <Edit2 className="w-3 h-3" /> Edit Hours
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="text-center py-4">
+      <p className="text-sm text-slate-500 italic mb-3">No hours set</p>
+      <button onClick={() => setIsEditing(true)} className="text-sm text-indigo-600 hover:text-indigo-800 flex items-center gap-1 mx-auto">
+        <Plus className="w-3 h-3" /> Add Operating Hours
+      </button>
     </div>
   );
 }
@@ -357,7 +685,6 @@ function AISuggestions({
   const suggestions = useMemo(() => {
     const items: { field: string; label: string; priority: 'high' | 'medium' | 'low'; reason: string }[] = [];
 
-    // Check essential fields
     if (!persona.identity?.name) {
       items.push({ field: 'identity.name', label: 'Business Name', priority: 'high', reason: 'Required for all communications' });
     }
@@ -389,21 +716,6 @@ function AISuggestions({
       items.push({ field: 'identity.operatingHours', label: 'Operating Hours', priority: 'medium', reason: 'Customers need to know when you\'re available' });
     }
 
-    // Check inventory based on industry
-    const industry = persona.identity?.industry?.category;
-    if (industry === 'hospitality' && (!persona.roomTypes?.length)) {
-      items.push({ field: 'roomTypes', label: 'Room Types', priority: 'high', reason: 'Essential for hospitality bookings' });
-    }
-    if (industry === 'food_beverage' && (!persona.menuItems?.length)) {
-      items.push({ field: 'menuItems', label: 'Menu Items', priority: 'high', reason: 'Customers need to see your menu' });
-    }
-    if (industry === 'retail' && (!persona.productCatalog?.length)) {
-      items.push({ field: 'productCatalog', label: 'Product Catalog', priority: 'high', reason: 'Display your products' });
-    }
-    if (industry === 'healthcare' && (!persona.healthcareServices?.length)) {
-      items.push({ field: 'healthcareServices', label: 'Healthcare Services', priority: 'high', reason: 'List your medical services' });
-    }
-
     return items.sort((a, b) => {
       const priorityOrder = { high: 0, medium: 1, low: 2 };
       return priorityOrder[a.priority] - priorityOrder[b.priority];
@@ -431,7 +743,7 @@ function AISuggestions({
           <Lightbulb className="w-5 h-5 text-amber-600" />
         </div>
         <div>
-          <h4 className="font-semibold text-amber-800">AI Suggestions</h4>
+          <h4 className="font-semibold text-amber-800">Complete Your Profile</h4>
           <p className="text-sm text-amber-600">{suggestions.length} fields need attention</p>
         </div>
       </div>
@@ -462,161 +774,6 @@ function AISuggestions({
   );
 }
 
-// Additional Data Section - for unstructured data
-function AdditionalDataSection({
-  persona,
-  onFieldUpdate,
-}: {
-  persona: Partial<BusinessPersona>;
-  onFieldUpdate: (path: string, value: any) => Promise<void>;
-}) {
-  const [expanded, setExpanded] = useState(false);
-
-  // Gather all unstructured/additional data
-  const additionalData = useMemo(() => {
-    const data: { category: string; items: { label: string; value: any; path: string }[] }[] = [];
-
-    // From the web (AI research data)
-    const fromTheWeb = persona.industrySpecificData?.fromTheWeb;
-    if (fromTheWeb) {
-      const webItems: { label: string; value: any; path: string }[] = [];
-      if (fromTheWeb.awards?.length) {
-        webItems.push({ label: 'Awards & Recognition', value: fromTheWeb.awards, path: 'industrySpecificData.fromTheWeb.awards' });
-      }
-      if (fromTheWeb.specialServices?.length) {
-        webItems.push({ label: 'Special Services', value: fromTheWeb.specialServices, path: 'industrySpecificData.fromTheWeb.specialServices' });
-      }
-      if (fromTheWeb.certifications?.length) {
-        webItems.push({ label: 'Certifications', value: fromTheWeb.certifications, path: 'industrySpecificData.fromTheWeb.certifications' });
-      }
-      if (fromTheWeb.partnerships?.length) {
-        webItems.push({ label: 'Partnerships', value: fromTheWeb.partnerships, path: 'industrySpecificData.fromTheWeb.partnerships' });
-      }
-      if (fromTheWeb.mediaFeatures?.length) {
-        webItems.push({ label: 'Media Features', value: fromTheWeb.mediaFeatures, path: 'industrySpecificData.fromTheWeb.mediaFeatures' });
-      }
-      if (fromTheWeb.additionalInfo) {
-        webItems.push({ label: 'Additional Info', value: fromTheWeb.additionalInfo, path: 'industrySpecificData.fromTheWeb.additionalInfo' });
-      }
-      if (webItems.length > 0) {
-        data.push({ category: 'From the Web', items: webItems });
-      }
-    }
-
-    // Fetched reviews
-    const reviews = persona.industrySpecificData?.fetchedReviews;
-    if (reviews?.length) {
-      data.push({
-        category: 'Customer Reviews',
-        items: [{ label: `${reviews.length} Reviews`, value: reviews, path: 'industrySpecificData.fetchedReviews' }]
-      });
-    }
-
-    // Fetched photos
-    const photos = persona.industrySpecificData?.fetchedPhotos;
-    if (photos?.length) {
-      data.push({
-        category: 'Photos',
-        items: [{ label: `${photos.length} Photos`, value: photos, path: 'industrySpecificData.fetchedPhotos' }]
-      });
-    }
-
-    // Online presence
-    const onlinePresence = persona.industrySpecificData?.onlinePresence;
-    if (onlinePresence) {
-      const presenceItems: { label: string; value: any; path: string }[] = [];
-      Object.entries(onlinePresence).forEach(([key, value]) => {
-        if (value) {
-          presenceItems.push({ label: key.charAt(0).toUpperCase() + key.slice(1), value, path: `industrySpecificData.onlinePresence.${key}` });
-        }
-      });
-      if (presenceItems.length > 0) {
-        data.push({ category: 'Online Presence', items: presenceItems });
-      }
-    }
-
-    // Testimonials
-    const testimonials = persona.industrySpecificData?.testimonials;
-    if (testimonials?.length) {
-      data.push({
-        category: 'Testimonials',
-        items: [{ label: `${testimonials.length} Testimonials`, value: testimonials, path: 'industrySpecificData.testimonials' }]
-      });
-    }
-
-    // Press & Media
-    const pressMedia = persona.industrySpecificData?.pressMedia;
-    if (pressMedia?.length) {
-      data.push({
-        category: 'Press & Media',
-        items: [{ label: `${pressMedia.length} Press Mentions`, value: pressMedia, path: 'industrySpecificData.pressMedia' }]
-      });
-    }
-
-    // Custom fields
-    const customFields = persona.customFields;
-    if (customFields && Object.keys(customFields).length > 0) {
-      const customItems = Object.entries(customFields).map(([key, value]) => ({
-        label: key,
-        value,
-        path: `customFields.${key}`
-      }));
-      data.push({ category: 'Custom Fields', items: customItems });
-    }
-
-    return data;
-  }, [persona]);
-
-  if (additionalData.length === 0) {
-    return null;
-  }
-
-  return (
-    <SectionCard
-      icon={FileText}
-      title="Additional Data"
-      badge={{ text: `${additionalData.reduce((acc, d) => acc + d.items.length, 0)} items`, color: 'bg-slate-100 text-slate-600' }}
-      collapsible
-      defaultExpanded={false}
-    >
-      <div className="space-y-4">
-        {additionalData.map((category) => (
-          <div key={category.category}>
-            <h4 className="text-sm font-medium text-slate-700 mb-2">{category.category}</h4>
-            <div className="space-y-2">
-              {category.items.map((item) => (
-                <div key={item.path} className="p-3 bg-slate-50 rounded-lg">
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="text-xs font-medium text-slate-500">{item.label}</span>
-                  </div>
-                  <div className="text-sm text-slate-700">
-                    {Array.isArray(item.value) ? (
-                      <div className="flex flex-wrap gap-1">
-                        {item.value.slice(0, 5).map((v: any, i: number) => (
-                          <span key={i} className="px-2 py-0.5 bg-white border border-slate-200 rounded text-xs">
-                            {typeof v === 'object' ? (v.text || v.name || v.title || JSON.stringify(v).slice(0, 50)) : v}
-                          </span>
-                        ))}
-                        {item.value.length > 5 && (
-                          <span className="px-2 py-0.5 text-slate-400 text-xs">+{item.value.length - 5} more</span>
-                        )}
-                      </div>
-                    ) : typeof item.value === 'object' ? (
-                      <pre className="text-xs overflow-auto max-h-20">{JSON.stringify(item.value, null, 2)}</pre>
-                    ) : (
-                      <span>{String(item.value)}</span>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        ))}
-      </div>
-    </SectionCard>
-  );
-}
-
 // Profile Completeness Score
 function CompletenessScore({ score }: { score: number }) {
   const getColor = () => {
@@ -629,22 +786,9 @@ function CompletenessScore({ score }: { score: number }) {
     <div className="flex items-center gap-3">
       <div className="relative w-16 h-16">
         <svg className="w-16 h-16 -rotate-90">
+          <circle cx="32" cy="32" r="28" stroke="currentColor" strokeWidth="6" fill="none" className="text-slate-200" />
           <circle
-            cx="32"
-            cy="32"
-            r="28"
-            stroke="currentColor"
-            strokeWidth="6"
-            fill="none"
-            className="text-slate-200"
-          />
-          <circle
-            cx="32"
-            cy="32"
-            r="28"
-            stroke="currentColor"
-            strokeWidth="6"
-            fill="none"
+            cx="32" cy="32" r="28" stroke="currentColor" strokeWidth="6" fill="none"
             strokeDasharray={`${(score / 100) * 176} 176`}
             className={score >= 80 ? 'text-green-500' : score >= 50 ? 'text-amber-500' : 'text-red-500'}
           />
@@ -674,6 +818,8 @@ export default function BusinessProfileView({
 }: BusinessProfileViewProps) {
   const [focusedField, setFocusedField] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [addingItemType, setAddingItemType] = useState<{ type: string; path: string; icon: React.ElementType } | null>(null);
+  const [addingFAQ, setAddingFAQ] = useState(false);
 
   // Helper to get inventory icon based on industry
   const getInventoryIcon = () => {
@@ -692,57 +838,73 @@ export default function BusinessProfileView({
     }
   };
 
+  // Get inventory path based on type
+  const getInventoryPath = (type: string) => {
+    const pathMap: Record<string, string> = {
+      'Room Types': 'roomTypes',
+      'Menu Items': 'menuItems',
+      'Products': 'productCatalog',
+      'Healthcare Services': 'healthcareServices',
+      'Property Listings': 'propertyListings',
+      'Diagnostic Tests': 'diagnosticTests',
+      'Courses': 'industrySpecificData.courses',
+      'Treatments': 'industrySpecificData.treatments',
+      'Memberships': 'industrySpecificData.memberships',
+      'Vehicles': 'industrySpecificData.vehicles',
+      'Venue Packages': 'industrySpecificData.venuePackages',
+      'Legal Services': 'industrySpecificData.legalServices',
+      'Financial Products': 'industrySpecificData.financialProducts',
+      'Products & Services': 'knowledge.productsOrServices',
+    };
+    return pathMap[type] || 'knowledge.productsOrServices';
+  };
+
   // Helper to get inventory items based on industry
   const getInventoryItems = () => {
-    const items: { type: string; data: any[]; icon: React.ElementType }[] = [];
+    const items: { type: string; data: any[]; icon: React.ElementType; path: string }[] = [];
     const isd = persona.industrySpecificData || {};
 
-    // Primary inventory fields
     if (persona.roomTypes?.length) {
-      items.push({ type: 'Room Types', data: persona.roomTypes, icon: Bed });
+      items.push({ type: 'Room Types', data: persona.roomTypes, icon: Bed, path: 'roomTypes' });
     }
     if (persona.menuItems?.length) {
-      items.push({ type: 'Menu Items', data: persona.menuItems, icon: Utensils });
+      items.push({ type: 'Menu Items', data: persona.menuItems, icon: Utensils, path: 'menuItems' });
     }
     if (persona.productCatalog?.length) {
-      items.push({ type: 'Products', data: persona.productCatalog, icon: Store });
+      items.push({ type: 'Products', data: persona.productCatalog, icon: Store, path: 'productCatalog' });
     }
     if (persona.healthcareServices?.length) {
-      items.push({ type: 'Healthcare Services', data: persona.healthcareServices, icon: Stethoscope });
+      items.push({ type: 'Healthcare Services', data: persona.healthcareServices, icon: Stethoscope, path: 'healthcareServices' });
     }
     if (persona.propertyListings?.length) {
-      items.push({ type: 'Property Listings', data: persona.propertyListings, icon: Home });
+      items.push({ type: 'Property Listings', data: persona.propertyListings, icon: Home, path: 'propertyListings' });
     }
     if (persona.diagnosticTests?.length) {
-      items.push({ type: 'Diagnostic Tests', data: persona.diagnosticTests, icon: Stethoscope });
+      items.push({ type: 'Diagnostic Tests', data: persona.diagnosticTests, icon: Stethoscope, path: 'diagnosticTests' });
     }
-
-    // Check industrySpecificData for additional inventory types
     if (isd.courses?.length) {
-      items.push({ type: 'Courses', data: isd.courses, icon: GraduationCap });
+      items.push({ type: 'Courses', data: isd.courses, icon: GraduationCap, path: 'industrySpecificData.courses' });
     }
     if (isd.treatments?.length) {
-      items.push({ type: 'Treatments', data: isd.treatments, icon: Heart });
+      items.push({ type: 'Treatments', data: isd.treatments, icon: Heart, path: 'industrySpecificData.treatments' });
     }
     if (isd.memberships?.length) {
-      items.push({ type: 'Memberships', data: isd.memberships, icon: Users });
+      items.push({ type: 'Memberships', data: isd.memberships, icon: Users, path: 'industrySpecificData.memberships' });
     }
     if (isd.vehicles?.length) {
-      items.push({ type: 'Vehicles', data: isd.vehicles, icon: Car });
+      items.push({ type: 'Vehicles', data: isd.vehicles, icon: Car, path: 'industrySpecificData.vehicles' });
     }
     if (isd.venuePackages?.length) {
-      items.push({ type: 'Venue Packages', data: isd.venuePackages, icon: Calendar });
+      items.push({ type: 'Venue Packages', data: isd.venuePackages, icon: Calendar, path: 'industrySpecificData.venuePackages' });
     }
     if (isd.legalServices?.length) {
-      items.push({ type: 'Legal Services', data: isd.legalServices, icon: Scale });
+      items.push({ type: 'Legal Services', data: isd.legalServices, icon: Scale, path: 'industrySpecificData.legalServices' });
     }
     if (isd.financialProducts?.length) {
-      items.push({ type: 'Financial Products', data: isd.financialProducts, icon: Landmark });
+      items.push({ type: 'Financial Products', data: isd.financialProducts, icon: Landmark, path: 'industrySpecificData.financialProducts' });
     }
-
-    // Also check for products/services in knowledge if main inventory is empty
     if (items.length === 0 && persona.knowledge?.productsOrServices?.length) {
-      items.push({ type: 'Products & Services', data: persona.knowledge.productsOrServices, icon: Package });
+      items.push({ type: 'Products & Services', data: persona.knowledge.productsOrServices, icon: Package, path: 'knowledge.productsOrServices' });
     }
 
     return items;
@@ -761,6 +923,43 @@ export default function BusinessProfileView({
     } finally {
       setIsSaving(false);
     }
+  };
+
+  const handleInventoryUpdate = async (path: string, items: any[], index: number, updatedItem: any) => {
+    const newItems = [...items];
+    newItems[index] = updatedItem;
+    await handleSave(path, newItems);
+  };
+
+  const handleInventoryRemove = async (path: string, items: any[], index: number) => {
+    const newItems = items.filter((_, i) => i !== index);
+    await handleSave(path, newItems);
+    toast.success('Item removed');
+  };
+
+  const handleInventoryAdd = async (path: string, items: any[], newItem: any) => {
+    const newItems = [...items, newItem];
+    await handleSave(path, newItems);
+    setAddingItemType(null);
+  };
+
+  const handleFAQUpdate = async (index: number, updatedFaq: any) => {
+    const faqs = [...(persona.knowledge?.faqs || [])];
+    faqs[index] = updatedFaq;
+    await handleSave('knowledge.faqs', faqs);
+  };
+
+  const handleFAQRemove = async (index: number) => {
+    const faqs = (persona.knowledge?.faqs || []).filter((_, i) => i !== index);
+    await handleSave('knowledge.faqs', faqs);
+    toast.success('FAQ removed');
+  };
+
+  const handleFAQAdd = async (faq: any) => {
+    const faqs = [...(persona.knowledge?.faqs || []), faq];
+    await handleSave('knowledge.faqs', faqs);
+    setAddingFAQ(false);
+    toast.success('FAQ added');
   };
 
   return (
@@ -887,62 +1086,55 @@ export default function BusinessProfileView({
                 placeholder="https://yourbusiness.com"
               />
             </div>
-            <div>
-              <label className="text-xs font-medium text-slate-500 uppercase tracking-wide">Address</label>
-              <EditableField
-                label="Address"
-                value={[
-                  persona.identity?.address?.street,
-                  persona.identity?.address?.city,
-                  persona.identity?.address?.state
-                ].filter(Boolean).join(', ')}
-                onSave={(v) => {
-                  // Simple parsing - just update city for now
-                  handleSave('identity.address.city', v);
-                }}
-                placeholder="Enter your address"
-              />
-            </div>
-            {persona.identity?.address?.city && (
-              <div className="flex items-center gap-2 text-sm text-slate-600">
-                <MapPin className="w-4 h-4" />
-                {persona.identity.address.city}
-                {persona.identity.address.state && `, ${persona.identity.address.state}`}
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="text-xs font-medium text-slate-500 uppercase tracking-wide">Street Address</label>
+                <EditableField
+                  label="Street"
+                  value={persona.identity?.address?.street}
+                  onSave={(v) => handleSave('identity.address.street', v)}
+                  placeholder="Enter street address"
+                />
               </div>
-            )}
+              <div>
+                <label className="text-xs font-medium text-slate-500 uppercase tracking-wide">City</label>
+                <EditableField
+                  label="City"
+                  value={persona.identity?.address?.city}
+                  onSave={(v) => handleSave('identity.address.city', v)}
+                  placeholder="City"
+                />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="text-xs font-medium text-slate-500 uppercase tracking-wide">State</label>
+                <EditableField
+                  label="State"
+                  value={persona.identity?.address?.state}
+                  onSave={(v) => handleSave('identity.address.state', v)}
+                  placeholder="State"
+                />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-slate-500 uppercase tracking-wide">Postal Code</label>
+                <EditableField
+                  label="Postal Code"
+                  value={persona.identity?.address?.postalCode}
+                  onSave={(v) => handleSave('identity.address.postalCode', v)}
+                  placeholder="123456"
+                />
+              </div>
+            </div>
           </div>
         </SectionCard>
 
         {/* Operating Hours */}
         <SectionCard icon={Clock} title="Operating Hours">
-          <div className="space-y-4">
-            {persona.identity?.operatingHours?.isOpen24x7 ? (
-              <div className="flex items-center gap-2 p-3 bg-green-50 rounded-lg text-green-700">
-                <Check className="w-4 h-4" />
-                <span className="text-sm font-medium">Open 24/7</span>
-              </div>
-            ) : persona.identity?.operatingHours?.appointmentOnly ? (
-              <div className="flex items-center gap-2 p-3 bg-blue-50 rounded-lg text-blue-700">
-                <Calendar className="w-4 h-4" />
-                <span className="text-sm font-medium">By Appointment Only</span>
-              </div>
-            ) : persona.identity?.operatingHours?.schedule ? (
-              <div className="space-y-2">
-                {Object.entries(persona.identity.operatingHours.schedule).map(([day, hours]) => (
-                  <div key={day} className="flex items-center justify-between py-2 border-b border-slate-100 last:border-0">
-                    <span className="text-sm font-medium text-slate-600 capitalize">{day}</span>
-                    <span className="text-sm text-slate-700">
-                      {(hours as any)?.open && (hours as any)?.close
-                        ? `${(hours as any).open} - ${(hours as any).close}`
-                        : 'Closed'}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <p className="text-sm text-slate-500 italic">No hours set</p>
-            )}
-          </div>
+          <OperatingHoursEditor
+            hours={persona.identity?.operatingHours}
+            onSave={(hours) => handleSave('identity.operatingHours', hours)}
+          />
         </SectionCard>
 
         {/* Target Audience */}
@@ -958,31 +1150,41 @@ export default function BusinessProfileView({
                 multiline
               />
             </div>
-            {persona.customerProfile?.commonQueries?.length ? (
-              <div>
-                <label className="text-xs font-medium text-slate-500 uppercase tracking-wide mb-2 block">Common Questions</label>
-                <div className="flex flex-wrap gap-2">
-                  {persona.customerProfile.commonQueries.map((query, i) => (
-                    <span key={i} className="px-2 py-1 bg-slate-100 text-slate-600 rounded-full text-xs">
-                      {typeof query === 'string' ? query : (typeof query === 'object' ? JSON.stringify(query) : String(query))}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            ) : null}
+            <div>
+              <label className="text-xs font-medium text-slate-500 uppercase tracking-wide mb-2 block">Common Questions</label>
+              <EditableTags
+                tags={(persona.customerProfile?.commonQueries || []).map((q: any) => typeof q === 'string' ? q : String(q))}
+                onSave={(tags) => handleSave('customerProfile.commonQueries', tags)}
+                placeholder="Add question"
+              />
+            </div>
           </div>
         </SectionCard>
       </div>
 
       {/* Inventory Section - Full Width */}
-      {inventoryItems.length > 0 && (
-        <SectionCard
-          icon={getInventoryIcon()}
-          title="Inventory & Pricing"
-          badge={{ text: `${inventoryItems.reduce((acc, i) => acc + i.data.length, 0)} items`, color: 'bg-orange-100 text-orange-700' }}
-          collapsible
-          defaultExpanded
-        >
+      <SectionCard
+        icon={getInventoryIcon()}
+        title="Inventory & Pricing"
+        badge={inventoryItems.length > 0 ? { text: `${inventoryItems.reduce((acc, i) => acc + i.data.length, 0)} items`, color: 'bg-orange-100 text-orange-700' } : undefined}
+        collapsible
+        defaultExpanded
+        action={
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              const type = inventoryItems.length > 0 ? inventoryItems[0].type : 'Products & Services';
+              const path = inventoryItems.length > 0 ? inventoryItems[0].path : 'knowledge.productsOrServices';
+              const icon = inventoryItems.length > 0 ? inventoryItems[0].icon : Package;
+              setAddingItemType({ type, path, icon });
+            }}
+            className="text-sm text-indigo-600 hover:text-indigo-700 flex items-center gap-1 px-3 py-1 hover:bg-indigo-50 rounded-lg"
+          >
+            <Plus className="w-4 h-4" /> Add Item
+          </button>
+        }
+      >
+        {inventoryItems.length > 0 ? (
           <div className="space-y-6">
             {inventoryItems.map((category) => (
               <div key={category.type}>
@@ -992,107 +1194,88 @@ export default function BusinessProfileView({
                     {category.type}
                     <span className="text-sm text-slate-400">({category.data.length})</span>
                   </h4>
-                  <button className="text-sm text-blue-600 hover:text-blue-700 flex items-center gap-1">
+                  <button
+                    onClick={() => setAddingItemType({ type: category.type, path: category.path, icon: category.icon })}
+                    className="text-sm text-indigo-600 hover:text-indigo-700 flex items-center gap-1"
+                  >
                     <Plus className="w-3 h-3" /> Add
                   </button>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                  {category.data.slice(0, 9).map((item: any, index: number) => {
-                    // Safely extract string values
-                    const getName = () => {
-                      const val = item.name || item.title;
-                      if (typeof val === 'string') return val;
-                      if (typeof val === 'object' && val !== null) return val.name || val.title || val.text || `Item ${index + 1}`;
-                      return `Item ${index + 1}`;
-                    };
-                    const getCategory = () => {
-                      const val = item.category || item.type;
-                      if (typeof val === 'string') return val;
-                      return undefined;
-                    };
-                    const getDescription = () => {
-                      const val = item.description;
-                      if (typeof val === 'string') return val;
-                      return undefined;
-                    };
-                    const getDetails = () => {
-                      const val = item.duration || item.size || item.area;
-                      if (typeof val === 'string') return val;
-                      if (typeof val === 'number') return String(val);
-                      return undefined;
-                    };
-                    return (
-                      <InventoryCard
-                        key={index}
-                        name={getName()}
-                        category={getCategory()}
-                        price={item.price || item.fee || item.rate}
-                        priceUnit={typeof (item.priceUnit || item.feeStructure) === 'string' ? (item.priceUnit || item.feeStructure) : undefined}
-                        description={getDescription()}
-                        details={getDetails()}
-                        icon={category.icon}
-                      />
-                    );
-                  })}
+                  {category.data.map((item: any, index: number) => (
+                    <EditableInventoryCard
+                      key={index}
+                      item={item}
+                      index={index}
+                      type={category.type}
+                      icon={category.icon}
+                      onUpdate={(updatedItem) => handleInventoryUpdate(category.path, category.data, index, updatedItem)}
+                      onRemove={() => handleInventoryRemove(category.path, category.data, index)}
+                    />
+                  ))}
                 </div>
-                {category.data.length > 9 && (
-                  <button className="mt-3 text-sm text-blue-600 hover:text-blue-700">
-                    View all {category.data.length} items
-                  </button>
-                )}
               </div>
             ))}
           </div>
-        </SectionCard>
-      )}
+        ) : (
+          <div className="text-center py-8">
+            <Package className="w-12 h-12 mx-auto text-slate-300 mb-3" />
+            <p className="text-slate-500 text-sm mb-4">No inventory items yet</p>
+            <button
+              onClick={() => setAddingItemType({ type: 'Products & Services', path: 'knowledge.productsOrServices', icon: Package })}
+              className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 text-sm"
+            >
+              Add Your First Item
+            </button>
+          </div>
+        )}
+      </SectionCard>
 
-      {/* Products/Services */}
-      {persona.knowledge?.productsOrServices?.length ? (
-        <SectionCard
-          icon={Package}
-          title="Products & Services"
-          badge={{ text: `${persona.knowledge.productsOrServices.length} items`, color: 'bg-blue-100 text-blue-700' }}
-          collapsible
-        >
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            {persona.knowledge.productsOrServices.map((item, index) => (
-              <InventoryCard
+      {/* FAQs - Full Width */}
+      <SectionCard
+        icon={MessageSquare}
+        title="Frequently Asked Questions"
+        badge={persona.knowledge?.faqs?.length ? { text: `${persona.knowledge.faqs.length} FAQs`, color: 'bg-purple-100 text-purple-700' } : undefined}
+        collapsible
+        action={
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              setAddingFAQ(true);
+            }}
+            className="text-sm text-indigo-600 hover:text-indigo-700 flex items-center gap-1 px-3 py-1 hover:bg-indigo-50 rounded-lg"
+          >
+            <Plus className="w-4 h-4" /> Add FAQ
+          </button>
+        }
+      >
+        {persona.knowledge?.faqs?.length ? (
+          <div className="space-y-3">
+            {persona.knowledge.faqs.map((faq, index) => (
+              <EditableFAQ
                 key={index}
-                name={typeof item.name === 'string' ? item.name : `Item ${index + 1}`}
-                category={typeof item.category === 'string' ? item.category : undefined}
-                price={item.price}
-                description={typeof item.description === 'string' ? item.description : undefined}
-                icon={Package}
+                faq={faq}
+                index={index}
+                onUpdate={(updatedFaq) => handleFAQUpdate(index, updatedFaq)}
+                onRemove={() => handleFAQRemove(index)}
               />
             ))}
           </div>
-        </SectionCard>
-      ) : null}
-
-      {/* FAQs */}
-      {persona.knowledge?.faqs?.length ? (
-        <SectionCard
-          icon={MessageSquare}
-          title="Frequently Asked Questions"
-          badge={{ text: `${persona.knowledge.faqs.length} FAQs`, color: 'bg-purple-100 text-purple-700' }}
-          collapsible
-        >
-          <div className="space-y-3">
-            {persona.knowledge.faqs.map((faq, index) => (
-              <div key={index} className="p-4 bg-slate-50 rounded-lg">
-                <h4 className="font-medium text-slate-800 mb-2">
-                  {typeof faq.question === 'string' ? faq.question : `Question ${index + 1}`}
-                </h4>
-                <p className="text-sm text-slate-600">
-                  {typeof faq.answer === 'string' ? faq.answer : (typeof faq.answer === 'object' ? JSON.stringify(faq.answer) : String(faq.answer || ''))}
-                </p>
-              </div>
-            ))}
+        ) : (
+          <div className="text-center py-8">
+            <MessageSquare className="w-12 h-12 mx-auto text-slate-300 mb-3" />
+            <p className="text-slate-500 text-sm mb-4">No FAQs yet</p>
+            <button
+              onClick={() => setAddingFAQ(true)}
+              className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 text-sm"
+            >
+              Add Your First FAQ
+            </button>
           </div>
-        </SectionCard>
-      ) : null}
+        )}
+      </SectionCard>
 
-      {/* Reviews */}
+      {/* Reviews - Read Only but displayed nicely */}
       {persona.industrySpecificData?.fetchedReviews?.length ? (
         <SectionCard
           icon={Star}
@@ -1102,24 +1285,29 @@ export default function BusinessProfileView({
           defaultExpanded={false}
         >
           <div className="space-y-4">
-            {persona.industrySpecificData.fetchedReviews.slice(0, 5).map((review: any, index: number) => {
+            {persona.industrySpecificData.fetchedReviews.slice(0, 10).map((review: any, index: number) => {
               const author = typeof review.author === 'string' ? review.author : 'Anonymous';
-              const text = typeof review.text === 'string' ? review.text : (typeof review.text === 'object' ? JSON.stringify(review.text) : '');
+              const text = typeof review.text === 'string' ? review.text : '';
               const rating = typeof review.rating === 'number' ? review.rating : 0;
               return (
                 <div key={index} className="p-4 bg-slate-50 rounded-lg">
                   <div className="flex items-center justify-between mb-2">
-                    <span className="font-medium text-sm text-slate-800">{author}</span>
-                    <div className="flex items-center gap-1">
+                    <div className="flex items-center gap-2">
+                      <div className="w-8 h-8 bg-indigo-100 rounded-full flex items-center justify-center">
+                        <span className="text-xs font-bold text-indigo-600">{author.charAt(0).toUpperCase()}</span>
+                      </div>
+                      <span className="font-medium text-sm text-slate-800">{author}</span>
+                    </div>
+                    <div className="flex items-center gap-0.5">
                       {[...Array(5)].map((_, i) => (
                         <Star
                           key={i}
-                          className={cn("w-3 h-3", i < rating ? "text-yellow-400 fill-yellow-400" : "text-slate-300")}
+                          className={cn("w-3.5 h-3.5", i < rating ? "text-yellow-400 fill-yellow-400" : "text-slate-300")}
                         />
                       ))}
                     </div>
                   </div>
-                  <p className="text-sm text-slate-600 line-clamp-3">{text}</p>
+                  <p className="text-sm text-slate-600">{text}</p>
                 </div>
               );
             })}
@@ -1127,8 +1315,67 @@ export default function BusinessProfileView({
         </SectionCard>
       ) : null}
 
-      {/* Additional/Unstructured Data */}
-      <AdditionalDataSection persona={persona} onFieldUpdate={handleSave} />
+      {/* Add Item Dialog */}
+      {addingItemType && (
+        <AddItemDialog
+          type={addingItemType.type}
+          icon={addingItemType.icon}
+          onAdd={(item) => {
+            const existingItems = inventoryItems.find(i => i.path === addingItemType.path)?.data || [];
+            handleInventoryAdd(addingItemType.path, existingItems, item);
+          }}
+          onClose={() => setAddingItemType(null)}
+        />
+      )}
+
+      {/* Add FAQ Dialog */}
+      {addingFAQ && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl max-w-md w-full p-6">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="p-2 bg-purple-100 rounded-lg">
+                <MessageSquare className="w-5 h-5 text-purple-600" />
+              </div>
+              <h3 className="font-semibold text-lg text-slate-800">Add FAQ</h3>
+            </div>
+            <form onSubmit={(e) => {
+              e.preventDefault();
+              const form = e.target as HTMLFormElement;
+              const question = (form.elements.namedItem('question') as HTMLInputElement).value;
+              const answer = (form.elements.namedItem('answer') as HTMLTextAreaElement).value;
+              if (question && answer) {
+                handleFAQAdd({ question, answer });
+              }
+            }}>
+              <div className="space-y-3">
+                <input
+                  name="question"
+                  type="text"
+                  placeholder="Question *"
+                  className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  autoFocus
+                  required
+                />
+                <textarea
+                  name="answer"
+                  placeholder="Answer *"
+                  className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none"
+                  rows={4}
+                  required
+                />
+              </div>
+              <div className="flex justify-end gap-2 mt-6">
+                <button type="button" onClick={() => setAddingFAQ(false)} className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg">
+                  Cancel
+                </button>
+                <button type="submit" className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700">
+                  Add FAQ
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* Saving Indicator */}
       {isSaving && (
