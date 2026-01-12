@@ -2,14 +2,25 @@ import React, { useState, useEffect } from 'react';
 import {
     Building2, Phone, MapPin, Clock, ChevronDown, Edit3, Check, X, Plus,
     Sparkles, Search, Eye, Award, Target, Shield, Bot, Home, Receipt,
-    HelpCircle, Trophy, ArrowRight, Cpu, Loader2, Trash2,
+    HelpCircle, Trophy, ArrowRight, Cpu, Loader2, Trash2, Globe,
     Landmark, GraduationCap, Heart, Briefcase, ShoppingBag, UtensilsCrossed,
     ShoppingCart, Car, Plane, Building, PartyPopper, Wrench, MoreHorizontal,
     LucideIcon
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { BusinessPersona } from '@/lib/business-persona-types';
-import { BUSINESS_CATEGORIES, SubCategory, SelectedBusinessCategory, findCategoryBySubId, toSelectedCategories } from '@/lib/business-categories';
+import {
+    getIndustries,
+    getResolvedFunctions,
+    searchFunctions,
+    toSelectedCategories,
+    findFunctionInfo,
+    CountryCode,
+    Industry,
+    ResolvedFunction,
+    SelectedBusinessCategory,
+    SUPPORTED_COUNTRIES
+} from '@/lib/business-taxonomy';
 
 // Icon mapping for category icons
 const CATEGORY_ICONS: Record<string, LucideIcon> = {
@@ -222,26 +233,34 @@ export default function BusinessProfileTab({
 
     // -- Data Mapping --
 
+    // Country selection for localized labels
+    const [selectedCountry, setSelectedCountry] = useState<CountryCode>(
+        (persona.identity as any)?.country || 'GLOBAL'
+    );
+
     // UI State for editing
     const [showCategoryModal, setShowCategoryModal] = useState(false);
-    const [selectedMainCategory, setSelectedMainCategory] = useState<string | null>(null);
+    const [selectedIndustry, setSelectedIndustry] = useState<string | null>(null);
     const [categorySearch, setCategorySearch] = useState('');
 
-    // Multi-select state for sub-categories
+    // Multi-select state for business functions
     // Get currently selected categories from persona
     const selectedCategories: SelectedBusinessCategory[] =
         (persona.identity as any)?.businessCategories || [];
     const [pendingSelections, setPendingSelections] = useState<string[]>(
-        selectedCategories.map(c => c.subCategoryId)
+        selectedCategories.map(c => c.functionId)
     );
 
     // Check if user has selected at least one category
     const hasSelectedCategories = selectedCategories.length > 0;
 
+    // Get industries and functions from new taxonomy
+    const industries = getIndustries();
+
     // Sync pending selections when modal opens
     useEffect(() => {
         if (showCategoryModal) {
-            setPendingSelections(selectedCategories.map(c => c.subCategoryId));
+            setPendingSelections(selectedCategories.map(c => c.functionId));
             setCategorySearch('');
         }
     }, [showCategoryModal]);
@@ -720,7 +739,7 @@ export default function BusinessProfileTab({
                 )}
             </div>
 
-            {/* Category Modal - Multi-Select */}
+            {/* Category Modal - Multi-Select with Country Localization */}
             {showCategoryModal && (
                 <div className="fixed inset-0 bg-black/50 z-[100] flex items-center justify-center p-4 backdrop-blur-sm">
                     <div className="bg-white rounded-2xl w-full max-w-4xl max-h-[85vh] overflow-hidden flex flex-col shadow-2xl">
@@ -741,76 +760,89 @@ export default function BusinessProfileTab({
                                     <X className="w-5 h-5 text-slate-500" />
                                 </button>
                             </div>
-                            {/* Search input */}
-                            <div className="relative">
-                                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-slate-400" />
-                                <input
-                                    type="text"
-                                    placeholder="Search categories..."
-                                    value={categorySearch}
-                                    onChange={(e) => setCategorySearch(e.target.value)}
-                                    className="w-full pl-10 pr-4 py-2 rounded-lg bg-white border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300"
-                                />
-                                {categorySearch && (
-                                    <button
-                                        onClick={() => setCategorySearch('')}
-                                        className="absolute right-3 top-1/2 transform -translate-y-1/2"
+                            {/* Country selector and Search */}
+                            <div className="flex gap-3">
+                                <div className="relative">
+                                    <Globe className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-slate-400" />
+                                    <select
+                                        value={selectedCountry}
+                                        onChange={(e) => setSelectedCountry(e.target.value as CountryCode)}
+                                        className="pl-10 pr-8 py-2 rounded-lg bg-white border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300 appearance-none cursor-pointer"
                                     >
-                                        <X className="w-4 h-4 text-slate-400 hover:text-slate-600" />
-                                    </button>
-                                )}
+                                        {SUPPORTED_COUNTRIES.map(c => (
+                                            <option key={c.code} value={c.code}>{c.flag} {c.name}</option>
+                                        ))}
+                                    </select>
+                                    <ChevronDown className="absolute right-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+                                </div>
+                                <div className="relative flex-1">
+                                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-slate-400" />
+                                    <input
+                                        type="text"
+                                        placeholder="Search categories..."
+                                        value={categorySearch}
+                                        onChange={(e) => setCategorySearch(e.target.value)}
+                                        className="w-full pl-10 pr-4 py-2 rounded-lg bg-white border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300"
+                                    />
+                                    {categorySearch && (
+                                        <button
+                                            onClick={() => setCategorySearch('')}
+                                            className="absolute right-3 top-1/2 transform -translate-y-1/2"
+                                        >
+                                            <X className="w-4 h-4 text-slate-400 hover:text-slate-600" />
+                                        </button>
+                                    )}
+                                </div>
                             </div>
                         </div>
 
                         <div className="flex-1 overflow-hidden flex flex-col md:flex-row">
-                            {/* Left: Main Categories */}
+                            {/* Left: Industries */}
                             <div className="w-full md:w-1/3 border-r border-slate-100 overflow-y-auto bg-slate-50/50 p-2">
-                                {BUSINESS_CATEGORIES.map(cat => {
-                                    // Count selected sub-categories in this main category
-                                    const selectedInCat = cat.subCategories.filter(s =>
-                                        pendingSelections.includes(s.id)
+                                {industries.map(industry => {
+                                    // Count selected functions in this industry
+                                    const functionsInIndustry = getResolvedFunctions(industry.industryId, selectedCountry);
+                                    const selectedInIndustry = functionsInIndustry.filter(f =>
+                                        pendingSelections.includes(f.functionId)
                                     ).length;
+
+                                    const IconComponent = CATEGORY_ICONS[industry.iconName] || Building2;
 
                                     return (
                                         <button
-                                            key={cat.id}
-                                            onClick={() => setSelectedMainCategory(cat.id)}
+                                            key={industry.industryId}
+                                            onClick={() => setSelectedIndustry(industry.industryId)}
                                             className={cn(
                                                 "w-full text-left px-3 py-3 rounded-xl text-sm font-medium transition-all mb-1.5 flex items-center justify-between",
-                                                selectedMainCategory === cat.id
+                                                selectedIndustry === industry.industryId
                                                     ? "bg-indigo-600 text-white shadow-lg shadow-indigo-200"
                                                     : "text-slate-700 hover:bg-white hover:shadow-md border border-transparent hover:border-slate-100"
                                             )}
                                         >
                                             <span className="flex items-center gap-3">
-                                                {(() => {
-                                                    const IconComponent = CATEGORY_ICONS[cat.iconName] || Building2;
-                                                    return (
-                                                        <span className={cn(
-                                                            "w-8 h-8 rounded-lg flex items-center justify-center",
-                                                            selectedMainCategory === cat.id
-                                                                ? "bg-white/20"
-                                                                : "bg-slate-100"
-                                                        )}>
-                                                            <IconComponent className={cn(
-                                                                "w-4 h-4",
-                                                                selectedMainCategory === cat.id
-                                                                    ? "text-white"
-                                                                    : "text-slate-500"
-                                                            )} />
-                                                        </span>
-                                                    );
-                                                })()}
-                                                <span>{cat.label}</span>
-                                            </span>
-                                            {selectedInCat > 0 && (
                                                 <span className={cn(
-                                                    "text-xs px-2 py-0.5 rounded-full font-semibold",
-                                                    selectedMainCategory === cat.id
+                                                    "w-8 h-8 rounded-lg flex items-center justify-center",
+                                                    selectedIndustry === industry.industryId
+                                                        ? "bg-white/20"
+                                                        : "bg-slate-100"
+                                                )}>
+                                                    <IconComponent className={cn(
+                                                        "w-4 h-4",
+                                                        selectedIndustry === industry.industryId
+                                                            ? "text-white"
+                                                            : "text-slate-500"
+                                                    )} />
+                                                </span>
+                                                <span className="truncate">{industry.name}</span>
+                                            </span>
+                                            {selectedInIndustry > 0 && (
+                                                <span className={cn(
+                                                    "text-xs px-2 py-0.5 rounded-full font-semibold flex-shrink-0",
+                                                    selectedIndustry === industry.industryId
                                                         ? "bg-white/20 text-white"
                                                         : "bg-indigo-100 text-indigo-700"
                                                 )}>
-                                                    {selectedInCat}
+                                                    {selectedInIndustry}
                                                 </span>
                                             )}
                                         </button>
@@ -818,52 +850,34 @@ export default function BusinessProfileTab({
                                 })}
                             </div>
 
-                            {/* Right: Sub Categories with Checkboxes */}
+                            {/* Right: Business Functions with Checkboxes */}
                             <div className="w-full md:w-2/3 overflow-y-auto p-4 bg-white">
                                 {(() => {
-                                    // Get sub-categories to display
-                                    let subCategoriesToShow: { sub: SubCategory; mainCatId: string; mainCatLabel: string }[] = [];
+                                    // Get functions to display
+                                    let functionsToShow: ResolvedFunction[] = [];
 
                                     if (categorySearch.trim()) {
-                                        // Search across ALL categories
-                                        const searchLower = categorySearch.toLowerCase();
-                                        BUSINESS_CATEGORIES.forEach(cat => {
-                                            cat.subCategories.forEach(sub => {
-                                                if (
-                                                    sub.label.toLowerCase().includes(searchLower) ||
-                                                    sub.keywords?.some(k => k.toLowerCase().includes(searchLower)) ||
-                                                    sub.googlePlacesTypes.some(t => t.toLowerCase().includes(searchLower))
-                                                ) {
-                                                    subCategoriesToShow.push({ sub, mainCatId: cat.id, mainCatLabel: cat.label });
-                                                }
-                                            });
-                                        });
-                                    } else if (selectedMainCategory) {
-                                        // Show selected main category's sub-categories
-                                        const cat = BUSINESS_CATEGORIES.find(c => c.id === selectedMainCategory);
-                                        if (cat) {
-                                            subCategoriesToShow = cat.subCategories.map(sub => ({
-                                                sub,
-                                                mainCatId: cat.id,
-                                                mainCatLabel: cat.label
-                                            }));
-                                        }
+                                        // Search across ALL functions
+                                        functionsToShow = searchFunctions(categorySearch, selectedCountry);
+                                    } else if (selectedIndustry) {
+                                        // Show selected industry's functions
+                                        functionsToShow = getResolvedFunctions(selectedIndustry, selectedCountry);
                                     }
 
-                                    if (subCategoriesToShow.length > 0) {
+                                    if (functionsToShow.length > 0) {
                                         return (
                                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                                {subCategoriesToShow.map(({ sub, mainCatLabel }) => {
-                                                    const isSelected = pendingSelections.includes(sub.id);
+                                                {functionsToShow.map((func) => {
+                                                    const isSelected = pendingSelections.includes(func.functionId);
 
                                                     return (
                                                         <button
-                                                            key={sub.id}
+                                                            key={func.functionId}
                                                             onClick={() => {
                                                                 if (isSelected) {
-                                                                    setPendingSelections(prev => prev.filter(id => id !== sub.id));
+                                                                    setPendingSelections(prev => prev.filter(id => id !== func.functionId));
                                                                 } else {
-                                                                    setPendingSelections(prev => [...prev, sub.id]);
+                                                                    setPendingSelections(prev => [...prev, func.functionId]);
                                                                 }
                                                             }}
                                                             className={cn(
@@ -886,10 +900,13 @@ export default function BusinessProfileTab({
                                                                     "text-sm font-medium",
                                                                     isSelected ? "text-indigo-700" : "text-slate-700"
                                                                 )}>
-                                                                    {sub.label}
+                                                                    {func.displayLabel}
+                                                                    {func.isLocalized && (
+                                                                        <span className="ml-1.5 text-xs text-indigo-400">✦</span>
+                                                                    )}
                                                                 </div>
                                                                 <div className="text-xs text-slate-400 truncate">
-                                                                    {categorySearch ? mainCatLabel : sub.googlePlacesTypes[0]}
+                                                                    {categorySearch ? func.industryName : (func.isLocalized ? func.name : func.googlePlacesTypes[0])}
                                                                 </div>
                                                             </div>
                                                         </button>
@@ -908,7 +925,7 @@ export default function BusinessProfileTab({
                                         return (
                                             <div className="h-full flex flex-col items-center justify-center text-slate-400">
                                                 <Building2 className="w-12 h-12 mb-4 opacity-20" />
-                                                <p>Select a main category or search to see options</p>
+                                                <p>Select an industry or search to see options</p>
                                             </div>
                                         );
                                     }
@@ -935,18 +952,21 @@ export default function BusinessProfileTab({
                                 <button
                                     onClick={async () => {
                                         // Convert selected IDs to full category objects
-                                        const categories = toSelectedCategories(pendingSelections);
+                                        const categories = toSelectedCategories(pendingSelections, selectedCountry);
 
                                         // Save to persona
                                         await onUpdate('identity.businessCategories', categories);
 
+                                        // Save the selected country
+                                        await onUpdate('identity.country', selectedCountry);
+
                                         // Also update the primary industry based on first selection
                                         if (categories.length > 0) {
-                                            const first = findCategoryBySubId(categories[0].subCategoryId);
-                                            if (first) {
+                                            const firstInfo = findFunctionInfo(categories[0].functionId, selectedCountry);
+                                            if (firstInfo.function && firstInfo.industry) {
                                                 await onUpdate('identity.industry', {
-                                                    name: first.subCategory.label,
-                                                    category: first.category.industryCategory
+                                                    name: firstInfo.displayLabel,
+                                                    category: firstInfo.industry.industryId
                                                 });
                                             }
                                         }

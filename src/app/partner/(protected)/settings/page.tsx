@@ -1053,6 +1053,7 @@ const SettingsUltimate = () => {
   const navItems = [
     { id: 'profile', label: 'Business Profile', icon: '🏢', desc: 'Your business data' },
     { id: 'team', label: 'Team', icon: '👥', desc: 'Members & access' },
+    { id: 'modules', label: 'Modules', icon: '📦', desc: 'Features & integrations' },
     { id: 'account', label: 'Account', icon: '⚙️', desc: 'Personal & workspace' },
     ...(isAdmin ? [{ id: 'admin', label: 'Admin', icon: '🔐', desc: 'Integrations & tools', badge: 'Admin' }] : []),
   ];
@@ -1484,6 +1485,38 @@ const SettingsUltimate = () => {
                         ))}
                       </div>
                     )}
+                  </div>
+                </div>
+              )
+            }
+
+            {/* ===== MODULES TAB ===== */}
+            {
+              activeTab === 'modules' && (
+                <div className="space-y-6">
+                  <div>
+                    <h2 className="text-2xl font-bold text-slate-900">Modules</h2>
+                    <p className="text-slate-500">Enable and configure features for your workspace</p>
+                  </div>
+
+                  {/* Placeholder Card */}
+                  <div className="bg-white rounded-2xl border border-slate-200 p-8">
+                    <div className="text-center py-12">
+                      <div className="w-16 h-16 bg-gradient-to-br from-indigo-100 to-purple-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                        <span className="text-3xl">📦</span>
+                      </div>
+                      <h3 className="text-lg font-semibold text-slate-900 mb-2">Modules Coming Soon</h3>
+                      <p className="text-slate-500 text-sm max-w-md mx-auto">
+                        Configure which features are enabled for your workspace. Control access to Inbox, Broadcast, Agents, and more.
+                      </p>
+                      <div className="mt-6 flex flex-wrap justify-center gap-2">
+                        <span className="px-3 py-1.5 bg-slate-100 rounded-full text-xs text-slate-600">Inbox</span>
+                        <span className="px-3 py-1.5 bg-slate-100 rounded-full text-xs text-slate-600">Broadcast</span>
+                        <span className="px-3 py-1.5 bg-slate-100 rounded-full text-xs text-slate-600">Agents</span>
+                        <span className="px-3 py-1.5 bg-slate-100 rounded-full text-xs text-slate-600">Core Memory</span>
+                        <span className="px-3 py-1.5 bg-slate-100 rounded-full text-xs text-slate-600">Analytics</span>
+                      </div>
+                    </div>
                   </div>
                 </div>
               )
