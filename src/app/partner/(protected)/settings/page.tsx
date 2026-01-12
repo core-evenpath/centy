@@ -1496,28 +1496,278 @@ const SettingsUltimate = () => {
                 <div className="space-y-6">
                   <div>
                     <h2 className="text-2xl font-bold text-slate-900">Modules</h2>
-                    <p className="text-slate-500">Enable and configure features for your workspace</p>
+                    <p className="text-slate-500">Manage your inventory, menu, and catalog data</p>
                   </div>
 
-                  {/* Placeholder Card */}
-                  <div className="bg-white rounded-2xl border border-slate-200 p-8">
-                    <div className="text-center py-12">
-                      <div className="w-16 h-16 bg-gradient-to-br from-indigo-100 to-purple-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
-                        <span className="text-3xl">📦</span>
+                  {/* Menu Items Module (for Food & Beverage) */}
+                  {(persona.industrySpecificData?.menuItems?.length > 0 || (persona as any).menuItems?.length > 0) && (
+                    <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
+                      <div className="p-6 border-b border-slate-100 bg-gradient-to-r from-orange-50 to-amber-50">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 bg-orange-100 rounded-xl flex items-center justify-center">
+                              <span className="text-xl">🍽️</span>
+                            </div>
+                            <div>
+                              <h3 className="font-semibold text-slate-900">Menu Items</h3>
+                              <p className="text-sm text-slate-500">
+                                {persona.industrySpecificData?.menuItems?.length || (persona as any).menuItems?.length || 0} items imported
+                              </p>
+                            </div>
+                          </div>
+                          <span className="px-3 py-1 bg-green-100 text-green-700 text-xs font-medium rounded-full">
+                            ✓ Imported
+                          </span>
+                        </div>
                       </div>
-                      <h3 className="text-lg font-semibold text-slate-900 mb-2">Modules Coming Soon</h3>
-                      <p className="text-slate-500 text-sm max-w-md mx-auto">
-                        Configure which features are enabled for your workspace. Control access to Inbox, Broadcast, Agents, and more.
-                      </p>
-                      <div className="mt-6 flex flex-wrap justify-center gap-2">
-                        <span className="px-3 py-1.5 bg-slate-100 rounded-full text-xs text-slate-600">Inbox</span>
-                        <span className="px-3 py-1.5 bg-slate-100 rounded-full text-xs text-slate-600">Broadcast</span>
-                        <span className="px-3 py-1.5 bg-slate-100 rounded-full text-xs text-slate-600">Agents</span>
-                        <span className="px-3 py-1.5 bg-slate-100 rounded-full text-xs text-slate-600">Core Memory</span>
-                        <span className="px-3 py-1.5 bg-slate-100 rounded-full text-xs text-slate-600">Analytics</span>
+                      <div className="p-6">
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 max-h-96 overflow-y-auto">
+                          {(persona.industrySpecificData?.menuItems || (persona as any).menuItems || []).slice(0, 12).map((item: any, i: number) => (
+                            <div key={i} className="p-4 bg-slate-50 rounded-xl border border-slate-200 hover:border-orange-200 transition-colors">
+                              <div className="flex items-start justify-between gap-2">
+                                <div className="flex-1 min-w-0">
+                                  <h4 className="font-medium text-slate-900 truncate">{item.name}</h4>
+                                  <p className="text-xs text-slate-500 mt-0.5">{item.category || 'Uncategorized'}</p>
+                                </div>
+                                <div className="flex flex-col items-end gap-1">
+                                  {item.price && (
+                                    <span className="text-sm font-semibold text-green-600">₹{item.price}</span>
+                                  )}
+                                  {item.isVeg !== undefined && (
+                                    <span className={`w-4 h-4 rounded-sm border-2 flex items-center justify-center text-[10px] ${item.isVeg ? 'border-green-600 text-green-600' : 'border-red-600 text-red-600'}`}>
+                                      ●
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                              {item.description && (
+                                <p className="text-xs text-slate-500 mt-2 line-clamp-2">{item.description}</p>
+                              )}
+                              <div className="flex items-center gap-2 mt-2">
+                                {item.popular && <span className="px-1.5 py-0.5 bg-amber-100 text-amber-700 text-[10px] rounded">Popular</span>}
+                                {item.spiceLevel && <span className="px-1.5 py-0.5 bg-red-100 text-red-700 text-[10px] rounded">🌶️ {item.spiceLevel}</span>}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                        {(persona.industrySpecificData?.menuItems?.length || (persona as any).menuItems?.length || 0) > 12 && (
+                          <div className="text-center mt-4">
+                            <span className="text-sm text-slate-500">
+                              + {(persona.industrySpecificData?.menuItems?.length || (persona as any).menuItems?.length) - 12} more items
+                            </span>
+                          </div>
+                        )}
                       </div>
                     </div>
-                  </div>
+                  )}
+
+                  {/* Rooms Module (for Hospitality) */}
+                  {(persona.industrySpecificData?.rooms?.length > 0 || (persona as any).roomTypes?.length > 0) && (
+                    <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
+                      <div className="p-6 border-b border-slate-100 bg-gradient-to-r from-blue-50 to-indigo-50">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 bg-blue-100 rounded-xl flex items-center justify-center">
+                              <span className="text-xl">🛏️</span>
+                            </div>
+                            <div>
+                              <h3 className="font-semibold text-slate-900">Room Types</h3>
+                              <p className="text-sm text-slate-500">
+                                {persona.industrySpecificData?.rooms?.length || (persona as any).roomTypes?.length || 0} room types
+                              </p>
+                            </div>
+                          </div>
+                          <span className="px-3 py-1 bg-green-100 text-green-700 text-xs font-medium rounded-full">
+                            ✓ Imported
+                          </span>
+                        </div>
+                      </div>
+                      <div className="p-6">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          {(persona.industrySpecificData?.rooms || (persona as any).roomTypes || []).map((room: any, i: number) => (
+                            <div key={i} className="p-4 bg-slate-50 rounded-xl border border-slate-200">
+                              <div className="flex items-start justify-between">
+                                <div>
+                                  <h4 className="font-medium text-slate-900">{room.name}</h4>
+                                  <p className="text-xs text-slate-500 mt-0.5">{room.category || room.bedType}</p>
+                                </div>
+                                {room.price && (
+                                  <span className="text-sm font-semibold text-green-600">₹{room.price}/{room.priceUnit || 'night'}</span>
+                                )}
+                              </div>
+                              {room.description && (
+                                <p className="text-xs text-slate-500 mt-2 line-clamp-2">{room.description}</p>
+                              )}
+                              <div className="flex flex-wrap gap-1 mt-2">
+                                {room.maxOccupancy && <span className="px-1.5 py-0.5 bg-blue-100 text-blue-700 text-[10px] rounded">👥 {room.maxOccupancy} guests</span>}
+                                {room.size && <span className="px-1.5 py-0.5 bg-slate-200 text-slate-600 text-[10px] rounded">{room.size}</span>}
+                                {room.view && <span className="px-1.5 py-0.5 bg-purple-100 text-purple-700 text-[10px] rounded">{room.view}</span>}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Products Module (for Retail) */}
+                  {(persona.industrySpecificData?.products?.length > 0 || (persona as any).productCatalog?.length > 0) && (
+                    <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
+                      <div className="p-6 border-b border-slate-100 bg-gradient-to-r from-purple-50 to-pink-50">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 bg-purple-100 rounded-xl flex items-center justify-center">
+                              <span className="text-xl">🛍️</span>
+                            </div>
+                            <div>
+                              <h3 className="font-semibold text-slate-900">Products</h3>
+                              <p className="text-sm text-slate-500">
+                                {persona.industrySpecificData?.products?.length || (persona as any).productCatalog?.length || 0} products
+                              </p>
+                            </div>
+                          </div>
+                          <span className="px-3 py-1 bg-green-100 text-green-700 text-xs font-medium rounded-full">
+                            ✓ Imported
+                          </span>
+                        </div>
+                      </div>
+                      <div className="p-6">
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 max-h-96 overflow-y-auto">
+                          {(persona.industrySpecificData?.products || (persona as any).productCatalog || []).slice(0, 9).map((product: any, i: number) => (
+                            <div key={i} className="p-4 bg-slate-50 rounded-xl border border-slate-200">
+                              <div className="flex items-start justify-between gap-2">
+                                <div className="flex-1 min-w-0">
+                                  <h4 className="font-medium text-slate-900 truncate">{product.name}</h4>
+                                  <p className="text-xs text-slate-500 mt-0.5">{product.category || product.brand}</p>
+                                </div>
+                                <div className="text-right">
+                                  {product.price && (
+                                    <span className="text-sm font-semibold text-green-600">₹{product.price}</span>
+                                  )}
+                                  {product.mrp && product.mrp > product.price && (
+                                    <p className="text-xs text-slate-400 line-through">₹{product.mrp}</p>
+                                  )}
+                                </div>
+                              </div>
+                              {product.description && (
+                                <p className="text-xs text-slate-500 mt-2 line-clamp-2">{product.description}</p>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Services Module (for Healthcare/Professional) */}
+                  {(persona.industrySpecificData?.services?.length > 0 || (persona as any).healthcareServices?.length > 0) && (
+                    <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
+                      <div className="p-6 border-b border-slate-100 bg-gradient-to-r from-green-50 to-teal-50">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 bg-green-100 rounded-xl flex items-center justify-center">
+                              <span className="text-xl">💼</span>
+                            </div>
+                            <div>
+                              <h3 className="font-semibold text-slate-900">Services</h3>
+                              <p className="text-sm text-slate-500">
+                                {persona.industrySpecificData?.services?.length || (persona as any).healthcareServices?.length || 0} services
+                              </p>
+                            </div>
+                          </div>
+                          <span className="px-3 py-1 bg-green-100 text-green-700 text-xs font-medium rounded-full">
+                            ✓ Imported
+                          </span>
+                        </div>
+                      </div>
+                      <div className="p-6">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          {(persona.industrySpecificData?.services || (persona as any).healthcareServices || []).slice(0, 6).map((service: any, i: number) => (
+                            <div key={i} className="p-4 bg-slate-50 rounded-xl border border-slate-200">
+                              <div className="flex items-start justify-between gap-2">
+                                <div className="flex-1">
+                                  <h4 className="font-medium text-slate-900">{service.name}</h4>
+                                  <p className="text-xs text-slate-500 mt-0.5">{service.category || service.specialization}</p>
+                                </div>
+                                {service.price && (
+                                  <span className="text-sm font-semibold text-green-600">₹{service.price}</span>
+                                )}
+                              </div>
+                              {service.description && (
+                                <p className="text-xs text-slate-500 mt-2 line-clamp-2">{service.description}</p>
+                              )}
+                              {(service.duration || service.doctor) && (
+                                <div className="flex items-center gap-2 mt-2 text-xs text-slate-500">
+                                  {service.duration && <span>⏱️ {service.duration}</span>}
+                                  {service.doctor && <span>👨‍⚕️ {service.doctor}</span>}
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Empty State */}
+                  {!(persona.industrySpecificData?.menuItems?.length > 0 ||
+                    (persona as any).menuItems?.length > 0 ||
+                    persona.industrySpecificData?.rooms?.length > 0 ||
+                    (persona as any).roomTypes?.length > 0 ||
+                    persona.industrySpecificData?.products?.length > 0 ||
+                    (persona as any).productCatalog?.length > 0 ||
+                    persona.industrySpecificData?.services?.length > 0 ||
+                    (persona as any).healthcareServices?.length > 0) && (
+                      <div className="bg-white rounded-2xl border border-slate-200 p-8">
+                        <div className="text-center py-12">
+                          <div className="w-16 h-16 bg-gradient-to-br from-indigo-100 to-purple-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                            <span className="text-3xl">📦</span>
+                          </div>
+                          <h3 className="text-lg font-semibold text-slate-900 mb-2">No Inventory Data Yet</h3>
+                          <p className="text-slate-500 text-sm max-w-md mx-auto mb-6">
+                            Use the <strong>Auto Fill</strong> feature in Business Profile to import menu items, products, services, or room types from Google Places.
+                          </p>
+                          <button
+                            onClick={() => setActiveTab('profile')}
+                            className="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 transition-colors"
+                          >
+                            Go to Business Profile
+                          </button>
+                        </div>
+                      </div>
+                    )}
+
+                  {/* Industry Specific Data (Additional Info) */}
+                  {persona.industrySpecificData && Object.keys(persona.industrySpecificData).filter(k => !['menuItems', 'rooms', 'products', 'services', 'properties'].includes(k)).length > 0 && (
+                    <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
+                      <div className="p-6 border-b border-slate-100">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 bg-slate-100 rounded-xl flex items-center justify-center">
+                            <span className="text-xl">📊</span>
+                          </div>
+                          <div>
+                            <h3 className="font-semibold text-slate-900">Industry Data</h3>
+                            <p className="text-sm text-slate-500">Additional business-specific information</p>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="p-6">
+                        <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                          {Object.entries(persona.industrySpecificData)
+                            .filter(([key]) => !['menuItems', 'rooms', 'products', 'services', 'properties'].includes(key))
+                            .slice(0, 12)
+                            .map(([key, value]) => (
+                              <div key={key} className="p-3 bg-slate-50 rounded-lg">
+                                <p className="text-xs text-slate-500 capitalize">{key.replace(/([A-Z])/g, ' $1').trim()}</p>
+                                <p className="text-sm font-medium text-slate-900 mt-1 truncate">
+                                  {Array.isArray(value) ? value.slice(0, 3).join(', ') : String(value)}
+                                </p>
+                              </div>
+                            ))}
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )
             }
