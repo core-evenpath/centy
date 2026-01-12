@@ -1785,6 +1785,52 @@ const SettingsUltimate = () => {
                   partnerId={partnerId!}
                   onFieldUpdate={handleFieldUpdate}
                   onRefresh={handlePersonaRefresh}
+                  onOpenWizard={() => {
+                    // Convert persona data to wizard format for editing
+                    const wizardData = {
+                      identity: {
+                        businessName: persona.identity?.name || '',
+                        industry: persona.identity?.industry?.category || '',
+                        phone: persona.identity?.phone || '',
+                        email: persona.identity?.email || '',
+                        website: persona.identity?.website || '',
+                        description: persona.personality?.description || '',
+                        address: persona.identity?.address || {},
+                      },
+                      personality: {
+                        tagline: persona.personality?.tagline || '',
+                        uniqueSellingPoints: persona.personality?.uniqueSellingPoints || [],
+                      },
+                      inventory: {
+                        rooms: persona.roomTypes || [],
+                        menuItems: persona.menuItems || [],
+                        products: persona.productCatalog || [],
+                        services: persona.healthcareServices || [],
+                        properties: persona.propertyListings || [],
+                        courses: persona.industrySpecificData?.courses || [],
+                        treatments: persona.industrySpecificData?.treatments || [],
+                        memberships: persona.industrySpecificData?.memberships || [],
+                        vehicles: persona.industrySpecificData?.vehicles || [],
+                        venuePackages: persona.industrySpecificData?.venuePackages || [],
+                        legalServices: persona.industrySpecificData?.legalServices || [],
+                        financialProducts: persona.industrySpecificData?.financialProducts || [],
+                      },
+                      photos: persona.industrySpecificData?.fetchedPhotos || [],
+                      reviews: persona.industrySpecificData?.fetchedReviews || [],
+                      knowledge: {
+                        faqs: persona.knowledge?.faqs || [],
+                        productsOrServices: persona.knowledge?.productsOrServices || [],
+                      },
+                      customerProfile: {
+                        targetAudience: persona.customerProfile?.targetAudience ? [persona.customerProfile.targetAudience] : [],
+                      },
+                      fromTheWeb: persona.industrySpecificData?.fromTheWeb || {},
+                      industrySpecificData: persona.industrySpecificData || {},
+                      source: { platform: 'existing_profile', confidence: 'high' },
+                    };
+                    setAutoFillPreviewData(wizardData);
+                    setShowAutoFillWizard(true);
+                  }}
                   isAdmin={isAdmin}
                 />
 

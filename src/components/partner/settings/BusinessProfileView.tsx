@@ -8,7 +8,7 @@ import {
   Edit2, Check, X, Plus, Trash2, ExternalLink, IndianRupee,
   AlertCircle, Lightbulb, Camera, Quote, Brain, Zap, ChevronDown,
   Store, Utensils, Bed, Home, Stethoscope, GraduationCap, Car,
-  Scale, Landmark, Calendar, Heart, Save, RefreshCw
+  Scale, Landmark, Calendar, Heart, Save, RefreshCw, Wand2
 } from 'lucide-react';
 import { toast } from 'sonner';
 import type { BusinessPersona, ProductService, FrequentlyAskedQuestion } from '@/lib/business-persona-types';
@@ -18,6 +18,7 @@ interface BusinessProfileViewProps {
   partnerId: string;
   onFieldUpdate: (path: string, value: any) => Promise<void>;
   onRefresh?: () => Promise<void>;
+  onOpenWizard?: () => void;
   isAdmin?: boolean;
 }
 
@@ -668,6 +669,7 @@ export default function BusinessProfileView({
   partnerId,
   onFieldUpdate,
   onRefresh,
+  onOpenWizard,
   isAdmin = true,
 }: BusinessProfileViewProps) {
   const [focusedField, setFocusedField] = useState<string | null>(null);
@@ -775,6 +777,16 @@ export default function BusinessProfileView({
         </div>
         <div className="flex items-center gap-4">
           <CompletenessScore score={profileScore} />
+          {onOpenWizard && (
+            <button
+              onClick={onOpenWizard}
+              className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-lg font-medium text-sm hover:from-indigo-700 hover:to-purple-700 transition-all shadow-sm hover:shadow-md"
+              title="Edit with Wizard"
+            >
+              <Wand2 className="w-4 h-4" />
+              <span>Edit Profile</span>
+            </button>
+          )}
           {onRefresh && (
             <button
               onClick={onRefresh}

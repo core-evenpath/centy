@@ -9,7 +9,7 @@ import {
   IndianRupee, Utensils, Bed, Home, Stethoscope, GraduationCap, Car,
   Scale, Landmark, Calendar, Tag, FileText, AlertCircle, Sparkles,
   Image as ImageIcon, MessageSquare, ExternalLink, Plus, Trash2,
-  ArrowRight, CheckCircle2, Circle, Loader2
+  CheckCircle2, Circle, Loader2
 } from 'lucide-react';
 
 interface AutoFillReviewWizardProps {
@@ -22,11 +22,11 @@ interface AutoFillReviewWizardProps {
 type WizardStep = 'identity' | 'inventory' | 'additional' | 'unstructured' | 'review';
 
 const STEPS: { id: WizardStep; label: string; icon: React.ElementType }[] = [
-  { id: 'identity', label: 'Business Identity', icon: Building2 },
-  { id: 'inventory', label: 'Products & Inventory', icon: Package },
-  { id: 'additional', label: 'Additional Info', icon: FileText },
-  { id: 'unstructured', label: 'Data Mapping', icon: Sparkles },
-  { id: 'review', label: 'Review & Apply', icon: CheckCircle2 },
+  { id: 'identity', label: 'Business Info', icon: Building2 },
+  { id: 'inventory', label: 'Products & Pricing', icon: Package },
+  { id: 'additional', label: 'Photos & Reviews', icon: FileText },
+  { id: 'unstructured', label: 'Review', icon: Sparkles },
+  { id: 'review', label: 'Confirm', icon: CheckCircle2 },
 ];
 
 // Editable field component for the wizard
@@ -207,147 +207,175 @@ function EditableInventoryItem({
   );
 }
 
-// Unstructured data mapper
-function UnstructuredDataMapper({
+// Simplified Data Review Component
+function SimplifiedDataReview({
   rawData,
-  onMap,
+  reviewData,
+  onUpdateField,
 }: {
   rawData: any;
-  onMap: (field: string, value: any) => void;
+  reviewData: any;
+  onUpdateField: (field: string, value: any) => void;
 }) {
-  const [selectedField, setSelectedField] = useState<string | null>(null);
+  // Check what additional data we have
+  const hasWebData = rawData?.fromTheWeb && Object.keys(rawData.fromTheWeb).length > 0;
+  const hasIndustryData = rawData?.industrySpecificData && Object.keys(rawData.industrySpecificData).length > 0;
 
-  const targetFields = [
-    { key: 'identity.name', label: 'Business Name' },
-    { key: 'personality.description', label: 'Description' },
-    { key: 'personality.tagline', label: 'Tagline' },
-    { key: 'identity.phone', label: 'Phone' },
-    { key: 'identity.email', label: 'Email' },
-    { key: 'identity.website', label: 'Website' },
-    { key: 'personality.uniqueSellingPoints', label: 'Unique Selling Points' },
-    { key: 'knowledge.productsOrServices', label: 'Products/Services' },
-  ];
+  // Extract useful info from web data
+  const webInfo = useMemo(() => {
+    if (!rawData?.fromTheWeb) return [];
+    const info: { label: string; value: string; suggestion: string }[] = [];
 
-  // Extract displayable items from raw data
-  const extractItems = (data: any, prefix = ''): { path: string; value: any; displayValue: string }[] => {
-    const items: { path: string; value: any; displayValue: string }[] = [];
-
-    if (!data || typeof data !== 'object') return items;
-
-    Object.entries(data).forEach(([key, value]) => {
-      const path = prefix ? `${prefix}.${key}` : key;
-
-      if (value === null || value === undefined) return;
-
-      if (typeof value === 'string' && value.trim()) {
-        items.push({ path, value, displayValue: value.length > 100 ? value.slice(0, 100) + '...' : value });
-      } else if (typeof value === 'number') {
-        items.push({ path, value, displayValue: String(value) });
-      } else if (Array.isArray(value) && value.length > 0) {
-        if (typeof value[0] === 'string') {
-          items.push({ path, value, displayValue: value.slice(0, 3).join(', ') + (value.length > 3 ? '...' : '') });
-        }
-      }
-    });
-
-    return items;
-  };
-
-  const items = useMemo(() => {
-    const result: { path: string; value: any; displayValue: string }[] = [];
-
-    // Extract from fromTheWeb
-    if (rawData?.fromTheWeb) {
-      result.push(...extractItems(rawData.fromTheWeb, 'fromTheWeb'));
-      if (rawData.fromTheWeb.additionalInfo) {
-        result.push(...extractItems(rawData.fromTheWeb.additionalInfo, 'fromTheWeb.additionalInfo'));
-      }
-      if (rawData.fromTheWeb.rawIndustryData) {
-        result.push(...extractItems(rawData.fromTheWeb.rawIndustryData, 'fromTheWeb.rawIndustryData'));
-      }
+    const web = rawData.fromTheWeb;
+    if (web.websiteContent && typeof web.websiteContent === 'string') {
+      info.push({
+        label: 'Website Content',
+        value: web.websiteContent.slice(0, 200) + (web.websiteContent.length > 200 ? '...' : ''),
+        suggestion: 'Add to Description'
+      });
+    }
+    if (web.otherFindings && Array.isArray(web.otherFindings)) {
+      info.push({
+        label: 'Key Findings',
+        value: web.otherFindings.slice(0, 3).join(', '),
+        suggestion: 'Add as USPs'
+      });
+    }
+    if (web.awards && Array.isArray(web.awards)) {
+      info.push({
+        label: 'Awards',
+        value: web.awards.slice(0, 3).join(', '),
+        suggestion: 'Add as USPs'
+      });
+    }
+    if (web.certifications && Array.isArray(web.certifications)) {
+      info.push({
+        label: 'Certifications',
+        value: web.certifications.slice(0, 3).join(', '),
+        suggestion: 'Add as USPs'
+      });
     }
 
-    // Extract from industrySpecificData
-    if (rawData?.industrySpecificData) {
-      result.push(...extractItems(rawData.industrySpecificData, 'industrySpecificData'));
-    }
-
-    return result;
+    return info;
   }, [rawData]);
 
-  if (items.length === 0) {
-    return (
-      <div className="text-center py-8 text-slate-500">
-        <Sparkles className="w-12 h-12 mx-auto mb-3 text-slate-300" />
-        <p className="text-sm">No unstructured data to map</p>
-        <p className="text-xs text-slate-400 mt-1">All data has been categorized</p>
-      </div>
-    );
-  }
+  // Profile completeness check
+  const profileChecks = [
+    { label: 'Business Name', value: reviewData?.identity?.businessName, icon: Building2 },
+    { label: 'Description', value: reviewData?.identity?.description, icon: FileText },
+    { label: 'Phone', value: reviewData?.identity?.phone, icon: Phone },
+    { label: 'Email', value: reviewData?.identity?.email, icon: Mail },
+    { label: 'Website', value: reviewData?.identity?.website, icon: Globe },
+  ];
+
+  const completedFields = profileChecks.filter(c => c.value && String(c.value).trim()).length;
+  const totalFields = profileChecks.length;
 
   return (
-    <div className="space-y-4">
-      <div className="p-3 bg-indigo-50 rounded-lg border border-indigo-100">
-        <p className="text-sm text-indigo-700">
-          <Sparkles className="w-4 h-4 inline mr-1" />
-          Map unstructured data to structured fields. Click on an item and select a target field.
-        </p>
-      </div>
-
-      <div className="grid grid-cols-2 gap-4">
-        {/* Source data */}
-        <div>
-          <h4 className="text-sm font-medium text-slate-700 mb-2">Source Data</h4>
-          <div className="space-y-2 max-h-[300px] overflow-y-auto">
-            {items.map((item) => (
+    <div className="space-y-6">
+      {/* Profile Completeness */}
+      <div className="bg-gradient-to-r from-indigo-50 to-purple-50 rounded-xl p-5 border border-indigo-100">
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h4 className="font-semibold text-slate-800">Profile Completeness</h4>
+            <p className="text-sm text-slate-500">{completedFields} of {totalFields} essential fields filled</p>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="w-24 h-2 bg-slate-200 rounded-full overflow-hidden">
               <div
-                key={item.path}
-                onClick={() => setSelectedField(selectedField === item.path ? null : item.path)}
+                className="h-full bg-gradient-to-r from-indigo-500 to-purple-500 rounded-full transition-all"
+                style={{ width: `${(completedFields / totalFields) * 100}%` }}
+              />
+            </div>
+            <span className="text-sm font-bold text-indigo-600">{Math.round((completedFields / totalFields) * 100)}%</span>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-5 gap-2">
+          {profileChecks.map((check) => {
+            const Icon = check.icon;
+            const isComplete = check.value && String(check.value).trim();
+            return (
+              <div
+                key={check.label}
                 className={cn(
-                  "p-3 rounded-lg border cursor-pointer transition-all",
-                  selectedField === item.path
-                    ? "bg-indigo-50 border-indigo-300"
-                    : "bg-white border-slate-200 hover:border-indigo-200"
+                  "flex flex-col items-center p-2 rounded-lg",
+                  isComplete ? "bg-green-100" : "bg-white"
                 )}
               >
-                <div className="text-[10px] text-slate-400 uppercase mb-1">{item.path}</div>
-                <div className="text-sm text-slate-700">{item.displayValue}</div>
+                <Icon className={cn("w-5 h-5 mb-1", isComplete ? "text-green-600" : "text-slate-400")} />
+                <span className={cn("text-[10px] text-center", isComplete ? "text-green-700" : "text-slate-500")}>
+                  {check.label}
+                </span>
+                {isComplete && <Check className="w-3 h-3 text-green-600 mt-0.5" />}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Quick Add Section */}
+      {webInfo.length > 0 && (
+        <div className="space-y-3">
+          <h4 className="font-medium text-slate-700 flex items-center gap-2">
+            <Globe className="w-4 h-4 text-slate-500" />
+            Additional Information Found
+          </h4>
+          <div className="space-y-2">
+            {webInfo.map((info, i) => (
+              <div key={i} className="p-4 bg-white border border-slate-200 rounded-xl hover:border-indigo-200 transition-colors">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="flex-1 min-w-0">
+                    <span className="text-xs font-medium text-indigo-600 uppercase">{info.label}</span>
+                    <p className="text-sm text-slate-700 mt-1 line-clamp-2">{info.value}</p>
+                  </div>
+                  <button
+                    onClick={() => {
+                      if (info.suggestion === 'Add to Description') {
+                        const currentDesc = reviewData?.identity?.description || '';
+                        onUpdateField('identity.description', currentDesc ? `${currentDesc}\n\n${info.value}` : info.value);
+                        toast.success('Added to description');
+                      } else if (info.suggestion === 'Add as USPs') {
+                        const currentUSPs = reviewData?.personality?.uniqueSellingPoints || [];
+                        const newItems = typeof info.value === 'string' ? info.value.split(', ') : [info.value];
+                        onUpdateField('personality.uniqueSellingPoints', [...currentUSPs, ...newItems]);
+                        toast.success('Added to unique selling points');
+                      }
+                    }}
+                    className="px-3 py-1.5 bg-indigo-50 text-indigo-700 text-xs font-medium rounded-lg hover:bg-indigo-100 transition-colors flex items-center gap-1 whitespace-nowrap"
+                  >
+                    <Plus className="w-3 h-3" />
+                    {info.suggestion}
+                  </button>
+                </div>
               </div>
             ))}
           </div>
         </div>
+      )}
 
-        {/* Target fields */}
-        <div>
-          <h4 className="text-sm font-medium text-slate-700 mb-2">Map To</h4>
-          <div className="space-y-2">
-            {targetFields.map((field) => (
-              <button
-                key={field.key}
-                onClick={() => {
-                  if (selectedField) {
-                    const item = items.find(i => i.path === selectedField);
-                    if (item) {
-                      onMap(field.key, item.value);
-                      toast.success(`Mapped to ${field.label}`);
-                      setSelectedField(null);
-                    }
-                  }
-                }}
-                disabled={!selectedField}
-                className={cn(
-                  "w-full p-3 text-left rounded-lg border transition-all",
-                  selectedField
-                    ? "bg-white border-slate-200 hover:border-indigo-300 hover:bg-indigo-50 cursor-pointer"
-                    : "bg-slate-50 border-slate-100 text-slate-400 cursor-not-allowed"
-                )}
-              >
-                <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium">{field.label}</span>
-                  <ArrowRight className="w-4 h-4 text-slate-400" />
-                </div>
-              </button>
-            ))}
+      {/* No Additional Data Message */}
+      {webInfo.length === 0 && (
+        <div className="text-center py-8 bg-slate-50 rounded-xl border border-slate-200">
+          <CheckCircle2 className="w-12 h-12 mx-auto mb-3 text-green-500" />
+          <p className="text-sm font-medium text-slate-700">All Data Organized</p>
+          <p className="text-xs text-slate-500 mt-1">
+            No additional unstructured data to review. You can proceed to the final step.
+          </p>
+        </div>
+      )}
+
+      {/* Tips */}
+      <div className="p-4 bg-amber-50 rounded-xl border border-amber-200">
+        <div className="flex items-start gap-3">
+          <Sparkles className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
+          <div>
+            <h5 className="font-medium text-amber-800 text-sm">Tips for a Complete Profile</h5>
+            <ul className="mt-2 space-y-1 text-xs text-amber-700">
+              <li>• Add a detailed description to help AI understand your business</li>
+              <li>• Include your unique selling points to stand out</li>
+              <li>• Make sure contact information is up to date</li>
+            </ul>
           </div>
         </div>
       </div>
@@ -524,31 +552,7 @@ export default function AutoFillReviewWizard({
     toast.success('Item removed');
   };
 
-  // Handle mapping unstructured data
-  const handleMapUnstructured = (field: string, value: any) => {
-    const keys = field.split('.');
-    setReviewData(prev => {
-      const updated = { ...prev };
-      let current: any = updated;
-
-      for (let i = 0; i < keys.length - 1; i++) {
-        if (!current[keys[i]]) {
-          current[keys[i]] = {};
-        }
-        current = current[keys[i]];
-      }
-
-      const lastKey = keys[keys.length - 1];
-      if (Array.isArray(current[lastKey])) {
-        current[lastKey] = Array.isArray(value) ? [...current[lastKey], ...value] : [...current[lastKey], value];
-      } else {
-        current[lastKey] = value;
-      }
-
-      return updated;
-    });
-  };
-
+  
   // Navigation
   const currentStepIndex = STEPS.findIndex(s => s.id === currentStep);
   const canGoNext = currentStepIndex < STEPS.length - 1;
@@ -926,13 +930,26 @@ export default function AutoFillReviewWizard({
             <div className="space-y-6">
               <div className="text-center mb-6">
                 <Sparkles className="w-12 h-12 mx-auto text-indigo-500 mb-2" />
-                <h4 className="text-lg font-semibold text-slate-800">Data Mapping</h4>
-                <p className="text-sm text-slate-500">Map unstructured data to structured fields</p>
+                <h4 className="text-lg font-semibold text-slate-800">Review & Enhance</h4>
+                <p className="text-sm text-slate-500">Check your profile and add any additional information</p>
               </div>
 
-              <UnstructuredDataMapper
-                rawData={reviewData}
-                onMap={handleMapUnstructured}
+              <SimplifiedDataReview
+                rawData={data}
+                reviewData={reviewData}
+                onUpdateField={(field, value) => {
+                  const keys = field.split('.');
+                  setReviewData(prev => {
+                    const updated = { ...prev };
+                    let current: any = updated;
+                    for (let i = 0; i < keys.length - 1; i++) {
+                      if (!current[keys[i]]) current[keys[i]] = {};
+                      current = current[keys[i]];
+                    }
+                    current[keys[keys.length - 1]] = value;
+                    return updated;
+                  });
+                }}
               />
             </div>
           )}
