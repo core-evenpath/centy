@@ -25,7 +25,7 @@ const STEPS: { id: WizardStep; label: string; icon: React.ElementType }[] = [
   { id: 'identity', label: 'Business Info', icon: Building2 },
   { id: 'inventory', label: 'Products & Pricing', icon: Package },
   { id: 'additional', label: 'Photos & Reviews', icon: FileText },
-  { id: 'unstructured', label: 'Review', icon: Sparkles },
+  { id: 'unstructured', label: 'Data & SEO', icon: Sparkles },
   { id: 'review', label: 'Confirm', icon: CheckCircle2 },
 ];
 
@@ -207,8 +207,8 @@ function EditableInventoryItem({
   );
 }
 
-// Simplified Data Review Component
-function SimplifiedDataReview({
+// Data Mapping & Web Presence Analysis Component
+function DataMappingReview({
   rawData,
   reviewData,
   onUpdateField,
@@ -217,168 +217,506 @@ function SimplifiedDataReview({
   reviewData: any;
   onUpdateField: (field: string, value: any) => void;
 }) {
-  // Check what additional data we have
-  const hasWebData = rawData?.fromTheWeb && Object.keys(rawData.fromTheWeb).length > 0;
-  const hasIndustryData = rawData?.industrySpecificData && Object.keys(rawData.industrySpecificData).length > 0;
+  const [activeTab, setActiveTab] = useState<'mapping' | 'seo' | 'reviews'>('mapping');
 
-  // Extract useful info from web data
-  const webInfo = useMemo(() => {
-    if (!rawData?.fromTheWeb) return [];
-    const info: { label: string; value: string; suggestion: string }[] = [];
-
-    const web = rawData.fromTheWeb;
-    if (web.websiteContent && typeof web.websiteContent === 'string') {
-      info.push({
-        label: 'Website Content',
-        value: web.websiteContent.slice(0, 200) + (web.websiteContent.length > 200 ? '...' : ''),
-        suggestion: 'Add to Description'
-      });
-    }
-    if (web.otherFindings && Array.isArray(web.otherFindings)) {
-      info.push({
-        label: 'Key Findings',
-        value: web.otherFindings.slice(0, 3).join(', '),
-        suggestion: 'Add as USPs'
-      });
-    }
-    if (web.awards && Array.isArray(web.awards)) {
-      info.push({
-        label: 'Awards',
-        value: web.awards.slice(0, 3).join(', '),
-        suggestion: 'Add as USPs'
-      });
-    }
-    if (web.certifications && Array.isArray(web.certifications)) {
-      info.push({
-        label: 'Certifications',
-        value: web.certifications.slice(0, 3).join(', '),
-        suggestion: 'Add as USPs'
-      });
-    }
-
-    return info;
-  }, [rawData]);
-
-  // Profile completeness check
-  const profileChecks = [
-    { label: 'Business Name', value: reviewData?.identity?.businessName, icon: Building2 },
-    { label: 'Description', value: reviewData?.identity?.description, icon: FileText },
-    { label: 'Phone', value: reviewData?.identity?.phone, icon: Phone },
-    { label: 'Email', value: reviewData?.identity?.email, icon: Mail },
-    { label: 'Website', value: reviewData?.identity?.website, icon: Globe },
+  // Target fields for mapping
+  const targetFields = [
+    { key: 'skip', label: 'Skip (Don\'t import)' },
+    { key: 'identity.businessName', label: 'Business Name' },
+    { key: 'identity.description', label: 'Description' },
+    { key: 'personality.tagline', label: 'Tagline' },
+    { key: 'identity.phone', label: 'Phone Number' },
+    { key: 'identity.email', label: 'Email Address' },
+    { key: 'identity.website', label: 'Website' },
+    { key: 'personality.uniqueSellingPoints', label: 'Unique Selling Points' },
+    { key: 'customerProfile.targetAudience', label: 'Target Audience' },
   ];
 
-  const completedFields = profileChecks.filter(c => c.value && String(c.value).trim()).length;
-  const totalFields = profileChecks.length;
+  // Extract all discovered data items with smart suggestions
+  const discoveredItems = useMemo(() => {
+    const items: {
+      id: string;
+      label: string;
+      value: any;
+      displayValue: string;
+      suggestedTarget: string;
+      source: string;
+    }[] = [];
+
+    // From website content
+    const web = rawData?.fromTheWeb || {};
+    if (web.websiteContent && typeof web.websiteContent === 'string' && web.websiteContent.length > 50) {
+      items.push({
+        id: 'web_content',
+        label: 'Website Description',
+        value: web.websiteContent,
+        displayValue: web.websiteContent.slice(0, 150) + '...',
+        suggestedTarget: 'identity.description',
+        source: 'Website'
+      });
+    }
+
+    // Awards
+    if (web.awards && Array.isArray(web.awards) && web.awards.length > 0) {
+      items.push({
+        id: 'awards',
+        label: 'Awards & Recognition',
+        value: web.awards,
+        displayValue: web.awards.slice(0, 3).join(', '),
+        suggestedTarget: 'personality.uniqueSellingPoints',
+        source: 'Website'
+      });
+    }
+
+    // Certifications
+    if (web.certifications && Array.isArray(web.certifications) && web.certifications.length > 0) {
+      items.push({
+        id: 'certifications',
+        label: 'Certifications',
+        value: web.certifications,
+        displayValue: web.certifications.slice(0, 3).join(', '),
+        suggestedTarget: 'personality.uniqueSellingPoints',
+        source: 'Website'
+      });
+    }
+
+    // Special Services
+    if (web.specialServices && Array.isArray(web.specialServices) && web.specialServices.length > 0) {
+      items.push({
+        id: 'special_services',
+        label: 'Special Services',
+        value: web.specialServices,
+        displayValue: web.specialServices.slice(0, 3).join(', '),
+        suggestedTarget: 'personality.uniqueSellingPoints',
+        source: 'Website'
+      });
+    }
+
+    // Other findings
+    if (web.otherFindings && Array.isArray(web.otherFindings) && web.otherFindings.length > 0) {
+      items.push({
+        id: 'other_findings',
+        label: 'Key Highlights',
+        value: web.otherFindings,
+        displayValue: web.otherFindings.slice(0, 3).join(', '),
+        suggestedTarget: 'personality.uniqueSellingPoints',
+        source: 'Web Research'
+      });
+    }
+
+    // Additional info from raw data
+    if (web.additionalInfo && typeof web.additionalInfo === 'object') {
+      Object.entries(web.additionalInfo).forEach(([key, value]) => {
+        if (value && typeof value === 'string' && value.length > 10) {
+          items.push({
+            id: `additional_${key}`,
+            label: key.replace(/([A-Z])/g, ' $1').trim(),
+            value: value,
+            displayValue: String(value).slice(0, 100) + (String(value).length > 100 ? '...' : ''),
+            suggestedTarget: 'skip',
+            source: 'Additional Data'
+          });
+        }
+      });
+    }
+
+    return items;
+  }, [rawData]);
+
+  // Mapping state
+  const [mappings, setMappings] = useState<Record<string, string>>(() => {
+    const initial: Record<string, string> = {};
+    discoveredItems.forEach(item => {
+      initial[item.id] = item.suggestedTarget;
+    });
+    return initial;
+  });
+
+  // SEO Analysis
+  const seoAnalysis = useMemo(() => {
+    const checks: { label: string; status: 'good' | 'warning' | 'missing'; detail: string }[] = [];
+
+    // Business Name
+    const name = reviewData?.identity?.businessName;
+    if (name && name.length >= 3) {
+      checks.push({ label: 'Business Name', status: 'good', detail: `"${name}" is set` });
+    } else {
+      checks.push({ label: 'Business Name', status: 'missing', detail: 'Required for search visibility' });
+    }
+
+    // Description
+    const desc = reviewData?.identity?.description;
+    if (desc && desc.length >= 100) {
+      checks.push({ label: 'Description', status: 'good', detail: `${desc.length} characters (recommended: 150+)` });
+    } else if (desc && desc.length > 0) {
+      checks.push({ label: 'Description', status: 'warning', detail: `Only ${desc.length} chars. Add more detail.` });
+    } else {
+      checks.push({ label: 'Description', status: 'missing', detail: 'Critical for SEO. Add a detailed description.' });
+    }
+
+    // Website
+    const website = reviewData?.identity?.website;
+    if (website && website.startsWith('http')) {
+      checks.push({ label: 'Website URL', status: 'good', detail: 'Website linked' });
+    } else {
+      checks.push({ label: 'Website URL', status: 'warning', detail: 'Add website for better credibility' });
+    }
+
+    // Phone
+    const phone = reviewData?.identity?.phone;
+    if (phone) {
+      checks.push({ label: 'Contact Phone', status: 'good', detail: 'Phone number available' });
+    } else {
+      checks.push({ label: 'Contact Phone', status: 'warning', detail: 'Add phone for customer contact' });
+    }
+
+    // USPs
+    const usps = reviewData?.personality?.uniqueSellingPoints || [];
+    if (usps.length >= 3) {
+      checks.push({ label: 'Unique Selling Points', status: 'good', detail: `${usps.length} USPs defined` });
+    } else if (usps.length > 0) {
+      checks.push({ label: 'Unique Selling Points', status: 'warning', detail: `Only ${usps.length} USP. Add more.` });
+    } else {
+      checks.push({ label: 'Unique Selling Points', status: 'missing', detail: 'Add what makes you unique' });
+    }
+
+    // Reviews
+    const reviews = rawData?.reviews || reviewData?.reviews || [];
+    if (reviews.length >= 5) {
+      checks.push({ label: 'Customer Reviews', status: 'good', detail: `${reviews.length} reviews imported` });
+    } else if (reviews.length > 0) {
+      checks.push({ label: 'Customer Reviews', status: 'warning', detail: `Only ${reviews.length} reviews` });
+    } else {
+      checks.push({ label: 'Customer Reviews', status: 'missing', detail: 'No reviews found' });
+    }
+
+    // Photos
+    const photos = rawData?.photos || reviewData?.photos || [];
+    if (photos.length >= 3) {
+      checks.push({ label: 'Business Photos', status: 'good', detail: `${photos.length} photos available` });
+    } else if (photos.length > 0) {
+      checks.push({ label: 'Business Photos', status: 'warning', detail: `Only ${photos.length} photo(s)` });
+    } else {
+      checks.push({ label: 'Business Photos', status: 'missing', detail: 'Add photos to increase engagement' });
+    }
+
+    return checks;
+  }, [reviewData, rawData]);
+
+  const seoScore = Math.round((seoAnalysis.filter(c => c.status === 'good').length / seoAnalysis.length) * 100);
+
+  // Reviews data
+  const reviews = rawData?.reviews || reviewData?.reviews || [];
+
+  // Apply a single mapping
+  const applyMapping = (itemId: string) => {
+    const item = discoveredItems.find(i => i.id === itemId);
+    const targetKey = mappings[itemId];
+    if (!item || targetKey === 'skip') return;
+
+    const value = item.value;
+    if (targetKey === 'personality.uniqueSellingPoints') {
+      const current = reviewData?.personality?.uniqueSellingPoints || [];
+      const newItems = Array.isArray(value) ? value : [value];
+      onUpdateField(targetKey, [...current, ...newItems.filter((v: string) => !current.includes(v))]);
+    } else if (targetKey === 'customerProfile.targetAudience') {
+      const current = reviewData?.customerProfile?.targetAudience || [];
+      const newItems = Array.isArray(value) ? value : [value];
+      onUpdateField(targetKey, [...current, ...newItems]);
+    } else {
+      onUpdateField(targetKey, Array.isArray(value) ? value.join(', ') : value);
+    }
+    toast.success(`Mapped to ${targetFields.find(f => f.key === targetKey)?.label}`);
+  };
+
+  // Apply all suggested mappings
+  const applyAllMappings = () => {
+    let count = 0;
+    discoveredItems.forEach(item => {
+      const targetKey = mappings[item.id];
+      if (targetKey && targetKey !== 'skip') {
+        const value = item.value;
+        if (targetKey === 'personality.uniqueSellingPoints') {
+          const current = reviewData?.personality?.uniqueSellingPoints || [];
+          const newItems = Array.isArray(value) ? value : [value];
+          onUpdateField(targetKey, [...current, ...newItems.filter((v: string) => !current.includes(v))]);
+        } else {
+          onUpdateField(targetKey, Array.isArray(value) ? value.join(', ') : value);
+        }
+        count++;
+      }
+    });
+    if (count > 0) {
+      toast.success(`Applied ${count} mappings`);
+    }
+  };
 
   return (
-    <div className="space-y-6">
-      {/* Profile Completeness */}
-      <div className="bg-gradient-to-r from-indigo-50 to-purple-50 rounded-xl p-5 border border-indigo-100">
-        <div className="flex items-center justify-between mb-4">
-          <div>
-            <h4 className="font-semibold text-slate-800">Profile Completeness</h4>
-            <p className="text-sm text-slate-500">{completedFields} of {totalFields} essential fields filled</p>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="w-24 h-2 bg-slate-200 rounded-full overflow-hidden">
-              <div
-                className="h-full bg-gradient-to-r from-indigo-500 to-purple-500 rounded-full transition-all"
-                style={{ width: `${(completedFields / totalFields) * 100}%` }}
-              />
-            </div>
-            <span className="text-sm font-bold text-indigo-600">{Math.round((completedFields / totalFields) * 100)}%</span>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-5 gap-2">
-          {profileChecks.map((check) => {
-            const Icon = check.icon;
-            const isComplete = check.value && String(check.value).trim();
-            return (
-              <div
-                key={check.label}
-                className={cn(
-                  "flex flex-col items-center p-2 rounded-lg",
-                  isComplete ? "bg-green-100" : "bg-white"
-                )}
-              >
-                <Icon className={cn("w-5 h-5 mb-1", isComplete ? "text-green-600" : "text-slate-400")} />
-                <span className={cn("text-[10px] text-center", isComplete ? "text-green-700" : "text-slate-500")}>
-                  {check.label}
-                </span>
-                {isComplete && <Check className="w-3 h-3 text-green-600 mt-0.5" />}
-              </div>
-            );
-          })}
-        </div>
+    <div className="space-y-4">
+      {/* Tab Navigation */}
+      <div className="flex gap-1 p-1 bg-slate-100 rounded-lg">
+        <button
+          onClick={() => setActiveTab('mapping')}
+          className={cn(
+            "flex-1 px-4 py-2 rounded-md text-sm font-medium transition-all",
+            activeTab === 'mapping'
+              ? "bg-white text-indigo-700 shadow-sm"
+              : "text-slate-600 hover:text-slate-900"
+          )}
+        >
+          <Sparkles className="w-4 h-4 inline mr-1.5" />
+          Data Mapping
+        </button>
+        <button
+          onClick={() => setActiveTab('seo')}
+          className={cn(
+            "flex-1 px-4 py-2 rounded-md text-sm font-medium transition-all",
+            activeTab === 'seo'
+              ? "bg-white text-indigo-700 shadow-sm"
+              : "text-slate-600 hover:text-slate-900"
+          )}
+        >
+          <Globe className="w-4 h-4 inline mr-1.5" />
+          Web Presence
+        </button>
+        <button
+          onClick={() => setActiveTab('reviews')}
+          className={cn(
+            "flex-1 px-4 py-2 rounded-md text-sm font-medium transition-all relative",
+            activeTab === 'reviews'
+              ? "bg-white text-indigo-700 shadow-sm"
+              : "text-slate-600 hover:text-slate-900"
+          )}
+        >
+          <Star className="w-4 h-4 inline mr-1.5" />
+          Reviews
+          {reviews.length > 0 && (
+            <span className="ml-1.5 px-1.5 py-0.5 bg-amber-100 text-amber-700 text-xs rounded-full">
+              {reviews.length}
+            </span>
+          )}
+        </button>
       </div>
 
-      {/* Quick Add Section */}
-      {webInfo.length > 0 && (
-        <div className="space-y-3">
-          <h4 className="font-medium text-slate-700 flex items-center gap-2">
-            <Globe className="w-4 h-4 text-slate-500" />
-            Additional Information Found
-          </h4>
-          <div className="space-y-2">
-            {webInfo.map((info, i) => (
-              <div key={i} className="p-4 bg-white border border-slate-200 rounded-xl hover:border-indigo-200 transition-colors">
-                <div className="flex items-start justify-between gap-4">
-                  <div className="flex-1 min-w-0">
-                    <span className="text-xs font-medium text-indigo-600 uppercase">{info.label}</span>
-                    <p className="text-sm text-slate-700 mt-1 line-clamp-2">{info.value}</p>
+      {/* Data Mapping Tab */}
+      {activeTab === 'mapping' && (
+        <div className="space-y-4">
+          {discoveredItems.length > 0 ? (
+            <>
+              <div className="flex items-center justify-between">
+                <p className="text-sm text-slate-600">
+                  Found <span className="font-semibold text-indigo-600">{discoveredItems.length}</span> data items to map
+                </p>
+                <button
+                  onClick={applyAllMappings}
+                  className="px-3 py-1.5 bg-indigo-600 text-white text-xs font-medium rounded-lg hover:bg-indigo-700 transition-colors"
+                >
+                  Apply All Suggestions
+                </button>
+              </div>
+
+              <div className="space-y-3">
+                {discoveredItems.map((item) => (
+                  <div key={item.id} className="p-4 bg-white border border-slate-200 rounded-xl">
+                    <div className="flex items-start gap-4">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="text-xs font-medium text-indigo-600 uppercase">{item.label}</span>
+                          <span className="text-[10px] px-1.5 py-0.5 bg-slate-100 text-slate-500 rounded">
+                            {item.source}
+                          </span>
+                        </div>
+                        <p className="text-sm text-slate-700 line-clamp-2">{item.displayValue}</p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <select
+                          value={mappings[item.id] || 'skip'}
+                          onChange={(e) => setMappings(prev => ({ ...prev, [item.id]: e.target.value }))}
+                          className="text-xs border border-slate-200 rounded-lg px-2 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                        >
+                          {targetFields.map(field => (
+                            <option key={field.key} value={field.key}>{field.label}</option>
+                          ))}
+                        </select>
+                        <button
+                          onClick={() => applyMapping(item.id)}
+                          disabled={mappings[item.id] === 'skip'}
+                          className={cn(
+                            "p-2 rounded-lg transition-colors",
+                            mappings[item.id] === 'skip'
+                              ? "bg-slate-100 text-slate-400 cursor-not-allowed"
+                              : "bg-indigo-50 text-indigo-600 hover:bg-indigo-100"
+                          )}
+                        >
+                          <Plus className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
                   </div>
-                  <button
-                    onClick={() => {
-                      if (info.suggestion === 'Add to Description') {
-                        const currentDesc = reviewData?.identity?.description || '';
-                        onUpdateField('identity.description', currentDesc ? `${currentDesc}\n\n${info.value}` : info.value);
-                        toast.success('Added to description');
-                      } else if (info.suggestion === 'Add as USPs') {
-                        const currentUSPs = reviewData?.personality?.uniqueSellingPoints || [];
-                        const newItems = typeof info.value === 'string' ? info.value.split(', ') : [info.value];
-                        onUpdateField('personality.uniqueSellingPoints', [...currentUSPs, ...newItems]);
-                        toast.success('Added to unique selling points');
-                      }
-                    }}
-                    className="px-3 py-1.5 bg-indigo-50 text-indigo-700 text-xs font-medium rounded-lg hover:bg-indigo-100 transition-colors flex items-center gap-1 whitespace-nowrap"
-                  >
-                    <Plus className="w-3 h-3" />
-                    {info.suggestion}
-                  </button>
+                ))}
+              </div>
+            </>
+          ) : (
+            <div className="text-center py-8 bg-slate-50 rounded-xl border border-slate-200">
+              <CheckCircle2 className="w-12 h-12 mx-auto mb-3 text-green-500" />
+              <p className="text-sm font-medium text-slate-700">All Data Organized</p>
+              <p className="text-xs text-slate-500 mt-1">
+                No additional data to map. Your profile is well structured.
+              </p>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* SEO / Web Presence Tab */}
+      {activeTab === 'seo' && (
+        <div className="space-y-4">
+          {/* SEO Score */}
+          <div className="bg-gradient-to-r from-indigo-50 to-purple-50 rounded-xl p-5 border border-indigo-100">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h4 className="font-semibold text-slate-800">Web Presence Score</h4>
+                <p className="text-sm text-slate-500">How well your business appears online</p>
+              </div>
+              <div className="flex items-center gap-3">
+                <div className="relative w-16 h-16">
+                  <svg className="w-16 h-16 -rotate-90">
+                    <circle cx="32" cy="32" r="28" stroke="currentColor" strokeWidth="6" fill="none" className="text-slate-200" />
+                    <circle
+                      cx="32" cy="32" r="28" stroke="currentColor" strokeWidth="6" fill="none"
+                      strokeDasharray={`${(seoScore / 100) * 176} 176`}
+                      className={seoScore >= 70 ? 'text-green-500' : seoScore >= 40 ? 'text-amber-500' : 'text-red-500'}
+                    />
+                  </svg>
+                  <span className={cn(
+                    "absolute inset-0 flex items-center justify-center text-lg font-bold",
+                    seoScore >= 70 ? 'text-green-600' : seoScore >= 40 ? 'text-amber-600' : 'text-red-600'
+                  )}>
+                    {seoScore}
+                  </span>
                 </div>
               </div>
-            ))}
+            </div>
+
+            <div className="space-y-2">
+              {seoAnalysis.map((check, i) => (
+                <div key={i} className="flex items-center justify-between p-2 bg-white rounded-lg">
+                  <div className="flex items-center gap-2">
+                    {check.status === 'good' && <CheckCircle2 className="w-4 h-4 text-green-500" />}
+                    {check.status === 'warning' && <AlertCircle className="w-4 h-4 text-amber-500" />}
+                    {check.status === 'missing' && <X className="w-4 h-4 text-red-500" />}
+                    <span className="text-sm font-medium text-slate-700">{check.label}</span>
+                  </div>
+                  <span className={cn(
+                    "text-xs",
+                    check.status === 'good' && "text-green-600",
+                    check.status === 'warning' && "text-amber-600",
+                    check.status === 'missing' && "text-red-600"
+                  )}>
+                    {check.detail}
+                  </span>
+                </div>
+              ))}
+            </div>
           </div>
-        </div>
-      )}
 
-      {/* No Additional Data Message */}
-      {webInfo.length === 0 && (
-        <div className="text-center py-8 bg-slate-50 rounded-xl border border-slate-200">
-          <CheckCircle2 className="w-12 h-12 mx-auto mb-3 text-green-500" />
-          <p className="text-sm font-medium text-slate-700">All Data Organized</p>
-          <p className="text-xs text-slate-500 mt-1">
-            No additional unstructured data to review. You can proceed to the final step.
-          </p>
-        </div>
-      )}
-
-      {/* Tips */}
-      <div className="p-4 bg-amber-50 rounded-xl border border-amber-200">
-        <div className="flex items-start gap-3">
-          <Sparkles className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
-          <div>
-            <h5 className="font-medium text-amber-800 text-sm">Tips for a Complete Profile</h5>
-            <ul className="mt-2 space-y-1 text-xs text-amber-700">
-              <li>• Add a detailed description to help AI understand your business</li>
-              <li>• Include your unique selling points to stand out</li>
-              <li>• Make sure contact information is up to date</li>
+          {/* Recommendations */}
+          <div className="p-4 bg-amber-50 rounded-xl border border-amber-200">
+            <h5 className="font-medium text-amber-800 text-sm mb-2 flex items-center gap-2">
+              <Sparkles className="w-4 h-4" />
+              Recommendations
+            </h5>
+            <ul className="space-y-1.5 text-xs text-amber-700">
+              {seoAnalysis.filter(c => c.status !== 'good').map((check, i) => (
+                <li key={i}>• <strong>{check.label}:</strong> {check.detail}</li>
+              ))}
+              {seoAnalysis.every(c => c.status === 'good') && (
+                <li>Great job! Your profile is well optimized for web presence.</li>
+              )}
             </ul>
           </div>
         </div>
-      </div>
+      )}
+
+      {/* Reviews Tab */}
+      {activeTab === 'reviews' && (
+        <div className="space-y-4">
+          {reviews.length > 0 ? (
+            <>
+              <div className="flex items-center justify-between">
+                <p className="text-sm text-slate-600">
+                  <span className="font-semibold text-indigo-600">{reviews.length}</span> customer reviews found
+                </p>
+                {/* Average rating */}
+                {reviews.some((r: any) => r.rating) && (
+                  <div className="flex items-center gap-1">
+                    <Star className="w-4 h-4 text-amber-400 fill-amber-400" />
+                    <span className="text-sm font-semibold text-slate-700">
+                      {(reviews.reduce((acc: number, r: any) => acc + (r.rating || 0), 0) / reviews.filter((r: any) => r.rating).length).toFixed(1)}
+                    </span>
+                    <span className="text-xs text-slate-500">avg rating</span>
+                  </div>
+                )}
+              </div>
+
+              <div className="space-y-3 max-h-[400px] overflow-y-auto">
+                {reviews.map((review: any, i: number) => (
+                  <div key={i} className="p-4 bg-white border border-slate-200 rounded-xl">
+                    <div className="flex items-start justify-between mb-2">
+                      <div className="flex items-center gap-2">
+                        <div className="w-8 h-8 bg-indigo-100 rounded-full flex items-center justify-center">
+                          <span className="text-xs font-bold text-indigo-600">
+                            {(typeof review.author === 'string' ? review.author : 'A').charAt(0).toUpperCase()}
+                          </span>
+                        </div>
+                        <div>
+                          <span className="text-sm font-medium text-slate-800">
+                            {typeof review.author === 'string' ? review.author : 'Anonymous'}
+                          </span>
+                          {review.date && (
+                            <span className="text-xs text-slate-400 ml-2">
+                              {typeof review.date === 'string' ? review.date : ''}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      {review.rating && (
+                        <div className="flex items-center gap-0.5">
+                          {[...Array(5)].map((_, j) => (
+                            <Star
+                              key={j}
+                              className={cn(
+                                "w-3.5 h-3.5",
+                                j < review.rating ? "text-amber-400 fill-amber-400" : "text-slate-200"
+                              )}
+                            />
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                    <p className="text-sm text-slate-600">
+                      {typeof review.text === 'string' ? review.text : ''}
+                    </p>
+                    {review.source && (
+                      <span className="inline-block mt-2 text-[10px] px-1.5 py-0.5 bg-slate-100 text-slate-500 rounded">
+                        via {typeof review.source === 'string' ? review.source : 'Unknown'}
+                      </span>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </>
+          ) : (
+            <div className="text-center py-8 bg-slate-50 rounded-xl border border-slate-200">
+              <Star className="w-12 h-12 mx-auto mb-3 text-slate-300" />
+              <p className="text-sm font-medium text-slate-700">No Reviews Found</p>
+              <p className="text-xs text-slate-500 mt-1">
+                Reviews will appear here when imported from web research
+              </p>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -925,16 +1263,16 @@ export default function AutoFillReviewWizard({
             </div>
           )}
 
-          {/* Step 4: Unstructured Data */}
+          {/* Step 4: Data Mapping & Analysis */}
           {currentStep === 'unstructured' && (
             <div className="space-y-6">
-              <div className="text-center mb-6">
-                <Sparkles className="w-12 h-12 mx-auto text-indigo-500 mb-2" />
-                <h4 className="text-lg font-semibold text-slate-800">Review & Enhance</h4>
-                <p className="text-sm text-slate-500">Check your profile and add any additional information</p>
+              <div className="text-center mb-4">
+                <Sparkles className="w-10 h-10 mx-auto text-indigo-500 mb-2" />
+                <h4 className="text-lg font-semibold text-slate-800">Data Mapping & Analysis</h4>
+                <p className="text-sm text-slate-500">Map discovered data, check web presence, and review feedback</p>
               </div>
 
-              <SimplifiedDataReview
+              <DataMappingReview
                 rawData={data}
                 reviewData={reviewData}
                 onUpdateField={(field, value) => {
