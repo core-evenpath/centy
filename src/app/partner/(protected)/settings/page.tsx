@@ -25,6 +25,7 @@ import ProfileSummary from '@/components/partner/settings/ProfileSummary';
 import FieldConnectionAudit from '@/components/partner/settings/FieldConnectionAudit';
 import BusinessProfileAgent from '@/components/partner/settings/BusinessProfileAgent';
 import AutoFillPreviewModal from '@/components/partner/settings/AutoFillPreviewModal';
+import AutoFillReviewWizard from '@/components/partner/settings/AutoFillReviewWizard';
 import BusinessProfileView from '@/components/partner/settings/BusinessProfileView';
 
 const SettingsUltimate = () => {
@@ -51,6 +52,7 @@ const SettingsUltimate = () => {
   const [autoFilling, setAutoFilling] = useState(false);
   const [selectedPlace, setSelectedPlace] = useState<any>(null);
   const [showAutoFillPreview, setShowAutoFillPreview] = useState(false);
+  const [showAutoFillWizard, setShowAutoFillWizard] = useState(false);
   const [autoFillPreviewData, setAutoFillPreviewData] = useState<any>(null);
   const [isApplyingAutoFill, setIsApplyingAutoFill] = useState(false);
   const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -1301,7 +1303,8 @@ const SettingsUltimate = () => {
                           const result = await autoFillProfileAction(selectedPlace.placeId);
                           if (result.success && result.profile) {
                             setAutoFillPreviewData(result.profile);
-                            setShowAutoFillPreview(true);
+                            // Use wizard by default (step-by-step review)
+                            setShowAutoFillWizard(true);
                           } else {
                             toast.error(result.error || 'Failed to fetch business data');
                           }
@@ -1553,7 +1556,78 @@ const SettingsUltimate = () => {
                   </p>
                 </div>
 
-                {/* Auto-Fill Preview Modal */}
+                {/* Auto-Fill Review Wizard (Step-by-Step) */}
+                {showAutoFillWizard && autoFillPreviewData && (
+                  <AutoFillReviewWizard
+                    data={autoFillPreviewData}
+                    onClose={() => {
+                      setShowAutoFillWizard(false);
+                      setAutoFillPreviewData(null);
+                    }}
+                    isApplying={isApplyingAutoFill}
+                    onApply={async (reviewedData) => {
+                      try {
+                        setIsApplyingAutoFill(true);
+
+                        // Use the server action to properly map inventory to schema
+                        const result = await mapInventoryToPersonaAction(reviewedData, persona);
+
+                        if (!result.success || !result.persona) {
+                          throw new Error(result.error || 'Failed to map inventory');
+                        }
+
+                        const mergedPersona = result.persona;
+
+                        setPersona(mergedPersona);
+                        await saveBusinessPersonaAction(partnerId!, mergedPersona);
+
+                        // Set business type based on detected industry
+                        if (reviewedData.identity?.industry) {
+                          const industryMap: Record<string, string> = {
+                            'hospitality': 'hospitality',
+                            'food_beverage': 'food_restaurant',
+                            'retail': 'retail_ecommerce',
+                            'healthcare': 'healthcare',
+                            'real_estate': 'real_estate',
+                            'education': 'education',
+                            'finance': 'finance',
+                          };
+                          const mappedType = industryMap[reviewedData.identity.industry];
+                          if (mappedType && !selectedBusinessTypes.includes(mappedType)) {
+                            setSelectedBusinessTypes([...selectedBusinessTypes, mappedType]);
+                          }
+                        }
+
+                        // Show success with inventory counts
+                        const inv = reviewedData.inventory;
+                        const counts = [];
+                        if (inv?.rooms?.length) counts.push(`${inv.rooms.length} rooms`);
+                        if (inv?.menuItems?.length) counts.push(`${inv.menuItems.length} menu items`);
+                        if (inv?.products?.length) counts.push(`${inv.products.length} products`);
+                        if (inv?.properties?.length) counts.push(`${inv.properties.length} properties`);
+                        if (inv?.services?.length) counts.push(`${inv.services.length} services`);
+                        if (inv?.courses?.length) counts.push(`${inv.courses.length} courses`);
+                        if (inv?.treatments?.length) counts.push(`${inv.treatments.length} treatments`);
+
+                        const message = counts.length > 0
+                          ? `Profile updated! Imported: ${counts.join(', ')}`
+                          : 'Profile updated with selected data!';
+
+                        toast.success(message);
+                        setShowAutoFillWizard(false);
+                        setAutoFillPreviewData(null);
+                        setAutoFillSearch('');
+                        setSelectedPlace(null);
+                      } catch (err: any) {
+                        toast.error(err.message || 'Failed to apply data');
+                      } finally {
+                        setIsApplyingAutoFill(false);
+                      }
+                    }}
+                  />
+                )}
+
+                {/* Auto-Fill Preview Modal (Classic View - Backup) */}
                 {showAutoFillPreview && autoFillPreviewData && (
                   <AutoFillPreviewModal
                     data={autoFillPreviewData}
