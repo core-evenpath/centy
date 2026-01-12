@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
     Building2, Phone, MapPin, Clock, ChevronDown, Edit3, Check, X, Plus,
     Sparkles, Search, Eye, Award, Target, Shield, Bot, Home, Receipt,
@@ -15,11 +15,11 @@ import {
     searchFunctions,
     toSelectedCategories,
     findFunctionInfo,
+    getCountriesForDropdown,
     CountryCode,
     Industry,
     ResolvedFunction,
     SelectedBusinessCategory,
-    SUPPORTED_COUNTRIES
 } from '@/lib/business-taxonomy';
 
 // Icon mapping for category icons
@@ -414,7 +414,7 @@ export default function BusinessProfileTab({
                                             <>
                                                 {selectedCategories.slice(0, 3).map(cat => (
                                                     <span
-                                                        key={cat.subCategoryId}
+                                                        key={cat.functionId}
                                                         className="px-2 py-0.5 bg-white/20 rounded text-xs font-medium"
                                                     >
                                                         {cat.label}
@@ -769,8 +769,10 @@ export default function BusinessProfileTab({
                                         onChange={(e) => setSelectedCountry(e.target.value as CountryCode)}
                                         className="pl-10 pr-8 py-2 rounded-lg bg-white border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300 appearance-none cursor-pointer"
                                     >
-                                        {SUPPORTED_COUNTRIES.map(c => (
-                                            <option key={c.code} value={c.code}>{c.flag} {c.name}</option>
+                                        {getCountriesForDropdown().map(c => (
+                                            <option key={c.code} value={c.code}>
+                                                {c.flag} {c.name}{c.hasOverrides ? ' ✦' : ''}
+                                            </option>
                                         ))}
                                     </select>
                                     <ChevronDown className="absolute right-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />

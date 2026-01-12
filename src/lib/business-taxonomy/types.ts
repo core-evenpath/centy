@@ -8,7 +8,11 @@
  * - Country Override Layer for localized labels
  */
 
-export type CountryCode = 'IN' | 'US' | 'AE' | 'UK' | 'GLOBAL';
+// Countries that have specific label overrides defined
+export type OverrideCountryCode = 'IN' | 'US' | 'AE' | 'GB';
+
+// All country codes (string to support 70+ countries)
+export type CountryCode = string;
 
 export type DeliveryMode = 'online' | 'offline' | 'hybrid';
 export type CustomerType = 'B2C' | 'B2B' | 'B2B2C';

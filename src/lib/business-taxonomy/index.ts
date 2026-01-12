@@ -8,10 +8,12 @@
 export * from './types';
 export * from './industries';
 export * from './country-overrides';
+export * from './countries';
 
 import { Industry, BusinessFunction, CountryCode, ResolvedFunction, SelectedBusinessCategory } from './types';
 import { INDUSTRIES, BUSINESS_FUNCTIONS, SPECIALIZATIONS } from './industries';
-import { getFunctionOverride, SUPPORTED_COUNTRIES } from './country-overrides';
+import { getFunctionOverride, hasCountryOverrides } from './country-overrides';
+import { ALL_COUNTRIES, REGIONS, REGIONAL_HEURISTICS, getCountryByCode, getRegionalHeuristics, getCountriesSorted, Country } from './countries';
 
 /**
  * Get all industries
@@ -139,10 +141,37 @@ export function findFunctionInfo(functionId: string, countryCode: CountryCode): 
 }
 
 /**
- * Get country display info
+ * Get country display info - supports all countries
  */
-export function getCountryInfo(countryCode: CountryCode) {
-    return SUPPORTED_COUNTRIES.find(c => c.code === countryCode) || SUPPORTED_COUNTRIES[0];
+export function getCountryInfo(countryCode: CountryCode): { code: string; name: string; flag: string; hasOverrides: boolean } {
+    if (countryCode === 'GLOBAL' || !countryCode) {
+        return { code: 'GLOBAL', name: 'Global (Default)', flag: '🌍', hasOverrides: false };
+    }
+    const country = getCountryByCode(countryCode);
+    if (country) {
+        return {
+            code: country.countryCode,
+            name: country.name,
+            flag: country.flag,
+            hasOverrides: hasCountryOverrides(countryCode)
+        };
+    }
+    return { code: countryCode, name: countryCode, flag: '🏳️', hasOverrides: false };
+}
+
+/**
+ * Get all countries for dropdown (sorted alphabetically)
+ * Includes "Global (Default)" option at the top
+ */
+export function getCountriesForDropdown(): { code: string; name: string; flag: string; hasOverrides: boolean }[] {
+    const global = { code: 'GLOBAL', name: 'Global (Default)', flag: '🌍', hasOverrides: false };
+    const countries = getCountriesSorted().map(c => ({
+        code: c.countryCode,
+        name: c.name,
+        flag: c.flag,
+        hasOverrides: hasCountryOverrides(c.countryCode),
+    }));
+    return [global, ...countries];
 }
 
 /**
@@ -166,3 +195,4 @@ export function toLegacyFormat(countryCode: CountryCode) {
         }),
     }));
 }
+
