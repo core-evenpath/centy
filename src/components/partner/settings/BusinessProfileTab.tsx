@@ -22,6 +22,7 @@ import {
     SelectedBusinessCategory,
 } from '@/lib/business-taxonomy';
 import { generateModulesFromCategories, type ModulesConfig } from '@/actions/module-generator-actions';
+import { SchemaProfileRenderer } from '@/components/partner/settings/SchemaProfileRenderer';
 
 // Icon mapping for category icons
 const CATEGORY_ICONS: Record<string, LucideIcon> = {
@@ -260,6 +261,17 @@ export default function BusinessProfileTab({
 
     // Get industries and functions from new taxonomy
     const industries = getIndustries();
+
+    // Get primary industry ID for schema sections
+    const primaryIndustryId = useMemo(() => {
+        if (selectedCategories.length > 0) {
+            return selectedCategories[0].industryId;
+        }
+        // Fallback to persona industry category
+        const category = (persona.identity as any)?.industry?.category;
+        if (Array.isArray(category)) return category[0] || 'services';
+        return category || 'services';
+    }, [selectedCategories, persona.identity]);
 
     // Sync pending selections when modal opens
     useEffect(() => {
@@ -541,189 +553,13 @@ export default function BusinessProfileTab({
                             </div>
                         </div>
 
-                        <div className="space-y-4">
+                        {/* Schema-Driven Profile Sections */}
+                        <SchemaProfileRenderer
+                            persona={persona}
+                            industryId={primaryIndustryId}
+                            onUpdate={onUpdate}
+                        />
 
-                            {/* 1. Brand Identity */}
-                            <Section title="Brand Identity" icon={Building2} iconBg="bg-indigo-500" defaultOpen={true}>
-                                <div className="grid lg:grid-cols-2 gap-6">
-                                    <div>
-                                        <Field label="Business Name" value={name} onSave={handleWrapper('identity.name')} badge="Public" />
-                                        <Field label="Tagline" value={tagline} onSave={handleWrapper('personality.tagline')} />
-
-                                        <div className="grid grid-cols-2 gap-4">
-                                            <Field label="Established" value={foundedYear} onSave={handleWrapper('personality.foundedYear')} placeholder="Year" />
-                                            {/* If team size is available, or allow adding it */}
-                                            <Field label="Team Size" value={teamSize} onSave={handleWrapper('industrySpecificData.teamSize')} placeholder="Count" />
-                                        </div>
-                                        {reraNumber && (
-                                            <Field label="RERA / Reg Number" value={reraNumber} onSave={handleWrapper('industrySpecificData.reraNumber')} badge="Verified" />
-                                        )}
-                                    </div>
-                                    <div>
-                                        <Field
-                                            label="About / Elevator Pitch"
-                                            value={description}
-                                            onSave={handleWrapper('personality.description')}
-                                            multiline={true}
-                                        />
-                                        <div className="p-4 bg-violet-50 rounded-xl border border-violet-200 mt-4">
-                                            <div className="flex items-center gap-2 mb-2">
-                                                <Bot className="w-4 h-4 text-violet-600" />
-                                                <span className="text-sm font-medium text-violet-900">AI Context</span>
-                                            </div>
-                                            <p className="text-xs text-violet-700">
-                                                {description || "Add a description to give the AI context about your business."}
-                                            </p>
-                                        </div>
-                                    </div>
-                                </div>
-                            </Section>
-
-                            {/* 2. Expertise & Specializations */}
-                            <Section title="Expertise & Specializations" icon={Target} iconBg="bg-emerald-500">
-                                <div className="space-y-6">
-                                    {propertyTypes.length > 0 ? (
-                                        <div>
-                                            <label className="text-xs font-medium text-slate-500 uppercase mb-3 block">Property Types / Inventory</label>
-                                            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
-                                                {/* This assumes propertyTypes is array of objects or strings. We handle both */}
-                                                {propertyTypes.map((t: any, i: number) => {
-                                                    const tName = typeof t === 'string' ? t : t.name;
-                                                    return (
-                                                        <div key={i} className="p-3 rounded-xl border border-slate-200 bg-slate-50 text-center">
-                                                            <Home className="w-5 h-5 mx-auto mb-2 text-slate-400" />
-                                                            <div className="text-sm font-medium text-slate-600">{tName}</div>
-                                                        </div>
-                                                    )
-                                                })}
-                                            </div>
-                                        </div>
-                                    ) : productsOrServices.length > 0 && (
-                                        <div>
-                                            <label className="text-xs font-medium text-slate-500 uppercase mb-3 block">Products & Services</label>
-                                            <Tags items={productsOrServices.map((p: any) => typeof p === 'string' ? p : p.name)}
-                                                onAdd={(val: string) => handleTagsAdd('knowledge.productsOrServices', productsOrServices.map((p: any) => typeof p === 'string' ? p : p.name))(val)}
-                                                onRemove={(i: number) => handleTagsRemove('knowledge.productsOrServices', productsOrServices.map((p: any) => typeof p === 'string' ? p : p.name))(i)}
-                                                color="emerald" />
-                                        </div>
-                                    )}
-
-                                    <div className="grid lg:grid-cols-2 gap-6">
-                                        <div>
-                                            <label className="text-xs font-medium text-slate-500 uppercase mb-2 block">Transaction Types / Categories</label>
-                                            <Tags items={transactionTypes} onAdd={handleTagsAdd('industrySpecificData.transactionTypes', transactionTypes)} onRemove={handleTagsRemove('industrySpecificData.transactionTypes', transactionTypes)} color="indigo" />
-                                        </div>
-                                        <div>
-                                            <label className="text-xs font-medium text-slate-500 uppercase mb-2 block">Client Types</label>
-                                            <Tags items={clientTypes} onAdd={handleTagsAdd('customerProfile.customerDemographics', clientTypes)} onRemove={handleTagsRemove('customerProfile.customerDemographics', clientTypes)} color="emerald" />
-                                        </div>
-                                    </div>
-
-                                    <div className="grid lg:grid-cols-2 gap-6">
-                                        <div>
-                                            <Field label="Pricing / Fee Structure" value={pricingHighlights} onSave={handleWrapper('knowledge.pricingHighlights')} />
-                                        </div>
-                                        <div>
-                                            <label className="text-xs font-medium text-slate-500 uppercase mb-2 block">Specializations / USPs</label>
-                                            <Tags items={specializations} onAdd={handleTagsAdd('personality.uniqueSellingPoints', specializations)} onRemove={handleTagsRemove('personality.uniqueSellingPoints', specializations)} color="amber" />
-                                        </div>
-                                    </div>
-                                </div>
-                            </Section>
-
-                            {/* 3. Coverage Areas */}
-                            <Section title="Coverage Areas" icon={MapPin} iconBg="bg-rose-500">
-                                <div className="space-y-6">
-                                    <Field label="Primary City" value={city} onSave={handleWrapper('identity.address.city')} />
-                                    <div>
-                                        <label className="text-xs font-medium text-slate-500 uppercase mb-3 block">Localities / Service Areas</label>
-                                        {/* We map this to Tags because editing structure is complex. */}
-                                        <Tags items={serviceLocalities} onAdd={handleTagsAdd('industrySpecificData.serviceLocalities', serviceLocalities)} onRemove={handleTagsRemove('industrySpecificData.serviceLocalities', serviceLocalities)} />
-                                    </div>
-                                    <Field label="Office Address" value={addressStr} onSave={handleWrapper('identity.address.street')} />
-                                </div>
-                            </Section>
-
-                            {/* 4. Contact Channels */}
-                            <Section title="Contact Channels" icon={Phone} iconBg="bg-blue-500">
-                                <div className="grid lg:grid-cols-2 gap-6">
-                                    <div>
-                                        <Field label="Phone (Main)" value={phone} onSave={handleWrapper('identity.phone')} />
-                                        <Field label="WhatsApp" value={whatsapp} onSave={handleWrapper('identity.whatsAppNumber')} badge="Preferred" />
-                                    </div>
-                                    <div>
-                                        <Field label="Email" value={email} onSave={handleWrapper('identity.email')} />
-                                        <Field label="Website" value={website} onSave={handleWrapper('identity.website')} />
-                                        <div className="mt-4">
-                                            <label className="text-xs font-medium text-slate-500 uppercase mb-2 block">Social Media</label>
-                                            <div className="space-y-2">
-                                                <Field label="Instagram" value={social?.instagram} onSave={handleWrapper('identity.socialMedia.instagram')} placeholder="@username" />
-                                                <Field label="LinkedIn" value={social?.linkedin} onSave={handleWrapper('identity.socialMedia.linkedin')} placeholder="Profile URL" />
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </Section>
-
-                            {/* 5. Operating Hours */}
-                            <Section title="Operating Hours" icon={Clock} iconBg="bg-amber-500">
-                                <div className="grid lg:grid-cols-2 gap-6">
-                                    <div className="p-4 bg-slate-50 rounded-xl space-y-2">
-                                        <div className="flex justify-between items-center mb-4">
-                                            <span className="font-semibold text-slate-700">Schedule</span>
-                                            <span className="text-xs text-slate-500">
-                                                {operatingHours.isOpen24x7 ? 'Open 24/7' : 'Custom Hours'}
-                                            </span>
-                                        </div>
-                                        {/* Only showing simple unified string for now as complex schedule editor is large */}
-                                        <Field label="General Availability" value={operatingHours.specialNote} onSave={handleWrapper('identity.operatingHours.specialNote')} placeholder="e.g. Mon-Fri 9AM-6PM" />
-                                    </div>
-                                    <div>
-                                        <Field label="Typical Response Time" value={responseTime} onSave={handleWrapper('personality.responseTimeExpectation')} />
-                                    </div>
-                                </div>
-                            </Section>
-
-                            {/* 6. Credentials */}
-                            <Section title="Credentials & Trust" icon={Award} iconBg="bg-orange-500">
-                                <div className="grid lg:grid-cols-2 gap-6">
-                                    <div>
-                                        <label className="text-xs font-medium text-slate-500 uppercase mb-3 block">Registrations</label>
-                                        {/* Simplified list editor needed? Uses Tags for now if array of strings, or just render */}
-                                        <Tags
-                                            items={Array.isArray(registrations) ? registrations.map((r: any) => typeof r === 'string' ? r : `${r.type}: ${r.number}`) : []}
-                                            onAdd={(val: string) => { /* Complex obj handling omitted for brevity */ }}
-                                            onRemove={() => { }}
-                                            color="emerald"
-                                        />
-                                    </div>
-                                    <div>
-                                        <label className="text-xs font-medium text-slate-500 uppercase mb-3 block">Awards</label>
-                                        <Tags items={awards} onAdd={handleTagsAdd('knowledge.awards', awards)} onRemove={handleTagsRemove('knowledge.awards', awards)} color="amber" />
-                                    </div>
-                                </div>
-                            </Section>
-
-                            {/* 7. FAQs */}
-                            <Section title="FAQs" icon={HelpCircle} iconBg="bg-pink-500">
-                                <div className="space-y-3">
-                                    {faqs.map((faq: any, i: number) => (
-                                        <div key={i} className="p-4 bg-slate-50 rounded-xl">
-                                            <div className="flex items-start gap-3">
-                                                <div className="w-6 h-6 bg-pink-100 rounded flex items-center justify-center text-xs font-bold text-pink-600">{i + 1}</div>
-                                                <div className="flex-1">
-                                                    <div className="font-medium text-slate-900 mb-1">{faq.question}</div>
-                                                    <div className="text-sm text-slate-600">{faq.answer}</div>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    ))}
-                                    <div className="flex gap-2 mt-4 p-4 bg-slate-50 rounded-xl border border-dashed border-slate-300 text-center text-slate-500 justify-center">
-                                        Use "Process for AI" or Chat to generate FAQs automatically.
-                                    </div>
-                                </div>
-                            </Section>
-                        </div>
                     </>
                 ) : (
                     <div className="bg-white rounded-xl border border-slate-200 p-8 mb-6 text-center shadow-sm">

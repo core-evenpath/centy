@@ -25,7 +25,7 @@ import ProfileSummary from '@/components/partner/settings/ProfileSummary';
 import FieldConnectionAudit from '@/components/partner/settings/FieldConnectionAudit';
 import BusinessProfileAgent from '@/components/partner/settings/BusinessProfileAgent';
 import AutoFillPreviewModal from '@/components/partner/settings/AutoFillPreviewModal';
-import SchemaBusinessProfile from '@/components/partner/settings/SchemaBusinessProfile';
+import BusinessProfileTab from '@/components/partner/settings/BusinessProfileTab';
 
 const SettingsUltimate = () => {
   const router = useRouter();
@@ -1196,7 +1196,7 @@ const SettingsUltimate = () => {
             {activeTab === 'profile' && (
               <div className="-m-4 md:-m-8">
                 {/* Negative margin to break out of the parent padding to allow full-width headers from the new design */}
-                <SchemaBusinessProfile
+                <BusinessProfileTab
                   persona={persona}
                   onUpdate={async (path, value) => {
                     await handleFieldUpdate(path, value);
