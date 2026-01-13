@@ -850,6 +850,148 @@ export const MANUFACTURING_EXPERTISE: IndustryExpertiseConfig = {
 };
 
 // ============================================
+// TRAVEL, TRANSPORT & LOGISTICS EXPERTISE
+// ============================================
+export const TRAVEL_TRANSPORT_EXPERTISE: IndustryExpertiseConfig = {
+    industryId: 'travel_transport',
+    industryName: 'Travel, Transport & Logistics',
+    subSections: [
+        {
+            id: 'business-type',
+            title: 'Business Type',
+            icon: '🚀',
+            fields: [
+                {
+                    key: 'businessType', label: 'Business Type', type: 'select', options: [
+                        { value: 'travel_agency', label: 'Travel Agency', icon: '✈️' },
+                        { value: 'tour_operator', label: 'Tour Operator', icon: '🗺️' },
+                        { value: 'taxi_service', label: 'Taxi / Cab Service', icon: '🚕' },
+                        { value: 'ride_share', label: 'Ride Share / Car Pool', icon: '🚗' },
+                        { value: 'car_rental', label: 'Car Rental', icon: '🚙' },
+                        { value: 'bike_rental', label: 'Bike / Scooter Rental', icon: '🏍️' },
+                        { value: 'bus_operator', label: 'Bus Operator', icon: '🚌' },
+                        { value: 'courier', label: 'Courier / Parcel Service', icon: '📦' },
+                        { value: 'freight', label: 'Freight / Cargo', icon: '🚛' },
+                        { value: 'moving', label: 'Packers & Movers', icon: '📦' },
+                        { value: 'warehouse', label: 'Warehousing', icon: '🏭' },
+                        { value: 'last_mile', label: 'Last Mile Delivery', icon: '🛵' },
+                    ], schemaPath: 'industrySpecificData.businessType'
+                },
+                {
+                    key: 'serviceTypes', label: 'Service Types', type: 'checkbox-group', options: [
+                        { value: 'local', label: 'Local / City', icon: '🏙️' },
+                        { value: 'outstation', label: 'Outstation', icon: '🛣️' },
+                        { value: 'airport', label: 'Airport Transfers', icon: '✈️' },
+                        { value: 'corporate', label: 'Corporate Services', icon: '💼' },
+                        { value: 'events', label: 'Events & Weddings', icon: '🎉' },
+                        { value: 'tours', label: 'Tours & Sightseeing', icon: '🗽' },
+                        { value: 'international', label: 'International', icon: '🌍' },
+                    ], schemaPath: 'industrySpecificData.serviceTypes', gridSpan: 2
+                },
+                {
+                    key: 'operatingModel', label: 'Operating Model', type: 'checkbox-group', options: [
+                        { value: 'b2c', label: 'Direct to Customer (B2C)', icon: '👤' },
+                        { value: 'b2b', label: 'Business to Business (B2B)', icon: '🏢' },
+                        { value: 'marketplace', label: 'Marketplace / Aggregator', icon: '📱' },
+                    ], schemaPath: 'industrySpecificData.operatingModel'
+                },
+            ],
+        },
+        {
+            id: 'fleet-coverage',
+            title: 'Fleet & Coverage',
+            icon: '🚗',
+            fields: [
+                {
+                    key: 'vehicleTypes', label: 'Vehicle Types', type: 'checkbox-group', options: [
+                        { value: 'sedan', label: 'Sedan', icon: '🚗' },
+                        { value: 'suv', label: 'SUV / MUV', icon: '🚙' },
+                        { value: 'luxury', label: 'Luxury / Premium', icon: '🏎️' },
+                        { value: 'hatchback', label: 'Hatchback', icon: '🚘' },
+                        { value: 'van', label: 'Van / Tempo', icon: '🚐' },
+                        { value: 'bus', label: 'Bus / Coach', icon: '🚌' },
+                        { value: 'bike', label: 'Bike / Scooter', icon: '🏍️' },
+                        { value: 'auto', label: 'Auto Rickshaw', icon: '🛺' },
+                        { value: 'truck', label: 'Truck / Lorry', icon: '🚛' },
+                        { value: 'container', label: 'Container', icon: '📦' },
+                        { value: 'ev', label: 'Electric Vehicle', icon: '⚡' },
+                    ], schemaPath: 'industrySpecificData.vehicleTypes', gridSpan: 2
+                },
+                { key: 'fleetSize', label: 'Fleet Size', type: 'number', placeholder: 'e.g., 50 vehicles', schemaPath: 'industrySpecificData.fleetSize' },
+                { key: 'operatingCities', label: 'Operating Cities', type: 'tags', placeholder: 'e.g., Mumbai, Delhi, Bangalore', schemaPath: 'industrySpecificData.operatingCities', gridSpan: 2 },
+                { key: 'serviceCoverage', label: 'Service Coverage Area', type: 'text', placeholder: 'e.g., All of Maharashtra, Pan India', schemaPath: 'industrySpecificData.serviceCoverage' },
+            ],
+        },
+        {
+            id: 'booking-pricing',
+            title: 'Booking & Pricing',
+            icon: '💳',
+            fields: [
+                {
+                    key: 'bookingModes', label: 'Booking Methods', type: 'checkbox-group', options: [
+                        { value: 'app', label: 'Mobile App', icon: '📱' },
+                        { value: 'website', label: 'Website', icon: '🌐' },
+                        { value: 'phone', label: 'Phone Call', icon: '📞' },
+                        { value: 'whatsapp', label: 'WhatsApp', icon: '💬' },
+                        { value: 'walk_in', label: 'Walk-in / Counter', icon: '🚶' },
+                        { value: 'aggregator', label: 'Via Aggregators', icon: '📲' },
+                    ], schemaPath: 'industrySpecificData.bookingModes', gridSpan: 2
+                },
+                {
+                    key: 'pricingModel', label: 'Pricing Model', type: 'checkbox-group', options: [
+                        { value: 'per_km', label: 'Per Kilometer', icon: '📏' },
+                        { value: 'per_hour', label: 'Per Hour', icon: '⏱️' },
+                        { value: 'fixed', label: 'Fixed Route Price', icon: '💰' },
+                        { value: 'package', label: 'Package / Bundle', icon: '📦' },
+                        { value: 'subscription', label: 'Subscription', icon: '🔄' },
+                        { value: 'auction', label: 'Bid / Auction', icon: '🔨' },
+                    ], schemaPath: 'industrySpecificData.pricingModel', gridSpan: 2
+                },
+                { key: 'basePrice', label: 'Starting Price', type: 'currency', placeholder: 'e.g., 100', helpText: 'Minimum fare or base rate', schemaPath: 'industrySpecificData.basePrice' },
+                { key: 'advanceBooking', label: 'Advance Booking', type: 'toggle', helpText: 'Accept bookings in advance?', schemaPath: 'industrySpecificData.advanceBooking' },
+                { key: 'instantBooking', label: 'Instant Booking', type: 'toggle', helpText: 'On-demand service available?', schemaPath: 'industrySpecificData.instantBooking' },
+            ],
+        },
+        {
+            id: 'features-policies',
+            title: 'Features & Policies',
+            icon: '⭐',
+            collapsible: true,
+            defaultExpanded: false,
+            fields: [
+                {
+                    key: 'features', label: 'Features', type: 'checkbox-group', options: [
+                        { value: 'gps_tracking', label: 'GPS Tracking', icon: '📍' },
+                        { value: 'live_eta', label: 'Live ETA', icon: '⏰' },
+                        { value: 'driver_profile', label: 'Driver Profiles', icon: '👤' },
+                        { value: 'ac', label: 'AC Vehicles', icon: '❄️' },
+                        { value: 'wifi', label: 'WiFi', icon: '📶' },
+                        { value: 'insurance', label: 'Insurance Included', icon: '🛡️' },
+                        { value: 'multiple_stops', label: 'Multiple Stops', icon: '📍' },
+                        { value: 'luggage', label: 'Luggage Assistance', icon: '🧳' },
+                        { value: 'child_seat', label: 'Child Seat', icon: '👶' },
+                        { value: 'pet_friendly', label: 'Pet Friendly', icon: '🐕' },
+                        { value: 'wheelchair', label: 'Wheelchair Accessible', icon: '♿' },
+                        { value: 'female_driver', label: 'Female Driver Option', icon: '👩' },
+                    ], schemaPath: 'industrySpecificData.features', gridSpan: 2
+                },
+                {
+                    key: 'paymentModes', label: 'Payment Options', type: 'checkbox-group', options: [
+                        { value: 'cash', label: 'Cash', icon: '💵' },
+                        { value: 'card', label: 'Card', icon: '💳' },
+                        { value: 'upi', label: 'UPI', icon: '📱' },
+                        { value: 'wallet', label: 'Digital Wallet', icon: '👛' },
+                        { value: 'corporate', label: 'Corporate Billing', icon: '🏢' },
+                        { value: 'cod', label: 'COD (for logistics)', icon: '📦' },
+                    ], schemaPath: 'industrySpecificData.paymentModes', gridSpan: 2
+                },
+                { key: 'cancellationPolicy', label: 'Cancellation Policy', type: 'textarea', placeholder: 'Describe your cancellation terms...', schemaPath: 'industrySpecificData.cancellationPolicy', gridSpan: 2 },
+            ],
+        },
+    ],
+};
+
+// ============================================
 // OTHER/GENERIC EXPERTISE
 // ============================================
 export const OTHER_EXPERTISE: IndustryExpertiseConfig = {
@@ -907,5 +1049,6 @@ export const ALL_INDUSTRY_EXPERTISE: Record<string, IndustryExpertiseConfig> = {
     events: EVENTS_EXPERTISE,
     home_services: HOME_SERVICES_EXPERTISE,
     manufacturing: MANUFACTURING_EXPERTISE,
+    travel_transport: TRAVEL_TRANSPORT_EXPERTISE,
     other: OTHER_EXPERTISE,
 };
