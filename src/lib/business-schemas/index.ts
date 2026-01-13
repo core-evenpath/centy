@@ -14,16 +14,19 @@ export * from './modules';
 
 // Category Schemas
 export { default as RESTAURANT_DINING_SCHEMA } from './restaurant-dining';
+export { default as FINANCIAL_SERVICES_SCHEMA } from './financial-services';
 
 // Schema Registry
 import { CategorySchema } from './types';
 import RESTAURANT_DINING_SCHEMA from './restaurant-dining';
+import FINANCIAL_SERVICES_SCHEMA from './financial-services';
 
 /**
  * Registry of all category schemas
  */
 export const CATEGORY_SCHEMAS: Record<string, CategorySchema> = {
     restaurant_dining: RESTAURANT_DINING_SCHEMA,
+    financial_services: FINANCIAL_SERVICES_SCHEMA,
     // Add more category schemas here as they are created
 };
 

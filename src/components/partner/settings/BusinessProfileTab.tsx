@@ -5,7 +5,7 @@ import {
     HelpCircle, Trophy, ArrowRight, Cpu, Loader2, Trash2, Globe,
     Landmark, GraduationCap, Heart, Briefcase, ShoppingBag, UtensilsCrossed,
     ShoppingCart, Car, Plane, Building, PartyPopper, Wrench, MoreHorizontal,
-    LucideIcon
+    LucideIcon, Zap
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { BusinessPersona } from '@/lib/business-persona-types';
@@ -21,6 +21,7 @@ import {
     ResolvedFunction,
     SelectedBusinessCategory,
 } from '@/lib/business-taxonomy';
+import { generateModulesFromCategories, type ModulesConfig } from '@/actions/module-generator-actions';
 
 // Icon mapping for category icons
 const CATEGORY_ICONS: Record<string, LucideIcon> = {
@@ -55,6 +56,8 @@ interface BusinessProfileTabProps {
     onClearProfile: () => Promise<void>;
     onPreviewAI?: () => void;
     onProcessAI?: () => Promise<void>;
+    // Module generation callback
+    onModulesGenerated?: (config: ModulesConfig) => Promise<void>;
 }
 
 function ProgressRing({ value }: { value: number }) {
@@ -228,7 +231,8 @@ export default function BusinessProfileTab({
     isAutoFilling,
     onClearProfile,
     onPreviewAI,
-    onProcessAI
+    onProcessAI,
+    onModulesGenerated
 }: BusinessProfileTabProps) {
 
     // -- Data Mapping --
@@ -970,6 +974,15 @@ export default function BusinessProfileTab({
                                                     name: firstInfo.displayLabel,
                                                     category: firstInfo.industry.industryId
                                                 });
+                                            }
+
+                                            // Auto-generate modules based on selected categories
+                                            if (onModulesGenerated) {
+                                                generateModulesFromCategories(categories, selectedCountry).then(result => {
+                                                    if (result.success && result.config) {
+                                                        onModulesGenerated(result.config);
+                                                    }
+                                                }).catch(console.error);
                                             }
                                         }
 

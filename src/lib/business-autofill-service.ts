@@ -1179,11 +1179,7 @@ export function mapMenuToMenuItems(menuItems: MenuInventoryItem[]): { items: Men
         isVegetarian: item.isVeg || false,
         isVegan: item.isVegan || false,
         isGlutenFree: false,
-        isJain: false,
         isHalal: false,
-        containsEgg: false,
-        spiceLevel: (item.spiceLevel?.toLowerCase() as 'none' | 'mild' | 'medium' | 'hot' | 'extra_hot') || 'medium',
-        allergens: item.allergens || [],
       },
       availability: {
         isAvailable: true,
@@ -1346,6 +1342,7 @@ export function mapServicesToHealthcareServices(services: ServiceInventoryItem[]
         price: service.price || 0,
         priceType: 'fixed',
         currency: 'INR',
+        insuranceCovered: false,
       },
       duration: service.duration ? {
         estimated: parseInt(service.duration) || 30,
