@@ -1,7 +1,8 @@
 /**
  * Industry-Specific Expertise Configurations
- * 
+ *
  * This file contains the expertise section configurations for all 15 industries
+ * Enhanced with icons for all checkbox-group/multi-select fields
  */
 
 import type { IndustryExpertiseConfig } from './business-profile-ui-schema';
@@ -19,13 +20,30 @@ export const RETAIL_EXPERTISE: IndustryExpertiseConfig = {
             icon: '🏪',
             fields: [
                 {
-                    key: 'storeType', label: 'Store Type', type: 'select', options: [
-                        { value: 'physical', label: 'Physical Store' },
-                        { value: 'online', label: 'Online Only' },
-                        { value: 'hybrid', label: 'Both Physical & Online' },
-                    ], schemaPath: 'industrySpecificData.storeType'
+                    key: 'storeType', label: 'Store Type', type: 'checkbox-group', options: [
+                        { value: 'physical', label: 'Physical Store', icon: '🏬' },
+                        { value: 'online', label: 'Online Store', icon: '🌐' },
+                        { value: 'popup', label: 'Pop-up Shop', icon: '🎪' },
+                        { value: 'kiosk', label: 'Kiosk/Counter', icon: '🏪' },
+                        { value: 'warehouse', label: 'Warehouse/Outlet', icon: '🏭' },
+                    ], schemaPath: 'industrySpecificData.storeType', gridSpan: 2
                 },
-                { key: 'productCategories', label: 'Product Categories', type: 'tags', placeholder: 'e.g., Electronics, Fashion, Home Decor', schemaPath: 'industrySpecificData.productCategories', gridSpan: 2 },
+                {
+                    key: 'productCategories', label: 'Product Categories', type: 'checkbox-group', options: [
+                        { value: 'electronics', label: 'Electronics', icon: '📱' },
+                        { value: 'fashion', label: 'Fashion & Apparel', icon: '👕' },
+                        { value: 'footwear', label: 'Footwear', icon: '👟' },
+                        { value: 'jewelry', label: 'Jewelry & Watches', icon: '💎' },
+                        { value: 'home_decor', label: 'Home Decor', icon: '🏠' },
+                        { value: 'furniture', label: 'Furniture', icon: '🛋️' },
+                        { value: 'grocery', label: 'Grocery', icon: '🛒' },
+                        { value: 'sports', label: 'Sports & Fitness', icon: '⚽' },
+                        { value: 'toys', label: 'Toys & Games', icon: '🎮' },
+                        { value: 'books', label: 'Books & Stationery', icon: '📚' },
+                        { value: 'health', label: 'Health & Personal Care', icon: '💊' },
+                        { value: 'baby', label: 'Baby & Kids', icon: '👶' },
+                    ], schemaPath: 'industrySpecificData.productCategories', gridSpan: 2
+                },
                 { key: 'brands', label: 'Brands Available', type: 'tags', placeholder: 'Add brands you carry...', schemaPath: 'industrySpecificData.brands', gridSpan: 2 },
                 { key: 'storeSize', label: 'Store Size (sq ft)', type: 'number', placeholder: 'e.g., 2000', schemaPath: 'industrySpecificData.storeSize' },
             ],
@@ -37,16 +55,26 @@ export const RETAIL_EXPERTISE: IndustryExpertiseConfig = {
             fields: [
                 {
                     key: 'paymentModes', label: 'Payment Modes', type: 'checkbox-group', options: [
-                        { value: 'cash', label: 'Cash' },
-                        { value: 'card', label: 'Credit/Debit Card' },
-                        { value: 'upi', label: 'UPI' },
-                        { value: 'bnpl', label: 'Buy Now Pay Later' },
-                        { value: 'emi', label: 'EMI Available' },
+                        { value: 'cash', label: 'Cash', icon: '💵' },
+                        { value: 'card', label: 'Credit/Debit Card', icon: '💳' },
+                        { value: 'upi', label: 'UPI', icon: '📱' },
+                        { value: 'bnpl', label: 'Buy Now Pay Later', icon: '🔄' },
+                        { value: 'emi', label: 'EMI Available', icon: '📅' },
+                        { value: 'wallet', label: 'Digital Wallet', icon: '👛' },
+                        { value: 'cheque', label: 'Cheque', icon: '📝' },
                     ], schemaPath: 'industrySpecificData.paymentModes', gridSpan: 2
                 },
-                { key: 'trialAvailable', label: 'Trial/Demo Available', type: 'toggle', schemaPath: 'industrySpecificData.trialAvailable' },
-                { key: 'giftWrapping', label: 'Gift Wrapping', type: 'toggle', schemaPath: 'industrySpecificData.giftWrapping' },
-                { key: 'loyaltyProgram', label: 'Loyalty Program', type: 'toggle', schemaPath: 'industrySpecificData.loyaltyProgram' },
+                {
+                    key: 'shoppingFeatures', label: 'Shopping Features', type: 'checkbox-group', options: [
+                        { value: 'trial', label: 'Trial/Demo Available', icon: '🔍' },
+                        { value: 'gift_wrap', label: 'Gift Wrapping', icon: '🎁' },
+                        { value: 'loyalty', label: 'Loyalty Program', icon: '⭐' },
+                        { value: 'personal_shopper', label: 'Personal Shopper', icon: '👔' },
+                        { value: 'alterations', label: 'Alterations', icon: '✂️' },
+                        { value: 'gift_cards', label: 'Gift Cards', icon: '🎴' },
+                        { value: 'price_match', label: 'Price Match', icon: '💰' },
+                    ], schemaPath: 'industrySpecificData.shoppingFeatures', gridSpan: 2
+                },
             ],
         },
         {
@@ -54,16 +82,26 @@ export const RETAIL_EXPERTISE: IndustryExpertiseConfig = {
             title: 'Delivery & Returns',
             icon: '📦',
             fields: [
-                { key: 'homeDelivery', label: 'Home Delivery', type: 'toggle', schemaPath: 'industrySpecificData.homeDelivery' },
-                { key: 'freeDeliveryAbove', label: 'Free Delivery Above', type: 'currency', placeholder: 'e.g., 500', schemaPath: 'industrySpecificData.freeDeliveryAbove', showCondition: { field: 'homeDelivery', operator: 'equals', value: true } },
                 {
-                    key: 'returnPolicy', label: 'Return Policy', type: 'select', options: [
-                        { value: 'no_returns', label: 'No Returns' },
-                        { value: '7_days', label: '7 Days Return' },
-                        { value: '15_days', label: '15 Days Return' },
-                        { value: '30_days', label: '30 Days Return' },
-                        { value: 'exchange_only', label: 'Exchange Only' },
-                    ], schemaPath: 'industrySpecificData.returnPolicy'
+                    key: 'deliveryOptions', label: 'Delivery Options', type: 'checkbox-group', options: [
+                        { value: 'home_delivery', label: 'Home Delivery', icon: '🏠' },
+                        { value: 'store_pickup', label: 'Store Pickup', icon: '🏬' },
+                        { value: 'curbside', label: 'Curbside Pickup', icon: '🚗' },
+                        { value: 'same_day', label: 'Same Day Delivery', icon: '⚡' },
+                        { value: 'express', label: 'Express Delivery', icon: '🚀' },
+                        { value: 'scheduled', label: 'Scheduled Delivery', icon: '📅' },
+                    ], schemaPath: 'industrySpecificData.deliveryOptions', gridSpan: 2
+                },
+                { key: 'freeDeliveryAbove', label: 'Free Delivery Above', type: 'currency', placeholder: 'e.g., 500', schemaPath: 'industrySpecificData.freeDeliveryAbove' },
+                {
+                    key: 'returnPolicy', label: 'Return Policy', type: 'checkbox-group', options: [
+                        { value: 'no_returns', label: 'No Returns', icon: '🚫' },
+                        { value: '7_days', label: '7 Days Return', icon: '7️⃣' },
+                        { value: '15_days', label: '15 Days Return', icon: '📅' },
+                        { value: '30_days', label: '30 Days Return', icon: '📆' },
+                        { value: 'exchange_only', label: 'Exchange Only', icon: '🔄' },
+                        { value: 'store_credit', label: 'Store Credit', icon: '🎫' },
+                    ], schemaPath: 'industrySpecificData.returnPolicy', gridSpan: 2
                 },
                 { key: 'warrantyOffered', label: 'Warranty Offered', type: 'toggle', schemaPath: 'industrySpecificData.warrantyOffered' },
             ],
@@ -84,31 +122,64 @@ export const HEALTHCARE_EXPERTISE: IndustryExpertiseConfig = {
             icon: '🏥',
             fields: [
                 {
-                    key: 'facilityType', label: 'Facility Type', type: 'select', options: [
-                        { value: 'clinic', label: 'Clinic' },
-                        { value: 'hospital', label: 'Hospital' },
-                        { value: 'diagnostic_center', label: 'Diagnostic Center' },
-                        { value: 'pharmacy', label: 'Pharmacy' },
-                        { value: 'wellness_center', label: 'Wellness Center' },
-                        { value: 'telehealth', label: 'Telehealth Only' },
-                    ], schemaPath: 'industrySpecificData.facilityType'
+                    key: 'facilityType', label: 'Facility Type', type: 'checkbox-group', options: [
+                        { value: 'clinic', label: 'Clinic', icon: '🏥' },
+                        { value: 'hospital', label: 'Hospital', icon: '🏨' },
+                        { value: 'diagnostic_center', label: 'Diagnostic Center', icon: '🔬' },
+                        { value: 'pharmacy', label: 'Pharmacy', icon: '💊' },
+                        { value: 'wellness_center', label: 'Wellness Center', icon: '🧘' },
+                        { value: 'telehealth', label: 'Telehealth', icon: '📱' },
+                        { value: 'nursing_home', label: 'Nursing Home', icon: '🏠' },
+                        { value: 'lab', label: 'Pathology Lab', icon: '🧪' },
+                    ], schemaPath: 'industrySpecificData.facilityType', gridSpan: 2
                 },
-                { key: 'specializations', label: 'Specializations', type: 'tags', placeholder: 'e.g., Cardiology, Pediatrics, Orthopedics', schemaPath: 'industrySpecificData.specializations', gridSpan: 2 },
+                {
+                    key: 'specializations', label: 'Specializations', type: 'checkbox-group', options: [
+                        { value: 'general', label: 'General Medicine', icon: '👨‍⚕️' },
+                        { value: 'cardiology', label: 'Cardiology', icon: '❤️' },
+                        { value: 'orthopedics', label: 'Orthopedics', icon: '🦴' },
+                        { value: 'pediatrics', label: 'Pediatrics', icon: '👶' },
+                        { value: 'gynecology', label: 'Gynecology', icon: '🤰' },
+                        { value: 'dermatology', label: 'Dermatology', icon: '🧴' },
+                        { value: 'ophthalmology', label: 'Ophthalmology', icon: '👁️' },
+                        { value: 'dentistry', label: 'Dentistry', icon: '🦷' },
+                        { value: 'psychiatry', label: 'Psychiatry', icon: '🧠' },
+                        { value: 'physiotherapy', label: 'Physiotherapy', icon: '💪' },
+                        { value: 'ent', label: 'ENT', icon: '👂' },
+                        { value: 'neurology', label: 'Neurology', icon: '🧠' },
+                    ], schemaPath: 'industrySpecificData.specializations', gridSpan: 2
+                },
                 { key: 'doctors', label: 'Number of Doctors', type: 'number', placeholder: 'e.g., 5', schemaPath: 'industrySpecificData.doctorCount' },
                 { key: 'bedCount', label: 'Bed Capacity', type: 'number', placeholder: 'e.g., 50', schemaPath: 'industrySpecificData.bedCount' },
             ],
         },
         {
             id: 'appointments',
-            title: 'Appointments & Booking',
+            title: 'Appointments & Services',
             icon: '📅',
             fields: [
-                { key: 'appointmentRequired', label: 'Appointment Required', type: 'toggle', schemaPath: 'industrySpecificData.appointmentRequired' },
-                { key: 'walkInsAccepted', label: 'Walk-ins Accepted', type: 'toggle', schemaPath: 'industrySpecificData.walkInsAccepted' },
-                { key: 'onlineBooking', label: 'Online Booking Available', type: 'toggle', schemaPath: 'industrySpecificData.onlineBooking' },
-                { key: 'teleconsultation', label: 'Teleconsultation Available', type: 'toggle', schemaPath: 'industrySpecificData.teleconsultation' },
-                { key: 'emergencyServices', label: '24/7 Emergency Services', type: 'toggle', schemaPath: 'industrySpecificData.emergencyServices' },
-                { key: 'homeVisits', label: 'Home Visits Available', type: 'toggle', schemaPath: 'industrySpecificData.homeVisits' },
+                {
+                    key: 'appointmentTypes', label: 'Appointment Types', type: 'checkbox-group', options: [
+                        { value: 'walk_in', label: 'Walk-in', icon: '🚶' },
+                        { value: 'scheduled', label: 'Scheduled', icon: '📅' },
+                        { value: 'online_booking', label: 'Online Booking', icon: '🌐' },
+                        { value: 'teleconsult', label: 'Teleconsultation', icon: '📹' },
+                        { value: 'home_visit', label: 'Home Visit', icon: '🏠' },
+                        { value: 'emergency', label: '24/7 Emergency', icon: '🚨' },
+                    ], schemaPath: 'industrySpecificData.appointmentTypes', gridSpan: 2
+                },
+                {
+                    key: 'diagnosticServices', label: 'Diagnostic Services', type: 'checkbox-group', options: [
+                        { value: 'blood_test', label: 'Blood Tests', icon: '🩸' },
+                        { value: 'xray', label: 'X-Ray', icon: '🩻' },
+                        { value: 'mri', label: 'MRI', icon: '🧲' },
+                        { value: 'ct_scan', label: 'CT Scan', icon: '📷' },
+                        { value: 'ultrasound', label: 'Ultrasound', icon: '📡' },
+                        { value: 'ecg', label: 'ECG', icon: '💓' },
+                        { value: 'endoscopy', label: 'Endoscopy', icon: '🔬' },
+                        { value: 'home_collection', label: 'Home Sample Collection', icon: '🏠' },
+                    ], schemaPath: 'industrySpecificData.diagnosticServices', gridSpan: 2
+                },
             ],
         },
         {
@@ -116,10 +187,17 @@ export const HEALTHCARE_EXPERTISE: IndustryExpertiseConfig = {
             title: 'Insurance & Pricing',
             icon: '💳',
             fields: [
-                { key: 'insuranceAccepted', label: 'Insurance Accepted', type: 'toggle', schemaPath: 'industrySpecificData.insuranceAccepted' },
-                { key: 'insuranceProviders', label: 'Insurance Providers', type: 'tags', placeholder: 'e.g., Star Health, ICICI Lombard', schemaPath: 'industrySpecificData.insuranceProviders', showCondition: { field: 'insuranceAccepted', operator: 'equals', value: true }, gridSpan: 2 },
+                {
+                    key: 'insuranceOptions', label: 'Insurance & Payment', type: 'checkbox-group', options: [
+                        { value: 'cashless', label: 'Cashless Insurance', icon: '💳' },
+                        { value: 'reimbursement', label: 'Reimbursement', icon: '💰' },
+                        { value: 'govt_schemes', label: 'Govt Schemes (Ayushman)', icon: '🏛️' },
+                        { value: 'corporate_tie', label: 'Corporate Tie-ups', icon: '🏢' },
+                        { value: 'emi', label: 'EMI/Payment Plans', icon: '📅' },
+                    ], schemaPath: 'industrySpecificData.insuranceOptions', gridSpan: 2
+                },
+                { key: 'insuranceProviders', label: 'Insurance Providers', type: 'tags', placeholder: 'e.g., Star Health, ICICI Lombard', schemaPath: 'industrySpecificData.insuranceProviders', gridSpan: 2 },
                 { key: 'consultationFee', label: 'Consultation Fee', type: 'currency', placeholder: 'e.g., 500', schemaPath: 'industrySpecificData.consultationFee' },
-                { key: 'paymentPlans', label: 'EMI/Payment Plans', type: 'toggle', schemaPath: 'industrySpecificData.paymentPlans' },
             ],
         },
     ],
@@ -138,18 +216,34 @@ export const EDUCATION_EXPERTISE: IndustryExpertiseConfig = {
             icon: '🎓',
             fields: [
                 {
-                    key: 'institutionType', label: 'Institution Type', type: 'select', options: [
-                        { value: 'school', label: 'School (K-12)' },
-                        { value: 'college', label: 'College/University' },
-                        { value: 'coaching', label: 'Coaching Institute' },
-                        { value: 'tutoring', label: 'Private Tutoring' },
-                        { value: 'skill_training', label: 'Skill Training Center' },
-                        { value: 'online_platform', label: 'Online Learning Platform' },
-                    ], schemaPath: 'industrySpecificData.institutionType'
+                    key: 'institutionType', label: 'Institution Type', type: 'checkbox-group', options: [
+                        { value: 'school', label: 'School (K-12)', icon: '🏫' },
+                        { value: 'college', label: 'College/University', icon: '🎓' },
+                        { value: 'coaching', label: 'Coaching Institute', icon: '📚' },
+                        { value: 'tutoring', label: 'Private Tutoring', icon: '👨‍🏫' },
+                        { value: 'skill_training', label: 'Skill Training', icon: '🛠️' },
+                        { value: 'online_platform', label: 'Online Platform', icon: '💻' },
+                        { value: 'preschool', label: 'Preschool/Playschool', icon: '🧒' },
+                        { value: 'language', label: 'Language School', icon: '🗣️' },
+                    ], schemaPath: 'industrySpecificData.institutionType', gridSpan: 2
                 },
-                { key: 'subjects', label: 'Subjects/Courses Offered', type: 'tags', placeholder: 'e.g., Mathematics, Science, Programming', schemaPath: 'industrySpecificData.subjects', gridSpan: 2 },
+                {
+                    key: 'subjects', label: 'Subjects/Courses', type: 'checkbox-group', options: [
+                        { value: 'math', label: 'Mathematics', icon: '🔢' },
+                        { value: 'science', label: 'Science', icon: '🔬' },
+                        { value: 'english', label: 'English', icon: '📖' },
+                        { value: 'programming', label: 'Programming', icon: '💻' },
+                        { value: 'business', label: 'Business/Commerce', icon: '📊' },
+                        { value: 'arts', label: 'Arts & Humanities', icon: '🎨' },
+                        { value: 'music', label: 'Music', icon: '🎵' },
+                        { value: 'dance', label: 'Dance', icon: '💃' },
+                        { value: 'sports', label: 'Sports', icon: '⚽' },
+                        { value: 'competitive', label: 'Competitive Exams', icon: '🏆' },
+                        { value: 'languages', label: 'Foreign Languages', icon: '🌍' },
+                        { value: 'vocational', label: 'Vocational Training', icon: '🔧' },
+                    ], schemaPath: 'industrySpecificData.subjects', gridSpan: 2
+                },
                 { key: 'boards', label: 'Boards/Affiliations', type: 'tags', placeholder: 'e.g., CBSE, ICSE, State Board', schemaPath: 'industrySpecificData.boards', gridSpan: 2 },
-                { key: 'ageGroups', label: 'Age Groups Served', type: 'tags', placeholder: 'e.g., 5-10 years, College students', schemaPath: 'industrySpecificData.ageGroups' },
             ],
         },
         {
@@ -159,15 +253,25 @@ export const EDUCATION_EXPERTISE: IndustryExpertiseConfig = {
             fields: [
                 {
                     key: 'deliveryMode', label: 'Delivery Mode', type: 'checkbox-group', options: [
-                        { value: 'in_person', label: 'In-Person Classes' },
-                        { value: 'online_live', label: 'Live Online Classes' },
-                        { value: 'recorded', label: 'Pre-Recorded Videos' },
-                        { value: 'hybrid', label: 'Hybrid (Both)' },
+                        { value: 'in_person', label: 'In-Person Classes', icon: '🏫' },
+                        { value: 'online_live', label: 'Live Online', icon: '📹' },
+                        { value: 'recorded', label: 'Recorded Videos', icon: '🎬' },
+                        { value: 'hybrid', label: 'Hybrid', icon: '🔄' },
+                        { value: 'self_paced', label: 'Self-Paced', icon: '⏱️' },
+                        { value: 'one_on_one', label: 'One-on-One', icon: '👤' },
                     ], schemaPath: 'industrySpecificData.deliveryMode', gridSpan: 2
                 },
+                {
+                    key: 'learningFeatures', label: 'Learning Features', type: 'checkbox-group', options: [
+                        { value: 'study_materials', label: 'Study Materials', icon: '📚' },
+                        { value: 'practice_tests', label: 'Practice Tests', icon: '📝' },
+                        { value: 'doubt_clearing', label: 'Doubt Clearing', icon: '❓' },
+                        { value: 'progress_tracking', label: 'Progress Tracking', icon: '📈' },
+                        { value: 'certificates', label: 'Certificates', icon: '🏅' },
+                        { value: 'placement', label: 'Placement Support', icon: '💼' },
+                    ], schemaPath: 'industrySpecificData.learningFeatures', gridSpan: 2
+                },
                 { key: 'batchSize', label: 'Typical Batch Size', type: 'text', placeholder: 'e.g., 15-20 students', schemaPath: 'industrySpecificData.batchSize' },
-                { key: 'personalAttention', label: 'One-on-One Available', type: 'toggle', schemaPath: 'industrySpecificData.personalAttention' },
-                { key: 'studyMaterials', label: 'Study Materials Provided', type: 'toggle', schemaPath: 'industrySpecificData.studyMaterials' },
             ],
         },
         {
@@ -185,7 +289,7 @@ export const EDUCATION_EXPERTISE: IndustryExpertiseConfig = {
 };
 
 // ============================================
-// HOSPITALITY EXPERTISE
+// HOSPITALITY EXPERTISE (Fixed: Room types as checkbox-group)
 // ============================================
 export const HOSPITALITY_EXPERTISE: IndustryExpertiseConfig = {
     industryId: 'hospitality',
@@ -197,15 +301,32 @@ export const HOSPITALITY_EXPERTISE: IndustryExpertiseConfig = {
             icon: '🏨',
             fields: [
                 {
-                    key: 'propertyType', label: 'Property Type', type: 'select', options: [
-                        { value: 'hotel', label: 'Hotel' },
-                        { value: 'resort', label: 'Resort' },
-                        { value: 'boutique_hotel', label: 'Boutique Hotel' },
-                        { value: 'guesthouse', label: 'Guest House' },
-                        { value: 'hostel', label: 'Hostel' },
-                        { value: 'homestay', label: 'Homestay' },
-                        { value: 'service_apartment', label: 'Service Apartment' },
-                    ], schemaPath: 'industrySpecificData.propertyType'
+                    key: 'propertyType', label: 'Property Type', type: 'checkbox-group', options: [
+                        { value: 'hotel', label: 'Hotel', icon: '🏨' },
+                        { value: 'resort', label: 'Resort', icon: '🏝️' },
+                        { value: 'boutique', label: 'Boutique Hotel', icon: '🏛️' },
+                        { value: 'guesthouse', label: 'Guest House', icon: '🏠' },
+                        { value: 'hostel', label: 'Hostel', icon: '🛏️' },
+                        { value: 'homestay', label: 'Homestay', icon: '🏡' },
+                        { value: 'service_apt', label: 'Service Apartment', icon: '🏢' },
+                        { value: 'villa', label: 'Villa', icon: '🏰' },
+                    ], schemaPath: 'industrySpecificData.propertyType', gridSpan: 2
+                },
+                {
+                    key: 'roomTypes', label: 'Room Types Available', type: 'checkbox-group', options: [
+                        { value: 'standard', label: 'Standard', icon: '🛏️' },
+                        { value: 'deluxe', label: 'Deluxe', icon: '🛋️' },
+                        { value: 'superior', label: 'Superior', icon: '⭐' },
+                        { value: 'suite', label: 'Suite', icon: '👑' },
+                        { value: 'family', label: 'Family Room', icon: '👨‍👩‍👧' },
+                        { value: 'twin', label: 'Twin Room', icon: '🛏️' },
+                        { value: 'single', label: 'Single Room', icon: '1️⃣' },
+                        { value: 'dormitory', label: 'Dormitory', icon: '🏘️' },
+                        { value: 'presidential', label: 'Presidential Suite', icon: '🌟' },
+                        { value: 'honeymoon', label: 'Honeymoon Suite', icon: '💕' },
+                        { value: 'accessible', label: 'Accessible Room', icon: '♿' },
+                        { value: 'penthouse', label: 'Penthouse', icon: '🏙️' },
+                    ], schemaPath: 'industrySpecificData.roomTypes', gridSpan: 2
                 },
                 {
                     key: 'starRating', label: 'Star Rating', type: 'select', options: [
@@ -218,7 +339,6 @@ export const HOSPITALITY_EXPERTISE: IndustryExpertiseConfig = {
                     ], schemaPath: 'industrySpecificData.starRating'
                 },
                 { key: 'totalRooms', label: 'Total Rooms', type: 'number', placeholder: 'e.g., 50', schemaPath: 'industrySpecificData.totalRooms' },
-                { key: 'roomTypes', label: 'Room Types', type: 'tags', placeholder: 'e.g., Deluxe, Suite, Family Room', schemaPath: 'industrySpecificData.roomTypes', gridSpan: 2 },
             ],
         },
         {
@@ -227,21 +347,45 @@ export const HOSPITALITY_EXPERTISE: IndustryExpertiseConfig = {
             icon: '🏊',
             fields: [
                 {
-                    key: 'amenities', label: 'Amenities', type: 'checkbox-group', options: [
-                        { value: 'wifi', label: 'Free WiFi' },
-                        { value: 'parking', label: 'Parking' },
-                        { value: 'pool', label: 'Swimming Pool' },
-                        { value: 'gym', label: 'Gym/Fitness Center' },
-                        { value: 'spa', label: 'Spa' },
-                        { value: 'restaurant', label: 'In-house Restaurant' },
-                        { value: 'bar', label: 'Bar' },
-                        { value: 'room_service', label: '24/7 Room Service' },
-                        { value: 'laundry', label: 'Laundry Service' },
-                        { value: 'airport_transfer', label: 'Airport Transfer' },
-                    ], schemaPath: 'industrySpecificData.amenities', gridSpan: 2
+                    key: 'roomAmenities', label: 'Room Amenities', type: 'checkbox-group', options: [
+                        { value: 'ac', label: 'Air Conditioning', icon: '❄️' },
+                        { value: 'wifi', label: 'Free WiFi', icon: '📶' },
+                        { value: 'tv', label: 'TV', icon: '📺' },
+                        { value: 'minibar', label: 'Minibar', icon: '🍷' },
+                        { value: 'safe', label: 'Safe', icon: '🔐' },
+                        { value: 'balcony', label: 'Balcony', icon: '🌅' },
+                        { value: 'bathtub', label: 'Bathtub', icon: '🛁' },
+                        { value: 'workspace', label: 'Work Desk', icon: '💼' },
+                        { value: 'coffee', label: 'Coffee/Tea Maker', icon: '☕' },
+                        { value: 'iron', label: 'Iron', icon: '👔' },
+                        { value: 'hairdryer', label: 'Hair Dryer', icon: '💨' },
+                        { value: 'toiletries', label: 'Toiletries', icon: '🧴' },
+                    ], schemaPath: 'industrySpecificData.roomAmenities', gridSpan: 2
                 },
-                { key: 'petFriendly', label: 'Pet Friendly', type: 'toggle', schemaPath: 'industrySpecificData.petFriendly' },
-                { key: 'wheelchairAccessible', label: 'Wheelchair Accessible', type: 'toggle', schemaPath: 'industrySpecificData.wheelchairAccessible' },
+                {
+                    key: 'propertyAmenities', label: 'Property Amenities', type: 'checkbox-group', options: [
+                        { value: 'pool', label: 'Swimming Pool', icon: '🏊' },
+                        { value: 'gym', label: 'Gym/Fitness', icon: '🏋️' },
+                        { value: 'spa', label: 'Spa', icon: '💆' },
+                        { value: 'restaurant', label: 'Restaurant', icon: '🍽️' },
+                        { value: 'bar', label: 'Bar/Lounge', icon: '🍸' },
+                        { value: 'room_service', label: '24/7 Room Service', icon: '🛎️' },
+                        { value: 'parking', label: 'Parking', icon: '🅿️' },
+                        { value: 'laundry', label: 'Laundry', icon: '🧺' },
+                        { value: 'concierge', label: 'Concierge', icon: '🎩' },
+                        { value: 'business', label: 'Business Center', icon: '💻' },
+                        { value: 'kids_area', label: 'Kids Play Area', icon: '🎠' },
+                        { value: 'garden', label: 'Garden', icon: '🌳' },
+                    ], schemaPath: 'industrySpecificData.propertyAmenities', gridSpan: 2
+                },
+                {
+                    key: 'accessibility', label: 'Accessibility', type: 'checkbox-group', options: [
+                        { value: 'wheelchair', label: 'Wheelchair Access', icon: '♿' },
+                        { value: 'elevator', label: 'Elevator', icon: '🛗' },
+                        { value: 'pet_friendly', label: 'Pet Friendly', icon: '🐕' },
+                        { value: 'smoking_rooms', label: 'Smoking Rooms', icon: '🚬' },
+                    ], schemaPath: 'industrySpecificData.accessibility', gridSpan: 2
+                },
             ],
         },
         {
@@ -249,6 +393,15 @@ export const HOSPITALITY_EXPERTISE: IndustryExpertiseConfig = {
             title: 'Booking & Policies',
             icon: '📋',
             fields: [
+                {
+                    key: 'mealPlans', label: 'Meal Plans', type: 'checkbox-group', options: [
+                        { value: 'ep', label: 'Room Only (EP)', icon: '🛏️' },
+                        { value: 'cp', label: 'With Breakfast (CP)', icon: '🥐' },
+                        { value: 'map', label: 'Half Board (MAP)', icon: '🍽️' },
+                        { value: 'ap', label: 'Full Board (AP)', icon: '🍴' },
+                        { value: 'all_inclusive', label: 'All Inclusive', icon: '🎉' },
+                    ], schemaPath: 'industrySpecificData.mealPlans', gridSpan: 2
+                },
                 { key: 'checkInTime', label: 'Check-in Time', type: 'text', placeholder: 'e.g., 2:00 PM', schemaPath: 'industrySpecificData.checkInTime' },
                 { key: 'checkOutTime', label: 'Check-out Time', type: 'text', placeholder: 'e.g., 11:00 AM', schemaPath: 'industrySpecificData.checkOutTime' },
                 { key: 'cancellationPolicy', label: 'Cancellation Policy', type: 'textarea', placeholder: 'Describe your cancellation policy...', schemaPath: 'industrySpecificData.cancellationPolicy', gridSpan: 2 },
@@ -271,27 +424,33 @@ export const REAL_ESTATE_EXPERTISE: IndustryExpertiseConfig = {
             icon: '🏗️',
             fields: [
                 {
-                    key: 'businessType', label: 'Business Type', type: 'select', options: [
-                        { value: 'developer', label: 'Developer/Builder' },
-                        { value: 'broker', label: 'Broker/Agent' },
-                        { value: 'property_management', label: 'Property Management' },
-                        { value: 'consultancy', label: 'Real Estate Consultancy' },
-                    ], schemaPath: 'industrySpecificData.businessType'
+                    key: 'businessType', label: 'Business Type', type: 'checkbox-group', options: [
+                        { value: 'developer', label: 'Developer/Builder', icon: '🏗️' },
+                        { value: 'broker', label: 'Broker/Agent', icon: '🤝' },
+                        { value: 'property_mgmt', label: 'Property Management', icon: '🏢' },
+                        { value: 'consultancy', label: 'Consultancy', icon: '📋' },
+                        { value: 'interior', label: 'Interior Design', icon: '🎨' },
+                    ], schemaPath: 'industrySpecificData.businessType', gridSpan: 2
                 },
                 {
                     key: 'propertyTypes', label: 'Property Types', type: 'checkbox-group', options: [
-                        { value: 'residential', label: 'Residential' },
-                        { value: 'commercial', label: 'Commercial' },
-                        { value: 'industrial', label: 'Industrial' },
-                        { value: 'land', label: 'Land/Plots' },
+                        { value: 'apartment', label: 'Apartment', icon: '🏢' },
+                        { value: 'villa', label: 'Villa/House', icon: '🏡' },
+                        { value: 'plot', label: 'Plot/Land', icon: '🗺️' },
+                        { value: 'commercial', label: 'Commercial', icon: '🏬' },
+                        { value: 'office', label: 'Office Space', icon: '💼' },
+                        { value: 'retail', label: 'Retail/Shop', icon: '🏪' },
+                        { value: 'warehouse', label: 'Warehouse', icon: '🏭' },
+                        { value: 'farmland', label: 'Farmland', icon: '🌾' },
                     ], schemaPath: 'industrySpecificData.propertyTypes', gridSpan: 2
                 },
                 {
                     key: 'transactionTypes', label: 'Transaction Types', type: 'checkbox-group', options: [
-                        { value: 'sale', label: 'Sale' },
-                        { value: 'rent', label: 'Rent/Lease' },
-                        { value: 'pg', label: 'PG/Co-living' },
-                    ], schemaPath: 'industrySpecificData.transactionTypes'
+                        { value: 'sale', label: 'Sale', icon: '🏷️' },
+                        { value: 'rent', label: 'Rent/Lease', icon: '🔑' },
+                        { value: 'pg', label: 'PG/Co-living', icon: '🏘️' },
+                        { value: 'resale', label: 'Resale', icon: '🔄' },
+                    ], schemaPath: 'industrySpecificData.transactionTypes', gridSpan: 2
                 },
             ],
         },
@@ -303,10 +462,10 @@ export const REAL_ESTATE_EXPERTISE: IndustryExpertiseConfig = {
                 { key: 'operatingAreas', label: 'Operating Areas', type: 'tags', placeholder: 'e.g., Whitefield, Koramangala, HSR Layout', schemaPath: 'industrySpecificData.operatingAreas', gridSpan: 2 },
                 {
                     key: 'priceSegment', label: 'Price Segment', type: 'checkbox-group', options: [
-                        { value: 'budget', label: 'Budget (< ₹50L)' },
-                        { value: 'mid_range', label: 'Mid Range (₹50L - 1Cr)' },
-                        { value: 'premium', label: 'Premium (₹1Cr - 3Cr)' },
-                        { value: 'luxury', label: 'Luxury (> ₹3Cr)' },
+                        { value: 'budget', label: 'Budget (< ₹50L)', icon: '💵' },
+                        { value: 'mid_range', label: 'Mid Range (₹50L-1Cr)', icon: '💰' },
+                        { value: 'premium', label: 'Premium (₹1Cr-3Cr)', icon: '💎' },
+                        { value: 'luxury', label: 'Luxury (> ₹3Cr)', icon: '👑' },
                     ], schemaPath: 'industrySpecificData.priceSegment', gridSpan: 2
                 },
                 { key: 'reraRegistered', label: 'RERA Registered', type: 'toggle', schemaPath: 'industrySpecificData.reraRegistered' },
@@ -320,15 +479,16 @@ export const REAL_ESTATE_EXPERTISE: IndustryExpertiseConfig = {
             fields: [
                 {
                     key: 'services', label: 'Services', type: 'checkbox-group', options: [
-                        { value: 'site_visits', label: 'Site Visits' },
-                        { value: 'legal_assistance', label: 'Legal Assistance' },
-                        { value: 'loan_assistance', label: 'Home Loan Assistance' },
-                        { value: 'vastu_consultation', label: 'Vastu Consultation' },
-                        { value: 'interior_design', label: 'Interior Design' },
-                        { value: 'property_valuation', label: 'Property Valuation' },
+                        { value: 'site_visits', label: 'Site Visits', icon: '🚗' },
+                        { value: 'legal', label: 'Legal Assistance', icon: '⚖️' },
+                        { value: 'loan', label: 'Home Loan Help', icon: '🏦' },
+                        { value: 'vastu', label: 'Vastu Consultation', icon: '🧭' },
+                        { value: 'interior', label: 'Interior Design', icon: '🎨' },
+                        { value: 'valuation', label: 'Property Valuation', icon: '📊' },
+                        { value: 'virtual_tour', label: 'Virtual Tours', icon: '🎥' },
+                        { value: 'documentation', label: 'Documentation', icon: '📄' },
                     ], schemaPath: 'industrySpecificData.services', gridSpan: 2
                 },
-                { key: 'virtualTours', label: 'Virtual Tours Available', type: 'toggle', schemaPath: 'industrySpecificData.virtualTours' },
             ],
         },
     ],
@@ -347,18 +507,20 @@ export const SERVICES_EXPERTISE: IndustryExpertiseConfig = {
             icon: '💼',
             fields: [
                 {
-                    key: 'serviceType', label: 'Service Category', type: 'select', options: [
-                        { value: 'consulting', label: 'Consulting' },
-                        { value: 'legal', label: 'Legal Services' },
-                        { value: 'accounting', label: 'Accounting/CA' },
-                        { value: 'marketing', label: 'Marketing/Advertising' },
-                        { value: 'it_services', label: 'IT Services' },
-                        { value: 'recruitment', label: 'Recruitment/HR' },
-                        { value: 'design', label: 'Design Services' },
-                        { value: 'other', label: 'Other' },
-                    ], schemaPath: 'industrySpecificData.serviceType'
+                    key: 'serviceType', label: 'Service Category', type: 'checkbox-group', options: [
+                        { value: 'consulting', label: 'Consulting', icon: '💡' },
+                        { value: 'legal', label: 'Legal Services', icon: '⚖️' },
+                        { value: 'accounting', label: 'Accounting/CA', icon: '📊' },
+                        { value: 'marketing', label: 'Marketing', icon: '📢' },
+                        { value: 'it_services', label: 'IT Services', icon: '💻' },
+                        { value: 'recruitment', label: 'Recruitment/HR', icon: '👥' },
+                        { value: 'design', label: 'Design Services', icon: '🎨' },
+                        { value: 'writing', label: 'Writing/Content', icon: '✍️' },
+                        { value: 'translation', label: 'Translation', icon: '🌐' },
+                        { value: 'training', label: 'Training', icon: '📚' },
+                    ], schemaPath: 'industrySpecificData.serviceType', gridSpan: 2
                 },
-                { key: 'servicesOffered', label: 'Services Offered', type: 'tags', placeholder: 'e.g., Tax Filing, Company Registration, GST', schemaPath: 'industrySpecificData.servicesOffered', gridSpan: 2 },
+                { key: 'servicesOffered', label: 'Specific Services', type: 'tags', placeholder: 'e.g., Tax Filing, Company Registration, GST', schemaPath: 'industrySpecificData.servicesOffered', gridSpan: 2 },
                 { key: 'industries', label: 'Industries Served', type: 'tags', placeholder: 'e.g., Startups, Healthcare, E-commerce', schemaPath: 'industrySpecificData.industriesServed', gridSpan: 2 },
             ],
         },
@@ -369,14 +531,21 @@ export const SERVICES_EXPERTISE: IndustryExpertiseConfig = {
             fields: [
                 {
                     key: 'engagementTypes', label: 'Engagement Types', type: 'checkbox-group', options: [
-                        { value: 'project', label: 'Project-based' },
-                        { value: 'retainer', label: 'Retainer/Monthly' },
-                        { value: 'hourly', label: 'Hourly' },
-                        { value: 'fixed_price', label: 'Fixed Price' },
+                        { value: 'project', label: 'Project-based', icon: '📋' },
+                        { value: 'retainer', label: 'Retainer/Monthly', icon: '📅' },
+                        { value: 'hourly', label: 'Hourly', icon: '⏱️' },
+                        { value: 'fixed_price', label: 'Fixed Price', icon: '💰' },
+                        { value: 'success_fee', label: 'Success Fee', icon: '🏆' },
+                        { value: 'subscription', label: 'Subscription', icon: '🔄' },
                     ], schemaPath: 'industrySpecificData.engagementTypes', gridSpan: 2
                 },
-                { key: 'remoteWork', label: 'Remote Work Available', type: 'toggle', schemaPath: 'industrySpecificData.remoteWork' },
-                { key: 'onsiteAvailable', label: 'On-site Available', type: 'toggle', schemaPath: 'industrySpecificData.onsiteAvailable' },
+                {
+                    key: 'workMode', label: 'Work Mode', type: 'checkbox-group', options: [
+                        { value: 'remote', label: 'Remote', icon: '🏠' },
+                        { value: 'onsite', label: 'On-site', icon: '🏢' },
+                        { value: 'hybrid', label: 'Hybrid', icon: '🔄' },
+                    ], schemaPath: 'industrySpecificData.workMode', gridSpan: 2
+                },
                 { key: 'minEngagement', label: 'Minimum Engagement', type: 'text', placeholder: 'e.g., ₹25,000 or 10 hours', schemaPath: 'industrySpecificData.minEngagement' },
             ],
         },
@@ -413,22 +582,38 @@ export const BEAUTY_WELLNESS_EXPERTISE: IndustryExpertiseConfig = {
             icon: '💅',
             fields: [
                 {
-                    key: 'businessType', label: 'Business Type', type: 'select', options: [
-                        { value: 'salon', label: 'Salon' },
-                        { value: 'spa', label: 'Spa' },
-                        { value: 'gym', label: 'Gym/Fitness Center' },
-                        { value: 'yoga_studio', label: 'Yoga Studio' },
-                        { value: 'beauty_parlor', label: 'Beauty Parlor' },
-                        { value: 'wellness_center', label: 'Wellness Center' },
-                        { value: 'at_home', label: 'At-Home Services' },
-                    ], schemaPath: 'industrySpecificData.businessType'
+                    key: 'businessType', label: 'Business Type', type: 'checkbox-group', options: [
+                        { value: 'salon', label: 'Salon', icon: '💇' },
+                        { value: 'spa', label: 'Spa', icon: '💆' },
+                        { value: 'gym', label: 'Gym/Fitness', icon: '🏋️' },
+                        { value: 'yoga', label: 'Yoga Studio', icon: '🧘' },
+                        { value: 'beauty_parlor', label: 'Beauty Parlor', icon: '💄' },
+                        { value: 'wellness', label: 'Wellness Center', icon: '🌿' },
+                        { value: 'at_home', label: 'At-Home Services', icon: '🏠' },
+                        { value: 'medspa', label: 'Medical Spa', icon: '💉' },
+                    ], schemaPath: 'industrySpecificData.businessType', gridSpan: 2
                 },
-                { key: 'servicesOffered', label: 'Services Offered', type: 'tags', placeholder: 'e.g., Haircut, Facial, Massage, Personal Training', schemaPath: 'industrySpecificData.servicesOffered', gridSpan: 2 },
                 {
-                    key: 'targetGender', label: 'Target Gender', type: 'radio', options: [
-                        { value: 'unisex', label: 'Unisex' },
-                        { value: 'women', label: 'Women Only' },
-                        { value: 'men', label: 'Men Only' },
+                    key: 'services', label: 'Services Offered', type: 'checkbox-group', options: [
+                        { value: 'haircut', label: 'Haircut', icon: '✂️' },
+                        { value: 'hair_color', label: 'Hair Coloring', icon: '🎨' },
+                        { value: 'hair_treatment', label: 'Hair Treatment', icon: '💆' },
+                        { value: 'facial', label: 'Facial', icon: '🧖' },
+                        { value: 'makeup', label: 'Makeup', icon: '💄' },
+                        { value: 'manicure', label: 'Manicure', icon: '💅' },
+                        { value: 'pedicure', label: 'Pedicure', icon: '🦶' },
+                        { value: 'massage', label: 'Massage', icon: '🙌' },
+                        { value: 'waxing', label: 'Waxing', icon: '🦵' },
+                        { value: 'threading', label: 'Threading', icon: '👁️' },
+                        { value: 'bridal', label: 'Bridal Services', icon: '👰' },
+                        { value: 'personal_training', label: 'Personal Training', icon: '💪' },
+                    ], schemaPath: 'industrySpecificData.services', gridSpan: 2
+                },
+                {
+                    key: 'targetGender', label: 'Target Gender', type: 'checkbox-group', options: [
+                        { value: 'unisex', label: 'Unisex', icon: '👥' },
+                        { value: 'women', label: 'Women Only', icon: '👩' },
+                        { value: 'men', label: 'Men Only', icon: '👨' },
                     ], schemaPath: 'industrySpecificData.targetGender'
                 },
             ],
@@ -438,28 +623,42 @@ export const BEAUTY_WELLNESS_EXPERTISE: IndustryExpertiseConfig = {
             title: 'Booking & Pricing',
             icon: '📅',
             fields: [
-                { key: 'appointmentRequired', label: 'Appointment Required', type: 'toggle', schemaPath: 'industrySpecificData.appointmentRequired' },
-                { key: 'walkInsAccepted', label: 'Walk-ins Accepted', type: 'toggle', schemaPath: 'industrySpecificData.walkInsAccepted' },
-                { key: 'homeService', label: 'Home Service Available', type: 'toggle', schemaPath: 'industrySpecificData.homeService' },
+                {
+                    key: 'bookingOptions', label: 'Booking Options', type: 'checkbox-group', options: [
+                        { value: 'walk_in', label: 'Walk-ins', icon: '🚶' },
+                        { value: 'appointment', label: 'Appointment', icon: '📅' },
+                        { value: 'online', label: 'Online Booking', icon: '🌐' },
+                        { value: 'home_service', label: 'Home Service', icon: '🏠' },
+                    ], schemaPath: 'industrySpecificData.bookingOptions', gridSpan: 2
+                },
+                {
+                    key: 'pricingOptions', label: 'Pricing Options', type: 'checkbox-group', options: [
+                        { value: 'membership', label: 'Membership Plans', icon: '💳' },
+                        { value: 'packages', label: 'Package Deals', icon: '📦' },
+                        { value: 'loyalty', label: 'Loyalty Program', icon: '⭐' },
+                        { value: 'gift_cards', label: 'Gift Cards', icon: '🎁' },
+                    ], schemaPath: 'industrySpecificData.pricingOptions', gridSpan: 2
+                },
                 { key: 'priceRange', label: 'Price Range', type: 'text', placeholder: 'e.g., ₹500 - ₹5,000', schemaPath: 'industrySpecificData.priceRange' },
-                { key: 'membershipPlans', label: 'Membership Plans', type: 'toggle', schemaPath: 'industrySpecificData.membershipPlans' },
-                { key: 'packages', label: 'Package Deals', type: 'toggle', schemaPath: 'industrySpecificData.packages' },
             ],
         },
         {
             id: 'facility',
-            title: 'Facility & Staff',
+            title: 'Facility & Amenities',
             icon: '🏢',
             fields: [
                 { key: 'staffCount', label: 'Number of Staff', type: 'number', placeholder: 'e.g., 8', schemaPath: 'industrySpecificData.staffCount' },
                 { key: 'brands', label: 'Brands Used', type: 'tags', placeholder: 'e.g., L\'Oreal, Schwarzkopf, The Body Shop', schemaPath: 'industrySpecificData.brands', gridSpan: 2 },
                 {
                     key: 'amenities', label: 'Amenities', type: 'checkbox-group', options: [
-                        { value: 'ac', label: 'Air Conditioned' },
-                        { value: 'parking', label: 'Parking' },
-                        { value: 'wifi', label: 'Free WiFi' },
-                        { value: 'refreshments', label: 'Complimentary Refreshments' },
-                        { value: 'private_rooms', label: 'Private Rooms' },
+                        { value: 'ac', label: 'Air Conditioned', icon: '❄️' },
+                        { value: 'parking', label: 'Parking', icon: '🅿️' },
+                        { value: 'wifi', label: 'Free WiFi', icon: '📶' },
+                        { value: 'refreshments', label: 'Refreshments', icon: '☕' },
+                        { value: 'private_rooms', label: 'Private Rooms', icon: '🚪' },
+                        { value: 'lockers', label: 'Lockers', icon: '🔐' },
+                        { value: 'shower', label: 'Shower', icon: '🚿' },
+                        { value: 'steam_sauna', label: 'Steam/Sauna', icon: '♨️' },
                     ], schemaPath: 'industrySpecificData.amenities', gridSpan: 2
                 },
             ],
@@ -480,17 +679,31 @@ export const FINANCE_EXPERTISE: IndustryExpertiseConfig = {
             icon: '🏦',
             fields: [
                 {
-                    key: 'businessType', label: 'Business Type', type: 'select', options: [
-                        { value: 'bank', label: 'Bank/NBFC' },
-                        { value: 'insurance', label: 'Insurance' },
-                        { value: 'investment', label: 'Investment Advisory' },
-                        { value: 'loan', label: 'Loan Provider' },
-                        { value: 'accounting', label: 'Accounting Firm' },
-                        { value: 'wealth_management', label: 'Wealth Management' },
-                        { value: 'fintech', label: 'Fintech' },
-                    ], schemaPath: 'industrySpecificData.businessType'
+                    key: 'businessType', label: 'Business Type', type: 'checkbox-group', options: [
+                        { value: 'bank', label: 'Bank/NBFC', icon: '🏦' },
+                        { value: 'insurance', label: 'Insurance', icon: '🛡️' },
+                        { value: 'investment', label: 'Investment Advisory', icon: '📈' },
+                        { value: 'loan', label: 'Loan Provider', icon: '💰' },
+                        { value: 'accounting', label: 'Accounting Firm', icon: '📊' },
+                        { value: 'wealth', label: 'Wealth Management', icon: '💎' },
+                        { value: 'fintech', label: 'Fintech', icon: '📱' },
+                        { value: 'forex', label: 'Forex', icon: '💱' },
+                    ], schemaPath: 'industrySpecificData.businessType', gridSpan: 2
                 },
-                { key: 'servicesOffered', label: 'Services Offered', type: 'tags', placeholder: 'e.g., Personal Loans, Mutual Funds, Tax Filing', schemaPath: 'industrySpecificData.servicesOffered', gridSpan: 2 },
+                {
+                    key: 'servicesOffered', label: 'Services Offered', type: 'checkbox-group', options: [
+                        { value: 'savings', label: 'Savings Account', icon: '🏦' },
+                        { value: 'loans', label: 'Loans', icon: '💵' },
+                        { value: 'mutual_funds', label: 'Mutual Funds', icon: '📊' },
+                        { value: 'stocks', label: 'Stocks/Equity', icon: '📈' },
+                        { value: 'insurance', label: 'Insurance', icon: '🛡️' },
+                        { value: 'tax_filing', label: 'Tax Filing', icon: '📝' },
+                        { value: 'retirement', label: 'Retirement Planning', icon: '🎯' },
+                        { value: 'real_estate', label: 'Real Estate Investment', icon: '🏢' },
+                        { value: 'fd', label: 'Fixed Deposits', icon: '🔒' },
+                        { value: 'sip', label: 'SIP', icon: '📅' },
+                    ], schemaPath: 'industrySpecificData.servicesOffered', gridSpan: 2
+                },
                 { key: 'regulatoryBody', label: 'Regulatory Body', type: 'tags', placeholder: 'e.g., RBI, SEBI, IRDAI', schemaPath: 'industrySpecificData.regulatoryBody' },
             ],
         },
@@ -499,7 +712,16 @@ export const FINANCE_EXPERTISE: IndustryExpertiseConfig = {
             title: 'Licensing & Compliance',
             icon: '📜',
             fields: [
-                { key: 'licenses', label: 'Licenses Held', type: 'tags', placeholder: 'e.g., AMFI, IRDA, SEBI RIA', schemaPath: 'industrySpecificData.licenses', gridSpan: 2 },
+                {
+                    key: 'licenses', label: 'Licenses Held', type: 'checkbox-group', options: [
+                        { value: 'amfi', label: 'AMFI Registered', icon: '📋' },
+                        { value: 'irda', label: 'IRDA Licensed', icon: '🛡️' },
+                        { value: 'sebi_ria', label: 'SEBI RIA', icon: '📊' },
+                        { value: 'sebi_ra', label: 'SEBI RA', icon: '📈' },
+                        { value: 'rbi', label: 'RBI Registered', icon: '🏦' },
+                        { value: 'ca', label: 'Chartered Accountant', icon: '📝' },
+                    ], schemaPath: 'industrySpecificData.licenses', gridSpan: 2
+                },
                 { key: 'registrationNumber', label: 'Registration Number', type: 'text', placeholder: 'e.g., ARN-123456', schemaPath: 'industrySpecificData.registrationNumber' },
                 { key: 'insuranceCover', label: 'Professional Indemnity', type: 'toggle', schemaPath: 'industrySpecificData.insuranceCover' },
             ],
@@ -511,11 +733,12 @@ export const FINANCE_EXPERTISE: IndustryExpertiseConfig = {
             fields: [
                 {
                     key: 'clientTypes', label: 'Client Types', type: 'checkbox-group', options: [
-                        { value: 'individual', label: 'Individual/Retail' },
-                        { value: 'hni', label: 'HNI' },
-                        { value: 'sme', label: 'SME/Business' },
-                        { value: 'corporate', label: 'Corporate' },
-                        { value: 'nri', label: 'NRI' },
+                        { value: 'individual', label: 'Individual/Retail', icon: '👤' },
+                        { value: 'hni', label: 'HNI', icon: '💎' },
+                        { value: 'sme', label: 'SME/Business', icon: '🏪' },
+                        { value: 'corporate', label: 'Corporate', icon: '🏢' },
+                        { value: 'nri', label: 'NRI', icon: '🌍' },
+                        { value: 'senior', label: 'Senior Citizens', icon: '👴' },
                     ], schemaPath: 'industrySpecificData.clientTypes', gridSpan: 2
                 },
                 { key: 'minInvestment', label: 'Minimum Investment', type: 'currency', placeholder: 'e.g., 10000', schemaPath: 'industrySpecificData.minInvestment' },
@@ -545,16 +768,18 @@ export const TECHNOLOGY_EXPERTISE: IndustryExpertiseConfig = {
             icon: '💻',
             fields: [
                 {
-                    key: 'businessType', label: 'Business Type', type: 'select', options: [
-                        { value: 'saas', label: 'SaaS Product' },
-                        { value: 'software_dev', label: 'Software Development' },
-                        { value: 'it_services', label: 'IT Services' },
-                        { value: 'app_development', label: 'App Development' },
-                        { value: 'web_development', label: 'Web Development' },
-                        { value: 'ai_ml', label: 'AI/ML Solutions' },
-                        { value: 'cybersecurity', label: 'Cybersecurity' },
-                        { value: 'cloud_services', label: 'Cloud Services' },
-                    ], schemaPath: 'industrySpecificData.businessType'
+                    key: 'businessType', label: 'Business Type', type: 'checkbox-group', options: [
+                        { value: 'saas', label: 'SaaS Product', icon: '☁️' },
+                        { value: 'software_dev', label: 'Software Development', icon: '💻' },
+                        { value: 'it_services', label: 'IT Services', icon: '🔧' },
+                        { value: 'app_dev', label: 'App Development', icon: '📱' },
+                        { value: 'web_dev', label: 'Web Development', icon: '🌐' },
+                        { value: 'ai_ml', label: 'AI/ML Solutions', icon: '🤖' },
+                        { value: 'cybersecurity', label: 'Cybersecurity', icon: '🔐' },
+                        { value: 'cloud', label: 'Cloud Services', icon: '☁️' },
+                        { value: 'data', label: 'Data Analytics', icon: '📊' },
+                        { value: 'iot', label: 'IoT Solutions', icon: '📡' },
+                    ], schemaPath: 'industrySpecificData.businessType', gridSpan: 2
                 },
                 { key: 'techStack', label: 'Tech Stack', type: 'tags', placeholder: 'e.g., React, Node.js, AWS, Python', schemaPath: 'industrySpecificData.techStack', gridSpan: 2 },
                 { key: 'industries', label: 'Industries Served', type: 'tags', placeholder: 'e.g., Healthcare, Fintech, E-commerce', schemaPath: 'industrySpecificData.industriesServed', gridSpan: 2 },
@@ -567,11 +792,12 @@ export const TECHNOLOGY_EXPERTISE: IndustryExpertiseConfig = {
             fields: [
                 {
                     key: 'engagementModels', label: 'Engagement Models', type: 'checkbox-group', options: [
-                        { value: 'project', label: 'Fixed-Price Projects' },
-                        { value: 'dedicated_team', label: 'Dedicated Team' },
-                        { value: 'staff_augmentation', label: 'Staff Augmentation' },
-                        { value: 'subscription', label: 'Subscription/SaaS' },
-                        { value: 'support', label: 'Support/Maintenance' },
+                        { value: 'project', label: 'Fixed-Price Projects', icon: '📋' },
+                        { value: 'dedicated_team', label: 'Dedicated Team', icon: '👥' },
+                        { value: 'staff_aug', label: 'Staff Augmentation', icon: '➕' },
+                        { value: 'subscription', label: 'Subscription/SaaS', icon: '🔄' },
+                        { value: 'support', label: 'Support/Maintenance', icon: '🛠️' },
+                        { value: 'consulting', label: 'Consulting', icon: '💡' },
                     ], schemaPath: 'industrySpecificData.engagementModels', gridSpan: 2
                 },
                 {
@@ -591,7 +817,16 @@ export const TECHNOLOGY_EXPERTISE: IndustryExpertiseConfig = {
             icon: '📦',
             fields: [
                 { key: 'productName', label: 'Product Name', type: 'text', placeholder: 'e.g., CloudSync Pro', schemaPath: 'industrySpecificData.productName' },
-                { key: 'freeTrialAvailable', label: 'Free Trial Available', type: 'toggle', schemaPath: 'industrySpecificData.freeTrialAvailable' },
+                {
+                    key: 'productFeatures', label: 'Product Features', type: 'checkbox-group', options: [
+                        { value: 'free_trial', label: 'Free Trial', icon: '🆓' },
+                        { value: 'freemium', label: 'Freemium Tier', icon: '🎁' },
+                        { value: 'api', label: 'API Access', icon: '🔌' },
+                        { value: 'white_label', label: 'White Label', icon: '🏷️' },
+                        { value: 'custom', label: 'Customization', icon: '⚙️' },
+                        { value: 'support_24x7', label: '24/7 Support', icon: '🛎️' },
+                    ], schemaPath: 'industrySpecificData.productFeatures', gridSpan: 2
+                },
                 {
                     key: 'pricingModel', label: 'Pricing Model', type: 'select', options: [
                         { value: 'free', label: 'Free' },
@@ -621,24 +856,27 @@ export const AUTOMOTIVE_EXPERTISE: IndustryExpertiseConfig = {
             icon: '🚗',
             fields: [
                 {
-                    key: 'businessType', label: 'Business Type', type: 'select', options: [
-                        { value: 'dealership', label: 'Car Dealership' },
-                        { value: 'service_center', label: 'Service Center' },
-                        { value: 'spare_parts', label: 'Spare Parts' },
-                        { value: 'used_cars', label: 'Used Car Dealer' },
-                        { value: 'rental', label: 'Car Rental' },
-                        { value: 'accessories', label: 'Accessories Shop' },
-                        { value: 'detailing', label: 'Car Wash/Detailing' },
-                    ], schemaPath: 'industrySpecificData.businessType'
+                    key: 'businessType', label: 'Business Type', type: 'checkbox-group', options: [
+                        { value: 'dealership', label: 'Car Dealership', icon: '🏪' },
+                        { value: 'service_center', label: 'Service Center', icon: '🔧' },
+                        { value: 'spare_parts', label: 'Spare Parts', icon: '⚙️' },
+                        { value: 'used_cars', label: 'Used Car Dealer', icon: '🚙' },
+                        { value: 'rental', label: 'Car Rental', icon: '🔑' },
+                        { value: 'accessories', label: 'Accessories', icon: '🎨' },
+                        { value: 'detailing', label: 'Car Wash/Detailing', icon: '🧽' },
+                        { value: 'insurance', label: 'Auto Insurance', icon: '🛡️' },
+                    ], schemaPath: 'industrySpecificData.businessType', gridSpan: 2
                 },
                 { key: 'brands', label: 'Brands Handled', type: 'tags', placeholder: 'e.g., Maruti, Hyundai, Tata, BMW', schemaPath: 'industrySpecificData.brands', gridSpan: 2 },
                 {
                     key: 'vehicleTypes', label: 'Vehicle Types', type: 'checkbox-group', options: [
-                        { value: 'cars', label: 'Cars' },
-                        { value: 'suvs', label: 'SUVs' },
-                        { value: 'bikes', label: 'Two-Wheelers' },
-                        { value: 'commercial', label: 'Commercial Vehicles' },
-                        { value: 'ev', label: 'Electric Vehicles' },
+                        { value: 'cars', label: 'Cars', icon: '🚗' },
+                        { value: 'suvs', label: 'SUVs', icon: '🚙' },
+                        { value: 'bikes', label: 'Two-Wheelers', icon: '🏍️' },
+                        { value: 'commercial', label: 'Commercial', icon: '🚛' },
+                        { value: 'ev', label: 'Electric Vehicles', icon: '⚡' },
+                        { value: 'luxury', label: 'Luxury Cars', icon: '🏎️' },
+                        { value: 'vintage', label: 'Vintage/Classic', icon: '🚘' },
                     ], schemaPath: 'industrySpecificData.vehicleTypes', gridSpan: 2
                 },
             ],
@@ -650,13 +888,16 @@ export const AUTOMOTIVE_EXPERTISE: IndustryExpertiseConfig = {
             fields: [
                 {
                     key: 'services', label: 'Services', type: 'checkbox-group', options: [
-                        { value: 'sales', label: 'Sales' },
-                        { value: 'service', label: 'Service/Repair' },
-                        { value: 'insurance', label: 'Insurance' },
-                        { value: 'finance', label: 'Financing' },
-                        { value: 'exchange', label: 'Exchange' },
-                        { value: 'test_drive', label: 'Test Drive' },
-                        { value: 'pickup_drop', label: 'Pickup & Drop' },
+                        { value: 'sales', label: 'Sales', icon: '🏷️' },
+                        { value: 'service', label: 'Service/Repair', icon: '🔧' },
+                        { value: 'insurance', label: 'Insurance', icon: '🛡️' },
+                        { value: 'finance', label: 'Financing', icon: '💰' },
+                        { value: 'exchange', label: 'Exchange', icon: '🔄' },
+                        { value: 'test_drive', label: 'Test Drive', icon: '🚗' },
+                        { value: 'pickup_drop', label: 'Pickup & Drop', icon: '🚐' },
+                        { value: 'roadside', label: 'Roadside Assistance', icon: '🆘' },
+                        { value: 'bodywork', label: 'Body Work', icon: '🛠️' },
+                        { value: 'painting', label: 'Painting', icon: '🎨' },
                     ], schemaPath: 'industrySpecificData.services', gridSpan: 2
                 },
                 { key: 'authorizedDealer', label: 'Authorized Dealer', type: 'toggle', schemaPath: 'industrySpecificData.authorizedDealer' },
@@ -670,8 +911,16 @@ export const AUTOMOTIVE_EXPERTISE: IndustryExpertiseConfig = {
             fields: [
                 { key: 'serviceBays', label: 'Number of Service Bays', type: 'number', placeholder: 'e.g., 10', schemaPath: 'industrySpecificData.serviceBays' },
                 { key: 'showroomSize', label: 'Showroom Size (sq ft)', type: 'number', placeholder: 'e.g., 5000', schemaPath: 'industrySpecificData.showroomSize' },
-                { key: 'genuineParts', label: 'Genuine Parts Only', type: 'toggle', schemaPath: 'industrySpecificData.genuineParts' },
-                { key: 'loaner', label: 'Loaner Vehicle Available', type: 'toggle', schemaPath: 'industrySpecificData.loanerAvailable' },
+                {
+                    key: 'facilityFeatures', label: 'Facility Features', type: 'checkbox-group', options: [
+                        { value: 'genuine_parts', label: 'Genuine Parts', icon: '✅' },
+                        { value: 'loaner', label: 'Loaner Vehicle', icon: '🚗' },
+                        { value: 'waiting_lounge', label: 'Waiting Lounge', icon: '🛋️' },
+                        { value: 'cafe', label: 'Cafeteria', icon: '☕' },
+                        { value: 'kids_area', label: 'Kids Area', icon: '🎠' },
+                        { value: 'wifi', label: 'Free WiFi', icon: '📶' },
+                    ], schemaPath: 'industrySpecificData.facilityFeatures', gridSpan: 2
+                },
             ],
         },
     ],
@@ -690,18 +939,33 @@ export const EVENTS_EXPERTISE: IndustryExpertiseConfig = {
             icon: '🎉',
             fields: [
                 {
-                    key: 'businessType', label: 'Business Type', type: 'select', options: [
-                        { value: 'event_planner', label: 'Event Planner' },
-                        { value: 'wedding_planner', label: 'Wedding Planner' },
-                        { value: 'photographer', label: 'Photographer' },
-                        { value: 'videographer', label: 'Videographer' },
-                        { value: 'caterer', label: 'Caterer' },
-                        { value: 'decorator', label: 'Decorator' },
-                        { value: 'venue', label: 'Venue' },
-                        { value: 'dj_entertainer', label: 'DJ/Entertainment' },
-                    ], schemaPath: 'industrySpecificData.businessType'
+                    key: 'businessType', label: 'Business Type', type: 'checkbox-group', options: [
+                        { value: 'event_planner', label: 'Event Planner', icon: '📋' },
+                        { value: 'wedding_planner', label: 'Wedding Planner', icon: '💒' },
+                        { value: 'photographer', label: 'Photographer', icon: '📷' },
+                        { value: 'videographer', label: 'Videographer', icon: '🎥' },
+                        { value: 'caterer', label: 'Caterer', icon: '🍽️' },
+                        { value: 'decorator', label: 'Decorator', icon: '🎨' },
+                        { value: 'venue', label: 'Venue', icon: '🏛️' },
+                        { value: 'dj', label: 'DJ/Entertainment', icon: '🎧' },
+                        { value: 'florist', label: 'Florist', icon: '💐' },
+                        { value: 'makeup', label: 'Makeup Artist', icon: '💄' },
+                    ], schemaPath: 'industrySpecificData.businessType', gridSpan: 2
                 },
-                { key: 'eventTypes', label: 'Event Types', type: 'tags', placeholder: 'e.g., Weddings, Corporate, Birthday, Concerts', schemaPath: 'industrySpecificData.eventTypes', gridSpan: 2 },
+                {
+                    key: 'eventTypes', label: 'Event Types', type: 'checkbox-group', options: [
+                        { value: 'wedding', label: 'Wedding', icon: '💍' },
+                        { value: 'corporate', label: 'Corporate', icon: '💼' },
+                        { value: 'birthday', label: 'Birthday', icon: '🎂' },
+                        { value: 'concert', label: 'Concert', icon: '🎤' },
+                        { value: 'conference', label: 'Conference', icon: '🎙️' },
+                        { value: 'exhibition', label: 'Exhibition', icon: '🖼️' },
+                        { value: 'baby_shower', label: 'Baby Shower', icon: '👶' },
+                        { value: 'engagement', label: 'Engagement', icon: '💑' },
+                        { value: 'anniversary', label: 'Anniversary', icon: '🥂' },
+                        { value: 'graduation', label: 'Graduation', icon: '🎓' },
+                    ], schemaPath: 'industrySpecificData.eventTypes', gridSpan: 2
+                },
                 { key: 'experienceYears', label: 'Years of Experience', type: 'number', placeholder: 'e.g., 8', schemaPath: 'industrySpecificData.experienceYears' },
             ],
         },
@@ -711,7 +975,16 @@ export const EVENTS_EXPERTISE: IndustryExpertiseConfig = {
             icon: '📍',
             fields: [
                 { key: 'maxCapacity', label: 'Max Guest Capacity', type: 'number', placeholder: 'e.g., 500', schemaPath: 'industrySpecificData.maxCapacity' },
-                { key: 'travelWilling', label: 'Willing to Travel', type: 'toggle', schemaPath: 'industrySpecificData.travelWilling' },
+                {
+                    key: 'venueTypes', label: 'Venue Types (if venue)', type: 'checkbox-group', options: [
+                        { value: 'indoor', label: 'Indoor', icon: '🏢' },
+                        { value: 'outdoor', label: 'Outdoor', icon: '🌳' },
+                        { value: 'poolside', label: 'Poolside', icon: '🏊' },
+                        { value: 'rooftop', label: 'Rooftop', icon: '🌆' },
+                        { value: 'banquet', label: 'Banquet Hall', icon: '🏛️' },
+                        { value: 'lawn', label: 'Lawn/Garden', icon: '🌿' },
+                    ], schemaPath: 'industrySpecificData.venueTypes', gridSpan: 2
+                },
                 { key: 'coverageAreas', label: 'Coverage Areas', type: 'tags', placeholder: 'e.g., Bangalore, Mysore, Goa', schemaPath: 'industrySpecificData.coverageAreas', gridSpan: 2 },
                 { key: 'destinationEvents', label: 'Destination Events', type: 'toggle', schemaPath: 'industrySpecificData.destinationEvents' },
             ],
@@ -722,12 +995,13 @@ export const EVENTS_EXPERTISE: IndustryExpertiseConfig = {
             icon: '💰',
             fields: [
                 {
-                    key: 'pricingModel', label: 'Pricing Model', type: 'select', options: [
-                        { value: 'package', label: 'Package-based' },
-                        { value: 'hourly', label: 'Hourly Rate' },
-                        { value: 'per_event', label: 'Per Event' },
-                        { value: 'custom', label: 'Custom Quote' },
-                    ], schemaPath: 'industrySpecificData.pricingModel'
+                    key: 'pricingModel', label: 'Pricing Model', type: 'checkbox-group', options: [
+                        { value: 'package', label: 'Package-based', icon: '📦' },
+                        { value: 'hourly', label: 'Hourly Rate', icon: '⏱️' },
+                        { value: 'per_event', label: 'Per Event', icon: '🎉' },
+                        { value: 'custom', label: 'Custom Quote', icon: '📝' },
+                        { value: 'per_plate', label: 'Per Plate (catering)', icon: '🍽️' },
+                    ], schemaPath: 'industrySpecificData.pricingModel', gridSpan: 2
                 },
                 { key: 'startingPrice', label: 'Starting Price', type: 'currency', placeholder: 'e.g., 50000', schemaPath: 'industrySpecificData.startingPrice' },
                 { key: 'advanceRequired', label: 'Advance Required (%)', type: 'number', placeholder: 'e.g., 50', schemaPath: 'industrySpecificData.advanceRequired' },
@@ -750,18 +1024,18 @@ export const HOME_SERVICES_EXPERTISE: IndustryExpertiseConfig = {
             icon: '🔧',
             fields: [
                 {
-                    key: 'serviceType', label: 'Service Type', type: 'select', options: [
-                        { value: 'plumbing', label: 'Plumbing' },
-                        { value: 'electrical', label: 'Electrical' },
-                        { value: 'carpentry', label: 'Carpentry' },
-                        { value: 'cleaning', label: 'Cleaning' },
-                        { value: 'painting', label: 'Painting' },
-                        { value: 'pest_control', label: 'Pest Control' },
-                        { value: 'appliance_repair', label: 'Appliance Repair' },
-                        { value: 'ac_service', label: 'AC Service' },
-                        { value: 'interior', label: 'Interior Work' },
-                        { value: 'multi_service', label: 'Multi-Service' },
-                    ], schemaPath: 'industrySpecificData.serviceType'
+                    key: 'serviceType', label: 'Service Type', type: 'checkbox-group', options: [
+                        { value: 'plumbing', label: 'Plumbing', icon: '🔧' },
+                        { value: 'electrical', label: 'Electrical', icon: '⚡' },
+                        { value: 'carpentry', label: 'Carpentry', icon: '🪚' },
+                        { value: 'cleaning', label: 'Cleaning', icon: '🧹' },
+                        { value: 'painting', label: 'Painting', icon: '🎨' },
+                        { value: 'pest_control', label: 'Pest Control', icon: '🐛' },
+                        { value: 'appliance', label: 'Appliance Repair', icon: '🔌' },
+                        { value: 'ac_service', label: 'AC Service', icon: '❄️' },
+                        { value: 'interior', label: 'Interior Work', icon: '🏠' },
+                        { value: 'gardening', label: 'Gardening', icon: '🌱' },
+                    ], schemaPath: 'industrySpecificData.serviceType', gridSpan: 2
                 },
                 { key: 'servicesOffered', label: 'Specific Services', type: 'tags', placeholder: 'e.g., Leak Repair, Wiring, Deep Cleaning', schemaPath: 'industrySpecificData.servicesOffered', gridSpan: 2 },
                 { key: 'brandsServiced', label: 'Brands Serviced', type: 'tags', placeholder: 'e.g., LG, Samsung, Voltas', schemaPath: 'industrySpecificData.brandsServiced', gridSpan: 2 },
@@ -773,9 +1047,15 @@ export const HOME_SERVICES_EXPERTISE: IndustryExpertiseConfig = {
             icon: '📍',
             fields: [
                 { key: 'serviceAreas', label: 'Service Areas', type: 'tags', placeholder: 'e.g., Koramangala, HSR Layout, Whitefield', schemaPath: 'industrySpecificData.serviceAreas', gridSpan: 2 },
-                { key: 'sameDay', label: 'Same Day Service', type: 'toggle', schemaPath: 'industrySpecificData.sameDayService' },
-                { key: 'emergencyService', label: '24/7 Emergency Service', type: 'toggle', schemaPath: 'industrySpecificData.emergencyService' },
-                { key: 'onlineBooking', label: 'Online Booking', type: 'toggle', schemaPath: 'industrySpecificData.onlineBooking' },
+                {
+                    key: 'availability', label: 'Availability', type: 'checkbox-group', options: [
+                        { value: 'same_day', label: 'Same Day Service', icon: '⚡' },
+                        { value: 'emergency', label: '24/7 Emergency', icon: '🚨' },
+                        { value: 'scheduled', label: 'Scheduled Visits', icon: '📅' },
+                        { value: 'online_booking', label: 'Online Booking', icon: '🌐' },
+                        { value: 'weekend', label: 'Weekend Available', icon: '📆' },
+                    ], schemaPath: 'industrySpecificData.availability', gridSpan: 2
+                },
                 { key: 'responseTime', label: 'Typical Response Time', type: 'text', placeholder: 'e.g., Within 2 hours', schemaPath: 'industrySpecificData.responseTime' },
             ],
         },
@@ -789,10 +1069,11 @@ export const HOME_SERVICES_EXPERTISE: IndustryExpertiseConfig = {
                 { key: 'warrantyPeriod', label: 'Warranty Period', type: 'text', placeholder: 'e.g., 30 days', schemaPath: 'industrySpecificData.warrantyPeriod', showCondition: { field: 'warrantyOffered', operator: 'equals', value: true } },
                 {
                     key: 'paymentModes', label: 'Payment Modes', type: 'checkbox-group', options: [
-                        { value: 'cash', label: 'Cash' },
-                        { value: 'upi', label: 'UPI' },
-                        { value: 'card', label: 'Card' },
-                        { value: 'online', label: 'Online Transfer' },
+                        { value: 'cash', label: 'Cash', icon: '💵' },
+                        { value: 'upi', label: 'UPI', icon: '📱' },
+                        { value: 'card', label: 'Card', icon: '💳' },
+                        { value: 'online', label: 'Online Transfer', icon: '🏦' },
+                        { value: 'wallet', label: 'Digital Wallet', icon: '👛' },
                     ], schemaPath: 'industrySpecificData.paymentModes', gridSpan: 2
                 },
             ],
@@ -813,15 +1094,29 @@ export const MANUFACTURING_EXPERTISE: IndustryExpertiseConfig = {
             icon: '🏭',
             fields: [
                 {
-                    key: 'manufacturingType', label: 'Manufacturing Type', type: 'select', options: [
-                        { value: 'oem', label: 'OEM Manufacturer' },
-                        { value: 'odm', label: 'ODM Manufacturer' },
-                        { value: 'contract', label: 'Contract Manufacturing' },
-                        { value: 'custom', label: 'Custom Manufacturing' },
-                        { value: 'assembly', label: 'Assembly' },
-                    ], schemaPath: 'industrySpecificData.manufacturingType'
+                    key: 'manufacturingType', label: 'Manufacturing Type', type: 'checkbox-group', options: [
+                        { value: 'oem', label: 'OEM Manufacturer', icon: '🏭' },
+                        { value: 'odm', label: 'ODM Manufacturer', icon: '🎨' },
+                        { value: 'contract', label: 'Contract Manufacturing', icon: '📝' },
+                        { value: 'custom', label: 'Custom Manufacturing', icon: '⚙️' },
+                        { value: 'assembly', label: 'Assembly', icon: '🔩' },
+                        { value: 'processing', label: 'Processing', icon: '🔄' },
+                    ], schemaPath: 'industrySpecificData.manufacturingType', gridSpan: 2
                 },
-                { key: 'productTypes', label: 'Products Manufactured', type: 'tags', placeholder: 'e.g., Machinery, Electronics, Textiles', schemaPath: 'industrySpecificData.productTypes', gridSpan: 2 },
+                {
+                    key: 'productTypes', label: 'Products Manufactured', type: 'checkbox-group', options: [
+                        { value: 'machinery', label: 'Machinery', icon: '⚙️' },
+                        { value: 'electronics', label: 'Electronics', icon: '📱' },
+                        { value: 'textiles', label: 'Textiles', icon: '👕' },
+                        { value: 'food', label: 'Food Products', icon: '🍽️' },
+                        { value: 'chemicals', label: 'Chemicals', icon: '🧪' },
+                        { value: 'metals', label: 'Metal Products', icon: '🔩' },
+                        { value: 'plastics', label: 'Plastics', icon: '🧴' },
+                        { value: 'furniture', label: 'Furniture', icon: '🪑' },
+                        { value: 'automotive', label: 'Auto Parts', icon: '🚗' },
+                        { value: 'pharma', label: 'Pharmaceuticals', icon: '💊' },
+                    ], schemaPath: 'industrySpecificData.productTypes', gridSpan: 2
+                },
                 { key: 'industries', label: 'Industries Served', type: 'tags', placeholder: 'e.g., Automotive, Aerospace, Healthcare', schemaPath: 'industrySpecificData.industriesServed', gridSpan: 2 },
             ],
         },
@@ -833,8 +1128,16 @@ export const MANUFACTURING_EXPERTISE: IndustryExpertiseConfig = {
                 { key: 'productionCapacity', label: 'Monthly Production Capacity', type: 'text', placeholder: 'e.g., 10,000 units', schemaPath: 'industrySpecificData.productionCapacity' },
                 { key: 'moq', label: 'Minimum Order Quantity', type: 'text', placeholder: 'e.g., 100 units', schemaPath: 'industrySpecificData.moq' },
                 { key: 'leadTime', label: 'Typical Lead Time', type: 'text', placeholder: 'e.g., 2-3 weeks', schemaPath: 'industrySpecificData.leadTime' },
-                { key: 'customization', label: 'Customization Available', type: 'toggle', schemaPath: 'industrySpecificData.customizationAvailable' },
-                { key: 'exportCapable', label: 'Export Capable', type: 'toggle', schemaPath: 'industrySpecificData.exportCapable' },
+                {
+                    key: 'capabilities', label: 'Capabilities', type: 'checkbox-group', options: [
+                        { value: 'customization', label: 'Customization', icon: '🎨' },
+                        { value: 'prototyping', label: 'Prototyping', icon: '🔬' },
+                        { value: 'design', label: 'Design Services', icon: '📐' },
+                        { value: 'tooling', label: 'Tooling', icon: '🔧' },
+                        { value: 'export', label: 'Export Capable', icon: '🌍' },
+                        { value: 'packaging', label: 'Custom Packaging', icon: '📦' },
+                    ], schemaPath: 'industrySpecificData.capabilities', gridSpan: 2
+                },
             ],
         },
         {
@@ -842,7 +1145,18 @@ export const MANUFACTURING_EXPERTISE: IndustryExpertiseConfig = {
             title: 'Certifications & Quality',
             icon: '✅',
             fields: [
-                { key: 'certifications', label: 'Certifications', type: 'tags', placeholder: 'e.g., ISO 9001, CE, BIS', schemaPath: 'industrySpecificData.certifications', gridSpan: 2 },
+                {
+                    key: 'certifications', label: 'Certifications', type: 'checkbox-group', options: [
+                        { value: 'iso_9001', label: 'ISO 9001', icon: '📋' },
+                        { value: 'iso_14001', label: 'ISO 14001', icon: '🌿' },
+                        { value: 'ce', label: 'CE Marking', icon: '🇪🇺' },
+                        { value: 'bis', label: 'BIS', icon: '🇮🇳' },
+                        { value: 'fda', label: 'FDA', icon: '🏥' },
+                        { value: 'gmp', label: 'GMP', icon: '💊' },
+                        { value: 'rohs', label: 'RoHS', icon: '♻️' },
+                        { value: 'ohsas', label: 'OHSAS', icon: '⚠️' },
+                    ], schemaPath: 'industrySpecificData.certifications', gridSpan: 2
+                },
                 { key: 'qualityControl', label: 'Quality Control Process', type: 'textarea', placeholder: 'Describe your QC process...', schemaPath: 'industrySpecificData.qualityControlProcess', gridSpan: 2 },
             ],
         },
@@ -862,24 +1176,24 @@ export const TRAVEL_TRANSPORT_EXPERTISE: IndustryExpertiseConfig = {
             icon: '🚀',
             fields: [
                 {
-                    key: 'businessType', label: 'Business Type', type: 'select', options: [
+                    key: 'businessType', label: 'Business Type', type: 'checkbox-group', options: [
                         { value: 'travel_agency', label: 'Travel Agency', icon: '✈️' },
                         { value: 'tour_operator', label: 'Tour Operator', icon: '🗺️' },
-                        { value: 'taxi_service', label: 'Taxi / Cab Service', icon: '🚕' },
-                        { value: 'ride_share', label: 'Ride Share / Car Pool', icon: '🚗' },
+                        { value: 'taxi_service', label: 'Taxi/Cab Service', icon: '🚕' },
+                        { value: 'ride_share', label: 'Ride Share', icon: '🚗' },
                         { value: 'car_rental', label: 'Car Rental', icon: '🚙' },
-                        { value: 'bike_rental', label: 'Bike / Scooter Rental', icon: '🏍️' },
+                        { value: 'bike_rental', label: 'Bike/Scooter Rental', icon: '🏍️' },
                         { value: 'bus_operator', label: 'Bus Operator', icon: '🚌' },
-                        { value: 'courier', label: 'Courier / Parcel Service', icon: '📦' },
-                        { value: 'freight', label: 'Freight / Cargo', icon: '🚛' },
+                        { value: 'courier', label: 'Courier/Parcel', icon: '📦' },
+                        { value: 'freight', label: 'Freight/Cargo', icon: '🚛' },
                         { value: 'moving', label: 'Packers & Movers', icon: '📦' },
                         { value: 'warehouse', label: 'Warehousing', icon: '🏭' },
                         { value: 'last_mile', label: 'Last Mile Delivery', icon: '🛵' },
-                    ], schemaPath: 'industrySpecificData.businessType'
+                    ], schemaPath: 'industrySpecificData.businessType', gridSpan: 2
                 },
                 {
                     key: 'serviceTypes', label: 'Service Types', type: 'checkbox-group', options: [
-                        { value: 'local', label: 'Local / City', icon: '🏙️' },
+                        { value: 'local', label: 'Local/City', icon: '🏙️' },
                         { value: 'outstation', label: 'Outstation', icon: '🛣️' },
                         { value: 'airport', label: 'Airport Transfers', icon: '✈️' },
                         { value: 'corporate', label: 'Corporate Services', icon: '💼' },
@@ -892,7 +1206,7 @@ export const TRAVEL_TRANSPORT_EXPERTISE: IndustryExpertiseConfig = {
                     key: 'operatingModel', label: 'Operating Model', type: 'checkbox-group', options: [
                         { value: 'b2c', label: 'Direct to Customer (B2C)', icon: '👤' },
                         { value: 'b2b', label: 'Business to Business (B2B)', icon: '🏢' },
-                        { value: 'marketplace', label: 'Marketplace / Aggregator', icon: '📱' },
+                        { value: 'marketplace', label: 'Marketplace/Aggregator', icon: '📱' },
                     ], schemaPath: 'industrySpecificData.operatingModel'
                 },
             ],
@@ -905,14 +1219,14 @@ export const TRAVEL_TRANSPORT_EXPERTISE: IndustryExpertiseConfig = {
                 {
                     key: 'vehicleTypes', label: 'Vehicle Types', type: 'checkbox-group', options: [
                         { value: 'sedan', label: 'Sedan', icon: '🚗' },
-                        { value: 'suv', label: 'SUV / MUV', icon: '🚙' },
-                        { value: 'luxury', label: 'Luxury / Premium', icon: '🏎️' },
+                        { value: 'suv', label: 'SUV/MUV', icon: '🚙' },
+                        { value: 'luxury', label: 'Luxury/Premium', icon: '🏎️' },
                         { value: 'hatchback', label: 'Hatchback', icon: '🚘' },
-                        { value: 'van', label: 'Van / Tempo', icon: '🚐' },
-                        { value: 'bus', label: 'Bus / Coach', icon: '🚌' },
-                        { value: 'bike', label: 'Bike / Scooter', icon: '🏍️' },
+                        { value: 'van', label: 'Van/Tempo', icon: '🚐' },
+                        { value: 'bus', label: 'Bus/Coach', icon: '🚌' },
+                        { value: 'bike', label: 'Bike/Scooter', icon: '🏍️' },
                         { value: 'auto', label: 'Auto Rickshaw', icon: '🛺' },
-                        { value: 'truck', label: 'Truck / Lorry', icon: '🚛' },
+                        { value: 'truck', label: 'Truck/Lorry', icon: '🚛' },
                         { value: 'container', label: 'Container', icon: '📦' },
                         { value: 'ev', label: 'Electric Vehicle', icon: '⚡' },
                     ], schemaPath: 'industrySpecificData.vehicleTypes', gridSpan: 2
@@ -933,7 +1247,7 @@ export const TRAVEL_TRANSPORT_EXPERTISE: IndustryExpertiseConfig = {
                         { value: 'website', label: 'Website', icon: '🌐' },
                         { value: 'phone', label: 'Phone Call', icon: '📞' },
                         { value: 'whatsapp', label: 'WhatsApp', icon: '💬' },
-                        { value: 'walk_in', label: 'Walk-in / Counter', icon: '🚶' },
+                        { value: 'walk_in', label: 'Walk-in/Counter', icon: '🚶' },
                         { value: 'aggregator', label: 'Via Aggregators', icon: '📲' },
                     ], schemaPath: 'industrySpecificData.bookingModes', gridSpan: 2
                 },
@@ -942,9 +1256,9 @@ export const TRAVEL_TRANSPORT_EXPERTISE: IndustryExpertiseConfig = {
                         { value: 'per_km', label: 'Per Kilometer', icon: '📏' },
                         { value: 'per_hour', label: 'Per Hour', icon: '⏱️' },
                         { value: 'fixed', label: 'Fixed Route Price', icon: '💰' },
-                        { value: 'package', label: 'Package / Bundle', icon: '📦' },
+                        { value: 'package', label: 'Package/Bundle', icon: '📦' },
                         { value: 'subscription', label: 'Subscription', icon: '🔄' },
-                        { value: 'auction', label: 'Bid / Auction', icon: '🔨' },
+                        { value: 'auction', label: 'Bid/Auction', icon: '🔨' },
                     ], schemaPath: 'industrySpecificData.pricingModel', gridSpan: 2
                 },
                 { key: 'basePrice', label: 'Starting Price', type: 'currency', placeholder: 'e.g., 100', helpText: 'Minimum fare or base rate', schemaPath: 'industrySpecificData.basePrice' },
@@ -1015,13 +1329,20 @@ export const OTHER_EXPERTISE: IndustryExpertiseConfig = {
             fields: [
                 {
                     key: 'serviceMode', label: 'Service Mode', type: 'checkbox-group', options: [
-                        { value: 'on_site', label: 'On-Site/In-Person' },
-                        { value: 'remote', label: 'Remote/Online' },
-                        { value: 'hybrid', label: 'Hybrid' },
+                        { value: 'on_site', label: 'On-Site/In-Person', icon: '🏢' },
+                        { value: 'remote', label: 'Remote/Online', icon: '🌐' },
+                        { value: 'hybrid', label: 'Hybrid', icon: '🔄' },
+                        { value: 'delivery', label: 'Delivery-based', icon: '📦' },
                     ], schemaPath: 'industrySpecificData.serviceMode', gridSpan: 2
                 },
-                { key: 'appointmentRequired', label: 'Appointment Required', type: 'toggle', schemaPath: 'industrySpecificData.appointmentRequired' },
-                { key: 'walkInsAccepted', label: 'Walk-ins Accepted', type: 'toggle', schemaPath: 'industrySpecificData.walkInsAccepted' },
+                {
+                    key: 'availability', label: 'Availability', type: 'checkbox-group', options: [
+                        { value: 'appointment', label: 'By Appointment', icon: '📅' },
+                        { value: 'walk_in', label: 'Walk-ins Welcome', icon: '🚶' },
+                        { value: 'online_booking', label: 'Online Booking', icon: '🌐' },
+                        { value: '24_7', label: '24/7 Available', icon: '🕐' },
+                    ], schemaPath: 'industrySpecificData.availability', gridSpan: 2
+                },
             ],
         },
     ],
