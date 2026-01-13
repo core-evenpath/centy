@@ -615,17 +615,19 @@ export default function SchemaBusinessProfile({
         return getProfileSections(primaryIndustryId);
     }, [primaryIndustryId]);
 
-    // Sync pending selections when modal opens and auto-select first industry
+    // Sync pending selections when modal opens
     useEffect(() => {
         if (showCategoryModal) {
             setPendingSelections(selectedCategories.map(c => c.functionId));
             setCategorySearch('');
-            // Auto-select the first industry so subcategories are visible
-            if (industries.length > 0) {
-                setSelectedIndustry(industries[0].industryId);
+            // Auto-select the first industry so subcategories are visible immediately
+            const allIndustries = getIndustries();
+            if (allIndustries.length > 0) {
+                setSelectedIndustry(allIndustries[0].industryId);
             }
         }
-    }, [showCategoryModal, selectedCategories, industries]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [showCategoryModal]);
 
     // Helper to safely get nested values
     const get = (path: string, def: any = '') => {
