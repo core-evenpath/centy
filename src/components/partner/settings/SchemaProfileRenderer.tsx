@@ -296,7 +296,7 @@ function MultiSelectField({
 }: {
     label: string;
     values: string[];
-    options: { value: string; label: string }[];
+    options: { value: string; label: string; icon?: string; description?: string }[];
     onChange: (vals: string[]) => void;
     helpText?: string;
 }) {
@@ -308,11 +308,18 @@ function MultiSelectField({
         onChange(next);
     };
 
+    // Check if any option has icons - if so, use grid layout
+    const hasIcons = options.some(opt => opt.icon);
+
     return (
         <div className="mb-4">
             <label className="text-xs font-medium text-slate-500 uppercase mb-1 block">{label}</label>
             {helpText && <p className="text-xs text-slate-400 mb-2">{helpText}</p>}
-            <div className="flex flex-wrap gap-2">
+            <div className={cn(
+                hasIcons
+                    ? "grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2"
+                    : "flex flex-wrap gap-2"
+            )}>
                 {options.map(opt => {
                     const isSelected = values.includes(opt.value);
                     return (
@@ -320,13 +327,16 @@ function MultiSelectField({
                             key={opt.value}
                             onClick={() => toggleOption(opt.value)}
                             className={cn(
-                                "px-3 py-1.5 text-sm rounded-lg border transition-colors",
+                                "text-sm rounded-lg border transition-all",
+                                hasIcons ? "p-2.5 flex flex-col items-center gap-1 min-h-[60px]" : "px-3 py-1.5",
                                 isSelected
-                                    ? "bg-indigo-50 border-indigo-300 text-indigo-700"
-                                    : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50"
+                                    ? "bg-indigo-50 border-indigo-300 text-indigo-700 shadow-sm"
+                                    : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50 hover:border-slate-300"
                             )}
+                            title={opt.description}
                         >
-                            {opt.label}
+                            {opt.icon && <span className="text-lg">{opt.icon}</span>}
+                            <span className={cn(hasIcons && "text-xs text-center leading-tight")}>{opt.label}</span>
                         </button>
                     );
                 })}
