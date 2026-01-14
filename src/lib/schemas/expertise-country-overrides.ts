@@ -368,6 +368,35 @@ export const EXPERTISE_COUNTRY_OVERRIDES: Partial<CountryExpertiseOverrides> = {
 // ============================================
 
 /**
+ * Map taxonomy industry IDs to expertise config keys
+ * The taxonomy uses longer IDs like 'financial_services' while
+ * expertise configs use shorter keys like 'finance'
+ */
+const TAXONOMY_TO_EXPERTISE_KEY: Record<string, string> = {
+    'financial_services': 'finance',
+    'education_learning': 'education',
+    'healthcare_medical': 'healthcare',
+    'business_professional': 'services',
+    'retail_commerce': 'retail',
+    'food_beverage': 'food_beverage',
+    'personal_wellness': 'beauty_wellness',
+    'automotive_mobility': 'automotive',
+    'hospitality': 'hospitality',
+    'events_entertainment': 'events',
+    'home_property': 'home_services',
+    'travel_transport': 'other',
+    'food_supply': 'other',
+    'public_nonprofit': 'other',
+};
+
+/**
+ * Convert taxonomy industry ID to expertise key
+ */
+function toExpertiseKey(industryId: string): string {
+    return TAXONOMY_TO_EXPERTISE_KEY[industryId] || industryId;
+}
+
+/**
  * Get country-specific field override
  */
 export function getFieldOverride(
@@ -375,7 +404,8 @@ export function getFieldOverride(
     industryId: string,
     fieldKey: string
 ): FieldOverride | undefined {
-    return EXPERTISE_COUNTRY_OVERRIDES[countryCode]?.[industryId]?.[fieldKey];
+    const expertiseKey = toExpertiseKey(industryId);
+    return EXPERTISE_COUNTRY_OVERRIDES[countryCode]?.[expertiseKey]?.[fieldKey];
 }
 
 /**
