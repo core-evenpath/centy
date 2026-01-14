@@ -658,9 +658,11 @@ export default function SchemaBusinessProfile({
     const [selectedIndustry, setSelectedIndustry] = useState<string | null>(null);
     const [categorySearch, setCategorySearch] = useState('');
 
-    // Get currently selected categories from persona
-    const selectedCategories: SelectedBusinessCategory[] =
-        (persona.identity as any)?.businessCategories || [];
+    // Get currently selected categories from persona (memoized to prevent useEffect loops)
+    const selectedCategories: SelectedBusinessCategory[] = useMemo(() =>
+        (persona.identity as any)?.businessCategories || [],
+        [(persona.identity as any)?.businessCategories]
+    );
     const [pendingSelections, setPendingSelections] = useState<string[]>(
         selectedCategories.map(c => c.functionId)
     );
@@ -1018,6 +1020,7 @@ export default function SchemaBusinessProfile({
 
                                     return (
                                         <button
+                                            type="button"
                                             key={industry.industryId}
                                             onClick={() => setSelectedIndustry(industry.industryId)}
                                             className={cn(
@@ -1077,6 +1080,7 @@ export default function SchemaBusinessProfile({
 
                                                     return (
                                                         <button
+                                                            type="button"
                                                             key={func.functionId}
                                                             onClick={() => {
                                                                 if (isSelected) {
@@ -1149,12 +1153,14 @@ export default function SchemaBusinessProfile({
                             </div>
                             <div className="flex gap-3">
                                 <button
+                                    type="button"
                                     onClick={() => setShowCategoryModal(false)}
                                     className="px-4 py-2 text-slate-600 hover:bg-slate-200 rounded-lg text-sm font-medium"
                                 >
                                     Cancel
                                 </button>
                                 <button
+                                    type="button"
                                     onClick={async () => {
                                         const categories = toSelectedCategories(pendingSelections, selectedCountry);
 
