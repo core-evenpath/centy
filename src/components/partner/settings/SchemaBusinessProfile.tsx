@@ -13,8 +13,12 @@ import { cn } from '@/lib/utils';
 import { BusinessPersona } from '@/lib/business-persona-types';
 import {
     getProfileSections,
+    getCountryFieldOptions,
+    getCountryPlaceholder,
+    hasCountryExpertiseOverrides,
     type SectionConfig,
     type FieldConfig,
+    type FieldOptionOverride,
 } from '@/lib/schemas';
 import {
     getIndustries,
@@ -247,13 +251,15 @@ function TagsInput({
     onAdd,
     onRemove,
     label,
-    helpText
+    helpText,
+    placeholder
 }: {
     items: string[];
     onAdd: (tag: string) => void;
     onRemove: (index: number) => void;
     label: string;
     helpText?: string;
+    placeholder?: string;
 }) {
     const [isAdding, setIsAdding] = useState(false);
     const [newValue, setNewValue] = useState('');
@@ -287,7 +293,7 @@ function TagsInput({
                         onBlur={handleAdd}
                         className="w-32 px-2 py-1 text-sm border border-indigo-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
                         autoFocus
-                        placeholder="Add..."
+                        placeholder={placeholder || "Add..."}
                     />
                 ) : (
                     <button
@@ -540,14 +546,34 @@ function SchemaField({
     value,
     onChange,
     onTagsAdd,
-    onTagsRemove
+    onTagsRemove,
+    countryCode,
+    industryId,
 }: {
     field: FieldConfig;
     value: any;
     onChange: (val: any) => Promise<void>;
     onTagsAdd: (tag: string) => void;
     onTagsRemove: (idx: number) => void;
+    countryCode?: CountryCode;
+    industryId?: string;
 }) {
+    // Get country-specific options if available
+    const getLocalizedOptions = (): FieldOptionOverride[] => {
+        if (!countryCode || !industryId || !field.options) return field.options || [];
+        return getCountryFieldOptions(
+            countryCode,
+            industryId,
+            field.key,
+            field.options as FieldOptionOverride[]
+        );
+    };
+
+    const getLocalizedPlaceholder = (): string => {
+        if (!countryCode || !industryId || !field.placeholder) return field.placeholder || '';
+        return getCountryPlaceholder(countryCode, industryId, field.key, field.placeholder);
+    };
+
     switch (field.type) {
         case 'toggle':
             return <Toggle value={!!value} onChange={onChange} label={field.label} helpText={field.helpText} />;
@@ -560,6 +586,7 @@ function SchemaField({
                     onRemove={onTagsRemove}
                     label={field.label}
                     helpText={field.helpText}
+                    placeholder={getLocalizedPlaceholder()}
                 />
             );
 
@@ -568,10 +595,10 @@ function SchemaField({
                 <SelectField
                     label={field.label}
                     value={value || ''}
-                    options={field.options || []}
+                    options={getLocalizedOptions()}
                     onChange={onChange}
                     helpText={field.helpText}
-                    placeholder={field.placeholder}
+                    placeholder={getLocalizedPlaceholder()}
                 />
             );
 
@@ -580,7 +607,7 @@ function SchemaField({
                 <RadioField
                     label={field.label}
                     value={value || ''}
-                    options={field.options || []}
+                    options={getLocalizedOptions()}
                     onChange={onChange}
                     helpText={field.helpText}
                 />
@@ -592,7 +619,7 @@ function SchemaField({
                 <MultiSelectField
                     label={field.label}
                     values={Array.isArray(value) ? value : []}
-                    options={field.options || []}
+                    options={getLocalizedOptions()}
                     onChange={onChange}
                     helpText={field.helpText}
                 />
@@ -611,7 +638,7 @@ function SchemaField({
                     value={typeof value === 'string' ? value : ''}
                     onSave={onChange}
                     multiline={true}
-                    placeholder={field.placeholder}
+                    placeholder={getLocalizedPlaceholder()}
                     helpText={field.helpText}
                     badge={field.validation?.required ? 'Required' : undefined}
                 />
@@ -623,7 +650,7 @@ function SchemaField({
                     label={field.label}
                     value={typeof value === 'string' ? value : (value?.toString() || '')}
                     onSave={onChange}
-                    placeholder={field.placeholder}
+                    placeholder={getLocalizedPlaceholder()}
                     helpText={field.helpText}
                     badge={field.validation?.required ? 'Required' : undefined}
                 />
@@ -917,6 +944,8 @@ export default function SchemaBusinessProfile({
                                                                         onChange={(val) => onUpdate(field.schemaPath, val)}
                                                                         onTagsAdd={handleTagsAdd(field.schemaPath, currentTags)}
                                                                         onTagsRemove={handleTagsRemove(field.schemaPath, currentTags)}
+                                                                        countryCode={section.industrySpecific ? selectedCountry : undefined}
+                                                                        industryId={section.industrySpecific ? primaryIndustryId : undefined}
                                                                     />
                                                                 </div>
                                                             );
