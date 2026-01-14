@@ -12,6 +12,9 @@ export * from './business-profile-ui-schema';
 // Industry Expertise Configs
 export * from './industry-expertise-configs';
 
+// Country-Specific Expertise Overrides
+export * from './expertise-country-overrides';
+
 // Modules
 export * from './modules-ui-schema';
 
@@ -52,3 +55,11 @@ export type {
     IntegrationSyncConfig,
     ImportConfig,
 } from './modules-ui-schema';
+
+export type {
+    FieldOptionOverride,
+    FieldOverride,
+    ExpertiseFieldOverrides,
+    IndustryExpertiseOverride,
+    CountryExpertiseOverrides,
+} from './expertise-country-overrides';

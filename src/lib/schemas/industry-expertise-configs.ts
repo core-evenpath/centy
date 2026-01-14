@@ -201,24 +201,97 @@ export const HOSPITALITY_EXPERTISE: IndustryExpertiseConfig = {
                         { value: 'hotel', label: 'Hotel' },
                         { value: 'resort', label: 'Resort' },
                         { value: 'boutique_hotel', label: 'Boutique Hotel' },
+                        { value: 'business_hotel', label: 'Business Hotel' },
+                        { value: 'budget_hotel', label: 'Budget Hotel' },
                         { value: 'guesthouse', label: 'Guest House' },
                         { value: 'hostel', label: 'Hostel' },
                         { value: 'homestay', label: 'Homestay' },
                         { value: 'service_apartment', label: 'Service Apartment' },
+                        { value: 'villa', label: 'Villa/Vacation Rental' },
+                        { value: 'motel', label: 'Motel' },
+                        { value: 'lodge', label: 'Lodge' },
                     ], schemaPath: 'industrySpecificData.propertyType'
                 },
                 {
                     key: 'starRating', label: 'Star Rating', type: 'select', options: [
-                        { value: '1', label: '1 Star' },
-                        { value: '2', label: '2 Stars' },
-                        { value: '3', label: '3 Stars' },
-                        { value: '4', label: '4 Stars' },
-                        { value: '5', label: '5 Stars' },
-                        { value: 'unrated', label: 'Unrated' },
+                        { value: '5_star', label: '5 Star / Luxury' },
+                        { value: '4_star', label: '4 Star / Premium' },
+                        { value: '3_star', label: '3 Star / Mid-Range' },
+                        { value: '2_star', label: '2 Star / Economy' },
+                        { value: '1_star', label: '1 Star / Budget' },
+                        { value: 'unrated', label: 'Unrated / Boutique' },
                     ], schemaPath: 'industrySpecificData.starRating'
                 },
-                { key: 'totalRooms', label: 'Total Rooms', type: 'number', placeholder: 'e.g., 50', schemaPath: 'industrySpecificData.totalRooms' },
-                { key: 'roomTypes', label: 'Room Types', type: 'tags', placeholder: 'e.g., Deluxe, Suite, Family Room', schemaPath: 'industrySpecificData.roomTypes', gridSpan: 2 },
+                { key: 'totalRooms', label: 'Total Rooms/Units', type: 'number', placeholder: 'e.g., 50', schemaPath: 'industrySpecificData.totalRooms' },
+                {
+                    key: 'propertyStyle', label: 'Property Style', type: 'checkbox-group', options: [
+                        { value: 'modern', label: 'Modern/Contemporary' },
+                        { value: 'traditional', label: 'Traditional/Classic' },
+                        { value: 'heritage', label: 'Heritage/Historic' },
+                        { value: 'eco_friendly', label: 'Eco-Friendly/Sustainable' },
+                        { value: 'themed', label: 'Themed/Unique' },
+                        { value: 'beachfront', label: 'Beachfront' },
+                        { value: 'mountain', label: 'Mountain/Hill Station' },
+                        { value: 'urban', label: 'Urban/City Center' },
+                    ], schemaPath: 'industrySpecificData.propertyStyle', gridSpan: 2
+                },
+            ],
+        },
+        {
+            id: 'room-types',
+            title: 'Room Types & Accommodation',
+            icon: '🛏️',
+            fields: [
+                {
+                    key: 'roomCategories', label: 'Room Categories Available', type: 'checkbox-group', options: [
+                        { value: 'standard', label: 'Standard Room' },
+                        { value: 'superior', label: 'Superior Room' },
+                        { value: 'deluxe', label: 'Deluxe Room' },
+                        { value: 'premium', label: 'Premium/Executive Room' },
+                        { value: 'suite', label: 'Suite' },
+                        { value: 'junior_suite', label: 'Junior Suite' },
+                        { value: 'presidential', label: 'Presidential/Royal Suite' },
+                        { value: 'family', label: 'Family Room' },
+                        { value: 'connecting', label: 'Connecting Rooms' },
+                        { value: 'accessible', label: 'Accessible Room' },
+                        { value: 'single', label: 'Single Occupancy' },
+                        { value: 'twin', label: 'Twin Room' },
+                        { value: 'double', label: 'Double Room' },
+                        { value: 'triple', label: 'Triple Room' },
+                        { value: 'dormitory', label: 'Dormitory/Shared' },
+                        { value: 'penthouse', label: 'Penthouse' },
+                        { value: 'villa', label: 'Private Villa' },
+                        { value: 'cottage', label: 'Cottage/Bungalow' },
+                    ], schemaPath: 'industrySpecificData.roomCategories', gridSpan: 2
+                },
+                {
+                    key: 'bedTypes', label: 'Bed Types Available', type: 'checkbox-group', options: [
+                        { value: 'single', label: 'Single Bed' },
+                        { value: 'double', label: 'Double Bed' },
+                        { value: 'queen', label: 'Queen Bed' },
+                        { value: 'king', label: 'King Bed' },
+                        { value: 'super_king', label: 'Super King Bed' },
+                        { value: 'twin', label: 'Twin Beds' },
+                        { value: 'sofa_bed', label: 'Sofa Bed' },
+                        { value: 'bunk', label: 'Bunk Beds' },
+                        { value: 'extra_bed', label: 'Extra Bed Available' },
+                        { value: 'crib', label: 'Baby Crib Available' },
+                    ], schemaPath: 'industrySpecificData.bedTypes', gridSpan: 2
+                },
+                {
+                    key: 'roomViews', label: 'Room Views', type: 'checkbox-group', options: [
+                        { value: 'city', label: 'City View' },
+                        { value: 'sea', label: 'Sea/Ocean View' },
+                        { value: 'pool', label: 'Pool View' },
+                        { value: 'garden', label: 'Garden View' },
+                        { value: 'mountain', label: 'Mountain View' },
+                        { value: 'lake', label: 'Lake View' },
+                        { value: 'river', label: 'River View' },
+                        { value: 'courtyard', label: 'Courtyard View' },
+                        { value: 'landmark', label: 'Landmark View' },
+                    ], schemaPath: 'industrySpecificData.roomViews', gridSpan: 2
+                },
+                { key: 'priceRangePerNight', label: 'Price Range (per night)', type: 'text', placeholder: 'e.g., $100 - $500', schemaPath: 'industrySpecificData.priceRange' },
             ],
         },
         {
@@ -227,21 +300,80 @@ export const HOSPITALITY_EXPERTISE: IndustryExpertiseConfig = {
             icon: '🏊',
             fields: [
                 {
-                    key: 'amenities', label: 'Amenities', type: 'checkbox-group', options: [
+                    key: 'roomAmenities', label: 'In-Room Amenities', type: 'checkbox-group', options: [
                         { value: 'wifi', label: 'Free WiFi' },
+                        { value: 'ac', label: 'Air Conditioning' },
+                        { value: 'tv', label: 'TV/Smart TV' },
+                        { value: 'minibar', label: 'Mini Bar' },
+                        { value: 'safe', label: 'In-Room Safe' },
+                        { value: 'coffee_maker', label: 'Coffee/Tea Maker' },
+                        { value: 'iron', label: 'Iron & Board' },
+                        { value: 'hairdryer', label: 'Hair Dryer' },
+                        { value: 'bathrobe', label: 'Bathrobe & Slippers' },
+                        { value: 'balcony', label: 'Balcony/Terrace' },
+                        { value: 'work_desk', label: 'Work Desk' },
+                        { value: 'kitchen', label: 'Kitchenette' },
+                        { value: 'jacuzzi', label: 'Private Jacuzzi' },
+                    ], schemaPath: 'industrySpecificData.roomAmenities', gridSpan: 2
+                },
+                {
+                    key: 'propertyAmenities', label: 'Property Amenities', type: 'checkbox-group', options: [
                         { value: 'parking', label: 'Parking' },
+                        { value: 'valet', label: 'Valet Parking' },
                         { value: 'pool', label: 'Swimming Pool' },
                         { value: 'gym', label: 'Gym/Fitness Center' },
-                        { value: 'spa', label: 'Spa' },
-                        { value: 'restaurant', label: 'In-house Restaurant' },
-                        { value: 'bar', label: 'Bar' },
+                        { value: 'spa', label: 'Spa & Wellness' },
+                        { value: 'restaurant', label: 'Restaurant' },
+                        { value: 'bar', label: 'Bar/Lounge' },
                         { value: 'room_service', label: '24/7 Room Service' },
                         { value: 'laundry', label: 'Laundry Service' },
-                        { value: 'airport_transfer', label: 'Airport Transfer' },
-                    ], schemaPath: 'industrySpecificData.amenities', gridSpan: 2
+                        { value: 'concierge', label: 'Concierge' },
+                        { value: 'business_center', label: 'Business Center' },
+                        { value: 'meeting_rooms', label: 'Meeting/Conference Rooms' },
+                        { value: 'kids_club', label: 'Kids Club' },
+                        { value: 'playground', label: 'Playground' },
+                        { value: 'beach_access', label: 'Beach Access' },
+                        { value: 'airport_shuttle', label: 'Airport Shuttle' },
+                        { value: 'ev_charging', label: 'EV Charging' },
+                    ], schemaPath: 'industrySpecificData.propertyAmenities', gridSpan: 2
                 },
                 { key: 'petFriendly', label: 'Pet Friendly', type: 'toggle', schemaPath: 'industrySpecificData.petFriendly' },
                 { key: 'wheelchairAccessible', label: 'Wheelchair Accessible', type: 'toggle', schemaPath: 'industrySpecificData.wheelchairAccessible' },
+                { key: 'smokingRooms', label: 'Smoking Rooms Available', type: 'toggle', schemaPath: 'industrySpecificData.smokingRooms' },
+            ],
+        },
+        {
+            id: 'dining',
+            title: 'Dining & Cuisine',
+            icon: '🍽️',
+            fields: [
+                {
+                    key: 'diningOptions', label: 'Dining Options', type: 'checkbox-group', options: [
+                        { value: 'breakfast_included', label: 'Breakfast Included' },
+                        { value: 'half_board', label: 'Half Board Available' },
+                        { value: 'full_board', label: 'Full Board Available' },
+                        { value: 'all_inclusive', label: 'All-Inclusive Available' },
+                        { value: 'buffet', label: 'Buffet Restaurant' },
+                        { value: 'ala_carte', label: 'À la Carte Restaurant' },
+                        { value: 'fine_dining', label: 'Fine Dining' },
+                        { value: 'cafe', label: 'Café/Coffee Shop' },
+                        { value: 'poolside', label: 'Poolside Dining' },
+                        { value: 'rooftop', label: 'Rooftop Restaurant/Bar' },
+                    ], schemaPath: 'industrySpecificData.diningOptions', gridSpan: 2
+                },
+                {
+                    key: 'cuisineTypes', label: 'Cuisine Types', type: 'tags', placeholder: 'e.g., Continental, Asian, Mediterranean, Local', schemaPath: 'industrySpecificData.cuisineTypes', gridSpan: 2
+                },
+                {
+                    key: 'dietaryOptions', label: 'Dietary Options', type: 'checkbox-group', options: [
+                        { value: 'vegetarian', label: 'Vegetarian' },
+                        { value: 'vegan', label: 'Vegan' },
+                        { value: 'halal', label: 'Halal' },
+                        { value: 'kosher', label: 'Kosher' },
+                        { value: 'gluten_free', label: 'Gluten-Free' },
+                        { value: 'organic', label: 'Organic Options' },
+                    ], schemaPath: 'industrySpecificData.dietaryOptions', gridSpan: 2
+                },
             ],
         },
         {
@@ -251,8 +383,60 @@ export const HOSPITALITY_EXPERTISE: IndustryExpertiseConfig = {
             fields: [
                 { key: 'checkInTime', label: 'Check-in Time', type: 'text', placeholder: 'e.g., 2:00 PM', schemaPath: 'industrySpecificData.checkInTime' },
                 { key: 'checkOutTime', label: 'Check-out Time', type: 'text', placeholder: 'e.g., 11:00 AM', schemaPath: 'industrySpecificData.checkOutTime' },
-                { key: 'cancellationPolicy', label: 'Cancellation Policy', type: 'textarea', placeholder: 'Describe your cancellation policy...', schemaPath: 'industrySpecificData.cancellationPolicy', gridSpan: 2 },
-                { key: 'priceRange', label: 'Price Range (per night)', type: 'text', placeholder: 'e.g., ₹3,000 - ₹15,000', schemaPath: 'industrySpecificData.priceRange' },
+                { key: 'earlyCheckIn', label: 'Early Check-in Available', type: 'toggle', schemaPath: 'industrySpecificData.earlyCheckIn' },
+                { key: 'lateCheckOut', label: 'Late Check-out Available', type: 'toggle', schemaPath: 'industrySpecificData.lateCheckOut' },
+                {
+                    key: 'cancellationPolicy', label: 'Cancellation Policy', type: 'select', options: [
+                        { value: 'free_24h', label: 'Free cancellation (24h before)' },
+                        { value: 'free_48h', label: 'Free cancellation (48h before)' },
+                        { value: 'free_7d', label: 'Free cancellation (7 days before)' },
+                        { value: 'non_refundable', label: 'Non-refundable' },
+                        { value: 'partial_refund', label: 'Partial refund' },
+                        { value: 'flexible', label: 'Flexible (varies by rate)' },
+                    ], schemaPath: 'industrySpecificData.cancellationPolicy'
+                },
+                {
+                    key: 'paymentOptions', label: 'Payment Options', type: 'checkbox-group', options: [
+                        { value: 'pay_at_property', label: 'Pay at Property' },
+                        { value: 'pay_online', label: 'Pay Online' },
+                        { value: 'deposit_required', label: 'Deposit Required' },
+                        { value: 'corporate_billing', label: 'Corporate Billing' },
+                    ], schemaPath: 'industrySpecificData.paymentOptions', gridSpan: 2
+                },
+                {
+                    key: 'bookingChannels', label: 'Booking Channels', type: 'checkbox-group', options: [
+                        { value: 'direct', label: 'Direct Booking (Website/Phone)' },
+                        { value: 'booking_com', label: 'Booking.com' },
+                        { value: 'expedia', label: 'Expedia' },
+                        { value: 'airbnb', label: 'Airbnb' },
+                        { value: 'agoda', label: 'Agoda' },
+                        { value: 'makemytrip', label: 'MakeMyTrip/Goibibo' },
+                        { value: 'tripadvisor', label: 'TripAdvisor' },
+                        { value: 'travel_agents', label: 'Travel Agents' },
+                    ], schemaPath: 'industrySpecificData.bookingChannels', gridSpan: 2
+                },
+            ],
+        },
+        {
+            id: 'events-meetings',
+            title: 'Events & Meetings',
+            icon: '🎪',
+            collapsible: true,
+            defaultExpanded: false,
+            fields: [
+                { key: 'eventVenue', label: 'Event Venue Available', type: 'toggle', schemaPath: 'industrySpecificData.eventVenue' },
+                {
+                    key: 'eventTypes', label: 'Event Types', type: 'checkbox-group', options: [
+                        { value: 'weddings', label: 'Weddings' },
+                        { value: 'conferences', label: 'Conferences' },
+                        { value: 'meetings', label: 'Corporate Meetings' },
+                        { value: 'banquets', label: 'Banquets' },
+                        { value: 'parties', label: 'Private Parties' },
+                        { value: 'exhibitions', label: 'Exhibitions' },
+                    ], schemaPath: 'industrySpecificData.eventTypes', gridSpan: 2, showCondition: { field: 'eventVenue', operator: 'equals', value: true }
+                },
+                { key: 'maxEventCapacity', label: 'Max Event Capacity', type: 'number', placeholder: 'e.g., 500 guests', schemaPath: 'industrySpecificData.maxEventCapacity', showCondition: { field: 'eventVenue', operator: 'equals', value: true } },
+                { key: 'outdoorVenue', label: 'Outdoor Venue Available', type: 'toggle', schemaPath: 'industrySpecificData.outdoorVenue', showCondition: { field: 'eventVenue', operator: 'equals', value: true } },
             ],
         },
     ],
