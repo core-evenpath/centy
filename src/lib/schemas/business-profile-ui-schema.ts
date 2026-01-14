@@ -1185,13 +1185,52 @@ export const BUSINESS_PROFILE_CONFIG: BusinessProfileConfig = {
 // ============================================
 
 /**
+ * Map taxonomy industry IDs to expertise config keys
+ * Taxonomy uses different IDs than the expertise config keys
+ */
+const TAXONOMY_TO_EXPERTISE_MAP: Record<string, string> = {
+    // Direct mappings from taxonomy industryId to expertise key
+    'financial_services': 'finance',
+    'education_learning': 'education',
+    'healthcare_medical': 'healthcare',
+    'business_professional': 'services',
+    'retail_commerce': 'retail',
+    'food_beverage': 'food_beverage',
+    'personal_wellness': 'beauty_wellness',
+    'automotive_mobility': 'automotive',
+    'hospitality': 'hospitality',
+    'events_entertainment': 'events',
+    'home_property': 'home_services',
+    'travel_transport': 'other',
+    'food_supply': 'other',
+    'public_nonprofit': 'other',
+    // Also support direct keys for backwards compatibility
+    'finance': 'finance',
+    'education': 'education',
+    'healthcare': 'healthcare',
+    'services': 'services',
+    'retail': 'retail',
+    'beauty_wellness': 'beauty_wellness',
+    'automotive': 'automotive',
+    'events': 'events',
+    'home_services': 'home_services',
+    'technology': 'technology',
+    'real_estate': 'real_estate',
+    'manufacturing': 'manufacturing',
+    'other': 'other',
+};
+
+/**
  * Get the complete section config for a given industry
  */
 export function getProfileSections(industryId: string): SectionConfig[] {
     const sections = [...BUSINESS_PROFILE_CONFIG.sections];
 
+    // Map taxonomy industry ID to expertise config key
+    const expertiseKey = TAXONOMY_TO_EXPERTISE_MAP[industryId] || industryId;
+
     // Insert industry-specific expertise section at position 2
-    const expertiseConfig = BUSINESS_PROFILE_CONFIG.industryExpertise[industryId];
+    const expertiseConfig = BUSINESS_PROFILE_CONFIG.industryExpertise[expertiseKey];
     if (expertiseConfig) {
         const expertiseSection: SectionConfig = {
             id: 'expertise',

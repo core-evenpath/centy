@@ -412,6 +412,67 @@ function MultiSelectField({
     );
 }
 
+// ===== RADIO FIELD =====
+function RadioField({
+    label,
+    value,
+    options,
+    onChange,
+    helpText
+}: {
+    label: string;
+    value: string;
+    options: { value: string; label: string; description?: string }[];
+    onChange: (val: string) => void;
+    helpText?: string;
+}) {
+    return (
+        <div className="mb-4">
+            <label className="text-xs font-medium text-slate-500 uppercase mb-1 block">{label}</label>
+            {helpText && <p className="text-xs text-slate-400 mb-2">{helpText}</p>}
+            <div className="space-y-2">
+                {options.map(opt => {
+                    const isSelected = value === opt.value;
+                    return (
+                        <button
+                            key={opt.value}
+                            onClick={() => onChange(opt.value)}
+                            className={cn(
+                                "w-full text-left px-4 py-3 rounded-lg border transition-colors",
+                                isSelected
+                                    ? "bg-indigo-50 border-indigo-300"
+                                    : "bg-white border-slate-200 hover:bg-slate-50"
+                            )}
+                        >
+                            <div className="flex items-center gap-3">
+                                <div className={cn(
+                                    "w-4 h-4 rounded-full border-2 flex items-center justify-center flex-shrink-0",
+                                    isSelected
+                                        ? "border-indigo-600 bg-indigo-600"
+                                        : "border-slate-300"
+                                )}>
+                                    {isSelected && <div className="w-1.5 h-1.5 rounded-full bg-white" />}
+                                </div>
+                                <div className="flex-1">
+                                    <span className={cn(
+                                        "text-sm font-medium",
+                                        isSelected ? "text-indigo-700" : "text-slate-700"
+                                    )}>
+                                        {opt.label}
+                                    </span>
+                                    {opt.description && (
+                                        <p className="text-xs text-slate-500 mt-0.5">{opt.description}</p>
+                                    )}
+                                </div>
+                            </div>
+                        </button>
+                    );
+                })}
+            </div>
+        </div>
+    );
+}
+
 // ===== SCHEDULE DISPLAY =====
 function ScheduleDisplay({ value, label }: { value: any; label: string }) {
     const dayOrder = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
@@ -511,6 +572,17 @@ function SchemaField({
                     onChange={onChange}
                     helpText={field.helpText}
                     placeholder={field.placeholder}
+                />
+            );
+
+        case 'radio':
+            return (
+                <RadioField
+                    label={field.label}
+                    value={value || ''}
+                    options={field.options || []}
+                    onChange={onChange}
+                    helpText={field.helpText}
                 />
             );
 
