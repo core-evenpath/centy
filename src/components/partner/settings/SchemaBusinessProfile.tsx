@@ -13,11 +13,8 @@ import { cn } from '@/lib/utils';
 import { BusinessPersona } from '@/lib/business-persona-types';
 import {
     getProfileSections,
-    getExpertiseSections,
-    getProfileSectionsV2,
     type SectionConfig,
     type FieldConfig,
-    type ResolvedExpertiseSchema,
 } from '@/lib/schemas';
 import {
     getIndustries,
@@ -602,7 +599,7 @@ export default function SchemaBusinessProfile({
     // Get industries from taxonomy
     const industries = getIndustries();
 
-    // Get the primary industry ID for schema sections (kept for backward compatibility)
+    // Get the primary industry ID for schema sections
     const primaryIndustryId = useMemo(() => {
         if (selectedCategories.length > 0) {
             return selectedCategories[0].industryId;
@@ -613,16 +610,10 @@ export default function SchemaBusinessProfile({
         return category || 'services';
     }, [selectedCategories, persona.identity]);
 
-    // Use new resolver for function-based schema resolution
+    // Get profile sections based on industry
     const sections = useMemo(() => {
-        // Use new V2 resolver that supports function-based field conditions
-        return getProfileSectionsV2(selectedCategories, selectedCountry);
-    }, [selectedCategories, selectedCountry]);
-
-    // Get active function IDs for field filtering
-    const activeFunctionIds = useMemo(() => {
-        return selectedCategories.map(c => c.functionId);
-    }, [selectedCategories]);
+        return getProfileSections(primaryIndustryId);
+    }, [primaryIndustryId]);
 
     // Sync pending selections when modal opens
     useEffect(() => {
