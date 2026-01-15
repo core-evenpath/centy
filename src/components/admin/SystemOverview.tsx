@@ -25,7 +25,7 @@ async function getToken(user: FirebaseAuthUser): Promise<string> {
     if (user.customClaims?.token) {
       return user.customClaims.token;
     }
-    
+
     // Fallback - get fresh token
     const { getAuth, getIdToken } = await import('firebase/auth');
     const auth = getAuth();
@@ -34,7 +34,7 @@ async function getToken(user: FirebaseAuthUser): Promise<string> {
       console.log('Got fresh token from Firebase Auth');
       return token;
     }
-    
+
     console.error('No current user in Firebase Auth');
     return '';
   } catch (error) {
@@ -67,13 +67,13 @@ export default function SystemOverview() {
 
     try {
       const token = await getToken(user);
-      
+
       if (!token) {
         throw new Error("Authentication token not available. Please try logging out and back in.");
       }
 
       console.log('Fetching signups from API...');
-      
+
       const response = await fetch('/api/admin/early-access', {
         method: 'GET',
         headers: {
@@ -84,10 +84,10 @@ export default function SystemOverview() {
       });
 
       console.log('Response status:', response.status);
-      
+
       const data = await response.json();
       console.log('Response data:', data);
-      
+
       if (!response.ok) {
         // Store debug info for display
         setDebugInfo({
@@ -98,13 +98,13 @@ export default function SystemOverview() {
           code: data.code,
           indexInfo: data.indexInfo
         });
-        
+
         throw new Error(data.details || data.error || `Failed to fetch signups (${response.status})`);
       }
-      
+
       setEarlyAccessSignups(data.signups || []);
       console.log(`Successfully loaded ${data.signups?.length || 0} signups`);
-      
+
     } catch (err: any) {
       console.error('Fetch error:', err);
       setError(err.message);
@@ -154,19 +154,19 @@ export default function SystemOverview() {
                   <span className="font-semibold">Error Loading Signups</span>
                 </div>
                 <p className="text-sm mb-3">{error}</p>
-                
+
                 {debugInfo && (
                   <div className="mt-3 p-3 bg-red-100 rounded text-xs space-y-2">
                     <div><strong>Status:</strong> {debugInfo.status}</div>
                     {debugInfo.code && <div><strong>Code:</strong> {debugInfo.code}</div>}
                     {debugInfo.details && <div><strong>Details:</strong> {debugInfo.details}</div>}
-                    
+
                     {debugInfo.indexInfo && (
                       <div className="mt-2 p-2 bg-white rounded">
                         <strong>Required Index:</strong>
                         <div className="ml-2 mt-1">
-                          Collection: {debugInfo.indexInfo.collection}<br/>
-                          Field: {debugInfo.indexInfo.field}<br/>
+                          Collection: {debugInfo.indexInfo.collection}<br />
+                          Field: {debugInfo.indexInfo.field}<br />
                           Order: {debugInfo.indexInfo.order}
                         </div>
                         <div className="mt-2 text-blue-600">
@@ -176,7 +176,7 @@ export default function SystemOverview() {
                     )}
                   </div>
                 )}
-                
+
                 <Button
                   variant="outline"
                   size="sm"

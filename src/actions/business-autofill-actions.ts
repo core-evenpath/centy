@@ -61,9 +61,12 @@ export async function getPlaceDetailsAction(
 /**
  * Auto-fill complete business profile from a Google Place
  * This fetches Google Places data + does AI research
+ * @param placeId - Google Place ID
+ * @param countryCode - Optional country code (US, IN, AE, GB) - defaults to US
  */
 export async function autoFillProfileAction(
-  placeId: string
+  placeId: string,
+  countryCode?: string
 ): Promise<{ success: boolean; profile?: AutoFilledProfile; error?: string }> {
   try {
     // Check API keys
@@ -75,8 +78,8 @@ export async function autoFillProfileAction(
       };
     }
 
-    console.log('[AutoFill Action] Starting auto-fill for:', placeId);
-    const profile = await autoFillBusinessProfile(placeId);
+    console.log('[AutoFill Action] Starting auto-fill for:', placeId, 'country:', countryCode || 'auto-detect');
+    const profile = await autoFillBusinessProfile(placeId, countryCode);
 
     if (!profile) {
       return { success: false, error: 'Could not auto-fill profile. Please try again.' };

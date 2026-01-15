@@ -7,6 +7,8 @@
 
 import { GoogleGenAI } from "@google/genai";
 import type { BusinessPersona, IndustryCategory } from './business-persona-types';
+import { buildAutoFillPrompt } from './autofill-prompt-builder';
+import { detectCountryFromAddress, DEFAULT_COUNTRY } from './country-autofill-config';
 
 // Initialize Gemini
 const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_GENAI_API_KEY;
@@ -215,6 +217,8 @@ export interface AIResearchResult {
   certifications?: string[];
   languages?: string[];
   paymentMethods?: string[];
+  // Country-specific business registrations (GSTIN, PAN, EIN, etc.)
+  registrations?: Record<string, string>;
   onlineReviews?: {
     source: string;
     sourceUrl: string;
@@ -303,6 +307,7 @@ export interface AutoFilledProfile {
     placesData: boolean;
     aiEnriched: boolean;
     fetchedAt: Date;
+    detectedCountry?: string;
   };
 }
 
@@ -468,11 +473,15 @@ export async function researchBusinessWithAI(
   businessName: string,
   address: string,
   website?: string,
-  existingInfo?: PlacesDetailedInfo
+  existingInfo?: PlacesDetailedInfo,
+  countryCode?: string
 ): Promise<AIResearchResult> {
   const industryHint = existingInfo?.types?.find(t => PLACES_TYPE_TO_INDUSTRY[t])
     ? PLACES_TYPE_TO_INDUSTRY[existingInfo.types.find(t => PLACES_TYPE_TO_INDUSTRY[t])!]
     : 'general';
+
+  // Use country from address components or default
+  const detectedCountry = countryCode || detectCountryFromAddress(existingInfo?.addressComponents);
 
   // Build industry-specific inventory request
   let inventoryRequest = '';
@@ -647,104 +656,18 @@ export async function researchBusinessWithAI(
     }`;
   }
 
-  const prompt = `Search the web thoroughly and research "${businessName}" located at "${address}"${website ? ` with website ${website}` : ''}.
+  // Build country-aware prompt using the prompt builder
+  const prompt = buildAutoFillPrompt({
+    businessName,
+    address,
+    website,
+    industryHint,
+    countryCode: detectedCountry,
+    googleRating: existingInfo?.rating,
+    googleReviewCount: existingInfo?.reviewCount,
+    editorialSummary: existingInfo?.editorialSummary,
+  });
 
-I need COMPREHENSIVE business information for auto-filling a business profile. This data will be used to train an AI agent to handle customer queries.
-
-Search these sources:
-1. Their official website (scrape menu/products/services if available)
-2. Google reviews and ratings
-3. Social media (Instagram, Facebook, LinkedIn, Twitter/X)
-4. Review platforms (TripAdvisor, Yelp, Zomato, Justdial, Practo, etc.)
-5. News articles and press coverage
-6. Business directories
-7. Booking/e-commerce platforms for pricing info
-
-Return the following in JSON format:
-
-{
-  "description": "A compelling 3-4 sentence description of the business - what they do, their history, and what makes them special",
-  "tagline": "Their official tagline or slogan if they have one",
-  "services": ["Comprehensive list of services they offer with details"],
-  "products": ["List of products they sell, if applicable"],
-  "targetAudience": ["Detailed customer segments - be specific about demographics, needs"],
-  "uniqueSellingPoints": ["5-7 things that make this business stand out"],
-  "faqs": [
-    {"question": "Common question 1", "answer": "Detailed answer"},
-    {"question": "Common question 2", "answer": "Detailed answer"}
-    // Include 5-10 FAQs
-  ],
-  "socialMedia": {
-    "instagram": "Full Instagram URL",
-    "facebook": "Full Facebook page URL",
-    "linkedin": "Full LinkedIn page URL",
-    "twitter": "Full Twitter/X URL",
-    "youtube": "YouTube channel URL if exists"
-  },
-  "founders": "Founder/owner names with titles if publicly available",
-  "yearEstablished": "Year the business was established",
-  "teamSize": "Team size (e.g., '50-100 employees')",
-  "awards": ["Awards and recognitions with year"],
-  "certifications": ["Business certifications or accreditations"],
-  "languages": ["Languages spoken/supported by staff"],
-  "paymentMethods": ["All accepted payment methods - UPI, cards, wallets, etc."],
-
-  "onlineReviews": [
-    {
-      "source": "Platform name (TripAdvisor, Zomato, Yelp, Justdial, etc.)",
-      "sourceUrl": "Direct URL to their listing on that platform",
-      "rating": 4.5,
-      "reviewCount": 500,
-      "highlights": ["Common positive themes from reviews"]
-    }
-  ],
-
-  "testimonials": [
-    {
-      "quote": "Actual customer testimonial or review quote",
-      "author": "Customer name if available",
-      "source": "Where you found this (Google, TripAdvisor, etc.)",
-      "sourceUrl": "URL to the original review if possible"
-    }
-    // Include 3-5 notable testimonials
-  ],
-
-  "pressMedia": [
-    {
-      "title": "Article or feature title",
-      "source": "Publication name",
-      "url": "Article URL",
-      "date": "Publication date"
-    }
-  ],
-
-  ${inventoryRequest}
-
-  ${industrySpecificRequest},
-
-  "rawWebData": {
-    "websiteContent": "Key content from their website that doesn't fit other fields",
-    "additionalInfo": {
-      // Any other useful information found that doesn't fit standard fields
-    },
-    "otherFindings": ["Other interesting facts or information about the business"]
-  }
-}
-
-Industry: ${industryHint}
-${existingInfo?.rating ? `Google Rating: ${existingInfo.rating}/5 (${existingInfo.reviewCount} reviews)` : ''}
-${existingInfo?.editorialSummary ? `Google Summary: ${existingInfo.editorialSummary}` : ''}
-
-IMPORTANT:
-- INVENTORY DATA IS CRITICAL - Search their website, menu pages, booking platforms for detailed pricing
-- For hotels: Find room types, rates from their website or booking.com/makemytrip
-- For restaurants: Find menu items with prices from their website or Zomato/Swiggy
-- For healthcare: Find consultation fees, test prices from their website or Practo
-- For retail: Find product catalog with prices if available
-- Search thoroughly and provide VERIFIED information only
-- Include source URLs wherever possible for verification
-- For testimonials, use ACTUAL reviews you find, not made up ones
-- Return ONLY valid JSON. If information is not found, use null for that field.`;
 
   try {
     console.log('[AutoFill] Researching business with AI...');
@@ -835,7 +758,8 @@ function parseOperatingHours(weekdayText: string[]): Record<string, { open: stri
  * Main function: Auto-fill business profile from a Google Place
  */
 export async function autoFillBusinessProfile(
-  placeId: string
+  placeId: string,
+  countryCode?: string
 ): Promise<AutoFilledProfile | null> {
   console.log('[AutoFill] Starting auto-fill for place:', placeId);
 
@@ -849,12 +773,16 @@ export async function autoFillBusinessProfile(
 
   console.log('[AutoFill] Got place details:', placesInfo.name);
 
-  // Step 2: Research with AI
+  // Step 2: Research with AI (country-aware)
+  const detectedCountry = countryCode || detectCountryFromAddress(placesInfo.addressComponents);
+  console.log('[AutoFill] Detected country:', detectedCountry);
+
   const aiResearch = await researchBusinessWithAI(
     placesInfo.name,
     placesInfo.formattedAddress,
     placesInfo.website,
-    placesInfo
+    placesInfo,
+    detectedCountry
   );
 
   console.log('[AutoFill] AI research complete');
@@ -920,6 +848,7 @@ export async function autoFillBusinessProfile(
         facebook: aiResearch.socialMedia.facebook,
         linkedin: aiResearch.socialMedia.linkedin,
         twitter: aiResearch.socialMedia.twitter,
+        youtube: aiResearch.socialMedia.youtube,
       } : undefined,
       languages: aiResearch.languages,
       yearEstablished: aiResearch.yearEstablished ? parseInt(aiResearch.yearEstablished) : undefined,
@@ -957,6 +886,8 @@ export async function autoFillBusinessProfile(
       certifications: aiResearch.certifications,
       founders: aiResearch.founders,
       teamSize: aiResearch.teamSize,
+      // Country-aware registrations (GSTIN, PAN, EIN, etc.)
+      registrations: aiResearch.registrations,
       ...(aiResearch.industryData || {}),
     },
     source: {
@@ -964,6 +895,8 @@ export async function autoFillBusinessProfile(
       placesData: true,
       aiEnriched: Object.keys(aiResearch).length > 0,
       fetchedAt: new Date(),
+      // Track detected country for reference
+      detectedCountry: detectedCountry,
     },
   };
 
@@ -1016,7 +949,7 @@ import type {
  * Generate a unique ID for inventory items
  */
 function generateId(): string {
-  return `auto_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+  return `auto_${Date.now()}_${Math.random().toString(36).substr(2, 9)} `;
 }
 
 /**
@@ -1088,7 +1021,7 @@ export function mapRoomsToRoomTypes(rooms: RoomInventoryItem[]): RoomType[] {
         included: true,
       })) || [],
       images: room.images?.map((url, idx) => ({
-        id: `img_${idx}`,
+        id: `img_${idx} `,
         url,
         isPrimary: idx === 0,
       })) || [],
@@ -1118,7 +1051,7 @@ export function mapMenuToMenuItems(menuItems: MenuInventoryItem[]): { items: Men
 
   // Create categories
   const categories: MenuCategory[] = Array.from(categoryMap.keys()).map((catName, idx): MenuCategory => ({
-    id: `cat_${generateId()}`,
+    id: `cat_${generateId()} `,
     name: catName,
     description: '',
     displayOrder: idx,
@@ -1193,7 +1126,7 @@ export function mapMenuToMenuItems(menuItems: MenuInventoryItem[]): { items: Men
         canCustomize: true,
       },
       images: item.images?.map((url, idx) => ({
-        id: `img_${idx}`,
+        id: `img_${idx} `,
         url,
         isPrimary: idx === 0,
       })) || [],
@@ -1229,7 +1162,7 @@ export function mapProductsToRetailProducts(products: ProductInventoryItem[]): R
     },
     specifications: product.specifications,
     images: product.images?.map((url, idx) => ({
-      id: `img_${idx}`,
+      id: `img_${idx} `,
       url,
       isPrimary: idx === 0,
     })) || [],
@@ -1298,7 +1231,7 @@ export function mapPropertiesToPropertyListings(properties: PropertyInventoryIte
         available: true,
       })) || [],
       images: property.images?.map((url, idx) => ({
-        id: `img_${idx}`,
+        id: `img_${idx} `,
         url,
         isPrimary: idx === 0,
       })) || [],
