@@ -1,6 +1,6 @@
 /**
  * Business Taxonomy - Main Export
- * 
+ *
  * This module provides the global business taxonomy with country-specific overrides.
  * Use this to get localized business function labels for different countries.
  */
@@ -10,8 +10,8 @@ export * from './industries';
 export * from './country-overrides';
 export * from './countries';
 
-// Platform Mappings
-export * from './platform-mappings';
+// Note: Platform mappings are available via direct import from
+// '@/lib/business-taxonomy/platform-mappings' to avoid circular dependencies
 
 import { Industry, BusinessFunction, CountryCode, ResolvedFunction, SelectedBusinessCategory } from './types';
 import { INDUSTRIES, BUSINESS_FUNCTIONS, SPECIALIZATIONS } from './industries';
