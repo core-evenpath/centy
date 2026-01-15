@@ -17,14 +17,8 @@ export const RETAIL_EXPERTISE: IndustryExpertiseConfig = {
             id: 'store-info',
             title: 'Store Information',
             icon: '🏪',
+            // REMOVED: storeType dropdown - now driven by category selection
             fields: [
-                {
-                    key: 'storeType', label: 'Store Type', type: 'select', options: [
-                        { value: 'physical', label: 'Physical Store' },
-                        { value: 'online', label: 'Online Only' },
-                        { value: 'hybrid', label: 'Both Physical & Online' },
-                    ], schemaPath: 'industrySpecificData.storeType'
-                },
                 { key: 'productCategories', label: 'Product Categories', type: 'tags', placeholder: 'e.g., Electronics, Fashion, Home Decor', schemaPath: 'industrySpecificData.productCategories', gridSpan: 2 },
                 { key: 'brands', label: 'Brands Available', type: 'tags', placeholder: 'Add brands you carry...', schemaPath: 'industrySpecificData.brands', gridSpan: 2 },
                 { key: 'storeSize', label: 'Store Size (sq ft)', type: 'number', placeholder: 'e.g., 2000', schemaPath: 'industrySpecificData.storeSize' },
@@ -82,17 +76,8 @@ export const HEALTHCARE_EXPERTISE: IndustryExpertiseConfig = {
             id: 'practice-info',
             title: 'Practice Information',
             icon: '🏥',
+            // REMOVED: facilityType dropdown - now driven by category selection
             fields: [
-                {
-                    key: 'facilityType', label: 'Facility Type', type: 'select', options: [
-                        { value: 'clinic', label: 'Clinic' },
-                        { value: 'hospital', label: 'Hospital' },
-                        { value: 'diagnostic_center', label: 'Diagnostic Center' },
-                        { value: 'pharmacy', label: 'Pharmacy' },
-                        { value: 'wellness_center', label: 'Wellness Center' },
-                        { value: 'telehealth', label: 'Telehealth Only' },
-                    ], schemaPath: 'industrySpecificData.facilityType'
-                },
                 { key: 'specializations', label: 'Specializations', type: 'tags', placeholder: 'e.g., Cardiology, Pediatrics, Orthopedics', schemaPath: 'industrySpecificData.specializations', gridSpan: 2 },
                 { key: 'doctors', label: 'Number of Doctors', type: 'number', placeholder: 'e.g., 5', schemaPath: 'industrySpecificData.doctorCount' },
                 { key: 'bedCount', label: 'Bed Capacity', type: 'number', placeholder: 'e.g., 50', schemaPath: 'industrySpecificData.bedCount' },
@@ -147,6 +132,8 @@ export const EDUCATION_EXPERTISE: IndustryExpertiseConfig = {
             id: 'learning-mode',
             title: 'Learning Mode',
             icon: '💻',
+            showForFunctions: ['tutoring', 'coaching_center', 'school', 'vocational_training'],
+
             fields: [
                 {
                     key: 'deliveryMode', label: 'Delivery Mode', type: 'checkbox-group', options: [
@@ -186,18 +173,8 @@ export const HOSPITALITY_EXPERTISE: IndustryExpertiseConfig = {
             id: 'property-info',
             title: 'Property Information',
             icon: '🏨',
+            // REMOVED: propertyType dropdown - now driven by category selection
             fields: [
-                {
-                    key: 'propertyType', label: 'Property Type', type: 'select', options: [
-                        { value: 'hotel', label: 'Hotel' },
-                        { value: 'resort', label: 'Resort' },
-                        { value: 'boutique_hotel', label: 'Boutique Hotel' },
-                        { value: 'guesthouse', label: 'Guest House' },
-                        { value: 'hostel', label: 'Hostel' },
-                        { value: 'homestay', label: 'Homestay' },
-                        { value: 'service_apartment', label: 'Service Apartment' },
-                    ], schemaPath: 'industrySpecificData.propertyType'
-                },
                 {
                     key: 'starRating', label: 'Star Rating', type: 'select', options: [
                         { value: '1', label: '1 Star' },
@@ -257,18 +234,11 @@ export const REAL_ESTATE_EXPERTISE: IndustryExpertiseConfig = {
     industryName: 'Real Estate',
     subSections: [
         {
-            id: 'business-type',
-            title: 'Business Type',
+            id: 'property-scope',
+            title: 'Property Scope',
             icon: '🏗️',
+            // REMOVED: businessType dropdown - now driven by category selection
             fields: [
-                {
-                    key: 'businessType', label: 'Business Type', type: 'select', options: [
-                        { value: 'developer', label: 'Developer/Builder' },
-                        { value: 'broker', label: 'Broker/Agent' },
-                        { value: 'property_management', label: 'Property Management' },
-                        { value: 'consultancy', label: 'Real Estate Consultancy' },
-                    ], schemaPath: 'industrySpecificData.businessType'
-                },
                 {
                     key: 'propertyTypes', label: 'Property Types', type: 'checkbox-group', options: [
                         { value: 'residential', label: 'Residential' },
@@ -364,6 +334,8 @@ export const SERVICES_EXPERTISE: IndustryExpertiseConfig = {
             id: 'expertise',
             title: 'Expertise & Team',
             icon: '👥',
+            showForFunctions: ['ca_firm', 'tax_consultant', 'law_firm', 'marketing_agency'],
+
             fields: [
                 {
                     key: 'teamSize', label: 'Team Size', type: 'select', options: [
@@ -420,6 +392,8 @@ export const BEAUTY_WELLNESS_EXPERTISE: IndustryExpertiseConfig = {
             id: 'facility',
             title: 'Facility & Staff',
             icon: '🏢',
+            showForFunctions: ['beauty_salon', 'spa', 'gym', 'yoga_studio'],
+
             fields: [
                 { key: 'staffCount', label: 'Number of Staff', type: 'number', placeholder: 'e.g., 8', schemaPath: 'industrySpecificData.staffCount' },
                 { key: 'brands', label: 'Brands Used', type: 'tags', placeholder: 'e.g., L\'Oreal, Schwarzkopf, The Body Shop', schemaPath: 'industrySpecificData.brands', gridSpan: 2 },
@@ -731,13 +705,15 @@ export const FINANCE_EXPERTISE: IndustryExpertiseConfig = {
                     schemaPath: 'industrySpecificData.aumManaged',
                     showForFunctions: ['mutual_fund_distributor', 'investment_advisor', 'wealth_manager'],
                 },
-                { key: 'teamSize', label: 'Team Size', type: 'select', options: [
-                    { value: 'solo', label: 'Solo Practitioner' },
-                    { value: '2-5', label: '2-5 members' },
-                    { value: '6-15', label: '6-15 members' },
-                    { value: '16-50', label: '16-50 members' },
-                    { value: '50+', label: '50+ members' },
-                ], schemaPath: 'industrySpecificData.teamSize' },
+                {
+                    key: 'teamSize', label: 'Team Size', type: 'select', options: [
+                        { value: 'solo', label: 'Solo Practitioner' },
+                        { value: '2-5', label: '2-5 members' },
+                        { value: '6-15', label: '6-15 members' },
+                        { value: '16-50', label: '16-50 members' },
+                        { value: '50+', label: '50+ members' },
+                    ], schemaPath: 'industrySpecificData.teamSize'
+                },
                 { key: 'awards', label: 'Awards & Recognition', type: 'tags', placeholder: 'e.g., MDRT, Best Advisor Award', schemaPath: 'industrySpecificData.awards', gridSpan: 2 },
                 { key: 'mediaFeatures', label: 'Media Features', type: 'tags', placeholder: 'e.g., ET Wealth, Mint, CNBC', schemaPath: 'industrySpecificData.mediaFeatures', gridSpan: 2 },
             ],
@@ -757,6 +733,8 @@ export const TECHNOLOGY_EXPERTISE: IndustryExpertiseConfig = {
             id: 'tech-stack',
             title: 'Technology & Services',
             icon: '💻',
+            showForFunctions: ['software_company', 'it_services', 'saas'],
+
             fields: [
                 { key: 'techStack', label: 'Tech Stack', type: 'tags', placeholder: 'e.g., React, Node.js, AWS, Python', schemaPath: 'industrySpecificData.techStack', gridSpan: 2 },
                 { key: 'industries', label: 'Industries Served', type: 'tags', placeholder: 'e.g., Healthcare, Fintech, E-commerce', schemaPath: 'industrySpecificData.industriesServed', gridSpan: 2 },
@@ -791,6 +769,8 @@ export const TECHNOLOGY_EXPERTISE: IndustryExpertiseConfig = {
             id: 'product-info',
             title: 'Product/Service Details',
             icon: '📦',
+            showForFunctions: ['software_company', 'saas'],
+
             fields: [
                 { key: 'productName', label: 'Product Name', type: 'text', placeholder: 'e.g., CloudSync Pro', schemaPath: 'industrySpecificData.productName' },
                 { key: 'freeTrialAvailable', label: 'Free Trial Available', type: 'toggle', schemaPath: 'industrySpecificData.freeTrialAvailable' },
@@ -859,6 +839,8 @@ export const AUTOMOTIVE_EXPERTISE: IndustryExpertiseConfig = {
             id: 'facility',
             title: 'Facility Details',
             icon: '🏢',
+            showForFunctions: ['car_dealer', 'auto_repair'],
+
             fields: [
                 { key: 'serviceBays', label: 'Number of Service Bays', type: 'number', placeholder: 'e.g., 10', schemaPath: 'industrySpecificData.serviceBays' },
                 { key: 'showroomSize', label: 'Showroom Size (sq ft)', type: 'number', placeholder: 'e.g., 5000', schemaPath: 'industrySpecificData.showroomSize' },
@@ -890,6 +872,8 @@ export const EVENTS_EXPERTISE: IndustryExpertiseConfig = {
             id: 'capacity',
             title: 'Capacity & Coverage',
             icon: '📍',
+            showForFunctions: ['event_planner', 'event_venue', 'catering'],
+
             fields: [
                 { key: 'maxCapacity', label: 'Max Guest Capacity', type: 'number', placeholder: 'e.g., 500', schemaPath: 'industrySpecificData.maxCapacity' },
                 { key: 'travelWilling', label: 'Willing to Travel', type: 'toggle', schemaPath: 'industrySpecificData.travelWilling' },
@@ -939,6 +923,8 @@ export const HOME_SERVICES_EXPERTISE: IndustryExpertiseConfig = {
             id: 'coverage',
             title: 'Coverage & Availability',
             icon: '📍',
+            showForFunctions: ['plumber', 'electrician', 'cleaning_service', 'carpenter', 'pest_control'],
+
             fields: [
                 { key: 'serviceAreas', label: 'Service Areas', type: 'tags', placeholder: 'e.g., Koramangala, HSR Layout, Whitefield', schemaPath: 'industrySpecificData.serviceAreas', gridSpan: 2 },
                 { key: 'sameDay', label: 'Same Day Service', type: 'toggle', schemaPath: 'industrySpecificData.sameDayService' },
@@ -979,16 +965,8 @@ export const MANUFACTURING_EXPERTISE: IndustryExpertiseConfig = {
             id: 'business-info',
             title: 'Business Information',
             icon: '🏭',
+            // REMOVED: manufacturingType dropdown - now driven by category selection
             fields: [
-                {
-                    key: 'manufacturingType', label: 'Manufacturing Type', type: 'select', options: [
-                        { value: 'oem', label: 'OEM Manufacturer' },
-                        { value: 'odm', label: 'ODM Manufacturer' },
-                        { value: 'contract', label: 'Contract Manufacturing' },
-                        { value: 'custom', label: 'Custom Manufacturing' },
-                        { value: 'assembly', label: 'Assembly' },
-                    ], schemaPath: 'industrySpecificData.manufacturingType'
-                },
                 { key: 'productTypes', label: 'Products Manufactured', type: 'tags', placeholder: 'e.g., Machinery, Electronics, Textiles', schemaPath: 'industrySpecificData.productTypes', gridSpan: 2 },
                 { key: 'industries', label: 'Industries Served', type: 'tags', placeholder: 'e.g., Automotive, Aerospace, Healthcare', schemaPath: 'industrySpecificData.industriesServed', gridSpan: 2 },
             ],
@@ -1054,14 +1032,353 @@ export const OTHER_EXPERTISE: IndustryExpertiseConfig = {
 };
 
 // ============================================
+// FOOD & BEVERAGE EXPERTISE
+// ============================================
+export const FOOD_BEVERAGE_EXPERTISE: IndustryExpertiseConfig = {
+    industryId: 'food_beverage',
+    industryName: 'Food & Beverage',
+    subSections: [
+        {
+            id: 'cuisine-style',
+            title: 'Cuisine & Style',
+            icon: '🍽️',
+            fields: [
+                {
+                    key: 'cuisineTypes',
+                    label: 'Cuisine Types',
+                    type: 'tags',
+                    placeholder: 'Add cuisines...',
+                    helpText: 'e.g., North Indian, Chinese, Italian, Multi-cuisine',
+                    validation: { required: true },
+                    schemaPath: 'restaurantInfo.cuisineTypes',
+                    fetchable: true,
+                    gridSpan: 2,
+                },
+                {
+                    key: 'primaryCuisine',
+                    label: 'Primary Cuisine',
+                    type: 'select',
+                    options: [
+                        { value: 'north_indian', label: 'North Indian' },
+                        { value: 'south_indian', label: 'South Indian' },
+                        { value: 'chinese', label: 'Chinese' },
+                        { value: 'italian', label: 'Italian' },
+                        { value: 'continental', label: 'Continental' },
+                        { value: 'mughlai', label: 'Mughlai' },
+                        { value: 'thai', label: 'Thai' },
+                        { value: 'japanese', label: 'Japanese' },
+                        { value: 'mexican', label: 'Mexican' },
+                        { value: 'multi_cuisine', label: 'Multi-Cuisine' },
+                        { value: 'other', label: 'Other' },
+                    ],
+                    schemaPath: 'restaurantInfo.primaryCuisine',
+                },
+                {
+                    key: 'diningStyle',
+                    label: 'Dining Style',
+                    type: 'multi-select',
+                    options: [
+                        { value: 'fine_dining', label: 'Fine Dining', description: 'Upscale, formal experience' },
+                        { value: 'casual_dining', label: 'Casual Dining', description: 'Relaxed, mid-range' },
+                        { value: 'qsr', label: 'Quick Service (QSR)', description: 'Fast food, counter service' },
+                        { value: 'cafe', label: 'Café', description: 'Coffee, snacks, light meals' },
+                        { value: 'bar_lounge', label: 'Bar / Lounge', description: 'Focus on drinks' },
+                        { value: 'cloud_kitchen', label: 'Cloud Kitchen', description: 'Delivery only' },
+                        { value: 'food_truck', label: 'Food Truck', description: 'Mobile vendor' },
+                        { value: 'takeaway', label: 'Takeaway', description: 'Primarily packed food' },
+                    ],
+                    schemaPath: 'restaurantInfo.diningStyles',
+                    fetchable: true,
+                    gridSpan: 2,
+                },
+                {
+                    key: 'ambiance',
+                    label: 'Ambiance & Vibe',
+                    type: 'tags',
+                    placeholder: 'Describe your atmosphere...',
+                    helpText: 'e.g., Family-friendly, Romantic, Rooftop, Live music, Pet-friendly',
+                    schemaPath: 'industrySpecificData.ambiance',
+                    aiSuggestionEnabled: true,
+                    gridSpan: 2,
+                },
+            ],
+        },
+        {
+            id: 'dining-experience',
+            title: 'Dining Experience',
+            icon: '🪑',
+            fields: [
+                {
+                    key: 'seatingCapacity',
+                    label: 'Seating Capacity',
+                    type: 'number',
+                    placeholder: 'e.g., 80',
+                    schemaPath: 'restaurantInfo.seatingCapacity',
+                    fetchable: true,
+                },
+                {
+                    key: 'seatingTypes',
+                    label: 'Seating Options',
+                    type: 'checkbox-group',
+                    options: [
+                        { value: 'indoor', label: 'Indoor' },
+                        { value: 'outdoor', label: 'Outdoor' },
+                        { value: 'rooftop', label: 'Rooftop' },
+                        { value: 'private_dining', label: 'Private Dining' },
+                        { value: 'bar_seating', label: 'Bar Seating' },
+                        { value: 'booth', label: 'Booth/Cabin' },
+                    ],
+                    schemaPath: 'restaurantInfo.seatingTypes',
+                },
+                {
+                    key: 'reservationMode',
+                    label: 'Reservations',
+                    type: 'radio',
+                    options: [
+                        { value: 'required', label: 'Required' },
+                        { value: 'recommended', label: 'Recommended' },
+                        { value: 'walk_in', label: 'Walk-in Only' },
+                        { value: 'both', label: 'Both Walk-in & Reservations' },
+                    ],
+                    schemaPath: 'restaurantInfo.reservationMode',
+                },
+                {
+                    key: 'reservationLink',
+                    label: 'Reservation Link',
+                    type: 'url',
+                    placeholder: 'e.g., Dineout, EazyDiner, or your booking page',
+                    schemaPath: 'industrySpecificData.reservationLink',
+                    showCondition: { field: 'reservationMode', operator: 'notEquals', value: 'walk_in' },
+                },
+                {
+                    key: 'averageCostForTwo',
+                    label: 'Average Cost for Two',
+                    type: 'currency',
+                    placeholder: 'e.g., 800',
+                    helpText: 'Approximate cost for 2 people (without alcohol)',
+                    schemaPath: 'restaurantInfo.averageCostForTwo',
+                    fetchable: true,
+                },
+                {
+                    key: 'priceRange',
+                    label: 'Price Segment',
+                    type: 'select',
+                    options: [
+                        { value: '$', label: '$ - Budget Friendly', description: 'Under ₹300 for two' },
+                        { value: '$$', label: '$$ - Mid Range', description: '₹300-800 for two' },
+                        { value: '$$$', label: '$$$ - Premium', description: '₹800-1500 for two' },
+                        { value: '$$$$', label: '$$$$ - Luxury', description: 'Above ₹1500 for two' },
+                    ],
+                    schemaPath: 'restaurantInfo.priceRange',
+                },
+            ],
+        },
+        {
+            id: 'dietary-policies',
+            title: 'Dietary & Policies',
+            icon: '🥗',
+            fields: [
+                {
+                    key: 'pureVeg',
+                    label: 'Pure Vegetarian',
+                    type: 'toggle',
+                    helpText: 'No non-veg items served at all',
+                    schemaPath: 'restaurantInfo.pureVeg',
+                    fetchable: true,
+                },
+                {
+                    key: 'dietaryOptions',
+                    label: 'Dietary Options Available',
+                    type: 'checkbox-group',
+                    options: [
+                        { value: 'vegetarian', label: 'Vegetarian' },
+                        { value: 'vegan', label: 'Vegan' },
+                        { value: 'eggetarian', label: 'Eggetarian' },
+                        { value: 'jain', label: 'Jain' },
+                        { value: 'gluten_free', label: 'Gluten-Free' },
+                        { value: 'halal', label: 'Halal' },
+                        { value: 'keto', label: 'Keto-Friendly' },
+                        { value: 'sugar_free', label: 'Sugar-Free' },
+                    ],
+                    schemaPath: 'industrySpecificData.dietaryOptions',
+                    gridSpan: 2,
+                },
+                {
+                    key: 'alcoholServed',
+                    label: 'Alcohol Served',
+                    type: 'toggle',
+                    schemaPath: 'restaurantInfo.alcoholServed',
+                    fetchable: true,
+                },
+                {
+                    key: 'hookahAvailable',
+                    label: 'Hookah Available',
+                    type: 'toggle',
+                    schemaPath: 'restaurantInfo.hookahAvailable',
+                    showCondition: { field: 'alcoholServed', operator: 'equals', value: true },
+                },
+                {
+                    key: 'signatureDishes',
+                    label: 'Signature Dishes',
+                    type: 'tags',
+                    placeholder: 'Add your must-try dishes...',
+                    helpText: 'Your bestsellers and chef specials',
+                    schemaPath: 'industrySpecificData.signatureDishes',
+                    aiSuggestionEnabled: true,
+                    gridSpan: 2,
+                },
+            ],
+        },
+        {
+            id: 'delivery-setup',
+            title: 'Delivery & Ordering',
+            icon: '🛵',
+            fields: [
+                {
+                    key: 'homeDelivery',
+                    label: 'Home Delivery Available',
+                    type: 'toggle',
+                    schemaPath: 'restaurantInfo.homeDelivery',
+                },
+                {
+                    key: 'takeaway',
+                    label: 'Takeaway Available',
+                    type: 'toggle',
+                    schemaPath: 'restaurantInfo.takeaway',
+                },
+                {
+                    key: 'deliveryPartners',
+                    label: 'Delivery Partners',
+                    type: 'checkbox-group',
+                    options: [
+                        { value: 'zomato', label: 'Zomato' },
+                        { value: 'swiggy', label: 'Swiggy' },
+                        { value: 'uber_eats', label: 'Uber Eats' },
+                        { value: 'dunzo', label: 'Dunzo' },
+                        { value: 'own_delivery', label: 'Own Delivery Fleet' },
+                    ],
+                    schemaPath: 'restaurantInfo.deliveryPartners',
+                    showCondition: { field: 'homeDelivery', operator: 'equals', value: true },
+                    gridSpan: 2,
+                },
+                {
+                    key: 'deliveryRadius',
+                    label: 'Delivery Radius',
+                    type: 'text',
+                    placeholder: 'e.g., 5 km',
+                    schemaPath: 'restaurantInfo.deliveryRadius',
+                    showCondition: { field: 'homeDelivery', operator: 'equals', value: true },
+                },
+                {
+                    key: 'minimumOrder',
+                    label: 'Minimum Order Value',
+                    type: 'currency',
+                    placeholder: 'e.g., 200',
+                    schemaPath: 'restaurantInfo.minimumOrder',
+                    showCondition: { field: 'homeDelivery', operator: 'equals', value: true },
+                },
+                {
+                    key: 'deliveryFee',
+                    label: 'Delivery Fee',
+                    type: 'currency',
+                    placeholder: 'e.g., 30',
+                    helpText: 'Enter 0 if free delivery',
+                    schemaPath: 'restaurantInfo.deliveryFee',
+                    showCondition: { field: 'homeDelivery', operator: 'equals', value: true },
+                },
+                {
+                    key: 'freeDeliveryAbove',
+                    label: 'Free Delivery Above',
+                    type: 'currency',
+                    placeholder: 'e.g., 500',
+                    schemaPath: 'restaurantInfo.freeDeliveryAbove',
+                    showCondition: { field: 'homeDelivery', operator: 'equals', value: true },
+                },
+                {
+                    key: 'deliveryHours',
+                    label: 'Delivery Hours',
+                    type: 'text',
+                    placeholder: 'e.g., 11 AM - 10 PM',
+                    schemaPath: 'industrySpecificData.deliveryHours',
+                    showCondition: { field: 'homeDelivery', operator: 'equals', value: true },
+                },
+                {
+                    key: 'lastOrderTime',
+                    label: 'Last Order Time',
+                    type: 'text',
+                    placeholder: 'e.g., 10:30 PM',
+                    schemaPath: 'industrySpecificData.lastOrderTime',
+                },
+            ],
+        },
+        {
+            id: 'special-services',
+            title: 'Special Services',
+            icon: '🎉',
+            collapsible: true,
+            defaultExpanded: false,
+            fields: [
+                {
+                    key: 'cateringAvailable',
+                    label: 'Catering Services',
+                    type: 'toggle',
+                    schemaPath: 'industrySpecificData.cateringAvailable',
+                },
+                {
+                    key: 'cateringMinimum',
+                    label: 'Minimum Catering Order',
+                    type: 'currency',
+                    placeholder: 'e.g., 5000',
+                    schemaPath: 'industrySpecificData.cateringMinimum',
+                    showCondition: { field: 'cateringAvailable', operator: 'equals', value: true },
+                },
+                {
+                    key: 'partyBooking',
+                    label: 'Private Party Booking',
+                    type: 'toggle',
+                    schemaPath: 'industrySpecificData.partyBooking',
+                },
+                {
+                    key: 'partyCapacity',
+                    label: 'Max Party Capacity',
+                    type: 'number',
+                    placeholder: 'e.g., 50',
+                    schemaPath: 'industrySpecificData.partyCapacity',
+                    showCondition: { field: 'partyBooking', operator: 'equals', value: true },
+                },
+                {
+                    key: 'happyHours',
+                    label: 'Happy Hours',
+                    type: 'text',
+                    placeholder: 'e.g., 4 PM - 7 PM, Mon-Thu',
+                    schemaPath: 'industrySpecificData.happyHours',
+                    showCondition: { field: 'alcoholServed', operator: 'equals', value: true },
+                },
+                {
+                    key: 'liveMusic',
+                    label: 'Live Music / Entertainment',
+                    type: 'toggle',
+                    schemaPath: 'restaurantInfo.liveMusic',
+                },
+                {
+                    key: 'entertainmentSchedule',
+                    label: 'Entertainment Schedule',
+                    type: 'text',
+                    placeholder: 'e.g., Live band on Fri-Sat, 8 PM',
+                    schemaPath: 'industrySpecificData.entertainmentSchedule',
+                    showCondition: { field: 'liveMusic', operator: 'equals', value: true },
+                },
+            ],
+        },
+    ],
+};
+
+
+// ============================================
 // ALL INDUSTRY EXPERTISE CONFIGS
 // ============================================
 export const ALL_INDUSTRY_EXPERTISE: Record<string, IndustryExpertiseConfig> = {
-    food_beverage: {
-        industryId: 'food_beverage',
-        industryName: 'Food & Beverage',
-        subSections: [], // Defined in main file
-    },
+    food_beverage: FOOD_BEVERAGE_EXPERTISE,
     retail: RETAIL_EXPERTISE,
     healthcare: HEALTHCARE_EXPERTISE,
     education: EDUCATION_EXPERTISE,
@@ -1077,3 +1394,4 @@ export const ALL_INDUSTRY_EXPERTISE: Record<string, IndustryExpertiseConfig> = {
     manufacturing: MANUFACTURING_EXPERTISE,
     other: OTHER_EXPERTISE,
 };
+

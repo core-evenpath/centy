@@ -21,7 +21,11 @@ import {
     HOME_SERVICES_EXPERTISE,
     MANUFACTURING_EXPERTISE,
     OTHER_EXPERTISE,
+    FOOD_BEVERAGE_EXPERTISE,
 } from './industry-expertise-configs';
+
+import { resolveExpertiseSchema } from './expertise-resolver';
+
 
 // ============================================
 // FIELD TYPES
@@ -417,345 +421,8 @@ export interface IndustryExpertiseConfig {
     subSections: SubSectionConfig[];
 }
 
-// Food & Beverage Configuration
-export const FOOD_BEVERAGE_EXPERTISE: IndustryExpertiseConfig = {
-    industryId: 'food_beverage',
-    industryName: 'Food & Beverage',
-    subSections: [
-        {
-            id: 'cuisine-style',
-            title: 'Cuisine & Style',
-            icon: '🍽️',
-            fields: [
-                {
-                    key: 'cuisineTypes',
-                    label: 'Cuisine Types',
-                    type: 'tags',
-                    placeholder: 'Add cuisines...',
-                    helpText: 'e.g., North Indian, Chinese, Italian, Multi-cuisine',
-                    validation: { required: true },
-                    schemaPath: 'restaurantInfo.cuisineTypes',
-                    fetchable: true,
-                    gridSpan: 2,
-                },
-                {
-                    key: 'primaryCuisine',
-                    label: 'Primary Cuisine',
-                    type: 'select',
-                    options: [
-                        { value: 'north_indian', label: 'North Indian' },
-                        { value: 'south_indian', label: 'South Indian' },
-                        { value: 'chinese', label: 'Chinese' },
-                        { value: 'italian', label: 'Italian' },
-                        { value: 'continental', label: 'Continental' },
-                        { value: 'mughlai', label: 'Mughlai' },
-                        { value: 'thai', label: 'Thai' },
-                        { value: 'japanese', label: 'Japanese' },
-                        { value: 'mexican', label: 'Mexican' },
-                        { value: 'multi_cuisine', label: 'Multi-Cuisine' },
-                        { value: 'other', label: 'Other' },
-                    ],
-                    schemaPath: 'restaurantInfo.primaryCuisine',
-                },
-                {
-                    key: 'diningStyle',
-                    label: 'Dining Style',
-                    type: 'multi-select',
-                    options: [
-                        { value: 'fine_dining', label: 'Fine Dining', description: 'Upscale, formal experience' },
-                        { value: 'casual_dining', label: 'Casual Dining', description: 'Relaxed, mid-range' },
-                        { value: 'qsr', label: 'Quick Service (QSR)', description: 'Fast food, counter service' },
-                        { value: 'cafe', label: 'Café', description: 'Coffee, snacks, light meals' },
-                        { value: 'bar_lounge', label: 'Bar / Lounge', description: 'Focus on drinks' },
-                        { value: 'cloud_kitchen', label: 'Cloud Kitchen', description: 'Delivery only' },
-                        { value: 'food_truck', label: 'Food Truck', description: 'Mobile vendor' },
-                        { value: 'takeaway', label: 'Takeaway', description: 'Primarily packed food' },
-                    ],
-                    schemaPath: 'restaurantInfo.diningStyles',
-                    fetchable: true,
-                    gridSpan: 2,
-                },
-                {
-                    key: 'ambiance',
-                    label: 'Ambiance & Vibe',
-                    type: 'tags',
-                    placeholder: 'Describe your atmosphere...',
-                    helpText: 'e.g., Family-friendly, Romantic, Rooftop, Live music, Pet-friendly',
-                    schemaPath: 'industrySpecificData.ambiance',
-                    aiSuggestionEnabled: true,
-                    gridSpan: 2,
-                },
-            ],
-        },
-        {
-            id: 'dining-experience',
-            title: 'Dining Experience',
-            icon: '🪑',
-            fields: [
-                {
-                    key: 'seatingCapacity',
-                    label: 'Seating Capacity',
-                    type: 'number',
-                    placeholder: 'e.g., 80',
-                    schemaPath: 'restaurantInfo.seatingCapacity',
-                    fetchable: true,
-                },
-                {
-                    key: 'seatingTypes',
-                    label: 'Seating Options',
-                    type: 'checkbox-group',
-                    options: [
-                        { value: 'indoor', label: 'Indoor' },
-                        { value: 'outdoor', label: 'Outdoor' },
-                        { value: 'rooftop', label: 'Rooftop' },
-                        { value: 'private_dining', label: 'Private Dining' },
-                        { value: 'bar_seating', label: 'Bar Seating' },
-                        { value: 'booth', label: 'Booth/Cabin' },
-                    ],
-                    schemaPath: 'restaurantInfo.seatingTypes',
-                },
-                {
-                    key: 'reservationMode',
-                    label: 'Reservations',
-                    type: 'radio',
-                    options: [
-                        { value: 'required', label: 'Required' },
-                        { value: 'recommended', label: 'Recommended' },
-                        { value: 'walk_in', label: 'Walk-in Only' },
-                        { value: 'both', label: 'Both Walk-in & Reservations' },
-                    ],
-                    schemaPath: 'restaurantInfo.reservationMode',
-                },
-                {
-                    key: 'reservationLink',
-                    label: 'Reservation Link',
-                    type: 'url',
-                    placeholder: 'e.g., Dineout, EazyDiner, or your booking page',
-                    schemaPath: 'industrySpecificData.reservationLink',
-                    showCondition: { field: 'reservationMode', operator: 'notEquals', value: 'walk_in' },
-                },
-                {
-                    key: 'averageCostForTwo',
-                    label: 'Average Cost for Two',
-                    type: 'currency',
-                    placeholder: 'e.g., 800',
-                    helpText: 'Approximate cost for 2 people (without alcohol)',
-                    schemaPath: 'restaurantInfo.averageCostForTwo',
-                    fetchable: true,
-                },
-                {
-                    key: 'priceRange',
-                    label: 'Price Segment',
-                    type: 'select',
-                    options: [
-                        { value: '$', label: '$ - Budget Friendly', description: 'Under ₹300 for two' },
-                        { value: '$$', label: '$$ - Mid Range', description: '₹300-800 for two' },
-                        { value: '$$$', label: '$$$ - Premium', description: '₹800-1500 for two' },
-                        { value: '$$$$', label: '$$$$ - Luxury', description: 'Above ₹1500 for two' },
-                    ],
-                    schemaPath: 'restaurantInfo.priceRange',
-                },
-            ],
-        },
-        {
-            id: 'dietary-policies',
-            title: 'Dietary & Policies',
-            icon: '🥗',
-            fields: [
-                {
-                    key: 'pureVeg',
-                    label: 'Pure Vegetarian',
-                    type: 'toggle',
-                    helpText: 'No non-veg items served at all',
-                    schemaPath: 'restaurantInfo.pureVeg',
-                    fetchable: true,
-                },
-                {
-                    key: 'dietaryOptions',
-                    label: 'Dietary Options Available',
-                    type: 'checkbox-group',
-                    options: [
-                        { value: 'vegetarian', label: 'Vegetarian' },
-                        { value: 'vegan', label: 'Vegan' },
-                        { value: 'eggetarian', label: 'Eggetarian' },
-                        { value: 'jain', label: 'Jain' },
-                        { value: 'gluten_free', label: 'Gluten-Free' },
-                        { value: 'halal', label: 'Halal' },
-                        { value: 'keto', label: 'Keto-Friendly' },
-                        { value: 'sugar_free', label: 'Sugar-Free' },
-                    ],
-                    schemaPath: 'industrySpecificData.dietaryOptions',
-                    gridSpan: 2,
-                },
-                {
-                    key: 'alcoholServed',
-                    label: 'Alcohol Served',
-                    type: 'toggle',
-                    schemaPath: 'restaurantInfo.alcoholServed',
-                    fetchable: true,
-                },
-                {
-                    key: 'hookahAvailable',
-                    label: 'Hookah Available',
-                    type: 'toggle',
-                    schemaPath: 'restaurantInfo.hookahAvailable',
-                    showCondition: { field: 'alcoholServed', operator: 'equals', value: true },
-                },
-                {
-                    key: 'signatureDishes',
-                    label: 'Signature Dishes',
-                    type: 'tags',
-                    placeholder: 'Add your must-try dishes...',
-                    helpText: 'Your bestsellers and chef specials',
-                    schemaPath: 'industrySpecificData.signatureDishes',
-                    aiSuggestionEnabled: true,
-                    gridSpan: 2,
-                },
-            ],
-        },
-        {
-            id: 'delivery-setup',
-            title: 'Delivery & Ordering',
-            icon: '🛵',
-            fields: [
-                {
-                    key: 'homeDelivery',
-                    label: 'Home Delivery Available',
-                    type: 'toggle',
-                    schemaPath: 'restaurantInfo.homeDelivery',
-                },
-                {
-                    key: 'takeaway',
-                    label: 'Takeaway Available',
-                    type: 'toggle',
-                    schemaPath: 'restaurantInfo.takeaway',
-                },
-                {
-                    key: 'deliveryPartners',
-                    label: 'Delivery Partners',
-                    type: 'checkbox-group',
-                    options: [
-                        { value: 'zomato', label: 'Zomato' },
-                        { value: 'swiggy', label: 'Swiggy' },
-                        { value: 'uber_eats', label: 'Uber Eats' },
-                        { value: 'dunzo', label: 'Dunzo' },
-                        { value: 'own_delivery', label: 'Own Delivery Fleet' },
-                    ],
-                    schemaPath: 'restaurantInfo.deliveryPartners',
-                    showCondition: { field: 'homeDelivery', operator: 'equals', value: true },
-                    gridSpan: 2,
-                },
-                {
-                    key: 'deliveryRadius',
-                    label: 'Delivery Radius',
-                    type: 'text',
-                    placeholder: 'e.g., 5 km',
-                    schemaPath: 'restaurantInfo.deliveryRadius',
-                    showCondition: { field: 'homeDelivery', operator: 'equals', value: true },
-                },
-                {
-                    key: 'minimumOrder',
-                    label: 'Minimum Order Value',
-                    type: 'currency',
-                    placeholder: 'e.g., 200',
-                    schemaPath: 'restaurantInfo.minimumOrder',
-                    showCondition: { field: 'homeDelivery', operator: 'equals', value: true },
-                },
-                {
-                    key: 'deliveryFee',
-                    label: 'Delivery Fee',
-                    type: 'currency',
-                    placeholder: 'e.g., 30',
-                    helpText: 'Enter 0 if free delivery',
-                    schemaPath: 'restaurantInfo.deliveryFee',
-                    showCondition: { field: 'homeDelivery', operator: 'equals', value: true },
-                },
-                {
-                    key: 'freeDeliveryAbove',
-                    label: 'Free Delivery Above',
-                    type: 'currency',
-                    placeholder: 'e.g., 500',
-                    schemaPath: 'restaurantInfo.freeDeliveryAbove',
-                    showCondition: { field: 'homeDelivery', operator: 'equals', value: true },
-                },
-                {
-                    key: 'deliveryHours',
-                    label: 'Delivery Hours',
-                    type: 'text',
-                    placeholder: 'e.g., 11 AM - 10 PM',
-                    schemaPath: 'industrySpecificData.deliveryHours',
-                    showCondition: { field: 'homeDelivery', operator: 'equals', value: true },
-                },
-                {
-                    key: 'lastOrderTime',
-                    label: 'Last Order Time',
-                    type: 'text',
-                    placeholder: 'e.g., 10:30 PM',
-                    schemaPath: 'industrySpecificData.lastOrderTime',
-                },
-            ],
-        },
-        {
-            id: 'special-services',
-            title: 'Special Services',
-            icon: '🎉',
-            collapsible: true,
-            defaultExpanded: false,
-            fields: [
-                {
-                    key: 'cateringAvailable',
-                    label: 'Catering Services',
-                    type: 'toggle',
-                    schemaPath: 'industrySpecificData.cateringAvailable',
-                },
-                {
-                    key: 'cateringMinimum',
-                    label: 'Minimum Catering Order',
-                    type: 'currency',
-                    placeholder: 'e.g., 5000',
-                    schemaPath: 'industrySpecificData.cateringMinimum',
-                    showCondition: { field: 'cateringAvailable', operator: 'equals', value: true },
-                },
-                {
-                    key: 'partyBooking',
-                    label: 'Private Party Booking',
-                    type: 'toggle',
-                    schemaPath: 'industrySpecificData.partyBooking',
-                },
-                {
-                    key: 'partyCapacity',
-                    label: 'Max Party Capacity',
-                    type: 'number',
-                    placeholder: 'e.g., 50',
-                    schemaPath: 'industrySpecificData.partyCapacity',
-                    showCondition: { field: 'partyBooking', operator: 'equals', value: true },
-                },
-                {
-                    key: 'happyHours',
-                    label: 'Happy Hours',
-                    type: 'text',
-                    placeholder: 'e.g., 4 PM - 7 PM, Mon-Thu',
-                    schemaPath: 'industrySpecificData.happyHours',
-                    showCondition: { field: 'alcoholServed', operator: 'equals', value: true },
-                },
-                {
-                    key: 'liveMusic',
-                    label: 'Live Music / Entertainment',
-                    type: 'toggle',
-                    schemaPath: 'restaurantInfo.liveMusic',
-                },
-                {
-                    key: 'entertainmentSchedule',
-                    label: 'Entertainment Schedule',
-                    type: 'text',
-                    placeholder: 'e.g., Live band on Fri-Sat, 8 PM',
-                    schemaPath: 'industrySpecificData.entertainmentSchedule',
-                    showCondition: { field: 'liveMusic', operator: 'equals', value: true },
-                },
-            ],
-        },
-    ],
-};
+// Food & Beverage Configuration moved to industry-expertise-configs.ts
+
 
 // ============================================
 // SECTION 4: AUDIENCE & POSITIONING
@@ -1216,8 +883,8 @@ export const BUSINESS_PROFILE_CONFIG: BusinessProfileConfig = {
 // HELPER FUNCTIONS
 // ============================================
 
+// Keep old function for backward compatibility
 /**
- * Get the complete section config for a given industry
  * @deprecated Use getExpertiseSections() for function-based schema resolution
  */
 export function getProfileSections(industryId: string): SectionConfig[] {
@@ -1239,6 +906,23 @@ export function getProfileSections(industryId: string): SectionConfig[] {
 
     return sections;
 }
+
+/**
+ * Get expertise sections resolved based on selected categories and country
+ * delegates to expertise-resolver.ts
+ */
+export function getExpertiseSections(
+    selectedCategories: any[], // Use any to avoid circular import issues if needed, or import type
+    countryCode: string
+): ResolvedExpertiseSchema {
+    // This will be imported or we can just export it from expertise-resolver
+    // For now, let's assume we import it. 
+    // Actually, to avoid circularity, we can just export it from index.ts or 
+    // keep it in expertise-resolver.ts and import it in the component.
+    // However, following the spec strictly:
+    return resolveExpertiseSchema(selectedCategories, countryCode);
+}
+
 
 /**
  * Get all fetchable fields (for auto-fill feature)

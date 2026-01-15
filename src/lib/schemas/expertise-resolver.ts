@@ -15,6 +15,49 @@ import type { SelectedBusinessCategory, CountryCode } from '../business-taxonomy
 import { BUSINESS_PROFILE_CONFIG } from './business-profile-ui-schema';
 
 /**
+ * Mapping from new taxonomy industryIds to legacy expertise config keys
+ * This bridges the gap between the new business taxonomy and existing expertise configs
+ */
+const INDUSTRY_ID_TO_EXPERTISE_KEY: Record<string, string> = {
+    'financial_services': 'finance',
+    'education_learning': 'education',
+    'healthcare_medical': 'healthcare',
+    'business_professional': 'services',
+    'retail_commerce': 'retail',
+    'food_beverage': 'food_beverage',
+    'food_supply': 'food_beverage', // Uses same expertise as F&B
+    'personal_wellness': 'beauty_wellness',
+    'automotive_mobility': 'automotive',
+    'travel_transport': 'hospitality', // Uses hospitality expertise
+    'hospitality': 'hospitality',
+    'events_entertainment': 'events',
+    'home_property': 'home_services',
+    'public_nonprofit': 'other',
+    // Legacy IDs (for backward compatibility)
+    'finance': 'finance',
+    'education': 'education',
+    'healthcare': 'healthcare',
+    'services': 'services',
+    'retail': 'retail',
+    'beauty_wellness': 'beauty_wellness',
+    'automotive': 'automotive',
+    'events': 'events',
+    'home_services': 'home_services',
+    'real_estate': 'real_estate',
+    'technology': 'technology',
+    'manufacturing': 'manufacturing',
+    'other': 'other',
+};
+
+/**
+ * Get the expertise config key for a given industryId
+ */
+function getExpertiseKey(industryId: string): string {
+    return INDUSTRY_ID_TO_EXPERTISE_KEY[industryId] || industryId;
+}
+
+
+/**
  * Resolve expertise schema for selected business categories
  *
  * @param selectedCategories - Array of selected business categories
@@ -43,7 +86,9 @@ export function resolveExpertiseSchema(
 
     // Process each industry's expertise config
     for (const industryId of industryIds) {
-        const expertiseConfig = BUSINESS_PROFILE_CONFIG.industryExpertise[industryId];
+        // Map new taxonomy industryIds to legacy expertise config keys
+        const expertiseKey = getExpertiseKey(industryId);
+        const expertiseConfig = BUSINESS_PROFILE_CONFIG.industryExpertise[expertiseKey];
         if (!expertiseConfig) continue;
 
         for (const section of expertiseConfig.subSections) {
@@ -54,24 +99,34 @@ export function resolveExpertiseSchema(
             if (seenSectionIds.has(section.id)) {
                 const existingSection = allSections.find(s => s.id === section.id);
                 if (existingSection) {
-                    const newFields = section.fields.filter(f => {
-                        if (seenFieldKeys.has(f.key)) return false;
-                        if (!shouldShowField(f, functionIds, countryCode)) return false;
-                        seenFieldKeys.add(f.key);
-                        return true;
-                    });
+                    const newFields = section.fields
+                        .filter(f => {
+                            if (seenFieldKeys.has(f.key)) return false;
+                            if (!shouldShowField(f, functionIds, countryCode)) return false;
+                            seenFieldKeys.add(f.key);
+                            return true;
+                        })
+                        .map(f => ({
+                            ...f,
+                            validation: getFieldValidation(f, functionIds)
+                        }));
                     existingSection.fields.push(...newFields);
                 }
                 continue;
             }
 
             // Filter fields based on conditions
-            const filteredFields = section.fields.filter(f => {
-                if (seenFieldKeys.has(f.key)) return false;
-                if (!shouldShowField(f, functionIds, countryCode)) return false;
-                seenFieldKeys.add(f.key);
-                return true;
-            });
+            const filteredFields = section.fields
+                .filter(f => {
+                    if (seenFieldKeys.has(f.key)) return false;
+                    if (!shouldShowField(f, functionIds, countryCode)) return false;
+                    seenFieldKeys.add(f.key);
+                    return true;
+                })
+                .map(f => ({
+                    ...f,
+                    validation: getFieldValidation(f, functionIds)
+                }));
 
             // Only add section if it has visible fields
             if (filteredFields.length > 0) {

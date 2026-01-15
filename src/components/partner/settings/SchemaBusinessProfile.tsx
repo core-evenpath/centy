@@ -12,10 +12,12 @@ import {
 import { cn } from '@/lib/utils';
 import { BusinessPersona } from '@/lib/business-persona-types';
 import {
-    getProfileSections,
+    getExpertiseSections,
+    BUSINESS_PROFILE_CONFIG,
     type SectionConfig,
     type FieldConfig,
 } from '@/lib/schemas';
+
 import {
     getIndustries,
     getResolvedFunctions,
@@ -64,6 +66,8 @@ const CATEGORY_ICONS: Record<string, LucideIcon> = {
     Wrench,
     MoreHorizontal,
 };
+
+const EMPTY_CATEGORIES: any[] = [];
 
 // ===== PROPS =====
 interface SchemaBusinessProfileProps {
@@ -587,8 +591,11 @@ export default function SchemaBusinessProfile({
     const [categorySearch, setCategorySearch] = useState('');
 
     // Get currently selected categories from persona
-    const selectedCategories: SelectedBusinessCategory[] =
-        (persona.identity as any)?.businessCategories || [];
+    const selectedCategories: SelectedBusinessCategory[] = useMemo(() =>
+        (persona.identity as any)?.businessCategories || EMPTY_CATEGORIES,
+        [(persona.identity as any)?.businessCategories]
+    );
+
     const [pendingSelections, setPendingSelections] = useState<string[]>(
         selectedCategories.map(c => c.functionId)
     );
@@ -610,18 +617,37 @@ export default function SchemaBusinessProfile({
         return category || 'services';
     }, [selectedCategories, persona.identity]);
 
-    // Get profile sections based on industry
+    // Get profile sections based on industry/functions
     const sections = useMemo(() => {
-        return getProfileSections(primaryIndustryId);
-    }, [primaryIndustryId]);
+        const baseSections = [...BUSINESS_PROFILE_CONFIG.sections];
 
-    // Sync pending selections when modal opens
+        // Resolve expertise schema based on selected categories
+        const expertiseSchema = getExpertiseSections(selectedCategories, selectedCountry);
+
+        if (expertiseSchema.sections.length > 0) {
+            const expertiseSection: SectionConfig = {
+                id: 'expertise',
+                title: 'Expertise & Specializations',
+                icon: '⭐',
+                description: 'Function-specific details across your business categories',
+                industrySpecific: true,
+                subSections: expertiseSchema.sections,
+            };
+            // Insert at position 2 (after Brand Identity and Location/Hours)
+            baseSections.splice(2, 0, expertiseSection);
+        }
+
+        return baseSections;
+    }, [selectedCategories, selectedCountry]);
+
+
+    // Sync pending selections ONLY when modal opens
     useEffect(() => {
         if (showCategoryModal) {
             setPendingSelections(selectedCategories.map(c => c.functionId));
             setCategorySearch('');
         }
-    }, [showCategoryModal, selectedCategories]);
+    }, [showCategoryModal]); // Only run when modal visibility changes
 
     // Helper to safely get nested values
     const get = (path: string, def: any = '') => {
@@ -830,7 +856,7 @@ export default function SchemaBusinessProfile({
 
                         {/* Schema-Driven Sections */}
                         <div className="space-y-4">
-                            {sections.map((section, idx) => {
+                            {sections.map((section: SectionConfig, idx: number) => {
                                 const Icon = SECTION_ICONS[section.id] || Building2;
                                 const bg = SECTION_COLORS[section.id] || 'bg-slate-500';
 
@@ -844,7 +870,7 @@ export default function SchemaBusinessProfile({
                                         description={section.description}
                                     >
                                         <div className="space-y-6">
-                                            {section.subSections.map(subSection => (
+                                            {section.subSections.map((subSection: any) => (
                                                 <div key={subSection.id} className="space-y-3">
                                                     {/* SubSection Header */}
                                                     <div className="flex items-center gap-2 pb-2 border-b border-slate-100">
@@ -857,7 +883,7 @@ export default function SchemaBusinessProfile({
                                                         "grid gap-4",
                                                         subSection.fields.length > 2 ? "grid-cols-1 lg:grid-cols-2" : "grid-cols-1"
                                                     )}>
-                                                        {subSection.fields.map(field => {
+                                                        {subSection.fields.map((field: FieldConfig) => {
                                                             const value = get(field.schemaPath);
                                                             const currentTags = Array.isArray(value) ? value : [];
 

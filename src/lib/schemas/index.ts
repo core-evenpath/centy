@@ -15,6 +15,10 @@ export * from './industry-expertise-configs';
 // Modules
 export * from './modules-ui-schema';
 
+// Expertise Resolver
+export * from './expertise-resolver';
+
+
 // Re-export key types for convenience
 export type {
     FieldConfig,
