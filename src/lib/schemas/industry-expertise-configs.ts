@@ -133,20 +133,11 @@ export const EDUCATION_EXPERTISE: IndustryExpertiseConfig = {
     industryName: 'Education',
     subSections: [
         {
-            id: 'institution-info',
-            title: 'Institution Information',
+            // RENAMED: Removed institutionType dropdown - now driven by category selection
+            id: 'courses-info',
+            title: 'Courses & Programs',
             icon: '🎓',
             fields: [
-                {
-                    key: 'institutionType', label: 'Institution Type', type: 'select', options: [
-                        { value: 'school', label: 'School (K-12)' },
-                        { value: 'college', label: 'College/University' },
-                        { value: 'coaching', label: 'Coaching Institute' },
-                        { value: 'tutoring', label: 'Private Tutoring' },
-                        { value: 'skill_training', label: 'Skill Training Center' },
-                        { value: 'online_platform', label: 'Online Learning Platform' },
-                    ], schemaPath: 'industrySpecificData.institutionType'
-                },
                 { key: 'subjects', label: 'Subjects/Courses Offered', type: 'tags', placeholder: 'e.g., Mathematics, Science, Programming', schemaPath: 'industrySpecificData.subjects', gridSpan: 2 },
                 { key: 'boards', label: 'Boards/Affiliations', type: 'tags', placeholder: 'e.g., CBSE, ICSE, State Board', schemaPath: 'industrySpecificData.boards', gridSpan: 2 },
                 { key: 'ageGroups', label: 'Age Groups Served', type: 'tags', placeholder: 'e.g., 5-10 years, College students', schemaPath: 'industrySpecificData.ageGroups' },
@@ -342,22 +333,11 @@ export const SERVICES_EXPERTISE: IndustryExpertiseConfig = {
     industryName: 'Professional Services',
     subSections: [
         {
-            id: 'service-type',
+            // RENAMED: Removed serviceType dropdown - now driven by category selection
+            id: 'services-info',
             title: 'Service Information',
             icon: '💼',
             fields: [
-                {
-                    key: 'serviceType', label: 'Service Category', type: 'select', options: [
-                        { value: 'consulting', label: 'Consulting' },
-                        { value: 'legal', label: 'Legal Services' },
-                        { value: 'accounting', label: 'Accounting/CA' },
-                        { value: 'marketing', label: 'Marketing/Advertising' },
-                        { value: 'it_services', label: 'IT Services' },
-                        { value: 'recruitment', label: 'Recruitment/HR' },
-                        { value: 'design', label: 'Design Services' },
-                        { value: 'other', label: 'Other' },
-                    ], schemaPath: 'industrySpecificData.serviceType'
-                },
                 { key: 'servicesOffered', label: 'Services Offered', type: 'tags', placeholder: 'e.g., Tax Filing, Company Registration, GST', schemaPath: 'industrySpecificData.servicesOffered', gridSpan: 2 },
                 { key: 'industries', label: 'Industries Served', type: 'tags', placeholder: 'e.g., Startups, Healthcare, E-commerce', schemaPath: 'industrySpecificData.industriesServed', gridSpan: 2 },
             ],
@@ -408,21 +388,11 @@ export const BEAUTY_WELLNESS_EXPERTISE: IndustryExpertiseConfig = {
     industryName: 'Beauty & Wellness',
     subSections: [
         {
-            id: 'business-info',
-            title: 'Business Information',
+            // RENAMED: Removed businessType dropdown - now driven by category selection
+            id: 'services-info',
+            title: 'Services & Offerings',
             icon: '💅',
             fields: [
-                {
-                    key: 'businessType', label: 'Business Type', type: 'select', options: [
-                        { value: 'salon', label: 'Salon' },
-                        { value: 'spa', label: 'Spa' },
-                        { value: 'gym', label: 'Gym/Fitness Center' },
-                        { value: 'yoga_studio', label: 'Yoga Studio' },
-                        { value: 'beauty_parlor', label: 'Beauty Parlor' },
-                        { value: 'wellness_center', label: 'Wellness Center' },
-                        { value: 'at_home', label: 'At-Home Services' },
-                    ], schemaPath: 'industrySpecificData.businessType'
-                },
                 { key: 'servicesOffered', label: 'Services Offered', type: 'tags', placeholder: 'e.g., Haircut, Facial, Massage, Personal Training', schemaPath: 'industrySpecificData.servicesOffered', gridSpan: 2 },
                 {
                     key: 'targetGender', label: 'Target Gender', type: 'radio', options: [
@@ -475,26 +445,11 @@ export const FINANCE_EXPERTISE: IndustryExpertiseConfig = {
     industryName: 'Finance',
     subSections: [
         {
-            id: 'business-type',
-            title: 'Business Type & Services',
+            // RENAMED: Removed businessType dropdown - now driven by category selection
+            id: 'services-offerings',
+            title: 'Services & Offerings',
             icon: '🏦',
             fields: [
-                {
-                    key: 'businessType', label: 'Business Type', type: 'select', options: [
-                        { value: 'mutual_fund_distributor', label: 'Mutual Fund Distributor' },
-                        { value: 'investment_advisor', label: 'SEBI Registered Investment Advisor (RIA)' },
-                        { value: 'insurance_agent', label: 'Insurance Agent/Broker' },
-                        { value: 'loan_agent', label: 'Loan Agent/DSA' },
-                        { value: 'wealth_manager', label: 'Wealth Manager' },
-                        { value: 'ca_firm', label: 'CA/Accounting Firm' },
-                        { value: 'tax_consultant', label: 'Tax Consultant' },
-                        { value: 'financial_planner', label: 'Certified Financial Planner' },
-                        { value: 'stock_broker', label: 'Stock Broker' },
-                        { value: 'nbfc', label: 'NBFC' },
-                        { value: 'fintech', label: 'Fintech Platform' },
-                        { value: 'multi_service', label: 'Multi-Service Financial Firm' },
-                    ], schemaPath: 'industrySpecificData.businessType'
-                },
                 {
                     key: 'primaryServices', label: 'Primary Services', type: 'multi-select', options: [
                         { value: 'mutual_funds', label: 'Mutual Fund Distribution', description: 'SIP, Lumpsum investments' },
@@ -519,9 +474,11 @@ export const FINANCE_EXPERTISE: IndustryExpertiseConfig = {
             ],
         },
         {
-            id: 'products-offerings',
-            title: 'Products & Offerings',
+            // NEW: Section-level condition - Investment products for investment-focused functions
+            id: 'investment-products',
+            title: 'Investment Products',
             icon: '📊',
+            showForFunctions: ['mutual_fund_distributor', 'investment_advisor', 'wealth_manager', 'stock_broker', 'financial_planner'],
             fields: [
                 {
                     key: 'investmentProducts', label: 'Investment Products', type: 'checkbox-group', options: [
@@ -539,6 +496,15 @@ export const FINANCE_EXPERTISE: IndustryExpertiseConfig = {
                         { value: 'international', label: 'International Funds' },
                     ], schemaPath: 'industrySpecificData.investmentProducts', gridSpan: 2
                 },
+            ],
+        },
+        {
+            // NEW: Section-level condition - Insurance products only for insurance agents
+            id: 'insurance-products',
+            title: 'Insurance Products',
+            icon: '🛡️',
+            showForFunctions: ['insurance_agent'],
+            fields: [
                 {
                     key: 'insuranceProducts', label: 'Insurance Products', type: 'checkbox-group', options: [
                         { value: 'term_life', label: 'Term Life Insurance' },
@@ -555,6 +521,16 @@ export const FINANCE_EXPERTISE: IndustryExpertiseConfig = {
                         { value: 'group_insurance', label: 'Group/Corporate Insurance' },
                     ], schemaPath: 'industrySpecificData.insuranceProducts', gridSpan: 2
                 },
+                { key: 'insuranceCompanies', label: 'Insurance Companies', type: 'tags', placeholder: 'e.g., LIC, HDFC Life, ICICI Prudential', schemaPath: 'industrySpecificData.insuranceCompanies', gridSpan: 2 },
+            ],
+        },
+        {
+            // NEW: Section-level condition - Loan products only for lending functions
+            id: 'loan-products',
+            title: 'Loan Products',
+            icon: '💳',
+            showForFunctions: ['loan_agent', 'microfinance', 'nbfc'],
+            fields: [
                 {
                     key: 'loanProducts', label: 'Loan Products', type: 'checkbox-group', options: [
                         { value: 'home_loan', label: 'Home Loan' },
@@ -571,33 +547,71 @@ export const FINANCE_EXPERTISE: IndustryExpertiseConfig = {
                         { value: 'working_capital', label: 'Working Capital' },
                     ], schemaPath: 'industrySpecificData.loanProducts', gridSpan: 2
                 },
-                { key: 'partnerBanks', label: 'Partner Banks/AMCs/Insurers', type: 'tags', placeholder: 'e.g., HDFC, ICICI, SBI, Axis, LIC, Max Life', schemaPath: 'industrySpecificData.partnerInstitutions', gridSpan: 2, fetchable: true },
+                { key: 'lendingPartners', label: 'Lending Partners', type: 'tags', placeholder: 'e.g., HDFC, ICICI, Bajaj Finance', schemaPath: 'industrySpecificData.lendingPartners', gridSpan: 2 },
             ],
         },
         {
-            id: 'licensing',
-            title: 'Licensing & Compliance',
+            id: 'regulatory-info',
+            title: 'Regulatory & Compliance',
             icon: '📜',
             fields: [
+                // ARN Number - only for Mutual Fund Distributors
                 {
-                    key: 'regulatoryRegistrations', label: 'Regulatory Registrations', type: 'checkbox-group', options: [
-                        { value: 'amfi', label: 'AMFI Registered (ARN)' },
-                        { value: 'sebi_ria', label: 'SEBI RIA' },
-                        { value: 'sebi_ra', label: 'SEBI Research Analyst' },
-                        { value: 'irdai_life', label: 'IRDAI - Life Insurance' },
-                        { value: 'irdai_general', label: 'IRDAI - General Insurance' },
-                        { value: 'irdai_composite', label: 'IRDAI - Composite Broker' },
-                        { value: 'sebi_broker', label: 'SEBI Stock Broker' },
-                        { value: 'pfrda', label: 'PFRDA (NPS)' },
-                        { value: 'rbi_nbfc', label: 'RBI Registered NBFC' },
-                        { value: 'icai', label: 'ICAI (CA)' },
-                        { value: 'fpsb', label: 'FPSB India (CFP)' },
-                    ], schemaPath: 'industrySpecificData.regulatoryRegistrations', gridSpan: 2, validation: { required: true }
+                    key: 'arnNumber',
+                    label: 'AMFI ARN Number',
+                    type: 'text',
+                    placeholder: 'e.g., ARN-123456',
+                    schemaPath: 'industrySpecificData.arnNumber',
+                    showForFunctions: ['mutual_fund_distributor'],
+                    requiredForFunctions: ['mutual_fund_distributor'],
                 },
-                { key: 'arnNumber', label: 'ARN Number', type: 'text', placeholder: 'e.g., ARN-123456', schemaPath: 'industrySpecificData.arnNumber', showCondition: { field: 'regulatoryRegistrations', operator: 'contains', value: 'amfi' } },
-                { key: 'sebiRegNumber', label: 'SEBI Registration No.', type: 'text', placeholder: 'e.g., INA000012345', schemaPath: 'industrySpecificData.sebiRegNumber' },
-                { key: 'irdaiLicenseNumber', label: 'IRDAI License No.', type: 'text', placeholder: 'e.g., IRDAI/DB/123', schemaPath: 'industrySpecificData.irdaiLicenseNumber' },
-                { key: 'gstNumber', label: 'GST Number', type: 'text', placeholder: 'e.g., 29ABCDE1234F1Z5', schemaPath: 'industrySpecificData.gstNumber' },
+                // SEBI Registration - for investment advisors, stock brokers, wealth managers
+                {
+                    key: 'sebiRegNumber',
+                    label: 'SEBI Registration No.',
+                    type: 'text',
+                    placeholder: 'e.g., INA000012345',
+                    schemaPath: 'industrySpecificData.sebiRegNumber',
+                    showForFunctions: ['investment_advisor', 'stock_broker', 'wealth_manager'],
+                },
+                // IRDAI License - only for Insurance Agents
+                {
+                    key: 'irdaiLicenseNumber',
+                    label: 'IRDAI License No.',
+                    type: 'text',
+                    placeholder: 'e.g., IRDAI/DB/123',
+                    schemaPath: 'industrySpecificData.irdaiLicenseNumber',
+                    showForFunctions: ['insurance_agent'],
+                    requiredForFunctions: ['insurance_agent'],
+                },
+                // RBI Registration - for NBFCs and microfinance
+                {
+                    key: 'rbiRegistration',
+                    label: 'RBI Registration No.',
+                    type: 'text',
+                    placeholder: 'e.g., N-13.02215',
+                    schemaPath: 'industrySpecificData.rbiRegistration',
+                    showForFunctions: ['microfinance', 'nbfc', 'fintech'],
+                },
+                // ICAI Membership - for CA firms
+                {
+                    key: 'icaiMembershipNumber',
+                    label: 'ICAI Membership No.',
+                    type: 'text',
+                    placeholder: 'e.g., 123456',
+                    schemaPath: 'industrySpecificData.icaiMembershipNumber',
+                    showForFunctions: ['ca_firm', 'tax_consultant'],
+                },
+                // GST Number - India only
+                {
+                    key: 'gstNumber',
+                    label: 'GST Number',
+                    type: 'text',
+                    placeholder: 'e.g., 29ABCDE1234F1Z5',
+                    schemaPath: 'industrySpecificData.gstNumber',
+                    showForCountries: ['IN'],
+                },
+                // Professional certifications - all functions
                 { key: 'professionalCertifications', label: 'Professional Certifications', type: 'tags', placeholder: 'e.g., CFP, CFA, NISM Series', schemaPath: 'industrySpecificData.professionalCertifications', gridSpan: 2 },
                 { key: 'insuranceCover', label: 'Professional Indemnity Insurance', type: 'toggle', schemaPath: 'industrySpecificData.insuranceCover' },
                 { key: 'insuranceCoverAmount', label: 'Indemnity Cover Amount', type: 'currency', placeholder: 'e.g., 5000000', schemaPath: 'industrySpecificData.insuranceCoverAmount', showCondition: { field: 'insuranceCover', operator: 'equals', value: true } },
@@ -622,8 +636,31 @@ export const FINANCE_EXPERTISE: IndustryExpertiseConfig = {
                         { value: 'corporate', label: 'Corporate/Institutions' },
                     ], schemaPath: 'industrySpecificData.clientTypes', gridSpan: 2
                 },
-                { key: 'minInvestment', label: 'Minimum Investment/Portfolio', type: 'currency', placeholder: 'e.g., 100000', helpText: 'Minimum portfolio size you typically work with', schemaPath: 'industrySpecificData.minInvestment' },
-                { key: 'typicalPortfolio', label: 'Typical Client Portfolio Size', type: 'text', placeholder: 'e.g., ₹10L - ₹1Cr', schemaPath: 'industrySpecificData.typicalPortfolio' },
+                // Portfolio-related fields - only for investment functions
+                {
+                    key: 'minInvestment',
+                    label: 'Minimum Investment/Portfolio',
+                    type: 'currency',
+                    placeholder: 'e.g., 100000',
+                    helpText: 'Minimum portfolio size you typically work with',
+                    schemaPath: 'industrySpecificData.minInvestment',
+                    showForFunctions: ['mutual_fund_distributor', 'investment_advisor', 'wealth_manager'],
+                },
+                {
+                    key: 'typicalPortfolio',
+                    label: 'Typical Client Portfolio Size',
+                    type: 'select',
+                    options: [
+                        { value: 'under_1l', label: 'Under ₹1 Lakh' },
+                        { value: '1l_5l', label: '₹1-5 Lakhs' },
+                        { value: '5l_25l', label: '₹5-25 Lakhs' },
+                        { value: '25l_1cr', label: '₹25L - 1 Crore' },
+                        { value: '1cr_5cr', label: '₹1-5 Crores' },
+                        { value: 'above_5cr', label: 'Above ₹5 Crores' },
+                    ],
+                    schemaPath: 'industrySpecificData.typicalPortfolio',
+                    showForFunctions: ['mutual_fund_distributor', 'investment_advisor', 'wealth_manager'],
+                },
                 {
                     key: 'investmentApproach', label: 'Investment Approach', type: 'multi-select', options: [
                         { value: 'goal_based', label: 'Goal-Based Planning' },
@@ -634,10 +671,23 @@ export const FINANCE_EXPERTISE: IndustryExpertiseConfig = {
                         { value: 'active', label: 'Active Management' },
                         { value: 'tactical', label: 'Tactical Asset Allocation' },
                         { value: 'holistic', label: 'Holistic Financial Planning' },
-                    ], schemaPath: 'industrySpecificData.investmentApproach', gridSpan: 2
+                    ], schemaPath: 'industrySpecificData.investmentApproach', gridSpan: 2,
+                    showForFunctions: ['mutual_fund_distributor', 'investment_advisor', 'wealth_manager', 'financial_planner', 'stock_broker'],
                 },
-                { key: 'riskAssessment', label: 'Risk Assessment Done', type: 'toggle', helpText: 'Do you conduct formal risk profiling?', schemaPath: 'industrySpecificData.riskAssessment' },
-                { key: 'financialPlanProvided', label: 'Written Financial Plan Provided', type: 'toggle', schemaPath: 'industrySpecificData.financialPlanProvided' },
+                {
+                    key: 'consultationModes',
+                    label: 'Consultation Modes',
+                    type: 'checkbox-group',
+                    options: [
+                        { value: 'in_person', label: 'In-Person' },
+                        { value: 'video_call', label: 'Video Call' },
+                        { value: 'phone', label: 'Phone' },
+                        { value: 'whatsapp', label: 'WhatsApp' },
+                        { value: 'email', label: 'Email' },
+                    ],
+                    schemaPath: 'industrySpecificData.consultationModes',
+                    gridSpan: 2
+                },
             ],
         },
         {
@@ -673,7 +723,14 @@ export const FINANCE_EXPERTISE: IndustryExpertiseConfig = {
             fields: [
                 { key: 'yearsInBusiness', label: 'Years in Business', type: 'number', placeholder: 'e.g., 10', schemaPath: 'industrySpecificData.yearsInBusiness' },
                 { key: 'clientsServed', label: 'Clients Served', type: 'text', placeholder: 'e.g., 500+ families', schemaPath: 'industrySpecificData.clientsServed' },
-                { key: 'aumManaged', label: 'AUM Managed (approx)', type: 'text', placeholder: 'e.g., ₹50 Crores', schemaPath: 'industrySpecificData.aumManaged' },
+                {
+                    key: 'aumManaged',
+                    label: 'AUM Managed (approx)',
+                    type: 'text',
+                    placeholder: 'e.g., ₹50 Crores',
+                    schemaPath: 'industrySpecificData.aumManaged',
+                    showForFunctions: ['mutual_fund_distributor', 'investment_advisor', 'wealth_manager'],
+                },
                 { key: 'teamSize', label: 'Team Size', type: 'select', options: [
                     { value: 'solo', label: 'Solo Practitioner' },
                     { value: '2-5', label: '2-5 members' },
@@ -696,22 +753,11 @@ export const TECHNOLOGY_EXPERTISE: IndustryExpertiseConfig = {
     industryName: 'Technology',
     subSections: [
         {
-            id: 'business-type',
-            title: 'Business Type',
+            // RENAMED: Removed businessType dropdown - now driven by category selection
+            id: 'tech-stack',
+            title: 'Technology & Services',
             icon: '💻',
             fields: [
-                {
-                    key: 'businessType', label: 'Business Type', type: 'select', options: [
-                        { value: 'saas', label: 'SaaS Product' },
-                        { value: 'software_dev', label: 'Software Development' },
-                        { value: 'it_services', label: 'IT Services' },
-                        { value: 'app_development', label: 'App Development' },
-                        { value: 'web_development', label: 'Web Development' },
-                        { value: 'ai_ml', label: 'AI/ML Solutions' },
-                        { value: 'cybersecurity', label: 'Cybersecurity' },
-                        { value: 'cloud_services', label: 'Cloud Services' },
-                    ], schemaPath: 'industrySpecificData.businessType'
-                },
                 { key: 'techStack', label: 'Tech Stack', type: 'tags', placeholder: 'e.g., React, Node.js, AWS, Python', schemaPath: 'industrySpecificData.techStack', gridSpan: 2 },
                 { key: 'industries', label: 'Industries Served', type: 'tags', placeholder: 'e.g., Healthcare, Fintech, E-commerce', schemaPath: 'industrySpecificData.industriesServed', gridSpan: 2 },
             ],
@@ -772,21 +818,11 @@ export const AUTOMOTIVE_EXPERTISE: IndustryExpertiseConfig = {
     industryName: 'Automotive',
     subSections: [
         {
-            id: 'business-type',
-            title: 'Business Type',
+            // RENAMED: Removed businessType dropdown - now driven by category selection
+            id: 'vehicles-brands',
+            title: 'Vehicles & Brands',
             icon: '🚗',
             fields: [
-                {
-                    key: 'businessType', label: 'Business Type', type: 'select', options: [
-                        { value: 'dealership', label: 'Car Dealership' },
-                        { value: 'service_center', label: 'Service Center' },
-                        { value: 'spare_parts', label: 'Spare Parts' },
-                        { value: 'used_cars', label: 'Used Car Dealer' },
-                        { value: 'rental', label: 'Car Rental' },
-                        { value: 'accessories', label: 'Accessories Shop' },
-                        { value: 'detailing', label: 'Car Wash/Detailing' },
-                    ], schemaPath: 'industrySpecificData.businessType'
-                },
                 { key: 'brands', label: 'Brands Handled', type: 'tags', placeholder: 'e.g., Maruti, Hyundai, Tata, BMW', schemaPath: 'industrySpecificData.brands', gridSpan: 2 },
                 {
                     key: 'vehicleTypes', label: 'Vehicle Types', type: 'checkbox-group', options: [
@@ -841,22 +877,11 @@ export const EVENTS_EXPERTISE: IndustryExpertiseConfig = {
     industryName: 'Events',
     subSections: [
         {
-            id: 'business-type',
-            title: 'Business Type',
+            // RENAMED: Removed businessType dropdown - now driven by category selection
+            id: 'event-details',
+            title: 'Event Details',
             icon: '🎉',
             fields: [
-                {
-                    key: 'businessType', label: 'Business Type', type: 'select', options: [
-                        { value: 'event_planner', label: 'Event Planner' },
-                        { value: 'wedding_planner', label: 'Wedding Planner' },
-                        { value: 'photographer', label: 'Photographer' },
-                        { value: 'videographer', label: 'Videographer' },
-                        { value: 'caterer', label: 'Caterer' },
-                        { value: 'decorator', label: 'Decorator' },
-                        { value: 'venue', label: 'Venue' },
-                        { value: 'dj_entertainer', label: 'DJ/Entertainment' },
-                    ], schemaPath: 'industrySpecificData.businessType'
-                },
                 { key: 'eventTypes', label: 'Event Types', type: 'tags', placeholder: 'e.g., Weddings, Corporate, Birthday, Concerts', schemaPath: 'industrySpecificData.eventTypes', gridSpan: 2 },
                 { key: 'experienceYears', label: 'Years of Experience', type: 'number', placeholder: 'e.g., 8', schemaPath: 'industrySpecificData.experienceYears' },
             ],
@@ -901,24 +926,11 @@ export const HOME_SERVICES_EXPERTISE: IndustryExpertiseConfig = {
     industryName: 'Home Services',
     subSections: [
         {
-            id: 'service-type',
-            title: 'Service Type',
+            // RENAMED: Removed serviceType dropdown - now driven by category selection
+            id: 'services-info',
+            title: 'Services Information',
             icon: '🔧',
             fields: [
-                {
-                    key: 'serviceType', label: 'Service Type', type: 'select', options: [
-                        { value: 'plumbing', label: 'Plumbing' },
-                        { value: 'electrical', label: 'Electrical' },
-                        { value: 'carpentry', label: 'Carpentry' },
-                        { value: 'cleaning', label: 'Cleaning' },
-                        { value: 'painting', label: 'Painting' },
-                        { value: 'pest_control', label: 'Pest Control' },
-                        { value: 'appliance_repair', label: 'Appliance Repair' },
-                        { value: 'ac_service', label: 'AC Service' },
-                        { value: 'interior', label: 'Interior Work' },
-                        { value: 'multi_service', label: 'Multi-Service' },
-                    ], schemaPath: 'industrySpecificData.serviceType'
-                },
                 { key: 'servicesOffered', label: 'Specific Services', type: 'tags', placeholder: 'e.g., Leak Repair, Wiring, Deep Cleaning', schemaPath: 'industrySpecificData.servicesOffered', gridSpan: 2 },
                 { key: 'brandsServiced', label: 'Brands Serviced', type: 'tags', placeholder: 'e.g., LG, Samsung, Voltas', schemaPath: 'industrySpecificData.brandsServiced', gridSpan: 2 },
             ],

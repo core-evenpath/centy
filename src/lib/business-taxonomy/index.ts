@@ -10,6 +10,9 @@ export * from './industries';
 export * from './country-overrides';
 export * from './countries';
 
+// Platform Mappings
+export * from './platform-mappings';
+
 import { Industry, BusinessFunction, CountryCode, ResolvedFunction, SelectedBusinessCategory } from './types';
 import { INDUSTRIES, BUSINESS_FUNCTIONS, SPECIALIZATIONS } from './industries';
 import { getFunctionOverride, hasCountryOverrides } from './country-overrides';

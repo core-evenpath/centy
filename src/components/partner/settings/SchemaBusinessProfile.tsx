@@ -13,8 +13,11 @@ import { cn } from '@/lib/utils';
 import { BusinessPersona } from '@/lib/business-persona-types';
 import {
     getProfileSections,
+    getExpertiseSections,
+    getProfileSectionsV2,
     type SectionConfig,
     type FieldConfig,
+    type ResolvedExpertiseSchema,
 } from '@/lib/schemas';
 import {
     getIndustries,
@@ -599,7 +602,7 @@ export default function SchemaBusinessProfile({
     // Get industries from taxonomy
     const industries = getIndustries();
 
-    // Get the primary industry ID for schema sections
+    // Get the primary industry ID for schema sections (kept for backward compatibility)
     const primaryIndustryId = useMemo(() => {
         if (selectedCategories.length > 0) {
             return selectedCategories[0].industryId;
@@ -610,10 +613,16 @@ export default function SchemaBusinessProfile({
         return category || 'services';
     }, [selectedCategories, persona.identity]);
 
-    // Get profile sections based on industry
+    // Use new resolver for function-based schema resolution
     const sections = useMemo(() => {
-        return getProfileSections(primaryIndustryId);
-    }, [primaryIndustryId]);
+        // Use new V2 resolver that supports function-based field conditions
+        return getProfileSectionsV2(selectedCategories, selectedCountry);
+    }, [selectedCategories, selectedCountry]);
+
+    // Get active function IDs for field filtering
+    const activeFunctionIds = useMemo(() => {
+        return selectedCategories.map(c => c.functionId);
+    }, [selectedCategories]);
 
     // Sync pending selections when modal opens
     useEffect(() => {
@@ -798,6 +807,35 @@ export default function SchemaBusinessProfile({
                                 </button>
                             </div>
                         </div>
+
+                        {/* Business Type Display Banner - Read Only */}
+                        {selectedCategories.length > 0 && (
+                            <div className="bg-gradient-to-r from-indigo-50 to-purple-50 border border-indigo-100 rounded-xl p-4 mb-6">
+                                <div className="flex items-center gap-2 mb-2">
+                                    <Building2 className="w-4 h-4 text-indigo-600" />
+                                    <span className="text-sm font-medium text-indigo-900">Business Type</span>
+                                </div>
+                                <div className="flex flex-wrap gap-2">
+                                    {selectedCategories.map((cat, idx) => (
+                                        <span
+                                            key={cat.functionId}
+                                            className={cn(
+                                                "px-3 py-1.5 rounded-lg text-sm font-medium",
+                                                idx === 0
+                                                    ? "bg-indigo-600 text-white"
+                                                    : "bg-white border border-indigo-200 text-indigo-700"
+                                            )}
+                                        >
+                                            {cat.label}
+                                            {idx === 0 && <span className="ml-1 text-indigo-200">(Primary)</span>}
+                                        </span>
+                                    ))}
+                                </div>
+                                <p className="text-xs text-indigo-600 mt-2">
+                                    Change your business type in the Business Category section above
+                                </p>
+                            </div>
+                        )}
 
                         {/* Schema-Driven Sections */}
                         <div className="space-y-4">

@@ -80,11 +80,29 @@ export interface FieldConfig {
     options?: FieldOption[];
     defaultValue?: any;
     schemaPath: string;           // Maps to BusinessPersona path
-    showCondition?: {             // Conditional display
+
+    // Value-based conditional display
+    showCondition?: {
         field: string;
         operator: 'equals' | 'notEquals' | 'contains' | 'notEmpty';
         value?: any;
     };
+
+    // Function-based conditions (NEW)
+    showForFunctions?: string[];      // Only show for these function IDs
+    hideForFunctions?: string[];      // Hide for these function IDs
+    requiredForFunctions?: string[];  // Required only for these function IDs
+
+    // Country-based conditions (NEW)
+    showForCountries?: string[];      // Only show for these country codes
+    hideForCountries?: string[];      // Hide for these country codes
+
+    // Attribute-based conditions (NEW)
+    showForAttributes?: {
+        deliveryMode?: ('online' | 'offline' | 'hybrid')[];
+        customerType?: ('B2C' | 'B2B' | 'B2B2C')[];
+    };
+
     gridSpan?: 1 | 2;             // For 2-column layouts
     aiSuggestionEnabled?: boolean; // Can AI suggest values?
     fetchable?: boolean;          // Can be auto-filled from web?
@@ -98,6 +116,20 @@ export interface SubSectionConfig {
     fields: FieldConfig[];
     collapsible?: boolean;
     defaultExpanded?: boolean;
+
+    // Section-level function conditions (NEW)
+    showForFunctions?: string[];
+    hideForFunctions?: string[];
+}
+
+/**
+ * Resolved expertise schema after applying function/country conditions
+ */
+export interface ResolvedExpertiseSchema {
+    sections: SubSectionConfig[];
+    primaryFunctionId: string;
+    allFunctionIds: string[];
+    industryIds: string[];
 }
 
 export interface SectionConfig {
@@ -1186,6 +1218,7 @@ export const BUSINESS_PROFILE_CONFIG: BusinessProfileConfig = {
 
 /**
  * Get the complete section config for a given industry
+ * @deprecated Use getExpertiseSections() for function-based schema resolution
  */
 export function getProfileSections(industryId: string): SectionConfig[] {
     const sections = [...BUSINESS_PROFILE_CONFIG.sections];
@@ -1200,6 +1233,64 @@ export function getProfileSections(industryId: string): SectionConfig[] {
             description: `What makes your ${expertiseConfig.industryName} business special`,
             industrySpecific: true,
             subSections: expertiseConfig.subSections,
+        };
+        sections.splice(2, 0, expertiseSection);
+    }
+
+    return sections;
+}
+
+/**
+ * Get expertise sections resolved for selected business categories
+ *
+ * This is the new function-based schema resolver that:
+ * - Filters fields based on showForFunctions/hideForFunctions conditions
+ * - Filters sections based on section-level conditions
+ * - Applies country-specific field visibility
+ * - Merges schemas from multiple selected categories
+ * - Deduplicates fields across categories
+ *
+ * @param selectedCategories - Array of selected business categories from modal
+ * @param countryCode - Country code for country-specific field visibility
+ * @returns Resolved expertise schema with filtered sections and fields
+ */
+export function getExpertiseSections(
+    selectedCategories: import('../business-taxonomy/types').SelectedBusinessCategory[],
+    countryCode: string
+): ResolvedExpertiseSchema {
+    // Import resolver inline to avoid circular dependency
+    const { resolveExpertiseSchema } = require('./expertise-resolver');
+    return resolveExpertiseSchema(selectedCategories, countryCode);
+}
+
+/**
+ * Get complete profile sections using the new resolver
+ *
+ * @param selectedCategories - Array of selected business categories
+ * @param countryCode - Country code for country-specific field visibility
+ * @returns Complete section config with resolved expertise section
+ */
+export function getProfileSectionsV2(
+    selectedCategories: import('../business-taxonomy/types').SelectedBusinessCategory[],
+    countryCode: string
+): SectionConfig[] {
+    const sections = [...BUSINESS_PROFILE_CONFIG.sections];
+    const resolved = getExpertiseSections(selectedCategories, countryCode);
+
+    if (resolved.sections.length > 0) {
+        // Get industry name from first category
+        const primaryIndustryId = resolved.industryIds[0];
+        const expertiseConfig = BUSINESS_PROFILE_CONFIG.industryExpertise[primaryIndustryId];
+
+        const expertiseSection: SectionConfig = {
+            id: 'expertise',
+            title: 'Expertise & Specializations',
+            icon: '⭐',
+            description: expertiseConfig
+                ? `What makes your ${expertiseConfig.industryName} business special`
+                : 'Industry-specific details',
+            industrySpecific: true,
+            subSections: resolved.sections,
         };
         sections.splice(2, 0, expertiseSection);
     }

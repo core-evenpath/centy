@@ -1,13 +1,17 @@
 /**
  * Centy Settings Schema - Main Export
- * 
+ *
  * /partner/settings
  * ├── Business Profile (business-profile-ui-schema.ts)
+ * ├── Expertise Resolver (expertise-resolver.ts)
  * └── Modules (modules-ui-schema.ts)
  */
 
 // Business Profile
 export * from './business-profile-ui-schema';
+
+// Expertise Resolver
+export * from './expertise-resolver';
 
 // Industry Expertise Configs
 export * from './industry-expertise-configs';
@@ -25,6 +29,7 @@ export type {
     SubSectionConfig,
     IndustryExpertiseConfig,
     BusinessProfileConfig,
+    ResolvedExpertiseSchema,
 } from './business-profile-ui-schema';
 
 export type {
