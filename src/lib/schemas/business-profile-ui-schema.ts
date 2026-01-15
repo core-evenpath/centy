@@ -21,7 +21,6 @@ import {
     HOME_SERVICES_EXPERTISE,
     MANUFACTURING_EXPERTISE,
     OTHER_EXPERTISE,
-    FOOD_BEVERAGE_EXPERTISE,
 } from './industry-expertise-configs';
 
 // ============================================
