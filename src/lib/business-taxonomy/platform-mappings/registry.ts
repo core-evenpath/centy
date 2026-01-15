@@ -11,7 +11,17 @@ import type {
     ResolvedPlatformCategory,
 } from './types';
 import WHATSAPP_CONFIG, { getWhatsAppIndustryFallback } from './whatsapp';
-import { getFunctionById, getIndustryById } from '../index';
+// Import directly from industries to avoid circular dependency
+import { BUSINESS_FUNCTIONS, INDUSTRIES } from '../industries';
+
+// Helper functions to avoid circular dependency with index.ts
+function getFunctionById(functionId: string) {
+    return BUSINESS_FUNCTIONS.find(f => f.functionId === functionId);
+}
+
+function getIndustryById(industryId: string) {
+    return INDUSTRIES.find(i => i.industryId === industryId);
+}
 
 // Platform registry - add new platforms here
 const PLATFORM_REGISTRY: Record<string, PlatformConfig> = {
