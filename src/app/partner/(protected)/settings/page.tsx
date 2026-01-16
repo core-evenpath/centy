@@ -8,6 +8,7 @@ import { getBusinessPersonaAction, saveBusinessPersonaAction } from '@/actions/b
 
 import { getPartnerInvitationCodesAction, generateEmployeeInvitationCodeAction, cancelInvitationCodeAction } from '@/actions/partner-invitation-management';
 import { searchBusinessesAction, autoFillProfileAction, getEmptyProfileAction, mapInventoryToPersonaAction, processForRAGAction } from '@/actions/business-autofill-actions';
+import { scrapeWebsiteAction } from '@/actions/website-scrape-actions';
 import { db } from '@/lib/firebase';
 import { collection, query, where, getDocs, Timestamp } from 'firebase/firestore';
 import { toast } from 'sonner';
@@ -54,6 +55,11 @@ const SettingsUltimate = () => {
   const [autoFillPreviewData, setAutoFillPreviewData] = useState<any>(null);
   const [isApplyingAutoFill, setIsApplyingAutoFill] = useState(false);
   const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Website Scrape State
+  const [websiteUrl, setWebsiteUrl] = useState('');
+  const [isScrapingWebsite, setIsScrapingWebsite] = useState(false);
+  const [websiteScrapeError, setWebsiteScrapeError] = useState<string | null>(null);
 
   // RAG Processing State
   const [ragProcessing, setRagProcessing] = useState(false);
@@ -290,6 +296,45 @@ const SettingsUltimate = () => {
       }
     } catch (error) {
       console.error("Error refreshing persona:", error);
+    }
+  };
+
+  // Handle website scraping
+  const handleWebsiteScrape = async () => {
+    if (!websiteUrl.trim()) {
+      setWebsiteScrapeError('Please enter a website URL');
+      return;
+    }
+
+    setIsScrapingWebsite(true);
+    setWebsiteScrapeError(null);
+
+    try {
+      console.log('[Settings] Starting website scrape for:', websiteUrl);
+      const result = await scrapeWebsiteAction(websiteUrl, {
+        includeSubpages: true,
+        maxPages: 5,
+      });
+
+      if (!result.success || !result.profile) {
+        setWebsiteScrapeError(result.error || 'Failed to scrape website');
+        toast.error(result.error || 'Failed to scrape website');
+        return;
+      }
+
+      console.log('[Settings] Website scrape complete, pages scraped:', result.pagesScraped?.length);
+
+      // Show the preview modal (reuse existing auto-fill preview)
+      setAutoFillPreviewData(result.profile);
+      setShowAutoFillPreview(true);
+
+      toast.success(`Website scraped successfully! ${result.pagesScraped?.length || 1} pages analyzed.`);
+    } catch (error: any) {
+      console.error('[Settings] Website scrape error:', error);
+      setWebsiteScrapeError(error.message || 'Failed to scrape website');
+      toast.error('Failed to scrape website');
+    } finally {
+      setIsScrapingWebsite(false);
     }
   };
 
@@ -1323,6 +1368,14 @@ const SettingsUltimate = () => {
                       setRagProcessing(false);
                     }
                   }}
+                  websiteUrl={websiteUrl}
+                  onWebsiteUrlChange={(url) => {
+                    setWebsiteUrl(url);
+                    setWebsiteScrapeError(null);
+                  }}
+                  onWebsiteScrape={handleWebsiteScrape}
+                  isScrapingWebsite={isScrapingWebsite}
+                  websiteScrapeError={websiteScrapeError}
                 />
 
                 {/* Auto-Fill Preview Modal */}
