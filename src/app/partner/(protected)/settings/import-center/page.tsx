@@ -736,12 +736,27 @@ function extractTestimonials(data: any, source: 'google' | 'website'): Testimoni
   // Process reviews (from Google)
   reviews.forEach((r: any, i: number) => {
     if (r.text) {
+      // Safely parse date
+      let reviewDate: string | undefined;
+      try {
+        if (r.time && typeof r.time === 'number' && r.time > 0) {
+          const date = new Date(r.time * 1000);
+          if (!isNaN(date.getTime())) {
+            reviewDate = date.toISOString();
+          }
+        } else if (r.date && typeof r.date === 'string') {
+          reviewDate = r.date;
+        }
+      } catch {
+        reviewDate = undefined;
+      }
+
       testimonials.push({
         id: `${source}_review_${i}`,
         quote: r.text,
         author: r.authorName || r.author,
         rating: r.rating,
-        date: r.time ? new Date(r.time * 1000).toISOString() : r.date,
+        date: reviewDate,
         platform: 'Google',
         source,
         sentiment: analyzeSentiment(r.text),
