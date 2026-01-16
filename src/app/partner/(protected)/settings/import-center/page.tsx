@@ -10,10 +10,12 @@ import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import {
   ArrowLeft, Search, Globe, Sparkles, Loader2, CheckCircle2,
-  Circle, ChevronDown, ChevronRight, Trash2, RefreshCw, X,
+  ChevronDown, ChevronRight, Trash2, X,
   Building2, MapPin, Package, Heart, Star, Shield, Users,
-  MessageSquare, Clock, Phone, Mail, Link2, ExternalLink,
-  Info, AlertCircle, Check, Send, Database
+  MessageSquare, Phone, Mail, Link2, ExternalLink,
+  Info, AlertCircle, Check, Send, Database, Clock, DollarSign,
+  Tag, Gift, FileText, Award, Briefcase, Target, Share2,
+  Home, ShoppingBag, Utensils, Bed, GraduationCap, Stethoscope
 } from 'lucide-react';
 import type { BusinessPersona } from '@/lib/business-persona-types';
 
@@ -44,98 +46,87 @@ interface ImportedCategory {
 // HELPER FUNCTIONS
 // ========================================
 
-function formatRelativeTime(date: Date | string | undefined): string {
-  if (!date) return 'Never';
-  const now = new Date();
-  const d = new Date(date);
-  const diff = now.getTime() - d.getTime();
-  const minutes = Math.floor(diff / 60000);
-  const hours = Math.floor(diff / 3600000);
-  const days = Math.floor(diff / 86400000);
-
-  if (minutes < 1) return 'Just now';
-  if (minutes < 60) return `${minutes}m ago`;
-  if (hours < 24) return `${hours}h ago`;
-  if (days < 7) return `${days}d ago`;
-  return d.toLocaleDateString();
-}
-
-function formatDisplayValue(value: any): string {
+function formatDisplayValue(value: any, maxLength = 120): string {
   if (value === null || value === undefined) return '';
-  if (typeof value === 'string') return value.length > 100 ? value.substring(0, 100) + '...' : value;
-  if (Array.isArray(value)) return `${value.length} items`;
-  if (typeof value === 'object') {
-    if (value.street || value.city) {
-      return [value.street, value.city, value.state, value.country].filter(Boolean).join(', ');
-    }
-    return JSON.stringify(value).substring(0, 100) + '...';
+  if (typeof value === 'string') {
+    return value.length > maxLength ? value.substring(0, maxLength) + '...' : value;
   }
+  if (Array.isArray(value)) {
+    if (value.length === 0) return 'None';
+    if (typeof value[0] === 'string') {
+      const joined = value.join(', ');
+      return joined.length > maxLength ? joined.substring(0, maxLength) + '...' : joined;
+    }
+    return `${value.length} items`;
+  }
+  if (typeof value === 'object') {
+    // Handle address objects
+    if (value.street || value.city) {
+      const parts = [value.street, value.area, value.city, value.state, value.country].filter(Boolean);
+      return parts.join(', ');
+    }
+    // Handle operating hours
+    if (value.isOpen24x7 !== undefined) {
+      return value.isOpen24x7 ? 'Open 24/7' : 'Custom hours configured';
+    }
+    return JSON.stringify(value).substring(0, maxLength) + '...';
+  }
+  if (typeof value === 'number') return value.toLocaleString();
+  if (typeof value === 'boolean') return value ? 'Yes' : 'No';
   return String(value);
 }
 
-function extractImportedCategories(persona: Partial<BusinessPersona>, source: 'google' | 'website'): ImportedCategory[] {
-  const categories: ImportedCategory[] = [];
-  const identity = persona.identity || {};
-  const knowledge = persona.knowledge || {};
-  const personality = persona.personality || {};
+function addField(
+  fields: ImportedField[],
+  id: string,
+  label: string,
+  value: any,
+  path: string,
+  source: 'google' | 'website',
+  customDisplay?: string
+) {
+  if (value !== null && value !== undefined && value !== '' &&
+      !(Array.isArray(value) && value.length === 0)) {
+    fields.push({
+      id,
+      label,
+      value,
+      displayValue: customDisplay || formatDisplayValue(value),
+      path,
+      source,
+      selected: true
+    });
+  }
+}
 
-  // Business Identity
+/**
+ * COMPREHENSIVE extraction of ALL imported data organized by category
+ */
+function extractImportedCategories(data: any, source: 'google' | 'website'): ImportedCategory[] {
+  const categories: ImportedCategory[] = [];
+
+  // Safely access nested data
+  const identity = data?.identity || {};
+  const personality = data?.personality || {};
+  const knowledge = data?.knowledge || {};
+  const customerProfile = data?.customerProfile || {};
+  const inventory = data?.inventory || {};
+
+  // ========================================
+  // 1. BUSINESS IDENTITY
+  // ========================================
   const identityFields: ImportedField[] = [];
-  if ((identity as any).name || (identity as any).businessName) {
-    identityFields.push({
-      id: 'identity.name',
-      label: 'Business Name',
-      value: (identity as any).name || (identity as any).businessName,
-      displayValue: formatDisplayValue((identity as any).name || (identity as any).businessName),
-      path: 'identity.name',
-      source,
-      selected: true
-    });
-  }
-  if ((identity as any).description) {
-    identityFields.push({
-      id: 'identity.description',
-      label: 'Description',
-      value: (identity as any).description,
-      displayValue: formatDisplayValue((identity as any).description),
-      path: 'identity.description',
-      source,
-      selected: true
-    });
-  }
-  if ((identity as any).phone) {
-    identityFields.push({
-      id: 'identity.phone',
-      label: 'Phone',
-      value: (identity as any).phone,
-      displayValue: (identity as any).phone,
-      path: 'identity.phone',
-      source,
-      selected: true
-    });
-  }
-  if ((identity as any).email) {
-    identityFields.push({
-      id: 'identity.email',
-      label: 'Email',
-      value: (identity as any).email,
-      displayValue: (identity as any).email,
-      path: 'identity.email',
-      source,
-      selected: true
-    });
-  }
-  if ((identity as any).website) {
-    identityFields.push({
-      id: 'identity.website',
-      label: 'Website',
-      value: (identity as any).website,
-      displayValue: (identity as any).website,
-      path: 'identity.website',
-      source,
-      selected: true
-    });
-  }
+
+  addField(identityFields, 'identity.businessName', 'Business Name', identity.businessName || identity.name, 'identity.name', source);
+  addField(identityFields, 'identity.legalName', 'Legal Name', identity.legalName, 'identity.legalName', source);
+  addField(identityFields, 'personality.tagline', 'Tagline', personality.tagline || identity.tagline, 'personality.tagline', source);
+  addField(identityFields, 'personality.description', 'Description', personality.description || identity.description, 'personality.description', source);
+  addField(identityFields, 'identity.shortDescription', 'Short Description', personality.shortDescription || identity.shortDescription, 'personality.shortDescription', source);
+  addField(identityFields, 'identity.industry', 'Industry', identity.industry, 'identity.industry.name', source);
+  addField(identityFields, 'identity.subIndustry', 'Sub-Industry', identity.subIndustry, 'identity.subIndustry', source);
+  addField(identityFields, 'identity.businessType', 'Business Type', identity.businessType, 'identity.businessType', source);
+  addField(identityFields, 'identity.yearEstablished', 'Year Established', identity.yearEstablished, 'personality.foundedYear', source);
+  addField(identityFields, 'identity.languages', 'Languages', identity.languages, 'personality.languagePreference', source);
 
   if (identityFields.length > 0) {
     categories.push({
@@ -148,30 +139,54 @@ function extractImportedCategories(persona: Partial<BusinessPersona>, source: 'g
     });
   }
 
-  // Location & Hours
-  const locationFields: ImportedField[] = [];
-  const address = (identity as any).address;
-  if (address && (address.street || address.city)) {
-    locationFields.push({
-      id: 'identity.address',
-      label: 'Address',
-      value: address,
-      displayValue: formatDisplayValue(address),
-      path: 'identity.address',
-      source,
-      selected: true
+  // ========================================
+  // 2. CONTACT INFORMATION
+  // ========================================
+  const contactFields: ImportedField[] = [];
+
+  addField(contactFields, 'identity.phone', 'Primary Phone', identity.phone, 'identity.phone', source);
+  addField(contactFields, 'identity.secondaryPhone', 'Secondary Phone', identity.secondaryPhone, 'identity.secondaryPhone', source);
+  addField(contactFields, 'identity.whatsapp', 'WhatsApp', identity.whatsapp, 'identity.whatsAppNumber', source);
+  addField(contactFields, 'identity.tollFree', 'Toll-Free', identity.tollFree, 'identity.tollFree', source);
+  addField(contactFields, 'identity.email', 'Primary Email', identity.email, 'identity.email', source);
+  addField(contactFields, 'identity.supportEmail', 'Support Email', identity.supportEmail, 'identity.supportEmail', source);
+  addField(contactFields, 'identity.salesEmail', 'Sales Email', identity.salesEmail, 'identity.salesEmail', source);
+  addField(contactFields, 'identity.bookingEmail', 'Booking Email', identity.bookingEmail, 'identity.bookingEmail', source);
+  addField(contactFields, 'identity.website', 'Website', identity.website, 'identity.website', source);
+
+  if (contactFields.length > 0) {
+    categories.push({
+      id: 'contact',
+      label: 'Contact Information',
+      icon: Phone,
+      color: 'bg-blue-500',
+      fields: contactFields,
+      expanded: true
     });
   }
-  if ((identity as any).operatingHours?.length > 0) {
-    locationFields.push({
-      id: 'identity.operatingHours',
-      label: 'Operating Hours',
-      value: (identity as any).operatingHours,
-      displayValue: `${(identity as any).operatingHours.length} days configured`,
-      path: 'identity.operatingHours',
-      source,
-      selected: true
+
+  // ========================================
+  // 3. LOCATION & HOURS
+  // ========================================
+  const locationFields: ImportedField[] = [];
+
+  if (identity.address && (identity.address.street || identity.address.city)) {
+    addField(locationFields, 'identity.address', 'Address', identity.address, 'identity.address', source);
+  }
+
+  if (identity.locations && identity.locations.length > 0) {
+    identity.locations.forEach((loc: any, i: number) => {
+      addField(locationFields, `identity.locations.${i}`, `Location: ${loc.name || `Branch ${i + 1}`}`, loc, `identity.locations.${i}`, source,
+        `${loc.address || ''} ${loc.isHeadquarters ? '(HQ)' : ''}`);
     });
+  }
+
+  addField(locationFields, 'identity.serviceAreas', 'Service Areas', identity.serviceAreas, 'identity.serviceArea', source);
+  addField(locationFields, 'identity.deliveryZones', 'Delivery Zones', identity.deliveryZones, 'identity.deliveryZones', source);
+  addField(locationFields, 'identity.internationalShipping', 'International Shipping', identity.internationalShipping, 'identity.internationalShipping', source);
+
+  if (identity.operatingHours) {
+    addField(locationFields, 'identity.operatingHours', 'Operating Hours', identity.operatingHours, 'identity.operatingHours', source);
   }
 
   if (locationFields.length > 0) {
@@ -179,104 +194,52 @@ function extractImportedCategories(persona: Partial<BusinessPersona>, source: 'g
       id: 'location',
       label: 'Location & Hours',
       icon: MapPin,
-      color: 'bg-blue-500',
+      color: 'bg-emerald-500',
       fields: locationFields,
       expanded: false
     });
   }
 
-  // Products & Services
-  const productsFields: ImportedField[] = [];
-  if ((knowledge as any).productsOrServices?.length > 0) {
-    productsFields.push({
-      id: 'knowledge.productsOrServices',
-      label: 'Products/Services',
-      value: (knowledge as any).productsOrServices,
-      displayValue: `${(knowledge as any).productsOrServices.length} items`,
-      path: 'knowledge.productsOrServices',
-      source,
-      selected: true
-    });
-  }
-  if ((knowledge as any).packages?.length > 0) {
-    productsFields.push({
-      id: 'knowledge.packages',
-      label: 'Packages',
-      value: (knowledge as any).packages,
-      displayValue: `${(knowledge as any).packages.length} packages`,
-      path: 'knowledge.packages',
-      source,
-      selected: true
-    });
-  }
-  if ((knowledge as any).pricingTiers?.length > 0) {
-    productsFields.push({
-      id: 'knowledge.pricingTiers',
-      label: 'Pricing Tiers',
-      value: (knowledge as any).pricingTiers,
-      displayValue: `${(knowledge as any).pricingTiers.length} tiers`,
-      path: 'knowledge.pricingTiers',
-      source,
-      selected: true
-    });
-  }
+  // ========================================
+  // 4. SOCIAL MEDIA
+  // ========================================
+  const socialFields: ImportedField[] = [];
+  const social = identity.socialMedia || {};
 
-  if (productsFields.length > 0) {
+  addField(socialFields, 'identity.socialMedia.instagram', 'Instagram', social.instagram, 'identity.socialMedia.instagram', source);
+  addField(socialFields, 'identity.socialMedia.facebook', 'Facebook', social.facebook, 'identity.socialMedia.facebook', source);
+  addField(socialFields, 'identity.socialMedia.linkedin', 'LinkedIn', social.linkedin, 'identity.socialMedia.linkedin', source);
+  addField(socialFields, 'identity.socialMedia.twitter', 'Twitter/X', social.twitter, 'identity.socialMedia.twitter', source);
+  addField(socialFields, 'identity.socialMedia.youtube', 'YouTube', social.youtube, 'identity.socialMedia.youtube', source);
+  addField(socialFields, 'identity.socialMedia.pinterest', 'Pinterest', social.pinterest, 'identity.socialMedia.pinterest', source);
+  addField(socialFields, 'identity.socialMedia.tiktok', 'TikTok', social.tiktok, 'identity.socialMedia.tiktok', source);
+  addField(socialFields, 'identity.socialMedia.googleBusiness', 'Google Business', social.googleBusiness, 'identity.socialMedia.googleBusiness', source);
+
+  if (socialFields.length > 0) {
     categories.push({
-      id: 'products',
-      label: 'Products & Services',
-      icon: Package,
-      color: 'bg-emerald-500',
-      fields: productsFields,
+      id: 'social',
+      label: 'Social Media',
+      icon: Share2,
+      color: 'bg-pink-500',
+      fields: socialFields,
       expanded: false
     });
   }
 
-  // Brand & Values
+  // ========================================
+  // 5. BRAND & VALUES
+  // ========================================
   const brandFields: ImportedField[] = [];
-  if ((personality as any).tagline) {
-    brandFields.push({
-      id: 'personality.tagline',
-      label: 'Tagline',
-      value: (personality as any).tagline,
-      displayValue: formatDisplayValue((personality as any).tagline),
-      path: 'personality.tagline',
-      source,
-      selected: true
-    });
-  }
-  if ((personality as any).brandStory) {
-    brandFields.push({
-      id: 'personality.brandStory',
-      label: 'Brand Story',
-      value: (personality as any).brandStory,
-      displayValue: formatDisplayValue((personality as any).brandStory),
-      path: 'personality.brandStory',
-      source,
-      selected: true
-    });
-  }
-  if ((personality as any).missionStatement) {
-    brandFields.push({
-      id: 'personality.missionStatement',
-      label: 'Mission Statement',
-      value: (personality as any).missionStatement,
-      displayValue: formatDisplayValue((personality as any).missionStatement),
-      path: 'personality.missionStatement',
-      source,
-      selected: true
-    });
-  }
-  if ((personality as any).brandValues?.length > 0) {
-    brandFields.push({
-      id: 'personality.brandValues',
-      label: 'Brand Values',
-      value: (personality as any).brandValues,
-      displayValue: (personality as any).brandValues.join(', '),
-      path: 'personality.brandValues',
-      source,
-      selected: true
-    });
+
+  addField(brandFields, 'personality.missionStatement', 'Mission Statement', personality.missionStatement, 'personality.missionStatement', source);
+  addField(brandFields, 'personality.visionStatement', 'Vision Statement', personality.visionStatement, 'personality.visionStatement', source);
+  addField(brandFields, 'personality.story', 'Brand Story', personality.story, 'personality.story', source);
+  addField(brandFields, 'personality.brandValues', 'Brand Values', personality.brandValues, 'personality.brandValues', source);
+  addField(brandFields, 'personality.uniqueSellingPoints', 'Unique Selling Points', personality.uniqueSellingPoints, 'personality.uniqueSellingPoints', source);
+
+  if (personality.brandVoice) {
+    addField(brandFields, 'personality.brandVoice.tone', 'Brand Tone', personality.brandVoice.tone, 'personality.voiceTone', source);
+    addField(brandFields, 'personality.brandVoice.style', 'Communication Style', personality.brandVoice.style, 'personality.communicationStyle', source);
   }
 
   if (brandFields.length > 0) {
@@ -284,140 +247,572 @@ function extractImportedCategories(persona: Partial<BusinessPersona>, source: 'g
       id: 'brand',
       label: 'Brand & Values',
       icon: Heart,
-      color: 'bg-pink-500',
+      color: 'bg-rose-500',
       fields: brandFields,
       expanded: false
     });
   }
 
-  // Reviews & Testimonials
-  const socialProofFields: ImportedField[] = [];
-  if ((persona as any).testimonials?.length > 0) {
-    socialProofFields.push({
-      id: 'testimonials',
-      label: 'Testimonials',
-      value: (persona as any).testimonials,
-      displayValue: `${(persona as any).testimonials.length} reviews`,
-      path: 'testimonials',
-      source,
-      selected: true
-    });
-  }
+  // ========================================
+  // 6. TARGET AUDIENCE
+  // ========================================
+  const audienceFields: ImportedField[] = [];
 
-  if (socialProofFields.length > 0) {
+  addField(audienceFields, 'customerProfile.targetAudience', 'Target Audience', customerProfile.targetAudience, 'customerProfile.targetAudience', source);
+  addField(audienceFields, 'customerProfile.customerPainPoints', 'Customer Pain Points', customerProfile.customerPainPoints, 'customerProfile.customerPainPoints', source);
+
+  if (audienceFields.length > 0) {
     categories.push({
-      id: 'social-proof',
-      label: 'Reviews & Testimonials',
-      icon: Star,
-      color: 'bg-amber-500',
-      fields: socialProofFields,
+      id: 'audience',
+      label: 'Target Audience',
+      icon: Target,
+      color: 'bg-orange-500',
+      fields: audienceFields,
       expanded: false
     });
   }
 
-  // Trust & Credentials
+  // ========================================
+  // 7. PRODUCTS & SERVICES (Individual items)
+  // ========================================
+  const productsOrServices = knowledge.productsOrServices || [];
+  if (productsOrServices.length > 0) {
+    const productFields: ImportedField[] = [];
+
+    productsOrServices.forEach((item: any, i: number) => {
+      const priceStr = item.price ? ` - ${item.priceUnit || ''}${item.price}` : '';
+      addField(productFields, `knowledge.productsOrServices.${i}`,
+        item.name || `Item ${i + 1}`,
+        item,
+        `knowledge.productsOrServices.${i}`,
+        source,
+        `${item.shortDescription || item.description || item.category || ''}${priceStr}`
+      );
+    });
+
+    if (productFields.length > 0) {
+      categories.push({
+        id: 'products',
+        label: `Products & Services (${productFields.length})`,
+        icon: Package,
+        color: 'bg-cyan-500',
+        fields: productFields,
+        expanded: false
+      });
+    }
+  }
+
+  // ========================================
+  // 8. PACKAGES
+  // ========================================
+  const packages = knowledge.packages || [];
+  if (packages.length > 0) {
+    const packageFields: ImportedField[] = [];
+
+    packages.forEach((pkg: any, i: number) => {
+      addField(packageFields, `knowledge.packages.${i}`,
+        pkg.name || `Package ${i + 1}`,
+        pkg,
+        `knowledge.packages.${i}`,
+        source,
+        `${pkg.price ? `$${pkg.price}` : ''} ${pkg.duration || ''} - ${pkg.description || ''}`
+      );
+    });
+
+    if (packageFields.length > 0) {
+      categories.push({
+        id: 'packages',
+        label: `Packages (${packageFields.length})`,
+        icon: Gift,
+        color: 'bg-purple-500',
+        fields: packageFields,
+        expanded: false
+      });
+    }
+  }
+
+  // ========================================
+  // 9. PRICING TIERS
+  // ========================================
+  const pricingTiers = knowledge.pricingTiers || [];
+  if (pricingTiers.length > 0) {
+    const pricingFields: ImportedField[] = [];
+
+    pricingTiers.forEach((tier: any, i: number) => {
+      addField(pricingFields, `knowledge.pricingTiers.${i}`,
+        tier.name || `Tier ${i + 1}`,
+        tier,
+        `knowledge.pricingTiers.${i}`,
+        source,
+        `${tier.price ? `$${tier.price}` : ''} ${tier.period || ''} - ${(tier.features || []).slice(0, 2).join(', ')}`
+      );
+    });
+
+    if (pricingFields.length > 0) {
+      categories.push({
+        id: 'pricing',
+        label: `Pricing Tiers (${pricingFields.length})`,
+        icon: DollarSign,
+        color: 'bg-green-500',
+        fields: pricingFields,
+        expanded: false
+      });
+    }
+  }
+
+  // ========================================
+  // 10. CURRENT OFFERS
+  // ========================================
+  const currentOffers = knowledge.currentOffers || [];
+  if (currentOffers.length > 0) {
+    const offerFields: ImportedField[] = [];
+
+    currentOffers.forEach((offer: any, i: number) => {
+      addField(offerFields, `knowledge.currentOffers.${i}`,
+        offer.title || `Offer ${i + 1}`,
+        offer,
+        `knowledge.currentOffers.${i}`,
+        source,
+        `${offer.discount || ''} ${offer.code ? `Code: ${offer.code}` : ''}`
+      );
+    });
+
+    if (offerFields.length > 0) {
+      categories.push({
+        id: 'offers',
+        label: `Current Offers (${offerFields.length})`,
+        icon: Tag,
+        color: 'bg-red-500',
+        fields: offerFields,
+        expanded: false
+      });
+    }
+  }
+
+  // ========================================
+  // 11. PAYMENT METHODS
+  // ========================================
+  const paymentFields: ImportedField[] = [];
+
+  addField(paymentFields, 'knowledge.paymentMethods', 'Payment Methods', knowledge.paymentMethods, 'knowledge.acceptedPayments', source);
+  addField(paymentFields, 'knowledge.acceptedCards', 'Accepted Cards', knowledge.acceptedCards, 'knowledge.acceptedCards', source);
+  addField(paymentFields, 'knowledge.emiAvailable', 'EMI Available', knowledge.emiAvailable, 'knowledge.emiAvailable', source);
+  addField(paymentFields, 'knowledge.codAvailable', 'COD Available', knowledge.codAvailable, 'knowledge.codAvailable', source);
+
+  if (paymentFields.length > 0) {
+    categories.push({
+      id: 'payments',
+      label: 'Payment Options',
+      icon: DollarSign,
+      color: 'bg-lime-500',
+      fields: paymentFields,
+      expanded: false
+    });
+  }
+
+  // ========================================
+  // 12. FAQs (Individual items)
+  // ========================================
+  const faqs = knowledge.faqs || [];
+  if (faqs.length > 0) {
+    const faqFields: ImportedField[] = [];
+
+    faqs.forEach((faq: any, i: number) => {
+      addField(faqFields, `knowledge.faqs.${i}`,
+        faq.question || `FAQ ${i + 1}`,
+        faq,
+        `knowledge.faqs.${i}`,
+        source,
+        faq.answer ? faq.answer.substring(0, 80) + '...' : ''
+      );
+    });
+
+    if (faqFields.length > 0) {
+      categories.push({
+        id: 'faqs',
+        label: `FAQs (${faqFields.length})`,
+        icon: MessageSquare,
+        color: 'bg-amber-500',
+        fields: faqFields,
+        expanded: false
+      });
+    }
+  }
+
+  // ========================================
+  // 13. POLICIES
+  // ========================================
+  const policies = knowledge.policies || {};
+  const policyFields: ImportedField[] = [];
+
+  addField(policyFields, 'knowledge.policies.returnPolicy', 'Return Policy', policies.returnPolicy, 'knowledge.policies.returnPolicy', source);
+  addField(policyFields, 'knowledge.policies.returnWindow', 'Return Window', policies.returnWindow, 'knowledge.policies.returnWindow', source);
+  addField(policyFields, 'knowledge.policies.refundPolicy', 'Refund Policy', policies.refundPolicy, 'knowledge.policies.refundPolicy', source);
+  addField(policyFields, 'knowledge.policies.refundTimeline', 'Refund Timeline', policies.refundTimeline, 'knowledge.policies.refundTimeline', source);
+  addField(policyFields, 'knowledge.policies.cancellationPolicy', 'Cancellation Policy', policies.cancellationPolicy, 'knowledge.policies.cancellationPolicy', source);
+  addField(policyFields, 'knowledge.policies.cancellationFee', 'Cancellation Fee', policies.cancellationFee, 'knowledge.policies.cancellationFee', source);
+  addField(policyFields, 'knowledge.policies.exchangePolicy', 'Exchange Policy', policies.exchangePolicy, 'knowledge.policies.exchangePolicy', source);
+  addField(policyFields, 'knowledge.policies.warrantyPolicy', 'Warranty Policy', policies.warrantyPolicy, 'knowledge.policies.warrantyInfo', source);
+  addField(policyFields, 'knowledge.policies.shippingPolicy', 'Shipping Policy', policies.shippingPolicy, 'knowledge.policies.shippingInfo', source);
+  addField(policyFields, 'knowledge.policies.deliveryTimeline', 'Delivery Timeline', policies.deliveryTimeline, 'knowledge.policies.deliveryInfo', source);
+  addField(policyFields, 'knowledge.policies.freeShippingThreshold', 'Free Shipping Min', policies.freeShippingThreshold, 'knowledge.policies.freeShippingThreshold', source);
+
+  if (policyFields.length > 0) {
+    categories.push({
+      id: 'policies',
+      label: `Policies (${policyFields.length})`,
+      icon: FileText,
+      color: 'bg-slate-500',
+      fields: policyFields,
+      expanded: false
+    });
+  }
+
+  // ========================================
+  // 14. INVENTORY - MENU ITEMS (Restaurants)
+  // ========================================
+  const menuItems = inventory.menuItems || [];
+  if (menuItems.length > 0) {
+    const menuFields: ImportedField[] = [];
+
+    menuItems.forEach((item: any, i: number) => {
+      const vegIndicator = item.isVeg === true ? '🟢' : item.isVeg === false ? '🔴' : '';
+      addField(menuFields, `inventory.menuItems.${i}`,
+        `${vegIndicator} ${item.name || `Item ${i + 1}`}`,
+        item,
+        `menuItems.${i}`,
+        source,
+        `${item.category || ''} ${item.price ? `- ₹${item.price}` : ''}`
+      );
+    });
+
+    if (menuFields.length > 0) {
+      categories.push({
+        id: 'menu',
+        label: `Menu Items (${menuFields.length})`,
+        icon: Utensils,
+        color: 'bg-orange-600',
+        fields: menuFields,
+        expanded: false
+      });
+    }
+  }
+
+  // ========================================
+  // 15. INVENTORY - ROOMS (Hotels)
+  // ========================================
+  const rooms = inventory.rooms || [];
+  if (rooms.length > 0) {
+    const roomFields: ImportedField[] = [];
+
+    rooms.forEach((room: any, i: number) => {
+      addField(roomFields, `inventory.rooms.${i}`,
+        room.name || `Room ${i + 1}`,
+        room,
+        `roomTypes.${i}`,
+        source,
+        `${room.category || ''} ${room.price ? `- ₹${room.price}/${room.priceUnit || 'night'}` : ''} ${room.maxOccupancy ? `(Max ${room.maxOccupancy})` : ''}`
+      );
+    });
+
+    if (roomFields.length > 0) {
+      categories.push({
+        id: 'rooms',
+        label: `Room Types (${roomFields.length})`,
+        icon: Bed,
+        color: 'bg-indigo-600',
+        fields: roomFields,
+        expanded: false
+      });
+    }
+  }
+
+  // ========================================
+  // 16. INVENTORY - PRODUCTS (Retail)
+  // ========================================
+  const products = inventory.products || [];
+  if (products.length > 0) {
+    const productFields: ImportedField[] = [];
+
+    products.forEach((product: any, i: number) => {
+      const discount = product.mrp && product.price ? `(${Math.round((1 - product.price / product.mrp) * 100)}% off)` : '';
+      addField(productFields, `inventory.products.${i}`,
+        product.name || `Product ${i + 1}`,
+        product,
+        `productCatalog.${i}`,
+        source,
+        `${product.category || ''} ${product.price ? `₹${product.price}` : ''} ${discount}`
+      );
+    });
+
+    if (productFields.length > 0) {
+      categories.push({
+        id: 'retail-products',
+        label: `Products (${productFields.length})`,
+        icon: ShoppingBag,
+        color: 'bg-teal-500',
+        fields: productFields,
+        expanded: false
+      });
+    }
+  }
+
+  // ========================================
+  // 17. INVENTORY - SERVICES (Healthcare)
+  // ========================================
+  const services = inventory.services || [];
+  if (services.length > 0) {
+    const serviceFields: ImportedField[] = [];
+
+    services.forEach((service: any, i: number) => {
+      addField(serviceFields, `inventory.services.${i}`,
+        service.name || `Service ${i + 1}`,
+        service,
+        `healthcareServices.${i}`,
+        source,
+        `${service.category || ''} ${service.price ? `₹${service.price}` : ''} ${service.duration || ''}`
+      );
+    });
+
+    if (serviceFields.length > 0) {
+      categories.push({
+        id: 'healthcare-services',
+        label: `Healthcare Services (${serviceFields.length})`,
+        icon: Stethoscope,
+        color: 'bg-red-600',
+        fields: serviceFields,
+        expanded: false
+      });
+    }
+  }
+
+  // ========================================
+  // 18. INVENTORY - PROPERTIES (Real Estate)
+  // ========================================
+  const properties = inventory.properties || [];
+  if (properties.length > 0) {
+    const propertyFields: ImportedField[] = [];
+
+    properties.forEach((property: any, i: number) => {
+      addField(propertyFields, `inventory.properties.${i}`,
+        property.title || `Property ${i + 1}`,
+        property,
+        `propertyListings.${i}`,
+        source,
+        `${property.type || ''} ${property.subType || ''} - ${property.location || ''}`
+      );
+    });
+
+    if (propertyFields.length > 0) {
+      categories.push({
+        id: 'properties',
+        label: `Properties (${propertyFields.length})`,
+        icon: Home,
+        color: 'bg-violet-500',
+        fields: propertyFields,
+        expanded: false
+      });
+    }
+  }
+
+  // ========================================
+  // 19. INVENTORY - COURSES (Education)
+  // ========================================
+  const courses = inventory.courses || [];
+  if (courses.length > 0) {
+    const courseFields: ImportedField[] = [];
+
+    courses.forEach((course: any, i: number) => {
+      addField(courseFields, `inventory.courses.${i}`,
+        course.name || `Course ${i + 1}`,
+        course,
+        `courses.${i}`,
+        source,
+        `${course.duration || ''} ${course.mode || ''} ${course.price ? `₹${course.price}` : ''}`
+      );
+    });
+
+    if (courseFields.length > 0) {
+      categories.push({
+        id: 'courses',
+        label: `Courses (${courseFields.length})`,
+        icon: GraduationCap,
+        color: 'bg-yellow-600',
+        fields: courseFields,
+        expanded: false
+      });
+    }
+  }
+
+  // ========================================
+  // 20. TEAM MEMBERS
+  // ========================================
+  const team = data.team || [];
+  if (team.length > 0) {
+    const teamFields: ImportedField[] = [];
+
+    team.forEach((member: any, i: number) => {
+      addField(teamFields, `team.${i}`,
+        member.name || `Team Member ${i + 1}`,
+        member,
+        `team.${i}`,
+        source,
+        `${member.role || member.designation || ''} ${member.department ? `- ${member.department}` : ''}`
+      );
+    });
+
+    if (teamFields.length > 0) {
+      categories.push({
+        id: 'team',
+        label: `Team (${teamFields.length})`,
+        icon: Users,
+        color: 'bg-sky-500',
+        fields: teamFields,
+        expanded: false
+      });
+    }
+  }
+
+  // ========================================
+  // 21. TESTIMONIALS
+  // ========================================
+  const testimonials = data.testimonials || [];
+  if (testimonials.length > 0) {
+    const testimonialFields: ImportedField[] = [];
+
+    testimonials.forEach((t: any, i: number) => {
+      const stars = t.rating ? '⭐'.repeat(Math.min(t.rating, 5)) : '';
+      addField(testimonialFields, `testimonials.${i}`,
+        `${stars} ${t.author || `Review ${i + 1}`}`,
+        t,
+        `testimonials.${i}`,
+        source,
+        `"${(t.quote || '').substring(0, 60)}..."`
+      );
+    });
+
+    if (testimonialFields.length > 0) {
+      categories.push({
+        id: 'testimonials',
+        label: `Testimonials (${testimonialFields.length})`,
+        icon: Star,
+        color: 'bg-amber-500',
+        fields: testimonialFields,
+        expanded: false
+      });
+    }
+  }
+
+  // ========================================
+  // 22. CASE STUDIES
+  // ========================================
+  const caseStudies = data.caseStudies || [];
+  if (caseStudies.length > 0) {
+    const caseFields: ImportedField[] = [];
+
+    caseStudies.forEach((cs: any, i: number) => {
+      addField(caseFields, `caseStudies.${i}`,
+        cs.title || `Case Study ${i + 1}`,
+        cs,
+        `caseStudies.${i}`,
+        source,
+        `${cs.client || ''} - ${cs.industry || ''}`
+      );
+    });
+
+    if (caseFields.length > 0) {
+      categories.push({
+        id: 'case-studies',
+        label: `Case Studies (${caseFields.length})`,
+        icon: Briefcase,
+        color: 'bg-neutral-600',
+        fields: caseFields,
+        expanded: false
+      });
+    }
+  }
+
+  // ========================================
+  // 23. AWARDS & CREDENTIALS
+  // ========================================
   const trustFields: ImportedField[] = [];
-  if ((persona as any).awards?.length > 0) {
-    trustFields.push({
-      id: 'awards',
-      label: 'Awards',
-      value: (persona as any).awards,
-      displayValue: `${(persona as any).awards.length} awards`,
-      path: 'awards',
+
+  const awards = data.awards || [];
+  awards.forEach((award: any, i: number) => {
+    addField(trustFields, `awards.${i}`,
+      typeof award === 'string' ? award : (award.name || `Award ${i + 1}`),
+      award,
+      `knowledge.awards.${i}`,
       source,
-      selected: true
-    });
-  }
-  if ((persona as any).certifications?.length > 0) {
-    trustFields.push({
-      id: 'certifications',
-      label: 'Certifications',
-      value: (persona as any).certifications,
-      displayValue: `${(persona as any).certifications.length} certifications`,
-      path: 'certifications',
+      typeof award === 'object' ? `${award.year || ''} ${award.awardedBy || ''}` : ''
+    );
+  });
+
+  const certifications = data.certifications || [];
+  certifications.forEach((cert: any, i: number) => {
+    addField(trustFields, `certifications.${i}`,
+      typeof cert === 'string' ? cert : (cert.name || `Certification ${i + 1}`),
+      cert,
+      `knowledge.certifications.${i}`,
       source,
-      selected: true
-    });
-  }
+      typeof cert === 'object' ? `${cert.issuedBy || ''}` : ''
+    );
+  });
+
+  addField(trustFields, 'accreditations', 'Accreditations', data.accreditations, 'accreditations', source);
+  addField(trustFields, 'partnerships', 'Partnerships', data.partnerships, 'partnerships', source);
+  addField(trustFields, 'clients', 'Notable Clients', data.clients, 'clients', source);
+  addField(trustFields, 'featuredIn', 'Featured In', data.featuredIn, 'featuredIn', source);
 
   if (trustFields.length > 0) {
     categories.push({
       id: 'trust',
-      label: 'Trust & Credentials',
-      icon: Shield,
-      color: 'bg-purple-500',
+      label: `Trust & Credentials (${trustFields.length})`,
+      icon: Award,
+      color: 'bg-yellow-500',
       fields: trustFields,
       expanded: false
     });
   }
 
-  // Team
-  if ((persona as any).team?.length > 0) {
+  // ========================================
+  // 24. INDUSTRY-SPECIFIC DATA
+  // ========================================
+  const industryData = data.industrySpecificData || {};
+  const industryFields: ImportedField[] = [];
+
+  // Restaurant specific
+  addField(industryFields, 'industry.cuisineTypes', 'Cuisine Types', industryData.cuisineTypes, 'restaurantInfo.cuisineTypes', source);
+  addField(industryFields, 'industry.dietaryOptions', 'Dietary Options', industryData.dietaryOptions, 'restaurantInfo.dietaryOptions', source);
+  addField(industryFields, 'industry.diningOptions', 'Dining Options', industryData.diningOptions, 'restaurantInfo.diningStyles', source);
+  addField(industryFields, 'industry.averageCost', 'Average Cost for Two', industryData.averageCost, 'restaurantInfo.averageCostForTwo', source);
+  addField(industryFields, 'industry.seatingCapacity', 'Seating Capacity', industryData.seatingCapacity, 'restaurantInfo.seatingCapacity', source);
+
+  // Hotel specific
+  addField(industryFields, 'industry.starRating', 'Star Rating', industryData.starRating, 'hotelPolicies.starRating', source);
+  addField(industryFields, 'industry.checkInTime', 'Check-in Time', industryData.checkInTime, 'hotelPolicies.checkIn.time', source);
+  addField(industryFields, 'industry.checkOutTime', 'Check-out Time', industryData.checkOutTime, 'hotelPolicies.checkOut.time', source);
+  addField(industryFields, 'industry.hotelAmenities', 'Hotel Amenities', industryData.hotelAmenities, 'hotelAmenities', source);
+
+  // Healthcare specific
+  addField(industryFields, 'industry.medicalSpecializations', 'Medical Specializations', industryData.medicalSpecializations, 'healthcareSpecializations', source);
+  addField(industryFields, 'industry.insuranceAccepted', 'Insurance Accepted', industryData.insuranceAccepted, 'healthcareInsurance', source);
+  addField(industryFields, 'industry.emergencyServices', 'Emergency Services', industryData.emergencyServices, 'healthcareEmergency', source);
+
+  // Real Estate specific
+  addField(industryFields, 'industry.reraNumber', 'RERA Number', industryData.reraNumber, 'reraNumber', source);
+  addField(industryFields, 'industry.developerName', 'Developer Name', industryData.developerName, 'developerName', source);
+  addField(industryFields, 'industry.banksApproved', 'Banks Approved', industryData.banksApproved, 'banksApproved', source);
+
+  if (industryFields.length > 0) {
     categories.push({
-      id: 'team',
-      label: 'Team',
-      icon: Users,
-      color: 'bg-teal-500',
-      fields: [{
-        id: 'team',
-        label: 'Team Members',
-        value: (persona as any).team,
-        displayValue: `${(persona as any).team.length} members`,
-        path: 'team',
-        source,
-        selected: true
-      }],
+      id: 'industry-specific',
+      label: `Industry Details (${industryFields.length})`,
+      icon: Info,
+      color: 'bg-gray-500',
+      fields: industryFields,
       expanded: false
     });
-  }
-
-  // FAQs
-  if ((knowledge as any).faqs?.length > 0) {
-    categories.push({
-      id: 'faqs',
-      label: 'FAQs',
-      icon: MessageSquare,
-      color: 'bg-cyan-500',
-      fields: [{
-        id: 'knowledge.faqs',
-        label: 'Frequently Asked Questions',
-        value: (knowledge as any).faqs,
-        displayValue: `${(knowledge as any).faqs.length} questions`,
-        path: 'knowledge.faqs',
-        source,
-        selected: true
-      }],
-      expanded: false
-    });
-  }
-
-  // Social Media
-  const social = (identity as any).socialMedia;
-  if (social) {
-    const socialFields: ImportedField[] = [];
-    Object.entries(social).forEach(([platform, url]) => {
-      if (url) {
-        socialFields.push({
-          id: `identity.socialMedia.${platform}`,
-          label: platform.charAt(0).toUpperCase() + platform.slice(1),
-          value: url,
-          displayValue: String(url),
-          path: `identity.socialMedia.${platform}`,
-          source,
-          selected: true
-        });
-      }
-    });
-    if (socialFields.length > 0) {
-      categories.push({
-        id: 'social',
-        label: 'Social Media',
-        icon: Globe,
-        color: 'bg-sky-500',
-        fields: socialFields,
-        expanded: false
-      });
-    }
   }
 
   return categories;
@@ -513,10 +908,10 @@ export default function ImportCenterPage() {
     try {
       const result = await autoFillProfileAction(selectedPlace.placeId);
       if (result.success && result.profile) {
-        // Extract categories from the imported data
+        console.log('[ImportCenter] Google import data:', result.profile);
         const categories = extractImportedCategories(result.profile as any, 'google');
         setGoogleImportedData(categories);
-        toast.success('Data imported from Google!');
+        toast.success(`Imported ${categories.reduce((a, c) => a + c.fields.length, 0)} fields from Google!`);
       } else {
         toast.error(result.error || 'Failed to import from Google');
       }
@@ -548,12 +943,12 @@ export default function ImportCenterPage() {
         return;
       }
 
-      console.log('[ImportCenter] Website import complete, pages analyzed:', result.pagesScraped?.length);
+      console.log('[ImportCenter] Website import data:', result.profile);
+      console.log('[ImportCenter] Pages analyzed:', result.pagesScraped?.length);
 
-      // Extract categories from the imported data
       const categories = extractImportedCategories(result.profile as any, 'website');
       setWebsiteImportedData(categories);
-      toast.success(`Website analyzed! ${result.pagesScraped?.length || 1} page${(result.pagesScraped?.length || 1) !== 1 ? 's' : ''} processed.`);
+      toast.success(`Imported ${categories.reduce((a, c) => a + c.fields.length, 0)} fields from ${result.pagesScraped?.length || 1} pages!`);
     } catch (err: any) {
       console.error('[ImportCenter] Website import error:', err);
       setWebsiteError(err.message || 'Failed to import from website');
@@ -564,8 +959,8 @@ export default function ImportCenterPage() {
   };
 
   // Toggle field selection
-  const toggleFieldSelection = (source: 'google' | 'website', categoryId: string, fieldId: string) => {
-    const setData = source === 'google' ? setGoogleImportedData : setWebsiteImportedData;
+  const toggleFieldSelection = (sourceType: 'google' | 'website', categoryId: string, fieldId: string) => {
+    const setData = sourceType === 'google' ? setGoogleImportedData : setWebsiteImportedData;
     setData(prev => prev.map(cat => {
       if (cat.id === categoryId) {
         return {
@@ -578,16 +973,16 @@ export default function ImportCenterPage() {
   };
 
   // Toggle category expansion
-  const toggleCategoryExpansion = (source: 'google' | 'website', categoryId: string) => {
-    const setData = source === 'google' ? setGoogleImportedData : setWebsiteImportedData;
+  const toggleCategoryExpansion = (sourceType: 'google' | 'website', categoryId: string) => {
+    const setData = sourceType === 'google' ? setGoogleImportedData : setWebsiteImportedData;
     setData(prev => prev.map(cat =>
       cat.id === categoryId ? { ...cat, expanded: !cat.expanded } : cat
     ));
   };
 
   // Select all in category
-  const selectAllInCategory = (source: 'google' | 'website', categoryId: string, selected: boolean) => {
-    const setData = source === 'google' ? setGoogleImportedData : setWebsiteImportedData;
+  const selectAllInCategory = (sourceType: 'google' | 'website', categoryId: string, selected: boolean) => {
+    const setData = sourceType === 'google' ? setGoogleImportedData : setWebsiteImportedData;
     setData(prev => prev.map(cat => {
       if (cat.id === categoryId) {
         return {
@@ -600,8 +995,8 @@ export default function ImportCenterPage() {
   };
 
   // Clear import data
-  const clearImportData = (source: 'google' | 'website') => {
-    if (source === 'google') {
+  const clearImportData = (sourceType: 'google' | 'website') => {
+    if (sourceType === 'google') {
       setGoogleImportedData([]);
       setGoogleSearch('');
       setSelectedPlace(null);
@@ -611,7 +1006,7 @@ export default function ImportCenterPage() {
       setWebsiteUrl('');
       setWebsiteError(null);
     }
-    toast.success(`${source === 'google' ? 'Google' : 'Website'} import cleared`);
+    toast.success(`${sourceType === 'google' ? 'Google' : 'Website'} import cleared`);
   };
 
   // Apply selected data to profile
@@ -635,22 +1030,28 @@ export default function ImportCenterPage() {
     setIsApplying(true);
     try {
       // Build the updated persona by applying selected fields
-      let updatedPersona = { ...persona };
+      const updatedPersona: any = JSON.parse(JSON.stringify(persona));
 
       allSelectedFields.forEach(field => {
         const pathParts = field.path.split('.');
         let current: any = updatedPersona;
 
-        // Navigate to the parent
+        // Navigate to the parent, creating objects as needed
         for (let i = 0; i < pathParts.length - 1; i++) {
-          if (!current[pathParts[i]]) {
-            current[pathParts[i]] = {};
+          const part = pathParts[i];
+          // Check if next part is a number (array index)
+          const nextPart = pathParts[i + 1];
+          const isNextIndex = !isNaN(parseInt(nextPart));
+
+          if (!current[part]) {
+            current[part] = isNextIndex ? [] : {};
           }
-          current = current[pathParts[i]];
+          current = current[part];
         }
 
         // Set the value
-        current[pathParts[pathParts.length - 1]] = field.value;
+        const lastPart = pathParts[pathParts.length - 1];
+        current[lastPart] = field.value;
       });
 
       // Update import history
@@ -719,7 +1120,7 @@ export default function ImportCenterPage() {
     <div className="min-h-screen bg-slate-100">
       {/* Header */}
       <div className="bg-white border-b border-slate-200 sticky top-0 z-50">
-        <div className="max-w-5xl mx-auto px-6 flex items-center justify-between h-16">
+        <div className="max-w-6xl mx-auto px-6 flex items-center justify-between h-16">
           <div className="flex items-center gap-4">
             <button
               onClick={() => router.push('/partner/settings')}
@@ -755,7 +1156,7 @@ export default function ImportCenterPage() {
         </div>
       </div>
 
-      <div className="max-w-5xl mx-auto px-6 py-8">
+      <div className="max-w-6xl mx-auto px-6 py-8">
         {/* Import Source Cards */}
         <div className="grid grid-cols-2 gap-4 mb-8">
           {/* Google Import Card */}
@@ -778,13 +1179,13 @@ export default function ImportCenterPage() {
                 <h3 className="font-semibold text-slate-900">Google Business</h3>
                 <p className="text-sm text-slate-500 mt-1">
                   {googleImportedData.length > 0
-                    ? `${googleImportedData.flatMap(c => c.fields).length} fields imported`
+                    ? `${googleImportedData.reduce((a, c) => a + c.fields.length, 0)} fields in ${googleImportedData.length} categories`
                     : 'Search & import from Google'}
                 </p>
                 {googleImportedData.length > 0 && (
                   <div className="flex items-center gap-1.5 mt-2">
                     <CheckCircle2 className="w-4 h-4 text-emerald-500" />
-                    <span className="text-xs text-emerald-600 font-medium">Data ready</span>
+                    <span className="text-xs text-emerald-600 font-medium">Data ready to apply</span>
                   </div>
                 )}
               </div>
@@ -811,13 +1212,13 @@ export default function ImportCenterPage() {
                 <h3 className="font-semibold text-slate-900">Website Import</h3>
                 <p className="text-sm text-slate-500 mt-1">
                   {websiteImportedData.length > 0
-                    ? `${websiteImportedData.flatMap(c => c.fields).length} fields imported`
+                    ? `${websiteImportedData.reduce((a, c) => a + c.fields.length, 0)} fields in ${websiteImportedData.length} categories`
                     : 'Import from your website'}
                 </p>
                 {websiteImportedData.length > 0 && (
                   <div className="flex items-center gap-1.5 mt-2">
                     <CheckCircle2 className="w-4 h-4 text-emerald-500" />
-                    <span className="text-xs text-emerald-600 font-medium">Data ready</span>
+                    <span className="text-xs text-emerald-600 font-medium">Data ready to apply</span>
                   </div>
                 )}
               </div>
@@ -877,6 +1278,11 @@ export default function ImportCenterPage() {
                           placeholder="Search your business on Google..."
                           className="w-full px-4 py-3 rounded-lg bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
                         />
+                        {googleSearching && (
+                          <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                            <Loader2 className="w-4 h-4 animate-spin text-slate-400" />
+                          </div>
+                        )}
                         {googleResults.length > 0 && (
                           <div className="absolute z-20 top-14 left-0 right-0 bg-white border border-slate-200 rounded-xl shadow-xl max-h-60 overflow-y-auto">
                             {googleResults.map(r => (
@@ -988,9 +1394,11 @@ export default function ImportCenterPage() {
           <div className="space-y-6">
             <div className="flex items-center justify-between">
               <h2 className="text-lg font-bold text-slate-900">Imported Data</h2>
-              <p className="text-sm text-slate-500">
-                {totalSelectedCount} of {totalFieldCount} fields selected
-              </p>
+              <div className="flex items-center gap-4">
+                <p className="text-sm text-slate-500">
+                  {totalSelectedCount} of {totalFieldCount} fields selected
+                </p>
+              </div>
             </div>
 
             {/* Google Imported Data */}
@@ -1000,6 +1408,9 @@ export default function ImportCenterPage() {
                   <div className="flex items-center gap-3">
                     <Search className="w-5 h-5 text-blue-600" />
                     <span className="font-semibold text-blue-900">From Google Business</span>
+                    <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">
+                      {googleImportedData.length} categories
+                    </span>
                   </div>
                   <span className="text-sm text-blue-600">
                     {googleImportedData.flatMap(c => c.fields).filter(f => f.selected).length} selected
@@ -1011,7 +1422,7 @@ export default function ImportCenterPage() {
                     <CategorySection
                       key={category.id}
                       category={category}
-                      source="google"
+                      sourceType="google"
                       onToggleExpand={() => toggleCategoryExpansion('google', category.id)}
                       onToggleField={(fieldId) => toggleFieldSelection('google', category.id, fieldId)}
                       onSelectAll={(selected) => selectAllInCategory('google', category.id, selected)}
@@ -1028,6 +1439,9 @@ export default function ImportCenterPage() {
                   <div className="flex items-center gap-3">
                     <Globe className="w-5 h-5 text-purple-600" />
                     <span className="font-semibold text-purple-900">From Website</span>
+                    <span className="text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full">
+                      {websiteImportedData.length} categories
+                    </span>
                   </div>
                   <span className="text-sm text-purple-600">
                     {websiteImportedData.flatMap(c => c.fields).filter(f => f.selected).length} selected
@@ -1039,7 +1453,7 @@ export default function ImportCenterPage() {
                     <CategorySection
                       key={category.id}
                       category={category}
-                      source="website"
+                      sourceType="website"
                       onToggleExpand={() => toggleCategoryExpansion('website', category.id)}
                       onToggleField={(fieldId) => toggleFieldSelection('website', category.id, fieldId)}
                       onSelectAll={(selected) => selectAllInCategory('website', category.id, selected)}
@@ -1074,13 +1488,13 @@ export default function ImportCenterPage() {
 
 function CategorySection({
   category,
-  source,
+  sourceType,
   onToggleExpand,
   onToggleField,
   onSelectAll
 }: {
   category: ImportedCategory;
-  source: 'google' | 'website';
+  sourceType: 'google' | 'website';
   onToggleExpand: () => void;
   onToggleField: (fieldId: string) => void;
   onSelectAll: (selected: boolean) => void;
@@ -1123,7 +1537,7 @@ function CategorySection({
             </button>
           </div>
 
-          <div className="space-y-2">
+          <div className="space-y-2 max-h-96 overflow-y-auto">
             {category.fields.map(field => (
               <div
                 key={field.id}
@@ -1136,7 +1550,7 @@ function CategorySection({
                 )}
               >
                 <div className={cn(
-                  "w-5 h-5 rounded-md flex items-center justify-center border-2 transition-colors",
+                  "w-5 h-5 rounded-md flex items-center justify-center border-2 transition-colors flex-shrink-0",
                   field.selected
                     ? "bg-indigo-600 border-indigo-600"
                     : "bg-white border-slate-300"
