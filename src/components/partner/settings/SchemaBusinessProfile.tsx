@@ -800,7 +800,7 @@ export default function SchemaBusinessProfile({
                                     )}
                                 >
                                     <Globe className="w-4 h-4" />
-                                    Website Scrape
+                                    Website Import
                                 </button>
                                 <div className="flex-1" />
                                 <button
@@ -869,7 +869,7 @@ export default function SchemaBusinessProfile({
                                 </div>
                             )}
 
-                            {/* Website Scrape Mode */}
+                            {/* Website Import Mode */}
                             {autoFillMode === 'website' && (
                                 <div>
                                     <div className="flex items-center gap-4">
@@ -909,7 +909,7 @@ export default function SchemaBusinessProfile({
                                             )}
                                         >
                                             {isScrapingWebsite ? <Loader2 className="w-4 h-4 animate-spin" /> : <Globe className="w-4 h-4" />}
-                                            Scrape Website
+                                            Import Website
                                         </button>
                                     </div>
 
@@ -924,7 +924,7 @@ export default function SchemaBusinessProfile({
                                     {/* Info Message */}
                                     <div className="mt-3 text-xs text-slate-500 flex items-center gap-2">
                                         <Sparkles className="w-3.5 h-3.5 text-indigo-400" />
-                                        <span>We'll analyze your website and automatically extract business information, services, menu items, and more.</span>
+                                        <span>We'll analyze your website and automatically import business information, services, menu items, and more.</span>
                                     </div>
                                 </div>
                             )}

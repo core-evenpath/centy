@@ -1471,7 +1471,7 @@ export default function AutoFillPreviewModal({
           {data.source && (
             <div className="text-xs text-slate-400 text-center pt-3 border-t border-slate-100">
               Data fetched: {new Date(data.source.fetchedAt).toLocaleString()} |
-              Source: {data.source.placesData ? 'Google Places' : data.source.websiteUrl ? 'Website Scrape' : ''}
+              Source: {data.source.placesData ? 'Google Places' : data.source.websiteUrl ? 'Website Import' : ''}
               {data.source.aiEnriched ? ' + AI Analysis' : ''}
               {data.source.pagesScraped?.length > 1 && ` (${data.source.pagesScraped.length} pages)`}
             </div>

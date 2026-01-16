@@ -26,6 +26,7 @@ import ProfileSummary from '@/components/partner/settings/ProfileSummary';
 import FieldConnectionAudit from '@/components/partner/settings/FieldConnectionAudit';
 import BusinessProfileAgent from '@/components/partner/settings/BusinessProfileAgent';
 import AutoFillPreviewModal from '@/components/partner/settings/AutoFillPreviewModal';
+import WebsiteImportPreviewModal from '@/components/partner/settings/WebsiteImportPreviewModal';
 import SchemaBusinessProfile from '@/components/partner/settings/SchemaBusinessProfile';
 
 const SettingsUltimate = () => {
@@ -56,10 +57,14 @@ const SettingsUltimate = () => {
   const [isApplyingAutoFill, setIsApplyingAutoFill] = useState(false);
   const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Website Scrape State
+  // Website Import State
   const [websiteUrl, setWebsiteUrl] = useState('');
   const [isScrapingWebsite, setIsScrapingWebsite] = useState(false);
   const [websiteScrapeError, setWebsiteScrapeError] = useState<string | null>(null);
+  const [showWebsiteImportPreview, setShowWebsiteImportPreview] = useState(false);
+  const [websiteImportData, setWebsiteImportData] = useState<any>(null);
+  const [websitePagesScraped, setWebsitePagesScraped] = useState<string[]>([]);
+  const [isApplyingWebsiteImport, setIsApplyingWebsiteImport] = useState(false);
 
   // RAG Processing State
   const [ragProcessing, setRagProcessing] = useState(false);
@@ -299,7 +304,7 @@ const SettingsUltimate = () => {
     }
   };
 
-  // Handle website scraping
+  // Handle website import
   const handleWebsiteScrape = async () => {
     if (!websiteUrl.trim()) {
       setWebsiteScrapeError('Please enter a website URL');
@@ -310,29 +315,30 @@ const SettingsUltimate = () => {
     setWebsiteScrapeError(null);
 
     try {
-      console.log('[Settings] Starting website scrape for:', websiteUrl);
+      console.log('[Settings] Starting website import for:', websiteUrl);
       const result = await scrapeWebsiteAction(websiteUrl, {
         includeSubpages: true,
         maxPages: 5,
       });
 
       if (!result.success || !result.profile) {
-        setWebsiteScrapeError(result.error || 'Failed to scrape website');
-        toast.error(result.error || 'Failed to scrape website');
+        setWebsiteScrapeError(result.error || 'Failed to import from website');
+        toast.error(result.error || 'Failed to import from website');
         return;
       }
 
-      console.log('[Settings] Website scrape complete, pages scraped:', result.pagesScraped?.length);
+      console.log('[Settings] Website import complete, pages analyzed:', result.pagesScraped?.length);
 
-      // Show the preview modal (reuse existing auto-fill preview)
-      setAutoFillPreviewData(result.profile);
-      setShowAutoFillPreview(true);
+      // Show the website import preview modal (separate from Google auto-fill)
+      setWebsiteImportData(result.profile);
+      setWebsitePagesScraped(result.pagesScraped || []);
+      setShowWebsiteImportPreview(true);
 
-      toast.success(`Website scraped successfully! ${result.pagesScraped?.length || 1} pages analyzed.`);
+      toast.success(`Website analyzed! ${result.pagesScraped?.length || 1} page${(result.pagesScraped?.length || 1) !== 1 ? 's' : ''} processed.`);
     } catch (error: any) {
-      console.error('[Settings] Website scrape error:', error);
-      setWebsiteScrapeError(error.message || 'Failed to scrape website');
-      toast.error('Failed to scrape website');
+      console.error('[Settings] Website import error:', error);
+      setWebsiteScrapeError(error.message || 'Failed to import from website');
+      toast.error('Failed to import from website');
     } finally {
       setIsScrapingWebsite(false);
     }
@@ -1425,6 +1431,60 @@ const SettingsUltimate = () => {
                         toast.error(err.message || 'Failed to apply data');
                       } finally {
                         setIsApplyingAutoFill(false);
+                      }
+                    }}
+                  />
+                )}
+
+                {/* Website Import Preview Modal - Separate from Google Auto-Fill */}
+                {showWebsiteImportPreview && websiteImportData && (
+                  <WebsiteImportPreviewModal
+                    data={websiteImportData}
+                    websiteUrl={websiteUrl}
+                    pagesScraped={websitePagesScraped}
+                    onClose={() => setShowWebsiteImportPreview(false)}
+                    isApplying={isApplyingWebsiteImport}
+                    onApply={async (selectedData: any) => {
+                      try {
+                        setIsApplyingWebsiteImport(true);
+
+                        // Use the server action to properly map inventory to schema
+                        const result = await mapInventoryToPersonaAction(selectedData, persona);
+
+                        if (!result.success || !result.persona) {
+                          throw new Error(result.error || 'Failed to map imported data');
+                        }
+
+                        const mergedPersona = result.persona;
+
+                        setPersona(mergedPersona);
+                        if (partnerId) await saveBusinessPersonaAction(partnerId, mergedPersona);
+
+                        // Set business type based on detected industry
+                        if (selectedData.identity?.industry) {
+                          const industryMap: Record<string, string> = {
+                            'hospitality': 'hospitality',
+                            'food_beverage': 'food_restaurant',
+                            'retail': 'retail_ecommerce',
+                            'healthcare': 'healthcare',
+                            'real_estate': 'real_estate',
+                            'education': 'education',
+                            'finance': 'finance',
+                            'services': 'services',
+                          };
+                          const mappedType = industryMap[selectedData.identity.industry];
+                          if (mappedType && !selectedBusinessTypes.includes(mappedType)) {
+                            setSelectedBusinessTypes([...selectedBusinessTypes, mappedType]);
+                          }
+                        }
+
+                        toast.success('Profile updated with website data!');
+                        setShowWebsiteImportPreview(false);
+                        setWebsiteUrl('');
+                      } catch (err: any) {
+                        toast.error(err.message || 'Failed to apply imported data');
+                      } finally {
+                        setIsApplyingWebsiteImport(false);
                       }
                     }}
                   />
