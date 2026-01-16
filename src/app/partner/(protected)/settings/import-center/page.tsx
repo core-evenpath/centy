@@ -3,10 +3,9 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/use-auth';
-import { getPartnerProfile } from '@/actions/get-partner-profile';
-import { saveBusinessPersonaAction } from '@/actions/partnerhub-actions';
-import { autoFillProfileAction } from '@/actions/autofill-profile-action';
-import { scrapeWebsiteAction } from '@/lib/website-scrape-actions';
+import { getBusinessPersonaAction, saveBusinessPersonaAction } from '@/actions/business-persona-actions';
+import { autoFillProfileAction } from '@/actions/business-autofill-actions';
+import { scrapeWebsiteAction } from '@/actions/website-scrape-actions';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import {
@@ -457,34 +456,31 @@ export default function ImportCenterPage() {
   // Applying to profile
   const [isApplying, setIsApplying] = useState(false);
 
-  // Load partner profile
-  useEffect(() => {
-    const loadProfile = async () => {
-      if (!user?.uid) return;
-      try {
-        const result = await getPartnerProfile(user.uid);
-        if (result.success && result.profile) {
-          setPartnerId(result.profile.partnerId);
-          setPersona(result.profile.businessPersona || {});
+  // Get partnerId from user claims
+  const userPartnerId = (user as any)?.customClaims?.partnerId;
 
-          // Restore previous imports from history
-          const importHistory = result.profile.businessPersona?.importHistory;
-          if (importHistory?.google?.lastImportedAt) {
-            // We have previous Google import data
-          }
-          if (importHistory?.website?.lastImportedAt) {
-            // We have previous website import data
-          }
+  // Load business persona
+  useEffect(() => {
+    const loadPersona = async () => {
+      if (!userPartnerId) {
+        setLoading(false);
+        return;
+      }
+      try {
+        setPartnerId(userPartnerId);
+        const result = await getBusinessPersonaAction(userPartnerId);
+        if (result.success && result.persona) {
+          setPersona(result.persona);
         }
       } catch (err) {
-        console.error('Failed to load profile:', err);
+        console.error('Failed to load persona:', err);
         toast.error('Failed to load profile');
       } finally {
         setLoading(false);
       }
     };
-    if (!authLoading) loadProfile();
-  }, [user, authLoading]);
+    if (!authLoading) loadPersona();
+  }, [userPartnerId, authLoading]);
 
   // Google places search
   const debouncedSearch = useCallback(async (query: string) => {
@@ -540,7 +536,7 @@ export default function ImportCenterPage() {
     setIsWebsiteImporting(true);
     setWebsiteError(null);
     try {
-      const result = await scrapeWebsiteAction(websiteUrl, 'US');
+      const result = await scrapeWebsiteAction(websiteUrl, { countryCode: 'US', includeSubpages: true, maxPages: 5 });
       if (result.success && result.data) {
         // Extract categories from the imported data
         const categories = extractImportedCategories(result.data as any, 'website');
