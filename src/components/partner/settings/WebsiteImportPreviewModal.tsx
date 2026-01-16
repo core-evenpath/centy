@@ -8,7 +8,9 @@ import {
   Building2, Package, Users, HelpCircle, Utensils, Bed, Home,
   Stethoscope, CheckSquare, Square, Phone, Mail, Clock, Link,
   MessageSquare, Tag, DollarSign, Star, FileText, ExternalLink,
-  Instagram, Facebook, Linkedin, Twitter, Youtube, Award, Briefcase
+  Instagram, Facebook, Linkedin, Twitter, Youtube, Award, Briefcase,
+  Heart, Target, BookOpen, Shield, Percent, GraduationCap, Sparkles,
+  BadgeCheck, Handshake, Newspaper, Leaf, Accessibility, Truck
 } from 'lucide-react';
 
 // Types for selection tracking
@@ -17,19 +19,53 @@ interface SelectionState {
     selected: boolean;
     fields: {
       businessName: boolean;
+      legalName: boolean;
       tagline: boolean;
       description: boolean;
+      shortDescription: boolean;
       industry: boolean;
+      subIndustry: boolean;
+      businessType: boolean;
+      yearEstablished: boolean;
+      languages: boolean;
+    };
+  };
+  brandStory: {
+    selected: boolean;
+    fields: {
+      missionStatement: boolean;
+      visionStatement: boolean;
+      story: boolean;
+      brandValues: boolean;
+      brandVoice: boolean;
     };
   };
   contact: {
     selected: boolean;
     fields: {
       phone: boolean;
+      secondaryPhone: boolean;
+      whatsapp: boolean;
+      tollFree: boolean;
       email: boolean;
+      supportEmail: boolean;
+      salesEmail: boolean;
+      bookingEmail: boolean;
       address: boolean;
       website: boolean;
       operatingHours: boolean;
+    };
+  };
+  locations: {
+    selected: boolean;
+    items: boolean[];
+  };
+  serviceAreas: {
+    selected: boolean;
+    fields: {
+      serviceAreas: boolean;
+      deliveryZones: boolean;
+      internationalShipping: boolean;
     };
   };
   social: {
@@ -40,6 +76,10 @@ interface SelectionState {
       linkedin: boolean;
       twitter: boolean;
       youtube: boolean;
+      pinterest: boolean;
+      tiktok: boolean;
+      whatsappBusiness: boolean;
+      googleBusiness: boolean;
     };
   };
   content: {
@@ -47,15 +87,38 @@ interface SelectionState {
     fields: {
       usps: boolean;
       targetAudience: boolean;
+      customerPainPoints: boolean;
     };
   };
   productsServices: {
     selected: boolean;
     items: boolean[];
   };
+  packages: {
+    selected: boolean;
+    items: boolean[];
+  };
+  pricingTiers: {
+    selected: boolean;
+    items: boolean[];
+  };
+  currentOffers: {
+    selected: boolean;
+    items: boolean[];
+  };
   faqs: {
     selected: boolean;
     items: boolean[];
+  };
+  policies: {
+    selected: boolean;
+    fields: {
+      returnPolicy: boolean;
+      refundPolicy: boolean;
+      cancellationPolicy: boolean;
+      shippingPolicy: boolean;
+      warrantyPolicy: boolean;
+    };
   };
   inventory: {
     selected: boolean;
@@ -64,18 +127,40 @@ interface SelectionState {
     products: boolean[];
     services: boolean[];
     properties: boolean[];
+    courses: boolean[];
+    treatments: boolean[];
+  };
+  team: {
+    selected: boolean;
+    items: boolean[];
   };
   testimonials: {
     selected: boolean;
     items: boolean[];
   };
-  additional: {
+  caseStudies: {
+    selected: boolean;
+    items: boolean[];
+  };
+  credibility: {
     selected: boolean;
     fields: {
       awards: boolean;
       certifications: boolean;
+      accreditations: boolean;
+      partnerships: boolean;
+      clients: boolean;
+      featuredIn: boolean;
+    };
+  };
+  additional: {
+    selected: boolean;
+    fields: {
       founders: boolean;
       teamSize: boolean;
+      technicalInfo: boolean;
+      sustainability: boolean;
+      accessibility: boolean;
     };
   };
 }
@@ -96,19 +181,54 @@ function initializeSelectionState(data: any): SelectionState {
       selected: true,
       fields: {
         businessName: !!data?.identity?.businessName,
+        legalName: !!data?.identity?.legalName,
         tagline: !!data?.personality?.tagline || !!data?.identity?.tagline,
         description: !!data?.personality?.description || !!data?.identity?.description,
+        shortDescription: !!data?.identity?.shortDescription || !!data?.personality?.shortDescription,
         industry: !!data?.identity?.industry,
+        subIndustry: !!data?.identity?.subIndustry,
+        businessType: !!data?.identity?.businessType,
+        yearEstablished: !!data?.identity?.yearEstablished,
+        languages: !!(data?.identity?.languages?.length),
+      },
+    },
+    brandStory: {
+      selected: !!(data?.personality?.missionStatement || data?.personality?.visionStatement ||
+                   data?.personality?.story || data?.personality?.brandValues?.length || data?.personality?.brandVoice),
+      fields: {
+        missionStatement: !!data?.personality?.missionStatement,
+        visionStatement: !!data?.personality?.visionStatement,
+        story: !!data?.personality?.story,
+        brandValues: !!(data?.personality?.brandValues?.length),
+        brandVoice: !!data?.personality?.brandVoice,
       },
     },
     contact: {
       selected: true,
       fields: {
         phone: !!data?.identity?.phone,
+        secondaryPhone: !!data?.identity?.secondaryPhone,
+        whatsapp: !!data?.identity?.whatsapp,
+        tollFree: !!data?.identity?.tollFree,
         email: !!data?.identity?.email,
+        supportEmail: !!data?.identity?.supportEmail,
+        salesEmail: !!data?.identity?.salesEmail,
+        bookingEmail: !!data?.identity?.bookingEmail,
         address: !!(data?.identity?.address?.street || data?.identity?.address?.city),
         website: !!data?.identity?.website,
         operatingHours: !!data?.identity?.operatingHours,
+      },
+    },
+    locations: {
+      selected: !!(data?.identity?.locations?.length),
+      items: (data?.identity?.locations || []).map(() => true),
+    },
+    serviceAreas: {
+      selected: !!(data?.identity?.serviceAreas?.length || data?.identity?.deliveryZones?.length),
+      fields: {
+        serviceAreas: !!(data?.identity?.serviceAreas?.length),
+        deliveryZones: !!(data?.identity?.deliveryZones?.length),
+        internationalShipping: !!data?.identity?.internationalShipping,
       },
     },
     social: {
@@ -119,6 +239,10 @@ function initializeSelectionState(data: any): SelectionState {
         linkedin: !!data?.identity?.socialMedia?.linkedin,
         twitter: !!data?.identity?.socialMedia?.twitter,
         youtube: !!data?.identity?.socialMedia?.youtube,
+        pinterest: !!data?.identity?.socialMedia?.pinterest,
+        tiktok: !!data?.identity?.socialMedia?.tiktok,
+        whatsappBusiness: !!data?.identity?.socialMedia?.whatsappBusiness,
+        googleBusiness: !!data?.identity?.socialMedia?.googleBusiness,
       },
     },
     content: {
@@ -126,15 +250,38 @@ function initializeSelectionState(data: any): SelectionState {
       fields: {
         usps: (data?.personality?.uniqueSellingPoints?.length || 0) > 0,
         targetAudience: (data?.customerProfile?.targetAudience?.length || 0) > 0,
+        customerPainPoints: (data?.customerProfile?.customerPainPoints?.length || 0) > 0,
       },
     },
     productsServices: {
       selected: (data?.knowledge?.productsOrServices?.length || 0) > 0,
       items: (data?.knowledge?.productsOrServices || []).map(() => true),
     },
+    packages: {
+      selected: (data?.knowledge?.packages?.length || 0) > 0,
+      items: (data?.knowledge?.packages || []).map(() => true),
+    },
+    pricingTiers: {
+      selected: (data?.knowledge?.pricingTiers?.length || 0) > 0,
+      items: (data?.knowledge?.pricingTiers || []).map(() => true),
+    },
+    currentOffers: {
+      selected: (data?.knowledge?.currentOffers?.length || 0) > 0,
+      items: (data?.knowledge?.currentOffers || []).map(() => true),
+    },
     faqs: {
       selected: (data?.knowledge?.faqs?.length || 0) > 0,
       items: (data?.knowledge?.faqs || []).map(() => true),
+    },
+    policies: {
+      selected: !!data?.knowledge?.policies,
+      fields: {
+        returnPolicy: !!data?.knowledge?.policies?.returnPolicy,
+        refundPolicy: !!data?.knowledge?.policies?.refundPolicy,
+        cancellationPolicy: !!data?.knowledge?.policies?.cancellationPolicy,
+        shippingPolicy: !!data?.knowledge?.policies?.shippingPolicy,
+        warrantyPolicy: !!data?.knowledge?.policies?.warrantyPolicy,
+      },
     },
     inventory: {
       selected: !!(data?.inventory && (
@@ -142,28 +289,52 @@ function initializeSelectionState(data: any): SelectionState {
         data.inventory.menuItems?.length ||
         data.inventory.products?.length ||
         data.inventory.services?.length ||
-        data.inventory.properties?.length
+        data.inventory.properties?.length ||
+        data.inventory.courses?.length ||
+        data.inventory.treatments?.length
       )),
       rooms: (data?.inventory?.rooms || []).map(() => true),
       menuItems: (data?.inventory?.menuItems || []).map(() => true),
       products: (data?.inventory?.products || []).map(() => true),
       services: (data?.inventory?.services || []).map(() => true),
       properties: (data?.inventory?.properties || []).map(() => true),
+      courses: (data?.inventory?.courses || []).map(() => true),
+      treatments: (data?.inventory?.treatments || []).map(() => true),
+    },
+    team: {
+      selected: (data?.team?.length || 0) > 0,
+      items: (data?.team || []).map(() => true),
     },
     testimonials: {
       selected: (data?.testimonials?.length || 0) > 0,
       items: (data?.testimonials || []).map(() => true),
     },
-    additional: {
-      selected: !!(data?.industrySpecificData?.awards?.length ||
-                   data?.industrySpecificData?.certifications?.length ||
-                   data?.industrySpecificData?.founders ||
-                   data?.industrySpecificData?.teamSize),
+    caseStudies: {
+      selected: (data?.caseStudies?.length || 0) > 0,
+      items: (data?.caseStudies || []).map(() => true),
+    },
+    credibility: {
+      selected: !!(data?.awards?.length || data?.certifications?.length ||
+                   data?.accreditations?.length || data?.partnerships?.length ||
+                   data?.clients?.length || data?.featuredIn?.length),
       fields: {
-        awards: (data?.industrySpecificData?.awards?.length || 0) > 0,
-        certifications: (data?.industrySpecificData?.certifications?.length || 0) > 0,
+        awards: (data?.awards?.length || 0) > 0,
+        certifications: (data?.certifications?.length || 0) > 0,
+        accreditations: (data?.accreditations?.length || 0) > 0,
+        partnerships: (data?.partnerships?.length || 0) > 0,
+        clients: (data?.clients?.length || 0) > 0,
+        featuredIn: (data?.featuredIn?.length || 0) > 0,
+      },
+    },
+    additional: {
+      selected: !!(data?.industrySpecificData?.founders || data?.industrySpecificData?.teamSize ||
+                   data?.technicalInfo || data?.sustainability || data?.accessibility),
+      fields: {
         founders: !!data?.industrySpecificData?.founders,
         teamSize: !!data?.industrySpecificData?.teamSize,
+        technicalInfo: !!data?.technicalInfo,
+        sustainability: !!data?.sustainability,
+        accessibility: !!data?.accessibility,
       },
     },
   };
@@ -181,16 +352,55 @@ function buildSelectedData(data: any, selection: SelectionState): any {
     if (selection.businessInfo.fields.businessName && data.identity?.businessName) {
       result.identity.businessName = data.identity.businessName;
     }
+    if (selection.businessInfo.fields.legalName && data.identity?.legalName) {
+      result.identity.legalName = data.identity.legalName;
+    }
     if (selection.businessInfo.fields.industry && data.identity?.industry) {
       result.identity.industry = data.identity.industry;
+    }
+    if (selection.businessInfo.fields.subIndustry && data.identity?.subIndustry) {
+      result.identity.subIndustry = data.identity.subIndustry;
+    }
+    if (selection.businessInfo.fields.businessType && data.identity?.businessType) {
+      result.identity.businessType = data.identity.businessType;
     }
     if (selection.businessInfo.fields.description) {
       const desc = data.personality?.description || data.identity?.description;
       if (desc) result.identity.description = desc;
     }
+    if (selection.businessInfo.fields.shortDescription) {
+      const shortDesc = data.identity?.shortDescription || data.personality?.shortDescription;
+      if (shortDesc) result.identity.shortDescription = shortDesc;
+    }
     if (selection.businessInfo.fields.tagline) {
       const tagline = data.personality?.tagline || data.identity?.tagline;
       if (tagline) result.identity.tagline = tagline;
+    }
+    if (selection.businessInfo.fields.yearEstablished && data.identity?.yearEstablished) {
+      result.identity.yearEstablished = data.identity.yearEstablished;
+    }
+    if (selection.businessInfo.fields.languages && data.identity?.languages?.length) {
+      result.identity.languages = data.identity.languages;
+    }
+  }
+
+  // Brand Story
+  if (selection.brandStory.selected) {
+    result.personality = result.personality || {};
+    if (selection.brandStory.fields.missionStatement && data.personality?.missionStatement) {
+      result.personality.missionStatement = data.personality.missionStatement;
+    }
+    if (selection.brandStory.fields.visionStatement && data.personality?.visionStatement) {
+      result.personality.visionStatement = data.personality.visionStatement;
+    }
+    if (selection.brandStory.fields.story && data.personality?.story) {
+      result.personality.story = data.personality.story;
+    }
+    if (selection.brandStory.fields.brandValues && data.personality?.brandValues?.length) {
+      result.personality.brandValues = data.personality.brandValues;
+    }
+    if (selection.brandStory.fields.brandVoice && data.personality?.brandVoice) {
+      result.personality.brandVoice = data.personality.brandVoice;
     }
   }
 
@@ -200,8 +410,26 @@ function buildSelectedData(data: any, selection: SelectionState): any {
     if (selection.contact.fields.phone && data.identity?.phone) {
       result.identity.phone = data.identity.phone;
     }
+    if (selection.contact.fields.secondaryPhone && data.identity?.secondaryPhone) {
+      result.identity.secondaryPhone = data.identity.secondaryPhone;
+    }
+    if (selection.contact.fields.whatsapp && data.identity?.whatsapp) {
+      result.identity.whatsapp = data.identity.whatsapp;
+    }
+    if (selection.contact.fields.tollFree && data.identity?.tollFree) {
+      result.identity.tollFree = data.identity.tollFree;
+    }
     if (selection.contact.fields.email && data.identity?.email) {
       result.identity.email = data.identity.email;
+    }
+    if (selection.contact.fields.supportEmail && data.identity?.supportEmail) {
+      result.identity.supportEmail = data.identity.supportEmail;
+    }
+    if (selection.contact.fields.salesEmail && data.identity?.salesEmail) {
+      result.identity.salesEmail = data.identity.salesEmail;
+    }
+    if (selection.contact.fields.bookingEmail && data.identity?.bookingEmail) {
+      result.identity.bookingEmail = data.identity.bookingEmail;
     }
     if (selection.contact.fields.website && data.identity?.website) {
       result.identity.website = data.identity.website;
@@ -214,31 +442,44 @@ function buildSelectedData(data: any, selection: SelectionState): any {
     }
   }
 
+  // Locations
+  if (selection.locations.selected && data.identity?.locations?.length) {
+    result.identity = result.identity || {};
+    result.identity.locations = data.identity.locations.filter(
+      (_: any, i: number) => selection.locations.items[i]
+    );
+  }
+
+  // Service Areas
+  if (selection.serviceAreas.selected) {
+    result.identity = result.identity || {};
+    if (selection.serviceAreas.fields.serviceAreas && data.identity?.serviceAreas?.length) {
+      result.identity.serviceAreas = data.identity.serviceAreas;
+    }
+    if (selection.serviceAreas.fields.deliveryZones && data.identity?.deliveryZones?.length) {
+      result.identity.deliveryZones = data.identity.deliveryZones;
+    }
+    if (selection.serviceAreas.fields.internationalShipping && data.identity?.internationalShipping) {
+      result.identity.internationalShipping = data.identity.internationalShipping;
+    }
+  }
+
   // Social Media
   if (selection.social.selected) {
     result.identity = result.identity || {};
     result.identity.socialMedia = {};
-    if (selection.social.fields.instagram && data.identity?.socialMedia?.instagram) {
-      result.identity.socialMedia.instagram = data.identity.socialMedia.instagram;
-    }
-    if (selection.social.fields.facebook && data.identity?.socialMedia?.facebook) {
-      result.identity.socialMedia.facebook = data.identity.socialMedia.facebook;
-    }
-    if (selection.social.fields.linkedin && data.identity?.socialMedia?.linkedin) {
-      result.identity.socialMedia.linkedin = data.identity.socialMedia.linkedin;
-    }
-    if (selection.social.fields.twitter && data.identity?.socialMedia?.twitter) {
-      result.identity.socialMedia.twitter = data.identity.socialMedia.twitter;
-    }
-    if (selection.social.fields.youtube && data.identity?.socialMedia?.youtube) {
-      result.identity.socialMedia.youtube = data.identity.socialMedia.youtube;
+    const socialFields = ['instagram', 'facebook', 'linkedin', 'twitter', 'youtube', 'pinterest', 'tiktok', 'whatsappBusiness', 'googleBusiness'] as const;
+    for (const field of socialFields) {
+      if (selection.social.fields[field] && data.identity?.socialMedia?.[field]) {
+        result.identity.socialMedia[field] = data.identity.socialMedia[field];
+      }
     }
     if (Object.keys(result.identity.socialMedia).length === 0) {
       delete result.identity.socialMedia;
     }
   }
 
-  // Content (USPs, Target Audience)
+  // Content (USPs, Target Audience, Pain Points)
   if (selection.content.selected) {
     if (selection.content.fields.usps && data.personality?.uniqueSellingPoints?.length) {
       result.personality = result.personality || {};
@@ -247,6 +488,10 @@ function buildSelectedData(data: any, selection: SelectionState): any {
     if (selection.content.fields.targetAudience && data.customerProfile?.targetAudience?.length) {
       result.customerProfile = result.customerProfile || {};
       result.customerProfile.targetAudience = data.customerProfile.targetAudience;
+    }
+    if (selection.content.fields.customerPainPoints && data.customerProfile?.customerPainPoints?.length) {
+      result.customerProfile = result.customerProfile || {};
+      result.customerProfile.customerPainPoints = data.customerProfile.customerPainPoints;
     }
   }
 
@@ -258,6 +503,30 @@ function buildSelectedData(data: any, selection: SelectionState): any {
     );
   }
 
+  // Packages
+  if (selection.packages.selected && data.knowledge?.packages?.length) {
+    result.knowledge = result.knowledge || {};
+    result.knowledge.packages = data.knowledge.packages.filter(
+      (_: any, i: number) => selection.packages.items[i]
+    );
+  }
+
+  // Pricing Tiers
+  if (selection.pricingTiers.selected && data.knowledge?.pricingTiers?.length) {
+    result.knowledge = result.knowledge || {};
+    result.knowledge.pricingTiers = data.knowledge.pricingTiers.filter(
+      (_: any, i: number) => selection.pricingTiers.items[i]
+    );
+  }
+
+  // Current Offers
+  if (selection.currentOffers.selected && data.knowledge?.currentOffers?.length) {
+    result.knowledge = result.knowledge || {};
+    result.knowledge.currentOffers = data.knowledge.currentOffers.filter(
+      (_: any, i: number) => selection.currentOffers.items[i]
+    );
+  }
+
   // FAQs
   if (selection.faqs.selected && data.knowledge?.faqs?.length) {
     result.knowledge = result.knowledge || {};
@@ -266,34 +535,36 @@ function buildSelectedData(data: any, selection: SelectionState): any {
     );
   }
 
+  // Policies
+  if (selection.policies.selected && data.knowledge?.policies) {
+    result.knowledge = result.knowledge || {};
+    result.knowledge.policies = {};
+    const policyFields = ['returnPolicy', 'refundPolicy', 'cancellationPolicy', 'shippingPolicy', 'warrantyPolicy'] as const;
+    for (const field of policyFields) {
+      if (selection.policies.fields[field] && data.knowledge.policies[field]) {
+        result.knowledge.policies[field] = data.knowledge.policies[field];
+      }
+    }
+  }
+
   // Inventory
   if (selection.inventory.selected) {
     result.inventory = {};
-    if (data.inventory?.rooms?.length) {
-      result.inventory.rooms = data.inventory.rooms.filter(
-        (_: any, i: number) => selection.inventory.rooms[i]
-      );
+    const inventoryTypes = ['rooms', 'menuItems', 'products', 'services', 'properties', 'courses', 'treatments'] as const;
+    for (const type of inventoryTypes) {
+      if (data.inventory?.[type]?.length) {
+        result.inventory[type] = data.inventory[type].filter(
+          (_: any, i: number) => selection.inventory[type][i]
+        );
+      }
     }
-    if (data.inventory?.menuItems?.length) {
-      result.inventory.menuItems = data.inventory.menuItems.filter(
-        (_: any, i: number) => selection.inventory.menuItems[i]
-      );
-    }
-    if (data.inventory?.products?.length) {
-      result.inventory.products = data.inventory.products.filter(
-        (_: any, i: number) => selection.inventory.products[i]
-      );
-    }
-    if (data.inventory?.services?.length) {
-      result.inventory.services = data.inventory.services.filter(
-        (_: any, i: number) => selection.inventory.services[i]
-      );
-    }
-    if (data.inventory?.properties?.length) {
-      result.inventory.properties = data.inventory.properties.filter(
-        (_: any, i: number) => selection.inventory.properties[i]
-      );
-    }
+  }
+
+  // Team
+  if (selection.team.selected && data.team?.length) {
+    result.team = data.team.filter(
+      (_: any, i: number) => selection.team.items[i]
+    );
   }
 
   // Testimonials
@@ -303,20 +574,52 @@ function buildSelectedData(data: any, selection: SelectionState): any {
     );
   }
 
+  // Case Studies
+  if (selection.caseStudies.selected && data.caseStudies?.length) {
+    result.caseStudies = data.caseStudies.filter(
+      (_: any, i: number) => selection.caseStudies.items[i]
+    );
+  }
+
+  // Credibility (Awards, Certifications, etc.)
+  if (selection.credibility.selected) {
+    if (selection.credibility.fields.awards && data.awards?.length) {
+      result.awards = data.awards;
+    }
+    if (selection.credibility.fields.certifications && data.certifications?.length) {
+      result.certifications = data.certifications;
+    }
+    if (selection.credibility.fields.accreditations && data.accreditations?.length) {
+      result.accreditations = data.accreditations;
+    }
+    if (selection.credibility.fields.partnerships && data.partnerships?.length) {
+      result.partnerships = data.partnerships;
+    }
+    if (selection.credibility.fields.clients && data.clients?.length) {
+      result.clients = data.clients;
+    }
+    if (selection.credibility.fields.featuredIn && data.featuredIn?.length) {
+      result.featuredIn = data.featuredIn;
+    }
+  }
+
   // Additional Info
   if (selection.additional.selected) {
     result.industrySpecificData = result.industrySpecificData || {};
-    if (selection.additional.fields.awards && data.industrySpecificData?.awards) {
-      result.industrySpecificData.awards = data.industrySpecificData.awards;
-    }
-    if (selection.additional.fields.certifications && data.industrySpecificData?.certifications) {
-      result.industrySpecificData.certifications = data.industrySpecificData.certifications;
-    }
     if (selection.additional.fields.founders && data.industrySpecificData?.founders) {
       result.industrySpecificData.founders = data.industrySpecificData.founders;
     }
     if (selection.additional.fields.teamSize && data.industrySpecificData?.teamSize) {
       result.industrySpecificData.teamSize = data.industrySpecificData.teamSize;
+    }
+    if (selection.additional.fields.technicalInfo && data.technicalInfo) {
+      result.technicalInfo = data.technicalInfo;
+    }
+    if (selection.additional.fields.sustainability && data.sustainability) {
+      result.sustainability = data.sustainability;
+    }
+    if (selection.additional.fields.accessibility && data.accessibility) {
+      result.accessibility = data.accessibility;
     }
   }
 
@@ -328,71 +631,86 @@ function countSelectedItems(selection: SelectionState): { selected: number; tota
   let selected = 0;
   let total = 0;
 
-  // Business Info
-  Object.values(selection.businessInfo.fields).forEach(v => {
-    if (v !== undefined) {
+  // Helper to count fields in a section
+  const countFields = (fields: Record<string, boolean>, sectionSelected: boolean) => {
+    Object.values(fields).forEach(v => {
+      if (v) {
+        total++;
+        if (sectionSelected) selected++;
+      }
+    });
+  };
+
+  // Helper to count items array
+  const countItems = (items: boolean[], sectionSelected: boolean) => {
+    items.forEach(v => {
       total++;
-      if (v && selection.businessInfo.selected) selected++;
-    }
-  });
+      if (v && sectionSelected) selected++;
+    });
+  };
+
+  // Business Info
+  countFields(selection.businessInfo.fields, selection.businessInfo.selected);
+
+  // Brand Story
+  countFields(selection.brandStory.fields, selection.brandStory.selected);
 
   // Contact
-  Object.values(selection.contact.fields).forEach(v => {
-    if (v !== undefined) {
-      total++;
-      if (v && selection.contact.selected) selected++;
-    }
-  });
+  countFields(selection.contact.fields, selection.contact.selected);
+
+  // Locations
+  countItems(selection.locations.items, selection.locations.selected);
+
+  // Service Areas
+  countFields(selection.serviceAreas.fields, selection.serviceAreas.selected);
 
   // Social
-  Object.values(selection.social.fields).forEach(v => {
-    if (v !== undefined) {
-      total++;
-      if (v && selection.social.selected) selected++;
-    }
-  });
+  countFields(selection.social.fields, selection.social.selected);
 
   // Content
-  Object.values(selection.content.fields).forEach(v => {
-    if (v !== undefined) {
-      total++;
-      if (v && selection.content.selected) selected++;
-    }
-  });
+  countFields(selection.content.fields, selection.content.selected);
 
   // Products/Services
-  selection.productsServices.items.forEach(v => {
-    total++;
-    if (v && selection.productsServices.selected) selected++;
-  });
+  countItems(selection.productsServices.items, selection.productsServices.selected);
+
+  // Packages
+  countItems(selection.packages.items, selection.packages.selected);
+
+  // Pricing Tiers
+  countItems(selection.pricingTiers.items, selection.pricingTiers.selected);
+
+  // Current Offers
+  countItems(selection.currentOffers.items, selection.currentOffers.selected);
 
   // FAQs
-  selection.faqs.items.forEach(v => {
-    total++;
-    if (v && selection.faqs.selected) selected++;
-  });
+  countItems(selection.faqs.items, selection.faqs.selected);
+
+  // Policies
+  countFields(selection.policies.fields, selection.policies.selected);
 
   // Inventory
   [...selection.inventory.rooms, ...selection.inventory.menuItems,
    ...selection.inventory.products, ...selection.inventory.services,
-   ...selection.inventory.properties].forEach(v => {
+   ...selection.inventory.properties, ...selection.inventory.courses,
+   ...selection.inventory.treatments].forEach(v => {
     total++;
     if (v && selection.inventory.selected) selected++;
   });
 
+  // Team
+  countItems(selection.team.items, selection.team.selected);
+
   // Testimonials
-  selection.testimonials.items.forEach(v => {
-    total++;
-    if (v && selection.testimonials.selected) selected++;
-  });
+  countItems(selection.testimonials.items, selection.testimonials.selected);
+
+  // Case Studies
+  countItems(selection.caseStudies.items, selection.caseStudies.selected);
+
+  // Credibility
+  countFields(selection.credibility.fields, selection.credibility.selected);
 
   // Additional
-  Object.values(selection.additional.fields).forEach(v => {
-    if (v !== undefined) {
-      total++;
-      if (v && selection.additional.selected) selected++;
-    }
-  });
+  countFields(selection.additional.fields, selection.additional.selected);
 
   return { selected, total };
 }
@@ -517,13 +835,23 @@ export default function WebsiteImportPreviewModal({
   const [selection, setSelection] = useState<SelectionState>(() => initializeSelectionState(data));
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
     businessInfo: true,
+    brandStory: false,
     contact: true,
+    locations: false,
+    serviceAreas: false,
     social: false,
     content: false,
     productsServices: false,
+    packages: false,
+    pricingTiers: false,
+    currentOffers: false,
     faqs: false,
+    policies: false,
     inventory: true,
+    team: false,
     testimonials: false,
+    caseStudies: false,
+    credibility: false,
     additional: false,
   });
 
@@ -566,24 +894,40 @@ export default function WebsiteImportPreviewModal({
   };
 
   // Check if we have data to display
-  const hasBusinessInfo = data.identity?.businessName || data.identity?.description || data.personality?.tagline;
-  const hasContact = data.identity?.phone || data.identity?.email || data.identity?.address;
+  const hasBusinessInfo = data.identity?.businessName || data.identity?.description || data.personality?.tagline ||
+                          data.identity?.industry || data.identity?.yearEstablished;
+  const hasBrandStory = data.personality?.missionStatement || data.personality?.visionStatement ||
+                        data.personality?.story || data.personality?.brandValues?.length || data.personality?.brandVoice;
+  const hasContact = data.identity?.phone || data.identity?.email || data.identity?.address ||
+                     data.identity?.secondaryPhone || data.identity?.supportEmail || data.identity?.operatingHours;
+  const hasLocations = data.identity?.locations?.length > 0;
+  const hasServiceAreas = data.identity?.serviceAreas?.length > 0 || data.identity?.deliveryZones?.length > 0;
   const hasSocial = data.identity?.socialMedia && Object.values(data.identity.socialMedia).some(v => v);
-  const hasContent = data.personality?.uniqueSellingPoints?.length || data.customerProfile?.targetAudience?.length;
+  const hasContent = data.personality?.uniqueSellingPoints?.length || data.customerProfile?.targetAudience?.length ||
+                     data.customerProfile?.customerPainPoints?.length;
   const hasProductsServices = data.knowledge?.productsOrServices?.length > 0;
+  const hasPackages = data.knowledge?.packages?.length > 0;
+  const hasPricingTiers = data.knowledge?.pricingTiers?.length > 0;
+  const hasCurrentOffers = data.knowledge?.currentOffers?.length > 0;
   const hasFaqs = data.knowledge?.faqs?.length > 0;
+  const hasPolicies = data.knowledge?.policies && Object.values(data.knowledge.policies).some(v => v);
   const hasInventory = data.inventory && (
     data.inventory.rooms?.length ||
     data.inventory.menuItems?.length ||
     data.inventory.products?.length ||
     data.inventory.services?.length ||
-    data.inventory.properties?.length
+    data.inventory.properties?.length ||
+    data.inventory.courses?.length ||
+    data.inventory.treatments?.length
   );
+  const hasTeam = data.team?.length > 0;
   const hasTestimonials = data.testimonials?.length > 0;
-  const hasAdditional = data.industrySpecificData?.awards?.length ||
-                        data.industrySpecificData?.certifications?.length ||
-                        data.industrySpecificData?.founders ||
-                        data.industrySpecificData?.teamSize;
+  const hasCaseStudies = data.caseStudies?.length > 0;
+  const hasCredibility = data.awards?.length > 0 || data.certifications?.length > 0 ||
+                         data.accreditations?.length > 0 || data.partnerships?.length > 0 ||
+                         data.clients?.length > 0 || data.featuredIn?.length > 0;
+  const hasAdditional = data.industrySpecificData?.founders || data.industrySpecificData?.teamSize ||
+                        data.technicalInfo || data.sustainability || data.accessibility;
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
@@ -665,6 +1009,20 @@ export default function WebsiteImportPreviewModal({
                     value={data.identity.businessName}
                   />
                 )}
+                {data.identity?.legalName && (
+                  <SelectableItem
+                    selected={selection.businessInfo.fields.legalName && selection.businessInfo.selected}
+                    onToggle={() => setSelection(prev => ({
+                      ...prev,
+                      businessInfo: {
+                        ...prev.businessInfo,
+                        fields: { ...prev.businessInfo.fields, legalName: !prev.businessInfo.fields.legalName }
+                      }
+                    }))}
+                    label="Legal Name"
+                    value={data.identity.legalName}
+                  />
+                )}
                 {data.identity?.industry && (
                   <SelectableItem
                     selected={selection.businessInfo.fields.industry && selection.businessInfo.selected}
@@ -677,6 +1035,34 @@ export default function WebsiteImportPreviewModal({
                     }))}
                     label="Industry"
                     value={typeof data.identity.industry === 'string' ? data.identity.industry : data.identity.industry?.name}
+                  />
+                )}
+                {data.identity?.subIndustry && (
+                  <SelectableItem
+                    selected={selection.businessInfo.fields.subIndustry && selection.businessInfo.selected}
+                    onToggle={() => setSelection(prev => ({
+                      ...prev,
+                      businessInfo: {
+                        ...prev.businessInfo,
+                        fields: { ...prev.businessInfo.fields, subIndustry: !prev.businessInfo.fields.subIndustry }
+                      }
+                    }))}
+                    label="Sub-Industry"
+                    value={data.identity.subIndustry}
+                  />
+                )}
+                {data.identity?.businessType && (
+                  <SelectableItem
+                    selected={selection.businessInfo.fields.businessType && selection.businessInfo.selected}
+                    onToggle={() => setSelection(prev => ({
+                      ...prev,
+                      businessInfo: {
+                        ...prev.businessInfo,
+                        fields: { ...prev.businessInfo.fields, businessType: !prev.businessInfo.fields.businessType }
+                      }
+                    }))}
+                    label="Business Type"
+                    value={data.identity.businessType}
                   />
                 )}
                 {(data.personality?.tagline || data.identity?.tagline) && (
@@ -707,6 +1093,121 @@ export default function WebsiteImportPreviewModal({
                     value={(data.personality?.description || data.identity?.description)?.substring(0, 150) + '...'}
                   />
                 )}
+                {data.identity?.yearEstablished && (
+                  <SelectableItem
+                    selected={selection.businessInfo.fields.yearEstablished && selection.businessInfo.selected}
+                    onToggle={() => setSelection(prev => ({
+                      ...prev,
+                      businessInfo: {
+                        ...prev.businessInfo,
+                        fields: { ...prev.businessInfo.fields, yearEstablished: !prev.businessInfo.fields.yearEstablished }
+                      }
+                    }))}
+                    label="Year Established"
+                    value={String(data.identity.yearEstablished)}
+                  />
+                )}
+                {data.identity?.languages?.length > 0 && (
+                  <SelectableItem
+                    selected={selection.businessInfo.fields.languages && selection.businessInfo.selected}
+                    onToggle={() => setSelection(prev => ({
+                      ...prev,
+                      businessInfo: {
+                        ...prev.businessInfo,
+                        fields: { ...prev.businessInfo.fields, languages: !prev.businessInfo.fields.languages }
+                      }
+                    }))}
+                    label="Languages"
+                    value={data.identity.languages.join(', ')}
+                  />
+                )}
+              </div>
+            </SectionHeader>
+          )}
+
+          {/* Brand Story */}
+          {hasBrandStory && (
+            <SectionHeader
+              title="Brand Story & Values"
+              icon={Heart}
+              selected={selection.brandStory.selected}
+              onToggle={() => toggleSection('brandStory')}
+              expanded={expandedSections.brandStory}
+              onExpandToggle={() => toggleExpanded('brandStory')}
+            >
+              <div className="space-y-2">
+                {data.personality?.missionStatement && (
+                  <SelectableItem
+                    selected={selection.brandStory.fields.missionStatement && selection.brandStory.selected}
+                    onToggle={() => setSelection(prev => ({
+                      ...prev,
+                      brandStory: {
+                        ...prev.brandStory,
+                        fields: { ...prev.brandStory.fields, missionStatement: !prev.brandStory.fields.missionStatement }
+                      }
+                    }))}
+                    label="Mission Statement"
+                    value={data.personality.missionStatement.substring(0, 100) + (data.personality.missionStatement.length > 100 ? '...' : '')}
+                  />
+                )}
+                {data.personality?.visionStatement && (
+                  <SelectableItem
+                    selected={selection.brandStory.fields.visionStatement && selection.brandStory.selected}
+                    onToggle={() => setSelection(prev => ({
+                      ...prev,
+                      brandStory: {
+                        ...prev.brandStory,
+                        fields: { ...prev.brandStory.fields, visionStatement: !prev.brandStory.fields.visionStatement }
+                      }
+                    }))}
+                    label="Vision Statement"
+                    value={data.personality.visionStatement.substring(0, 100) + (data.personality.visionStatement.length > 100 ? '...' : '')}
+                  />
+                )}
+                {data.personality?.story && (
+                  <SelectableItem
+                    selected={selection.brandStory.fields.story && selection.brandStory.selected}
+                    onToggle={() => setSelection(prev => ({
+                      ...prev,
+                      brandStory: {
+                        ...prev.brandStory,
+                        fields: { ...prev.brandStory.fields, story: !prev.brandStory.fields.story }
+                      }
+                    }))}
+                    label="Company Story"
+                    value={data.personality.story.substring(0, 100) + (data.personality.story.length > 100 ? '...' : '')}
+                  />
+                )}
+                {data.personality?.brandValues?.length > 0 && (
+                  <SelectableItem
+                    selected={selection.brandStory.fields.brandValues && selection.brandStory.selected}
+                    onToggle={() => setSelection(prev => ({
+                      ...prev,
+                      brandStory: {
+                        ...prev.brandStory,
+                        fields: { ...prev.brandStory.fields, brandValues: !prev.brandStory.fields.brandValues }
+                      }
+                    }))}
+                    label="Brand Values"
+                    value={data.personality.brandValues.join(', ')}
+                  />
+                )}
+                {data.personality?.brandVoice && (
+                  <SelectableItem
+                    selected={selection.brandStory.fields.brandVoice && selection.brandStory.selected}
+                    onToggle={() => setSelection(prev => ({
+                      ...prev,
+                      brandStory: {
+                        ...prev.brandStory,
+                        fields: { ...prev.brandStory.fields, brandVoice: !prev.brandStory.fields.brandVoice }
+                      }
+                    }))}
+                    label="Brand Voice"
+                    value={typeof data.personality.brandVoice === 'object'
+                      ? (data.personality.brandVoice.tone?.join(', ') || data.personality.brandVoice.style || 'Defined')
+                      : data.personality.brandVoice}
+                  />
+                )}
               </div>
             </SectionHeader>
           )}
@@ -729,8 +1230,41 @@ export default function WebsiteImportPreviewModal({
                       ...prev,
                       contact: { ...prev.contact, fields: { ...prev.contact.fields, phone: !prev.contact.fields.phone } }
                     }))}
-                    label="Phone"
+                    label="Primary Phone"
                     value={data.identity.phone}
+                  />
+                )}
+                {data.identity?.secondaryPhone && (
+                  <SelectableItem
+                    selected={selection.contact.fields.secondaryPhone && selection.contact.selected}
+                    onToggle={() => setSelection(prev => ({
+                      ...prev,
+                      contact: { ...prev.contact, fields: { ...prev.contact.fields, secondaryPhone: !prev.contact.fields.secondaryPhone } }
+                    }))}
+                    label="Secondary Phone"
+                    value={data.identity.secondaryPhone}
+                  />
+                )}
+                {data.identity?.whatsapp && (
+                  <SelectableItem
+                    selected={selection.contact.fields.whatsapp && selection.contact.selected}
+                    onToggle={() => setSelection(prev => ({
+                      ...prev,
+                      contact: { ...prev.contact, fields: { ...prev.contact.fields, whatsapp: !prev.contact.fields.whatsapp } }
+                    }))}
+                    label="WhatsApp"
+                    value={data.identity.whatsapp}
+                  />
+                )}
+                {data.identity?.tollFree && (
+                  <SelectableItem
+                    selected={selection.contact.fields.tollFree && selection.contact.selected}
+                    onToggle={() => setSelection(prev => ({
+                      ...prev,
+                      contact: { ...prev.contact, fields: { ...prev.contact.fields, tollFree: !prev.contact.fields.tollFree } }
+                    }))}
+                    label="Toll-Free"
+                    value={data.identity.tollFree}
                   />
                 )}
                 {data.identity?.email && (
@@ -740,8 +1274,41 @@ export default function WebsiteImportPreviewModal({
                       ...prev,
                       contact: { ...prev.contact, fields: { ...prev.contact.fields, email: !prev.contact.fields.email } }
                     }))}
-                    label="Email"
+                    label="Primary Email"
                     value={data.identity.email}
+                  />
+                )}
+                {data.identity?.supportEmail && (
+                  <SelectableItem
+                    selected={selection.contact.fields.supportEmail && selection.contact.selected}
+                    onToggle={() => setSelection(prev => ({
+                      ...prev,
+                      contact: { ...prev.contact, fields: { ...prev.contact.fields, supportEmail: !prev.contact.fields.supportEmail } }
+                    }))}
+                    label="Support Email"
+                    value={data.identity.supportEmail}
+                  />
+                )}
+                {data.identity?.salesEmail && (
+                  <SelectableItem
+                    selected={selection.contact.fields.salesEmail && selection.contact.selected}
+                    onToggle={() => setSelection(prev => ({
+                      ...prev,
+                      contact: { ...prev.contact, fields: { ...prev.contact.fields, salesEmail: !prev.contact.fields.salesEmail } }
+                    }))}
+                    label="Sales Email"
+                    value={data.identity.salesEmail}
+                  />
+                )}
+                {data.identity?.bookingEmail && (
+                  <SelectableItem
+                    selected={selection.contact.fields.bookingEmail && selection.contact.selected}
+                    onToggle={() => setSelection(prev => ({
+                      ...prev,
+                      contact: { ...prev.contact, fields: { ...prev.contact.fields, bookingEmail: !prev.contact.fields.bookingEmail } }
+                    }))}
+                    label="Booking Email"
+                    value={data.identity.bookingEmail}
                   />
                 )}
                 {data.identity?.address && (
@@ -764,6 +1331,86 @@ export default function WebsiteImportPreviewModal({
                     }))}
                     label="Operating Hours"
                     value="Schedule available"
+                  />
+                )}
+              </div>
+            </SectionHeader>
+          )}
+
+          {/* Locations */}
+          {hasLocations && (
+            <SectionHeader
+              title="Multiple Locations"
+              icon={MapPin}
+              selected={selection.locations.selected}
+              onToggle={() => toggleSection('locations')}
+              expanded={expandedSections.locations}
+              onExpandToggle={() => toggleExpanded('locations')}
+              count={data.identity?.locations?.length || 0}
+            >
+              <div className="space-y-2 max-h-60 overflow-y-auto">
+                {data.identity?.locations?.map((loc: any, i: number) => (
+                  <SelectableItem
+                    key={i}
+                    selected={selection.locations.items[i] && selection.locations.selected}
+                    onToggle={() => setSelection(prev => ({
+                      ...prev,
+                      locations: {
+                        ...prev.locations,
+                        items: prev.locations.items.map((v, idx) => idx === i ? !v : v)
+                      }
+                    }))}
+                    label={loc.name || `Location ${i + 1}`}
+                    value={loc.address}
+                    sublabel={loc.isHeadquarters ? 'Headquarters' : undefined}
+                  />
+                ))}
+              </div>
+            </SectionHeader>
+          )}
+
+          {/* Service Areas */}
+          {hasServiceAreas && (
+            <SectionHeader
+              title="Service Areas"
+              icon={Truck}
+              selected={selection.serviceAreas.selected}
+              onToggle={() => toggleSection('serviceAreas')}
+              expanded={expandedSections.serviceAreas}
+              onExpandToggle={() => toggleExpanded('serviceAreas')}
+            >
+              <div className="space-y-2">
+                {data.identity?.serviceAreas?.length > 0 && (
+                  <SelectableItem
+                    selected={selection.serviceAreas.fields.serviceAreas && selection.serviceAreas.selected}
+                    onToggle={() => setSelection(prev => ({
+                      ...prev,
+                      serviceAreas: { ...prev.serviceAreas, fields: { ...prev.serviceAreas.fields, serviceAreas: !prev.serviceAreas.fields.serviceAreas } }
+                    }))}
+                    label="Service Areas"
+                    value={data.identity.serviceAreas.join(', ')}
+                  />
+                )}
+                {data.identity?.deliveryZones?.length > 0 && (
+                  <SelectableItem
+                    selected={selection.serviceAreas.fields.deliveryZones && selection.serviceAreas.selected}
+                    onToggle={() => setSelection(prev => ({
+                      ...prev,
+                      serviceAreas: { ...prev.serviceAreas, fields: { ...prev.serviceAreas.fields, deliveryZones: !prev.serviceAreas.fields.deliveryZones } }
+                    }))}
+                    label="Delivery Zones"
+                    value={data.identity.deliveryZones.join(', ')}
+                  />
+                )}
+                {data.identity?.internationalShipping && (
+                  <SelectableItem
+                    selected={selection.serviceAreas.fields.internationalShipping && selection.serviceAreas.selected}
+                    onToggle={() => setSelection(prev => ({
+                      ...prev,
+                      serviceAreas: { ...prev.serviceAreas, fields: { ...prev.serviceAreas.fields, internationalShipping: !prev.serviceAreas.fields.internationalShipping } }
+                    }))}
+                    label="International Shipping"
+                    value="Available"
                   />
                 )}
               </div>
@@ -906,6 +1553,33 @@ export default function WebsiteImportPreviewModal({
                     </div>
                   </div>
                 )}
+                {data.customerProfile?.customerPainPoints?.length > 0 && (
+                  <div>
+                    <div className="flex items-center gap-2 mb-2">
+                      <button
+                        onClick={() => setSelection(prev => ({
+                          ...prev,
+                          content: { ...prev.content, fields: { ...prev.content.fields, customerPainPoints: !prev.content.fields.customerPainPoints } }
+                        }))}
+                        className="flex-shrink-0"
+                      >
+                        {selection.content.fields.customerPainPoints && selection.content.selected ? (
+                          <CheckSquare className="w-4 h-4 text-indigo-600" />
+                        ) : (
+                          <Square className="w-4 h-4 text-slate-400" />
+                        )}
+                      </button>
+                      <span className="text-sm font-medium text-slate-700">Customer Pain Points</span>
+                    </div>
+                    <div className="flex flex-wrap gap-2 pl-6">
+                      {data.customerProfile.customerPainPoints.map((pp: string, i: number) => (
+                        <span key={i} className="px-3 py-1 bg-orange-50 text-orange-700 rounded-full text-sm">
+                          {pp}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             </SectionHeader>
           )}
@@ -973,13 +1647,181 @@ export default function WebsiteImportPreviewModal({
             </SectionHeader>
           )}
 
+          {/* Packages */}
+          {hasPackages && (
+            <SectionHeader
+              title="Packages"
+              icon={Package}
+              selected={selection.packages.selected}
+              onToggle={() => toggleSection('packages')}
+              expanded={expandedSections.packages}
+              onExpandToggle={() => toggleExpanded('packages')}
+              count={data.knowledge.packages.length}
+            >
+              <div className="space-y-2 max-h-60 overflow-y-auto">
+                {data.knowledge.packages.map((pkg: any, i: number) => (
+                  <SelectableItem
+                    key={i}
+                    selected={selection.packages.items[i] && selection.packages.selected}
+                    onToggle={() => setSelection(prev => ({
+                      ...prev,
+                      packages: {
+                        ...prev.packages,
+                        items: prev.packages.items.map((v, idx) => idx === i ? !v : v)
+                      }
+                    }))}
+                    label={pkg.name}
+                    value={pkg.price ? `${pkg.price}${pkg.duration ? ` - ${pkg.duration}` : ''}` : pkg.description}
+                    sublabel={pkg.includes?.length ? `Includes: ${pkg.includes.slice(0, 3).join(', ')}...` : undefined}
+                  />
+                ))}
+              </div>
+            </SectionHeader>
+          )}
+
+          {/* Pricing Tiers */}
+          {hasPricingTiers && (
+            <SectionHeader
+              title="Pricing Tiers"
+              icon={DollarSign}
+              selected={selection.pricingTiers.selected}
+              onToggle={() => toggleSection('pricingTiers')}
+              expanded={expandedSections.pricingTiers}
+              onExpandToggle={() => toggleExpanded('pricingTiers')}
+              count={data.knowledge.pricingTiers.length}
+            >
+              <div className="space-y-2 max-h-60 overflow-y-auto">
+                {data.knowledge.pricingTiers.map((tier: any, i: number) => (
+                  <SelectableItem
+                    key={i}
+                    selected={selection.pricingTiers.items[i] && selection.pricingTiers.selected}
+                    onToggle={() => setSelection(prev => ({
+                      ...prev,
+                      pricingTiers: {
+                        ...prev.pricingTiers,
+                        items: prev.pricingTiers.items.map((v, idx) => idx === i ? !v : v)
+                      }
+                    }))}
+                    label={tier.name}
+                    value={`${tier.price}${tier.period ? ` / ${tier.period}` : ''}`}
+                    sublabel={tier.isRecommended ? 'Recommended' : (tier.features?.length ? `${tier.features.length} features` : undefined)}
+                  />
+                ))}
+              </div>
+            </SectionHeader>
+          )}
+
+          {/* Current Offers */}
+          {hasCurrentOffers && (
+            <SectionHeader
+              title="Current Offers & Promotions"
+              icon={Percent}
+              selected={selection.currentOffers.selected}
+              onToggle={() => toggleSection('currentOffers')}
+              expanded={expandedSections.currentOffers}
+              onExpandToggle={() => toggleExpanded('currentOffers')}
+              count={data.knowledge.currentOffers.length}
+            >
+              <div className="space-y-2 max-h-60 overflow-y-auto">
+                {data.knowledge.currentOffers.map((offer: any, i: number) => (
+                  <SelectableItem
+                    key={i}
+                    selected={selection.currentOffers.items[i] && selection.currentOffers.selected}
+                    onToggle={() => setSelection(prev => ({
+                      ...prev,
+                      currentOffers: {
+                        ...prev.currentOffers,
+                        items: prev.currentOffers.items.map((v, idx) => idx === i ? !v : v)
+                      }
+                    }))}
+                    label={offer.title}
+                    value={offer.discount || offer.description}
+                    sublabel={offer.code ? `Code: ${offer.code}` : (offer.validUntil ? `Valid until: ${offer.validUntil}` : undefined)}
+                  />
+                ))}
+              </div>
+            </SectionHeader>
+          )}
+
+          {/* Policies */}
+          {hasPolicies && (
+            <SectionHeader
+              title="Policies"
+              icon={Shield}
+              selected={selection.policies.selected}
+              onToggle={() => toggleSection('policies')}
+              expanded={expandedSections.policies}
+              onExpandToggle={() => toggleExpanded('policies')}
+            >
+              <div className="space-y-2">
+                {data.knowledge?.policies?.returnPolicy && (
+                  <SelectableItem
+                    selected={selection.policies.fields.returnPolicy && selection.policies.selected}
+                    onToggle={() => setSelection(prev => ({
+                      ...prev,
+                      policies: { ...prev.policies, fields: { ...prev.policies.fields, returnPolicy: !prev.policies.fields.returnPolicy } }
+                    }))}
+                    label="Return Policy"
+                    value={data.knowledge.policies.returnPolicy.substring(0, 100) + (data.knowledge.policies.returnPolicy.length > 100 ? '...' : '')}
+                  />
+                )}
+                {data.knowledge?.policies?.refundPolicy && (
+                  <SelectableItem
+                    selected={selection.policies.fields.refundPolicy && selection.policies.selected}
+                    onToggle={() => setSelection(prev => ({
+                      ...prev,
+                      policies: { ...prev.policies, fields: { ...prev.policies.fields, refundPolicy: !prev.policies.fields.refundPolicy } }
+                    }))}
+                    label="Refund Policy"
+                    value={data.knowledge.policies.refundPolicy.substring(0, 100) + (data.knowledge.policies.refundPolicy.length > 100 ? '...' : '')}
+                  />
+                )}
+                {data.knowledge?.policies?.cancellationPolicy && (
+                  <SelectableItem
+                    selected={selection.policies.fields.cancellationPolicy && selection.policies.selected}
+                    onToggle={() => setSelection(prev => ({
+                      ...prev,
+                      policies: { ...prev.policies, fields: { ...prev.policies.fields, cancellationPolicy: !prev.policies.fields.cancellationPolicy } }
+                    }))}
+                    label="Cancellation Policy"
+                    value={data.knowledge.policies.cancellationPolicy.substring(0, 100) + (data.knowledge.policies.cancellationPolicy.length > 100 ? '...' : '')}
+                  />
+                )}
+                {data.knowledge?.policies?.shippingPolicy && (
+                  <SelectableItem
+                    selected={selection.policies.fields.shippingPolicy && selection.policies.selected}
+                    onToggle={() => setSelection(prev => ({
+                      ...prev,
+                      policies: { ...prev.policies, fields: { ...prev.policies.fields, shippingPolicy: !prev.policies.fields.shippingPolicy } }
+                    }))}
+                    label="Shipping Policy"
+                    value={data.knowledge.policies.shippingPolicy.substring(0, 100) + (data.knowledge.policies.shippingPolicy.length > 100 ? '...' : '')}
+                  />
+                )}
+                {data.knowledge?.policies?.warrantyPolicy && (
+                  <SelectableItem
+                    selected={selection.policies.fields.warrantyPolicy && selection.policies.selected}
+                    onToggle={() => setSelection(prev => ({
+                      ...prev,
+                      policies: { ...prev.policies, fields: { ...prev.policies.fields, warrantyPolicy: !prev.policies.fields.warrantyPolicy } }
+                    }))}
+                    label="Warranty Policy"
+                    value={data.knowledge.policies.warrantyPolicy.substring(0, 100) + (data.knowledge.policies.warrantyPolicy.length > 100 ? '...' : '')}
+                  />
+                )}
+              </div>
+            </SectionHeader>
+          )}
+
           {/* Inventory */}
           {hasInventory && (
             <SectionHeader
               title="Inventory"
               icon={data.inventory?.menuItems?.length ? Utensils :
                     data.inventory?.rooms?.length ? Bed :
+                    data.inventory?.courses?.length ? GraduationCap :
                     data.inventory?.services?.length ? Stethoscope :
+                    data.inventory?.treatments?.length ? Sparkles :
                     data.inventory?.properties?.length ? Home : Package}
               selected={selection.inventory.selected}
               onToggle={() => toggleSection('inventory')}
@@ -987,7 +1829,8 @@ export default function WebsiteImportPreviewModal({
               onExpandToggle={() => toggleExpanded('inventory')}
               count={(data.inventory?.rooms?.length || 0) + (data.inventory?.menuItems?.length || 0) +
                      (data.inventory?.products?.length || 0) + (data.inventory?.services?.length || 0) +
-                     (data.inventory?.properties?.length || 0)}
+                     (data.inventory?.properties?.length || 0) + (data.inventory?.courses?.length || 0) +
+                     (data.inventory?.treatments?.length || 0)}
             >
               <div className="space-y-4 max-h-80 overflow-y-auto">
                 {/* Rooms */}
@@ -1124,6 +1967,92 @@ export default function WebsiteImportPreviewModal({
                     </div>
                   </div>
                 )}
+
+                {/* Courses */}
+                {data.inventory?.courses?.length > 0 && (
+                  <div>
+                    <div className="text-sm font-medium text-slate-600 mb-2 flex items-center gap-2">
+                      <GraduationCap className="w-4 h-4" /> Courses ({data.inventory.courses.length})
+                    </div>
+                    <div className="space-y-2">
+                      {data.inventory.courses.map((course: any, i: number) => (
+                        <SelectableItem
+                          key={i}
+                          selected={selection.inventory.courses[i] && selection.inventory.selected}
+                          onToggle={() => setSelection(prev => ({
+                            ...prev,
+                            inventory: {
+                              ...prev.inventory,
+                              courses: prev.inventory.courses.map((v, idx) => idx === i ? !v : v)
+                            }
+                          }))}
+                          label={course.name}
+                          value={course.price ? `${course.price}${course.duration ? ` • ${course.duration}` : ''}` : course.duration}
+                          sublabel={`${course.mode || ''}${course.instructor ? ` • ${course.instructor}` : ''}`}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Treatments */}
+                {data.inventory?.treatments?.length > 0 && (
+                  <div>
+                    <div className="text-sm font-medium text-slate-600 mb-2 flex items-center gap-2">
+                      <Sparkles className="w-4 h-4" /> Treatments ({data.inventory.treatments.length})
+                    </div>
+                    <div className="space-y-2">
+                      {data.inventory.treatments.map((treatment: any, i: number) => (
+                        <SelectableItem
+                          key={i}
+                          selected={selection.inventory.treatments[i] && selection.inventory.selected}
+                          onToggle={() => setSelection(prev => ({
+                            ...prev,
+                            inventory: {
+                              ...prev.inventory,
+                              treatments: prev.inventory.treatments.map((v, idx) => idx === i ? !v : v)
+                            }
+                          }))}
+                          label={treatment.name}
+                          value={treatment.price ? `${treatment.price}${treatment.duration ? ` • ${treatment.duration}` : ''}` : treatment.duration}
+                          sublabel={treatment.category}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </SectionHeader>
+          )}
+
+          {/* Team */}
+          {hasTeam && (
+            <SectionHeader
+              title="Team Members"
+              icon={Users}
+              selected={selection.team.selected}
+              onToggle={() => toggleSection('team')}
+              expanded={expandedSections.team}
+              onExpandToggle={() => toggleExpanded('team')}
+              count={data.team.length}
+            >
+              <div className="space-y-2 max-h-60 overflow-y-auto">
+                {data.team.map((member: any, i: number) => (
+                  <SelectableItem
+                    key={i}
+                    selected={selection.team.items[i] && selection.team.selected}
+                    onToggle={() => setSelection(prev => ({
+                      ...prev,
+                      team: {
+                        ...prev.team,
+                        items: prev.team.items.map((v, idx) => idx === i ? !v : v)
+                      }
+                    }))}
+                    label={member.name}
+                    value={member.role}
+                    sublabel={member.department || (member.specializations?.length ? member.specializations.join(', ') : undefined)}
+                  />
+                ))}
               </div>
             </SectionHeader>
           )}
@@ -1153,8 +2082,122 @@ export default function WebsiteImportPreviewModal({
                     }))}
                     label={t.author || 'Customer'}
                     value={`"${t.quote?.substring(0, 100)}${t.quote?.length > 100 ? '...' : ''}"`}
+                    sublabel={t.rating ? `${'★'.repeat(t.rating)}${'☆'.repeat(5 - t.rating)}` : (t.platform || undefined)}
                   />
                 ))}
+              </div>
+            </SectionHeader>
+          )}
+
+          {/* Case Studies */}
+          {hasCaseStudies && (
+            <SectionHeader
+              title="Case Studies"
+              icon={Briefcase}
+              selected={selection.caseStudies.selected}
+              onToggle={() => toggleSection('caseStudies')}
+              expanded={expandedSections.caseStudies}
+              onExpandToggle={() => toggleExpanded('caseStudies')}
+              count={data.caseStudies.length}
+            >
+              <div className="space-y-2 max-h-60 overflow-y-auto">
+                {data.caseStudies.map((cs: any, i: number) => (
+                  <SelectableItem
+                    key={i}
+                    selected={selection.caseStudies.items[i] && selection.caseStudies.selected}
+                    onToggle={() => setSelection(prev => ({
+                      ...prev,
+                      caseStudies: {
+                        ...prev.caseStudies,
+                        items: prev.caseStudies.items.map((v, idx) => idx === i ? !v : v)
+                      }
+                    }))}
+                    label={cs.title}
+                    value={cs.client || cs.results}
+                    sublabel={cs.industry}
+                  />
+                ))}
+              </div>
+            </SectionHeader>
+          )}
+
+          {/* Credibility */}
+          {hasCredibility && (
+            <SectionHeader
+              title="Awards & Credentials"
+              icon={Award}
+              selected={selection.credibility.selected}
+              onToggle={() => toggleSection('credibility')}
+              expanded={expandedSections.credibility}
+              onExpandToggle={() => toggleExpanded('credibility')}
+            >
+              <div className="space-y-2">
+                {data.awards?.length > 0 && (
+                  <SelectableItem
+                    selected={selection.credibility.fields.awards && selection.credibility.selected}
+                    onToggle={() => setSelection(prev => ({
+                      ...prev,
+                      credibility: { ...prev.credibility, fields: { ...prev.credibility.fields, awards: !prev.credibility.fields.awards } }
+                    }))}
+                    label="Awards"
+                    value={data.awards.map((a: any) => typeof a === 'string' ? a : a.name).join(', ')}
+                  />
+                )}
+                {data.certifications?.length > 0 && (
+                  <SelectableItem
+                    selected={selection.credibility.fields.certifications && selection.credibility.selected}
+                    onToggle={() => setSelection(prev => ({
+                      ...prev,
+                      credibility: { ...prev.credibility, fields: { ...prev.credibility.fields, certifications: !prev.credibility.fields.certifications } }
+                    }))}
+                    label="Certifications"
+                    value={data.certifications.map((c: any) => typeof c === 'string' ? c : c.name).join(', ')}
+                  />
+                )}
+                {data.accreditations?.length > 0 && (
+                  <SelectableItem
+                    selected={selection.credibility.fields.accreditations && selection.credibility.selected}
+                    onToggle={() => setSelection(prev => ({
+                      ...prev,
+                      credibility: { ...prev.credibility, fields: { ...prev.credibility.fields, accreditations: !prev.credibility.fields.accreditations } }
+                    }))}
+                    label="Accreditations"
+                    value={data.accreditations.join(', ')}
+                  />
+                )}
+                {data.partnerships?.length > 0 && (
+                  <SelectableItem
+                    selected={selection.credibility.fields.partnerships && selection.credibility.selected}
+                    onToggle={() => setSelection(prev => ({
+                      ...prev,
+                      credibility: { ...prev.credibility, fields: { ...prev.credibility.fields, partnerships: !prev.credibility.fields.partnerships } }
+                    }))}
+                    label="Partnerships"
+                    value={data.partnerships.join(', ')}
+                  />
+                )}
+                {data.clients?.length > 0 && (
+                  <SelectableItem
+                    selected={selection.credibility.fields.clients && selection.credibility.selected}
+                    onToggle={() => setSelection(prev => ({
+                      ...prev,
+                      credibility: { ...prev.credibility, fields: { ...prev.credibility.fields, clients: !prev.credibility.fields.clients } }
+                    }))}
+                    label="Notable Clients"
+                    value={data.clients.join(', ')}
+                  />
+                )}
+                {data.featuredIn?.length > 0 && (
+                  <SelectableItem
+                    selected={selection.credibility.fields.featuredIn && selection.credibility.selected}
+                    onToggle={() => setSelection(prev => ({
+                      ...prev,
+                      credibility: { ...prev.credibility, fields: { ...prev.credibility.fields, featuredIn: !prev.credibility.fields.featuredIn } }
+                    }))}
+                    label="Featured In"
+                    value={data.featuredIn.join(', ')}
+                  />
+                )}
               </div>
             </SectionHeader>
           )}
@@ -1163,35 +2206,13 @@ export default function WebsiteImportPreviewModal({
           {hasAdditional && (
             <SectionHeader
               title="Additional Information"
-              icon={Award}
+              icon={FileText}
               selected={selection.additional.selected}
               onToggle={() => toggleSection('additional')}
               expanded={expandedSections.additional}
               onExpandToggle={() => toggleExpanded('additional')}
             >
               <div className="space-y-2">
-                {data.industrySpecificData?.awards?.length > 0 && (
-                  <SelectableItem
-                    selected={selection.additional.fields.awards && selection.additional.selected}
-                    onToggle={() => setSelection(prev => ({
-                      ...prev,
-                      additional: { ...prev.additional, fields: { ...prev.additional.fields, awards: !prev.additional.fields.awards } }
-                    }))}
-                    label="Awards"
-                    value={data.industrySpecificData.awards.join(', ')}
-                  />
-                )}
-                {data.industrySpecificData?.certifications?.length > 0 && (
-                  <SelectableItem
-                    selected={selection.additional.fields.certifications && selection.additional.selected}
-                    onToggle={() => setSelection(prev => ({
-                      ...prev,
-                      additional: { ...prev.additional, fields: { ...prev.additional.fields, certifications: !prev.additional.fields.certifications } }
-                    }))}
-                    label="Certifications"
-                    value={data.industrySpecificData.certifications.join(', ')}
-                  />
-                )}
                 {data.industrySpecificData?.founders && (
                   <SelectableItem
                     selected={selection.additional.fields.founders && selection.additional.selected}
@@ -1211,7 +2232,40 @@ export default function WebsiteImportPreviewModal({
                       additional: { ...prev.additional, fields: { ...prev.additional.fields, teamSize: !prev.additional.fields.teamSize } }
                     }))}
                     label="Team Size"
-                    value={data.industrySpecificData.teamSize}
+                    value={String(data.industrySpecificData.teamSize)}
+                  />
+                )}
+                {data.technicalInfo && (
+                  <SelectableItem
+                    selected={selection.additional.fields.technicalInfo && selection.additional.selected}
+                    onToggle={() => setSelection(prev => ({
+                      ...prev,
+                      additional: { ...prev.additional, fields: { ...prev.additional.fields, technicalInfo: !prev.additional.fields.technicalInfo } }
+                    }))}
+                    label="Technical Info"
+                    value="Technical specifications available"
+                  />
+                )}
+                {data.sustainability && (
+                  <SelectableItem
+                    selected={selection.additional.fields.sustainability && selection.additional.selected}
+                    onToggle={() => setSelection(prev => ({
+                      ...prev,
+                      additional: { ...prev.additional, fields: { ...prev.additional.fields, sustainability: !prev.additional.fields.sustainability } }
+                    }))}
+                    label="Sustainability"
+                    value={data.sustainability.ecofriendly ? "Eco-friendly practices" : "Sustainability info available"}
+                  />
+                )}
+                {data.accessibility && (
+                  <SelectableItem
+                    selected={selection.additional.fields.accessibility && selection.additional.selected}
+                    onToggle={() => setSelection(prev => ({
+                      ...prev,
+                      additional: { ...prev.additional, fields: { ...prev.additional.fields, accessibility: !prev.additional.fields.accessibility } }
+                    }))}
+                    label="Accessibility"
+                    value={data.accessibility.wheelchairAccessible ? "Wheelchair accessible" : "Accessibility info available"}
                   />
                 )}
               </div>
@@ -1219,8 +2273,10 @@ export default function WebsiteImportPreviewModal({
           )}
 
           {/* No Data Message */}
-          {!hasBusinessInfo && !hasContact && !hasSocial && !hasContent &&
-           !hasProductsServices && !hasFaqs && !hasInventory && !hasTestimonials && !hasAdditional && (
+          {!hasBusinessInfo && !hasBrandStory && !hasContact && !hasLocations && !hasServiceAreas &&
+           !hasSocial && !hasContent && !hasProductsServices && !hasPackages && !hasPricingTiers &&
+           !hasCurrentOffers && !hasFaqs && !hasPolicies && !hasInventory && !hasTeam &&
+           !hasTestimonials && !hasCaseStudies && !hasCredibility && !hasAdditional && (
             <div className="text-center py-12">
               <Globe className="w-12 h-12 text-slate-300 mx-auto mb-4" />
               <h3 className="text-lg font-medium text-slate-600 mb-2">No Data Found</h3>

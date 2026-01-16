@@ -1,8 +1,8 @@
 /**
  * Website Scrape Prompt Builder
  *
- * Builds AI prompts specifically for extracting business data from website content.
- * Designed to work with the website-scrape-service.
+ * Builds AI prompts specifically for extracting comprehensive business data from website content.
+ * Designed to capture all information needed to build a complete business profile.
  */
 
 import {
@@ -51,21 +51,19 @@ export function buildWebsiteScrapePrompt(params: WebsiteScrapePromptParams): str
   // Build extracted data section
   const extractedDataSection = buildExtractedDataSection(extractedSocial, extractedContact);
 
-  // Build industry-specific inventory schemas
-  const { inventorySchema, industryDataSchema } = buildIndustrySchemas(config);
-
-  return `You are an expert at extracting structured business information from website content.
+  return `You are an expert business analyst extracting comprehensive profile information from website content.
 
 ## TASK
-Analyze the following website content and extract comprehensive business profile information.
-Return the data in the specified JSON format.
+Analyze the website content thoroughly and extract ALL available business information.
+This data will be used to build a complete business profile for customer communication.
+Be thorough - extract every piece of relevant information you can find.
 
 ## WEBSITE INFORMATION
 - **URL:** ${url}
 - **Page Title:** ${title}
 - **Country Context:** ${config.name} (${config.code}) ${config.flag}
 - **Currency:** ${config.currency.code} (${config.currency.symbol})
-- **Pages Scraped:** ${pagesScraped.length}
+- **Pages Analyzed:** ${pagesScraped.length}
 
 ## PRE-EXTRACTED DATA (Already found from HTML)
 ${extractedDataSection}
@@ -74,43 +72,82 @@ ${extractedDataSection}
 
 ${contentSections}
 
-## EXTRACTION RULES
+## EXTRACTION GUIDELINES
 
-1. **ACCURACY IS CRITICAL** - Only extract information that is explicitly stated on the website
-2. **DO NOT INVENT DATA** - Return null for any field where information is not found
-3. **PRESERVE EXACT TEXT** - For testimonials, quotes, and descriptions, use the exact wording from the website
-4. **CURRENCY** - All prices should be in ${config.currency.code} (${config.currency.symbol})
-5. **CONTACT INFO** - Prefer the pre-extracted data for phone/email/social if AI-extracted matches
-6. **STRUCTURED DATA** - If JSON-LD or schema.org data is present, prioritize it
-7. **INVENTORY** - Extract ALL products/services/menu items with prices when available
-8. **OPERATING HOURS** - Extract if clearly stated on the website
+1. **BE THOROUGH** - Extract every piece of business information available
+2. **BE ACCURATE** - Only include information explicitly stated on the website
+3. **PRESERVE TEXT** - Use exact wording for quotes, testimonials, and descriptions
+4. **PRICES** - All prices in ${config.currency.code}, as numbers only (e.g., 1500)
+5. **STRUCTURED DATA** - If JSON-LD or schema.org data is present, prioritize it
+6. **CONTEXT** - Infer industry-specific data based on business type
 
 ## OUTPUT FORMAT (JSON)
 
-Return ONLY valid JSON matching this structure:
+Return ONLY valid JSON with this comprehensive structure:
 
 {
-  "businessName": "Extract from logo, header, title, or footer",
-  "tagline": "Official tagline or slogan if present",
-  "description": "About the business - combine from About page and meta descriptions",
-  "industry": "Detect: food_beverage, hospitality, healthcare, real_estate, retail, education, services, or custom",
+  "businessName": "Official business name from logo/header/footer",
+  "legalName": "Legal/registered name if different",
+  "tagline": "Official tagline or slogan",
+  "description": "Comprehensive description of what the business does (2-3 sentences)",
+  "shortDescription": "One-line elevator pitch",
+  "missionStatement": "Mission statement if found",
+  "visionStatement": "Vision statement if found",
+  "story": "Company story/history/about us narrative",
 
-  "phone": "Primary phone number with country code",
-  "email": "Primary contact email",
+  "industry": "Primary industry: food_beverage, hospitality, healthcare, real_estate, retail, education, professional_services, beauty_wellness, automotive, travel, entertainment, technology, or other",
+  "subIndustry": "More specific category within industry",
+  "businessType": "B2B, B2C, or Both",
+
+  "yearEstablished": 2010,
+  "founders": "Founder names",
+  "founderStory": "Founder background/story if mentioned",
+
+  "contact": {
+    "primaryPhone": "Main phone with country code",
+    "secondaryPhone": "Alternate phone if available",
+    "whatsapp": "WhatsApp number if different",
+    "tollFree": "Toll-free number if available",
+    "primaryEmail": "Main contact email",
+    "supportEmail": "Support email if different",
+    "salesEmail": "Sales email if different",
+    "bookingEmail": "Booking/reservation email if applicable"
+  },
+
   "address": {
-    "street": "Street address",
-    "city": "City name",
+    "street": "Street address line 1",
+    "street2": "Street address line 2",
+    "landmark": "Nearby landmark",
+    "area": "Area/neighborhood",
+    "city": "City",
     "state": "State/Province",
     "country": "Country",
     "pincode": "Postal/ZIP code"
   },
 
+  "locations": [
+    {
+      "name": "Branch name (e.g., Main Branch, Downtown Location)",
+      "address": "Full address",
+      "phone": "Location-specific phone",
+      "isHeadquarters": true
+    }
+  ],
+
+  "serviceAreas": ["Cities or areas served"],
+  "deliveryZones": ["Delivery coverage areas"],
+  "internationalShipping": false,
+
   "socialMedia": {
-    "instagram": "Full Instagram URL or null",
-    "facebook": "Full Facebook URL or null",
-    "linkedin": "Full LinkedIn URL or null",
-    "twitter": "Full Twitter/X URL or null",
-    "youtube": "Full YouTube URL or null"
+    "instagram": "Full Instagram URL",
+    "facebook": "Full Facebook URL",
+    "linkedin": "Full LinkedIn URL",
+    "twitter": "Full Twitter/X URL",
+    "youtube": "Full YouTube channel URL",
+    "pinterest": "Pinterest URL",
+    "tiktok": "TikTok URL",
+    "whatsappBusiness": "WhatsApp Business link",
+    "googleBusiness": "Google Business URL"
   },
 
   "operatingHours": {
@@ -120,74 +157,449 @@ Return ONLY valid JSON matching this structure:
     "thursday": { "open": "9:00 AM", "close": "6:00 PM" },
     "friday": { "open": "9:00 AM", "close": "6:00 PM" },
     "saturday": { "open": "10:00 AM", "close": "4:00 PM" },
-    "sunday": null
+    "sunday": null,
+    "specialNote": "Any notes about hours (e.g., 'Closed on public holidays')",
+    "timezone": "Timezone if mentioned"
   },
 
-  "languages": ["Languages spoken or supported"],
-  "yearEstablished": "Year as number if mentioned",
-  "founders": "Founder/owner names if mentioned",
-  "teamSize": "Team size if mentioned (e.g., '10-50 employees')",
+  "languages": ["Languages spoken/supported"],
+
+  "brandVoice": {
+    "tone": ["professional", "friendly", "casual", "formal", "playful", "authoritative"],
+    "style": "Description of communication style",
+    "personality": ["trustworthy", "innovative", "caring", "expert", "approachable"]
+  },
+
+  "brandValues": ["Core values mentioned (e.g., Quality, Integrity, Innovation)"],
 
   "uniqueSellingPoints": [
     "What makes this business unique",
-    "Key differentiators mentioned",
+    "Key competitive advantages",
     "Special features or benefits"
   ],
 
   "targetAudience": [
-    "Who the business serves",
-    "Customer segments"
+    "Primary customer segments",
+    "Who the business serves"
+  ],
+
+  "customerPainPoints": [
+    "Problems the business solves",
+    "Customer challenges addressed"
   ],
 
   "productsOrServices": [
     {
-      "name": "Product or service name",
-      "description": "Brief description",
-      "price": null,
-      "isService": true
+      "name": "Product/Service name",
+      "description": "Detailed description",
+      "shortDescription": "One-line description",
+      "category": "Category/type",
+      "price": 1000,
+      "priceUnit": "per unit/hour/session/etc",
+      "priceRange": "Budget/Mid-range/Premium",
+      "duration": "Service duration if applicable",
+      "isService": true,
+      "isPopular": false,
+      "isFeatured": false,
+      "availability": "Always/Limited/Seasonal/By appointment"
     }
   ],
+
+  "packages": [
+    {
+      "name": "Package name",
+      "description": "What's included",
+      "price": 5000,
+      "duration": "Validity period",
+      "includes": ["List of inclusions"],
+      "isPopular": false
+    }
+  ],
+
+  "pricingTiers": [
+    {
+      "name": "Basic/Standard/Premium",
+      "price": 999,
+      "period": "monthly/yearly/one-time",
+      "features": ["Feature list"],
+      "isRecommended": false
+    }
+  ],
+
+  "currentOffers": [
+    {
+      "title": "Offer title",
+      "description": "Offer details",
+      "discount": "20% off / Flat 500 off",
+      "code": "Promo code if any",
+      "validUntil": "Expiry date if mentioned",
+      "conditions": "Terms and conditions"
+    }
+  ],
+
+  "paymentMethods": ["UPI", "Credit Card", "Debit Card", "Cash", "Net Banking", "EMI", "PayPal"],
+  "acceptedCards": ["Visa", "Mastercard", "Amex"],
+  "emiAvailable": false,
+  "codAvailable": false,
 
   "faqs": [
     {
-      "question": "Question from FAQ section",
-      "answer": "Answer as stated on website"
+      "question": "Exact question from FAQ",
+      "answer": "Exact answer from FAQ",
+      "category": "Category if FAQs are grouped"
     }
   ],
 
-  "paymentMethods": ["Accepted payment methods if mentioned"],
+  "policies": {
+    "returnPolicy": "Return policy summary",
+    "returnWindow": "30 days",
+    "refundPolicy": "Refund policy summary",
+    "refundTimeline": "Refund processing time",
+    "cancellationPolicy": "Cancellation terms",
+    "cancellationFee": "Any cancellation charges",
+    "exchangePolicy": "Exchange policy if different from returns",
+    "warrantyPolicy": "Warranty information",
+    "shippingPolicy": "Shipping terms and timeline",
+    "freeShippingThreshold": "Minimum order for free shipping",
+    "deliveryTimeline": "Expected delivery time",
+    "privacyHighlights": "Key privacy policy points",
+    "termsHighlights": "Key terms of service points"
+  },
 
-${inventorySchema}
+  "inventory": {
+    "rooms": [
+      {
+        "name": "Room type name",
+        "category": "Standard/Deluxe/Premium/Suite/Villa",
+        "description": "Room description",
+        "shortDescription": "One-line description",
+        "price": 5000,
+        "priceUnit": "per night",
+        "weekendPrice": 6000,
+        "maxOccupancy": 2,
+        "extraPersonCharge": 500,
+        "bedType": "King/Queen/Twin/Double",
+        "bedCount": 1,
+        "roomSize": "350 sq ft",
+        "view": "City View/Sea View/Garden View",
+        "amenities": ["WiFi", "AC", "TV", "Mini Bar", "Room Service"],
+        "bathroomAmenities": ["Shower", "Bathtub", "Toiletries"],
+        "isPopular": false,
+        "images": ["Image URLs if found"]
+      }
+    ],
+    "menuItems": [
+      {
+        "name": "Dish name",
+        "description": "Dish description",
+        "category": "Starters/Main Course/Desserts/Beverages",
+        "subCategory": "More specific category",
+        "price": 350,
+        "halfPrice": 200,
+        "cuisineType": "Italian/Indian/Chinese/etc",
+        "isVeg": true,
+        "isVegan": false,
+        "isGlutenFree": false,
+        "spiceLevel": "Mild/Medium/Hot",
+        "servingSize": "Serves 1-2",
+        "preparationTime": "15-20 mins",
+        "calories": 450,
+        "isPopular": true,
+        "isChefSpecial": false,
+        "isNewItem": false,
+        "allergens": ["nuts", "dairy"],
+        "pairsWith": ["Recommended pairings"]
+      }
+    ],
+    "products": [
+      {
+        "name": "Product name",
+        "description": "Product description",
+        "category": "Category",
+        "subCategory": "Sub-category",
+        "brand": "Brand name",
+        "price": 999,
+        "mrp": 1299,
+        "discount": "23% off",
+        "sku": "Product SKU",
+        "sizes": ["S", "M", "L", "XL"],
+        "colors": ["Red", "Blue", "Black"],
+        "material": "Material info",
+        "weight": "Product weight",
+        "dimensions": "Dimensions",
+        "inStock": true,
+        "stockQuantity": 50,
+        "isPopular": false,
+        "isBestseller": false,
+        "isNewArrival": false,
+        "warranty": "Warranty info",
+        "specifications": {"key": "value"}
+      }
+    ],
+    "services": [
+      {
+        "name": "Service name",
+        "description": "Service description",
+        "category": "Consultation/Treatment/Procedure",
+        "price": 500,
+        "priceType": "Starting from/Fixed/Varies",
+        "duration": "30 mins",
+        "doctor": "Dr. Name",
+        "specialist": "Specialization",
+        "availableDays": ["Monday", "Wednesday", "Friday"],
+        "availableSlots": ["9:00 AM", "2:00 PM", "5:00 PM"],
+        "preparationRequired": "Any preparation instructions",
+        "insuranceAccepted": true,
+        "isEmergency": false
+      }
+    ],
+    "properties": [
+      {
+        "title": "Property title",
+        "type": "Apartment/Villa/Commercial/Plot/PG",
+        "subType": "1BHK/2BHK/Studio/Penthouse",
+        "transactionType": "Sale/Rent/Lease",
+        "price": 5000000,
+        "priceUnit": "total/per month/per sq ft",
+        "priceNegotiable": true,
+        "maintenanceCharges": 5000,
+        "securityDeposit": 100000,
+        "location": "Area, City",
+        "fullAddress": "Complete address",
+        "area": 1500,
+        "areaUnit": "sq ft",
+        "carpetArea": 1200,
+        "bedrooms": 3,
+        "bathrooms": 2,
+        "balconies": 1,
+        "parking": "2 covered",
+        "floor": "5th of 10",
+        "facing": "East",
+        "furnishing": "Semi-furnished/Fully furnished/Unfurnished",
+        "age": "2 years old",
+        "possessionStatus": "Ready to move/Under construction",
+        "amenities": ["Gym", "Pool", "Clubhouse", "Security"],
+        "nearbyPlaces": ["School", "Hospital", "Metro"],
+        "reraId": "RERA registration number",
+        "images": ["Image URLs"]
+      }
+    ],
+    "courses": [
+      {
+        "name": "Course name",
+        "description": "Course description",
+        "category": "Category",
+        "duration": "3 months/6 weeks",
+        "mode": "Online/Offline/Hybrid",
+        "price": 25000,
+        "originalPrice": 35000,
+        "emiOption": true,
+        "startDate": "Next batch date",
+        "schedule": "Weekdays/Weekends",
+        "timing": "10 AM - 1 PM",
+        "instructor": "Instructor name",
+        "certification": true,
+        "placementAssistance": true,
+        "curriculum": ["Module 1", "Module 2"],
+        "prerequisites": ["Requirements"],
+        "outcomes": ["What you'll learn"]
+      }
+    ],
+    "treatments": [
+      {
+        "name": "Treatment name",
+        "description": "Treatment description",
+        "category": "Facial/Body/Hair",
+        "price": 2500,
+        "duration": "60 mins",
+        "benefits": ["Benefit 1", "Benefit 2"],
+        "suitableFor": ["Skin type/condition"],
+        "frequency": "Recommended frequency"
+      }
+    ]
+  },
+
+  "team": [
+    {
+      "name": "Person name",
+      "role": "Job title/designation",
+      "department": "Department",
+      "bio": "Brief biography",
+      "qualifications": ["Degrees", "Certifications"],
+      "experience": "Years of experience",
+      "specializations": ["Areas of expertise"],
+      "languages": ["Languages spoken"],
+      "image": "Photo URL if found",
+      "linkedin": "LinkedIn profile URL",
+      "email": "Direct email if provided"
+    }
+  ],
 
   "testimonials": [
     {
-      "quote": "Exact testimonial text from website",
-      "author": "Customer name if available",
-      "role": "Customer title/company if available"
+      "quote": "Exact testimonial text - preserve exactly as written",
+      "author": "Customer name",
+      "role": "Customer's title/company",
+      "location": "Customer's location",
+      "rating": 5,
+      "date": "Date if mentioned",
+      "platform": "Where review was from (Google, website, etc)",
+      "verified": true,
+      "productService": "What they reviewed"
     }
   ],
 
-  "awards": ["Awards or recognitions mentioned"],
-  "certifications": ["Business certifications or accreditations"],
+  "caseStudies": [
+    {
+      "title": "Case study title",
+      "client": "Client name",
+      "industry": "Client's industry",
+      "challenge": "Problem faced",
+      "solution": "Solution provided",
+      "results": "Outcomes/metrics",
+      "testimonial": "Client quote"
+    }
+  ],
 
-${industryDataSchema}
+  "awards": [
+    {
+      "name": "Award name",
+      "year": 2023,
+      "awardedBy": "Awarding organization",
+      "category": "Award category"
+    }
+  ],
 
-  "otherFindings": [
-    "Any other interesting facts not fitting other categories"
-  ]
+  "certifications": [
+    {
+      "name": "Certification name",
+      "issuedBy": "Issuing authority",
+      "validUntil": "Expiry if applicable",
+      "number": "Certification number"
+    }
+  ],
+
+  "accreditations": ["Accreditation bodies"],
+  "partnerships": ["Partner companies/organizations"],
+  "clients": ["Notable clients if mentioned"],
+  "featuredIn": ["Media mentions", "Publications"],
+
+  "industrySpecificData": {
+    "cuisineTypes": ["For restaurants: Italian, Indian, Chinese"],
+    "dietaryOptions": ["Vegetarian", "Vegan", "Gluten-free options"],
+    "mealTypes": ["Breakfast", "Lunch", "Dinner"],
+    "diningOptions": ["Dine-in", "Takeaway", "Delivery"],
+    "reservationRequired": false,
+    "dressCode": "Casual/Smart casual/Formal",
+    "alcoholServed": true,
+    "averageCost": "Average cost for two",
+    "seatingCapacity": 100,
+    "privateEvents": true,
+    "cateringAvailable": true,
+
+    "starRating": "5-star/4-star hotel rating",
+    "checkInTime": "2:00 PM",
+    "checkOutTime": "11:00 AM",
+    "earlyCheckIn": true,
+    "lateCheckOut": true,
+    "airportTransfer": true,
+    "petFriendly": false,
+    "wheelchairAccessible": true,
+    "hotelAmenities": ["Pool", "Spa", "Restaurant", "Bar", "Gym"],
+    "nearbyAttractions": ["Tourist spots nearby"],
+
+    "medicalSpecializations": ["For healthcare: Cardiology, Orthopedics"],
+    "doctorsCount": 25,
+    "bedsCount": 100,
+    "emergencyServices": true,
+    "ambulanceService": true,
+    "bloodBank": true,
+    "pharmacyOnsite": true,
+    "insuranceAccepted": ["List of insurance providers"],
+    "naabhAccredited": true,
+    "jciAccredited": false,
+
+    "reraRegistered": true,
+    "reraNumber": "RERA registration",
+    "developerName": "Builder/Developer name",
+    "projectStatus": "Completed/Under construction",
+    "possessionDate": "Expected possession",
+    "pricePerSqFt": 8500,
+    "loanAvailable": true,
+    "banksApproved": ["HDFC", "SBI", "ICICI"],
+
+    "freeTrialAvailable": false,
+    "demoAvailable": true,
+    "integrations": ["Software integrations"],
+    "apiAvailable": true,
+    "supportHours": "24/7",
+    "slaGuarantee": "99.9% uptime",
+
+    "homeVisitAvailable": false,
+    "onlineConsultation": true,
+    "subscriptionPlans": true
+  },
+
+  "technicalInfo": {
+    "platformsSupported": ["Web", "iOS", "Android"],
+    "browserSupport": ["Chrome", "Firefox", "Safari"],
+    "systemRequirements": "Technical requirements",
+    "apiDocumentation": "API docs URL",
+    "securityCertifications": ["ISO 27001", "SOC 2"],
+    "dataStorage": "Data storage location",
+    "backupPolicy": "Backup frequency"
+  },
+
+  "sustainability": {
+    "ecofriendly": true,
+    "carbonNeutral": false,
+    "sustainablePractices": ["Practices mentioned"],
+    "certifications": ["Green certifications"]
+  },
+
+  "accessibility": {
+    "wheelchairAccessible": true,
+    "parkingAvailable": true,
+    "valetParking": false,
+    "publicTransport": "Nearest metro/bus stop",
+    "elevatorAccess": true
+  },
+
+  "additionalInfo": {
+    "establishmentType": "Single outlet/Chain/Franchise",
+    "seatingCapacity": 50,
+    "outdoorSeating": true,
+    "privateRooms": true,
+    "wifiAvailable": true,
+    "acAvailable": true,
+    "liveMusic": false,
+    "kidsArea": false,
+    "smokingArea": false
+  },
+
+  "schemaOrgData": "Any structured data found in JSON-LD format",
+
+  "confidence": {
+    "overallScore": 85,
+    "dataCompleteness": "High/Medium/Low",
+    "reliableSources": ["Pages with most reliable data"]
+  }
 }
 
-## IMPORTANT NOTES
+## CRITICAL INSTRUCTIONS
 
-- Return ONLY the JSON object, no markdown formatting or explanation
-- Use null for fields with no data (not empty strings or arrays)
-- For arrays, use empty array [] only if the category exists but has no items
-- Prices should be numbers only (e.g., 1500 not "${config.currency.symbol}1,500")
-- Include all menu items, products, or services found with their prices
-- Operating hours should use 12-hour format with AM/PM
-- Social media URLs should be complete URLs (https://...)
+1. Return ONLY the JSON object - no markdown, no explanation
+2. Use null for fields with no data (not empty strings)
+3. Use empty array [] only if category exists but has no items
+4. Prices as numbers only (e.g., 1500 not "${config.currency.symbol}1,500")
+5. Extract ALL inventory items - don't summarize or skip
+6. Preserve exact text for testimonials and quotes
+7. Operating hours in 12-hour format with AM/PM
+8. Social media URLs must be complete (https://...)
+9. Be thorough - this data builds the entire business profile
+10. If a field doesn't apply to this business type, use null
 
-Extract the business profile now:`;
+EXTRACT THE COMPLETE BUSINESS PROFILE NOW:`;
 }
 
 /**
@@ -206,7 +618,7 @@ function buildExtractedDataSection(
     lines.push(`Email: ${contact.email}`);
   }
 
-  const socialPlatforms = ['instagram', 'facebook', 'twitter', 'linkedin', 'youtube'];
+  const socialPlatforms = ['instagram', 'facebook', 'twitter', 'linkedin', 'youtube', 'pinterest', 'tiktok'];
   for (const platform of socialPlatforms) {
     if (social[platform]) {
       lines.push(`${platform.charAt(0).toUpperCase() + platform.slice(1)}: ${social[platform]}`);
@@ -214,94 +626,6 @@ function buildExtractedDataSection(
   }
 
   return lines.length > 0 ? lines.join('\n') : 'None extracted yet';
-}
-
-/**
- * Build industry-specific inventory and data schemas
- */
-function buildIndustrySchemas(
-  config: CountryAutoFillConfig
-): { inventorySchema: string; industryDataSchema: string } {
-  const currency = config.currency.symbol;
-
-  // Since we don't know the industry yet, include all possible inventory schemas
-  return {
-    inventorySchema: `  "inventory": {
-    "rooms": [
-      {
-        "name": "Room type name (e.g., Deluxe Room)",
-        "category": "Standard/Deluxe/Premium/Suite",
-        "description": "Room description",
-        "price": 5000,
-        "priceUnit": "per night",
-        "maxOccupancy": 2,
-        "bedType": "King/Queen/Twin",
-        "amenities": ["WiFi", "AC", "TV"],
-        "size": "350 sq ft",
-        "view": "City View"
-      }
-    ],
-    "menuItems": [
-      {
-        "name": "Dish name",
-        "category": "Starters/Main Course/Desserts",
-        "description": "Dish description",
-        "price": 350,
-        "isVeg": true,
-        "isVegan": false,
-        "spiceLevel": "Medium",
-        "popular": true
-      }
-    ],
-    "products": [
-      {
-        "name": "Product name",
-        "category": "Category",
-        "description": "Description",
-        "price": 999,
-        "mrp": 1299,
-        "brand": "Brand name",
-        "inStock": true
-      }
-    ],
-    "services": [
-      {
-        "name": "Service name",
-        "category": "Consultation/Treatment",
-        "description": "Service description",
-        "price": 500,
-        "duration": "30 mins",
-        "doctor": "Dr. Name if applicable"
-      }
-    ],
-    "properties": [
-      {
-        "title": "Property title",
-        "type": "Apartment/Villa/Commercial",
-        "transactionType": "Sale/Rent",
-        "price": 5000000,
-        "priceUnit": "total or per month",
-        "location": "Area, City",
-        "area": "1500 sq ft",
-        "bedrooms": 3,
-        "bathrooms": 2,
-        "amenities": ["Gym", "Pool"]
-      }
-    ]
-  },`,
-
-    industryDataSchema: `  "industryData": {
-    "cuisineTypes": ["Types of cuisine if restaurant"],
-    "starRating": "Hotel star rating if applicable",
-    "specializations": ["Medical specializations if healthcare"],
-    "propertyTypes": ["Types of properties if real estate"],
-    "productCategories": ["Main product categories if retail"],
-    "accreditations": ["Professional accreditations"],
-    "deliveryOptions": ["Delivery/shipping options"],
-    "bookingRequired": "Whether booking is required",
-    "parkingInfo": "Parking availability"
-  },`,
-  };
 }
 
 /**
@@ -347,7 +671,6 @@ export function buildSectionExtractionPrompt(
   countryCode?: string
 ): string {
   const config = getCountryConfig(countryCode);
-  const currency = config.currency.symbol;
 
   const sectionPrompts: Record<string, string> = {
     menu: `Extract ALL menu items from this restaurant content.
