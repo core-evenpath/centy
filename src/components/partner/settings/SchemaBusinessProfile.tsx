@@ -4,10 +4,10 @@ import React, { useState, useEffect, useMemo } from 'react';
 import {
     Building2, MapPin, Target, Shield, Globe, ChevronDown,
     Edit3, Check, X, Plus, Sparkles, Search, Eye, Award,
-    Phone, Clock, HelpCircle, Bot, Loader2, Trash2, Zap,
+    Phone, Clock, HelpCircle, Bot, Zap,
     LucideIcon, Landmark, GraduationCap, Heart, Briefcase,
     ShoppingBag, UtensilsCrossed, ShoppingCart, Car, Plane,
-    PartyPopper, Wrench, MoreHorizontal, Link2, ExternalLink
+    PartyPopper, Wrench, MoreHorizontal
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { BusinessPersona } from '@/lib/business-persona-types';
@@ -73,23 +73,8 @@ const EMPTY_CATEGORIES: any[] = [];
 interface SchemaBusinessProfileProps {
     persona: Partial<BusinessPersona>;
     onUpdate: (path: string, value: any) => Promise<void>;
-    // Auto-fill props (Google Places)
-    autoFillSearch: string;
-    onSearchChange: (query: string) => void;
-    autoFillResults: any[];
-    onSelectPlace: (place: any) => void;
-    selectedPlace: any | null;
-    onAutoFill: () => Promise<void>;
-    isAutoFilling: boolean;
-    onClearProfile: () => Promise<void>;
     onPreviewAI?: () => void;
     onProcessAI?: () => Promise<void>;
-    // Website scrape props
-    websiteUrl: string;
-    onWebsiteUrlChange: (url: string) => void;
-    onWebsiteScrape: () => Promise<void>;
-    isScrapingWebsite: boolean;
-    websiteScrapeError?: string | null;
     // Module generation callback
     onModulesGenerated?: (config: ModulesConfig) => Promise<void>;
 }
@@ -573,26 +558,10 @@ function SchemaField({
 export default function SchemaBusinessProfile({
     persona,
     onUpdate,
-    autoFillSearch,
-    onSearchChange,
-    autoFillResults,
-    onSelectPlace,
-    selectedPlace,
-    onAutoFill,
-    isAutoFilling,
-    onClearProfile,
     onPreviewAI,
     onProcessAI,
-    websiteUrl,
-    onWebsiteUrlChange,
-    onWebsiteScrape,
-    isScrapingWebsite,
-    websiteScrapeError,
     onModulesGenerated
 }: SchemaBusinessProfileProps) {
-
-    // Auto-fill mode: 'google' | 'website'
-    const [autoFillMode, setAutoFillMode] = useState<'google' | 'website'>('google');
 
     // Country selection for localized labels
     const [selectedCountry, setSelectedCountry] = useState<CountryCode>(
@@ -774,162 +743,6 @@ export default function SchemaBusinessProfile({
                 {/* Show rest of UI only when categories are selected */}
                 {hasSelectedCategories ? (
                     <>
-                        {/* Auto-Fill Bar with Tabs */}
-                        <div className="bg-white rounded-xl border border-slate-200 p-4 mb-6 relative shadow-sm">
-                            {/* Tab Buttons */}
-                            <div className="flex items-center gap-2 mb-4">
-                                <button
-                                    onClick={() => setAutoFillMode('google')}
-                                    className={cn(
-                                        "flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all",
-                                        autoFillMode === 'google'
-                                            ? "bg-indigo-100 text-indigo-700 border border-indigo-200"
-                                            : "bg-slate-50 text-slate-600 hover:bg-slate-100 border border-transparent"
-                                    )}
-                                >
-                                    <Search className="w-4 h-4" />
-                                    Google Search
-                                </button>
-                                <button
-                                    onClick={() => setAutoFillMode('website')}
-                                    className={cn(
-                                        "flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all",
-                                        autoFillMode === 'website'
-                                            ? "bg-indigo-100 text-indigo-700 border border-indigo-200"
-                                            : "bg-slate-50 text-slate-600 hover:bg-slate-100 border border-transparent"
-                                    )}
-                                >
-                                    <Globe className="w-4 h-4" />
-                                    Website Import
-                                </button>
-                                <div className="flex-1" />
-                                <button
-                                    onClick={onClearProfile}
-                                    className="px-4 py-2 bg-red-50 text-red-600 rounded-lg text-sm font-medium hover:bg-red-100 flex items-center gap-2"
-                                >
-                                    <Trash2 className="w-4 h-4" />
-                                    Clear
-                                </button>
-                            </div>
-
-                            {/* Google Search Mode */}
-                            {autoFillMode === 'google' && (
-                                <div className="flex items-center gap-4">
-                                    <div className="w-10 h-10 bg-slate-100 rounded-lg flex items-center justify-center flex-shrink-0">
-                                        <Search className="w-5 h-5 text-slate-500" />
-                                    </div>
-
-                                    <div className="flex-1 relative">
-                                        {selectedPlace ? (
-                                            <div className="flex items-center justify-between px-4 py-2 bg-indigo-50 border border-indigo-100 rounded-lg">
-                                                <div>
-                                                    <div className="font-medium text-indigo-900">{selectedPlace.mainText}</div>
-                                                    <div className="text-xs text-indigo-600">{selectedPlace.secondaryText}</div>
-                                                </div>
-                                                <button onClick={() => onSelectPlace(null)} className="p-1 hover:bg-indigo-100 rounded">
-                                                    <X className="w-4 h-4 text-indigo-500" />
-                                                </button>
-                                            </div>
-                                        ) : (
-                                            <input
-                                                type="text"
-                                                value={autoFillSearch}
-                                                onChange={e => onSearchChange(e.target.value)}
-                                                placeholder="Search your business on Google..."
-                                                className="w-full px-4 py-2 rounded-lg bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300"
-                                            />
-                                        )}
-                                        {autoFillResults.length > 0 && !selectedPlace && (
-                                            <div className="absolute z-20 top-12 left-0 right-0 bg-white border border-slate-200 rounded-xl shadow-xl max-h-80 overflow-y-auto">
-                                                {autoFillResults.map(r => (
-                                                    <button
-                                                        key={r.placeId}
-                                                        onClick={() => onSelectPlace(r)}
-                                                        className="w-full text-left px-4 py-3 hover:bg-slate-50 border-b border-slate-100 last:border-b-0"
-                                                    >
-                                                        <div className="font-medium text-slate-900">{r.mainText}</div>
-                                                        <div className="text-xs text-slate-500">{r.secondaryText}</div>
-                                                    </button>
-                                                ))}
-                                            </div>
-                                        )}
-                                    </div>
-
-                                    <button
-                                        onClick={onAutoFill}
-                                        disabled={isAutoFilling || !selectedPlace}
-                                        className={cn(
-                                            "px-5 py-2 rounded-lg text-sm font-medium flex items-center gap-2 whitespace-nowrap",
-                                            selectedPlace ? "bg-gradient-to-r from-indigo-600 to-violet-600 text-white shadow-md shadow-indigo-200" : "bg-slate-100 text-slate-400 cursor-not-allowed"
-                                        )}
-                                    >
-                                        {isAutoFilling ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
-                                        Auto-Fill
-                                    </button>
-                                </div>
-                            )}
-
-                            {/* Website Import Mode */}
-                            {autoFillMode === 'website' && (
-                                <div>
-                                    <div className="flex items-center gap-4">
-                                        <div className="w-10 h-10 bg-slate-100 rounded-lg flex items-center justify-center flex-shrink-0">
-                                            <Link2 className="w-5 h-5 text-slate-500" />
-                                        </div>
-
-                                        <div className="flex-1 relative">
-                                            <input
-                                                type="url"
-                                                value={websiteUrl}
-                                                onChange={e => onWebsiteUrlChange(e.target.value)}
-                                                placeholder="Enter your website URL (e.g., www.yourbusiness.com)"
-                                                className={cn(
-                                                    "w-full px-4 py-2 rounded-lg bg-slate-50 border text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300",
-                                                    websiteScrapeError ? "border-red-300" : "border-slate-200"
-                                                )}
-                                            />
-                                            {websiteUrl && (
-                                                <a
-                                                    href={websiteUrl.startsWith('http') ? websiteUrl : `https://${websiteUrl}`}
-                                                    target="_blank"
-                                                    rel="noopener noreferrer"
-                                                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-indigo-600"
-                                                >
-                                                    <ExternalLink className="w-4 h-4" />
-                                                </a>
-                                            )}
-                                        </div>
-
-                                        <button
-                                            onClick={onWebsiteScrape}
-                                            disabled={isScrapingWebsite || !websiteUrl.trim()}
-                                            className={cn(
-                                                "px-5 py-2 rounded-lg text-sm font-medium flex items-center gap-2 whitespace-nowrap",
-                                                websiteUrl.trim() ? "bg-gradient-to-r from-indigo-600 to-violet-600 text-white shadow-md shadow-indigo-200" : "bg-slate-100 text-slate-400 cursor-not-allowed"
-                                            )}
-                                        >
-                                            {isScrapingWebsite ? <Loader2 className="w-4 h-4 animate-spin" /> : <Globe className="w-4 h-4" />}
-                                            Import Website
-                                        </button>
-                                    </div>
-
-                                    {/* Error Message */}
-                                    {websiteScrapeError && (
-                                        <div className="mt-3 px-4 py-2 bg-red-50 border border-red-100 rounded-lg text-sm text-red-600 flex items-start gap-2">
-                                            <X className="w-4 h-4 flex-shrink-0 mt-0.5" />
-                                            <span>{websiteScrapeError}</span>
-                                        </div>
-                                    )}
-
-                                    {/* Info Message */}
-                                    <div className="mt-3 text-xs text-slate-500 flex items-center gap-2">
-                                        <Sparkles className="w-3.5 h-3.5 text-indigo-400" />
-                                        <span>We'll analyze your website and automatically import business information, services, menu items, and more.</span>
-                                    </div>
-                                </div>
-                            )}
-                        </div>
-
                         {/* Business Type Display Banner - Read Only */}
                         {selectedCategories.length > 0 && (
                             <div className="bg-gradient-to-r from-indigo-50 to-purple-50 border border-indigo-100 rounded-xl p-4 mb-6">
