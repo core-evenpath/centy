@@ -29,7 +29,7 @@ import BusinessProfileAgent from '@/components/partner/settings/BusinessProfileA
 import AutoFillPreviewModal from '@/components/partner/settings/AutoFillPreviewModal';
 import WebsiteImportPreviewModal from '@/components/partner/settings/WebsiteImportPreviewModal';
 import SchemaBusinessProfile from '@/components/partner/settings/SchemaBusinessProfile';
-import ImportCenter from '@/components/partner/settings/ImportCenter';
+import { Building2, Database, Trash2 } from 'lucide-react';
 
 const SettingsUltimate = () => {
   const router = useRouter();
@@ -1251,120 +1251,51 @@ const SettingsUltimate = () => {
             {/* ===== BUSINESS PROFILE TAB ===== */}
             {activeTab === 'profile' && (
               <div className="-m-4 md:-m-8">
-                {/* Import Center - Unified import management with auto-fill */}
-                <div className="p-4 md:p-8 pb-0" ref={autoFillSectionRef}>
-                  <ImportCenter
-                    persona={persona}
-                    importHistory={persona.importHistory}
-                    // Google import props
-                    googleSearch={autoFillSearch}
-                    onGoogleSearchChange={(query) => {
-                      setAutoFillSearch(query);
-                      if (selectedPlace && query !== selectedPlace.mainText) {
-                        setSelectedPlace(null);
-                      }
-                      if (searchTimeoutRef.current) {
-                        clearTimeout(searchTimeoutRef.current);
-                      }
-                      searchTimeoutRef.current = setTimeout(() => {
-                        debouncedSearch(query);
-                      }, 300);
-                    }}
-                    googleResults={autoFillResults}
-                    selectedPlace={selectedPlace}
-                    onSelectPlace={(place) => {
-                      setSelectedPlace(place);
-                      if (place) {
-                        setAutoFillSearch(place.mainText);
-                        setAutoFillResults([]);
-                      } else {
-                        setAutoFillSearch('');
-                      }
-                    }}
-                    onGoogleImport={async () => {
-                      if (!selectedPlace) {
-                        toast.error('Please select a business first');
-                        return;
-                      }
-                      setAutoFilling(true);
-                      try {
-                        const result = await autoFillProfileAction(selectedPlace.placeId);
-                        if (result.success && result.profile) {
-                          setAutoFillPreviewData(result.profile);
-                          setShowAutoFillPreview(true);
-                        } else {
-                          toast.error(result.error || 'Failed to fetch business data');
-                        }
-                      } catch (err: any) {
-                        toast.error(err.message || 'Auto-fill failed');
-                      } finally {
-                        setAutoFilling(false);
-                      }
-                    }}
-                    isGoogleImporting={autoFilling}
-                    // Website import props
-                    websiteUrl={websiteUrl}
-                    onWebsiteUrlChange={(url) => {
-                      setWebsiteUrl(url);
-                      setWebsiteScrapeError(null);
-                    }}
-                    onWebsiteImport={handleWebsiteScrape}
-                    isWebsiteImporting={isScrapingWebsite}
-                    websiteError={websiteScrapeError}
-                    // Action handlers
-                    onRefreshGoogle={async () => {
-                      if (persona.importHistory?.google?.placeId && persona.importHistory?.google?.placeName) {
-                        setAutoFillSearch(persona.importHistory.google.placeName);
-                        toast.info('Please search and select your business to refresh data');
-                      } else {
-                        toast.info('Search for your business to import data from Google');
-                      }
-                    }}
-                    onRefreshWebsite={async () => {
-                      if (persona.importHistory?.website?.url) {
-                        setWebsiteUrl(persona.importHistory.website.url);
-                        await handleWebsiteScrape();
-                      } else {
-                        toast.info('Enter your website URL to import data');
-                      }
-                    }}
-                    onClearGoogle={async () => {
-                      const updatedPersona = {
-                        ...persona,
-                        importHistory: {
-                          ...persona.importHistory,
-                          google: undefined,
-                        },
-                      };
-                      setPersona(updatedPersona);
-                      if (partnerId) await saveBusinessPersonaAction(partnerId, updatedPersona);
-                      toast.success('Google import data cleared');
-                    }}
-                    onClearWebsite={async () => {
-                      const updatedPersona = {
-                        ...persona,
-                        importHistory: {
-                          ...persona.importHistory,
-                          website: undefined,
-                        },
-                      };
-                      setPersona(updatedPersona);
-                      if (partnerId) await saveBusinessPersonaAction(partnerId, updatedPersona);
-                      toast.success('Website import data cleared');
-                    }}
-                    onClearAll={async () => {
-                      const updatedPersona = {
-                        ...persona,
-                        importHistory: {
-                          google: undefined,
-                          website: undefined,
-                        },
-                      };
-                      setPersona(updatedPersona);
-                      if (partnerId) await saveBusinessPersonaAction(partnerId, updatedPersona);
-                      toast.success('All import data cleared');
-                    }}
-                  />
+                {/* Profile Header with Actions */}
+                <div className="p-4 md:p-8 pb-0">
+                  <div className="bg-white rounded-xl border border-slate-200 p-5 mb-6 shadow-sm">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-4">
+                        <div className="w-12 h-12 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-xl flex items-center justify-center">
+                          <Building2 className="w-6 h-6 text-white" />
+                        </div>
+                        <div>
+                          <h2 className="text-lg font-bold text-slate-900">Business Profile</h2>
+                          <p className="text-sm text-slate-500">Manage your business information</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <button
+                          onClick={() => router.push('/partner/settings/import-center')}
+                          className="px-4 py-2.5 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 flex items-center gap-2 shadow-sm"
+                        >
+                          <Database className="w-4 h-4" />
+                          Import Data
+                        </button>
+                        <button
+                          onClick={async () => {
+                            if (confirm('Are you sure you want to clear all business profile data? This cannot be undone.')) {
+                              try {
+                                const result = await getEmptyProfileAction();
+                                if (result.success && result.profile) {
+                                  setPersona(result.profile);
+                                  setSelectedBusinessTypes([]);
+                                  if (partnerId) await saveBusinessPersonaAction(partnerId, result.profile, true);
+                                  toast.success('All profile data cleared');
+                                }
+                              } catch (err: any) {
+                                toast.error(err.message || 'Failed to clear data');
+                              }
+                            }
+                          }}
+                          className="px-4 py-2.5 bg-red-50 text-red-600 rounded-lg text-sm font-medium hover:bg-red-100 flex items-center gap-2"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                          Clear All
+                        </button>
+                      </div>
+                    </div>
+                  </div>
                 </div>
 
                 {/* Business Profile Sections */}
