@@ -19,7 +19,8 @@ import type {
   IndustryCategory,
   OperatingHours,
   ProductService,
-  FrequentlyAskedQuestion
+  FrequentlyAskedQuestion,
+  ImportHistory
 } from '@/lib/business-persona-types';
 import ProfileDocuments from '@/components/partner/settings/ProfileDocuments';
 import ProfileSummary from '@/components/partner/settings/ProfileSummary';
@@ -28,6 +29,7 @@ import BusinessProfileAgent from '@/components/partner/settings/BusinessProfileA
 import AutoFillPreviewModal from '@/components/partner/settings/AutoFillPreviewModal';
 import WebsiteImportPreviewModal from '@/components/partner/settings/WebsiteImportPreviewModal';
 import SchemaBusinessProfile from '@/components/partner/settings/SchemaBusinessProfile';
+import ImportHub, { ImportSource } from '@/components/partner/settings/ImportHub';
 
 const SettingsUltimate = () => {
   const router = useRouter();
@@ -65,6 +67,9 @@ const SettingsUltimate = () => {
   const [websiteImportData, setWebsiteImportData] = useState<any>(null);
   const [websitePagesScraped, setWebsitePagesScraped] = useState<string[]>([]);
   const [isApplyingWebsiteImport, setIsApplyingWebsiteImport] = useState(false);
+
+  // Import Hub - scroll to auto-fill section
+  const autoFillSectionRef = useRef<HTMLDivElement>(null);
 
   // RAG Processing State
   const [ragProcessing, setRagProcessing] = useState(false);
@@ -1246,7 +1251,94 @@ const SettingsUltimate = () => {
             {/* ===== BUSINESS PROFILE TAB ===== */}
             {activeTab === 'profile' && (
               <div className="-m-4 md:-m-8">
+                {/* Import Hub - Consolidated view of imported data */}
+                <div className="p-4 md:p-8 pb-0">
+                  <ImportHub
+                    googleImport={{
+                      type: 'google',
+                      name: 'Google Business',
+                      lastImportedAt: persona.importHistory?.google?.lastImportedAt ? new Date(persona.importHistory.google.lastImportedAt) : undefined,
+                      sourceIdentifier: persona.importHistory?.google?.placeId,
+                      status: autoFilling ? 'importing' : (persona.importHistory?.google?.status || 'idle'),
+                    }}
+                    websiteImport={{
+                      type: 'website',
+                      name: 'Website Import',
+                      lastImportedAt: persona.importHistory?.website?.lastImportedAt ? new Date(persona.importHistory.website.lastImportedAt) : undefined,
+                      sourceIdentifier: persona.importHistory?.website?.url,
+                      pagesScraped: persona.importHistory?.website?.pagesScraped,
+                      status: isScrapingWebsite ? 'importing' : (persona.importHistory?.website?.status || 'idle'),
+                    }}
+                    persona={persona}
+                    onGoogleRefresh={async () => {
+                      // Re-run Google import with the stored place ID
+                      if (persona.importHistory?.google?.placeId && persona.importHistory?.google?.placeName) {
+                        setAutoFillSearch(persona.importHistory.google.placeName);
+                        // Trigger the auto-fill flow
+                        autoFillSectionRef.current?.scrollIntoView({ behavior: 'smooth' });
+                        toast.info('Please search and select your business to refresh data');
+                      } else {
+                        autoFillSectionRef.current?.scrollIntoView({ behavior: 'smooth' });
+                        toast.info('Search for your business to import data from Google');
+                      }
+                    }}
+                    onWebsiteRefresh={async () => {
+                      // Re-run website import with stored URL
+                      if (persona.importHistory?.website?.url) {
+                        setWebsiteUrl(persona.importHistory.website.url);
+                        await handleWebsiteScrape();
+                      } else {
+                        autoFillSectionRef.current?.scrollIntoView({ behavior: 'smooth' });
+                        toast.info('Enter your website URL to import data');
+                      }
+                    }}
+                    onClearGoogle={async () => {
+                      const updatedPersona = {
+                        ...persona,
+                        importHistory: {
+                          ...persona.importHistory,
+                          google: undefined,
+                        },
+                      };
+                      setPersona(updatedPersona);
+                      if (partnerId) await saveBusinessPersonaAction(partnerId, updatedPersona);
+                      toast.success('Google import data cleared');
+                    }}
+                    onClearWebsite={async () => {
+                      const updatedPersona = {
+                        ...persona,
+                        importHistory: {
+                          ...persona.importHistory,
+                          website: undefined,
+                        },
+                      };
+                      setPersona(updatedPersona);
+                      if (partnerId) await saveBusinessPersonaAction(partnerId, updatedPersona);
+                      toast.success('Website import data cleared');
+                    }}
+                    onClearAll={async () => {
+                      const updatedPersona = {
+                        ...persona,
+                        importHistory: {
+                          google: undefined,
+                          website: undefined,
+                        },
+                      };
+                      setPersona(updatedPersona);
+                      if (partnerId) await saveBusinessPersonaAction(partnerId, updatedPersona);
+                      toast.success('All import data cleared');
+                    }}
+                    onOpenGoogleImport={() => {
+                      autoFillSectionRef.current?.scrollIntoView({ behavior: 'smooth' });
+                    }}
+                    onOpenWebsiteImport={() => {
+                      autoFillSectionRef.current?.scrollIntoView({ behavior: 'smooth' });
+                    }}
+                  />
+                </div>
+
                 {/* Negative margin to break out of the parent padding to allow full-width headers from the new design */}
+                <div ref={autoFillSectionRef}>
                 <SchemaBusinessProfile
                   persona={persona}
                   onUpdate={async (path, value) => {
@@ -1401,7 +1493,19 @@ const SettingsUltimate = () => {
                           throw new Error(result.error || 'Failed to map inventory');
                         }
 
-                        const mergedPersona = result.persona;
+                        // Update import history
+                        const mergedPersona = {
+                          ...result.persona,
+                          importHistory: {
+                            ...result.persona.importHistory,
+                            google: {
+                              lastImportedAt: new Date(),
+                              placeId: selectedData.source?.placeId,
+                              placeName: selectedData.identity?.businessName || selectedData.identity?.name,
+                              status: 'success' as const,
+                            },
+                          },
+                        };
 
                         setPersona(mergedPersona);
                         if (partnerId) await saveBusinessPersonaAction(partnerId, mergedPersona);
@@ -1455,7 +1559,19 @@ const SettingsUltimate = () => {
                           throw new Error(result.error || 'Failed to map imported data');
                         }
 
-                        const mergedPersona = result.persona;
+                        // Update import history
+                        const mergedPersona = {
+                          ...result.persona,
+                          importHistory: {
+                            ...result.persona.importHistory,
+                            website: {
+                              lastImportedAt: new Date(),
+                              url: websiteUrl,
+                              pagesScraped: websitePagesScraped,
+                              status: 'success' as const,
+                            },
+                          },
+                        };
 
                         setPersona(mergedPersona);
                         if (partnerId) await saveBusinessPersonaAction(partnerId, mergedPersona);
@@ -1489,6 +1605,7 @@ const SettingsUltimate = () => {
                     }}
                   />
                 )}
+                </div>
               </div>
             )}
             {/* ===== TEAM TAB ===== */}

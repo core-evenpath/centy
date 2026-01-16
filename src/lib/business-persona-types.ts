@@ -1942,6 +1942,9 @@ export interface BusinessPersona {
     // AI-generated enhancements
     aiSuggestions?: AIBusinessSuggestions;
 
+    // Import history tracking
+    importHistory?: ImportHistory;
+
     // Metadata
     createdAt: Date;
     updatedAt: Date;
@@ -1969,6 +1972,42 @@ export interface AIBusinessSuggestions {
     commonQueries: string[];
     suggestedUSPs: string[];
     generatedAt: Date;
+}
+
+/**
+ * Import history tracking for data sources
+ */
+export interface ImportHistoryEntry {
+    source: 'google' | 'website';
+    sourceIdentifier: string; // Google Place ID or Website URL
+    importedAt: Date;
+    fieldsImported: string[]; // List of field paths that were imported
+    pagesScraped?: string[]; // For website imports
+    status: 'success' | 'partial' | 'failed';
+    error?: string;
+}
+
+export interface ImportHistory {
+    // Google Business import
+    google?: {
+        lastImportedAt?: Date;
+        placeId?: string;
+        placeName?: string;
+        fieldsImported?: string[];
+        status: 'idle' | 'importing' | 'success' | 'error';
+        error?: string;
+    };
+    // Website import
+    website?: {
+        lastImportedAt?: Date;
+        url?: string;
+        pagesScraped?: string[];
+        fieldsImported?: string[];
+        status: 'idle' | 'importing' | 'success' | 'error';
+        error?: string;
+    };
+    // Import log for audit
+    history?: ImportHistoryEntry[];
 }
 
 /**
