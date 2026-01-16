@@ -4,7 +4,7 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/use-auth';
 import { getBusinessPersonaAction, saveBusinessPersonaAction } from '@/actions/business-persona-actions';
-import { autoFillProfileAction } from '@/actions/business-autofill-actions';
+import { searchBusinessesAction, autoFillProfileAction } from '@/actions/business-autofill-actions';
 import { scrapeWebsiteAction } from '@/actions/website-scrape-actions';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
@@ -443,6 +443,7 @@ export default function ImportCenterPage() {
   // Google import state
   const [googleSearch, setGoogleSearch] = useState('');
   const [googleResults, setGoogleResults] = useState<any[]>([]);
+  const [googleSearching, setGoogleSearching] = useState(false);
   const [selectedPlace, setSelectedPlace] = useState<any>(null);
   const [isGoogleImporting, setIsGoogleImporting] = useState(false);
   const [googleImportedData, setGoogleImportedData] = useState<ImportedCategory[]>([]);
@@ -482,24 +483,23 @@ export default function ImportCenterPage() {
     if (!authLoading) loadPersona();
   }, [userPartnerId, authLoading]);
 
-  // Google places search
+  // Google places search - using searchBusinessesAction like settings page
   const debouncedSearch = useCallback(async (query: string) => {
-    if (!query.trim() || query.length < 3) {
+    if (query.length < 3) {
       setGoogleResults([]);
       return;
     }
+
+    setGoogleSearching(true);
     try {
-      const res = await fetch(`/api/places/autocomplete?input=${encodeURIComponent(query)}`);
-      const data = await res.json();
-      if (data.predictions) {
-        setGoogleResults(data.predictions.map((p: any) => ({
-          placeId: p.place_id,
-          mainText: p.structured_formatting?.main_text || p.description,
-          secondaryText: p.structured_formatting?.secondary_text || '',
-        })));
+      const result = await searchBusinessesAction(query);
+      if (result.success && result.results) {
+        setGoogleResults(result.results);
       }
     } catch (err) {
-      console.error('Search failed:', err);
+      console.error('Search error:', err);
+    } finally {
+      setGoogleSearching(false);
     }
   }, []);
 
@@ -527,7 +527,7 @@ export default function ImportCenterPage() {
     }
   };
 
-  // Handle website import
+  // Handle website import - matching settings page implementation
   const handleWebsiteImport = async () => {
     if (!websiteUrl.trim()) {
       toast.error('Please enter a website URL');
@@ -536,19 +536,28 @@ export default function ImportCenterPage() {
     setIsWebsiteImporting(true);
     setWebsiteError(null);
     try {
-      const result = await scrapeWebsiteAction(websiteUrl, { countryCode: 'US', includeSubpages: true, maxPages: 5 });
-      if (result.success && result.data) {
-        // Extract categories from the imported data
-        const categories = extractImportedCategories(result.data as any, 'website');
-        setWebsiteImportedData(categories);
-        toast.success('Data imported from website!');
-      } else {
+      console.log('[ImportCenter] Starting website import for:', websiteUrl);
+      const result = await scrapeWebsiteAction(websiteUrl, {
+        includeSubpages: true,
+        maxPages: 5,
+      });
+
+      if (!result.success || !result.profile) {
         setWebsiteError(result.error || 'Failed to import from website');
-        toast.error(result.error || 'Import failed');
+        toast.error(result.error || 'Failed to import from website');
+        return;
       }
+
+      console.log('[ImportCenter] Website import complete, pages analyzed:', result.pagesScraped?.length);
+
+      // Extract categories from the imported data
+      const categories = extractImportedCategories(result.profile as any, 'website');
+      setWebsiteImportedData(categories);
+      toast.success(`Website analyzed! ${result.pagesScraped?.length || 1} page${(result.pagesScraped?.length || 1) !== 1 ? 's' : ''} processed.`);
     } catch (err: any) {
-      setWebsiteError(err.message || 'Import failed');
-      toast.error(err.message || 'Import failed');
+      console.error('[ImportCenter] Website import error:', err);
+      setWebsiteError(err.message || 'Failed to import from website');
+      toast.error('Failed to import from website');
     } finally {
       setIsWebsiteImporting(false);
     }
