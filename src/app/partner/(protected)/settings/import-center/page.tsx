@@ -1282,6 +1282,15 @@ export default function ImportCenterPage() {
     ));
   };
 
+  // Helper function to format key labels for unmapped data
+  const formatKeyLabel = (key: string): string => {
+    return key
+      .replace(/([A-Z])/g, ' $1')
+      .replace(/_/g, ' ')
+      .replace(/^\w/, c => c.toUpperCase())
+      .trim();
+  };
+
   // Apply from Import tab
   const applyFromImport = async () => {
     if (!partnerId) {
@@ -1289,10 +1298,9 @@ export default function ImportCenterPage() {
       return;
     }
 
-    const allSelectedFields: ImportedField[] = [
-      ...googleImportedData.flatMap(c => c.fields.filter(f => f.selected)),
-      ...websiteImportedData.flatMap(c => c.fields.filter(f => f.selected))
-    ];
+    const googleSelectedFields = googleImportedData.flatMap(c => c.fields.filter(f => f.selected));
+    const websiteSelectedFields = websiteImportedData.flatMap(c => c.fields.filter(f => f.selected));
+    const allSelectedFields: ImportedField[] = [...googleSelectedFields, ...websiteSelectedFields];
 
     if (allSelectedFields.length === 0) {
       toast.error('Please select at least one field to apply');
@@ -1302,7 +1310,10 @@ export default function ImportCenterPage() {
     setIsApplying(true);
     try {
       const updatedPersona: any = JSON.parse(JSON.stringify(persona));
+      const appliedPaths: string[] = [];
+      const importId = `import_${Date.now()}`;
 
+      // Apply selected field values
       allSelectedFields.forEach(field => {
         const pathParts = field.path.split('.');
         let current: any = updatedPersona;
@@ -1320,7 +1331,141 @@ export default function ImportCenterPage() {
 
         const lastPart = pathParts[pathParts.length - 1];
         current[lastPart] = field.value;
+        appliedPaths.push(field.path);
       });
+
+      // === NEW: Track import metadata ===
+      const importMeta = updatedPersona._importMeta || {
+        history: [],
+        unmappedData: [],
+        fieldSources: {},
+        settings: { googleAutoSync: false, websiteAutoSync: false },
+      };
+
+      // Add to history
+      if (googleSelectedFields.length > 0) {
+        const googlePaths = googleSelectedFields.map(f => f.path);
+        importMeta.history.unshift({
+          id: `${importId}_google`,
+          source: 'google' as const,
+          sourceIdentifier: selectedPlace?.mainText || 'Google Places',
+          importedAt: new Date().toISOString(),
+          fieldsCount: googleSelectedFields.length,
+          fieldPaths: googlePaths,
+          status: 'applied' as const,
+        });
+        importMeta.settings!.lastGoogleSync = new Date().toISOString();
+      }
+
+      if (websiteSelectedFields.length > 0) {
+        const websitePaths = websiteSelectedFields.map(f => f.path);
+        importMeta.history.unshift({
+          id: `${importId}_website`,
+          source: 'website' as const,
+          sourceIdentifier: websiteUrl || 'Website',
+          importedAt: new Date().toISOString(),
+          fieldsCount: websiteSelectedFields.length,
+          fieldPaths: websitePaths,
+          status: 'applied' as const,
+        });
+        importMeta.settings!.lastWebsiteSync = new Date().toISOString();
+      }
+
+      // Track field sources
+      allSelectedFields.forEach(field => {
+        importMeta.fieldSources[field.path] = {
+          source: field.source as 'google' | 'website' | 'manual',
+          importedAt: new Date().toISOString(),
+          importId: field.source === 'google' ? `${importId}_google` : `${importId}_website`,
+        };
+      });
+
+      // === NEW: Capture unmapped data ===
+      // From Google raw data
+      if (googleRawData?.fromTheWeb) {
+        const web = googleRawData.fromTheWeb;
+        if (web.additionalInfo && typeof web.additionalInfo === 'object') {
+          Object.entries(web.additionalInfo).forEach(([key, value]) => {
+            if (value && !importMeta.unmappedData.some((d: any) => d.key === key)) {
+              importMeta.unmappedData.push({
+                id: `unmapped_${Date.now()}_${key}`,
+                key: formatKeyLabel(key),
+                value: String(value),
+                source: 'google' as const,
+                importedAt: new Date().toISOString(),
+                usedByAI: true,
+              });
+            }
+          });
+        }
+        if (web.otherFindings && Array.isArray(web.otherFindings)) {
+          web.otherFindings.forEach((finding: string, idx: number) => {
+            if (!importMeta.unmappedData.some((d: any) => d.value === finding)) {
+              importMeta.unmappedData.push({
+                id: `unmapped_${Date.now()}_finding_${idx}`,
+                key: 'Additional Info',
+                value: finding,
+                source: 'google' as const,
+                importedAt: new Date().toISOString(),
+                usedByAI: true,
+              });
+            }
+          });
+        }
+      }
+
+      // From Website raw data
+      if (websiteRawData?.fromTheWeb) {
+        const web = websiteRawData.fromTheWeb;
+        if (web.additionalInfo && typeof web.additionalInfo === 'object') {
+          Object.entries(web.additionalInfo).forEach(([key, value]) => {
+            if (value && !importMeta.unmappedData.some((d: any) => d.key === key)) {
+              importMeta.unmappedData.push({
+                id: `unmapped_${Date.now()}_${key}`,
+                key: formatKeyLabel(key),
+                value: String(value),
+                source: 'website' as const,
+                importedAt: new Date().toISOString(),
+                usedByAI: true,
+              });
+            }
+          });
+        }
+      }
+
+      // Also capture any extra data from the raw imports that isn't mapped to standard fields
+      const captureExtraData = (rawData: any, source: 'google' | 'website') => {
+        if (!rawData) return;
+
+        // Capture testimonials/reviews as unmapped data if not explicitly selected
+        const testimonials = rawData.testimonials || rawData.reviews || [];
+        testimonials.slice(0, 5).forEach((t: any, idx: number) => {
+          const quote = t.quote || t.text;
+          if (quote && !importMeta.unmappedData.some((d: any) => d.value === quote)) {
+            importMeta.unmappedData.push({
+              id: `unmapped_${Date.now()}_testimonial_${idx}`,
+              key: `${t.authorName || t.author || 'Customer'} Review`,
+              value: quote.length > 200 ? quote.substring(0, 200) + '...' : quote,
+              source,
+              importedAt: new Date().toISOString(),
+              usedByAI: true,
+              suggestedMapping: 'testimonials',
+            });
+          }
+        });
+      };
+
+      if (googleRawData) captureExtraData(googleRawData, 'google');
+      if (websiteRawData) captureExtraData(websiteRawData, 'website');
+
+      // Keep only last 50 unmapped items
+      importMeta.unmappedData = importMeta.unmappedData.slice(0, 50);
+
+      // Keep only last 20 history records
+      importMeta.history = importMeta.history.slice(0, 20);
+
+      updatedPersona._importMeta = importMeta;
+      // === END NEW ===
 
       updatedPersona.importHistory = {
         ...updatedPersona.importHistory,

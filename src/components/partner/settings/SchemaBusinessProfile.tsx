@@ -4,13 +4,13 @@ import React, { useState, useEffect, useMemo } from 'react';
 import {
     Building2, MapPin, Target, Shield, Globe, ChevronDown,
     Edit3, Check, X, Plus, Sparkles, Search, Eye, Award,
-    Phone, Clock, HelpCircle, Bot, Zap, Trash2,
+    Phone, Clock, HelpCircle, Bot, Zap, Trash2, EyeOff,
     LucideIcon, Landmark, GraduationCap, Heart, Briefcase,
     ShoppingBag, UtensilsCrossed, ShoppingCart, Car, Plane,
-    PartyPopper, Wrench, MoreHorizontal
+    PartyPopper, Wrench, MoreHorizontal, RefreshCw, AlertCircle
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { BusinessPersona } from '@/lib/business-persona-types';
+import { BusinessPersona, ImportMeta, UnmappedDataItem, FieldSource } from '@/lib/business-persona-types';
 import {
     getExpertiseSections,
     BUSINESS_PROFILE_CONFIG,
@@ -510,6 +510,154 @@ function FAQList({ faqs, label }: { faqs: { question: string; answer: string }[]
     );
 }
 
+// ===== FROM THE WEB SECTION =====
+function FromTheWebSection({
+    items,
+    onDelete,
+    onToggleAI,
+    onImportData,
+}: {
+    items: UnmappedDataItem[];
+    onDelete: (id: string) => void;
+    onToggleAI: (id: string, enabled: boolean) => void;
+    onImportData?: () => void;
+}) {
+    const [filter, setFilter] = useState<'all' | 'google' | 'website'>('all');
+
+    const filtered = items.filter(item =>
+        filter === 'all' || item.source === filter
+    );
+
+    if (items.length === 0) {
+        return (
+            <div className="text-center py-8">
+                <Globe className="w-10 h-10 mx-auto mb-3 text-slate-300" />
+                <p className="text-slate-500 text-sm">No imported data yet</p>
+                <p className="text-slate-400 text-xs mt-1">
+                    Use Import Center to fetch from Google or your website
+                </p>
+                {onImportData && (
+                    <button
+                        onClick={onImportData}
+                        className="mt-4 px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700"
+                    >
+                        Go to Import Center
+                    </button>
+                )}
+            </div>
+        );
+    }
+
+    return (
+        <div className="space-y-4">
+            {/* Filters */}
+            <div className="flex items-center justify-between">
+                <div className="flex gap-2">
+                    {(['all', 'google', 'website'] as const).map(f => (
+                        <button
+                            key={f}
+                            onClick={() => setFilter(f)}
+                            className={cn(
+                                "px-3 py-1.5 rounded-lg text-xs font-medium transition-colors",
+                                filter === f
+                                    ? "bg-pink-100 text-pink-700"
+                                    : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                            )}
+                        >
+                            {f === 'all' ? `All (${items.length})` : f === 'google' ? `Google (${items.filter(i => i.source === 'google').length})` : `Website (${items.filter(i => i.source === 'website').length})`}
+                        </button>
+                    ))}
+                </div>
+            </div>
+
+            {/* Items */}
+            <div className="space-y-2">
+                {filtered.map(item => (
+                    <div
+                        key={item.id}
+                        className="p-4 bg-slate-50 rounded-xl border border-slate-200 group hover:border-pink-300 transition-colors"
+                    >
+                        <div className="flex items-start justify-between gap-3">
+                            <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2 mb-1 flex-wrap">
+                                    <span className="font-medium text-sm text-slate-900">{item.key}</span>
+                                    <span className={cn(
+                                        "text-xs px-1.5 py-0.5 rounded",
+                                        item.source === 'google' ? "bg-blue-100 text-blue-700" : "bg-purple-100 text-purple-700"
+                                    )}>
+                                        {item.source === 'google' ? 'Google' : 'Website'}
+                                    </span>
+                                    {item.usedByAI && (
+                                        <span className="text-xs bg-green-100 text-green-700 px-1.5 py-0.5 rounded flex items-center gap-1">
+                                            <Check className="w-3 h-3" /> AI Context
+                                        </span>
+                                    )}
+                                    {item.suggestedMapping && (
+                                        <span className="text-xs bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded">
+                                            Mapping suggested
+                                        </span>
+                                    )}
+                                </div>
+                                <p className="text-sm text-slate-700">{item.value}</p>
+                                <p className="text-xs text-slate-400 mt-1">
+                                    Imported {new Date(item.importedAt).toLocaleDateString()}
+                                </p>
+                            </div>
+                            <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <button
+                                    onClick={() => onToggleAI(item.id, !item.usedByAI)}
+                                    className={cn(
+                                        "p-1.5 rounded transition-colors",
+                                        item.usedByAI
+                                            ? "text-green-600 bg-green-50 hover:bg-green-100"
+                                            : "text-slate-400 hover:text-green-600 hover:bg-green-50"
+                                    )}
+                                    title={item.usedByAI ? "Disable AI usage" : "Enable AI usage"}
+                                >
+                                    {item.usedByAI ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
+                                </button>
+                                <button
+                                    onClick={() => onDelete(item.id)}
+                                    className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
+                                    title="Delete"
+                                >
+                                    <X className="w-4 h-4" />
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                ))}
+            </div>
+
+            {/* Info Banner */}
+            <div className="p-3 bg-gradient-to-r from-pink-50 to-purple-50 rounded-xl border border-pink-200">
+                <p className="text-xs text-pink-800 flex items-center gap-2">
+                    <Sparkles className="w-4 h-4" />
+                    Items marked "AI Context" are used by AI agents when responding to customers.
+                </p>
+            </div>
+        </div>
+    );
+}
+
+// ===== SOURCE BADGE =====
+function SourceBadge({ source }: { source?: FieldSource }) {
+    if (!source) return null;
+
+    return (
+        <span className={cn(
+            "ml-2 text-[10px] px-1.5 py-0.5 rounded inline-flex items-center gap-0.5",
+            source.source === 'google'
+                ? "bg-blue-100 text-blue-700"
+                : source.source === 'website'
+                    ? "bg-purple-100 text-purple-700"
+                    : "bg-slate-100 text-slate-600"
+        )}>
+            {source.source === 'google' ? 'Google' : source.source === 'website' ? 'Website' : 'Manual'}
+        </span>
+    );
+}
+
 // ===== SCHEMA FIELD RENDERER =====
 function SchemaField({
     field,
@@ -675,6 +823,37 @@ export default function SchemaBusinessProfile({
             setCategorySearch('');
         }
     }, [showCategoryModal]); // Only run when modal visibility changes
+
+    // ===== IMPORT METADATA =====
+    const importMeta = useMemo(() => {
+        return (persona as any)?._importMeta as ImportMeta | undefined;
+    }, [persona]);
+
+    const unmappedData = useMemo(() => {
+        return importMeta?.unmappedData || [];
+    }, [importMeta]);
+
+    const fieldSources = useMemo(() => {
+        return importMeta?.fieldSources || {};
+    }, [importMeta]);
+
+    // Helper to check if a field was imported
+    const getFieldSource = (path: string): FieldSource | undefined => {
+        return fieldSources[path];
+    };
+
+    // Handlers for unmapped data
+    const handleDeleteUnmappedItem = async (itemId: string) => {
+        const updated = unmappedData.filter(d => d.id !== itemId);
+        await onUpdate('_importMeta.unmappedData', updated);
+    };
+
+    const handleToggleAIUsage = async (itemId: string, enabled: boolean) => {
+        const updated = unmappedData.map(d =>
+            d.id === itemId ? { ...d, usedByAI: enabled } : d
+        );
+        await onUpdate('_importMeta.unmappedData', updated);
+    };
 
     // Helper to safely get nested values
     const get = (path: string, def: any = '') => {
@@ -857,6 +1036,27 @@ export default function SchemaBusinessProfile({
                                 const Icon = SECTION_ICONS[section.id] || Building2;
                                 const bg = SECTION_COLORS[section.id] || 'bg-slate-500';
 
+                                // Special handling for "from-the-web" section
+                                if (section.id === 'from-the-web') {
+                                    return (
+                                        <Section
+                                            key={section.id}
+                                            title={section.title}
+                                            icon={Icon}
+                                            iconBg={bg}
+                                            defaultOpen={false}
+                                            description={`${section.description}${unmappedData.length > 0 ? ` (${unmappedData.length} items)` : ''}`}
+                                        >
+                                            <FromTheWebSection
+                                                items={unmappedData}
+                                                onDelete={handleDeleteUnmappedItem}
+                                                onToggleAI={handleToggleAIUsage}
+                                                onImportData={onImportData}
+                                            />
+                                        </Section>
+                                    );
+                                }
+
                                 return (
                                     <Section
                                         key={section.id}
@@ -887,12 +1087,19 @@ export default function SchemaBusinessProfile({
                                                             {subSection.fields.map((field: FieldConfig) => {
                                                                 const value = get(field.schemaPath);
                                                                 const currentTags = Array.isArray(value) ? value : [];
+                                                                const fieldSource = getFieldSource(field.schemaPath);
 
                                                                 return (
                                                                     <div
                                                                         key={field.key}
                                                                         className={cn(field.gridSpan === 2 && "lg:col-span-2")}
                                                                     >
+                                                                        {/* Show source badge if field was imported */}
+                                                                        {fieldSource && (
+                                                                            <div className="mb-1 flex items-center">
+                                                                                <SourceBadge source={fieldSource} />
+                                                                            </div>
+                                                                        )}
                                                                         <SchemaField
                                                                             field={field}
                                                                             value={value}
