@@ -385,6 +385,19 @@ export async function saveBusinessPersonaAction(
                 ...existingPersona.importHistory,
                 ...updates.importHistory,
             } : existingPersona.importHistory,
+            // Import metadata (_importMeta) - merge with existing
+            _importMeta: (updates as any)._importMeta !== undefined ? {
+                history: (updates as any)._importMeta?.history ?? existingPersona._importMeta?.history ?? [],
+                unmappedData: (updates as any)._importMeta?.unmappedData ?? existingPersona._importMeta?.unmappedData ?? [],
+                fieldSources: {
+                    ...existingPersona._importMeta?.fieldSources,
+                    ...(updates as any)._importMeta?.fieldSources,
+                },
+                settings: {
+                    ...existingPersona._importMeta?.settings,
+                    ...(updates as any)._importMeta?.settings,
+                },
+            } : existingPersona._importMeta,
             // Timestamps and version
             updatedAt: new Date(),
             version: (existingPersona.version || 0) + 1,

@@ -1029,7 +1029,7 @@ export default function SchemaBusinessProfile({
                                 </div>
 
                                 {/* Import History */}
-                                {importMeta?.history && importMeta.history.length > 0 && (
+                                {importMeta?.history && importMeta.history.length > 0 ? (
                                     <div className="mt-4 pt-4 border-t border-teal-200">
                                         <div className="flex items-center justify-between mb-2">
                                             <h4 className="text-sm font-medium text-teal-900">Recent Imports</h4>
@@ -1061,7 +1061,14 @@ export default function SchemaBusinessProfile({
                                             </p>
                                         )}
                                     </div>
-                                )}
+                                ) : unmappedData.length > 0 ? (
+                                    <div className="mt-4 pt-4 border-t border-teal-200">
+                                        <p className="text-xs text-teal-700 flex items-center gap-1">
+                                            <Sparkles className="w-3 h-3" />
+                                            {unmappedData.length} items available in "From the Web" section below
+                                        </p>
+                                    </div>
+                                ) : null}
                             </div>
                         )}
 
@@ -1076,11 +1083,11 @@ export default function SchemaBusinessProfile({
                                     return (
                                         <Section
                                             key={section.id}
-                                            title={section.title}
+                                            title={unmappedData.length > 0 ? `${section.title} (${unmappedData.length})` : section.title}
                                             icon={Icon}
                                             iconBg={bg}
-                                            defaultOpen={false}
-                                            description={`${section.description}${unmappedData.length > 0 ? ` (${unmappedData.length} items)` : ''}`}
+                                            defaultOpen={unmappedData.length > 0}
+                                            description={section.description}
                                         >
                                             <FromTheWebSection
                                                 items={unmappedData}
