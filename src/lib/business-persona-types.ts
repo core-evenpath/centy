@@ -1945,6 +1945,48 @@ export interface BusinessPersona {
     // Import history tracking
     importHistory?: ImportHistory;
 
+    // Staged imported data (auto-saved before applying to profile)
+    importedData?: {
+        google?: {
+            rawData: any;
+            categories: Array<{
+                id: string;
+                label: string;
+                fields: Array<{
+                    id: string;
+                    label: string;
+                    value: any;
+                    displayValue: string;
+                    path: string;
+                    source: string;
+                    selected: boolean;
+                }>;
+            }>;
+            importedAt: string;
+            placeName?: string;
+            placeId?: string;
+        };
+        website?: {
+            rawData: any;
+            categories: Array<{
+                id: string;
+                label: string;
+                fields: Array<{
+                    id: string;
+                    label: string;
+                    value: any;
+                    displayValue: string;
+                    path: string;
+                    source: string;
+                    selected: boolean;
+                }>;
+            }>;
+            importedAt: string;
+            url?: string;
+            pagesScraped?: string[];
+        };
+    };
+
     // Metadata
     createdAt: Date;
     updatedAt: Date;

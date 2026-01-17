@@ -4,7 +4,7 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/use-auth';
 import { getBusinessPersonaAction, saveBusinessPersonaAction } from '@/actions/business-persona-actions';
-import { searchBusinessesAction, autoFillProfileAction } from '@/actions/business-autofill-actions';
+import { searchBusinessesAction, autoFillProfileAction, applyImportToProfileAction } from '@/actions/business-autofill-actions';
 import { scrapeWebsiteAction } from '@/actions/website-scrape-actions';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
@@ -18,7 +18,7 @@ import {
   Home, ShoppingBag, Utensils, Bed, GraduationCap, Stethoscope,
   Merge, Layers, Quote, TrendingUp, ThumbsUp, ThumbsDown,
   Minus, BarChart3, Eye, EyeOff, Copy, Zap, ArrowRight,
-  RefreshCw, Filter, CheckCheck, XCircle, Circle
+  RefreshCw, Filter, CheckCheck, XCircle, Circle, Edit3, Save
 } from 'lucide-react';
 import type { BusinessPersona } from '@/lib/business-persona-types';
 
@@ -26,7 +26,7 @@ import type { BusinessPersona } from '@/lib/business-persona-types';
 // TYPES
 // ========================================
 
-type ViewTab = 'import' | 'merge' | 'testimonials';
+type ViewTab = 'import' | 'merge' | 'testimonials' | 'saved';
 
 interface ImportedField {
   id: string;
@@ -34,9 +34,15 @@ interface ImportedField {
   value: any;
   displayValue: string;
   path: string;
-  source: 'google' | 'website';
+  source: 'google' | 'website' | 'saved';
   selected: boolean;
   category?: string;
+}
+
+interface EditingField {
+  field: ImportedField;
+  categoryId: string;
+  newValue: any;
 }
 
 interface ImportedCategory {
@@ -112,13 +118,13 @@ function addField(
   label: string,
   value: any,
   path: string,
-  source: 'google' | 'website',
+  source: 'google' | 'website' | 'saved',
   customDisplay?: string,
   category?: string
 ) {
   if (value !== null && value !== undefined && value !== '' &&
-      !(Array.isArray(value) && value.length === 0) &&
-      !(typeof value === 'object' && Object.keys(value).length === 0)) {
+    !(Array.isArray(value) && value.length === 0) &&
+    !(typeof value === 'object' && Object.keys(value).length === 0)) {
     fields.push({
       id,
       label,
@@ -152,10 +158,44 @@ function analyzeSentiment(text: string): 'positive' | 'neutral' | 'negative' {
   return 'neutral';
 }
 
+// Helper to get category icon by ID
+function getCategoryIcon(categoryId: string): React.ElementType {
+  const iconMap: Record<string, React.ElementType> = {
+    identity: Building2,
+    contact: Phone,
+    personality: Heart,
+    products: Package,
+    knowledge: FileText,
+    policies: Shield,
+    ratings: Star,
+    team: Users,
+    social: Share2,
+    facilities: Home
+  };
+  return iconMap[categoryId] || Building2;
+}
+
+// Helper to get category color by ID
+function getCategoryColor(categoryId: string): string {
+  const colorMap: Record<string, string> = {
+    identity: 'bg-indigo-500',
+    contact: 'bg-blue-500',
+    personality: 'bg-pink-500',
+    products: 'bg-emerald-500',
+    knowledge: 'bg-amber-500',
+    policies: 'bg-slate-500',
+    ratings: 'bg-yellow-500',
+    team: 'bg-purple-500',
+    social: 'bg-cyan-500',
+    facilities: 'bg-teal-500'
+  };
+  return colorMap[categoryId] || 'bg-slate-500';
+}
+
 /**
  * COMPREHENSIVE extraction of ALL imported data organized by category
  */
-function extractImportedCategories(data: any, source: 'google' | 'website'): ImportedCategory[] {
+function extractImportedCategories(data: any, source: 'google' | 'website' | 'saved'): ImportedCategory[] {
   const categories: ImportedCategory[] = [];
   if (!data) return categories;
 
@@ -313,20 +353,77 @@ function extractImportedCategories(data: any, source: 'google' | 'website'): Imp
   }
 
   // ========================================
-  // 6. TARGET AUDIENCE
+  // 6. TARGET AUDIENCE & CUSTOMER INSIGHTS
   // ========================================
   const audienceFields: ImportedField[] = [];
 
   addField(audienceFields, 'targetAudience', 'Target Audience', customerProfile.targetAudience || data.targetAudience, 'customerProfile.targetAudience', source);
   addField(audienceFields, 'customerPainPoints', 'Customer Pain Points', customerProfile.customerPainPoints || data.customerPainPoints, 'customerProfile.customerPainPoints', source);
 
+  // New customer insights fields
+  const customerInsights = data.customerInsights || customerProfile;
+  if (customerInsights) {
+    addField(audienceFields, 'painPoints', 'Pain Points & Solutions', customerInsights.painPoints, 'customerProfile.painPoints', source);
+    addField(audienceFields, 'targetAgeGroups', 'Target Age Groups', customerInsights.targetAgeGroups || customerInsights.ageGroup, 'customerProfile.ageGroup', source);
+    addField(audienceFields, 'incomeSegments', 'Income Segments', customerInsights.incomeSegments || customerInsights.incomeSegment, 'customerProfile.incomeSegment', source);
+    addField(audienceFields, 'valuePropositions', 'Value Propositions', customerInsights.valuePropositions, 'customerProfile.valuePropositions', source);
+    addField(audienceFields, 'idealCustomerProfile', 'Ideal Customer Profile', customerInsights.idealCustomerProfile, 'customerProfile.idealCustomerProfile', source);
+  }
+
   if (audienceFields.length > 0) {
     categories.push({
       id: 'audience',
-      label: 'Target Audience',
+      label: 'Target Audience & Insights',
       icon: Target,
       color: 'bg-orange-500',
       fields: audienceFields,
+      expanded: false
+    });
+  }
+
+  // ========================================
+  // 6B. COMPETITIVE INTELLIGENCE
+  // ========================================
+  const competitiveFields: ImportedField[] = [];
+  const competitiveIntel = data.competitiveIntel || customerProfile;
+
+  if (competitiveIntel) {
+    addField(competitiveFields, 'differentiators', 'Key Differentiators', competitiveIntel.differentiators, 'customerProfile.differentiators', source);
+    addField(competitiveFields, 'objectionHandlers', 'Objection Handlers', competitiveIntel.objectionHandlers, 'customerProfile.objectionHandlers', source);
+    addField(competitiveFields, 'competitiveAdvantages', 'Competitive Advantages', competitiveIntel.competitiveAdvantages, 'customerProfile.competitiveAdvantages', source);
+    addField(competitiveFields, 'marketPosition', 'Market Position', competitiveIntel.marketPosition, 'customerProfile.marketPosition', source);
+  }
+
+  if (competitiveFields.length > 0) {
+    categories.push({
+      id: 'competitive',
+      label: 'Competitive Intelligence',
+      icon: Zap,
+      color: 'bg-violet-500',
+      fields: competitiveFields,
+      expanded: false
+    });
+  }
+
+  // ========================================
+  // 6C. SUCCESS METRICS
+  // ========================================
+  const successFields: ImportedField[] = [];
+  const successMetrics = data.successMetrics || knowledge;
+
+  if (successMetrics) {
+    addField(successFields, 'caseStudies', 'Case Studies', successMetrics.caseStudies, 'knowledge.caseStudies', source);
+    addField(successFields, 'keyStats', 'Key Statistics', successMetrics.keyStats, 'knowledge.keyStats', source);
+    addField(successFields, 'notableClients', 'Notable Clients', successMetrics.notableClients, 'industrySpecificData.notableClients', source);
+  }
+
+  if (successFields.length > 0) {
+    categories.push({
+      id: 'success',
+      label: 'Success Metrics',
+      icon: Award,
+      color: 'bg-amber-500',
+      fields: successFields,
       expanded: false
     });
   }
@@ -815,6 +912,10 @@ export default function ImportCenterPage() {
   // Applying to profile
   const [isApplying, setIsApplying] = useState(false);
 
+  // Editing state
+  const [editingField, setEditingField] = useState<EditingField | null>(null);
+  const [isSavingEdit, setIsSavingEdit] = useState(false);
+
   // Get partnerId from user claims
   const userPartnerId = (user as any)?.customClaims?.partnerId;
 
@@ -830,6 +931,40 @@ export default function ImportCenterPage() {
         const result = await getBusinessPersonaAction(userPartnerId);
         if (result.success && result.persona) {
           setPersona(result.persona);
+
+          // Load previously saved import data into state
+          if (result.persona.importedData?.google) {
+            const googleData = result.persona.importedData.google;
+            setGoogleRawData(googleData.rawData);
+            // Reconstruct categories with icons
+            if (googleData.categories) {
+              const categories: ImportedCategory[] = googleData.categories.map((cat: any) => ({
+                id: cat.id,
+                label: cat.label,
+                icon: getCategoryIcon(cat.id),
+                color: getCategoryColor(cat.id),
+                fields: cat.fields || [],
+                expanded: false
+              }));
+              setGoogleImportedData(categories);
+            }
+          }
+          if (result.persona.importedData?.website) {
+            const websiteData = result.persona.importedData.website;
+            setWebsiteRawData(websiteData.rawData);
+            // Reconstruct categories with icons
+            if (websiteData.categories) {
+              const categories: ImportedCategory[] = websiteData.categories.map((cat: any) => ({
+                id: cat.id,
+                label: cat.label,
+                icon: getCategoryIcon(cat.id),
+                color: getCategoryColor(cat.id),
+                fields: cat.fields || [],
+                expanded: false
+              }));
+              setWebsiteImportedData(categories);
+            }
+          }
         }
       } catch (err) {
         console.error('Failed to load persona:', err);
@@ -879,7 +1014,7 @@ export default function ImportCenterPage() {
         googleValue: googleVal,
         websiteValue: websiteVal,
         selectedSource: websiteVal !== undefined && websiteVal !== null && websiteVal !== '' ? 'website' :
-                       googleVal !== undefined && googleVal !== null && googleVal !== '' ? 'google' : 'none',
+          googleVal !== undefined && googleVal !== null && googleVal !== '' ? 'google' : 'none',
         category
       });
     };
@@ -937,10 +1072,14 @@ export default function ImportCenterPage() {
     }
   }, []);
 
-  // Handle Google import
+  // Handle Google import - AUTO-SAVES to Firestore immediately
   const handleGoogleImport = async () => {
     if (!selectedPlace) {
       toast.error('Please select a business first');
+      return;
+    }
+    if (!partnerId) {
+      toast.error('Partner ID not found');
       return;
     }
     setIsGoogleImporting(true);
@@ -951,7 +1090,46 @@ export default function ImportCenterPage() {
         setGoogleRawData(result.profile);
         const categories = extractImportedCategories(result.profile as any, 'google');
         setGoogleImportedData(categories);
-        toast.success(`Imported ${categories.reduce((a, c) => a + c.fields.length, 0)} fields from Google!`);
+
+        // AUTO-SAVE: Save imported data to Firestore immediately
+        const importedDataUpdate = {
+          importedData: {
+            ...(persona.importedData || {}),
+            google: {
+              rawData: result.profile,
+              categories: categories.map(c => ({
+                id: c.id,
+                label: c.label,
+                fields: c.fields.map(f => ({
+                  id: f.id,
+                  label: f.label,
+                  value: f.value,
+                  displayValue: f.displayValue,
+                  path: f.path,
+                  source: f.source,
+                  selected: f.selected
+                }))
+              })),
+              importedAt: new Date().toISOString(),
+              placeName: selectedPlace.name,
+              placeId: selectedPlace.placeId
+            }
+          },
+          importHistory: {
+            ...persona.importHistory,
+            google: {
+              lastImportedAt: new Date(),
+              placeId: selectedPlace.placeId,
+              placeName: selectedPlace.name,
+              fieldsImported: categories.flatMap(c => c.fields.map(f => f.path)),
+              status: 'success' as const
+            }
+          }
+        };
+
+        await saveBusinessPersonaAction(partnerId, importedDataUpdate as any);
+        setPersona(prev => ({ ...prev, ...importedDataUpdate }));
+        toast.success(`Imported & saved ${categories.reduce((a, c) => a + c.fields.length, 0)} fields from Google!`);
       } else {
         toast.error(result.error || 'Failed to import from Google');
       }
@@ -962,10 +1140,14 @@ export default function ImportCenterPage() {
     }
   };
 
-  // Handle website import
+  // Handle website import - AUTO-SAVES to Firestore immediately
   const handleWebsiteImport = async () => {
     if (!websiteUrl.trim()) {
       toast.error('Please enter a website URL');
+      return;
+    }
+    if (!partnerId) {
+      toast.error('Partner ID not found');
       return;
     }
     setIsWebsiteImporting(true);
@@ -987,7 +1169,46 @@ export default function ImportCenterPage() {
       setWebsiteRawData(result.profile);
       const categories = extractImportedCategories(result.profile as any, 'website');
       setWebsiteImportedData(categories);
-      toast.success(`Imported ${categories.reduce((a, c) => a + c.fields.length, 0)} fields from ${result.pagesScraped?.length || 1} pages!`);
+
+      // AUTO-SAVE: Save imported data to Firestore immediately
+      const importedDataUpdate = {
+        importedData: {
+          ...(persona.importedData || {}),
+          website: {
+            rawData: result.profile,
+            categories: categories.map(c => ({
+              id: c.id,
+              label: c.label,
+              fields: c.fields.map(f => ({
+                id: f.id,
+                label: f.label,
+                value: f.value,
+                displayValue: f.displayValue,
+                path: f.path,
+                source: f.source,
+                selected: f.selected
+              }))
+            })),
+            importedAt: new Date().toISOString(),
+            url: websiteUrl,
+            pagesScraped: result.pagesScraped
+          }
+        },
+        importHistory: {
+          ...persona.importHistory,
+          website: {
+            lastImportedAt: new Date(),
+            url: websiteUrl,
+            pagesScraped: result.pagesScraped,
+            fieldsImported: categories.flatMap(c => c.fields.map(f => f.path)),
+            status: 'success' as const
+          }
+        }
+      };
+
+      await saveBusinessPersonaAction(partnerId, importedDataUpdate as any);
+      setPersona(prev => ({ ...prev, ...importedDataUpdate }));
+      toast.success(`Imported & saved ${categories.reduce((a, c) => a + c.fields.length, 0)} fields from ${result.pagesScraped?.length || 1} pages!`);
     } catch (err: any) {
       console.error('[ImportCenter] Website import error:', err);
       setWebsiteError(err.message || 'Failed to import from website');
@@ -1244,6 +1465,269 @@ export default function ImportCenterPage() {
     }
   }, [mergeFields, mergeFilter]);
 
+  // Extract and MERGE saved import data from persona.importedData (both sources combined)
+  const savedDataCategories = useMemo((): ImportedCategory[] => {
+    const categories: ImportedCategory[] = [];
+    const categoryMap = new Map<string, ImportedCategory>();
+
+    // Helper to add fields from a source
+    const addFieldsFromSource = (sourceData?: { categories?: Array<any> }) => {
+      if (!sourceData?.categories) return;
+      sourceData.categories.forEach((cat: any) => {
+        if (!categoryMap.has(cat.id)) {
+          categoryMap.set(cat.id, {
+            id: cat.id,
+            label: cat.label,
+            icon: getCategoryIcon(cat.id),
+            color: getCategoryColor(cat.id),
+            fields: [],
+            expanded: false
+          });
+        }
+        const category = categoryMap.get(cat.id)!;
+        cat.fields?.forEach((field: any) => {
+          // Check if field already exists (merge - prefer first occurrence)
+          const existingIndex = category.fields.findIndex(f => f.path === field.path);
+          if (existingIndex === -1) {
+            category.fields.push({
+              id: field.id,
+              label: field.label,
+              value: field.value,
+              displayValue: field.displayValue,
+              path: field.path,
+              source: field.source,
+              selected: field.selected ?? true
+            });
+          }
+        });
+      });
+    };
+
+    // Merge Google and Website imports
+    addFieldsFromSource(persona.importedData?.google);
+    addFieldsFromSource(persona.importedData?.website);
+
+    categoryMap.forEach(cat => {
+      if (cat.fields.length > 0) {
+        categories.push(cat);
+      }
+    });
+
+    return categories;
+  }, [persona.importedData]);
+
+  const savedDataFieldCount = useMemo(() => {
+    return savedDataCategories.reduce((sum, cat) => sum + cat.fields.length, 0);
+  }, [savedDataCategories]);
+
+  // Clear all imported data
+  const handleClearImports = async () => {
+    if (!partnerId) return;
+    if (!confirm('Are you sure you want to clear all imported data? This cannot be undone.')) return;
+
+    setLoading(true);
+    try {
+      await saveBusinessPersonaAction(partnerId, {
+        importedData: undefined
+      } as any);
+      setPersona(prev => ({ ...prev, importedData: undefined }));
+      setGoogleImportedData([]);
+      setWebsiteImportedData([]);
+      setGoogleRawData(null);
+      setWebsiteRawData(null);
+      toast.success('Import data cleared');
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to clear import data');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Apply saved import data to the main profile using AI-powered transformation
+  const handleApplyToProfile = async () => {
+    if (!partnerId || savedDataCategories.length === 0) return;
+
+    setIsApplying(true);
+    try {
+      // Collect all import data from persona.importedData
+      const importedData = (persona?.importedData || {}) as any;
+      const googleData = (importedData.google || {}) as any;
+      const websiteData = (importedData.website || {}) as any;
+
+      // Merge Google and Website data (Google takes priority)
+      const mergedImportData = {
+        // Identity fields
+        identity: {
+          ...(websiteData.identity || {}),
+          ...(googleData.identity || {}),
+        },
+        // Personality fields
+        personality: {
+          ...(websiteData.personality || {}),
+          ...(googleData.personality || {}),
+        },
+        // Knowledge fields
+        knowledge: {
+          ...(websiteData.knowledge || {}),
+          ...(googleData.knowledge || {}),
+        },
+        // Customer profile
+        customerProfile: {
+          ...(websiteData.customerProfile || {}),
+          ...(googleData.customerProfile || {}),
+        },
+        // Industry specific data
+        industrySpecificData: {
+          ...(websiteData.industrySpecificData || {}),
+          ...(googleData.industrySpecificData || {}),
+        },
+        // Top-level fields
+        services: googleData.services || websiteData.services,
+        products: googleData.products || websiteData.products,
+        faqs: googleData.faqs || googleData.knowledge?.faqs || websiteData.faqs,
+        targetAudience: googleData.targetAudience || websiteData.targetAudience,
+        uniqueSellingPoints: googleData.uniqueSellingPoints || websiteData.uniqueSellingPoints,
+        paymentMethods: googleData.paymentMethods || googleData.knowledge?.paymentMethods || websiteData.paymentMethods,
+        operatingHours: googleData.operatingHours || googleData.identity?.operatingHours,
+        socialMedia: googleData.socialMedia || googleData.identity?.socialMedia,
+      };
+
+      // Use the AI-powered transformation action
+      const transformResult = await applyImportToProfileAction(mergedImportData, persona);
+
+      if (!transformResult.success || !transformResult.profile) {
+        toast.error(transformResult.error || 'Failed to process import data');
+        return;
+      }
+
+      // Also include manually selected fields from UI
+      const manualUpdates: any = {};
+      savedDataCategories.forEach(category => {
+        category.fields.forEach(field => {
+          if (field.selected) {
+            const pathParts = field.path.split('.');
+            let current = manualUpdates;
+            for (let i = 0; i < pathParts.length - 1; i++) {
+              if (!current[pathParts[i]]) {
+                current[pathParts[i]] = {};
+              }
+              current = current[pathParts[i]];
+            }
+            current[pathParts[pathParts.length - 1]] = field.value;
+          }
+        });
+      });
+
+      // Merge AI-transformed data with manual selections
+      const finalUpdates = {
+        ...transformResult.profile,
+        ...manualUpdates,
+        // Deep merge identity
+        identity: {
+          ...transformResult.profile.identity,
+          ...(manualUpdates.identity || {}),
+        },
+        // Deep merge personality
+        personality: {
+          ...transformResult.profile.personality,
+          ...(manualUpdates.personality || {}),
+        },
+        // Deep merge knowledge
+        knowledge: {
+          ...transformResult.profile.knowledge,
+          ...(manualUpdates.knowledge || {}),
+        },
+      };
+
+      // Save to main profile
+      const result = await saveBusinessPersonaAction(partnerId, finalUpdates);
+
+      if (result.success) {
+        const fieldsCount = transformResult.fieldsUpdated?.length || 0;
+        toast.success(`Applied ${fieldsCount} fields to profile successfully!`);
+        router.push('/partner/settings');
+      } else {
+        toast.error(result.message || 'Failed to apply');
+      }
+    } catch (err: any) {
+      console.error('[ApplyToProfile] Error:', err);
+      toast.error(err.message || 'Failed to apply to profile');
+    } finally {
+      setIsApplying(false);
+    }
+  };
+
+  // Handle editing a field
+  const handleEditField = (field: ImportedField, categoryId: string) => {
+    setEditingField({
+      field,
+      categoryId,
+      newValue: field.value,
+    });
+  };
+
+  // Handle saving an edited field
+  const handleSaveFieldEdit = async () => {
+    if (!editingField || !partnerId) return;
+
+    setIsSavingEdit(true);
+    try {
+      // Build the update object using the field path
+      const pathParts = editingField.field.path.split('.');
+      const updateObj: any = {};
+      let current = updateObj;
+
+      for (let i = 0; i < pathParts.length - 1; i++) {
+        current[pathParts[i]] = {};
+        current = current[pathParts[i]];
+      }
+      current[pathParts[pathParts.length - 1]] = editingField.newValue;
+
+      // Save to Firestore
+      const result = await saveBusinessPersonaAction(partnerId, updateObj);
+
+      if (result.success) {
+        // Update local persona state
+        const updatedPersona = JSON.parse(JSON.stringify(persona));
+        let personaCurrent: any = updatedPersona;
+        for (let i = 0; i < pathParts.length - 1; i++) {
+          if (!personaCurrent[pathParts[i]]) {
+            personaCurrent[pathParts[i]] = {};
+          }
+          personaCurrent = personaCurrent[pathParts[i]];
+        }
+        personaCurrent[pathParts[pathParts.length - 1]] = editingField.newValue;
+        setPersona(updatedPersona);
+
+        toast.success('Field updated successfully!');
+        setEditingField(null);
+      } else {
+        toast.error(result.message || 'Failed to save');
+      }
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to save edit');
+    } finally {
+      setIsSavingEdit(false);
+    }
+  };
+
+  // Refresh saved data from Firestore
+  const handleRefreshSavedData = async () => {
+    if (!partnerId) return;
+    setLoading(true);
+    try {
+      const result = await getBusinessPersonaAction(partnerId);
+      if (result.success && result.persona) {
+        setPersona(result.persona);
+        toast.success('Data refreshed from Firestore');
+      }
+    } catch (err) {
+      toast.error('Failed to refresh data');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   if (authLoading || loading) {
     return (
       <div className="min-h-screen bg-slate-100 flex items-center justify-center">
@@ -1356,13 +1840,32 @@ export default function ImportCenterPage() {
                   : testimonials.length > 0
                     ? "border-transparent text-slate-500 hover:text-slate-700"
                     : "border-transparent text-slate-300 cursor-not-allowed"
-              )}
-            >
+              )}>
               <Star className="w-4 h-4" />
               Testimonials
               {testimonials.length > 0 && (
                 <span className="text-xs bg-amber-100 text-amber-600 px-1.5 py-0.5 rounded-full">
                   {testimonials.length}
+                </span>
+              )}
+            </button>
+            <button
+              onClick={() => setActiveTab('saved')}
+              className={cn(
+                "px-4 py-3 text-sm font-medium border-b-2 transition-colors flex items-center gap-2",
+                activeTab === 'saved'
+                  ? "border-teal-600 text-teal-600"
+                  : savedDataFieldCount > 0
+                    ? "border-transparent text-slate-500 hover:text-slate-700"
+                    : "border-transparent text-slate-300 cursor-not-allowed"
+              )}
+              disabled={savedDataFieldCount === 0}
+            >
+              <Database className="w-4 h-4" />
+              Saved Data
+              {savedDataFieldCount > 0 && (
+                <span className="text-xs bg-teal-100 text-teal-600 px-1.5 py-0.5 rounded-full">
+                  {savedDataFieldCount}
                 </span>
               )}
             </button>
@@ -1855,6 +2358,214 @@ export default function ImportCenterPage() {
             </div>
           </div>
         )}
+
+        {/* ========================================
+            SAVED DATA TAB
+        ======================================== */}
+        {activeTab === 'saved' && (
+          <div className="space-y-6">
+            {/* Saved Data Header */}
+            <div className="bg-white rounded-xl border border-slate-200 p-6">
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+                    <Database className="w-5 h-5 text-teal-600" />
+                    Merged Import Data
+                  </h2>
+                  <p className="text-sm text-slate-500 mt-1">
+                    Combined data from all imports. Review and apply to your profile.
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={handleRefreshSavedData}
+                    disabled={loading}
+                    className="px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 bg-slate-100 text-slate-600 hover:bg-slate-200"
+                  >
+                    {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+                    Refresh
+                  </button>
+                  {savedDataCategories.length > 0 && (
+                    <button
+                      onClick={handleClearImports}
+                      disabled={loading}
+                      className="px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 bg-red-50 text-red-600 hover:bg-red-100"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                      Clear All
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Import History Summary */}
+              {persona.importHistory && (
+                <div className="grid grid-cols-2 gap-4 mt-4 pt-4 border-t border-slate-100">
+                  {persona.importHistory.google?.lastImportedAt && (
+                    <div className="flex items-center gap-3 p-3 bg-blue-50 rounded-lg">
+                      <Search className="w-5 h-5 text-blue-600" />
+                      <div>
+                        <div className="text-sm font-medium text-blue-900">Google Business</div>
+                        <div className="text-xs text-blue-600">
+                          {persona.importHistory.google.placeName || 'Imported'} • {new Date(persona.importHistory.google.lastImportedAt as any).toLocaleDateString()}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                  {persona.importHistory.website?.lastImportedAt && (
+                    <div className="flex items-center gap-3 p-3 bg-purple-50 rounded-lg">
+                      <Globe className="w-5 h-5 text-purple-600" />
+                      <div>
+                        <div className="text-sm font-medium text-purple-900">Website</div>
+                        <div className="text-xs text-purple-600">
+                          {persona.importHistory.website.url || 'Imported'} • {new Date(persona.importHistory.website.lastImportedAt as any).toLocaleDateString()}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Saved Data Categories */}
+            {savedDataCategories.length > 0 ? (
+              <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+                <div className="px-5 py-4 bg-teal-50 border-b border-teal-100 flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <Database className="w-5 h-5 text-teal-600" />
+                    <span className="font-semibold text-teal-900">Profile Data</span>
+                    <span className="text-xs bg-teal-100 text-teal-700 px-2 py-0.5 rounded-full">{savedDataCategories.length} categories</span>
+                  </div>
+                  <span className="text-sm text-teal-600">{savedDataFieldCount} fields</span>
+                </div>
+                <div className="divide-y divide-slate-100">
+                  {savedDataCategories.map(category => (
+                    <SavedCategorySection
+                      key={category.id}
+                      category={category}
+                      onEditField={(field) => handleEditField(field, category.id)}
+                    />
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <div className="bg-white rounded-xl border border-slate-200 p-12 text-center">
+                <div className="w-16 h-16 bg-slate-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                  <Database className="w-8 h-8 text-slate-400" />
+                </div>
+                <h3 className="font-semibold text-slate-900 mb-2">No saved data yet</h3>
+                <p className="text-sm text-slate-500 mb-4">
+                  Import data from Google Business or your website to get started
+                </p>
+                <button
+                  onClick={() => setActiveTab('import')}
+                  className="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700"
+                >
+                  Go to Import
+                </button>
+              </div>
+            )}
+
+            {/* Apply to Profile Button */}
+            {savedDataCategories.length > 0 && (
+              <div className="bg-gradient-to-r from-emerald-50 to-teal-50 rounded-xl border border-emerald-200 p-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="font-semibold text-emerald-900">Ready to Apply?</h3>
+                    <p className="text-sm text-emerald-700 mt-1">
+                      Send {savedDataFieldCount} fields to your main business profile
+                    </p>
+                  </div>
+                  <button
+                    onClick={handleApplyToProfile}
+                    disabled={isApplying}
+                    className="px-6 py-3 bg-emerald-600 text-white rounded-lg font-medium flex items-center gap-2 hover:bg-emerald-700 shadow-lg shadow-emerald-200"
+                  >
+                    {isApplying ? <Loader2 className="w-5 h-5 animate-spin" /> : <Send className="w-5 h-5" />}
+                    Apply to Profile
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Edit Field Modal */}
+        {editingField && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg mx-4">
+              <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between">
+                <h3 className="font-semibold text-slate-900">Edit Field</h3>
+                <button
+                  onClick={() => setEditingField(null)}
+                  className="p-1 hover:bg-slate-100 rounded"
+                >
+                  <X className="w-5 h-5 text-slate-400" />
+                </button>
+              </div>
+              <div className="p-6">
+                <div className="mb-4">
+                  <label className="text-sm font-medium text-slate-700 mb-1 block">
+                    {editingField.field.label}
+                  </label>
+                  <div className="text-xs text-slate-500 mb-2">Path: {editingField.field.path}</div>
+                  {typeof editingField.newValue === 'string' ? (
+                    editingField.newValue.length > 100 ? (
+                      <textarea
+                        value={editingField.newValue}
+                        onChange={(e) => setEditingField({ ...editingField, newValue: e.target.value })}
+                        rows={4}
+                        className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-teal-300"
+                      />
+                    ) : (
+                      <input
+                        type="text"
+                        value={editingField.newValue}
+                        onChange={(e) => setEditingField({ ...editingField, newValue: e.target.value })}
+                        className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-teal-300"
+                      />
+                    )
+                  ) : Array.isArray(editingField.newValue) ? (
+                    <textarea
+                      value={editingField.newValue.join(', ')}
+                      onChange={(e) => setEditingField({ ...editingField, newValue: e.target.value.split(',').map(s => s.trim()).filter(Boolean) })}
+                      placeholder="Enter values separated by commas"
+                      rows={3}
+                      className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-teal-300"
+                    />
+                  ) : typeof editingField.newValue === 'object' ? (
+                    <div className="bg-slate-50 p-3 rounded-lg text-xs text-slate-500">
+                      Complex objects must be edited in the main Settings page
+                    </div>
+                  ) : (
+                    <input
+                      type="text"
+                      value={String(editingField.newValue)}
+                      onChange={(e) => setEditingField({ ...editingField, newValue: e.target.value })}
+                      className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-teal-300"
+                    />
+                  )}
+                </div>
+              </div>
+              <div className="px-6 py-4 border-t border-slate-200 flex justify-end gap-3">
+                <button
+                  onClick={() => setEditingField(null)}
+                  className="px-4 py-2 text-sm font-medium text-slate-600 hover:text-slate-800"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleSaveFieldEdit}
+                  disabled={isSavingEdit}
+                  className="px-4 py-2 bg-teal-600 text-white rounded-lg text-sm font-medium hover:bg-teal-700 flex items-center gap-2"
+                >
+                  {isSavingEdit ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                  Save Changes
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -1930,6 +2641,64 @@ function CategorySection({
                   <div className="font-medium text-sm text-slate-900">{field.label}</div>
                   <div className="text-xs text-slate-500 truncate">{field.displayValue}</div>
                 </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ========================================
+// SAVED CATEGORY SECTION COMPONENT
+// ========================================
+
+function SavedCategorySection({
+  category,
+  onEditField
+}: {
+  category: ImportedCategory;
+  onEditField: (field: ImportedField) => void;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const Icon = category.icon;
+
+  return (
+    <div>
+      <button
+        onClick={() => setExpanded(!expanded)}
+        className="w-full flex items-center gap-3 p-4 hover:bg-slate-50 transition-colors"
+      >
+        <div className={cn("w-9 h-9 rounded-lg flex items-center justify-center", category.color)}>
+          <Icon className="w-4 h-4 text-white" />
+        </div>
+        <div className="flex-1 text-left">
+          <h4 className="font-medium text-slate-900">{category.label}</h4>
+          <p className="text-xs text-slate-500">{category.fields.length} fields saved</p>
+        </div>
+        {expanded ? <ChevronDown className="w-5 h-5 text-slate-400" /> : <ChevronRight className="w-5 h-5 text-slate-400" />}
+      </button>
+
+      {expanded && (
+        <div className="px-4 pb-4">
+          <div className="space-y-2 max-h-96 overflow-y-auto">
+            {category.fields.map(field => (
+              <div
+                key={field.id}
+                className="flex items-center gap-3 p-3 rounded-lg bg-slate-50 border border-slate-200"
+              >
+                <div className="flex-1 min-w-0">
+                  <div className="font-medium text-sm text-slate-900">{field.label}</div>
+                  <div className="text-xs text-slate-500 truncate">{field.displayValue}</div>
+                </div>
+                <button
+                  onClick={(e) => { e.stopPropagation(); onEditField(field); }}
+                  className="p-2 hover:bg-slate-200 rounded-lg transition-colors"
+                  title="Edit this field"
+                >
+                  <Edit3 className="w-4 h-4 text-slate-500" />
+                </button>
               </div>
             ))}
           </div>

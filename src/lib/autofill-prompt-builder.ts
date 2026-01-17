@@ -102,6 +102,11 @@ ${editorialSummary ? `- **Summary:** ${editorialSummary}` : ''}
 3. **FIND LANGUAGES** - Check if they mention language support, especially for customer service
 4. **FIND PAYMENT METHODS** - Look for payment icons on their website or booking pages
 5. **FIND FOUNDERS/LEADERSHIP** - Check About Us or Leadership pages
+6. **FIND CUSTOMER PAIN POINTS** - Look at reviews to understand what problems customers had before finding this business
+7. **FIND DIFFERENTIATORS** - Search for "why choose ${businessName}", look at their About page or value proposition sections
+8. **FIND SUCCESS STORIES** - Look for case studies, client testimonials, or "our work" sections
+9. **FIND KEY STATS** - Search for metrics like "X customers served", "Y years experience", awards count
+10. **FIND OBJECTION HANDLING** - Look at FAQ sections, pricing pages for how they address common concerns
 
 ## OUTPUT FORMAT (JSON)
 
@@ -134,6 +139,40 @@ Return ONLY valid JSON matching this structure:
 
   "registrations": {
     ${registrations.slice(0, 6).map(r => `"${r.id}": "Registration number if found"`).join(',\n    ')}
+  },
+
+  "customerInsights": {
+    "painPoints": [
+      {"problem": "What problem customers face", "solution": "How this business solves it"}
+    ],
+    "targetAgeGroups": ["18-25", "26-35", "36-45", "46-55", "55+"],
+    "incomeSegments": ["budget", "middle", "upper_middle", "affluent"],
+    "valuePropositions": ["Key benefits customers get from choosing this business"],
+    "idealCustomerProfile": "Description of their ideal customer"
+  },
+
+  "competitiveIntel": {
+    "differentiators": [
+      {"point": "What makes them different", "proof": "Evidence or data to support this"}
+    ],
+    "objectionHandlers": [
+      {"objection": "Common customer concern", "response": "How they address it"}
+    ],
+    "competitiveAdvantages": ["Specific advantages over competitors"],
+    "marketPosition": "Budget/Mid-range/Premium/Luxury positioning"
+  },
+
+  "successMetrics": {
+    "caseStudies": [
+      {"title": "Project or success story name", "description": "What was achieved", "result": "Quantifiable outcome"}
+    ],
+    "keyStats": {
+      "customersServed": "Number of customers (e.g., 5000+)",
+      "projectsCompleted": "Number of projects (e.g., 200+)",
+      "yearsExperience": "Years in business",
+      "customStat1": "Any other impressive stat"
+    },
+    "notableClients": ["Well-known clients or partners if publicly mentioned"]
   },
 
   "onlineReviews": [

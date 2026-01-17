@@ -219,6 +219,31 @@ export interface AIResearchResult {
   paymentMethods?: string[];
   // Country-specific business registrations (GSTIN, PAN, EIN, etc.)
   registrations?: Record<string, string>;
+
+  // Customer Insights - for filling customerProfile section
+  customerInsights?: {
+    painPoints?: { problem: string; solution: string }[];
+    targetAgeGroups?: string[];
+    incomeSegments?: string[];
+    valuePropositions?: string[];
+    idealCustomerProfile?: string;
+  };
+
+  // Competitive Intelligence - for differentiation
+  competitiveIntel?: {
+    differentiators?: { point: string; proof: string }[];
+    objectionHandlers?: { objection: string; response: string }[];
+    competitiveAdvantages?: string[];
+    marketPosition?: string;
+  };
+
+  // Success Metrics - for trust building
+  successMetrics?: {
+    caseStudies?: { title: string; description: string; result?: string }[];
+    keyStats?: Record<string, string>;
+    notableClients?: string[];
+  };
+
   onlineReviews?: {
     source: string;
     sourceUrl: string;
@@ -859,6 +884,30 @@ export async function autoFillBusinessProfile(
     },
     customerProfile: {
       targetAudience: aiResearch.targetAudience,
+      // Map customer insights
+      ...(aiResearch.customerInsights ? {
+        painPoints: aiResearch.customerInsights.painPoints?.map(p => ({
+          problem: p.problem,
+          solution: p.solution,
+        })),
+        ageGroup: aiResearch.customerInsights.targetAgeGroups,
+        incomeSegment: aiResearch.customerInsights.incomeSegments,
+        valuePropositions: aiResearch.customerInsights.valuePropositions,
+        idealCustomerProfile: aiResearch.customerInsights.idealCustomerProfile,
+      } : {}),
+      // Map competitive intel
+      ...(aiResearch.competitiveIntel ? {
+        differentiators: aiResearch.competitiveIntel.differentiators?.map(d => ({
+          point: d.point,
+          proof: d.proof,
+        })),
+        objectionHandlers: aiResearch.competitiveIntel.objectionHandlers?.map(o => ({
+          objection: o.objection,
+          response: o.response,
+        })),
+        competitiveAdvantages: aiResearch.competitiveIntel.competitiveAdvantages,
+        marketPosition: aiResearch.competitiveIntel.marketPosition,
+      } : {}),
     },
     knowledge: {
       productsOrServices: [
@@ -870,6 +919,16 @@ export async function autoFillBusinessProfile(
         answer: f.answer,
       })),
       paymentMethods: aiResearch.paymentMethods,
+      // Map success metrics
+      ...(aiResearch.successMetrics ? {
+        caseStudies: aiResearch.successMetrics.caseStudies?.map(c => ({
+          title: c.title,
+          description: c.description,
+          result: c.result,
+        })),
+        keyStats: aiResearch.successMetrics.keyStats,
+        notableClients: aiResearch.successMetrics.notableClients,
+      } : {}),
     },
     photos: placesInfo.photos,
     reviews: allReviews,

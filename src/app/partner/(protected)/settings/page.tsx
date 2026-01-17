@@ -1251,245 +1251,214 @@ const SettingsUltimate = () => {
             {/* ===== BUSINESS PROFILE TAB ===== */}
             {activeTab === 'profile' && (
               <div className="-m-4 md:-m-8">
-                {/* Profile Header with Actions */}
-                <div className="p-4 md:p-8 pb-0">
-                  <div className="bg-white rounded-xl border border-slate-200 p-5 mb-6 shadow-sm">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-4">
-                        <div className="w-12 h-12 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-xl flex items-center justify-center">
-                          <Building2 className="w-6 h-6 text-white" />
-                        </div>
-                        <div>
-                          <h2 className="text-lg font-bold text-slate-900">Business Profile</h2>
-                          <p className="text-sm text-slate-500">Manage your business information</p>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-3">
-                        <button
-                          onClick={() => router.push('/partner/settings/import-center')}
-                          className="px-4 py-2.5 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 flex items-center gap-2 shadow-sm"
-                        >
-                          <Database className="w-4 h-4" />
-                          Import Data
-                        </button>
-                        <button
-                          onClick={async () => {
-                            if (confirm('Are you sure you want to clear all business profile data? This cannot be undone.')) {
-                              try {
-                                const result = await getEmptyProfileAction();
-                                if (result.success && result.profile) {
-                                  setPersona(result.profile);
-                                  setSelectedBusinessTypes([]);
-                                  if (partnerId) await saveBusinessPersonaAction(partnerId, result.profile, true);
-                                  toast.success('All profile data cleared');
-                                }
-                              } catch (err: any) {
-                                toast.error(err.message || 'Failed to clear data');
-                              }
-                            }
-                          }}
-                          className="px-4 py-2.5 bg-red-50 text-red-600 rounded-lg text-sm font-medium hover:bg-red-100 flex items-center gap-2"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                          Clear All
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
                 {/* Business Profile Sections */}
                 <div>
-                <SchemaBusinessProfile
-                  persona={persona}
-                  onUpdate={async (path, value) => {
-                    await handleFieldUpdate(path, value);
-                  }}
-                  onPreviewAI={() => setShowAIChat(true)}
-                  onProcessAI={async () => {
-                    if (!partnerId) return;
-                    setRagProcessing(true);
-                    toast.info("Starting AI processing...");
-                    try {
-                      const ragData = {
-                        source: {
-                          fetchedAt: new Date(),
-                          placeId: persona.industrySpecificData?.placeId || 'manual',
-                        },
-                        identity: persona.identity,
-                        knowledge: persona.knowledge,
-                        personality: persona.personality,
-                        customerProfile: persona.customerProfile,
-                        reviews: persona.industrySpecificData?.fetchedReviews || [],
-                        testimonials: persona.industrySpecificData?.testimonials || [],
-                        onlinePresence: persona.industrySpecificData?.onlinePresence || [],
-                        pressMedia: [],
-                        photos: persona.industrySpecificData?.fetchedPhotos || [],
-                        inventory: {
-                          rooms: persona.roomTypes?.map((r: any) => ({ name: r.name, description: r.description })),
-                          menuItems: persona.menuItems?.map((m: any) => ({ name: m.name, description: m.description })),
-                          products: persona.productCatalog?.map((p: any) => ({ name: p.name, description: p.description })),
-                          properties: persona.propertyListings?.map((p: any) => ({ title: p.title, description: p.description })),
-                          services: persona.healthcareServices?.map((s: any) => ({ name: s.name, description: s.description })),
-                        },
-                        fromTheWeb: persona.industrySpecificData?.fromTheWeb,
-                        industrySpecificData: persona.industrySpecificData,
-                      };
-
-                      const result = await processForRAGAction(partnerId, ragData as any);
-                      if (result.success) {
-                        toast.success("AI Knowledge Base Updated!");
-                        setRagStatus({
-                          processed: true,
-                          lastProcessedAt: new Date(),
-                          documentId: result.ragDocumentId,
-                          itemCounts: {
-                            reviews: ragData.reviews?.length || 0,
-                            faqs: persona.knowledge?.faqs?.length || 0,
-                            inventory: !!Object.keys(ragData.inventory || {}).length
+                  <SchemaBusinessProfile
+                    persona={persona}
+                    onUpdate={async (path, value) => {
+                      await handleFieldUpdate(path, value);
+                    }}
+                    onPreviewAI={() => setShowAIChat(true)}
+                    onImportData={() => router.push('/partner/settings/import-center')}
+                    onClearAll={async () => {
+                      if (confirm('Are you sure you want to clear all business profile data? This cannot be undone.')) {
+                        try {
+                          const result = await getEmptyProfileAction();
+                          if (result.success && result.profile) {
+                            setPersona(result.profile);
+                            setSelectedBusinessTypes([]);
+                            if (partnerId) await saveBusinessPersonaAction(partnerId, result.profile, true);
+                            toast.success('All profile data cleared');
                           }
-                        });
-                      } else {
-                        toast.error(result.message || "Failed to process for AI");
-                      }
-                    } catch (e: any) {
-                      console.error(e);
-                      toast.error(e.message || "Error processing AI");
-                    } finally {
-                      setRagProcessing(false);
-                    }
-                  }}
-                />
-
-                {/* Auto-Fill Preview Modal */}
-                {showAutoFillPreview && autoFillPreviewData && (
-                  <AutoFillPreviewModal
-                    data={autoFillPreviewData}
-                    onClose={() => setShowAutoFillPreview(false)}
-                    isApplying={isApplyingAutoFill}
-                    onApply={async (selectedData: any) => {
-                      try {
-                        setIsApplyingAutoFill(true);
-
-                        // Use the server action to properly map inventory to schema
-                        const result = await mapInventoryToPersonaAction(selectedData, persona);
-
-                        if (!result.success || !result.persona) {
-                          throw new Error(result.error || 'Failed to map inventory');
+                        } catch (err: any) {
+                          toast.error(err.message || 'Failed to clear data');
                         }
-
-                        // Update import history
-                        const mergedPersona = {
-                          ...result.persona,
-                          importHistory: {
-                            ...result.persona.importHistory,
-                            google: {
-                              lastImportedAt: new Date(),
-                              placeId: selectedData.source?.placeId,
-                              placeName: selectedData.identity?.businessName || selectedData.identity?.name,
-                              status: 'success' as const,
-                            },
+                      }
+                    }}
+                    onProcessAI={async () => {
+                      if (!partnerId) return;
+                      setRagProcessing(true);
+                      toast.info("Starting AI processing...");
+                      try {
+                        const ragData = {
+                          source: {
+                            fetchedAt: new Date(),
+                            placeId: persona.industrySpecificData?.placeId || 'manual',
                           },
+                          identity: persona.identity,
+                          knowledge: persona.knowledge,
+                          personality: persona.personality,
+                          customerProfile: persona.customerProfile,
+                          reviews: persona.industrySpecificData?.fetchedReviews || [],
+                          testimonials: persona.industrySpecificData?.testimonials || [],
+                          onlinePresence: persona.industrySpecificData?.onlinePresence || [],
+                          pressMedia: [],
+                          photos: persona.industrySpecificData?.fetchedPhotos || [],
+                          inventory: {
+                            rooms: persona.roomTypes?.map((r: any) => ({ name: r.name, description: r.description })),
+                            menuItems: persona.menuItems?.map((m: any) => ({ name: m.name, description: m.description })),
+                            products: persona.productCatalog?.map((p: any) => ({ name: p.name, description: p.description })),
+                            properties: persona.propertyListings?.map((p: any) => ({ title: p.title, description: p.description })),
+                            services: persona.healthcareServices?.map((s: any) => ({ name: s.name, description: s.description })),
+                          },
+                          fromTheWeb: persona.industrySpecificData?.fromTheWeb,
+                          industrySpecificData: persona.industrySpecificData,
                         };
 
-                        setPersona(mergedPersona);
-                        if (partnerId) await saveBusinessPersonaAction(partnerId, mergedPersona);
-
-                        // Set business type based on detected industry
-                        if (selectedData.identity?.industry) {
-                          const industryMap: Record<string, string> = {
-                            'hospitality': 'hospitality',
-                            'food_beverage': 'food_restaurant',
-                            'retail': 'retail_ecommerce',
-                            'healthcare': 'healthcare',
-                            'real_estate': 'real_estate',
-                            'education': 'education',
-                            'finance': 'finance',
-                          };
-                          const mappedType = industryMap[selectedData.identity.industry];
-                          if (mappedType && !selectedBusinessTypes.includes(mappedType)) {
-                            setSelectedBusinessTypes([...selectedBusinessTypes, mappedType]);
-                          }
+                        const result = await processForRAGAction(partnerId, ragData as any);
+                        if (result.success) {
+                          toast.success("AI Knowledge Base Updated!");
+                          setRagStatus({
+                            processed: true,
+                            lastProcessedAt: new Date(),
+                            documentId: result.ragDocumentId,
+                            itemCounts: {
+                              reviews: ragData.reviews?.length || 0,
+                              faqs: persona.knowledge?.faqs?.length || 0,
+                              inventory: !!Object.keys(ragData.inventory || {}).length
+                            }
+                          });
+                        } else {
+                          toast.error(result.message || "Failed to process for AI");
                         }
-
-                        toast.success('Profile updated with AI researched data!');
-                        setShowAutoFillPreview(false);
-                        setAutoFillSearch('');
-                        setSelectedPlace(null);
-                      } catch (err: any) {
-                        toast.error(err.message || 'Failed to apply data');
+                      } catch (e: any) {
+                        console.error(e);
+                        toast.error(e.message || "Error processing AI");
                       } finally {
-                        setIsApplyingAutoFill(false);
+                        setRagProcessing(false);
                       }
                     }}
                   />
-                )}
 
-                {/* Website Import Preview Modal - Separate from Google Auto-Fill */}
-                {showWebsiteImportPreview && websiteImportData && (
-                  <WebsiteImportPreviewModal
-                    data={websiteImportData}
-                    websiteUrl={websiteUrl}
-                    pagesScraped={websitePagesScraped}
-                    onClose={() => setShowWebsiteImportPreview(false)}
-                    isApplying={isApplyingWebsiteImport}
-                    onApply={async (selectedData: any) => {
-                      try {
-                        setIsApplyingWebsiteImport(true);
+                  {/* Auto-Fill Preview Modal */}
+                  {showAutoFillPreview && autoFillPreviewData && (
+                    <AutoFillPreviewModal
+                      data={autoFillPreviewData}
+                      onClose={() => setShowAutoFillPreview(false)}
+                      isApplying={isApplyingAutoFill}
+                      onApply={async (selectedData: any) => {
+                        try {
+                          setIsApplyingAutoFill(true);
 
-                        // Use the server action to properly map inventory to schema
-                        const result = await mapInventoryToPersonaAction(selectedData, persona);
+                          // Use the server action to properly map inventory to schema
+                          const result = await mapInventoryToPersonaAction(selectedData, persona);
 
-                        if (!result.success || !result.persona) {
-                          throw new Error(result.error || 'Failed to map imported data');
-                        }
-
-                        // Update import history
-                        const mergedPersona = {
-                          ...result.persona,
-                          importHistory: {
-                            ...result.persona.importHistory,
-                            website: {
-                              lastImportedAt: new Date(),
-                              url: websiteUrl,
-                              pagesScraped: websitePagesScraped,
-                              status: 'success' as const,
-                            },
-                          },
-                        };
-
-                        setPersona(mergedPersona);
-                        if (partnerId) await saveBusinessPersonaAction(partnerId, mergedPersona);
-
-                        // Set business type based on detected industry
-                        if (selectedData.identity?.industry) {
-                          const industryMap: Record<string, string> = {
-                            'hospitality': 'hospitality',
-                            'food_beverage': 'food_restaurant',
-                            'retail': 'retail_ecommerce',
-                            'healthcare': 'healthcare',
-                            'real_estate': 'real_estate',
-                            'education': 'education',
-                            'finance': 'finance',
-                            'services': 'services',
-                          };
-                          const mappedType = industryMap[selectedData.identity.industry];
-                          if (mappedType && !selectedBusinessTypes.includes(mappedType)) {
-                            setSelectedBusinessTypes([...selectedBusinessTypes, mappedType]);
+                          if (!result.success || !result.persona) {
+                            throw new Error(result.error || 'Failed to map inventory');
                           }
-                        }
 
-                        toast.success('Profile updated with website data!');
-                        setShowWebsiteImportPreview(false);
-                        setWebsiteUrl('');
-                      } catch (err: any) {
-                        toast.error(err.message || 'Failed to apply imported data');
-                      } finally {
-                        setIsApplyingWebsiteImport(false);
-                      }
-                    }}
-                  />
-                )}
+                          // Update import history
+                          const mergedPersona = {
+                            ...result.persona,
+                            importHistory: {
+                              ...result.persona.importHistory,
+                              google: {
+                                lastImportedAt: new Date(),
+                                placeId: selectedData.source?.placeId,
+                                placeName: selectedData.identity?.businessName || selectedData.identity?.name,
+                                status: 'success' as const,
+                              },
+                            },
+                          };
+
+                          setPersona(mergedPersona);
+                          if (partnerId) await saveBusinessPersonaAction(partnerId, mergedPersona);
+
+                          // Set business type based on detected industry
+                          if (selectedData.identity?.industry) {
+                            const industryMap: Record<string, string> = {
+                              'hospitality': 'hospitality',
+                              'food_beverage': 'food_restaurant',
+                              'retail': 'retail_ecommerce',
+                              'healthcare': 'healthcare',
+                              'real_estate': 'real_estate',
+                              'education': 'education',
+                              'finance': 'finance',
+                            };
+                            const mappedType = industryMap[selectedData.identity.industry];
+                            if (mappedType && !selectedBusinessTypes.includes(mappedType)) {
+                              setSelectedBusinessTypes([...selectedBusinessTypes, mappedType]);
+                            }
+                          }
+
+                          toast.success('Profile updated with AI researched data!');
+                          setShowAutoFillPreview(false);
+                          setAutoFillSearch('');
+                          setSelectedPlace(null);
+                        } catch (err: any) {
+                          toast.error(err.message || 'Failed to apply data');
+                        } finally {
+                          setIsApplyingAutoFill(false);
+                        }
+                      }}
+                    />
+                  )}
+
+                  {/* Website Import Preview Modal - Separate from Google Auto-Fill */}
+                  {showWebsiteImportPreview && websiteImportData && (
+                    <WebsiteImportPreviewModal
+                      data={websiteImportData}
+                      websiteUrl={websiteUrl}
+                      pagesScraped={websitePagesScraped}
+                      onClose={() => setShowWebsiteImportPreview(false)}
+                      isApplying={isApplyingWebsiteImport}
+                      onApply={async (selectedData: any) => {
+                        try {
+                          setIsApplyingWebsiteImport(true);
+
+                          // Use the server action to properly map inventory to schema
+                          const result = await mapInventoryToPersonaAction(selectedData, persona);
+
+                          if (!result.success || !result.persona) {
+                            throw new Error(result.error || 'Failed to map imported data');
+                          }
+
+                          // Update import history
+                          const mergedPersona = {
+                            ...result.persona,
+                            importHistory: {
+                              ...result.persona.importHistory,
+                              website: {
+                                lastImportedAt: new Date(),
+                                url: websiteUrl,
+                                pagesScraped: websitePagesScraped,
+                                status: 'success' as const,
+                              },
+                            },
+                          };
+
+                          setPersona(mergedPersona);
+                          if (partnerId) await saveBusinessPersonaAction(partnerId, mergedPersona);
+
+                          // Set business type based on detected industry
+                          if (selectedData.identity?.industry) {
+                            const industryMap: Record<string, string> = {
+                              'hospitality': 'hospitality',
+                              'food_beverage': 'food_restaurant',
+                              'retail': 'retail_ecommerce',
+                              'healthcare': 'healthcare',
+                              'real_estate': 'real_estate',
+                              'education': 'education',
+                              'finance': 'finance',
+                              'services': 'services',
+                            };
+                            const mappedType = industryMap[selectedData.identity.industry];
+                            if (mappedType && !selectedBusinessTypes.includes(mappedType)) {
+                              setSelectedBusinessTypes([...selectedBusinessTypes, mappedType]);
+                            }
+                          }
+
+                          toast.success('Profile updated with website data!');
+                          setShowWebsiteImportPreview(false);
+                          setWebsiteUrl('');
+                        } catch (err: any) {
+                          toast.error(err.message || 'Failed to apply imported data');
+                        } finally {
+                          setIsApplyingWebsiteImport(false);
+                        }
+                      }}
+                    />
+                  )}
                 </div>
               </div>
             )}

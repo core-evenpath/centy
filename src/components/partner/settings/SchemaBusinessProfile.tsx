@@ -4,7 +4,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import {
     Building2, MapPin, Target, Shield, Globe, ChevronDown,
     Edit3, Check, X, Plus, Sparkles, Search, Eye, Award,
-    Phone, Clock, HelpCircle, Bot, Zap,
+    Phone, Clock, HelpCircle, Bot, Zap, Trash2,
     LucideIcon, Landmark, GraduationCap, Heart, Briefcase,
     ShoppingBag, UtensilsCrossed, ShoppingCart, Car, Plane,
     PartyPopper, Wrench, MoreHorizontal
@@ -67,6 +67,46 @@ const CATEGORY_ICONS: Record<string, LucideIcon> = {
     MoreHorizontal,
 };
 
+// ===== SUBSECTION ICONS (replacing emojis) =====
+const SUBSECTION_ICONS: Record<string, LucideIcon> = {
+    // Brand Identity
+    'basic-info': Building2,
+    'unique-value': Sparkles,
+    'visual-identity': Eye,
+
+    // Location & Hours
+    'address': MapPin,
+    'service-coverage': Target,
+    'operating-hours': Clock,
+    'availability': Phone,
+
+    // Audience & Positioning
+    'target-customers': Target,
+    'customer-journey': Zap,
+    'customer-pain-points': HelpCircle,
+
+    // Trust & Support
+    'trust-signals': Award,
+    'testimonials': Heart,
+    'contact-info': Phone,
+    'policies': Shield,
+
+    // From the Web
+    'online-presence': Globe,
+    'reviews': Award,
+    'web-mentions': Globe,
+
+    // Industry-Specific (common)
+    'menu': UtensilsCrossed,
+    'specialties': Sparkles,
+    'services': Briefcase,
+    'products': ShoppingBag,
+    'pricing': Building2,
+    'experience': Award,
+    'certifications': Award,
+    'team': Target,
+};
+
 const EMPTY_CATEGORIES: any[] = [];
 
 // ===== PROPS =====
@@ -77,6 +117,8 @@ interface SchemaBusinessProfileProps {
     onProcessAI?: () => Promise<void>;
     // Module generation callback
     onModulesGenerated?: (config: ModulesConfig) => Promise<void>;
+    onImportData?: () => void;
+    onClearAll?: () => void;
 }
 
 // ===== PROGRESS RING =====
@@ -560,7 +602,9 @@ export default function SchemaBusinessProfile({
     onUpdate,
     onPreviewAI,
     onProcessAI,
-    onModulesGenerated
+    onModulesGenerated,
+    onImportData,
+    onClearAll
 }: SchemaBusinessProfileProps) {
 
     // Country selection for localized labels
@@ -746,9 +790,20 @@ export default function SchemaBusinessProfile({
                         {/* Business Type Display Banner - Read Only */}
                         {selectedCategories.length > 0 && (
                             <div className="bg-gradient-to-r from-indigo-50 to-purple-50 border border-indigo-100 rounded-xl p-4 mb-6">
-                                <div className="flex items-center gap-2 mb-2">
-                                    <Building2 className="w-4 h-4 text-indigo-600" />
-                                    <span className="text-sm font-medium text-indigo-900">Business Type</span>
+                                <div className="flex items-center justify-between mb-2">
+                                    <div className="flex items-center gap-2">
+                                        <Building2 className="w-4 h-4 text-indigo-600" />
+                                        <span className="text-sm font-medium text-indigo-900">Business Type</span>
+                                    </div>
+                                    {onClearAll && (
+                                        <button
+                                            onClick={onClearAll}
+                                            className="px-3 py-1.5 bg-red-50 text-red-600 rounded-lg text-xs font-medium hover:bg-red-100 flex items-center gap-1.5"
+                                        >
+                                            <Trash2 className="w-3.5 h-3.5" />
+                                            Clear All
+                                        </button>
+                                    )}
                                 </div>
                                 <div className="flex flex-wrap gap-2">
                                     {selectedCategories.map((cat, idx) => (
@@ -772,6 +827,30 @@ export default function SchemaBusinessProfile({
                             </div>
                         )}
 
+                        {/* Import Data Section - Only shown after categories selected */}
+                        {onImportData && (
+                            <div className="bg-gradient-to-r from-teal-50 to-emerald-50 border border-teal-100 rounded-xl p-4 mb-6">
+                                <div className="flex items-center justify-between">
+                                    <div className="flex items-center gap-3">
+                                        <div className="w-10 h-10 bg-teal-100 rounded-xl flex items-center justify-center">
+                                            <Globe className="w-5 h-5 text-teal-600" />
+                                        </div>
+                                        <div>
+                                            <h3 className="font-semibold text-teal-900">Import Business Data</h3>
+                                            <p className="text-xs text-teal-600">Import from Google Business, website, or other sources</p>
+                                        </div>
+                                    </div>
+                                    <button
+                                        onClick={onImportData}
+                                        className="px-4 py-2 bg-teal-600 text-white rounded-lg text-sm font-medium hover:bg-teal-700 flex items-center gap-2"
+                                    >
+                                        <Plus className="w-4 h-4" />
+                                        Import Data
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+
                         {/* Schema-Driven Sections */}
                         <div className="space-y-4">
                             {sections.map((section: SectionConfig, idx: number) => {
@@ -788,41 +867,46 @@ export default function SchemaBusinessProfile({
                                         description={section.description}
                                     >
                                         <div className="space-y-6">
-                                            {section.subSections.map((subSection: any) => (
-                                                <div key={subSection.id} className="space-y-3">
-                                                    {/* SubSection Header */}
-                                                    <div className="flex items-center gap-2 pb-2 border-b border-slate-100">
-                                                        {subSection.icon && <span className="text-lg">{subSection.icon}</span>}
-                                                        <h4 className="font-medium text-slate-800">{subSection.title}</h4>
-                                                    </div>
+                                            {section.subSections.map((subSection: any) => {
+                                                const SubIcon = SUBSECTION_ICONS[subSection.id] || Building2;
+                                                return (
+                                                    <div key={subSection.id} className="space-y-4">
+                                                        {/* SubSection Header - Enhanced with Lucide Icons */}
+                                                        <div className="flex items-center gap-3 pb-3 border-b border-slate-200">
+                                                            <div className="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center">
+                                                                <SubIcon className="w-4 h-4 text-slate-600" />
+                                                            </div>
+                                                            <h4 className="font-semibold text-slate-800">{subSection.title}</h4>
+                                                        </div>
 
-                                                    {/* Fields */}
-                                                    <div className={cn(
-                                                        "grid gap-4",
-                                                        subSection.fields.length > 2 ? "grid-cols-1 lg:grid-cols-2" : "grid-cols-1"
-                                                    )}>
-                                                        {subSection.fields.map((field: FieldConfig) => {
-                                                            const value = get(field.schemaPath);
-                                                            const currentTags = Array.isArray(value) ? value : [];
+                                                        {/* Fields */}
+                                                        <div className={cn(
+                                                            "grid gap-4",
+                                                            subSection.fields.length > 2 ? "grid-cols-1 lg:grid-cols-2" : "grid-cols-1"
+                                                        )}>
+                                                            {subSection.fields.map((field: FieldConfig) => {
+                                                                const value = get(field.schemaPath);
+                                                                const currentTags = Array.isArray(value) ? value : [];
 
-                                                            return (
-                                                                <div
-                                                                    key={field.key}
-                                                                    className={cn(field.gridSpan === 2 && "lg:col-span-2")}
-                                                                >
-                                                                    <SchemaField
-                                                                        field={field}
-                                                                        value={value}
-                                                                        onChange={(val) => onUpdate(field.schemaPath, val)}
-                                                                        onTagsAdd={handleTagsAdd(field.schemaPath, currentTags)}
-                                                                        onTagsRemove={handleTagsRemove(field.schemaPath, currentTags)}
-                                                                    />
-                                                                </div>
-                                                            );
-                                                        })}
+                                                                return (
+                                                                    <div
+                                                                        key={field.key}
+                                                                        className={cn(field.gridSpan === 2 && "lg:col-span-2")}
+                                                                    >
+                                                                        <SchemaField
+                                                                            field={field}
+                                                                            value={value}
+                                                                            onChange={(val) => onUpdate(field.schemaPath, val)}
+                                                                            onTagsAdd={handleTagsAdd(field.schemaPath, currentTags)}
+                                                                            onTagsRemove={handleTagsRemove(field.schemaPath, currentTags)}
+                                                                        />
+                                                                    </div>
+                                                                );
+                                                            })}
+                                                        </div>
                                                     </div>
-                                                </div>
-                                            ))}
+                                                );
+                                            })}
                                         </div>
                                     </Section>
                                 );

@@ -375,6 +375,16 @@ export async function saveBusinessPersonaAction(
             roomTypes: updates.roomTypes ?? existingPersona.roomTypes,
             propertyListings: updates.propertyListings ?? existingPersona.propertyListings,
             productCatalog: updates.productCatalog ?? existingPersona.productCatalog,
+            // Import data - merge with existing
+            importedData: updates.importedData !== undefined ? {
+                ...existingPersona.importedData,
+                ...updates.importedData,
+            } : existingPersona.importedData,
+            // Import history - merge with existing
+            importHistory: updates.importHistory !== undefined ? {
+                ...existingPersona.importHistory,
+                ...updates.importHistory,
+            } : existingPersona.importHistory,
             // Timestamps and version
             updatedAt: new Date(),
             version: (existingPersona.version || 0) + 1,
