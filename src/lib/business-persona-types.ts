@@ -1945,6 +1945,9 @@ export interface BusinessPersona {
     // Import history tracking
     importHistory?: ImportHistory;
 
+    // NEW: Detailed import metadata tracking
+    _importMeta?: ImportMeta;
+
     // Staged imported data (auto-saved before applying to profile)
     importedData?: {
         google?: {
@@ -2050,6 +2053,68 @@ export interface ImportHistory {
     };
     // Import log for audit
     history?: ImportHistoryEntry[];
+}
+
+// ============================================
+// IMPORT METADATA TRACKING
+// ============================================
+
+/**
+ * Detailed import metadata for tracking import history,
+ * unmapped data, and field sources
+ */
+export interface ImportMeta {
+    // History of all imports
+    history: ImportRecord[];
+
+    // Data that didn't map to specific fields
+    unmappedData: UnmappedDataItem[];
+
+    // Which fields came from which source
+    fieldSources: Record<string, FieldSource>;
+
+    // Settings for auto-sync
+    settings?: {
+        googleAutoSync: boolean;
+        websiteAutoSync: boolean;
+        lastGoogleSync?: string;
+        lastWebsiteSync?: string;
+    };
+}
+
+/**
+ * Record of a single import operation
+ */
+export interface ImportRecord {
+    id: string;
+    source: 'google' | 'website';
+    sourceIdentifier: string; // Place name or website URL
+    importedAt: string; // ISO date
+    fieldsCount: number;
+    fieldPaths: string[]; // Which paths were updated
+    status: 'applied' | 'partial';
+}
+
+/**
+ * Data that was imported but didn't map to a specific field
+ */
+export interface UnmappedDataItem {
+    id: string;
+    key: string;           // Display label like "Parking Info"
+    value: string;         // The actual content
+    source: 'google' | 'website';
+    importedAt: string;
+    usedByAI: boolean;     // Whether AI agents can use this context
+    suggestedMapping?: string; // AI-suggested field path
+}
+
+/**
+ * Source information for a specific field
+ */
+export interface FieldSource {
+    source: 'google' | 'website' | 'manual';
+    importedAt: string;
+    importId: string;
 }
 
 /**
