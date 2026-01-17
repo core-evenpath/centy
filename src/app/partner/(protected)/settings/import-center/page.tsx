@@ -1381,82 +1381,119 @@ export default function ImportCenterPage() {
       });
 
       // === NEW: Capture unmapped data ===
-      // From Google raw data
-      if (googleRawData?.fromTheWeb) {
-        const web = googleRawData.fromTheWeb;
-        if (web.additionalInfo && typeof web.additionalInfo === 'object') {
-          Object.entries(web.additionalInfo).forEach(([key, value]) => {
-            if (value && !importMeta.unmappedData.some((d: any) => d.key === key)) {
-              importMeta.unmappedData.push({
-                id: `unmapped_${Date.now()}_${key}`,
-                key: formatKeyLabel(key),
-                value: String(value),
-                source: 'google' as const,
-                importedAt: new Date().toISOString(),
-                usedByAI: true,
-              });
-            }
+      // Helper to add unmapped item
+      const addUnmappedItem = (key: string, value: string, source: 'google' | 'website', suggestedMapping?: string) => {
+        if (!value || value === 'undefined' || value === 'null') return;
+        const normalizedKey = formatKeyLabel(key);
+        if (!importMeta.unmappedData.some((d: any) => d.key === normalizedKey && d.value === value)) {
+          importMeta.unmappedData.push({
+            id: `unmapped_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+            key: normalizedKey,
+            value: String(value).slice(0, 500),
+            source,
+            importedAt: new Date().toISOString(),
+            usedByAI: true,
+            suggestedMapping,
           });
         }
-        if (web.otherFindings && Array.isArray(web.otherFindings)) {
-          web.otherFindings.forEach((finding: string, idx: number) => {
-            if (!importMeta.unmappedData.some((d: any) => d.value === finding)) {
-              importMeta.unmappedData.push({
-                id: `unmapped_${Date.now()}_finding_${idx}`,
-                key: 'Additional Info',
-                value: finding,
-                source: 'google' as const,
-                importedAt: new Date().toISOString(),
-                usedByAI: true,
-              });
-            }
-          });
-        }
-      }
-
-      // From Website raw data
-      if (websiteRawData?.fromTheWeb) {
-        const web = websiteRawData.fromTheWeb;
-        if (web.additionalInfo && typeof web.additionalInfo === 'object') {
-          Object.entries(web.additionalInfo).forEach(([key, value]) => {
-            if (value && !importMeta.unmappedData.some((d: any) => d.key === key)) {
-              importMeta.unmappedData.push({
-                id: `unmapped_${Date.now()}_${key}`,
-                key: formatKeyLabel(key),
-                value: String(value),
-                source: 'website' as const,
-                importedAt: new Date().toISOString(),
-                usedByAI: true,
-              });
-            }
-          });
-        }
-      }
-
-      // Also capture any extra data from the raw imports that isn't mapped to standard fields
-      const captureExtraData = (rawData: any, source: 'google' | 'website') => {
-        if (!rawData) return;
-
-        // Capture testimonials/reviews as unmapped data if not explicitly selected
-        const testimonials = rawData.testimonials || rawData.reviews || [];
-        testimonials.slice(0, 5).forEach((t: any, idx: number) => {
-          const quote = t.quote || t.text;
-          if (quote && !importMeta.unmappedData.some((d: any) => d.value === quote)) {
-            importMeta.unmappedData.push({
-              id: `unmapped_${Date.now()}_testimonial_${idx}`,
-              key: `${t.authorName || t.author || 'Customer'} Review`,
-              value: quote.length > 200 ? quote.substring(0, 200) + '...' : quote,
-              source,
-              importedAt: new Date().toISOString(),
-              usedByAI: true,
-              suggestedMapping: 'testimonials',
-            });
-          }
-        });
       };
 
-      if (googleRawData) captureExtraData(googleRawData, 'google');
-      if (websiteRawData) captureExtraData(websiteRawData, 'website');
+      // Capture data from Google import
+      if (googleRawData) {
+        // Industry specific data (ratings, awards, etc.)
+        const isd = googleRawData.industrySpecificData;
+        if (isd) {
+          if (isd.googleRating) addUnmappedItem('Google Rating', `${isd.googleRating}/5`, 'google');
+          if (isd.googleReviewCount) addUnmappedItem('Review Count', `${isd.googleReviewCount} reviews`, 'google');
+          if (isd.priceLevel) addUnmappedItem('Price Level', '$'.repeat(isd.priceLevel), 'google');
+          if (isd.awards?.length) addUnmappedItem('Awards', isd.awards.join(', '), 'google', 'knowledge.certifications');
+          if (isd.certifications?.length) addUnmappedItem('Certifications', isd.certifications.join(', '), 'google', 'knowledge.certifications');
+          if (isd.founders) addUnmappedItem('Founders', isd.founders, 'google');
+          if (isd.teamSize) addUnmappedItem('Team Size', isd.teamSize, 'google');
+        }
+
+        // Online presence
+        const op = googleRawData.onlinePresence;
+        if (op?.length) {
+          op.slice(0, 3).forEach((p: any) => {
+            if (p.platform && p.rating) {
+              addUnmappedItem(`${p.platform} Rating`, `${p.rating}/5 (${p.reviewCount || 0} reviews)`, 'google');
+            }
+          });
+        }
+
+        // fromTheWeb data
+        if (googleRawData.fromTheWeb) {
+          const web = googleRawData.fromTheWeb;
+          if (web.additionalInfo && typeof web.additionalInfo === 'object') {
+            Object.entries(web.additionalInfo).forEach(([key, value]) => {
+              if (value) addUnmappedItem(key, String(value), 'google');
+            });
+          }
+          if (web.otherFindings?.length) {
+            web.otherFindings.forEach((finding: string) => addUnmappedItem('Additional Info', finding, 'google'));
+          }
+          if (web.rawIndustryData && typeof web.rawIndustryData === 'object') {
+            Object.entries(web.rawIndustryData).slice(0, 5).forEach(([key, value]) => {
+              if (value && typeof value === 'string') addUnmappedItem(key, value, 'google');
+            });
+          }
+        }
+
+        // Reviews as unmapped (for AI context)
+        const reviews = googleRawData.reviews || [];
+        reviews.slice(0, 3).forEach((r: any) => {
+          const text = r.text || r.quote;
+          if (text) addUnmappedItem(`${r.authorName || 'Customer'} Review`, text, 'google', 'testimonials');
+        });
+
+        // Testimonials
+        const testimonials = googleRawData.testimonials || [];
+        testimonials.slice(0, 3).forEach((t: any) => {
+          const text = t.quote || t.text;
+          if (text) addUnmappedItem(`${t.authorName || t.author || 'Testimonial'}`, text, 'google', 'testimonials');
+        });
+      }
+
+      // Capture data from Website import
+      if (websiteRawData) {
+        // Industry specific data
+        const isd = websiteRawData.industrySpecificData;
+        if (isd) {
+          if (isd.awards?.length) addUnmappedItem('Awards', isd.awards.join(', '), 'website', 'knowledge.certifications');
+          if (isd.certifications?.length) addUnmappedItem('Certifications', isd.certifications.join(', '), 'website', 'knowledge.certifications');
+          if (isd.founders) addUnmappedItem('Founders', isd.founders, 'website');
+          if (isd.teamSize) addUnmappedItem('Team Size', isd.teamSize, 'website');
+        }
+
+        // fromTheWeb data
+        if (websiteRawData.fromTheWeb) {
+          const web = websiteRawData.fromTheWeb;
+          if (web.additionalInfo && typeof web.additionalInfo === 'object') {
+            Object.entries(web.additionalInfo).forEach(([key, value]) => {
+              if (value) addUnmappedItem(key, String(value), 'website');
+            });
+          }
+          if (web.websiteContent) {
+            // Extract key sentences from website content
+            const sentences = web.websiteContent.split(/[.!?]+/).filter((s: string) => s.trim().length > 20).slice(0, 2);
+            sentences.forEach((s: string) => addUnmappedItem('Website Excerpt', s.trim(), 'website'));
+          }
+        }
+
+        // Testimonials from website
+        const testimonials = websiteRawData.testimonials || [];
+        testimonials.slice(0, 3).forEach((t: any) => {
+          const text = t.quote || t.text;
+          if (text) addUnmappedItem(`${t.authorName || t.author || 'Testimonial'}`, text, 'website', 'testimonials');
+        });
+
+        // Press/Media mentions
+        const press = websiteRawData.pressMedia || [];
+        press.slice(0, 2).forEach((p: any) => {
+          if (p.title || p.source) addUnmappedItem('Press Mention', `${p.source || ''}: ${p.title || p.description || ''}`.trim(), 'website');
+        });
+      }
 
       // Keep only last 50 unmapped items
       importMeta.unmappedData = importMeta.unmappedData.slice(0, 50);

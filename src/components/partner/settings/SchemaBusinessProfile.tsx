@@ -1027,6 +1027,41 @@ export default function SchemaBusinessProfile({
                                         Import Data
                                     </button>
                                 </div>
+
+                                {/* Import History */}
+                                {importMeta?.history && importMeta.history.length > 0 && (
+                                    <div className="mt-4 pt-4 border-t border-teal-200">
+                                        <div className="flex items-center justify-between mb-2">
+                                            <h4 className="text-sm font-medium text-teal-900">Recent Imports</h4>
+                                            <span className="text-xs text-teal-600">{importMeta.history.length} import{importMeta.history.length !== 1 ? 's' : ''}</span>
+                                        </div>
+                                        <div className="space-y-2">
+                                            {importMeta.history.slice(0, 3).map((record) => (
+                                                <div key={record.id} className="flex items-center justify-between p-2 bg-white rounded-lg border border-teal-100">
+                                                    <div className="flex items-center gap-2">
+                                                        <span className={cn(
+                                                            "text-xs px-1.5 py-0.5 rounded font-medium",
+                                                            record.source === 'google' ? "bg-blue-100 text-blue-700" : "bg-purple-100 text-purple-700"
+                                                        )}>
+                                                            {record.source === 'google' ? 'Google' : 'Website'}
+                                                        </span>
+                                                        <span className="text-sm text-slate-700">{record.sourceIdentifier}</span>
+                                                    </div>
+                                                    <div className="flex items-center gap-2 text-xs text-slate-500">
+                                                        <span>{record.fieldsCount} fields</span>
+                                                        <span>{new Date(record.importedAt).toLocaleDateString()}</span>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                        {unmappedData.length > 0 && (
+                                            <p className="mt-2 text-xs text-teal-700 flex items-center gap-1">
+                                                <Sparkles className="w-3 h-3" />
+                                                {unmappedData.length} items in "From the Web" for AI context
+                                            </p>
+                                        )}
+                                    </div>
+                                )}
                             </div>
                         )}
 
