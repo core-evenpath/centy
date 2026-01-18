@@ -1359,6 +1359,7 @@ export default function ImportCenterPage() {
             products={products}
             onToggleProduct={handleToggleProduct}
             onSelectAll={handleSelectAllProducts}
+            onAddProducts={(newProducts) => setProducts(prev => [...prev, ...newProducts])}
           />
         )}
 
