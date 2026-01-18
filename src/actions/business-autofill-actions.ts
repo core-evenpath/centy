@@ -768,6 +768,118 @@ export async function applyImportToProfileAction(
       fieldsUpdated.push('industrySpecificData');
     }
 
+    // ========================================
+    // 6. AI INTELLIGENCE & UNMAPPED DATA
+    // ========================================
+
+    // Call AI to intelligently map any remaining or complex data
+    console.log('[ApplyImport] Running AI analysis on raw data...');
+    try {
+      const aiMapping = await import('@/lib/gemini-service').then(m => m.analyzeAndMapBusinessData(importedData));
+
+      // --- AI FALLBACK FOR CORE FIELDS ---
+      // If manual mapping missed these, fill them from AI
+
+      // Identity
+      if (aiMapping.identity) {
+        if (!profile.identity) profile.identity = {} as any;
+        const identity = profile.identity as any;
+
+        if (!identity.description && aiMapping.identity.description) {
+          identity.description = aiMapping.identity.description;
+          fieldsUpdated.push('identity.description');
+        }
+        if (!identity.companyName && aiMapping.identity.name) {
+          identity.companyName = aiMapping.identity.name;
+          fieldsUpdated.push('identity.companyName');
+        }
+        if (!identity.website && aiMapping.identity.website) {
+          identity.website = aiMapping.identity.website;
+          fieldsUpdated.push('identity.website');
+        }
+        if (!identity.phone && aiMapping.identity.phone) {
+          identity.phone = aiMapping.identity.phone;
+          fieldsUpdated.push('identity.phone');
+        }
+        if (!identity.yearFounded && aiMapping.identity.foundedYear) {
+          identity.yearFounded = aiMapping.identity.foundedYear;
+          fieldsUpdated.push('identity.yearFounded');
+        }
+      }
+
+      // Personality
+      if (aiMapping.personality) {
+        if (!profile.personality) profile.personality = {} as any;
+
+        if (!profile.personality.tagline && aiMapping.personality.tagline) {
+          profile.personality.tagline = aiMapping.personality.tagline;
+          fieldsUpdated.push('personality.tagline');
+        }
+        if ((!profile.personality.uniqueSellingPoints || profile.personality.uniqueSellingPoints.length === 0) && aiMapping.personality.uniqueSellingPoints) {
+          profile.personality.uniqueSellingPoints = aiMapping.personality.uniqueSellingPoints;
+          fieldsUpdated.push('personality.uniqueSellingPoints');
+        }
+      }
+
+      // Location
+      if (aiMapping.location) {
+        if (!profile.identity) profile.identity = {} as any;
+        const identity = profile.identity as any;
+
+        // Initialize address if needed
+        if (!identity.address) {
+          identity.address = {
+            street: '', city: '', state: '', postalCode: '', country: 'US', coordinates: { lat: 0, lng: 0 }
+          };
+        }
+
+        const addr = identity.address;
+        let locUpdated = false;
+
+        if (!addr.street && aiMapping.location.address) { addr.street = aiMapping.location.address; locUpdated = true; }
+        if (!addr.city && aiMapping.location.city) { addr.city = aiMapping.location.city; locUpdated = true; }
+        if (!addr.state && aiMapping.location.state) { addr.state = aiMapping.location.state; locUpdated = true; }
+        if (!addr.postalCode && aiMapping.location.zip) { addr.postalCode = aiMapping.location.zip; locUpdated = true; }
+
+        if (locUpdated) {
+          identity.address = addr;
+          fieldsUpdated.push('identity.address');
+        }
+      }
+
+      // --- OTHER USEFUL DATA ---
+      if (aiMapping.other_useful_data && aiMapping.other_useful_data.length > 0) {
+        if (!profile.webIntelligence) {
+          profile.webIntelligence = {};
+        }
+
+        // Map AI found data to our schema
+        (profile.webIntelligence as any).otherUsefulData = aiMapping.other_useful_data.map(item => ({
+          key: item.key,
+          value: item.value,
+          source: item.source || 'AI Analysis'
+        }));
+
+        fieldsUpdated.push('webIntelligence.otherUsefulData');
+      }
+
+      // PERSIST FULL AI MAPPING FOR UI SUGGESTIONS
+      if (!profile._importMeta) {
+        (profile._importMeta as any) = {
+          source: 'manual',
+          importedAt: new Date().toISOString(),
+          fieldsCount: 0,
+          fieldPaths: [],
+          status: 'applied'
+        };
+      }
+      (profile._importMeta as any).mappedData = aiMapping;
+
+    } catch (err) {
+      console.error('[ApplyImport] AI Analysis failed:', err);
+      // Fail silently on AI part, don't block main import
+    }
+
     console.log('[ApplyImport] Complete. Fields updated:', fieldsUpdated.length);
 
     return {

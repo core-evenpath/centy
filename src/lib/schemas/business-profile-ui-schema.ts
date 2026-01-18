@@ -762,9 +762,9 @@ export const TRUST_SUPPORT_SECTION: SectionConfig = {
 
 export const FROM_THE_WEB_SECTION: SectionConfig = {
     id: 'from-the-web',
-    title: 'From the Web',
+    title: 'Other useful data',
     icon: '🌐',
-    description: 'Reviews, testimonials, and content we found about your business online',
+    description: 'Additional information found online or unmapped data',
     subSections: [
         {
             id: 'reviews-ratings',
@@ -835,6 +835,21 @@ export const FROM_THE_WEB_SECTION: SectionConfig = {
                     helpText: 'Content extracted from your website',
                     schemaPath: 'webIntelligence.websiteContent',
                     fetchable: true,
+                    gridSpan: 2,
+                },
+            ],
+        },
+        {
+            id: 'additional-info',
+            title: 'Additional Information',
+            icon: '📝',
+            fields: [
+                {
+                    key: 'otherUsefulData',
+                    label: 'Other Useful Data',
+                    type: 'key-value-list',
+                    helpText: 'Other structured data points deemed useful by AI',
+                    schemaPath: 'webIntelligence.otherUsefulData',
                     gridSpan: 2,
                 },
             ],

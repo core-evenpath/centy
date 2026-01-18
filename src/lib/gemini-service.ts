@@ -304,3 +304,81 @@ export const generateSuggestions = async (
         return [];
     }
 };
+
+export interface MappedBusinessData {
+    identity?: any;
+    personality?: any;
+    contact?: any;
+    location?: any;
+    other_useful_data: { key: string; value: string; source?: string }[];
+}
+
+export const analyzeAndMapBusinessData = async (
+    rawData: any
+): Promise<MappedBusinessData> => {
+    const schema: Schema = {
+        type: Type.OBJECT,
+        properties: {
+            identity: {
+                type: Type.OBJECT,
+                properties: {
+                    name: { type: Type.STRING },
+                    description: { type: Type.STRING },
+                    website: { type: Type.STRING },
+                    phone: { type: Type.STRING },
+                    email: { type: Type.STRING },
+                }
+            },
+            personality: {
+                type: Type.OBJECT,
+                properties: {
+                    tagline: { type: Type.STRING },
+                    uniqueSellingPoints: { type: Type.ARRAY, items: { type: Type.STRING } },
+                }
+            },
+            other_useful_data: {
+                type: Type.ARRAY,
+                items: {
+                    type: Type.OBJECT,
+                    properties: {
+                        key: { type: Type.STRING },
+                        value: { type: Type.STRING },
+                        source: { type: Type.STRING }
+                    },
+                    required: ["key", "value"]
+                }
+            }
+        },
+        required: ["other_useful_data"]
+    };
+
+    try {
+        const prompt = `
+        Analyze this raw business data and map it to the structured schema.
+        
+        CRITICAL INSTRUCTIONS:
+        1. Extract clear identity fields (name, description, phone, etc.).
+        2. Identify personality traits (tagline, USPs).
+        3. EVERYTHING ELSE that is useful but doesn't fit strictly above (e.g., specific awards, return policies, founder names, specific amenities, obscure certifications) MUST be added to 'other_useful_data'.
+        4. "other_useful_data" keys should be human-readable labels (e.g., "Award 2023", "Return Policy").
+        
+        Raw Data:
+        ${JSON.stringify(rawData).slice(0, 15000)}
+        `;
+
+        const res = await ai.models.generateContent({
+            model: GENERATION_MODEL,
+            contents: { parts: [{ text: prompt }] },
+            config: {
+                responseMimeType: "application/json",
+                responseSchema: schema,
+                temperature: 0.2
+            }
+        });
+
+        return JSON.parse(res.text || "{}");
+    } catch (e) {
+        console.error("AI Mapping Error", e);
+        return { other_useful_data: [] };
+    }
+};

@@ -224,12 +224,14 @@ export function ApplyTab({
     }
   }, [buildProfileData]);
 
-  // Auto-generate tags on mount if we have enough data
+  // Auto-generate tags on mount only if we have no tags yet
   useEffect(() => {
-    if (!tagsGenerated && filledFields >= 3 && !isGeneratingTags) {
+    if (!tagsGenerated && suggestedTags.length === 0 && filledFields >= 3 && !isGeneratingTags) {
       handleGenerateTags();
     }
-  }, [filledFields, tagsGenerated, isGeneratingTags, handleGenerateTags]);
+  }, [filledFields, tagsGenerated, suggestedTags.length, isGeneratingTags, handleGenerateTags]);
+
+
 
   // Toggle tag selection
   const toggleTag = (tag: string) => {

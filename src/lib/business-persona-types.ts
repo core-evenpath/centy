@@ -709,6 +709,14 @@ export interface CatalogMeta {
     whatsappCatalogId?: string;
 }
 
+export interface WebIntelligence {
+    reviewSummary?: string;
+    reviews?: any[];
+    testimonials?: any[];
+    otherUsefulData?: { key: string; value: string; source?: string }[];
+}
+
+
 // ============================================
 // REAL ESTATE - PROPERTY LISTINGS
 // ============================================
@@ -1886,6 +1894,8 @@ export interface BusinessPersona {
     // Industry specific extended data (legacy catch-all)
     industrySpecificData?: Record<string, any>;
 
+    webIntelligence?: WebIntelligence;
+
     // ========== STRUCTURED INDUSTRY INVENTORY ==========
 
     // Real Estate - Property Listings
@@ -2093,6 +2103,7 @@ export interface ImportRecord {
     fieldsCount: number;
     fieldPaths: string[]; // Which paths were updated
     status: 'applied' | 'partial';
+    mappedData?: any; // Full structured data from import source/AI for field-level suggestions
 }
 
 /**
