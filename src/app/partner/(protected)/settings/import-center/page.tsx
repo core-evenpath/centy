@@ -446,6 +446,20 @@ export default function ImportCenterPage() {
       { key: 'pressMedia', label: 'Press/Media Coverage', icon: FileText, category: 'success' as const,
         paths: ['pressMedia', 'mediaCoverage', 'press'] },
 
+      // === DEEP EXTRACTION FIELDS (from enhanced AI scraping) ===
+      { key: 'industrySpecificData.areasServed', label: 'Areas Served', icon: MapPin, category: 'industry' as const,
+        paths: ['industrySpecificData.areasServed', 'fromTheWeb.areasServed', 'serviceAreas', 'areasServed'] },
+      { key: 'industrySpecificData.clientTypes', label: 'Client Types', icon: Users, category: 'audience' as const,
+        paths: ['industrySpecificData.clientTypes', 'fromTheWeb.clientTypes', 'clientTypes'] },
+      { key: 'industrySpecificData.projectTypes', label: 'Project Types', icon: Building2, category: 'industry' as const,
+        paths: ['industrySpecificData.projectTypes', 'fromTheWeb.projectTypes', 'projectTypes'] },
+      { key: 'industrySpecificData.processSteps', label: 'Process Steps', icon: FileText, category: 'industry' as const,
+        paths: ['industrySpecificData.processSteps', 'fromTheWeb.processSteps', 'processSteps'] },
+      { key: 'industrySpecificData.differentiators', label: 'Key Differentiators', icon: Sparkles, category: 'competitive' as const,
+        paths: ['industrySpecificData.differentiators', 'differentiators', 'competitiveAdvantages'] },
+      { key: 'industrySpecificData.additionalServices', label: 'Additional Services', icon: GraduationCap, category: 'industry' as const,
+        paths: ['industrySpecificData.additionalServices', 'additionalServices'] },
+
       // === KNOWLEDGE/FAQ ===
       { key: 'knowledge.faqs', label: 'FAQs', icon: FileText, category: 'knowledge' as const,
         paths: ['knowledge.faqs', 'faqs', 'faq', 'frequentlyAskedQuestions'] },

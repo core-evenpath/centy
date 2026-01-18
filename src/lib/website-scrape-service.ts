@@ -18,22 +18,63 @@ const ai = new GoogleGenAI({ apiKey: apiKey });
 const MAX_CONTENT_LENGTH = 100000; // 100KB per page
 const MAX_TOTAL_CONTENT = 500000; // 500KB total
 const FETCH_TIMEOUT = 30000; // 30 seconds
-const MAX_SUBPAGES = 5;
+const MAX_SUBPAGES = 8; // Increased from 5
 
-// Common relevant subpage patterns
+// Comprehensive relevant subpage patterns for all industries
 const RELEVANT_SUBPAGE_PATTERNS = [
-  /\/(about|about-us|about_us|who-we-are)/i,
-  /\/(contact|contact-us|contact_us|get-in-touch)/i,
-  /\/(menu|our-menu|food-menu|drinks-menu)/i,
-  /\/(services|our-services|what-we-do)/i,
-  /\/(products|our-products|shop|store|catalog)/i,
-  /\/(team|our-team|meet-the-team|staff)/i,
-  /\/(pricing|prices|rates|fees)/i,
-  /\/(faq|faqs|frequently-asked-questions)/i,
-  /\/(rooms|accommodations|room-types|suites)/i,
-  /\/(treatments|therapies|procedures)/i,
-  /\/(portfolio|projects|work|case-studies)/i,
-  /\/(testimonials|reviews|client-reviews)/i,
+  // About/Company
+  /\/(about|about-us|about_us|who-we-are|our-story|company|overview)/i,
+  // Contact
+  /\/(contact|contact-us|contact_us|get-in-touch|reach-us|locations?)/i,
+  // Services
+  /\/(services?|our-services|what-we-do|solutions|offerings|capabilities)/i,
+  // Products
+  /\/(products?|our-products|shop|store|catalog|inventory|buy)/i,
+  // Team/People
+  /\/(team|our-team|meet-the-team|staff|people|leadership|management|doctors?|experts?)/i,
+  // Pricing
+  /\/(pricing|prices|rates|fees|cost|packages|plans)/i,
+  // FAQ
+  /\/(faq|faqs|frequently-asked|help|support|knowledge-base)/i,
+  // Testimonials/Reviews
+  /\/(testimonials?|reviews?|client-reviews|success-stories|case-studies?)/i,
+  // Portfolio/Gallery
+  /\/(portfolio|projects?|work|gallery|showcase|our-work|completed-projects)/i,
+
+  // HOSPITALITY specific
+  /\/(rooms?|accommodations?|room-types|suites?|villas?|stay|amenities)/i,
+  /\/(dining|restaurant|menu|food|bar|spa|facilities)/i,
+
+  // HEALTHCARE specific
+  /\/(treatments?|therapies|procedures|specialties|departments|conditions)/i,
+  /\/(doctors?|physicians|specialists|consultants|medical-team)/i,
+  /\/(appointments?|book|schedule|patient-info)/i,
+
+  // REAL ESTATE specific
+  /\/(properties|listings?|homes|houses|apartments|rentals?|sales?)/i,
+  /\/(buy|sell|rent|lease|invest|commercial|residential)/i,
+  /\/(neighborhoods?|areas?|communities|locations?|markets?)/i,
+  /\/(buyers?|sellers?|investors?|landlords?|tenants?)/i,
+  /\/(agents?|realtors?|brokers?|team)/i,
+  /\/(featured|new-listings|just-sold|available)/i,
+
+  // EDUCATION specific
+  /\/(courses?|programs?|curriculum|classes|training|workshops?)/i,
+  /\/(admissions?|enrollment|apply|register|fees)/i,
+  /\/(faculty|instructors?|teachers?|professors?)/i,
+
+  // FOOD & BEVERAGE specific
+  /\/(menu|our-menu|food-menu|drinks?-menu|specials?)/i,
+  /\/(catering|events?|private-dining|reservations?)/i,
+
+  // PROFESSIONAL SERVICES specific
+  /\/(practice-areas|industries|sectors|expertise|specializations?)/i,
+  /\/(clients?|partners?|affiliations?)/i,
+  /\/(resources?|insights?|blog|news|articles?)/i,
+
+  // RETAIL/E-COMMERCE specific
+  /\/(collections?|categories|brands?|new-arrivals|sale|offers?)/i,
+  /\/(shipping|delivery|returns?|warranty)/i,
 ];
 
 export interface WebsiteScrapeOptions {
@@ -245,17 +286,41 @@ function extractTextContent(html: string): string {
 }
 
 /**
- * Discover relevant subpages from main page HTML
+ * Discover relevant subpages from main page HTML - enhanced with smart prioritization
  */
 export function discoverRelevantPages(baseUrl: string, html: string): string[] {
   const baseUrlObj = new URL(baseUrl);
-  const discovered = new Set<string>();
+  const discovered = new Map<string, number>(); // URL -> priority score
 
-  // Extract all links
-  const linkMatches = html.matchAll(/<a[^>]*href=["']([^"'#]+)["'][^>]*>/gi);
+  // Priority scores for different page types (higher = more important)
+  const priorityPatterns: [RegExp, number][] = [
+    // High priority - core business info
+    [/\/(about|about-us|who-we-are|our-story)/i, 100],
+    [/\/(services?|what-we-do|solutions)/i, 95],
+    [/\/(contact|contact-us|locations?)/i, 90],
+    [/\/(team|our-team|staff|leadership|agents?)/i, 85],
+
+    // High priority - industry specific
+    [/\/(properties|listings?|portfolio|projects?)/i, 90],
+    [/\/(menu|products?|rooms?|treatments?|courses?)/i, 90],
+    [/\/(pricing|prices|rates|packages|plans)/i, 85],
+
+    // Medium priority - credibility
+    [/\/(testimonials?|reviews?|success-stories|case-studies?)/i, 80],
+    [/\/(gallery|showcase|our-work|completed)/i, 75],
+    [/\/(faq|faqs|help)/i, 70],
+
+    // Lower priority but still useful
+    [/\/(blog|news|resources?|insights?)/i, 50],
+    [/\/(careers?|jobs)/i, 30],
+  ];
+
+  // Extract all links with their context
+  const linkMatches = html.matchAll(/<a[^>]*href=["']([^"'#]+)["'][^>]*>([^<]*)</gi);
 
   for (const match of linkMatches) {
     let href = match[1];
+    const linkText = match[2]?.toLowerCase() || '';
 
     // Skip external links, javascript, mailto, tel
     if (href.startsWith('javascript:') || href.startsWith('mailto:') || href.startsWith('tel:')) {
@@ -271,14 +336,53 @@ export function discoverRelevantPages(baseUrl: string, html: string): string[] {
         continue;
       }
 
-      // Check if this is a relevant page
-      const path = absoluteUrl.pathname;
-      for (const pattern of RELEVANT_SUBPAGE_PATTERNS) {
+      const path = absoluteUrl.pathname.toLowerCase();
+
+      // Skip common non-content pages
+      if (path.match(/\/(login|signin|signup|register|cart|checkout|account|privacy|terms|cookie)/i)) {
+        continue;
+      }
+
+      // Skip file downloads
+      if (path.match(/\.(pdf|doc|docx|xls|xlsx|zip|jpg|png|gif)$/i)) {
+        continue;
+      }
+
+      // Calculate priority score
+      let priority = 0;
+      for (const [pattern, score] of priorityPatterns) {
         if (pattern.test(path)) {
-          // Normalize URL (remove trailing slash, lowercase)
-          absoluteUrl.pathname = absoluteUrl.pathname.replace(/\/$/, '');
-          discovered.add(absoluteUrl.toString());
-          break;
+          priority = Math.max(priority, score);
+        }
+      }
+
+      // Boost priority if link text contains relevant keywords
+      const boostKeywords = ['about', 'service', 'contact', 'team', 'price', 'testimonial', 'portfolio', 'properties', 'listing'];
+      for (const keyword of boostKeywords) {
+        if (linkText.includes(keyword)) {
+          priority += 10;
+        }
+      }
+
+      // Check against standard patterns if no priority yet
+      if (priority === 0) {
+        for (const pattern of RELEVANT_SUBPAGE_PATTERNS) {
+          if (pattern.test(path)) {
+            priority = 40; // Default priority for matched patterns
+            break;
+          }
+        }
+      }
+
+      if (priority > 0) {
+        // Normalize URL (remove trailing slash)
+        absoluteUrl.pathname = absoluteUrl.pathname.replace(/\/$/, '');
+        const normalizedUrl = absoluteUrl.toString();
+
+        // Keep highest priority for each URL
+        const existingPriority = discovered.get(normalizedUrl) || 0;
+        if (priority > existingPriority) {
+          discovered.set(normalizedUrl, priority);
         }
       }
     } catch {
@@ -286,7 +390,85 @@ export function discoverRelevantPages(baseUrl: string, html: string): string[] {
     }
   }
 
-  return Array.from(discovered).slice(0, MAX_SUBPAGES);
+  // Sort by priority and return top N
+  const sortedUrls = Array.from(discovered.entries())
+    .sort((a, b) => b[1] - a[1])
+    .map(([url]) => url)
+    .slice(0, MAX_SUBPAGES);
+
+  return sortedUrls;
+}
+
+/**
+ * Extract navigation menu links - these are usually the most important pages
+ */
+function extractNavigationLinks(baseUrl: string, html: string): string[] {
+  const baseUrlObj = new URL(baseUrl);
+  const navLinks = new Set<string>();
+
+  // Find navigation sections
+  const navPatterns = [
+    /<nav[^>]*>([\s\S]*?)<\/nav>/gi,
+    /<header[^>]*>([\s\S]*?)<\/header>/gi,
+    /<div[^>]*class="[^"]*(?:nav|menu|header)[^"]*"[^>]*>([\s\S]*?)<\/div>/gi,
+    /<ul[^>]*class="[^"]*(?:nav|menu)[^"]*"[^>]*>([\s\S]*?)<\/ul>/gi,
+  ];
+
+  for (const pattern of navPatterns) {
+    const matches = html.matchAll(pattern);
+    for (const match of matches) {
+      const navContent = match[1] || match[0];
+      const linkMatches = navContent.matchAll(/<a[^>]*href=["']([^"'#]+)["'][^>]*>/gi);
+
+      for (const linkMatch of linkMatches) {
+        try {
+          const href = linkMatch[1];
+          if (href.startsWith('javascript:') || href.startsWith('mailto:') || href.startsWith('tel:')) {
+            continue;
+          }
+
+          const absoluteUrl = new URL(href, baseUrl);
+          if (absoluteUrl.hostname !== baseUrlObj.hostname) {
+            continue;
+          }
+
+          const path = absoluteUrl.pathname.toLowerCase();
+          // Skip common non-content pages
+          if (path.match(/\/(login|signin|signup|register|cart|checkout|account)/i)) {
+            continue;
+          }
+
+          absoluteUrl.pathname = absoluteUrl.pathname.replace(/\/$/, '');
+          navLinks.add(absoluteUrl.toString());
+        } catch {
+          // Invalid URL, skip
+        }
+      }
+    }
+  }
+
+  return Array.from(navLinks);
+}
+
+/**
+ * Discover ALL important pages combining navigation + pattern matching
+ */
+export function discoverAllRelevantPages(baseUrl: string, html: string): string[] {
+  // Get navigation links (usually the most important)
+  const navLinks = extractNavigationLinks(baseUrl, html);
+
+  // Get pattern-matched links
+  const patternLinks = discoverRelevantPages(baseUrl, html);
+
+  // Combine and deduplicate, prioritizing nav links
+  const allLinks = new Set([...navLinks, ...patternLinks]);
+
+  // Remove the base URL itself
+  const normalizedBase = baseUrl.replace(/\/$/, '');
+  allLinks.delete(normalizedBase);
+  allLinks.delete(normalizedBase + '/');
+
+  return Array.from(allLinks).slice(0, MAX_SUBPAGES + 2); // Allow a bit more for nav links
 }
 
 /**
@@ -448,10 +630,10 @@ export async function scrapeWebsiteForProfile(
   const extractedSocial = extractSocialLinks(mainPageResult.html || '');
   const extractedContact = extractBasicContactInfo(mainPageResult.html || '');
 
-  // Discover and fetch subpages if enabled
+  // Discover and fetch subpages if enabled - use enhanced discovery
   if (includeSubpages && mainPageResult.html) {
-    const subpages = discoverRelevantPages(normalizedUrl, mainPageResult.html);
-    console.log('[WebsiteScrape] Discovered subpages:', subpages);
+    const subpages = discoverAllRelevantPages(normalizedUrl, mainPageResult.html);
+    console.log('[WebsiteScrape] Discovered subpages:', subpages.length, 'pages');
 
     let totalContentSize = mainPageResult.content.length;
 
@@ -529,7 +711,7 @@ function getPageNameFromUrl(url: string): string {
 }
 
 /**
- * Use Gemini AI to extract structured business data
+ * Use Gemini AI to extract structured business data - Enhanced with two-pass extraction
  */
 async function extractBusinessDataWithAI(
   url: string,
@@ -540,7 +722,7 @@ async function extractBusinessDataWithAI(
   countryCode: string,
   pagesScraped: string[]
 ): Promise<AutoFilledProfile> {
-  // Build the prompt
+  // Build the main comprehensive prompt
   const prompt = buildWebsiteScrapePrompt({
     url,
     title,
@@ -551,8 +733,9 @@ async function extractBusinessDataWithAI(
     pagesScraped,
   });
 
-  console.log('[WebsiteScrape] Sending to AI for extraction...');
+  console.log('[WebsiteScrape] PASS 1: Comprehensive extraction...');
 
+  // First pass - comprehensive extraction
   const response = await ai.models.generateContent({
     model: 'gemini-2.0-flash',
     contents: prompt,
@@ -578,12 +761,217 @@ async function extractBusinessDataWithAI(
     throw new Error('Invalid response format from AI');
   }
 
-  console.log('[WebsiteScrape] AI extraction complete with keys:', Object.keys(parsed));
+  console.log('[WebsiteScrape] PASS 1 complete. Keys extracted:', Object.keys(parsed).length);
+
+  // Second pass - deep extraction for specific areas that might need more detail
+  // Focus on: services, products, team, testimonials, USPs
+  const deepExtractionNeeded = shouldDoDeepExtraction(parsed);
+
+  if (deepExtractionNeeded) {
+    console.log('[WebsiteScrape] PASS 2: Deep extraction for enhanced details...');
+
+    try {
+      const deepData = await performDeepExtraction(pageContents, countryCode, parsed.industry);
+
+      // Merge deep extraction data with first pass
+      if (deepData) {
+        parsed = mergeExtractionResults(parsed, deepData);
+        console.log('[WebsiteScrape] PASS 2 complete. Enhanced fields:', Object.keys(deepData).length);
+      }
+    } catch (e) {
+      console.log('[WebsiteScrape] PASS 2 skipped due to error:', e);
+      // Continue with first pass data
+    }
+  }
 
   // Map to AutoFilledProfile format
   const profile = mapToAutoFilledProfile(parsed, url, countryCode, pagesScraped, extractedSocial);
 
   return profile;
+}
+
+/**
+ * Check if we need a second pass for more detailed extraction
+ */
+function shouldDoDeepExtraction(data: any): boolean {
+  // Check if key areas are missing or minimal
+  const hasProducts = (data.productsOrServices?.length || 0) > 0 ||
+                      (data.inventory?.products?.length || 0) > 0 ||
+                      (data.inventory?.services?.length || 0) > 0 ||
+                      (data.inventory?.properties?.length || 0) > 0;
+
+  const hasTeam = (data.team?.length || 0) > 0;
+  const hasTestimonials = (data.testimonials?.length || 0) > 0;
+  const hasUSPs = (data.uniqueSellingPoints?.length || 0) > 0;
+
+  // If we're missing multiple key areas, do a deep pass
+  const missingAreas = [!hasProducts, !hasTeam, !hasTestimonials, !hasUSPs].filter(Boolean).length;
+  return missingAreas >= 2;
+}
+
+/**
+ * Perform deep extraction focusing on specific high-value areas
+ */
+async function performDeepExtraction(
+  pageContents: Record<string, string>,
+  countryCode: string,
+  detectedIndustry?: string
+): Promise<any | null> {
+  // Build combined content focusing on relevant sections
+  const combinedContent = Object.entries(pageContents)
+    .map(([page, content]) => `=== ${page.toUpperCase()} ===\n${content.substring(0, 15000)}`)
+    .join('\n\n');
+
+  if (combinedContent.length < 500) {
+    return null; // Not enough content for deep extraction
+  }
+
+  const industryContext = getIndustryExtractionContext(detectedIndustry || 'services');
+
+  const deepPrompt = `You are extracting DETAILED business information that may have been missed.
+Focus on finding SPECIFIC details - names, prices, descriptions, qualifications.
+
+CONTENT TO ANALYZE:
+${combinedContent.substring(0, 50000)}
+
+INDUSTRY CONTEXT: ${industryContext}
+
+Extract and return JSON with these DETAILED fields (include ALL items found, don't summarize):
+
+{
+  "productsOrServices": [
+    {
+      "name": "Exact product/service name",
+      "description": "Full description",
+      "price": 1000,
+      "priceUnit": "per hour/item/project/etc",
+      "category": "Category",
+      "features": ["Feature 1", "Feature 2"],
+      "popular": false
+    }
+  ],
+  "team": [
+    {
+      "name": "Full name",
+      "role": "Title/Position",
+      "qualifications": ["Degree 1", "Certification 2"],
+      "specializations": ["Area 1", "Area 2"],
+      "experience": "Years or description",
+      "bio": "Brief bio"
+    }
+  ],
+  "testimonials": [
+    {
+      "quote": "Exact customer quote",
+      "author": "Customer name",
+      "role": "Title/Company",
+      "rating": 5
+    }
+  ],
+  "uniqueSellingPoints": [
+    "Specific competitive advantage 1",
+    "What makes them different 2",
+    "Key benefit 3"
+  ],
+  "differentiators": [
+    "How they stand out from competitors"
+  ],
+  "processSteps": [
+    {"step": 1, "name": "Step name", "description": "What happens"}
+  ],
+  "areasServed": ["City/Area 1", "City/Area 2"],
+  "clientTypes": ["Who they typically serve"],
+  "projectTypes": ["Types of work they do"],
+  "additionalServices": ["Secondary services offered"]
+}
+
+Extract EVERY item you can find. Be thorough. Return ONLY valid JSON.`;
+
+  const response = await ai.models.generateContent({
+    model: 'gemini-2.0-flash',
+    contents: deepPrompt,
+    config: {
+      temperature: 0.1,
+    },
+  });
+
+  const text = response.text || '';
+  const jsonMatch = text.match(/\{[\s\S]*\}/);
+
+  if (!jsonMatch) {
+    return null;
+  }
+
+  try {
+    return JSON.parse(jsonMatch[0]);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Get industry-specific extraction context
+ */
+function getIndustryExtractionContext(industry: string): string {
+  const contexts: Record<string, string> = {
+    real_estate: 'Real Estate: Look for properties (sale/rent), listing details, agents/realtors, areas served, property types, prices, square footage, bedrooms/bathrooms, amenities, neighborhoods served.',
+    healthcare: 'Healthcare: Look for doctors/specialists, treatments/procedures, departments, qualifications, appointment types, insurance accepted, facilities, certifications.',
+    hospitality: 'Hospitality: Look for room types, rates, amenities, dining options, facilities, check-in times, packages, seasonal rates.',
+    food_beverage: 'Food & Beverage: Look for menu items with prices, cuisine types, dietary options, specials, catering, delivery options, seating capacity.',
+    professional_services: 'Professional Services: Look for service offerings, expertise areas, team qualifications, case studies, process steps, pricing models.',
+    retail: 'Retail: Look for products, categories, prices, brands, shipping info, return policies, payment options.',
+    education: 'Education: Look for courses, programs, faculty, fees, schedules, certifications, outcomes, admission requirements.',
+    services: 'Services: Look for service offerings, pricing, process, team expertise, areas served, client types, guarantees.',
+  };
+
+  return contexts[industry] || contexts.services;
+}
+
+/**
+ * Merge results from first and second extraction passes
+ */
+function mergeExtractionResults(first: any, second: any): any {
+  const merged = { ...first };
+
+  // Merge arrays - add unique items from second pass
+  const arrayFields = ['productsOrServices', 'team', 'testimonials', 'uniqueSellingPoints', 'differentiators'];
+
+  for (const field of arrayFields) {
+    if (second[field]?.length > 0) {
+      const existing = merged[field] || [];
+      const existingNames = new Set(existing.map((item: any) =>
+        (item.name || item.quote || item)?.toLowerCase?.()
+      ));
+
+      for (const item of second[field]) {
+        const itemName = (item.name || item.quote || item)?.toLowerCase?.();
+        if (!existingNames.has(itemName)) {
+          existing.push(item);
+          existingNames.add(itemName);
+        }
+      }
+      merged[field] = existing;
+    }
+  }
+
+  // Merge simple arrays
+  const simpleArrayFields = ['areasServed', 'clientTypes', 'projectTypes', 'additionalServices'];
+  for (const field of simpleArrayFields) {
+    if (second[field]?.length > 0) {
+      const existing = new Set(merged[field] || []);
+      for (const item of second[field]) {
+        existing.add(item);
+      }
+      merged[field] = Array.from(existing);
+    }
+  }
+
+  // Add new fields from second pass
+  if (second.processSteps?.length > 0 && !merged.processSteps) {
+    merged.processSteps = second.processSteps;
+  }
+
+  return merged;
 }
 
 /**
@@ -837,6 +1225,13 @@ function mapToAutoFilledProfile(
       founders: data.founders,
       founderStory: data.founderStory,
       teamSize: data.teamSize,
+      // New fields from deep extraction
+      areasServed: data.areasServed || data.serviceAreas,
+      clientTypes: data.clientTypes,
+      projectTypes: data.projectTypes,
+      additionalServices: data.additionalServices,
+      processSteps: data.processSteps,
+      differentiators: data.differentiators,
     },
     technicalInfo: data.technicalInfo || undefined,
     sustainability: data.sustainability || undefined,
@@ -847,6 +1242,11 @@ function mapToAutoFilledProfile(
       otherFindings: data.otherFindings || [],
       additionalInfo: data.schemaOrgData || undefined,
       confidence: data.confidence || undefined,
+      // Additional context from deep extraction
+      areasServed: data.areasServed,
+      clientTypes: data.clientTypes,
+      projectTypes: data.projectTypes,
+      processSteps: data.processSteps,
     },
     source: {
       placesData: false,
