@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { Search, Download, CheckCircle2, Trash2, Loader2, Building2, Star } from 'lucide-react';
+import { Search, Download, CheckCircle2, Trash2, Loader2, Building2, Star, AlertCircle } from 'lucide-react';
 import { StarRating } from '../shared';
 import type { ImportStats } from '../types';
 
@@ -17,6 +17,7 @@ interface GoogleImportCardProps {
   searching?: boolean;
   selectedPlace?: any;
   onSelectPlace?: (place: any) => void;
+  error?: string | null;
 }
 
 export function GoogleImportCard({
@@ -31,6 +32,7 @@ export function GoogleImportCard({
   searching = false,
   selectedPlace,
   onSelectPlace,
+  error,
 }: GoogleImportCardProps) {
   return (
     <div
@@ -121,6 +123,17 @@ export function GoogleImportCard({
                 </div>
               )}
             </div>
+
+            {/* Error Message */}
+            {error && !selectedPlace && (
+              <div className="flex items-start gap-2 p-3 bg-red-50 border border-red-200 rounded-xl text-red-700">
+                <AlertCircle className="w-5 h-5 flex-shrink-0 mt-0.5" />
+                <div className="text-sm">
+                  <p className="font-medium">Search Error</p>
+                  <p className="text-red-600">{error}</p>
+                </div>
+              </div>
+            )}
 
             {/* Selected Place Preview */}
             {selectedPlace && (

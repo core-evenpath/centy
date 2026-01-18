@@ -338,14 +338,25 @@ export interface AutoFilledProfile {
 
 /**
  * Google Places Autocomplete - search for businesses
+ * Returns results with potential error information
  */
+export interface PlacesSearchResponse {
+  results: PlacesAutocompleteResult[];
+  error?: string;
+  status?: string;
+}
+
 export async function searchPlacesAutocomplete(
   query: string,
   sessionToken?: string
-): Promise<PlacesAutocompleteResult[]> {
+): Promise<PlacesSearchResponse> {
   if (!PLACES_API_KEY) {
     console.error('[AutoFill] No Places API key configured');
-    return [];
+    return {
+      results: [],
+      error: 'Google Places API key not configured. Please add GOOGLE_PLACES_API_KEY to your environment variables.',
+      status: 'API_KEY_MISSING'
+    };
   }
 
   const url = new URL('https://maps.googleapis.com/maps/api/place/autocomplete/json');
@@ -357,23 +368,66 @@ export async function searchPlacesAutocomplete(
   }
 
   try {
+    console.log('[AutoFill] Searching for:', query);
     const response = await fetch(url.toString());
-    const data = await response.json();
 
-    if (data.status !== 'OK' && data.status !== 'ZERO_RESULTS') {
-      console.error('[AutoFill] Autocomplete error:', data.status, data.error_message);
-      return [];
+    if (!response.ok) {
+      console.error('[AutoFill] HTTP error:', response.status, response.statusText);
+      return {
+        results: [],
+        error: `Search request failed: ${response.statusText}`,
+        status: 'HTTP_ERROR'
+      };
     }
 
-    return (data.predictions || []).map((p: any) => ({
+    const data = await response.json();
+    console.log('[AutoFill] API Response status:', data.status);
+
+    if (data.status === 'ZERO_RESULTS') {
+      return {
+        results: [],
+        status: 'ZERO_RESULTS'
+      };
+    }
+
+    if (data.status !== 'OK') {
+      const errorMessages: Record<string, string> = {
+        'REQUEST_DENIED': 'API request denied. Please check if Places API is enabled in Google Cloud Console.',
+        'OVER_QUERY_LIMIT': 'API quota exceeded. Please try again later.',
+        'INVALID_REQUEST': 'Invalid search query. Please try a different search term.',
+        'UNKNOWN_ERROR': 'Google API error. Please try again.',
+      };
+
+      const errorMsg = errorMessages[data.status] || data.error_message || `API error: ${data.status}`;
+      console.error('[AutoFill] Autocomplete error:', data.status, data.error_message);
+
+      return {
+        results: [],
+        error: errorMsg,
+        status: data.status
+      };
+    }
+
+    const results = (data.predictions || []).map((p: any) => ({
       placeId: p.place_id,
       description: p.description,
       mainText: p.structured_formatting?.main_text || p.description,
       secondaryText: p.structured_formatting?.secondary_text || '',
     }));
-  } catch (error) {
+
+    console.log('[AutoFill] Found', results.length, 'results');
+
+    return {
+      results,
+      status: 'OK'
+    };
+  } catch (error: any) {
     console.error('[AutoFill] Autocomplete fetch error:', error);
-    return [];
+    return {
+      results: [],
+      error: error.message || 'Network error while searching. Please check your connection.',
+      status: 'NETWORK_ERROR'
+    };
   }
 }
 

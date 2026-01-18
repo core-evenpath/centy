@@ -117,6 +117,7 @@ export default function ImportCenterPage() {
   const [googleResults, setGoogleResults] = useState<any[]>([]);
   const [googleSearching, setGoogleSearching] = useState(false);
   const [selectedPlace, setSelectedPlace] = useState<any>(null);
+  const [googleSearchError, setGoogleSearchError] = useState<string | null>(null);
   const [websiteError, setWebsiteError] = useState<string | null>(null);
 
   // Raw imported data
@@ -744,6 +745,7 @@ export default function ImportCenterPage() {
   const handleGoogleSearchChange = useCallback(async (value: string) => {
     setGoogleSearch(value);
     setSelectedPlace(null);
+    setGoogleSearchError(null);
 
     if (value.length < 3) {
       setGoogleResults([]);
@@ -753,11 +755,25 @@ export default function ImportCenterPage() {
     setGoogleSearching(true);
     try {
       const result = await searchBusinessesAction(value);
-      if (result.success && result.results) {
+
+      if (!result.success) {
+        setGoogleSearchError(result.error || 'Search failed');
+        setGoogleResults([]);
+        toast.error(result.error || 'Search failed');
+      } else if (result.results && result.results.length > 0) {
         setGoogleResults(result.results);
+        setGoogleSearchError(null);
+      } else {
+        setGoogleResults([]);
+        // Only show "no results" for actual empty results, not for errors
+        if (result.status === 'ZERO_RESULTS') {
+          setGoogleSearchError('No businesses found. Try a different search term.');
+        }
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error('Search error:', err);
+      setGoogleSearchError(err.message || 'Search failed');
+      toast.error('Search failed. Please try again.');
     } finally {
       setGoogleSearching(false);
     }
@@ -880,6 +896,7 @@ export default function ImportCenterPage() {
     setSelectedPlace(null);
     setGoogleResults([]);
     setGoogleRawData(null);
+    setGoogleSearchError(null);
 
     // Update Firestore
     const updated = {
@@ -1357,6 +1374,7 @@ export default function ImportCenterPage() {
             googleResults={googleResults}
             searching={googleSearching}
             selectedPlace={selectedPlace}
+            googleSearchError={googleSearchError}
             websiteError={websiteError}
             onGoogleSearchChange={handleGoogleSearchChange}
             onWebsiteUrlChange={setWebsiteUrl}

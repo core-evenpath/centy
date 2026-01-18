@@ -16,6 +16,7 @@ interface ImportTabProps {
   googleResults?: any[];
   searching?: boolean;
   selectedPlace?: any;
+  googleSearchError?: string | null;
   websiteError?: string | null;
   onGoogleSearchChange: (value: string) => void;
   onWebsiteUrlChange: (value: string) => void;
@@ -40,6 +41,7 @@ export function ImportTab({
   googleResults = [],
   searching = false,
   selectedPlace,
+  googleSearchError,
   websiteError,
   onGoogleSearchChange,
   onWebsiteUrlChange,
@@ -84,6 +86,7 @@ export function ImportTab({
           searching={searching}
           selectedPlace={selectedPlace}
           onSelectPlace={onSelectPlace}
+          error={googleSearchError}
         />
 
         <WebsiteImportCard

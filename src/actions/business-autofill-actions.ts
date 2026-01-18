@@ -21,16 +21,30 @@ import type { BusinessPersona, IndustryCategory } from '@/lib/business-persona-t
  */
 export async function searchBusinessesAction(
   query: string
-): Promise<{ success: boolean; results?: PlacesAutocompleteResult[]; error?: string }> {
+): Promise<{ success: boolean; results?: PlacesAutocompleteResult[]; error?: string; status?: string }> {
   try {
     if (!query || query.length < 2) {
       return { success: true, results: [] };
     }
 
     console.log('[AutoFill Action] Searching for:', query);
-    const results = await searchPlacesAutocomplete(query);
+    const response = await searchPlacesAutocomplete(query);
 
-    return { success: true, results };
+    if (response.error) {
+      console.error('[AutoFill Action] Search error:', response.error, response.status);
+      return {
+        success: false,
+        results: [],
+        error: response.error,
+        status: response.status
+      };
+    }
+
+    return {
+      success: true,
+      results: response.results,
+      status: response.status
+    };
   } catch (error: any) {
     console.error('[AutoFill Action] Search error:', error);
     return { success: false, error: error.message || 'Search failed' };
