@@ -472,92 +472,227 @@ export function discoverAllRelevantPages(baseUrl: string, html: string): string[
 }
 
 /**
- * Extract social media links from HTML - comprehensive patterns
+ * Extract social media links from HTML - comprehensive patterns for all platforms
  */
 function extractSocialLinks(html: string): Record<string, string> {
   const social: Record<string, string> = {};
 
-  // More comprehensive patterns with multiple variations
-  const patterns: [string, RegExp[]][] = [
+  // Comprehensive patterns with multiple variations for each platform
+  // Each pattern returns either: [1] = full URL, or username that needs base URL construction
+  const patterns: [string, RegExp[], string][] = [
+    // Major Social Platforms
     ['instagram', [
-      /href=["'](https?:\/\/(www\.)?instagram\.com\/[a-zA-Z0-9_.]+\/?)[^"']*/i,
-      /instagram\.com\/([a-zA-Z0-9_.]+)/i,
-    ]],
+      /href=["'](https?:\/\/(www\.)?instagram\.com\/[a-zA-Z0-9_.]+\/?)[^"'\s]*/i,
+      /(?:instagram\.com|instagr\.am)\/([a-zA-Z0-9_.]+)/i,
+    ], 'https://instagram.com/'],
     ['facebook', [
-      /href=["'](https?:\/\/(www\.)?(facebook\.com|fb\.com)\/[a-zA-Z0-9.]+\/?)[^"']*/i,
-      /facebook\.com\/([a-zA-Z0-9.]+)/i,
-      /fb\.com\/([a-zA-Z0-9.]+)/i,
-    ]],
+      /href=["'](https?:\/\/(www\.)?(facebook\.com|fb\.com)\/[a-zA-Z0-9.]+\/?)[^"'\s]*/i,
+      /(?:facebook\.com|fb\.com)\/([a-zA-Z0-9.]+)/i,
+    ], 'https://facebook.com/'],
     ['twitter', [
-      /href=["'](https?:\/\/(www\.)?(twitter\.com|x\.com)\/[a-zA-Z0-9_]+\/?)[^"']*/i,
-      /twitter\.com\/([a-zA-Z0-9_]+)/i,
-      /x\.com\/([a-zA-Z0-9_]+)/i,
-    ]],
+      /href=["'](https?:\/\/(www\.)?(twitter\.com|x\.com)\/[a-zA-Z0-9_]+\/?)[^"'\s]*/i,
+      /(?:twitter\.com|x\.com)\/([a-zA-Z0-9_]+)/i,
+    ], 'https://twitter.com/'],
     ['linkedin', [
-      /href=["'](https?:\/\/(www\.)?linkedin\.com\/(company|in|school)\/[a-zA-Z0-9-]+\/?)[^"']*/i,
+      /href=["'](https?:\/\/(www\.)?linkedin\.com\/(company|in|school)\/[a-zA-Z0-9-]+\/?)[^"'\s]*/i,
       /linkedin\.com\/(company|in|school)\/([a-zA-Z0-9-]+)/i,
-    ]],
+    ], 'https://linkedin.com/company/'],
     ['youtube', [
-      /href=["'](https?:\/\/(www\.)?youtube\.com\/(channel|c|user|@)[\/]?[a-zA-Z0-9_-]+\/?)[^"']*/i,
-      /href=["'](https?:\/\/(www\.)?youtube\.com\/@[a-zA-Z0-9_-]+\/?)[^"']*/i,
-      /youtube\.com\/(@?[a-zA-Z0-9_-]+)/i,
-    ]],
+      /href=["'](https?:\/\/(www\.)?youtube\.com\/(channel|c|user|@)[\/]?[a-zA-Z0-9_-]+\/?)[^"'\s]*/i,
+      /href=["'](https?:\/\/(www\.)?youtube\.com\/@[a-zA-Z0-9_-]+\/?)[^"'\s]*/i,
+      /youtube\.com\/(channel|c|user|@)?\/?([a-zA-Z0-9_-]+)/i,
+    ], 'https://youtube.com/@'],
     ['pinterest', [
-      /href=["'](https?:\/\/(www\.)?pinterest\.(com|co\.\w+)\/[a-zA-Z0-9_]+\/?)[^"']*/i,
+      /href=["'](https?:\/\/(www\.)?pinterest\.(com|co\.\w+)\/[a-zA-Z0-9_]+\/?)[^"'\s]*/i,
       /pinterest\.(com|co\.\w+)\/([a-zA-Z0-9_]+)/i,
-    ]],
+    ], 'https://pinterest.com/'],
     ['tiktok', [
-      /href=["'](https?:\/\/(www\.)?tiktok\.com\/@[a-zA-Z0-9_.]+\/?)[^"']*/i,
+      /href=["'](https?:\/\/(www\.)?tiktok\.com\/@[a-zA-Z0-9_.]+\/?)[^"'\s]*/i,
       /tiktok\.com\/@([a-zA-Z0-9_.]+)/i,
-    ]],
+    ], 'https://tiktok.com/@'],
+    ['threads', [
+      /href=["'](https?:\/\/(www\.)?threads\.net\/@?[a-zA-Z0-9_.]+\/?)[^"'\s]*/i,
+      /threads\.net\/@?([a-zA-Z0-9_.]+)/i,
+    ], 'https://threads.net/@'],
+    ['snapchat', [
+      /href=["'](https?:\/\/(www\.)?snapchat\.com\/add\/[a-zA-Z0-9_.]+\/?)[^"'\s]*/i,
+      /snapchat\.com\/add\/([a-zA-Z0-9_.]+)/i,
+    ], 'https://snapchat.com/add/'],
+
+    // Messaging Platforms
     ['whatsapp', [
-      /href=["'](https?:\/\/(wa\.me|api\.whatsapp\.com|chat\.whatsapp\.com)\/[0-9+]+)[^"']*/i,
+      /href=["'](https?:\/\/(wa\.me|api\.whatsapp\.com\/send\?phone=|chat\.whatsapp\.com)[\/=]?[0-9+]+)[^"'\s]*/i,
       /wa\.me\/([0-9+]+)/i,
-      /whatsapp[^"']*[0-9]{10,}/i,
-    ]],
-    ['googleBusiness', [
-      /href=["'](https?:\/\/(www\.)?(google\.com\/maps|maps\.google\.com|g\.page|goo\.gl\/maps)[^"']+)["']/i,
-      /href=["'](https?:\/\/g\.page\/[^"']+)["']/i,
-    ]],
+      /whatsapp\.com\/send\?phone=([0-9+]+)/i,
+    ], 'https://wa.me/'],
     ['telegram', [
-      /href=["'](https?:\/\/(t\.me|telegram\.me)\/[a-zA-Z0-9_]+\/?)[^"']*/i,
-    ]],
+      /href=["'](https?:\/\/(t\.me|telegram\.me|telegram\.org)\/[a-zA-Z0-9_]+\/?)[^"'\s]*/i,
+      /(?:t\.me|telegram\.me)\/([a-zA-Z0-9_]+)/i,
+    ], 'https://t.me/'],
+    ['wechat', [
+      /wechat[:\s]+([a-zA-Z0-9_]+)/i,
+      /weixin[:\s]+([a-zA-Z0-9_]+)/i,
+    ], ''],
+    ['line', [
+      /href=["'](https?:\/\/line\.me\/[^"'\s]+)/i,
+      /line\.me\/ti\/p\/([@%]?[a-zA-Z0-9_-]+)/i,
+    ], 'https://line.me/ti/p/'],
+
+    // Business & Review Platforms
+    ['googleBusiness', [
+      /href=["'](https?:\/\/(www\.)?(google\.com\/maps|maps\.google\.com|g\.page|goo\.gl\/maps)[^"'\s]+)["']/i,
+      /href=["'](https?:\/\/g\.page\/[^"'\s]+)["']/i,
+      /href=["'](https?:\/\/maps\.app\.goo\.gl\/[^"'\s]+)["']/i,
+    ], ''],
     ['yelp', [
-      /href=["'](https?:\/\/(www\.)?yelp\.(com|co\.\w+)\/biz\/[^"']+)["']/i,
-    ]],
+      /href=["'](https?:\/\/(www\.)?yelp\.(com|co\.\w+|ca|ie)\/biz\/[^"'\s]+)["']/i,
+    ], ''],
     ['tripadvisor', [
-      /href=["'](https?:\/\/(www\.)?tripadvisor\.(com|co\.\w+|in)\/[^"']+)["']/i,
-    ]],
+      /href=["'](https?:\/\/(www\.)?tripadvisor\.(com|co\.\w+|in|ca|ie)\/[^"'\s]+)["']/i,
+    ], ''],
+    ['trustpilot', [
+      /href=["'](https?:\/\/(www\.)?trustpilot\.com\/review\/[^"'\s]+)["']/i,
+    ], ''],
+    ['glassdoor', [
+      /href=["'](https?:\/\/(www\.)?glassdoor\.(com|co\.\w+|in)\/[^"'\s]+)["']/i,
+    ], ''],
+
+    // Food & Delivery Platforms
     ['zomato', [
-      /href=["'](https?:\/\/(www\.)?zomato\.com\/[^"']+)["']/i,
-    ]],
+      /href=["'](https?:\/\/(www\.)?zomato\.com\/[^"'\s]+)["']/i,
+    ], ''],
     ['swiggy', [
-      /href=["'](https?:\/\/(www\.)?swiggy\.com\/[^"']+)["']/i,
-    ]],
+      /href=["'](https?:\/\/(www\.)?swiggy\.com\/[^"'\s]+)["']/i,
+    ], ''],
+    ['ubereats', [
+      /href=["'](https?:\/\/(www\.)?ubereats\.com\/[^"'\s]+)["']/i,
+    ], ''],
+    ['doordash', [
+      /href=["'](https?:\/\/(www\.)?doordash\.com\/[^"'\s]+)["']/i,
+    ], ''],
+    ['grubhub', [
+      /href=["'](https?:\/\/(www\.)?grubhub\.com\/[^"'\s]+)["']/i,
+    ], ''],
+    ['opentable', [
+      /href=["'](https?:\/\/(www\.)?opentable\.(com|co\.\w+)\/[^"'\s]+)["']/i,
+    ], ''],
+
+    // Real Estate Platforms
+    ['zillow', [
+      /href=["'](https?:\/\/(www\.)?zillow\.com\/profile\/[^"'\s]+)["']/i,
+      /href=["'](https?:\/\/(www\.)?zillow\.com\/[^"'\s]+)["']/i,
+    ], ''],
+    ['realtor', [
+      /href=["'](https?:\/\/(www\.)?realtor\.com\/[^"'\s]+)["']/i,
+    ], ''],
+    ['trulia', [
+      /href=["'](https?:\/\/(www\.)?trulia\.com\/[^"'\s]+)["']/i,
+    ], ''],
+    ['houzz', [
+      /href=["'](https?:\/\/(www\.)?houzz\.(com|co\.\w+|in)\/[^"'\s]+)["']/i,
+    ], ''],
+    ['redfin', [
+      /href=["'](https?:\/\/(www\.)?redfin\.com\/[^"'\s]+)["']/i,
+    ], ''],
+
+    // Travel & Hospitality
+    ['booking', [
+      /href=["'](https?:\/\/(www\.)?booking\.com\/hotel\/[^"'\s]+)["']/i,
+    ], ''],
+    ['airbnb', [
+      /href=["'](https?:\/\/(www\.)?airbnb\.(com|co\.\w+|in)\/[^"'\s]+)["']/i,
+    ], ''],
+    ['expedia', [
+      /href=["'](https?:\/\/(www\.)?expedia\.(com|co\.\w+)\/[^"'\s]+)["']/i,
+    ], ''],
+
+    // Professional/Business
+    ['github', [
+      /href=["'](https?:\/\/(www\.)?github\.com\/[a-zA-Z0-9_-]+\/?)[^"'\s]*/i,
+      /github\.com\/([a-zA-Z0-9_-]+)/i,
+    ], 'https://github.com/'],
+    ['behance', [
+      /href=["'](https?:\/\/(www\.)?behance\.net\/[a-zA-Z0-9_-]+\/?)[^"'\s]*/i,
+    ], ''],
+    ['dribbble', [
+      /href=["'](https?:\/\/(www\.)?dribbble\.com\/[a-zA-Z0-9_-]+\/?)[^"'\s]*/i,
+    ], ''],
+
+    // Regional Platforms
+    ['vk', [
+      /href=["'](https?:\/\/(www\.)?vk\.com\/[a-zA-Z0-9_]+\/?)[^"'\s]*/i,
+    ], ''],
+    ['weibo', [
+      /href=["'](https?:\/\/(www\.)?weibo\.com\/[a-zA-Z0-9_]+\/?)[^"'\s]*/i,
+    ], ''],
   ];
 
-  for (const [platform, regexList] of patterns) {
+  for (const [platform, regexList, baseUrl] of patterns) {
+    if (social[platform]) continue; // Already found
+
     for (const pattern of regexList) {
       const match = html.match(pattern);
-      if (match && match[1]) {
-        // Clean up the URL
-        let url = match[1];
-        // If it's just a username match, construct the full URL
-        if (!url.startsWith('http')) {
-          const baseUrls: Record<string, string> = {
-            instagram: 'https://instagram.com/',
-            facebook: 'https://facebook.com/',
-            twitter: 'https://twitter.com/',
-            youtube: 'https://youtube.com/',
-            pinterest: 'https://pinterest.com/',
-            tiktok: 'https://tiktok.com/@',
-          };
-          if (baseUrls[platform]) {
-            url = baseUrls[platform] + url;
+      if (match) {
+        let url = '';
+
+        // Check if we got a full URL (starts with http) or just a username/path
+        if (match[1]?.startsWith('http')) {
+          url = match[1];
+        } else if (match[2]) {
+          // Second capture group (username from path patterns)
+          url = baseUrl ? baseUrl + match[2] : match[2];
+        } else if (match[1] && baseUrl) {
+          // First capture group but not a full URL
+          url = baseUrl + match[1];
+        }
+
+        // Clean up URL - remove trailing quotes, spaces, extra chars
+        url = url.replace(/["'\s>].*$/, '').replace(/\/$/, '');
+
+        if (url && (url.startsWith('http') || platform === 'wechat')) {
+          social[platform] = url;
+          break;
+        }
+      }
+    }
+  }
+
+  // Also look for social icons/links in common containers
+  const socialContainerPatterns = [
+    /<div[^>]*class="[^"]*social[^"]*"[^>]*>([\s\S]*?)<\/div>/gi,
+    /<ul[^>]*class="[^"]*social[^"]*"[^>]*>([\s\S]*?)<\/ul>/gi,
+    /<footer[^>]*>([\s\S]*?)<\/footer>/gi,
+  ];
+
+  for (const containerPattern of socialContainerPatterns) {
+    const containerMatches = html.matchAll(containerPattern);
+    for (const containerMatch of containerMatches) {
+      const containerHtml = containerMatch[1] || containerMatch[0];
+
+      // Re-run extraction on container HTML for any missing platforms
+      for (const [platform, regexList, baseUrl] of patterns) {
+        if (social[platform]) continue;
+
+        for (const pattern of regexList) {
+          const match = containerHtml.match(pattern);
+          if (match) {
+            let url = '';
+            if (match[1]?.startsWith('http')) {
+              url = match[1];
+            } else if (match[2] && baseUrl) {
+              url = baseUrl + match[2];
+            } else if (match[1] && baseUrl) {
+              url = baseUrl + match[1];
+            }
+
+            url = url.replace(/["'\s>].*$/, '').replace(/\/$/, '');
+
+            if (url && url.startsWith('http')) {
+              social[platform] = url;
+              break;
+            }
           }
         }
-        social[platform] = url;
-        break; // Found a match, move to next platform
       }
     }
   }
@@ -795,18 +930,29 @@ async function extractBusinessDataWithAI(
  */
 function shouldDoDeepExtraction(data: any): boolean {
   // Check if key areas are missing or minimal
-  const hasProducts = (data.productsOrServices?.length || 0) > 0 ||
-                      (data.inventory?.products?.length || 0) > 0 ||
-                      (data.inventory?.services?.length || 0) > 0 ||
-                      (data.inventory?.properties?.length || 0) > 0;
+  const productCount = (data.productsOrServices?.length || 0) +
+                       (data.inventory?.products?.length || 0) +
+                       (data.inventory?.services?.length || 0) +
+                       (data.inventory?.properties?.length || 0) +
+                       (data.inventory?.menuItems?.length || 0) +
+                       (data.inventory?.rooms?.length || 0);
+
+  // Check if products have pricing details
+  const productsWithPricing = [...(data.productsOrServices || []), ...(data.inventory?.products || []), ...(data.inventory?.services || [])]
+    .filter((p: any) => p.price !== undefined && p.price !== null).length;
 
   const hasTeam = (data.team?.length || 0) > 0;
   const hasTestimonials = (data.testimonials?.length || 0) > 0;
   const hasUSPs = (data.uniqueSellingPoints?.length || 0) > 0;
 
-  // If we're missing multiple key areas, do a deep pass
-  const missingAreas = [!hasProducts, !hasTeam, !hasTestimonials, !hasUSPs].filter(Boolean).length;
-  return missingAreas >= 2;
+  // Do deep pass if:
+  // 1. Missing products entirely
+  // 2. Have products but most lack pricing
+  // 3. Missing multiple other areas
+  const needsProductEnrichment = productCount === 0 || (productCount > 0 && productsWithPricing < productCount * 0.5);
+  const missingAreas = [productCount === 0, !hasTeam, !hasTestimonials, !hasUSPs].filter(Boolean).length;
+
+  return needsProductEnrichment || missingAreas >= 2;
 }
 
 /**
@@ -828,64 +974,131 @@ async function performDeepExtraction(
 
   const industryContext = getIndustryExtractionContext(detectedIndustry || 'services');
 
-  const deepPrompt = `You are extracting DETAILED business information that may have been missed.
-Focus on finding SPECIFIC details - names, prices, descriptions, qualifications.
+  // Detect currency from content
+  const currencyPatterns = [
+    { pattern: /\$\s*[\d,]+/g, currency: 'USD', symbol: '$' },
+    { pattern: /₹\s*[\d,]+|Rs\.?\s*[\d,]+|INR\s*[\d,]+/gi, currency: 'INR', symbol: '₹' },
+    { pattern: /€\s*[\d,]+|EUR\s*[\d,]+/gi, currency: 'EUR', symbol: '€' },
+    { pattern: /£\s*[\d,]+|GBP\s*[\d,]+/gi, currency: 'GBP', symbol: '£' },
+    { pattern: /AED\s*[\d,]+|د\.إ\s*[\d,]+/gi, currency: 'AED', symbol: 'AED' },
+  ];
+
+  let detectedCurrency = 'USD';
+  let maxMatches = 0;
+  for (const { pattern, currency } of currencyPatterns) {
+    const matches = combinedContent.match(pattern);
+    if (matches && matches.length > maxMatches) {
+      maxMatches = matches.length;
+      detectedCurrency = currency;
+    }
+  }
+
+  const deepPrompt = `You are a data extraction specialist. Your job is to find EVERY product, service, and pricing detail from this business website.
+
+CRITICAL INSTRUCTIONS:
+1. Extract ALL products/services with their EXACT prices as shown
+2. Look for prices in formats like: $99, $99.99, $99/mo, $99 per month, Starting at $99, From $99
+3. Include price ranges (e.g., "$50-$100" becomes price: 50, priceMax: 100)
+4. Capture ALL variants, sizes, tiers, packages
+5. Note any discounts, original prices (MRP), sale prices
+6. Extract features, specifications, what's included
+7. Find team members with their qualifications
+
+DETECTED CURRENCY: ${detectedCurrency}
 
 CONTENT TO ANALYZE:
-${combinedContent.substring(0, 50000)}
+${combinedContent.substring(0, 60000)}
 
 INDUSTRY CONTEXT: ${industryContext}
 
-Extract and return JSON with these DETAILED fields (include ALL items found, don't summarize):
+Return JSON with these DETAILED fields - extract EVERYTHING you find:
 
 {
   "productsOrServices": [
     {
-      "name": "Exact product/service name",
+      "name": "EXACT product/service name as displayed",
+      "description": "Full description - include all details mentioned",
+      "shortDescription": "One-line summary",
+      "price": 99.99,
+      "priceMax": null,
+      "originalPrice": null,
+      "priceUnit": "one-time/per month/per year/per hour/per session/per night/per sq ft/etc",
+      "currency": "${detectedCurrency}",
+      "category": "Category/Type",
+      "subcategory": "More specific category",
+      "features": ["Feature 1", "Feature 2", "Feature 3"],
+      "specifications": {"key": "value"},
+      "variants": [{"name": "Size/Option", "price": 0}],
+      "duration": "Service duration if applicable",
+      "availability": "Always/Limited/By appointment/etc",
+      "popular": false,
+      "featured": false,
+      "isService": true
+    }
+  ],
+  "packages": [
+    {
+      "name": "Package name",
       "description": "Full description",
-      "price": 1000,
-      "priceUnit": "per hour/item/project/etc",
-      "category": "Category",
-      "features": ["Feature 1", "Feature 2"],
+      "price": 199,
+      "originalPrice": 299,
+      "includes": ["Item 1", "Item 2"],
+      "duration": "Validity period",
       "popular": false
+    }
+  ],
+  "pricingTiers": [
+    {
+      "name": "Basic/Standard/Pro/Enterprise",
+      "price": 29,
+      "period": "monthly/yearly/one-time",
+      "features": ["Feature 1", "Feature 2"],
+      "limitations": ["Limit 1", "Limit 2"],
+      "recommended": false,
+      "savings": "Save 20%"
     }
   ],
   "team": [
     {
       "name": "Full name",
-      "role": "Title/Position",
-      "qualifications": ["Degree 1", "Certification 2"],
+      "role": "Title/Position/Designation",
+      "qualifications": ["Degree 1", "Certification 2", "License 3"],
       "specializations": ["Area 1", "Area 2"],
-      "experience": "Years or description",
-      "bio": "Brief bio"
+      "experience": "X years / description",
+      "bio": "Brief bio if found",
+      "image": "Image URL if found"
     }
   ],
   "testimonials": [
     {
-      "quote": "Exact customer quote",
+      "quote": "EXACT customer quote - preserve word-for-word",
       "author": "Customer name",
-      "role": "Title/Company",
-      "rating": 5
+      "role": "Title/Company/Location",
+      "rating": 5,
+      "productService": "What they reviewed"
     }
   ],
   "uniqueSellingPoints": [
-    "Specific competitive advantage 1",
-    "What makes them different 2",
-    "Key benefit 3"
+    "Specific competitive advantage",
+    "What makes them unique",
+    "Key differentiator"
   ],
-  "differentiators": [
-    "How they stand out from competitors"
-  ],
-  "processSteps": [
-    {"step": 1, "name": "Step name", "description": "What happens"}
-  ],
+  "differentiators": ["How they stand out from competitors"],
+  "processSteps": [{"step": 1, "name": "Step name", "description": "Details"}],
   "areasServed": ["City/Area 1", "City/Area 2"],
-  "clientTypes": ["Who they typically serve"],
-  "projectTypes": ["Types of work they do"],
-  "additionalServices": ["Secondary services offered"]
+  "clientTypes": ["Who they serve - residential/commercial/enterprise/etc"],
+  "projectTypes": ["Types of projects/work they do"],
+  "additionalServices": ["Secondary services not yet captured"],
+  "paymentOptions": ["Credit Card", "PayPal", "Financing", "etc"],
+  "guarantees": ["Money-back guarantee", "Satisfaction guarantee", "etc"]
 }
 
-Extract EVERY item you can find. Be thorough. Return ONLY valid JSON.`;
+IMPORTANT:
+- Extract EVERY product/service/package you can find
+- Include ALL pricing information - don't skip items without clear prices
+- For items with "Contact for price" or "Custom quote", set price to null but still include them
+- Preserve exact text for quotes and descriptions
+- Return ONLY valid JSON - no markdown, no explanation`;
 
   const response = await ai.models.generateContent({
     model: 'gemini-2.0-flash',
@@ -933,21 +1146,29 @@ function getIndustryExtractionContext(industry: string): string {
 function mergeExtractionResults(first: any, second: any): any {
   const merged = { ...first };
 
-  // Merge arrays - add unique items from second pass
-  const arrayFields = ['productsOrServices', 'team', 'testimonials', 'uniqueSellingPoints', 'differentiators'];
+  // Merge arrays with complex objects - add unique items from second pass
+  const arrayFields = ['productsOrServices', 'team', 'testimonials', 'uniqueSellingPoints', 'differentiators', 'packages', 'pricingTiers'];
 
   for (const field of arrayFields) {
     if (second[field]?.length > 0) {
       const existing = merged[field] || [];
       const existingNames = new Set(existing.map((item: any) =>
-        (item.name || item.quote || item)?.toLowerCase?.()
+        (item.name || item.quote || item.title || item)?.toLowerCase?.()
       ));
 
       for (const item of second[field]) {
-        const itemName = (item.name || item.quote || item)?.toLowerCase?.();
+        const itemName = (item.name || item.quote || item.title || item)?.toLowerCase?.();
         if (!existingNames.has(itemName)) {
           existing.push(item);
           existingNames.add(itemName);
+        } else if (item.price !== undefined) {
+          // If item exists but second pass has pricing, update with pricing
+          const existingItem = existing.find((e: any) =>
+            (e.name || e.quote || e.title || e)?.toLowerCase?.() === itemName
+          );
+          if (existingItem && existingItem.price === undefined) {
+            Object.assign(existingItem, item);
+          }
         }
       }
       merged[field] = existing;
@@ -955,7 +1176,7 @@ function mergeExtractionResults(first: any, second: any): any {
   }
 
   // Merge simple arrays
-  const simpleArrayFields = ['areasServed', 'clientTypes', 'projectTypes', 'additionalServices'];
+  const simpleArrayFields = ['areasServed', 'clientTypes', 'projectTypes', 'additionalServices', 'paymentOptions', 'guarantees'];
   for (const field of simpleArrayFields) {
     if (second[field]?.length > 0) {
       const existing = new Set(merged[field] || []);
@@ -966,9 +1187,31 @@ function mergeExtractionResults(first: any, second: any): any {
     }
   }
 
-  // Add new fields from second pass
+  // Add new fields from second pass if not present in first
   if (second.processSteps?.length > 0 && !merged.processSteps) {
     merged.processSteps = second.processSteps;
+  }
+
+  // Merge inventory if present in second pass
+  if (second.inventory) {
+    merged.inventory = merged.inventory || {};
+    const inventoryTypes = ['products', 'services', 'rooms', 'menuItems', 'properties', 'treatments', 'courses'];
+
+    for (const invType of inventoryTypes) {
+      if (second.inventory[invType]?.length > 0) {
+        const existing = merged.inventory[invType] || [];
+        const existingNames = new Set(existing.map((item: any) => item.name?.toLowerCase?.()));
+
+        for (const item of second.inventory[invType]) {
+          const itemName = item.name?.toLowerCase?.();
+          if (!existingNames.has(itemName)) {
+            existing.push(item);
+            existingNames.add(itemName);
+          }
+        }
+        merged.inventory[invType] = existing;
+      }
+    }
   }
 
   return merged;
@@ -1072,6 +1315,7 @@ function mapToAutoFilledProfile(
       deliveryZones: data.deliveryZones || undefined,
       internationalShipping: data.internationalShipping || undefined,
       socialMedia: Object.keys(socialMedia).length > 0 ? {
+        // Major social platforms
         instagram: socialMedia.instagram,
         facebook: socialMedia.facebook,
         linkedin: socialMedia.linkedin,
@@ -1079,8 +1323,43 @@ function mapToAutoFilledProfile(
         youtube: socialMedia.youtube,
         pinterest: socialMedia.pinterest,
         tiktok: socialMedia.tiktok,
-        whatsappBusiness: socialMedia.whatsappBusiness,
+        threads: socialMedia.threads,
+        snapchat: socialMedia.snapchat,
+        // Messaging
+        whatsappBusiness: socialMedia.whatsapp || socialMedia.whatsappBusiness,
+        telegram: socialMedia.telegram,
+        wechat: socialMedia.wechat,
+        line: socialMedia.line,
+        // Business & Reviews
         googleBusiness: socialMedia.googleBusiness,
+        yelp: socialMedia.yelp,
+        tripadvisor: socialMedia.tripadvisor,
+        trustpilot: socialMedia.trustpilot,
+        glassdoor: socialMedia.glassdoor,
+        // Food & Delivery
+        zomato: socialMedia.zomato,
+        swiggy: socialMedia.swiggy,
+        ubereats: socialMedia.ubereats,
+        doordash: socialMedia.doordash,
+        grubhub: socialMedia.grubhub,
+        opentable: socialMedia.opentable,
+        // Real Estate
+        zillow: socialMedia.zillow,
+        realtor: socialMedia.realtor,
+        trulia: socialMedia.trulia,
+        houzz: socialMedia.houzz,
+        redfin: socialMedia.redfin,
+        // Travel
+        booking: socialMedia.booking,
+        airbnb: socialMedia.airbnb,
+        expedia: socialMedia.expedia,
+        // Professional
+        github: socialMedia.github,
+        behance: socialMedia.behance,
+        dribbble: socialMedia.dribbble,
+        // Regional
+        vk: socialMedia.vk,
+        weibo: socialMedia.weibo,
       } : undefined,
       operatingHours,
       languages: data.languages,
@@ -1107,29 +1386,40 @@ function mapToAutoFilledProfile(
         description: item.description || '',
         shortDescription: item.shortDescription || undefined,
         category: item.category || undefined,
+        subcategory: item.subcategory || undefined,
         price: item.price || undefined,
+        priceMax: item.priceMax || undefined,
+        originalPrice: item.originalPrice || item.mrp || undefined,
         priceUnit: item.priceUnit || undefined,
         priceRange: item.priceRange || undefined,
+        currency: item.currency || undefined,
         duration: item.duration || undefined,
+        features: item.features || undefined,
+        specifications: item.specifications || undefined,
+        variants: item.variants || undefined,
         isService: item.isService ?? true,
         isPopular: item.isPopular || item.popular || false,
-        isFeatured: item.isFeatured || false,
+        isFeatured: item.isFeatured || item.featured || false,
         availability: item.availability || undefined,
       })) || [],
       packages: data.packages?.map((pkg: any) => ({
         name: pkg.name,
         description: pkg.description,
         price: pkg.price,
+        originalPrice: pkg.originalPrice || undefined,
         duration: pkg.duration,
         includes: pkg.includes || [],
-        isPopular: pkg.isPopular || false,
+        isPopular: pkg.isPopular || pkg.popular || false,
+        isFeatured: pkg.isFeatured || pkg.featured || false,
       })) || undefined,
       pricingTiers: data.pricingTiers?.map((tier: any) => ({
         name: tier.name,
         price: tier.price,
         period: tier.period,
         features: tier.features || [],
-        isRecommended: tier.isRecommended || false,
+        limitations: tier.limitations || undefined,
+        isRecommended: tier.isRecommended || tier.recommended || false,
+        savings: tier.savings || undefined,
       })) || undefined,
       currentOffers: data.currentOffers?.map((offer: any) => ({
         title: offer.title,
@@ -1144,10 +1434,11 @@ function mapToAutoFilledProfile(
         answer: faq.answer,
         category: faq.category || undefined,
       })) || [],
-      paymentMethods: data.paymentMethods || undefined,
+      paymentMethods: data.paymentMethods || data.paymentOptions || undefined,
       acceptedCards: data.acceptedCards || undefined,
       emiAvailable: data.emiAvailable || undefined,
       codAvailable: data.codAvailable || undefined,
+      guarantees: data.guarantees || undefined,
       policies: data.policies ? {
         returnPolicy: data.policies.returnPolicy,
         returnWindow: data.policies.returnWindow,

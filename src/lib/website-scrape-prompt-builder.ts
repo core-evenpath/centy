@@ -618,10 +618,30 @@ function buildExtractedDataSection(
     lines.push(`Email: ${contact.email}`);
   }
 
-  const socialPlatforms = ['instagram', 'facebook', 'twitter', 'linkedin', 'youtube', 'pinterest', 'tiktok'];
+  // All social/business platforms we extract
+  const socialPlatforms = [
+    // Major social
+    'instagram', 'facebook', 'twitter', 'linkedin', 'youtube', 'pinterest', 'tiktok', 'threads', 'snapchat',
+    // Messaging
+    'whatsapp', 'telegram', 'wechat', 'line',
+    // Business/Reviews
+    'googleBusiness', 'yelp', 'tripadvisor', 'trustpilot', 'glassdoor',
+    // Food/Delivery
+    'zomato', 'swiggy', 'ubereats', 'doordash', 'grubhub', 'opentable',
+    // Real Estate
+    'zillow', 'realtor', 'trulia', 'houzz', 'redfin',
+    // Travel
+    'booking', 'airbnb', 'expedia',
+    // Professional
+    'github', 'behance', 'dribbble',
+    // Regional
+    'vk', 'weibo',
+  ];
+
   for (const platform of socialPlatforms) {
     if (social[platform]) {
-      lines.push(`${platform.charAt(0).toUpperCase() + platform.slice(1)}: ${social[platform]}`);
+      const displayName = platform.charAt(0).toUpperCase() + platform.slice(1).replace(/([A-Z])/g, ' $1');
+      lines.push(`${displayName}: ${social[platform]}`);
     }
   }
 
