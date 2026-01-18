@@ -31,11 +31,10 @@ function getGeminiAI(): GoogleGenAI | null {
   }
 }
 
-// Google Places API key
+// Google Places API key (Note: GEMINI_API_KEY is NOT valid for Places API)
 const PLACES_API_KEY = process.env.GOOGLE_PLACES_API_KEY
   || process.env.GOOGLE_MAPS_API_KEY
-  || process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY
-  || process.env.GEMINI_API_KEY;
+  || process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
 
 // Industry mapping from Google Places types
 const PLACES_TYPE_TO_INDUSTRY: Record<string, IndustryCategory> = {
@@ -371,7 +370,7 @@ export async function searchPlacesAutocomplete(
     console.error('[AutoFill] No Places API key configured');
     return {
       results: [],
-      error: 'Google Places API key not configured. Please add GOOGLE_PLACES_API_KEY to your environment variables.',
+      error: 'Google Places API key not configured. Add GOOGLE_PLACES_API_KEY or GOOGLE_MAPS_API_KEY to your environment.',
       status: 'API_KEY_MISSING'
     };
   }

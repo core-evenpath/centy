@@ -29,18 +29,17 @@ export async function searchBusinessesAction(
 
     console.log('[AutoFill Action] Searching for:', query);
 
-    // Ensure we have an API key before attempting the search
+    // Ensure we have a Google Places/Maps API key (NOT Gemini - different API)
     const apiKey = process.env.GOOGLE_PLACES_API_KEY
       || process.env.GOOGLE_MAPS_API_KEY
-      || process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY
-      || process.env.GEMINI_API_KEY;
+      || process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
 
     if (!apiKey) {
       console.error('[AutoFill Action] No Google Places API key configured');
       return {
         success: false,
         results: [],
-        error: 'Google Places API key not configured. Please check your environment variables.',
+        error: 'Google Places API key not configured. Add GOOGLE_PLACES_API_KEY or GOOGLE_MAPS_API_KEY to your environment.',
         status: 'API_KEY_MISSING'
       };
     }

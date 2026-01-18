@@ -754,7 +754,9 @@ export default function ImportCenterPage() {
 
     setGoogleSearching(true);
     try {
+      console.log('[ImportCenter] Searching for:', value);
       const result = await searchBusinessesAction(value);
+      console.log('[ImportCenter] Search result:', { success: result.success, status: result.status, resultsCount: result.results?.length, error: result.error });
 
       if (!result.success) {
         setGoogleSearchError(result.error || 'Search failed');
@@ -765,9 +767,12 @@ export default function ImportCenterPage() {
         setGoogleSearchError(null);
       } else {
         setGoogleResults([]);
-        // Only show "no results" for actual empty results, not for errors
+        // Show feedback for empty results
         if (result.status === 'ZERO_RESULTS') {
           setGoogleSearchError('No businesses found. Try a different search term.');
+        } else if (result.status === 'OK') {
+          // API returned OK but no predictions
+          setGoogleSearchError('No matching businesses found. Try a more specific name or location.');
         }
       }
     } catch (err: any) {
