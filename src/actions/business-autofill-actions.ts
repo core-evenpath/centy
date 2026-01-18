@@ -28,6 +28,23 @@ export async function searchBusinessesAction(
     }
 
     console.log('[AutoFill Action] Searching for:', query);
+
+    // Ensure we have an API key before attempting the search
+    const apiKey = process.env.GOOGLE_PLACES_API_KEY
+      || process.env.GOOGLE_MAPS_API_KEY
+      || process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY
+      || process.env.GEMINI_API_KEY;
+
+    if (!apiKey) {
+      console.error('[AutoFill Action] No Google Places API key configured');
+      return {
+        success: false,
+        results: [],
+        error: 'Google Places API key not configured. Please check your environment variables.',
+        status: 'API_KEY_MISSING'
+      };
+    }
+
     const response = await searchPlacesAutocomplete(query);
 
     if (response.error) {
@@ -47,7 +64,19 @@ export async function searchBusinessesAction(
     };
   } catch (error: any) {
     console.error('[AutoFill Action] Search error:', error);
-    return { success: false, error: error.message || 'Search failed' };
+
+    // Handle Next.js wrapped errors
+    let errorMessage = 'Search failed';
+    if (error?.message) {
+      errorMessage = error.message;
+    } else if (error?.digest) {
+      // Next.js production error - provide a generic message
+      errorMessage = 'Search service temporarily unavailable. Please try again.';
+    } else if (typeof error === 'string') {
+      errorMessage = error;
+    }
+
+    return { success: false, error: errorMessage, status: 'INTERNAL_ERROR' };
   }
 }
 

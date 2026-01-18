@@ -10,9 +10,26 @@ import type { BusinessPersona, IndustryCategory } from './business-persona-types
 import { buildAutoFillPrompt } from './autofill-prompt-builder';
 import { detectCountryFromAddress, DEFAULT_COUNTRY } from './country-autofill-config';
 
-// Initialize Gemini
-const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_GENAI_API_KEY;
-const ai = new GoogleGenAI({ apiKey: apiKey });
+// Lazy initialization for Gemini to avoid module load errors when API key is missing
+let ai: GoogleGenAI | null = null;
+
+function getGeminiAI(): GoogleGenAI | null {
+  if (ai) return ai;
+
+  const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_GENAI_API_KEY;
+  if (!apiKey) {
+    console.warn('[AutoFill] Gemini API key not configured - AI features will be disabled');
+    return null;
+  }
+
+  try {
+    ai = new GoogleGenAI({ apiKey });
+    return ai;
+  } catch (error) {
+    console.error('[AutoFill] Failed to initialize Gemini AI:', error);
+    return null;
+  }
+}
 
 // Google Places API key
 const PLACES_API_KEY = process.env.GOOGLE_PLACES_API_KEY
@@ -751,7 +768,13 @@ export async function researchBusinessWithAI(
   try {
     console.log('[AutoFill] Researching business with AI...');
 
-    const response = await ai.models.generateContent({
+    const geminiAI = getGeminiAI();
+    if (!geminiAI) {
+      console.warn('[AutoFill] AI research skipped - Gemini API not available');
+      return {};
+    }
+
+    const response = await geminiAI.models.generateContent({
       model: 'gemini-2.0-flash',
       contents: prompt,
       config: {
