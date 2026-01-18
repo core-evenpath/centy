@@ -42,12 +42,14 @@ import { ReviewAccordionSection } from '../cards';
 import { ReviewFieldRow, ReviewProductRow, ReviewTestimonialRow } from '../rows';
 import {
   generateProfileTagsAction,
+} from '@/actions/profile-tags-actions';
+import {
   type SuggestedTag,
   type TagGroup,
   type TagInsight,
   type TagCategory,
   TAG_CATEGORY_META,
-} from '@/actions/profile-tags-actions';
+} from '@/lib/profile-tags-types';
 import type { MergeField, ImportedProduct, EnrichedTestimonial, AISuggestion, ImportCenterTab } from '../types';
 
 interface ApplyTabProps {
@@ -164,7 +166,7 @@ export function ApplyTab({
         name: p.name,
         category: p.category,
         description: p.description,
-        price: p.price,
+        price: p.pricing ? parseFloat(p.pricing.replace(/[^0-9.]/g, '')) : undefined,
         features: p.features,
       })),
       targetAudience: getFieldValue('targetAudience') as string[],
@@ -420,13 +422,12 @@ export function ApplyTab({
                 {tagInsights.map((insight, idx) => (
                   <div
                     key={idx}
-                    className={`flex items-start gap-3 p-3 rounded-xl text-sm ${
-                      insight.type === 'warning'
-                        ? 'bg-amber-50 border border-amber-200'
-                        : insight.type === 'opportunity'
+                    className={`flex items-start gap-3 p-3 rounded-xl text-sm ${insight.type === 'warning'
+                      ? 'bg-amber-50 border border-amber-200'
+                      : insight.type === 'opportunity'
                         ? 'bg-emerald-50 border border-emerald-200'
                         : 'bg-blue-50 border border-blue-200'
-                    }`}
+                      }`}
                   >
                     {insight.type === 'warning' ? (
                       <AlertTriangle className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
@@ -436,16 +437,14 @@ export function ApplyTab({
                       <Lightbulb className="w-4 h-4 text-blue-600 flex-shrink-0 mt-0.5" />
                     )}
                     <div className="flex-1">
-                      <p className={`font-medium ${
-                        insight.type === 'warning' ? 'text-amber-800' :
+                      <p className={`font-medium ${insight.type === 'warning' ? 'text-amber-800' :
                         insight.type === 'opportunity' ? 'text-emerald-800' : 'text-blue-800'
-                      }`}>
+                        }`}>
                         {insight.title}
                       </p>
-                      <p className={`mt-0.5 ${
-                        insight.type === 'warning' ? 'text-amber-700' :
+                      <p className={`mt-0.5 ${insight.type === 'warning' ? 'text-amber-700' :
                         insight.type === 'opportunity' ? 'text-emerald-700' : 'text-blue-700'
-                      }`}>
+                        }`}>
                         {insight.description}
                       </p>
                     </div>
@@ -553,7 +552,7 @@ export function ApplyTab({
                                   {isSelected && <CheckCircle2 className="w-3.5 h-3.5" />}
                                   {tag.tag}
                                   {tag.searchVolume === 'high' && (
-                                    <TrendingUp className="w-3 h-3 text-emerald-500" title="High search volume" />
+                                    <TrendingUp className="w-3 h-3 text-emerald-500" />
                                   )}
                                   {isSelected && (
                                     <X className="w-3.5 h-3.5 opacity-0 group-hover:opacity-100 transition-opacity" />
@@ -894,11 +893,10 @@ export function ApplyTab({
           <button
             onClick={handleApply}
             disabled={hasUnresolvedConflicts || isApplying}
-            className={`w-full sm:w-auto px-8 py-4 rounded-xl font-bold flex items-center justify-center gap-2 text-lg transition-all ${
-              hasUnresolvedConflicts
-                ? 'bg-white/30 text-white/70 cursor-not-allowed'
-                : 'bg-white text-indigo-700 hover:bg-indigo-50 shadow-xl hover:shadow-2xl'
-            }`}
+            className={`w-full sm:w-auto px-8 py-4 rounded-xl font-bold flex items-center justify-center gap-2 text-lg transition-all ${hasUnresolvedConflicts
+              ? 'bg-white/30 text-white/70 cursor-not-allowed'
+              : 'bg-white text-indigo-700 hover:bg-indigo-50 shadow-xl hover:shadow-2xl'
+              }`}
           >
             {isApplying ? (
               <>

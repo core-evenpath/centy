@@ -53,9 +53,9 @@ export function ReviewAccordionSection({
   return (
     <div className={`rounded-2xl border-2 overflow-hidden transition-all ${styles.border}`}>
       {/* Header Button */}
-      <button
+      <div
         onClick={onToggle}
-        className="w-full px-5 py-4 flex items-center justify-between hover:bg-slate-50/50 transition-colors"
+        className="w-full px-5 py-4 flex items-center justify-between hover:bg-slate-50/50 transition-colors cursor-pointer"
       >
         <div className="flex items-center gap-4">
           {/* Icon */}
@@ -99,14 +99,13 @@ export function ReviewAccordionSection({
             <Pencil className="w-4 h-4" /> Edit
           </button>
           <div
-            className={`w-8 h-8 rounded-lg flex items-center justify-center transition-transform ${
-              isExpanded ? 'rotate-180' : ''
-            }`}
+            className={`w-8 h-8 rounded-lg flex items-center justify-center transition-transform ${isExpanded ? 'rotate-180' : ''
+              }`}
           >
             <ChevronDown className="w-5 h-5 text-slate-400" />
           </div>
         </div>
-      </button>
+      </div>
 
       {/* Expanded Content */}
       {isExpanded && (
