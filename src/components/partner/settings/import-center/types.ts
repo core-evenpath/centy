@@ -18,12 +18,26 @@ export interface ImportedField<T = any> {
   verified?: boolean;
 }
 
+// Field category types (expanded for comprehensive data capture)
+export type FieldCategory =
+  | 'identity'      // Business name, tagline, description
+  | 'contact'       // Phone, email, address, hours
+  | 'social'        // Social media links
+  | 'brand'         // Mission, vision, story, values, USPs
+  | 'audience'      // Target audience, pain points, customer profile
+  | 'competitive'   // Differentiators, objection handlers
+  | 'credentials'   // Certifications, awards, accreditations
+  | 'team'          // Team members, key people
+  | 'industry'      // Industry-specific fields
+  | 'success'       // Case studies, key stats, notable clients
+  | 'knowledge';    // FAQs, policies
+
 // Merge field for conflict resolution
 export interface MergeField {
   key: string;              // e.g., "identity.tagline"
   label: string;
   icon?: LucideIcon;
-  category: 'identity' | 'contact' | 'industry' | 'social';
+  category: FieldCategory;
   critical?: boolean;       // Key field flag
   multiline?: boolean;
   googleValue: any | null;
@@ -147,9 +161,10 @@ export interface FieldDefinition {
   key: string;
   label: string;
   icon?: LucideIcon;
-  category: 'identity' | 'contact' | 'industry' | 'social';
+  category: FieldCategory;
   critical?: boolean;
   multiline?: boolean;
+  paths?: string[];  // Multiple paths to try when extracting value
 }
 
 // Category definition

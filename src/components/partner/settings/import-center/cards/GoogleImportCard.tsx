@@ -80,8 +80,8 @@ export function GoogleImportCard({
       <div className="p-5">
         {!imported ? (
           <div className="space-y-4">
-            {/* Search Input */}
-            <div className="relative">
+            {/* Search Input with Dropdown */}
+            <div className="relative z-10">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
               <input
                 type="text"
@@ -95,25 +95,25 @@ export function GoogleImportCard({
               )}
             </div>
 
-            {/* Search Results */}
+            {/* Search Results Dropdown */}
             {searchResults.length > 0 && !selectedPlace && (
-              <div className="space-y-2 max-h-48 overflow-y-auto">
+              <div className="absolute z-20 top-full left-0 right-0 mt-2 bg-white border border-slate-200 rounded-xl shadow-xl max-h-60 overflow-y-auto">
                 {searchResults.map((result, index) => (
                   <button
                     key={result.placeId || index}
                     onClick={() => onSelectPlace?.(result)}
-                    className="w-full p-3 bg-slate-50 rounded-xl border border-slate-200 hover:border-blue-300 hover:bg-blue-50 text-left transition-all"
+                    className="w-full text-left px-4 py-3 hover:bg-blue-50 border-b border-slate-100 last:border-b-0 transition-colors"
                   >
                     <div className="flex items-start gap-3">
-                      <div className="w-8 h-8 rounded-lg bg-slate-200 flex items-center justify-center flex-shrink-0">
-                        <Building2 className="w-4 h-4 text-slate-500" />
+                      <div className="w-8 h-8 rounded-lg bg-blue-100 flex items-center justify-center flex-shrink-0">
+                        <Building2 className="w-4 h-4 text-blue-600" />
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="font-medium text-slate-900 truncate">
-                          {result.name || result.description}
+                        <p className="font-semibold text-slate-900 truncate">
+                          {result.mainText || result.name || result.description}
                         </p>
                         <p className="text-xs text-slate-500 truncate">
-                          {result.formattedAddress || result.address}
+                          {result.secondaryText || result.formattedAddress || result.address}
                         </p>
                       </div>
                     </div>
@@ -124,20 +124,22 @@ export function GoogleImportCard({
 
             {/* Selected Place Preview */}
             {selectedPlace && (
-              <div className="p-4 bg-blue-50 rounded-xl border border-blue-200">
+              <div className="p-4 bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl border border-blue-200">
                 <div className="flex items-start gap-3">
-                  <div className="w-10 h-10 rounded-lg bg-blue-200 flex items-center justify-center">
-                    <Building2 className="w-5 h-5 text-blue-700" />
+                  <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center shadow-lg">
+                    <Building2 className="w-6 h-6 text-white" />
                   </div>
-                  <div className="flex-1">
-                    <p className="font-semibold text-slate-900">{selectedPlace.name}</p>
-                    <p className="text-sm text-slate-500">
-                      {selectedPlace.formattedAddress || selectedPlace.address}
+                  <div className="flex-1 min-w-0">
+                    <p className="font-bold text-slate-900 truncate">
+                      {selectedPlace.mainText || selectedPlace.name || selectedPlace.description}
+                    </p>
+                    <p className="text-sm text-slate-600 truncate">
+                      {selectedPlace.secondaryText || selectedPlace.formattedAddress || selectedPlace.address}
                     </p>
                     {selectedPlace.rating && (
-                      <div className="flex items-center gap-2 mt-1">
+                      <div className="flex items-center gap-2 mt-2">
                         <StarRating rating={Math.round(selectedPlace.rating)} />
-                        <span className="text-xs text-slate-600">
+                        <span className="text-xs text-slate-600 font-medium">
                           {selectedPlace.rating} ({selectedPlace.userRatingsTotal || 0} reviews)
                         </span>
                       </div>
@@ -145,7 +147,7 @@ export function GoogleImportCard({
                   </div>
                   <button
                     onClick={() => onSelectPlace?.(null)}
-                    className="p-1 text-slate-400 hover:text-slate-600"
+                    className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
                   >
                     <Trash2 className="w-4 h-4" />
                   </button>

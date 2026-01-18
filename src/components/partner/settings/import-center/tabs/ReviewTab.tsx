@@ -1,9 +1,23 @@
 'use client';
 
-import React from 'react';
-import { AlertTriangle, Building2, Phone, GraduationCap, Bot } from 'lucide-react';
+import React, { useMemo } from 'react';
+import {
+  AlertTriangle,
+  Building2,
+  Phone,
+  GraduationCap,
+  Bot,
+  Share2,
+  Heart,
+  Users,
+  Zap,
+  BadgeCheck,
+  Award,
+  FileText,
+  BookOpen,
+} from 'lucide-react';
 import { MergeFieldCard } from '../cards';
-import type { MergeField, FieldSource } from '../types';
+import type { MergeField, FieldSource, FieldCategory } from '../types';
 
 interface ReviewTabProps {
   mergeFields: MergeField[];
@@ -17,7 +31,23 @@ interface ReviewTabProps {
   onSaveEdit: (fieldKey: string) => void;
   onCancelEdit: () => void;
   aiScore?: number;
+  partnerIndustry?: string | null;
 }
+
+// Category configuration with icons and colors
+const CATEGORY_CONFIG: Record<FieldCategory, { label: string; icon: typeof Building2; color: string }> = {
+  identity: { label: 'Brand Identity', icon: Building2, color: 'bg-indigo-500' },
+  contact: { label: 'Contact & Location', icon: Phone, color: 'bg-blue-500' },
+  social: { label: 'Social Media', icon: Share2, color: 'bg-pink-500' },
+  brand: { label: 'Brand & Values', icon: Heart, color: 'bg-rose-500' },
+  audience: { label: 'Target Audience', icon: Users, color: 'bg-orange-500' },
+  competitive: { label: 'Competitive Intel', icon: Zap, color: 'bg-violet-500' },
+  credentials: { label: 'Credentials', icon: BadgeCheck, color: 'bg-emerald-500' },
+  team: { label: 'Team', icon: Users, color: 'bg-purple-500' },
+  industry: { label: 'Industry Specific', icon: GraduationCap, color: 'bg-cyan-500' },
+  success: { label: 'Success Metrics', icon: Award, color: 'bg-amber-500' },
+  knowledge: { label: 'Knowledge Base', icon: BookOpen, color: 'bg-slate-500' },
+};
 
 export function ReviewTab({
   mergeFields,
@@ -31,21 +61,53 @@ export function ReviewTab({
   onSaveEdit,
   onCancelEdit,
   aiScore = 78,
+  partnerIndustry,
 }: ReviewTabProps) {
-  const identityFields = mergeFields.filter((f) => f.category === 'identity');
-  const contactFields = mergeFields.filter((f) => f.category === 'contact');
-  const industryFields = mergeFields.filter((f) => f.category === 'industry');
+  // Group fields by category
+  const fieldsByCategory = useMemo(() => {
+    const grouped: Partial<Record<FieldCategory, MergeField[]>> = {};
+    mergeFields.forEach((field) => {
+      if (!grouped[field.category]) {
+        grouped[field.category] = [];
+      }
+      grouped[field.category]!.push(field);
+    });
+    return grouped;
+  }, [mergeFields]);
 
-  const categoryConfig = [
-    { key: 'identity', label: 'Brand Identity', icon: Building2, fields: identityFields },
-    { key: 'contact', label: 'Contact', icon: Phone, fields: contactFields },
-    { key: 'industry', label: 'Industry Metrics', icon: GraduationCap, fields: industryFields },
-  ];
+  // Get active categories (ones with fields)
+  const activeCategories = useMemo(() => {
+    return (Object.keys(CATEGORY_CONFIG) as FieldCategory[]).filter(
+      (cat) => fieldsByCategory[cat] && fieldsByCategory[cat]!.length > 0
+    );
+  }, [fieldsByCategory]);
+
+  // Calculate total stats
+  const totalFields = mergeFields.length;
+  const filledFields = mergeFields.filter((f) => f.finalValue).length;
+  const criticalFields = mergeFields.filter((f) => f.critical);
+  const criticalFilled = criticalFields.filter((f) => f.finalValue).length;
 
   return (
     <div className="grid lg:grid-cols-3 gap-6">
       {/* Main Content */}
       <div className="lg:col-span-2 space-y-4">
+        {/* Stats Bar */}
+        <div className="grid grid-cols-3 gap-4">
+          <div className="bg-white rounded-xl border p-4 text-center">
+            <p className="text-3xl font-bold text-slate-900">{totalFields}</p>
+            <p className="text-sm text-slate-500">Fields Found</p>
+          </div>
+          <div className="bg-white rounded-xl border p-4 text-center">
+            <p className="text-3xl font-bold text-emerald-600">{filledFields}</p>
+            <p className="text-sm text-slate-500">Filled</p>
+          </div>
+          <div className="bg-white rounded-xl border p-4 text-center">
+            <p className="text-3xl font-bold text-amber-600">{conflictCount}</p>
+            <p className="text-sm text-slate-500">Conflicts</p>
+          </div>
+        </div>
+
         {/* Conflict Progress Bar */}
         {conflictCount > 0 && (
           <div className="bg-amber-50 border-2 border-amber-200 rounded-2xl p-4 flex items-center justify-between">
@@ -72,25 +134,34 @@ export function ReviewTab({
           </div>
         )}
 
-        {/* Category Sections */}
-        {categoryConfig.map(({ key, label, icon: Icon, fields }) => {
-          if (!fields.length) return null;
-
+        {/* Dynamic Category Sections */}
+        {activeCategories.map((categoryKey) => {
+          const config = CATEGORY_CONFIG[categoryKey];
+          const fields = fieldsByCategory[categoryKey] || [];
+          const Icon = config.icon;
           const filledCount = fields.filter((f) => f.finalValue).length;
+          const hasConflicts = fields.some((f) => f.hasConflict);
 
           return (
-            <div key={key} className="bg-white rounded-2xl border overflow-hidden">
+            <div key={categoryKey} className="bg-white rounded-2xl border overflow-hidden">
               {/* Category Header */}
-              <div className="px-5 py-4 bg-slate-50 border-b flex items-center gap-3">
-                <div className="w-10 h-10 bg-white rounded-xl border flex items-center justify-center">
-                  <Icon className="w-5 h-5 text-slate-600" />
+              <div className="px-5 py-4 bg-slate-50 border-b flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className={`w-10 h-10 ${config.color} rounded-xl flex items-center justify-center`}>
+                    <Icon className="w-5 h-5 text-white" />
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-slate-900">{config.label}</h3>
+                    <p className="text-sm text-slate-500">
+                      {filledCount}/{fields.length} filled
+                    </p>
+                  </div>
                 </div>
-                <div>
-                  <h3 className="font-bold text-slate-900">{label}</h3>
-                  <p className="text-sm text-slate-500">
-                    {filledCount}/{fields.length} filled
-                  </p>
-                </div>
+                {hasConflicts && (
+                  <span className="px-2 py-1 bg-amber-100 text-amber-700 text-xs font-medium rounded-full">
+                    Has conflicts
+                  </span>
+                )}
               </div>
 
               {/* Fields */}
@@ -112,6 +183,15 @@ export function ReviewTab({
             </div>
           );
         })}
+
+        {/* Empty State */}
+        {activeCategories.length === 0 && (
+          <div className="bg-slate-50 rounded-2xl p-12 text-center">
+            <FileText className="w-12 h-12 text-slate-300 mx-auto mb-4" />
+            <h3 className="font-bold text-slate-900 mb-2">No fields found</h3>
+            <p className="text-slate-500">Import data from Google or your website first.</p>
+          </div>
+        )}
       </div>
 
       {/* Sidebar */}
@@ -130,6 +210,42 @@ export function ReviewTab({
             <span className="text-2xl text-white/70">/100</span>
           </div>
           <p className="text-sm text-white/70">Complete all fields to improve</p>
+        </div>
+
+        {/* Critical Fields Status */}
+        <div className="bg-white rounded-2xl border p-5">
+          <h3 className="font-bold text-slate-900 mb-3">Critical Fields</h3>
+          <div className="space-y-2">
+            {criticalFields.slice(0, 5).map((field) => (
+              <div key={field.key} className="flex items-center gap-2">
+                <div className={`w-2 h-2 rounded-full ${field.finalValue ? 'bg-emerald-500' : 'bg-slate-300'}`} />
+                <span className={`text-sm ${field.finalValue ? 'text-slate-700' : 'text-slate-400'}`}>
+                  {field.label}
+                </span>
+              </div>
+            ))}
+          </div>
+          <p className="text-xs text-slate-500 mt-3">
+            {criticalFilled}/{criticalFields.length} critical fields filled
+          </p>
+        </div>
+
+        {/* Category Overview */}
+        <div className="bg-white rounded-2xl border p-5">
+          <h3 className="font-bold text-slate-900 mb-3">Categories Found</h3>
+          <div className="space-y-2">
+            {activeCategories.map((cat) => {
+              const config = CATEGORY_CONFIG[cat];
+              const fields = fieldsByCategory[cat] || [];
+              const filled = fields.filter((f) => f.finalValue).length;
+              return (
+                <div key={cat} className="flex items-center justify-between">
+                  <span className="text-sm text-slate-600">{config.label}</span>
+                  <span className="text-xs text-slate-500">{filled}/{fields.length}</span>
+                </div>
+              );
+            })}
+          </div>
         </div>
       </div>
     </div>

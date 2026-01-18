@@ -138,11 +138,19 @@ export default function ImportCenterPage() {
   const [suggestions, setSuggestions] = useState<AISuggestion[]>([]);
   const [suggestionFilter, setSuggestionFilter] = useState<'all' | 'core' | 'products' | 'testimonials'>('all');
 
-  // Apply state
+  // Apply state - expanded sections for final review
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
     identity: true,
     contact: false,
+    social: false,
+    brand: false,
+    audience: false,
+    competitive: false,
+    credentials: false,
+    team: false,
     industry: false,
+    success: false,
+    knowledge: false,
     products: false,
     testimonials: false,
     suggestions: false,
@@ -202,63 +210,238 @@ export default function ImportCenterPage() {
       extractTestimonials();
       generateSuggestions();
     }
-  }, [googleRawData, websiteRawData, googleImported, websiteImported]);
+    // Also rebuild when industry changes (adds industry-specific fields)
+  }, [googleRawData, websiteRawData, googleImported, websiteImported, partnerIndustry]);
+
+  // Helper to extract value from multiple possible paths
+  const extractValue = (data: any, paths: string[]): any => {
+    if (!data) return null;
+    for (const path of paths) {
+      const val = getNestedValue(data, path);
+      if (val !== null && val !== undefined && val !== '' &&
+          !(Array.isArray(val) && val.length === 0) &&
+          !(typeof val === 'object' && Object.keys(val).length === 0)) {
+        return val;
+      }
+    }
+    return null;
+  };
 
   const buildMergeFields = () => {
+    // Comprehensive field definitions with multiple fallback paths
     const fieldDefinitions = [
-      { key: 'identity.businessName', label: 'Business Name', icon: Building2, critical: true, category: 'identity' as const },
-      { key: 'identity.legalName', label: 'Legal Name', icon: FileText, category: 'identity' as const },
-      { key: 'identity.tagline', label: 'Tagline', icon: Sparkles, critical: true, category: 'identity' as const },
-      { key: 'identity.description', label: 'Description', icon: FileText, critical: true, multiline: true, category: 'identity' as const },
-      { key: 'identity.mission', label: 'Mission', icon: Target, category: 'identity' as const },
-      { key: 'identity.founderStory', label: 'Founder Story', icon: BookOpen, category: 'identity' as const },
-      { key: 'contact.phone', label: 'Phone', icon: Phone, category: 'contact' as const },
-      { key: 'contact.email', label: 'Email', icon: Mail, category: 'contact' as const },
-      { key: 'contact.address', label: 'Address', icon: MapPin, category: 'contact' as const },
-      { key: 'contact.operatingHours', label: 'Hours', icon: Clock, category: 'contact' as const },
-      { key: 'industryMetrics.visaSuccessRate', label: 'Visa Success Rate', icon: BadgeCheck, critical: true, category: 'industry' as const },
-      { key: 'industryMetrics.studentsPlaced', label: 'Students Placed', icon: Users, critical: true, category: 'industry' as const },
-      { key: 'industryMetrics.universitiesPartnered', label: 'Universities', icon: GraduationCap, category: 'industry' as const },
-      { key: 'industryMetrics.countriesServed', label: 'Countries', icon: Flag, category: 'industry' as const },
+      // === IDENTITY ===
+      { key: 'identity.name', label: 'Business Name', icon: Building2, critical: true, category: 'identity' as const,
+        paths: ['identity.name', 'identity.businessName', 'businessName', 'name'] },
+      { key: 'identity.legalName', label: 'Legal Name', icon: FileText, category: 'identity' as const,
+        paths: ['identity.legalName', 'legalName'] },
+      { key: 'personality.tagline', label: 'Tagline', icon: Sparkles, critical: true, category: 'identity' as const,
+        paths: ['personality.tagline', 'identity.tagline', 'tagline'] },
+      { key: 'personality.description', label: 'Description', icon: FileText, critical: true, multiline: true, category: 'identity' as const,
+        paths: ['personality.description', 'identity.description', 'description', 'shortDescription'] },
+      { key: 'identity.industry', label: 'Industry', icon: Building2, category: 'identity' as const,
+        paths: ['identity.industry', 'industry'] },
+      { key: 'identity.yearEstablished', label: 'Year Established', icon: Clock, category: 'identity' as const,
+        paths: ['identity.yearEstablished', 'yearEstablished', 'personality.foundedYear', 'foundedYear'] },
+      { key: 'identity.languages', label: 'Languages', icon: Flag, category: 'identity' as const,
+        paths: ['identity.languages', 'languages', 'personality.languagePreference'] },
+
+      // === CONTACT ===
+      { key: 'identity.phone', label: 'Primary Phone', icon: Phone, critical: true, category: 'contact' as const,
+        paths: ['identity.phone', 'contact.primaryPhone', 'phone'] },
+      { key: 'identity.email', label: 'Primary Email', icon: Mail, critical: true, category: 'contact' as const,
+        paths: ['identity.email', 'contact.primaryEmail', 'email'] },
+      { key: 'identity.website', label: 'Website', icon: FileText, category: 'contact' as const,
+        paths: ['identity.website', 'website'] },
+      { key: 'identity.whatsAppNumber', label: 'WhatsApp', icon: Phone, category: 'contact' as const,
+        paths: ['identity.whatsAppNumber', 'identity.whatsapp', 'whatsapp'] },
+      { key: 'identity.address', label: 'Address', icon: MapPin, critical: true, category: 'contact' as const,
+        paths: ['identity.address', 'address'] },
+      { key: 'identity.operatingHours', label: 'Operating Hours', icon: Clock, category: 'contact' as const,
+        paths: ['identity.operatingHours', 'operatingHours'] },
+
+      // === SOCIAL MEDIA ===
+      { key: 'identity.socialMedia.instagram', label: 'Instagram', icon: FileText, category: 'social' as const,
+        paths: ['identity.socialMedia.instagram', 'socialMedia.instagram'] },
+      { key: 'identity.socialMedia.facebook', label: 'Facebook', icon: FileText, category: 'social' as const,
+        paths: ['identity.socialMedia.facebook', 'socialMedia.facebook'] },
+      { key: 'identity.socialMedia.linkedin', label: 'LinkedIn', icon: FileText, category: 'social' as const,
+        paths: ['identity.socialMedia.linkedin', 'socialMedia.linkedin'] },
+      { key: 'identity.socialMedia.twitter', label: 'Twitter/X', icon: FileText, category: 'social' as const,
+        paths: ['identity.socialMedia.twitter', 'socialMedia.twitter'] },
+      { key: 'identity.socialMedia.youtube', label: 'YouTube', icon: FileText, category: 'social' as const,
+        paths: ['identity.socialMedia.youtube', 'socialMedia.youtube'] },
+
+      // === BRAND & VALUES ===
+      { key: 'personality.missionStatement', label: 'Mission Statement', icon: Target, category: 'brand' as const,
+        paths: ['personality.missionStatement', 'missionStatement', 'mission'] },
+      { key: 'personality.visionStatement', label: 'Vision Statement', icon: Target, category: 'brand' as const,
+        paths: ['personality.visionStatement', 'visionStatement', 'vision'] },
+      { key: 'personality.story', label: 'Brand Story', icon: BookOpen, multiline: true, category: 'brand' as const,
+        paths: ['personality.story', 'story', 'founderStory', 'brandStory'] },
+      { key: 'personality.brandValues', label: 'Brand Values', icon: Flag, category: 'brand' as const,
+        paths: ['personality.brandValues', 'brandValues', 'values'] },
+      { key: 'personality.uniqueSellingPoints', label: 'USPs', icon: Sparkles, critical: true, category: 'brand' as const,
+        paths: ['personality.uniqueSellingPoints', 'uniqueSellingPoints', 'usps'] },
+      { key: 'personality.voiceTone', label: 'Brand Voice Tone', icon: FileText, category: 'brand' as const,
+        paths: ['personality.voiceTone', 'brandVoice.tone', 'voiceTone'] },
+
+      // === TARGET AUDIENCE ===
+      { key: 'customerProfile.targetAudience', label: 'Target Audience', icon: Users, category: 'audience' as const,
+        paths: ['customerProfile.targetAudience', 'targetAudience'] },
+      { key: 'customerProfile.customerPainPoints', label: 'Customer Pain Points', icon: Target, category: 'audience' as const,
+        paths: ['customerProfile.customerPainPoints', 'customerPainPoints', 'painPoints'] },
+      { key: 'customerProfile.idealCustomerProfile', label: 'Ideal Customer', icon: Users, category: 'audience' as const,
+        paths: ['customerProfile.idealCustomerProfile', 'idealCustomerProfile'] },
+      { key: 'customerProfile.ageGroup', label: 'Target Age Groups', icon: Users, category: 'audience' as const,
+        paths: ['customerProfile.ageGroup', 'targetAgeGroups', 'ageGroup'] },
+
+      // === COMPETITIVE INTEL ===
+      { key: 'customerProfile.differentiators', label: 'Key Differentiators', icon: Sparkles, category: 'competitive' as const,
+        paths: ['customerProfile.differentiators', 'differentiators', 'competitiveAdvantages'] },
+      { key: 'customerProfile.objectionHandlers', label: 'Objection Handlers', icon: Target, category: 'competitive' as const,
+        paths: ['customerProfile.objectionHandlers', 'objectionHandlers'] },
+
+      // === CREDENTIALS ===
+      { key: 'knowledge.certifications', label: 'Certifications', icon: BadgeCheck, category: 'credentials' as const,
+        paths: ['knowledge.certifications', 'certifications', 'industrySpecificData.certifications'] },
+      { key: 'knowledge.awards', label: 'Awards', icon: BadgeCheck, category: 'credentials' as const,
+        paths: ['knowledge.awards', 'awards', 'industrySpecificData.awards'] },
+      { key: 'knowledge.accreditations', label: 'Accreditations', icon: BadgeCheck, category: 'credentials' as const,
+        paths: ['knowledge.accreditations', 'accreditations', 'industrySpecificData.accreditations'] },
+
+      // === TEAM ===
+      { key: 'knowledge.teamMembers', label: 'Team Members', icon: Users, category: 'team' as const,
+        paths: ['knowledge.teamMembers', 'teamMembers', 'team'] },
+      { key: 'knowledge.keyPeople', label: 'Key People', icon: Users, category: 'team' as const,
+        paths: ['knowledge.keyPeople', 'keyPeople', 'leadership'] },
+
+      // === INDUSTRY SPECIFIC (dynamic based on partnerIndustry) ===
+      // Common industry fields
+      { key: 'industrySpecificData.specializations', label: 'Specializations', icon: GraduationCap, category: 'industry' as const,
+        paths: ['industrySpecificData.specializations', 'specializations'] },
+      { key: 'industrySpecificData.facilityType', label: 'Facility Type', icon: Building2, category: 'industry' as const,
+        paths: ['industrySpecificData.facilityType', 'facilityType'] },
+
+      // Healthcare specific
+      ...(partnerIndustry === 'healthcare' ? [
+        { key: 'industrySpecificData.treatmentsOffered', label: 'Treatments Offered', icon: GraduationCap, category: 'industry' as const,
+          paths: ['industrySpecificData.treatmentsOffered', 'treatmentsOffered'] },
+        { key: 'industrySpecificData.doctorCount', label: 'Number of Doctors', icon: Users, category: 'industry' as const,
+          paths: ['industrySpecificData.doctorCount', 'doctorCount'] },
+        { key: 'industrySpecificData.bedCount', label: 'Bed Capacity', icon: Building2, category: 'industry' as const,
+          paths: ['industrySpecificData.bedCount', 'bedCount'] },
+        { key: 'industrySpecificData.diagnosticServices', label: 'Diagnostic Services', icon: GraduationCap, category: 'industry' as const,
+          paths: ['industrySpecificData.diagnosticServices', 'diagnosticServices'] },
+        { key: 'industrySpecificData.emergencyServices', label: 'Emergency Services', icon: BadgeCheck, category: 'industry' as const,
+          paths: ['industrySpecificData.emergencyServices', 'emergencyServices'] },
+        { key: 'industrySpecificData.insuranceProviders', label: 'Insurance Partners', icon: BadgeCheck, category: 'industry' as const,
+          paths: ['industrySpecificData.insuranceProviders', 'insuranceProviders'] },
+      ] : []),
+
+      // Food & Beverage / Hospitality specific
+      ...(partnerIndustry === 'food_beverage' || partnerIndustry === 'hospitality' ? [
+        { key: 'industrySpecificData.cuisineTypes', label: 'Cuisine Types', icon: GraduationCap, category: 'industry' as const,
+          paths: ['industrySpecificData.cuisineTypes', 'cuisineTypes'] },
+        { key: 'industrySpecificData.dietaryOptions', label: 'Dietary Options', icon: GraduationCap, category: 'industry' as const,
+          paths: ['industrySpecificData.dietaryOptions', 'dietaryOptions'] },
+        { key: 'industrySpecificData.seatingCapacity', label: 'Seating Capacity', icon: Users, category: 'industry' as const,
+          paths: ['industrySpecificData.seatingCapacity', 'seatingCapacity'] },
+        { key: 'industrySpecificData.dineInAvailable', label: 'Dine-In Available', icon: Building2, category: 'industry' as const,
+          paths: ['industrySpecificData.dineInAvailable', 'dineInAvailable'] },
+        { key: 'industrySpecificData.deliveryAvailable', label: 'Delivery Available', icon: Building2, category: 'industry' as const,
+          paths: ['industrySpecificData.deliveryAvailable', 'deliveryAvailable'] },
+      ] : []),
+
+      // Education / Services specific
+      ...(partnerIndustry === 'education' || partnerIndustry === 'services' ? [
+        { key: 'industrySpecificData.coursesOffered', label: 'Courses Offered', icon: GraduationCap, category: 'industry' as const,
+          paths: ['industrySpecificData.coursesOffered', 'coursesOffered'] },
+        { key: 'industrySpecificData.facultyCount', label: 'Faculty Count', icon: Users, category: 'industry' as const,
+          paths: ['industrySpecificData.facultyCount', 'facultyCount'] },
+        { key: 'industrySpecificData.studentCount', label: 'Student Count', icon: Users, category: 'industry' as const,
+          paths: ['industrySpecificData.studentCount', 'studentCount'] },
+        { key: 'industrySpecificData.placementRate', label: 'Placement Rate', icon: BadgeCheck, category: 'industry' as const,
+          paths: ['industrySpecificData.placementRate', 'placementRate'] },
+      ] : []),
+
+      // Retail specific
+      ...(partnerIndustry === 'retail' ? [
+        { key: 'industrySpecificData.productCategories', label: 'Product Categories', icon: GraduationCap, category: 'industry' as const,
+          paths: ['industrySpecificData.productCategories', 'productCategories'] },
+        { key: 'industrySpecificData.brands', label: 'Brands Available', icon: Building2, category: 'industry' as const,
+          paths: ['industrySpecificData.brands', 'brands'] },
+        { key: 'industrySpecificData.storeSize', label: 'Store Size', icon: Building2, category: 'industry' as const,
+          paths: ['industrySpecificData.storeSize', 'storeSize'] },
+        { key: 'industrySpecificData.homeDelivery', label: 'Home Delivery', icon: Building2, category: 'industry' as const,
+          paths: ['industrySpecificData.homeDelivery', 'homeDelivery'] },
+        { key: 'industrySpecificData.returnPolicy', label: 'Return Policy', icon: FileText, category: 'industry' as const,
+          paths: ['industrySpecificData.returnPolicy', 'returnPolicy'] },
+      ] : []),
+
+      // Real Estate specific
+      ...(partnerIndustry === 'real_estate' ? [
+        { key: 'industrySpecificData.propertyTypes', label: 'Property Types', icon: Building2, category: 'industry' as const,
+          paths: ['industrySpecificData.propertyTypes', 'propertyTypes'] },
+        { key: 'industrySpecificData.serviceAreas', label: 'Service Areas', icon: MapPin, category: 'industry' as const,
+          paths: ['industrySpecificData.serviceAreas', 'serviceAreas'] },
+        { key: 'industrySpecificData.listingsCount', label: 'Active Listings', icon: Building2, category: 'industry' as const,
+          paths: ['industrySpecificData.listingsCount', 'listingsCount'] },
+        { key: 'industrySpecificData.reraRegistration', label: 'RERA Registration', icon: BadgeCheck, category: 'industry' as const,
+          paths: ['industrySpecificData.reraRegistration', 'reraRegistration'] },
+      ] : []),
+
+      // === SUCCESS METRICS ===
+      { key: 'knowledge.caseStudies', label: 'Case Studies', icon: FileText, category: 'success' as const,
+        paths: ['knowledge.caseStudies', 'caseStudies', 'successStories'] },
+      { key: 'knowledge.keyStats', label: 'Key Statistics', icon: BadgeCheck, category: 'success' as const,
+        paths: ['knowledge.keyStats', 'keyStats', 'statistics'] },
+      { key: 'industrySpecificData.notableClients', label: 'Notable Clients', icon: Users, category: 'success' as const,
+        paths: ['industrySpecificData.notableClients', 'notableClients', 'clients'] },
+
+      // === KNOWLEDGE/FAQ ===
+      { key: 'knowledge.faqs', label: 'FAQs', icon: FileText, category: 'knowledge' as const,
+        paths: ['knowledge.faqs', 'faqs', 'faq'] },
+      { key: 'knowledge.policies', label: 'Policies', icon: FileText, category: 'knowledge' as const,
+        paths: ['knowledge.policies', 'policies'] },
     ];
 
-    const fields: MergeField[] = fieldDefinitions.map((def) => {
-      // Try to get values from various paths in the raw data
-      const googleVal = googleRawData
-        ? getNestedValue(googleRawData, def.key) ||
-          getNestedValue(googleRawData, def.key.replace('identity.', '').replace('contact.', '').replace('industryMetrics.', ''))
-        : null;
-      const websiteVal = websiteRawData
-        ? getNestedValue(websiteRawData, def.key) ||
-          getNestedValue(websiteRawData, def.key.replace('identity.', '').replace('contact.', '').replace('industryMetrics.', ''))
-        : null;
+    const fields: MergeField[] = [];
 
-      const hasConflict = googleVal && websiteVal && JSON.stringify(googleVal) !== JSON.stringify(websiteVal);
+    fieldDefinitions.forEach((def) => {
+      const googleVal = extractValue(googleRawData, def.paths);
+      const websiteVal = extractValue(websiteRawData, def.paths);
 
-      let selectedSource: FieldSource = 'none';
-      let finalValue = null;
+      // Only add fields that have at least one value
+      if (googleVal || websiteVal) {
+        const hasConflict = googleVal && websiteVal && JSON.stringify(googleVal) !== JSON.stringify(websiteVal);
 
-      if (websiteVal) {
-        selectedSource = 'website';
-        finalValue = websiteVal;
-      } else if (googleVal) {
-        selectedSource = 'google';
-        finalValue = googleVal;
+        let selectedSource: FieldSource = 'none';
+        let finalValue = null;
+
+        // Prefer website value, then google
+        if (websiteVal) {
+          selectedSource = 'website';
+          finalValue = websiteVal;
+        } else if (googleVal) {
+          selectedSource = 'google';
+          finalValue = googleVal;
+        }
+
+        fields.push({
+          key: def.key,
+          label: def.label,
+          icon: def.icon,
+          category: def.category,
+          critical: def.critical,
+          multiline: def.multiline,
+          googleValue: googleVal,
+          websiteValue: websiteVal,
+          finalValue,
+          selectedSource,
+          hasConflict,
+        });
       }
-
-      return {
-        key: def.key,
-        label: def.label,
-        icon: def.icon,
-        category: def.category,
-        critical: def.critical,
-        multiline: def.multiline,
-        googleValue: googleVal,
-        websiteValue: websiteVal,
-        finalValue,
-        selectedSource,
-        hasConflict,
-      };
     });
 
     setMergeFields(fields);
@@ -468,13 +651,14 @@ export default function ImportCenterPage() {
         setGoogleImported(true);
 
         // Auto-save to Firestore
+        const placeName = selectedPlace.mainText || selectedPlace.name || selectedPlace.description;
         const importedDataUpdate = {
           importedData: {
             ...(persona.importedData || {}),
             google: {
               rawData: result.profile,
               importedAt: new Date().toISOString(),
-              placeName: selectedPlace.name,
+              placeName,
               placeId: selectedPlace.placeId,
             },
           },
@@ -483,7 +667,7 @@ export default function ImportCenterPage() {
             google: {
               lastImportedAt: new Date(),
               placeId: selectedPlace.placeId,
-              placeName: selectedPlace.name,
+              placeName,
               status: 'success' as const,
             },
           },
