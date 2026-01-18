@@ -290,23 +290,93 @@ export function discoverRelevantPages(baseUrl: string, html: string): string[] {
 }
 
 /**
- * Extract social media links from HTML
+ * Extract social media links from HTML - comprehensive patterns
  */
 function extractSocialLinks(html: string): Record<string, string> {
   const social: Record<string, string> = {};
 
-  const patterns: [string, RegExp][] = [
-    ['instagram', /href=["'](https?:\/\/(www\.)?instagram\.com\/[^"']+)["']/i],
-    ['facebook', /href=["'](https?:\/\/(www\.)?facebook\.com\/[^"']+)["']/i],
-    ['twitter', /href=["'](https?:\/\/(www\.)?(twitter\.com|x\.com)\/[^"']+)["']/i],
-    ['linkedin', /href=["'](https?:\/\/(www\.)?linkedin\.com\/(company|in)\/[^"']+)["']/i],
-    ['youtube', /href=["'](https?:\/\/(www\.)?youtube\.com\/(channel|c|user|@)\/[^"']+)["']/i],
+  // More comprehensive patterns with multiple variations
+  const patterns: [string, RegExp[]][] = [
+    ['instagram', [
+      /href=["'](https?:\/\/(www\.)?instagram\.com\/[a-zA-Z0-9_.]+\/?)[^"']*/i,
+      /instagram\.com\/([a-zA-Z0-9_.]+)/i,
+    ]],
+    ['facebook', [
+      /href=["'](https?:\/\/(www\.)?(facebook\.com|fb\.com)\/[a-zA-Z0-9.]+\/?)[^"']*/i,
+      /facebook\.com\/([a-zA-Z0-9.]+)/i,
+      /fb\.com\/([a-zA-Z0-9.]+)/i,
+    ]],
+    ['twitter', [
+      /href=["'](https?:\/\/(www\.)?(twitter\.com|x\.com)\/[a-zA-Z0-9_]+\/?)[^"']*/i,
+      /twitter\.com\/([a-zA-Z0-9_]+)/i,
+      /x\.com\/([a-zA-Z0-9_]+)/i,
+    ]],
+    ['linkedin', [
+      /href=["'](https?:\/\/(www\.)?linkedin\.com\/(company|in|school)\/[a-zA-Z0-9-]+\/?)[^"']*/i,
+      /linkedin\.com\/(company|in|school)\/([a-zA-Z0-9-]+)/i,
+    ]],
+    ['youtube', [
+      /href=["'](https?:\/\/(www\.)?youtube\.com\/(channel|c|user|@)[\/]?[a-zA-Z0-9_-]+\/?)[^"']*/i,
+      /href=["'](https?:\/\/(www\.)?youtube\.com\/@[a-zA-Z0-9_-]+\/?)[^"']*/i,
+      /youtube\.com\/(@?[a-zA-Z0-9_-]+)/i,
+    ]],
+    ['pinterest', [
+      /href=["'](https?:\/\/(www\.)?pinterest\.(com|co\.\w+)\/[a-zA-Z0-9_]+\/?)[^"']*/i,
+      /pinterest\.(com|co\.\w+)\/([a-zA-Z0-9_]+)/i,
+    ]],
+    ['tiktok', [
+      /href=["'](https?:\/\/(www\.)?tiktok\.com\/@[a-zA-Z0-9_.]+\/?)[^"']*/i,
+      /tiktok\.com\/@([a-zA-Z0-9_.]+)/i,
+    ]],
+    ['whatsapp', [
+      /href=["'](https?:\/\/(wa\.me|api\.whatsapp\.com|chat\.whatsapp\.com)\/[0-9+]+)[^"']*/i,
+      /wa\.me\/([0-9+]+)/i,
+      /whatsapp[^"']*[0-9]{10,}/i,
+    ]],
+    ['googleBusiness', [
+      /href=["'](https?:\/\/(www\.)?(google\.com\/maps|maps\.google\.com|g\.page|goo\.gl\/maps)[^"']+)["']/i,
+      /href=["'](https?:\/\/g\.page\/[^"']+)["']/i,
+    ]],
+    ['telegram', [
+      /href=["'](https?:\/\/(t\.me|telegram\.me)\/[a-zA-Z0-9_]+\/?)[^"']*/i,
+    ]],
+    ['yelp', [
+      /href=["'](https?:\/\/(www\.)?yelp\.(com|co\.\w+)\/biz\/[^"']+)["']/i,
+    ]],
+    ['tripadvisor', [
+      /href=["'](https?:\/\/(www\.)?tripadvisor\.(com|co\.\w+|in)\/[^"']+)["']/i,
+    ]],
+    ['zomato', [
+      /href=["'](https?:\/\/(www\.)?zomato\.com\/[^"']+)["']/i,
+    ]],
+    ['swiggy', [
+      /href=["'](https?:\/\/(www\.)?swiggy\.com\/[^"']+)["']/i,
+    ]],
   ];
 
-  for (const [platform, pattern] of patterns) {
-    const match = html.match(pattern);
-    if (match) {
-      social[platform] = match[1];
+  for (const [platform, regexList] of patterns) {
+    for (const pattern of regexList) {
+      const match = html.match(pattern);
+      if (match && match[1]) {
+        // Clean up the URL
+        let url = match[1];
+        // If it's just a username match, construct the full URL
+        if (!url.startsWith('http')) {
+          const baseUrls: Record<string, string> = {
+            instagram: 'https://instagram.com/',
+            facebook: 'https://facebook.com/',
+            twitter: 'https://twitter.com/',
+            youtube: 'https://youtube.com/',
+            pinterest: 'https://pinterest.com/',
+            tiktok: 'https://tiktok.com/@',
+          };
+          if (baseUrls[platform]) {
+            url = baseUrls[platform] + url;
+          }
+        }
+        social[platform] = url;
+        break; // Found a match, move to next platform
+      }
     }
   }
 
