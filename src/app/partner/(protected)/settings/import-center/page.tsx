@@ -992,7 +992,7 @@ export default function ImportCenterPage() {
   // APPLY TO PROFILE
   // ========================================
 
-  const handleApplyToProfile = async () => {
+  const handleApplyToProfile = async (selectedTags?: string[]) => {
     if (!partnerId) {
       toast.error('Partner ID not found');
       return;
@@ -1046,6 +1046,11 @@ export default function ImportCenterPage() {
         }));
       }
 
+      // Add AI-suggested tags
+      if (selectedTags && selectedTags.length > 0) {
+        updates.tags = selectedTags;
+      }
+
       // Add import metadata
       updates.importHistory = {
         ...persona.importHistory,
@@ -1054,6 +1059,7 @@ export default function ImportCenterPage() {
         appliedProducts: selectedProducts.length,
         appliedTestimonials: selectedTestimonials.length,
         appliedSuggestions: suggestions.filter((s) => s.applied).map((s) => s.id),
+        appliedTags: selectedTags?.length || 0,
       };
 
       // Also use AI-powered transformation if available
