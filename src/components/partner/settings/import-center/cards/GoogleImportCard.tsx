@@ -81,8 +81,8 @@ export function GoogleImportCard({
         {!imported ? (
           <div className="space-y-4">
             {/* Search Input with Dropdown */}
-            <div className="relative z-10">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 z-10" />
               <input
                 type="text"
                 value={searchValue}
@@ -91,36 +91,36 @@ export function GoogleImportCard({
                 className="w-full pl-11 pr-4 py-3.5 rounded-xl border-2 border-slate-200 bg-slate-50 focus:bg-white focus:border-blue-400 outline-none text-sm"
               />
               {searching && (
-                <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 animate-spin" />
+                <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 animate-spin z-10" />
+              )}
+
+              {/* Search Results Dropdown - inside the relative container */}
+              {searchResults.length > 0 && !selectedPlace && (
+                <div className="absolute z-50 top-full left-0 right-0 mt-2 bg-white border border-slate-200 rounded-xl shadow-xl max-h-60 overflow-y-auto">
+                  {searchResults.map((result, index) => (
+                    <button
+                      key={result.placeId || index}
+                      onClick={() => onSelectPlace?.(result)}
+                      className="w-full text-left px-4 py-3 hover:bg-blue-50 border-b border-slate-100 last:border-b-0 transition-colors"
+                    >
+                      <div className="flex items-start gap-3">
+                        <div className="w-8 h-8 rounded-lg bg-blue-100 flex items-center justify-center flex-shrink-0">
+                          <Building2 className="w-4 h-4 text-blue-600" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="font-semibold text-slate-900 truncate">
+                            {result.mainText || result.name || result.description}
+                          </p>
+                          <p className="text-xs text-slate-500 truncate">
+                            {result.secondaryText || result.formattedAddress || result.address}
+                          </p>
+                        </div>
+                      </div>
+                    </button>
+                  ))}
+                </div>
               )}
             </div>
-
-            {/* Search Results Dropdown */}
-            {searchResults.length > 0 && !selectedPlace && (
-              <div className="absolute z-20 top-full left-0 right-0 mt-2 bg-white border border-slate-200 rounded-xl shadow-xl max-h-60 overflow-y-auto">
-                {searchResults.map((result, index) => (
-                  <button
-                    key={result.placeId || index}
-                    onClick={() => onSelectPlace?.(result)}
-                    className="w-full text-left px-4 py-3 hover:bg-blue-50 border-b border-slate-100 last:border-b-0 transition-colors"
-                  >
-                    <div className="flex items-start gap-3">
-                      <div className="w-8 h-8 rounded-lg bg-blue-100 flex items-center justify-center flex-shrink-0">
-                        <Building2 className="w-4 h-4 text-blue-600" />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="font-semibold text-slate-900 truncate">
-                          {result.mainText || result.name || result.description}
-                        </p>
-                        <p className="text-xs text-slate-500 truncate">
-                          {result.secondaryText || result.formattedAddress || result.address}
-                        </p>
-                      </div>
-                    </div>
-                  </button>
-                ))}
-              </div>
-            )}
 
             {/* Selected Place Preview */}
             {selectedPlace && (

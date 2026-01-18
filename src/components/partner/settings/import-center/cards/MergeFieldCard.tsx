@@ -6,6 +6,49 @@ import { SourceBadge } from '../badges';
 import type { MergeField, FieldSource } from '../types';
 import type { LucideIcon } from 'lucide-react';
 
+// Helper to format any value for display
+function formatDisplayValue(value: any): string {
+  if (value === null || value === undefined) return '';
+  if (typeof value === 'string') return value;
+  if (typeof value === 'number') return value.toString();
+  if (typeof value === 'boolean') return value ? 'Yes' : 'No';
+  if (Array.isArray(value)) {
+    if (value.length === 0) return '';
+    // If array of objects, format each
+    if (typeof value[0] === 'object') {
+      return value.map(item => formatDisplayValue(item)).join('; ');
+    }
+    return value.join(', ');
+  }
+  if (typeof value === 'object') {
+    // Handle address objects
+    if (value.street || value.city || value.line1) {
+      const parts = [
+        value.street || value.line1,
+        value.area,
+        value.city,
+        value.state,
+        value.country,
+        value.pincode || value.postalCode || value.zip
+      ].filter(Boolean);
+      return parts.join(', ');
+    }
+    // Handle operating hours
+    if (value.isOpen24x7 !== undefined) {
+      return value.isOpen24x7 ? 'Open 24/7' : 'Custom hours';
+    }
+    // Handle other objects - try to make a readable string
+    try {
+      const entries = Object.entries(value).filter(([_, v]) => v !== null && v !== undefined && v !== '');
+      if (entries.length === 0) return '';
+      return entries.map(([k, v]) => `${k}: ${formatDisplayValue(v)}`).join(', ');
+    } catch {
+      return JSON.stringify(value);
+    }
+  }
+  return String(value);
+}
+
 interface MergeFieldCardProps {
   field: MergeField;
   onSelectSource: (source: FieldSource) => void;
@@ -28,9 +71,9 @@ export function MergeFieldCard({
   onCancelEdit,
 }: MergeFieldCardProps) {
   const Icon = field.icon || FileText;
-  const displayValue = Array.isArray(field.finalValue)
-    ? field.finalValue.join(', ')
-    : field.finalValue;
+  const displayValue = formatDisplayValue(field.finalValue);
+  const googleDisplayValue = formatDisplayValue(field.googleValue);
+  const websiteDisplayValue = formatDisplayValue(field.websiteValue);
 
   return (
     <div
@@ -157,9 +200,7 @@ export function MergeFieldCard({
                   )}
                 </div>
                 <p className="text-sm text-slate-700 line-clamp-2">
-                  {Array.isArray(field.googleValue)
-                    ? field.googleValue.join(', ')
-                    : field.googleValue}
+                  {googleDisplayValue || 'No value'}
                 </p>
               </button>
 
@@ -179,9 +220,7 @@ export function MergeFieldCard({
                   )}
                 </div>
                 <p className="text-sm text-slate-700 line-clamp-2">
-                  {Array.isArray(field.websiteValue)
-                    ? field.websiteValue.join(', ')
-                    : field.websiteValue}
+                  {websiteDisplayValue || 'No value'}
                 </p>
               </button>
             </div>
