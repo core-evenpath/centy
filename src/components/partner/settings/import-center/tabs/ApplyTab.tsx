@@ -18,10 +18,36 @@ import {
   Sparkles,
   RefreshCw,
   X,
+  Plus,
+  ChevronDown,
+  ChevronRight,
+  TrendingUp,
+  Target,
+  Zap,
+  Users,
+  MapPin,
+  Gift,
+  DollarSign,
+  Award,
+  Clock,
+  ShieldCheck,
+  Cpu,
+  Compass,
+  Star,
+  Briefcase,
+  Info,
+  Search,
 } from 'lucide-react';
 import { ReviewAccordionSection } from '../cards';
 import { ReviewFieldRow, ReviewProductRow, ReviewTestimonialRow } from '../rows';
-import { generateProfileTagsAction, type SuggestedTag } from '@/actions/profile-tags-actions';
+import {
+  generateProfileTagsAction,
+  type SuggestedTag,
+  type TagGroup,
+  type TagInsight,
+  type TagCategory,
+  TAG_CATEGORY_META,
+} from '@/actions/profile-tags-actions';
 import type { MergeField, ImportedProduct, EnrichedTestimonial, AISuggestion, ImportCenterTab } from '../types';
 
 interface ApplyTabProps {
@@ -38,15 +64,48 @@ interface ApplyTabProps {
   onApply: (selectedTags?: string[]) => void;
 }
 
-// Tag category colors
-const tagCategoryColors: Record<string, { bg: string; text: string; border: string }> = {
-  industry: { bg: 'bg-blue-50', text: 'text-blue-700', border: 'border-blue-200' },
-  service: { bg: 'bg-emerald-50', text: 'text-emerald-700', border: 'border-emerald-200' },
-  specialty: { bg: 'bg-purple-50', text: 'text-purple-700', border: 'border-purple-200' },
-  audience: { bg: 'bg-amber-50', text: 'text-amber-700', border: 'border-amber-200' },
-  location: { bg: 'bg-rose-50', text: 'text-rose-700', border: 'border-rose-200' },
-  feature: { bg: 'bg-cyan-50', text: 'text-cyan-700', border: 'border-cyan-200' },
-  benefit: { bg: 'bg-indigo-50', text: 'text-indigo-700', border: 'border-indigo-200' },
+// Category icons mapping
+const categoryIcons: Record<TagCategory, React.ElementType> = {
+  industry: Building2,
+  service: Briefcase,
+  product: Package,
+  specialty: Star,
+  audience: Users,
+  location: MapPin,
+  feature: Zap,
+  benefit: Gift,
+  pricing: DollarSign,
+  quality: Award,
+  experience: Clock,
+  certification: ShieldCheck,
+  technology: Cpu,
+  methodology: Compass,
+};
+
+// Tag category colors - more variety
+const tagCategoryColors: Record<TagCategory, { bg: string; text: string; border: string; badge: string }> = {
+  industry: { bg: 'bg-blue-50', text: 'text-blue-700', border: 'border-blue-200', badge: 'bg-blue-100' },
+  service: { bg: 'bg-emerald-50', text: 'text-emerald-700', border: 'border-emerald-200', badge: 'bg-emerald-100' },
+  product: { bg: 'bg-teal-50', text: 'text-teal-700', border: 'border-teal-200', badge: 'bg-teal-100' },
+  specialty: { bg: 'bg-purple-50', text: 'text-purple-700', border: 'border-purple-200', badge: 'bg-purple-100' },
+  audience: { bg: 'bg-amber-50', text: 'text-amber-700', border: 'border-amber-200', badge: 'bg-amber-100' },
+  location: { bg: 'bg-rose-50', text: 'text-rose-700', border: 'border-rose-200', badge: 'bg-rose-100' },
+  feature: { bg: 'bg-cyan-50', text: 'text-cyan-700', border: 'border-cyan-200', badge: 'bg-cyan-100' },
+  benefit: { bg: 'bg-indigo-50', text: 'text-indigo-700', border: 'border-indigo-200', badge: 'bg-indigo-100' },
+  pricing: { bg: 'bg-lime-50', text: 'text-lime-700', border: 'border-lime-200', badge: 'bg-lime-100' },
+  quality: { bg: 'bg-orange-50', text: 'text-orange-700', border: 'border-orange-200', badge: 'bg-orange-100' },
+  experience: { bg: 'bg-slate-50', text: 'text-slate-700', border: 'border-slate-200', badge: 'bg-slate-100' },
+  certification: { bg: 'bg-green-50', text: 'text-green-700', border: 'border-green-200', badge: 'bg-green-100' },
+  technology: { bg: 'bg-violet-50', text: 'text-violet-700', border: 'border-violet-200', badge: 'bg-violet-100' },
+  methodology: { bg: 'bg-fuchsia-50', text: 'text-fuchsia-700', border: 'border-fuchsia-200', badge: 'bg-fuchsia-100' },
+};
+
+// Importance badge colors
+const importanceBadgeColors = {
+  critical: 'bg-red-100 text-red-700',
+  high: 'bg-orange-100 text-orange-700',
+  medium: 'bg-yellow-100 text-yellow-700',
+  low: 'bg-slate-100 text-slate-600',
 };
 
 export function ApplyTab({
@@ -63,10 +122,17 @@ export function ApplyTab({
   onApply,
 }: ApplyTabProps) {
   const [suggestedTags, setSuggestedTags] = useState<SuggestedTag[]>([]);
+  const [tagGroups, setTagGroups] = useState<TagGroup[]>([]);
+  const [tagInsights, setTagInsights] = useState<TagInsight[]>([]);
   const [selectedTags, setSelectedTags] = useState<Set<string>>(new Set());
+  const [customTags, setCustomTags] = useState<string[]>([]);
+  const [newCustomTag, setNewCustomTag] = useState('');
   const [isGeneratingTags, setIsGeneratingTags] = useState(false);
   const [tagsError, setTagsError] = useState<string | null>(null);
   const [tagsGenerated, setTagsGenerated] = useState(false);
+  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set(['industry', 'service', 'audience']));
+  const [showAllGroups, setShowAllGroups] = useState(false);
+  const [hoveredTag, setHoveredTag] = useState<string | null>(null);
 
   const identityFields = mergeFields.filter((f) => f.category === 'identity');
   const contactFields = mergeFields.filter((f) => f.category === 'contact');
@@ -92,24 +158,33 @@ export function ApplyTab({
       description: getFieldValue('description') as string,
       shortDescription: getFieldValue('shortDescription') as string,
       tagline: getFieldValue('tagline') as string,
+      missionStatement: getFieldValue('missionStatement') as string,
       services: (getFieldValue('services') || getFieldValue('productsOrServices')) as string[],
       products: selectedProducts.map(p => ({
         name: p.name,
         category: p.category,
         description: p.description,
+        price: p.price,
+        features: p.features,
       })),
       targetAudience: getFieldValue('targetAudience') as string[],
       uniqueSellingPoints: getFieldValue('uniqueSellingPoints') as string[],
       specializations: getFieldValue('specializations') as string[],
       differentiators: getFieldValue('differentiators') as string[],
       areasServed: getFieldValue('areasServed') as string[],
+      brandValues: getFieldValue('brandValues') as string[],
       location: {
         city: getFieldValue('address.city') as string,
         state: getFieldValue('address.state') as string,
         country: getFieldValue('address.country') as string,
       },
+      testimonials: selectedTestimonials.map(t => ({
+        quote: t.quote,
+        rating: t.rating,
+      })),
+      yearEstablished: getFieldValue('yearEstablished') as number,
     };
-  }, [mergeFields, selectedProducts]);
+  }, [mergeFields, selectedProducts, selectedTestimonials]);
 
   // Generate tags
   const handleGenerateTags = useCallback(async () => {
@@ -122,12 +197,21 @@ export function ApplyTab({
 
       if (result.success && result.tags) {
         setSuggestedTags(result.tags);
+        setTagGroups(result.groups || []);
+        setTagInsights(result.insights || []);
+
         // Auto-select high confidence tags
         const autoSelected = new Set(
-          result.tags.filter(t => t.confidence >= 0.8).map(t => t.tag)
+          result.tags.filter(t => t.confidence >= 0.85).map(t => t.tag)
         );
         setSelectedTags(autoSelected);
         setTagsGenerated(true);
+
+        // Expand groups with selected tags
+        const groupsWithSelected = new Set(
+          result.tags.filter(t => t.confidence >= 0.85).map(t => t.category)
+        );
+        setExpandedGroups(prev => new Set([...prev, ...groupsWithSelected]));
       } else {
         setTagsError(result.error || 'Failed to generate tags');
       }
@@ -158,10 +242,48 @@ export function ApplyTab({
     });
   };
 
+  // Toggle group expansion
+  const toggleGroup = (category: string) => {
+    setExpandedGroups(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(category)) {
+        newSet.delete(category);
+      } else {
+        newSet.add(category);
+      }
+      return newSet;
+    });
+  };
+
+  // Add custom tag
+  const handleAddCustomTag = () => {
+    const tag = newCustomTag.toLowerCase().trim();
+    if (tag && !customTags.includes(tag) && !suggestedTags.some(t => t.tag === tag)) {
+      setCustomTags(prev => [...prev, tag]);
+      setSelectedTags(prev => new Set([...prev, tag]));
+      setNewCustomTag('');
+    }
+  };
+
+  // Remove custom tag
+  const removeCustomTag = (tag: string) => {
+    setCustomTags(prev => prev.filter(t => t !== tag));
+    setSelectedTags(prev => {
+      const newSet = new Set(prev);
+      newSet.delete(tag);
+      return newSet;
+    });
+  };
+
   // Handle apply with tags
   const handleApply = () => {
     onApply(Array.from(selectedTags));
   };
+
+  // Get visible groups based on showAllGroups
+  const visibleGroups = showAllGroups
+    ? tagGroups
+    : tagGroups.filter(g => g.importance === 'critical' || g.importance === 'high' || expandedGroups.has(g.category));
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
@@ -210,140 +332,360 @@ export function ApplyTab({
         </div>
       </div>
 
-      {/* AI Suggested Tags Section */}
-      <div className="bg-white rounded-2xl border p-5">
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-gradient-to-br from-violet-500 to-purple-600 rounded-xl flex items-center justify-center">
-              <Tags className="w-5 h-5 text-white" />
+      {/* AI Suggested Tags Section - Enhanced */}
+      <div className="bg-white rounded-2xl border shadow-sm overflow-hidden">
+        {/* Header */}
+        <div className="p-5 border-b bg-gradient-to-r from-violet-50 to-purple-50">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 bg-gradient-to-br from-violet-500 to-purple-600 rounded-xl flex items-center justify-center shadow-lg">
+                <Tags className="w-6 h-6 text-white" />
+              </div>
+              <div>
+                <h3 className="font-bold text-lg text-slate-900 flex items-center gap-2">
+                  AI Suggested Tags
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-violet-100 text-violet-700 text-xs rounded-full font-medium">
+                    <Sparkles className="w-3 h-3" /> AI Powered
+                  </span>
+                </h3>
+                <p className="text-sm text-slate-500">
+                  Strategic tags to improve discoverability and AI accuracy
+                </p>
+              </div>
             </div>
-            <div>
-              <h3 className="font-bold text-slate-900 flex items-center gap-2">
-                AI Suggested Tags
-                <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-violet-100 text-violet-700 text-xs rounded-full font-medium">
-                  <Sparkles className="w-3 h-3" /> AI
-                </span>
-              </h3>
-              <p className="text-sm text-slate-500">
-                Tags help categorize your business and improve AI responses
-              </p>
-            </div>
+            <button
+              onClick={handleGenerateTags}
+              disabled={isGeneratingTags}
+              className="p-2.5 text-violet-600 hover:bg-violet-100 rounded-xl transition-colors disabled:opacity-50 border border-violet-200"
+              title="Regenerate tags"
+            >
+              <RefreshCw className={`w-5 h-5 ${isGeneratingTags ? 'animate-spin' : ''}`} />
+            </button>
           </div>
-          <button
-            onClick={handleGenerateTags}
-            disabled={isGeneratingTags}
-            className="p-2 text-slate-500 hover:text-violet-600 hover:bg-violet-50 rounded-lg transition-colors disabled:opacity-50"
-            title="Regenerate tags"
-          >
-            <RefreshCw className={`w-5 h-5 ${isGeneratingTags ? 'animate-spin' : ''}`} />
-          </button>
+
+          {/* Quick Stats */}
+          {suggestedTags.length > 0 && (
+            <div className="flex items-center gap-4 mt-4 text-sm">
+              <span className="flex items-center gap-1.5 text-violet-700">
+                <CheckCircle2 className="w-4 h-4" />
+                <strong>{selectedTags.size}</strong> selected
+              </span>
+              <span className="text-slate-400">|</span>
+              <span className="text-slate-600">
+                {suggestedTags.length} AI suggestions
+              </span>
+              {customTags.length > 0 && (
+                <>
+                  <span className="text-slate-400">|</span>
+                  <span className="text-slate-600">
+                    {customTags.length} custom
+                  </span>
+                </>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Loading State */}
         {isGeneratingTags && (
-          <div className="flex items-center justify-center py-8">
-            <div className="flex items-center gap-3 text-violet-600">
-              <Loader2 className="w-5 h-5 animate-spin" />
-              <span className="text-sm font-medium">Analyzing profile and generating tags...</span>
+          <div className="flex flex-col items-center justify-center py-12">
+            <div className="w-16 h-16 bg-violet-100 rounded-2xl flex items-center justify-center mb-4">
+              <Loader2 className="w-8 h-8 text-violet-600 animate-spin" />
             </div>
+            <p className="text-sm font-medium text-violet-700 mb-1">Analyzing your business profile...</p>
+            <p className="text-xs text-slate-500">Generating strategic tags based on your data</p>
           </div>
         )}
 
         {/* Error State */}
         {tagsError && !isGeneratingTags && (
-          <div className="flex items-center gap-3 py-4 px-4 bg-red-50 rounded-xl text-red-700">
-            <AlertTriangle className="w-5 h-5 flex-shrink-0" />
-            <span className="text-sm">{tagsError}</span>
+          <div className="m-5 flex items-center gap-3 py-4 px-4 bg-red-50 rounded-xl border border-red-200">
+            <AlertTriangle className="w-5 h-5 text-red-500 flex-shrink-0" />
+            <span className="text-sm text-red-700">{tagsError}</span>
             <button
               onClick={handleGenerateTags}
-              className="ml-auto text-sm font-medium hover:underline"
+              className="ml-auto px-3 py-1.5 text-sm font-medium text-red-700 hover:bg-red-100 rounded-lg transition-colors"
             >
               Retry
             </button>
           </div>
         )}
 
-        {/* Tags Display */}
+        {/* Tags Content */}
         {!isGeneratingTags && suggestedTags.length > 0 && (
-          <div className="space-y-4">
-            {/* Selected count */}
-            <div className="flex items-center justify-between text-sm">
-              <span className="text-slate-500">
-                {selectedTags.size} of {suggestedTags.length} tags selected
-              </span>
+          <div className="p-5 space-y-5">
+            {/* Insights Panel */}
+            {tagInsights.length > 0 && (
+              <div className="space-y-2">
+                {tagInsights.map((insight, idx) => (
+                  <div
+                    key={idx}
+                    className={`flex items-start gap-3 p-3 rounded-xl text-sm ${
+                      insight.type === 'warning'
+                        ? 'bg-amber-50 border border-amber-200'
+                        : insight.type === 'opportunity'
+                        ? 'bg-emerald-50 border border-emerald-200'
+                        : 'bg-blue-50 border border-blue-200'
+                    }`}
+                  >
+                    {insight.type === 'warning' ? (
+                      <AlertTriangle className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
+                    ) : insight.type === 'opportunity' ? (
+                      <TrendingUp className="w-4 h-4 text-emerald-600 flex-shrink-0 mt-0.5" />
+                    ) : (
+                      <Lightbulb className="w-4 h-4 text-blue-600 flex-shrink-0 mt-0.5" />
+                    )}
+                    <div className="flex-1">
+                      <p className={`font-medium ${
+                        insight.type === 'warning' ? 'text-amber-800' :
+                        insight.type === 'opportunity' ? 'text-emerald-800' : 'text-blue-800'
+                      }`}>
+                        {insight.title}
+                      </p>
+                      <p className={`mt-0.5 ${
+                        insight.type === 'warning' ? 'text-amber-700' :
+                        insight.type === 'opportunity' ? 'text-emerald-700' : 'text-blue-700'
+                      }`}>
+                        {insight.description}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Quick Actions */}
+            <div className="flex items-center justify-between text-sm border-b pb-4">
               <div className="flex gap-2">
                 <button
-                  onClick={() => setSelectedTags(new Set(suggestedTags.map(t => t.tag)))}
-                  className="text-violet-600 hover:underline"
+                  onClick={() => setSelectedTags(new Set([...suggestedTags.map(t => t.tag), ...customTags]))}
+                  className="px-3 py-1.5 text-violet-600 hover:bg-violet-50 rounded-lg font-medium transition-colors"
                 >
-                  Select all
+                  Select All
                 </button>
-                <span className="text-slate-300">|</span>
                 <button
                   onClick={() => setSelectedTags(new Set())}
-                  className="text-slate-500 hover:underline"
+                  className="px-3 py-1.5 text-slate-500 hover:bg-slate-50 rounded-lg font-medium transition-colors"
                 >
-                  Clear
+                  Clear All
+                </button>
+                <button
+                  onClick={() => {
+                    const highConf = new Set(suggestedTags.filter(t => t.confidence >= 0.85).map(t => t.tag));
+                    setSelectedTags(highConf);
+                  }}
+                  className="px-3 py-1.5 text-slate-500 hover:bg-slate-50 rounded-lg font-medium transition-colors"
+                >
+                  Select High Confidence
                 </button>
               </div>
+              <button
+                onClick={() => setShowAllGroups(!showAllGroups)}
+                className="text-violet-600 hover:underline"
+              >
+                {showAllGroups ? 'Show Important Only' : `Show All Categories (${tagGroups.length})`}
+              </button>
             </div>
 
-            {/* Tags Grid */}
-            <div className="flex flex-wrap gap-2">
-              {suggestedTags.map((tag) => {
-                const isSelected = selectedTags.has(tag.tag);
-                const colors = tagCategoryColors[tag.category] || tagCategoryColors.feature;
+            {/* Grouped Tags */}
+            <div className="space-y-3">
+              {visibleGroups.map((group) => {
+                const Icon = categoryIcons[group.category] || Tags;
+                const colors = tagCategoryColors[group.category];
+                const isExpanded = expandedGroups.has(group.category);
+                const selectedInGroup = group.tags.filter(t => selectedTags.has(t.tag)).length;
 
                 return (
-                  <button
-                    key={tag.tag}
-                    onClick={() => toggleTag(tag.tag)}
-                    title={tag.reason}
-                    className={`
-                      group relative inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium
-                      transition-all duration-200 border-2
-                      ${isSelected
-                        ? `${colors.bg} ${colors.text} ${colors.border}`
-                        : 'bg-slate-50 text-slate-500 border-slate-200 hover:border-slate-300'
-                      }
-                    `}
+                  <div
+                    key={group.category}
+                    className={`border rounded-xl overflow-hidden ${colors.border}`}
                   >
-                    {isSelected && <CheckCircle2 className="w-3.5 h-3.5" />}
-                    {tag.tag}
-                    {isSelected && (
-                      <X className="w-3.5 h-3.5 opacity-0 group-hover:opacity-100 transition-opacity" />
+                    {/* Group Header */}
+                    <button
+                      onClick={() => toggleGroup(group.category)}
+                      className={`w-full flex items-center gap-3 p-3 ${colors.bg} hover:opacity-90 transition-opacity`}
+                    >
+                      <div className={`w-8 h-8 ${colors.badge} rounded-lg flex items-center justify-center`}>
+                        <Icon className={`w-4 h-4 ${colors.text}`} />
+                      </div>
+                      <div className="flex-1 text-left">
+                        <div className="flex items-center gap-2">
+                          <span className={`font-semibold ${colors.text}`}>{group.label}</span>
+                          <span className={`text-xs px-1.5 py-0.5 rounded ${importanceBadgeColors[group.importance]}`}>
+                            {group.importance}
+                          </span>
+                          <span className="text-xs text-slate-500">
+                            {selectedInGroup}/{group.tags.length} selected
+                          </span>
+                        </div>
+                        <p className="text-xs text-slate-500 mt-0.5">{group.description}</p>
+                      </div>
+                      {isExpanded ? (
+                        <ChevronDown className="w-5 h-5 text-slate-400" />
+                      ) : (
+                        <ChevronRight className="w-5 h-5 text-slate-400" />
+                      )}
+                    </button>
+
+                    {/* Group Tags */}
+                    {isExpanded && (
+                      <div className="p-3 bg-white">
+                        <div className="flex flex-wrap gap-2">
+                          {group.tags.map((tag) => {
+                            const isSelected = selectedTags.has(tag.tag);
+                            const isHovered = hoveredTag === tag.tag;
+
+                            return (
+                              <div key={tag.tag} className="relative">
+                                <button
+                                  onClick={() => toggleTag(tag.tag)}
+                                  onMouseEnter={() => setHoveredTag(tag.tag)}
+                                  onMouseLeave={() => setHoveredTag(null)}
+                                  className={`
+                                    group inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium
+                                    transition-all duration-200 border
+                                    ${isSelected
+                                      ? `${colors.bg} ${colors.text} ${colors.border}`
+                                      : 'bg-white text-slate-600 border-slate-200 hover:border-slate-300'
+                                    }
+                                  `}
+                                >
+                                  {isSelected && <CheckCircle2 className="w-3.5 h-3.5" />}
+                                  {tag.tag}
+                                  {tag.searchVolume === 'high' && (
+                                    <TrendingUp className="w-3 h-3 text-emerald-500" title="High search volume" />
+                                  )}
+                                  {isSelected && (
+                                    <X className="w-3.5 h-3.5 opacity-0 group-hover:opacity-100 transition-opacity" />
+                                  )}
+                                </button>
+
+                                {/* Tooltip */}
+                                {isHovered && (
+                                  <div className="absolute bottom-full left-0 mb-2 z-10 w-64 p-3 bg-slate-900 text-white text-xs rounded-lg shadow-xl">
+                                    <p className="font-medium mb-1">{tag.tag}</p>
+                                    <p className="text-slate-300 mb-2">{tag.reason}</p>
+                                    <div className="flex items-center gap-3 text-slate-400">
+                                      <span className="flex items-center gap-1">
+                                        <Target className="w-3 h-3" />
+                                        {Math.round(tag.confidence * 100)}% match
+                                      </span>
+                                      <span className="flex items-center gap-1">
+                                        <Search className="w-3 h-3" />
+                                        {tag.searchVolume} volume
+                                      </span>
+                                    </div>
+                                    {tag.relatedTags && tag.relatedTags.length > 0 && (
+                                      <div className="mt-2 pt-2 border-t border-slate-700">
+                                        <span className="text-slate-500">Related: </span>
+                                        {tag.relatedTags.join(', ')}
+                                      </div>
+                                    )}
+                                    <div className="absolute left-4 bottom-0 transform translate-y-1/2 rotate-45 w-2 h-2 bg-slate-900" />
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
                     )}
-                  </button>
+                  </div>
                 );
               })}
             </div>
 
-            {/* Category Legend */}
-            <div className="flex flex-wrap gap-3 pt-3 border-t text-xs">
-              {Object.entries(tagCategoryColors).map(([category, colors]) => {
-                const count = suggestedTags.filter(t => t.category === category).length;
-                if (count === 0) return null;
-                return (
-                  <span key={category} className={`inline-flex items-center gap-1 px-2 py-1 rounded ${colors.bg} ${colors.text}`}>
-                    <span className="w-2 h-2 rounded-full bg-current opacity-60" />
-                    {category} ({count})
-                  </span>
-                );
-              })}
+            {/* Custom Tags Section */}
+            <div className="border-t pt-4">
+              <div className="flex items-center gap-2 mb-3">
+                <Plus className="w-4 h-4 text-slate-400" />
+                <span className="text-sm font-medium text-slate-700">Add Custom Tags</span>
+              </div>
+
+              <div className="flex gap-2 mb-3">
+                <input
+                  type="text"
+                  value={newCustomTag}
+                  onChange={(e) => setNewCustomTag(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && handleAddCustomTag()}
+                  placeholder="Type a custom tag and press Enter"
+                  className="flex-1 px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
+                />
+                <button
+                  onClick={handleAddCustomTag}
+                  disabled={!newCustomTag.trim()}
+                  className="px-4 py-2 bg-violet-600 text-white rounded-lg text-sm font-medium hover:bg-violet-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                >
+                  Add
+                </button>
+              </div>
+
+              {customTags.length > 0 && (
+                <div className="flex flex-wrap gap-2">
+                  {customTags.map((tag) => (
+                    <span
+                      key={tag}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 text-slate-700 rounded-lg text-sm font-medium border border-slate-200"
+                    >
+                      {tag}
+                      <button
+                        onClick={() => removeCustomTag(tag)}
+                        className="hover:text-red-600 transition-colors"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              )}
             </div>
+
+            {/* Selected Tags Summary */}
+            {selectedTags.size > 0 && (
+              <div className="bg-violet-50 rounded-xl p-4 border border-violet-200">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-sm font-medium text-violet-800">
+                    {selectedTags.size} Tags Ready to Apply
+                  </span>
+                  <span className="text-xs text-violet-600">
+                    These will be saved to your profile
+                  </span>
+                </div>
+                <div className="flex flex-wrap gap-1.5">
+                  {Array.from(selectedTags).slice(0, 10).map(tag => (
+                    <span
+                      key={tag}
+                      className="px-2 py-0.5 bg-violet-100 text-violet-700 rounded text-xs font-medium"
+                    >
+                      {tag}
+                    </span>
+                  ))}
+                  {selectedTags.size > 10 && (
+                    <span className="px-2 py-0.5 bg-violet-200 text-violet-800 rounded text-xs font-medium">
+                      +{selectedTags.size - 10} more
+                    </span>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
         )}
 
         {/* Empty State */}
         {!isGeneratingTags && !tagsError && suggestedTags.length === 0 && (
-          <div className="text-center py-8">
-            <Tags className="w-12 h-12 text-slate-300 mx-auto mb-3" />
-            <p className="text-slate-500 mb-3">No tags generated yet</p>
+          <div className="text-center py-12">
+            <div className="w-16 h-16 bg-slate-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
+              <Tags className="w-8 h-8 text-slate-400" />
+            </div>
+            <p className="text-slate-600 font-medium mb-2">No tags generated yet</p>
+            <p className="text-sm text-slate-500 mb-4">
+              Tags help categorize your business and improve AI responses
+            </p>
             <button
               onClick={handleGenerateTags}
-              className="px-4 py-2 bg-violet-600 text-white rounded-xl text-sm font-medium hover:bg-violet-700"
+              className="px-5 py-2.5 bg-violet-600 text-white rounded-xl text-sm font-medium hover:bg-violet-700 shadow-sm transition-colors"
             >
-              Generate Tags
+              Generate Smart Tags
             </button>
           </div>
         )}
@@ -536,7 +878,7 @@ export function ApplyTab({
       </div>
 
       {/* Apply CTA */}
-      <div className="bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-500 rounded-2xl p-6 mt-8">
+      <div className="bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-500 rounded-2xl p-6 mt-8 shadow-xl">
         <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
           <div className="text-white text-center sm:text-left">
             <h3 className="font-bold text-xl mb-1">Ready to Apply?</h3>
@@ -544,7 +886,7 @@ export function ApplyTab({
               Your AI assistant will use this data to serve customers.
               {selectedTags.size > 0 && (
                 <span className="block mt-1 text-white/90">
-                  Including {selectedTags.size} tags for better categorization.
+                  Including <strong>{selectedTags.size} strategic tags</strong> for better categorization.
                 </span>
               )}
             </p>
@@ -555,7 +897,7 @@ export function ApplyTab({
             className={`w-full sm:w-auto px-8 py-4 rounded-xl font-bold flex items-center justify-center gap-2 text-lg transition-all ${
               hasUnresolvedConflicts
                 ? 'bg-white/30 text-white/70 cursor-not-allowed'
-                : 'bg-white text-indigo-700 hover:bg-indigo-50 shadow-xl'
+                : 'bg-white text-indigo-700 hover:bg-indigo-50 shadow-xl hover:shadow-2xl'
             }`}
           >
             {isApplying ? (
