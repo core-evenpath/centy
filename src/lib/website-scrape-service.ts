@@ -10,9 +10,26 @@ import type { AutoFilledProfile, RoomInventoryItem, MenuInventoryItem, ProductIn
 import { buildWebsiteScrapePrompt } from './website-scrape-prompt-builder';
 import { detectCountryFromAddress, DEFAULT_COUNTRY } from './country-autofill-config';
 
-// Initialize Gemini
-const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_GENAI_API_KEY;
-const ai = new GoogleGenAI({ apiKey: apiKey });
+// Lazy initialization for Gemini to avoid module load errors when API key is missing
+let ai: GoogleGenAI | null = null;
+
+function getGeminiAI(): GoogleGenAI | null {
+  if (ai) return ai;
+
+  const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_GENAI_API_KEY;
+  if (!apiKey) {
+    console.warn('[WebsiteScrape] Gemini API key not configured - AI extraction will fail');
+    return null;
+  }
+
+  try {
+    ai = new GoogleGenAI({ apiKey });
+    return ai;
+  } catch (error) {
+    console.error('[WebsiteScrape] Failed to initialize Gemini AI:', error);
+    return null;
+  }
+}
 
 // Constants for scraping
 const MAX_CONTENT_LENGTH = 100000; // 100KB per page
@@ -857,6 +874,12 @@ async function extractBusinessDataWithAI(
   countryCode: string,
   pagesScraped: string[]
 ): Promise<AutoFilledProfile> {
+  // Get Gemini AI instance
+  const geminiAI = getGeminiAI();
+  if (!geminiAI) {
+    throw new Error('Gemini API key not configured. Please check your environment variables.');
+  }
+
   // Build the main comprehensive prompt
   const prompt = buildWebsiteScrapePrompt({
     url,
@@ -871,7 +894,7 @@ async function extractBusinessDataWithAI(
   console.log('[WebsiteScrape] PASS 1: Comprehensive extraction...');
 
   // First pass - comprehensive extraction
-  const response = await ai.models.generateContent({
+  const response = await geminiAI.models.generateContent({
     model: 'gemini-2.0-flash',
     contents: prompt,
     config: {
@@ -963,6 +986,13 @@ async function performDeepExtraction(
   countryCode: string,
   detectedIndustry?: string
 ): Promise<any | null> {
+  // Get Gemini AI instance
+  const geminiAI = getGeminiAI();
+  if (!geminiAI) {
+    console.warn('[WebsiteScrape] Deep extraction skipped - Gemini API not available');
+    return null;
+  }
+
   // Build combined content focusing on relevant sections
   const combinedContent = Object.entries(pageContents)
     .map(([page, content]) => `=== ${page.toUpperCase()} ===\n${content.substring(0, 15000)}`)
@@ -1100,7 +1130,7 @@ IMPORTANT:
 - Preserve exact text for quotes and descriptions
 - Return ONLY valid JSON - no markdown, no explanation`;
 
-  const response = await ai.models.generateContent({
+  const response = await geminiAI.models.generateContent({
     model: 'gemini-2.0-flash',
     contents: deepPrompt,
     config: {
