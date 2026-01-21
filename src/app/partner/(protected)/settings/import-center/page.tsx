@@ -1486,6 +1486,18 @@ export default function ImportCenterPage() {
             ...transformResult.profile.knowledge,
             ...updates.knowledge,
           },
+          customerProfile: {
+            ...transformResult.profile.customerProfile,
+            ...updates.customerProfile,
+          },
+          webIntelligence: {
+            ...transformResult.profile.webIntelligence,
+            ...updates.webIntelligence,
+          },
+          industrySpecificData: {
+            ...transformResult.profile.industrySpecificData,
+            ...updates.industrySpecificData,
+          },
         };
 
         await saveBusinessPersonaAction(partnerId, finalUpdates);

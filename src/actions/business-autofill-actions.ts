@@ -657,6 +657,84 @@ export async function applyImportToProfileAction(
       fieldsUpdated.push('customerProfile.customerDemographics');
     }
 
+    // Differentiators - from multiple sources
+    const differentiators = [
+      ...(customerProfile.differentiators || []),
+      ...(importedData.differentiators || []),
+      ...(importedData.competitiveIntel?.differentiators?.map((d: any) => typeof d === 'string' ? d : d.point) || []),
+      ...(importedData.competitiveIntel?.competitiveAdvantages || []),
+      ...(importedData.whyChooseUs || []),
+      ...(importedData.competitive_advantage || []),
+    ];
+    const uniqueDifferentiators = Array.from(new Set(differentiators.filter(Boolean)));
+    if (uniqueDifferentiators.length > 0) {
+      (profile.customerProfile as any).differentiators = uniqueDifferentiators;
+      fieldsUpdated.push('customerProfile.differentiators');
+    }
+
+    // Value Propositions
+    const valueProps = [
+      ...(customerProfile.valuePropositions || []),
+      ...(importedData.valuePropositions || []),
+      ...(importedData.customerInsights?.valuePropositions || []),
+      ...(importedData.benefits || []),
+      ...(importedData.keyBenefits || []),
+    ];
+    const uniqueValueProps = Array.from(new Set(valueProps.filter(Boolean)));
+    if (uniqueValueProps.length > 0) {
+      (profile.customerProfile as any).valuePropositions = uniqueValueProps;
+      fieldsUpdated.push('customerProfile.valuePropositions');
+    }
+
+    // Objection Handlers
+    const objectionHandlers = [
+      ...(customerProfile.objectionHandlers || []),
+      ...(importedData.objectionHandlers || []),
+      ...(importedData.customerInsights?.commonObjections?.map((o: any) =>
+        typeof o === 'string' ? { objection: o, response: '' } : o
+      ) || []),
+    ];
+    if (objectionHandlers.length > 0) {
+      (profile.customerProfile as any).objectionHandlers = objectionHandlers;
+      fieldsUpdated.push('customerProfile.objectionHandlers');
+    }
+
+    // Ideal Customer Profile
+    const icp = customerProfile.idealCustomerProfile || importedData.idealCustomerProfile ||
+                importedData.customerInsights?.idealCustomerProfile || importedData.idealCustomer;
+    if (icp) {
+      (profile.customerProfile as any).idealCustomerProfile = icp;
+      fieldsUpdated.push('customerProfile.idealCustomerProfile');
+    }
+
+    // Primary Audience
+    const primaryAudience = customerProfile.primaryAudience || importedData.primaryAudience ||
+                            importedData.whoWeServe || importedData.targetCustomers;
+    if (primaryAudience) {
+      (profile.customerProfile as any).primaryAudience = Array.isArray(primaryAudience)
+        ? primaryAudience.join(', ')
+        : primaryAudience;
+      fieldsUpdated.push('customerProfile.primaryAudience');
+    }
+
+    // Customer Type (B2B, B2C, etc.)
+    const customerType = customerProfile.customerType || importedData.customerType ||
+                         importedData.clientTypes || industrySpecificData?.clientTypes;
+    if (customerType) {
+      (profile.customerProfile as any).customerType = Array.isArray(customerType)
+        ? customerType.join(', ')
+        : customerType;
+      fieldsUpdated.push('customerProfile.customerType');
+    }
+
+    // Common Queries
+    const commonQueries = customerProfile.commonQueries || importedData.commonQueries ||
+                          importedData.customerInsights?.commonQuestions;
+    if (commonQueries && Array.isArray(commonQueries) && commonQueries.length > 0) {
+      (profile.customerProfile as any).commonQueries = commonQueries;
+      fieldsUpdated.push('customerProfile.commonQueries');
+    }
+
     // ========================================
     // 4. KNOWLEDGE SECTION
     // ========================================
