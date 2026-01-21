@@ -2471,25 +2471,6 @@ export default function SchemaBusinessProfile({
                                                 );
                                             })}
                                         </div>
-
-
-                                        {/* Legacy support for unmapped "From the Web" items */}
-                                        {
-                                            section.id === 'from-the-web' && unmappedData.length > 0 && (
-                                                <div className="mt-8 border-t border-slate-100 pt-6">
-                                                    <h4 className="flex items-center gap-2 font-semibold text-slate-800 mb-4">
-                                                        <Globe className="w-4 h-4 text-slate-400" />
-                                                        Unmapped Data (Legacy)
-                                                    </h4>
-                                                    <FromTheWebSection
-                                                        items={unmappedData}
-                                                        onDelete={handleDeleteUnmappedItem}
-                                                        onToggleAI={handleToggleAIUsage}
-                                                        onImportData={onImportData}
-                                                    />
-                                                </div>
-                                            )
-                                        }
                                     </Section>
                                 );
                             })}
