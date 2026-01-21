@@ -703,23 +703,152 @@ function ScheduleEditor({ value, label, onChange }: { value: any; label: string;
     );
 }
 
-// ===== FAQ LIST =====
-function FAQList({ faqs, label }: { faqs: { question: string; answer: string }[]; label: string }) {
+// ===== FAQ LIST (EDITABLE) =====
+function FAQList({
+    faqs,
+    label,
+    onChange,
+    editable = true
+}: {
+    faqs: { question: string; answer: string }[];
+    label: string;
+    onChange?: (val: { question: string; answer: string }[]) => void;
+    editable?: boolean;
+}) {
+    const [isAdding, setIsAdding] = useState(false);
+    const [editingIndex, setEditingIndex] = useState<number | null>(null);
+    const [newFaq, setNewFaq] = useState({ question: '', answer: '' });
+
+    const items = Array.isArray(faqs) ? faqs : [];
+
+    const handleAdd = () => {
+        if (newFaq.question.trim() && newFaq.answer.trim() && onChange) {
+            onChange([...items, newFaq]);
+            setNewFaq({ question: '', answer: '' });
+            setIsAdding(false);
+        }
+    };
+
+    const handleUpdate = (index: number, updates: Partial<typeof newFaq>) => {
+        if (onChange) {
+            const updated = [...items];
+            updated[index] = { ...updated[index], ...updates };
+            onChange(updated);
+        }
+    };
+
+    const handleDelete = (index: number) => {
+        if (onChange) {
+            onChange(items.filter((_, i) => i !== index));
+        }
+    };
+
     return (
         <div className="mb-4">
-            <label className="text-xs font-medium text-slate-500 uppercase mb-2 block">{label}</label>
-            {faqs.length > 0 ? (
+            <div className="flex items-center justify-between mb-2">
+                <label className="text-xs font-medium text-slate-500 uppercase">{label}</label>
+                {editable && onChange && !isAdding && (
+                    <button
+                        onClick={() => setIsAdding(true)}
+                        className="text-xs font-medium text-indigo-600 hover:text-indigo-700 flex items-center gap-1"
+                    >
+                        <Plus className="w-3 h-3" /> Add FAQ
+                    </button>
+                )}
+            </div>
+
+            {items.length > 0 ? (
                 <div className="space-y-2">
-                    {faqs.map((faq, i) => (
-                        <div key={i} className="p-3 bg-slate-50 rounded-lg text-sm border border-slate-200">
-                            <div className="font-medium text-slate-900">{faq.question}</div>
-                            <div className="text-slate-600 mt-1">{faq.answer}</div>
+                    {items.map((faq, i) => (
+                        <div key={i} className="group">
+                            {editingIndex === i ? (
+                                <div className="p-4 bg-teal-50 rounded-xl border-2 border-teal-200 space-y-3 animate-in fade-in duration-200">
+                                    <div>
+                                        <label className="text-xs font-medium text-slate-600 mb-1 block">Question</label>
+                                        <input
+                                            type="text"
+                                            value={faq.question}
+                                            onChange={(e) => handleUpdate(i, { question: e.target.value })}
+                                            className="w-full px-3 py-2 text-sm border border-teal-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500"
+                                            placeholder="What question do customers frequently ask?"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="text-xs font-medium text-slate-600 mb-1 block">Answer</label>
+                                        <textarea
+                                            value={faq.answer}
+                                            onChange={(e) => handleUpdate(i, { answer: e.target.value })}
+                                            className="w-full px-3 py-2 text-sm border border-teal-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 min-h-[80px]"
+                                            placeholder="Provide a helpful answer..."
+                                        />
+                                    </div>
+                                    <div className="flex justify-end">
+                                        <button onClick={() => setEditingIndex(null)} className="px-3 py-1.5 text-xs bg-teal-600 text-white rounded-lg hover:bg-teal-700 flex items-center gap-1">
+                                            <Check className="w-3 h-3" /> Done
+                                        </button>
+                                    </div>
+                                </div>
+                            ) : (
+                                <div className="p-4 bg-slate-50 rounded-xl text-sm border border-slate-200 hover:border-teal-300 transition-colors">
+                                    <div className="flex items-start justify-between gap-2">
+                                        <div className="flex items-start gap-2 flex-1">
+                                            <HelpCircle className="w-4 h-4 text-teal-500 mt-0.5 shrink-0" />
+                                            <div className="font-semibold text-slate-900">{faq.question}</div>
+                                        </div>
+                                        {editable && onChange && (
+                                            <div className="opacity-0 group-hover:opacity-100 flex gap-1 transition-opacity shrink-0">
+                                                <button onClick={() => setEditingIndex(i)} className="p-1 text-slate-400 hover:text-teal-600 hover:bg-teal-50 rounded">
+                                                    <Edit3 className="w-3 h-3" />
+                                                </button>
+                                                <button onClick={() => handleDelete(i)} className="p-1 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded">
+                                                    <Trash2 className="w-3 h-3" />
+                                                </button>
+                                            </div>
+                                        )}
+                                    </div>
+                                    <div className="text-slate-600 mt-2 pl-6 leading-relaxed">{faq.answer}</div>
+                                </div>
+                            )}
                         </div>
                     ))}
                 </div>
-            ) : (
-                <div className="text-center p-4 border border-dashed border-slate-300 rounded-lg text-sm text-slate-500">
-                    No FAQs configured yet
+            ) : !isAdding && (
+                <div className="text-center p-4 border border-dashed border-slate-300 rounded-lg text-sm text-slate-400">
+                    No FAQs configured yet. Click "Add FAQ" to help customers find answers quickly.
+                </div>
+            )}
+
+            {/* Add New FAQ Form */}
+            {isAdding && (
+                <div className="p-4 bg-teal-50 rounded-xl border-2 border-dashed border-teal-200 space-y-3 animate-in fade-in duration-200 mt-2">
+                    <div>
+                        <label className="text-xs font-medium text-slate-600 mb-1 block">Question</label>
+                        <input
+                            type="text"
+                            value={newFaq.question}
+                            onChange={(e) => setNewFaq({ ...newFaq, question: e.target.value })}
+                            className="w-full px-3 py-2 text-sm border border-teal-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500"
+                            placeholder="What question do customers frequently ask?"
+                            autoFocus
+                        />
+                    </div>
+                    <div>
+                        <label className="text-xs font-medium text-slate-600 mb-1 block">Answer</label>
+                        <textarea
+                            value={newFaq.answer}
+                            onChange={(e) => setNewFaq({ ...newFaq, answer: e.target.value })}
+                            className="w-full px-3 py-2 text-sm border border-teal-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 min-h-[80px]"
+                            placeholder="Provide a helpful answer..."
+                        />
+                    </div>
+                    <div className="flex justify-end gap-2">
+                        <button onClick={() => { setIsAdding(false); setNewFaq({ question: '', answer: '' }); }} className="px-3 py-1.5 text-xs text-slate-600 hover:bg-slate-200 rounded-lg">
+                            Cancel
+                        </button>
+                        <button onClick={handleAdd} disabled={!newFaq.question.trim() || !newFaq.answer.trim()} className="px-3 py-1.5 text-xs bg-teal-600 text-white rounded-lg hover:bg-teal-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1">
+                            <Check className="w-3 h-3" /> Add FAQ
+                        </button>
+                    </div>
                 </div>
             )}
         </div>
@@ -874,9 +1003,53 @@ function SourceBadge({ source }: { source?: FieldSource }) {
     );
 }
 
-// ===== KEY-VALUE LIST =====
-function KeyValueList({ value, label }: { value: any[]; label: string }) {
-    if (!value || !Array.isArray(value) || value.length === 0) {
+// ===== KEY-VALUE LIST (EDITABLE) =====
+function KeyValueList({
+    value,
+    label,
+    onChange,
+    editable = true,
+    helpText
+}: {
+    value: any[];
+    label: string;
+    onChange?: (val: any[]) => void;
+    editable?: boolean;
+    helpText?: string;
+}) {
+    const [isAdding, setIsAdding] = useState(false);
+    const [editingIndex, setEditingIndex] = useState<number | null>(null);
+    const [newKey, setNewKey] = useState('');
+    const [newValue, setNewValue] = useState('');
+
+    const items = Array.isArray(value) ? value : [];
+
+    const handleAdd = () => {
+        if (newKey.trim() && newValue.trim() && onChange) {
+            onChange([...items, { key: newKey.trim(), value: newValue.trim(), source: 'manual' }]);
+            setNewKey('');
+            setNewValue('');
+            setIsAdding(false);
+        }
+    };
+
+    const handleUpdate = (index: number, key: string, val: string) => {
+        if (onChange) {
+            const updated = [...items];
+            updated[index] = { ...updated[index], key, value: val };
+            onChange(updated);
+            setEditingIndex(null);
+        }
+    };
+
+    const handleDelete = (index: number) => {
+        if (onChange) {
+            const updated = items.filter((_, i) => i !== index);
+            onChange(updated);
+        }
+    };
+
+    if (items.length === 0 && !editable) {
         return (
             <div className="mb-4">
                 <label className="text-xs font-medium text-slate-500 uppercase mb-1 block">{label}</label>
@@ -884,19 +1057,118 @@ function KeyValueList({ value, label }: { value: any[]; label: string }) {
             </div>
         );
     }
+
     return (
         <div className="mb-4">
-            <label className="text-xs font-medium text-slate-500 uppercase mb-2 block">{label}</label>
+            <div className="flex items-center justify-between mb-2">
+                <label className="text-xs font-medium text-slate-500 uppercase">{label}</label>
+                {editable && onChange && !isAdding && (
+                    <button
+                        onClick={() => setIsAdding(true)}
+                        className="text-xs font-medium text-indigo-600 hover:text-indigo-700 flex items-center gap-1"
+                    >
+                        <Plus className="w-3 h-3" /> Add
+                    </button>
+                )}
+            </div>
+            {helpText && <p className="text-xs text-slate-400 mb-2">{helpText}</p>}
+
             <div className="space-y-2">
-                {value.map((item: any, i: number) => (
-                    <div key={i} className="p-3 bg-slate-50 rounded-lg text-sm border border-slate-200">
-                        <div className="flex justify-between">
-                            <span className="font-medium text-slate-900">{item.key || 'Unknown'}</span>
-                            {item.source && <span className="text-xs text-slate-500 bg-white px-2 py-0.5 rounded border border-slate-100">{item.source}</span>}
-                        </div>
-                        <div className="text-slate-600 mt-1">{item.value}</div>
+                {items.map((item: any, i: number) => (
+                    <div key={i} className="group p-3 bg-slate-50 rounded-lg text-sm border border-slate-200 hover:border-slate-300 transition-colors">
+                        {editingIndex === i ? (
+                            <div className="space-y-2">
+                                <input
+                                    type="text"
+                                    value={item.key}
+                                    onChange={(e) => {
+                                        const updated = [...items];
+                                        updated[i] = { ...updated[i], key: e.target.value };
+                                        onChange?.(updated);
+                                    }}
+                                    className="w-full px-2 py-1 text-sm border border-indigo-300 rounded focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                                    placeholder="Label"
+                                />
+                                <textarea
+                                    value={item.value}
+                                    onChange={(e) => {
+                                        const updated = [...items];
+                                        updated[i] = { ...updated[i], value: e.target.value };
+                                        onChange?.(updated);
+                                    }}
+                                    className="w-full px-2 py-1 text-sm border border-indigo-300 rounded focus:outline-none focus:ring-1 focus:ring-indigo-500 min-h-[60px]"
+                                    placeholder="Value"
+                                />
+                                <div className="flex justify-end gap-1">
+                                    <button onClick={() => setEditingIndex(null)} className="px-2 py-1 text-xs text-slate-600 hover:bg-slate-200 rounded">Done</button>
+                                </div>
+                            </div>
+                        ) : (
+                            <>
+                                <div className="flex justify-between items-start">
+                                    <span className="font-medium text-slate-900">{item.key || 'Unknown'}</span>
+                                    <div className="flex items-center gap-1">
+                                        {item.source && (
+                                            <span className={cn(
+                                                "text-[10px] px-1.5 py-0.5 rounded",
+                                                item.source === 'google' ? "bg-blue-100 text-blue-700" :
+                                                item.source === 'website' ? "bg-purple-100 text-purple-700" :
+                                                "bg-slate-100 text-slate-600"
+                                            )}>
+                                                {item.source === 'google' ? 'Google' : item.source === 'website' ? 'Website' : 'Manual'}
+                                            </span>
+                                        )}
+                                        {editable && onChange && (
+                                            <div className="opacity-0 group-hover:opacity-100 flex gap-1 transition-opacity">
+                                                <button onClick={() => setEditingIndex(i)} className="p-1 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded">
+                                                    <Edit3 className="w-3 h-3" />
+                                                </button>
+                                                <button onClick={() => handleDelete(i)} className="p-1 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded">
+                                                    <Trash2 className="w-3 h-3" />
+                                                </button>
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                                <div className="text-slate-600 mt-1 whitespace-pre-wrap">{item.value}</div>
+                            </>
+                        )}
                     </div>
                 ))}
+
+                {/* Add New Item Form */}
+                {isAdding && (
+                    <div className="p-3 bg-indigo-50 rounded-lg border-2 border-dashed border-indigo-200 space-y-2 animate-in fade-in duration-200">
+                        <input
+                            type="text"
+                            value={newKey}
+                            onChange={(e) => setNewKey(e.target.value)}
+                            className="w-full px-3 py-2 text-sm border border-indigo-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                            placeholder="Label (e.g., Award Name, Stat)"
+                            autoFocus
+                        />
+                        <textarea
+                            value={newValue}
+                            onChange={(e) => setNewValue(e.target.value)}
+                            className="w-full px-3 py-2 text-sm border border-indigo-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 min-h-[60px]"
+                            placeholder="Value or description..."
+                        />
+                        <div className="flex justify-end gap-2">
+                            <button onClick={() => { setIsAdding(false); setNewKey(''); setNewValue(''); }} className="px-3 py-1.5 text-xs text-slate-600 hover:bg-slate-200 rounded-lg">
+                                Cancel
+                            </button>
+                            <button onClick={handleAdd} disabled={!newKey.trim() || !newValue.trim()} className="px-3 py-1.5 text-xs bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1">
+                                <Check className="w-3 h-3" /> Add
+                            </button>
+                        </div>
+                    </div>
+                )}
+
+                {items.length === 0 && !isAdding && (
+                    <div className="text-center p-4 border border-dashed border-slate-300 rounded-lg text-sm text-slate-400">
+                        No items yet. Click "Add" to create one.
+                    </div>
+                )}
             </div>
         </div>
     );
@@ -982,9 +1254,58 @@ function ImageGalleryEditor({ value, label, onChange }: { value: string[]; label
     );
 }
 
-// ===== REVIEW LIST =====
-function ReviewList({ value, label }: { value: any[]; label: string }) {
-    if (!value || !Array.isArray(value) || value.length === 0) {
+// ===== REVIEW LIST (EDITABLE) =====
+function ReviewList({
+    value,
+    label,
+    onChange,
+    editable = true
+}: {
+    value: any[];
+    label: string;
+    onChange?: (val: any[]) => void;
+    editable?: boolean;
+}) {
+    const [isAdding, setIsAdding] = useState(false);
+    const [newReview, setNewReview] = useState({ author: '', rating: 5, text: '', date: '', source: 'manual' });
+
+    const reviews = Array.isArray(value) ? value : [];
+
+    const handleAdd = () => {
+        if (newReview.text.trim() && onChange) {
+            onChange([...reviews, { ...newReview, date: newReview.date || new Date().toISOString().split('T')[0] }]);
+            setNewReview({ author: '', rating: 5, text: '', date: '', source: 'manual' });
+            setIsAdding(false);
+        }
+    };
+
+    const handleDelete = (index: number) => {
+        if (onChange) {
+            onChange(reviews.filter((_, i) => i !== index));
+        }
+    };
+
+    const StarRating = ({ rating, onRate, interactive = false }: { rating: number; onRate?: (r: number) => void; interactive?: boolean }) => (
+        <div className="flex text-amber-400">
+            {Array(5).fill(0).map((_, idx) => (
+                <button
+                    key={idx}
+                    type="button"
+                    onClick={() => interactive && onRate?.(idx + 1)}
+                    className={cn(
+                        "text-lg transition-transform",
+                        interactive && "hover:scale-110 cursor-pointer",
+                        idx < rating ? "opacity-100" : "opacity-30"
+                    )}
+                    disabled={!interactive}
+                >
+                    ★
+                </button>
+            ))}
+        </div>
+    );
+
+    if (reviews.length === 0 && !editable) {
         return (
             <div className="mb-4">
                 <label className="text-xs font-medium text-slate-500 uppercase mb-1 block">{label}</label>
@@ -992,32 +1313,144 @@ function ReviewList({ value, label }: { value: any[]; label: string }) {
             </div>
         );
     }
+
     return (
         <div className="mb-4">
-            <label className="text-xs font-medium text-slate-500 uppercase mb-2 block">{label}</label>
+            <div className="flex items-center justify-between mb-2">
+                <label className="text-xs font-medium text-slate-500 uppercase">{label}</label>
+                {editable && onChange && !isAdding && (
+                    <button
+                        onClick={() => setIsAdding(true)}
+                        className="text-xs font-medium text-indigo-600 hover:text-indigo-700 flex items-center gap-1"
+                    >
+                        <Plus className="w-3 h-3" /> Add Review
+                    </button>
+                )}
+            </div>
+
             <div className="space-y-3">
-                {value.map((review: any, i: number) => (
-                    <div key={i} className="p-3 bg-slate-50 rounded-lg text-sm border border-slate-200">
+                {reviews.map((review: any, i: number) => (
+                    <div key={i} className="group p-3 bg-slate-50 rounded-lg text-sm border border-slate-200 hover:border-slate-300 transition-colors">
                         <div className="flex items-center gap-2 mb-1">
-                            <div className="flex text-amber-400">
-                                {Array(5).fill(0).map((_, idx) => (
-                                    <span key={idx} className={idx < (review.rating || 0) ? "opacity-100" : "opacity-30"}>★</span>
-                                ))}
-                            </div>
+                            <StarRating rating={review.rating || 0} />
                             <span className="font-medium text-slate-900">{review.author || 'Anonymous'}</span>
-                            <span className="text-xs text-slate-500 ml-auto">{review.date}</span>
+                            <div className="ml-auto flex items-center gap-2">
+                                {review.source && (
+                                    <span className={cn(
+                                        "text-[10px] px-1.5 py-0.5 rounded",
+                                        review.source === 'google' ? "bg-blue-100 text-blue-700" :
+                                        review.source === 'website' ? "bg-purple-100 text-purple-700" :
+                                        "bg-slate-100 text-slate-600"
+                                    )}>
+                                        {review.source === 'google' ? 'Google' : review.source === 'website' ? 'Website' : 'Manual'}
+                                    </span>
+                                )}
+                                <span className="text-xs text-slate-500">{review.date}</span>
+                                {editable && onChange && (
+                                    <button
+                                        onClick={() => handleDelete(i)}
+                                        className="opacity-0 group-hover:opacity-100 p-1 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded transition-opacity"
+                                    >
+                                        <Trash2 className="w-3 h-3" />
+                                    </button>
+                                )}
+                            </div>
                         </div>
-                        <p className="text-slate-600 text-xs">{review.text}</p>
+                        <p className="text-slate-600 text-xs leading-relaxed">{review.text}</p>
                     </div>
                 ))}
+
+                {/* Add New Review Form */}
+                {isAdding && (
+                    <div className="p-4 bg-amber-50 rounded-xl border-2 border-dashed border-amber-200 space-y-3 animate-in fade-in duration-200">
+                        <div className="flex items-center gap-3">
+                            <span className="text-sm font-medium text-slate-700">Rating:</span>
+                            <StarRating rating={newReview.rating} onRate={(r) => setNewReview({ ...newReview, rating: r })} interactive />
+                        </div>
+                        <div className="grid grid-cols-2 gap-3">
+                            <input
+                                type="text"
+                                value={newReview.author}
+                                onChange={(e) => setNewReview({ ...newReview, author: e.target.value })}
+                                className="px-3 py-2 text-sm border border-amber-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500"
+                                placeholder="Reviewer name"
+                            />
+                            <input
+                                type="date"
+                                value={newReview.date}
+                                onChange={(e) => setNewReview({ ...newReview, date: e.target.value })}
+                                className="px-3 py-2 text-sm border border-amber-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500"
+                            />
+                        </div>
+                        <textarea
+                            value={newReview.text}
+                            onChange={(e) => setNewReview({ ...newReview, text: e.target.value })}
+                            className="w-full px-3 py-2 text-sm border border-amber-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 min-h-[80px]"
+                            placeholder="Review text..."
+                            autoFocus
+                        />
+                        <div className="flex justify-end gap-2">
+                            <button onClick={() => { setIsAdding(false); setNewReview({ author: '', rating: 5, text: '', date: '', source: 'manual' }); }} className="px-3 py-1.5 text-xs text-slate-600 hover:bg-slate-200 rounded-lg">
+                                Cancel
+                            </button>
+                            <button onClick={handleAdd} disabled={!newReview.text.trim()} className="px-3 py-1.5 text-xs bg-amber-600 text-white rounded-lg hover:bg-amber-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1">
+                                <Check className="w-3 h-3" /> Add Review
+                            </button>
+                        </div>
+                    </div>
+                )}
+
+                {reviews.length === 0 && !isAdding && (
+                    <div className="text-center p-4 border border-dashed border-slate-300 rounded-lg text-sm text-slate-400">
+                        No reviews yet. Click "Add Review" to add customer feedback.
+                    </div>
+                )}
             </div>
         </div>
     );
 }
 
-// ===== TESTIMONIAL LIST =====
-function TestimonialList({ value, label }: { value: any[]; label: string }) {
-    if (!value || !Array.isArray(value) || value.length === 0) {
+// ===== TESTIMONIAL LIST (EDITABLE) =====
+function TestimonialList({
+    value,
+    label,
+    onChange,
+    editable = true
+}: {
+    value: any[];
+    label: string;
+    onChange?: (val: any[]) => void;
+    editable?: boolean;
+}) {
+    const [isAdding, setIsAdding] = useState(false);
+    const [editingIndex, setEditingIndex] = useState<number | null>(null);
+    const [newTestimonial, setNewTestimonial] = useState({ author: '', text: '', role: '', source: 'manual' });
+
+    const testimonials = Array.isArray(value) ? value : [];
+
+    const handleAdd = () => {
+        if (newTestimonial.text.trim() && onChange) {
+            onChange([...testimonials, newTestimonial]);
+            setNewTestimonial({ author: '', text: '', role: '', source: 'manual' });
+            setIsAdding(false);
+        }
+    };
+
+    const handleUpdate = (index: number, updates: Partial<typeof newTestimonial>) => {
+        if (onChange) {
+            const updated = [...testimonials];
+            updated[index] = { ...updated[index], ...updates };
+            onChange(updated);
+        }
+    };
+
+    const handleDelete = (index: number) => {
+        if (onChange) {
+            onChange(testimonials.filter((_, i) => i !== index));
+        }
+    };
+
+    if (testimonials.length === 0 && !editable) {
         return (
             <div className="mb-4">
                 <label className="text-xs font-medium text-slate-500 uppercase mb-1 block">{label}</label>
@@ -1025,23 +1458,138 @@ function TestimonialList({ value, label }: { value: any[]; label: string }) {
             </div>
         );
     }
+
     return (
         <div className="mb-4">
-            <label className="text-xs font-medium text-slate-500 uppercase mb-2 block">{label}</label>
+            <div className="flex items-center justify-between mb-2">
+                <label className="text-xs font-medium text-slate-500 uppercase">{label}</label>
+                {editable && onChange && !isAdding && (
+                    <button
+                        onClick={() => setIsAdding(true)}
+                        className="text-xs font-medium text-indigo-600 hover:text-indigo-700 flex items-center gap-1"
+                    >
+                        <Plus className="w-3 h-3" /> Add Testimonial
+                    </button>
+                )}
+            </div>
+
             <div className="space-y-3">
-                {value.map((item: any, i: number) => (
-                    <div key={i} className="p-4 bg-slate-50 rounded-xl border border-slate-100 italic relative">
-                        <span className="absolute top-2 left-2 text-2xl text-slate-200 leading-none">"</span>
-                        <p className="text-slate-700 text-sm relative z-10 pl-2">{item.text}</p>
-                        <div className="mt-2 text-xs font-medium text-slate-900 pl-2">— {item.author || 'Customer'}</div>
+                {testimonials.map((item: any, i: number) => (
+                    <div key={i} className="group relative">
+                        {editingIndex === i ? (
+                            <div className="p-4 bg-purple-50 rounded-xl border-2 border-purple-200 space-y-3 animate-in fade-in duration-200">
+                                <textarea
+                                    value={item.text}
+                                    onChange={(e) => handleUpdate(i, { text: e.target.value })}
+                                    className="w-full px-3 py-2 text-sm border border-purple-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 min-h-[80px]"
+                                    placeholder="Testimonial text..."
+                                />
+                                <div className="grid grid-cols-2 gap-3">
+                                    <input
+                                        type="text"
+                                        value={item.author || ''}
+                                        onChange={(e) => handleUpdate(i, { author: e.target.value })}
+                                        className="px-3 py-2 text-sm border border-purple-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                                        placeholder="Customer name"
+                                    />
+                                    <input
+                                        type="text"
+                                        value={item.role || ''}
+                                        onChange={(e) => handleUpdate(i, { role: e.target.value })}
+                                        className="px-3 py-2 text-sm border border-purple-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                                        placeholder="Role/Title (optional)"
+                                    />
+                                </div>
+                                <div className="flex justify-end">
+                                    <button onClick={() => setEditingIndex(null)} className="px-3 py-1.5 text-xs bg-purple-600 text-white rounded-lg hover:bg-purple-700 flex items-center gap-1">
+                                        <Check className="w-3 h-3" /> Done
+                                    </button>
+                                </div>
+                            </div>
+                        ) : (
+                            <div className="p-4 bg-gradient-to-br from-slate-50 to-purple-50/30 rounded-xl border border-slate-100 relative hover:border-purple-200 transition-colors">
+                                <span className="absolute top-2 left-3 text-3xl text-purple-200 leading-none font-serif">"</span>
+                                <p className="text-slate-700 text-sm relative z-10 pl-4 pr-8 italic leading-relaxed">{item.text}</p>
+                                <div className="mt-3 pl-4 flex items-center justify-between">
+                                    <div>
+                                        <span className="text-sm font-semibold text-slate-900">— {item.author || 'Customer'}</span>
+                                        {item.role && <span className="text-xs text-slate-500 ml-1">, {item.role}</span>}
+                                    </div>
+                                    <div className="flex items-center gap-1">
+                                        {item.source && (
+                                            <span className={cn(
+                                                "text-[10px] px-1.5 py-0.5 rounded",
+                                                item.source === 'google' ? "bg-blue-100 text-blue-700" :
+                                                item.source === 'website' ? "bg-purple-100 text-purple-700" :
+                                                "bg-slate-100 text-slate-600"
+                                            )}>
+                                                {item.source === 'google' ? 'Google' : item.source === 'website' ? 'Website' : 'Manual'}
+                                            </span>
+                                        )}
+                                        {editable && onChange && (
+                                            <div className="opacity-0 group-hover:opacity-100 flex gap-1 transition-opacity">
+                                                <button onClick={() => setEditingIndex(i)} className="p-1 text-slate-400 hover:text-purple-600 hover:bg-purple-50 rounded">
+                                                    <Edit3 className="w-3 h-3" />
+                                                </button>
+                                                <button onClick={() => handleDelete(i)} className="p-1 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded">
+                                                    <Trash2 className="w-3 h-3" />
+                                                </button>
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+                        )}
                     </div>
                 ))}
+
+                {/* Add New Testimonial Form */}
+                {isAdding && (
+                    <div className="p-4 bg-purple-50 rounded-xl border-2 border-dashed border-purple-200 space-y-3 animate-in fade-in duration-200">
+                        <textarea
+                            value={newTestimonial.text}
+                            onChange={(e) => setNewTestimonial({ ...newTestimonial, text: e.target.value })}
+                            className="w-full px-3 py-2 text-sm border border-purple-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 min-h-[80px]"
+                            placeholder="What did your customer say about you?"
+                            autoFocus
+                        />
+                        <div className="grid grid-cols-2 gap-3">
+                            <input
+                                type="text"
+                                value={newTestimonial.author}
+                                onChange={(e) => setNewTestimonial({ ...newTestimonial, author: e.target.value })}
+                                className="px-3 py-2 text-sm border border-purple-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                                placeholder="Customer name"
+                            />
+                            <input
+                                type="text"
+                                value={newTestimonial.role}
+                                onChange={(e) => setNewTestimonial({ ...newTestimonial, role: e.target.value })}
+                                className="px-3 py-2 text-sm border border-purple-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                                placeholder="Role/Title (optional)"
+                            />
+                        </div>
+                        <div className="flex justify-end gap-2">
+                            <button onClick={() => { setIsAdding(false); setNewTestimonial({ author: '', text: '', role: '', source: 'manual' }); }} className="px-3 py-1.5 text-xs text-slate-600 hover:bg-slate-200 rounded-lg">
+                                Cancel
+                            </button>
+                            <button onClick={handleAdd} disabled={!newTestimonial.text.trim()} className="px-3 py-1.5 text-xs bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1">
+                                <Check className="w-3 h-3" /> Add Testimonial
+                            </button>
+                        </div>
+                    </div>
+                )}
+
+                {testimonials.length === 0 && !isAdding && (
+                    <div className="text-center p-4 border border-dashed border-slate-300 rounded-lg text-sm text-slate-400">
+                        No testimonials yet. Click "Add Testimonial" to add customer quotes.
+                    </div>
+                )}
             </div>
         </div>
     );
 }
 
-// ===== SCHEMA FIELD RENDERER =====
 // ===== SCHEMA FIELD RENDERER =====
 function SchemaField({
     field,
@@ -1058,20 +1606,6 @@ function SchemaField({
     onTagsRemove: (idx: number) => void;
     suggestedValue?: any;
 }) {
-    // ... switch case ...
-    /* Existing code inside switch needs to be preserved or I replace the whole function? 
-       To avoid replacing huge block, I will replace valid chunks or the whole thing if small.
-       Actually earlier I replaced the end of the function.
-       I will use the previous `replace_file_content` block logic but with typed props.
-    */
-    /* I'll wait and see the file content first to determine start/end lines exactly for the whole function or just the signature and last part */
-    /* Wait, I can't see the whole function in previous view. I'll just change the call site first, then update definition if needed. 
-       Actually I need to update definition signature.
-       I'll use `view_file` to get the function signature area again if I need to be precise.
-       But I see the previous edit lines 274. 
-       The component starts at line 749.
-    */
-
     switch (field.type) {
         case 'toggle':
             return <Toggle value={!!value} onChange={onChange} label={field.label} helpText={field.helpText} />;
@@ -1171,16 +1705,16 @@ function SchemaField({
             return <ScheduleEditor value={value} label={field.label} onChange={onChange} />;
 
         case 'key-value-list':
-            return <KeyValueList value={value} label={field.label} />;
+            return <KeyValueList value={value} label={field.label} onChange={onChange} helpText={field.helpText} editable={true} />;
 
         case 'review-list':
-            return <ReviewList value={value} label={field.label} />;
+            return <ReviewList value={value} label={field.label} onChange={onChange} editable={true} />;
 
         case 'testimonial-list':
-            return <TestimonialList value={value} label={field.label} />;
+            return <TestimonialList value={value} label={field.label} onChange={onChange} editable={true} />;
 
         case 'faq-list':
-            return <FAQList faqs={Array.isArray(value) ? value : []} label={field.label} />;
+            return <FAQList faqs={Array.isArray(value) ? value : []} label={field.label} onChange={onChange} editable={true} />;
 
         case 'image-gallery':
             return <ImageGalleryEditor value={value} label={field.label} onChange={onChange} />;
@@ -1216,6 +1750,337 @@ function SchemaField({
 }
 
 
+
+// ===== AI STRATEGY SECTION (ENHANCED) =====
+function AIStrategySection({
+    persona,
+    onUpdate
+}: {
+    persona: Partial<BusinessPersona>;
+    onUpdate: (path: string, value: any) => Promise<void>;
+}) {
+    const [isAddingTag, setIsAddingTag] = useState(false);
+    const [newTag, setNewTag] = useState('');
+
+    // Get AI configuration from persona or use defaults
+    const tags = persona.tags || [];
+    const aiConfig = (persona as any).aiConfig || {};
+
+    const toneOptions = [
+        { value: 'professional', label: 'Professional', description: 'Formal and business-like' },
+        { value: 'friendly', label: 'Friendly', description: 'Warm and approachable' },
+        { value: 'casual', label: 'Casual', description: 'Relaxed and conversational' },
+        { value: 'enthusiastic', label: 'Enthusiastic', description: 'Energetic and positive' },
+        { value: 'empathetic', label: 'Empathetic', description: 'Understanding and supportive' },
+    ];
+
+    const responseStyleOptions = [
+        { value: 'concise', label: 'Concise', description: 'Short, direct answers' },
+        { value: 'detailed', label: 'Detailed', description: 'Comprehensive explanations' },
+        { value: 'balanced', label: 'Balanced', description: 'Mix of brevity and detail' },
+    ];
+
+    const escalationOptions = [
+        { value: 'complaints', label: 'Complaints' },
+        { value: 'refunds', label: 'Refund Requests' },
+        { value: 'pricing', label: 'Pricing Questions' },
+        { value: 'custom_orders', label: 'Custom Orders' },
+        { value: 'partnerships', label: 'Partnership Inquiries' },
+        { value: 'legal', label: 'Legal Questions' },
+    ];
+
+    const handleAddTag = () => {
+        if (newTag.trim() && !tags.includes(newTag.trim())) {
+            onUpdate('tags', [...tags, newTag.trim()]);
+            setNewTag('');
+            setIsAddingTag(false);
+        }
+    };
+
+    const handleRemoveTag = (index: number) => {
+        const updated = tags.filter((_, i) => i !== index);
+        onUpdate('tags', updated);
+    };
+
+    const handleToneChange = (tone: string) => {
+        onUpdate('aiConfig.tone', tone);
+    };
+
+    const handleResponseStyleChange = (style: string) => {
+        onUpdate('aiConfig.responseStyle', style);
+    };
+
+    const handleEscalationToggle = (topic: string) => {
+        const current = aiConfig.escalationTopics || [];
+        const updated = current.includes(topic)
+            ? current.filter((t: string) => t !== topic)
+            : [...current, topic];
+        onUpdate('aiConfig.escalationTopics', updated);
+    };
+
+    return (
+        <Section
+            title="AI Strategy"
+            icon={Bot}
+            iconBg="bg-violet-600"
+            description="Configure how your AI agent communicates and behaves"
+            defaultOpen={true}
+        >
+            <div className="space-y-8">
+                {/* AI Persona Tags */}
+                <div className="bg-gradient-to-br from-violet-50 to-purple-50 rounded-xl p-5 border border-violet-100">
+                    <div className="flex items-start gap-4">
+                        <div className="p-2 bg-white rounded-lg shadow-sm text-violet-600">
+                            <Sparkles className="w-6 h-6" />
+                        </div>
+                        <div className="flex-1">
+                            <div className="flex items-center justify-between mb-1">
+                                <h4 className="font-semibold text-slate-900">AI Persona Tags</h4>
+                                {!isAddingTag && (
+                                    <button
+                                        onClick={() => setIsAddingTag(true)}
+                                        className="text-xs font-medium text-violet-600 hover:text-violet-700 flex items-center gap-1"
+                                    >
+                                        <Plus className="w-3 h-3" /> Add Tag
+                                    </button>
+                                )}
+                            </div>
+                            <p className="text-sm text-slate-600 mb-4">
+                                Tags help your AI agent understand your business identity, style, and unique characteristics.
+                            </p>
+
+                            <div className="flex flex-wrap gap-2">
+                                {tags.map((tag, i) => (
+                                    <span
+                                        key={i}
+                                        className="group px-3 py-1.5 bg-white border border-violet-200 text-violet-700 rounded-lg text-sm font-medium shadow-sm flex items-center gap-1.5 hover:border-violet-300 transition-colors"
+                                    >
+                                        # {tag}
+                                        <button
+                                            onClick={() => handleRemoveTag(i)}
+                                            className="opacity-0 group-hover:opacity-100 p-0.5 hover:bg-violet-100 rounded transition-opacity"
+                                        >
+                                            <X className="w-3 h-3" />
+                                        </button>
+                                    </span>
+                                ))}
+
+                                {isAddingTag && (
+                                    <div className="flex items-center gap-1">
+                                        <input
+                                            type="text"
+                                            value={newTag}
+                                            onChange={(e) => setNewTag(e.target.value)}
+                                            onKeyDown={(e) => {
+                                                if (e.key === 'Enter') handleAddTag();
+                                                if (e.key === 'Escape') { setIsAddingTag(false); setNewTag(''); }
+                                            }}
+                                            className="w-32 px-2 py-1 text-sm border border-violet-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500"
+                                            placeholder="New tag..."
+                                            autoFocus
+                                        />
+                                        <button onClick={handleAddTag} className="p-1 text-violet-600 hover:bg-violet-100 rounded">
+                                            <Check className="w-4 h-4" />
+                                        </button>
+                                        <button onClick={() => { setIsAddingTag(false); setNewTag(''); }} className="p-1 text-slate-400 hover:bg-slate-100 rounded">
+                                            <X className="w-4 h-4" />
+                                        </button>
+                                    </div>
+                                )}
+
+                                {tags.length === 0 && !isAddingTag && (
+                                    <span className="text-sm text-slate-400 italic">No tags yet. Add tags to define your AI's personality.</span>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                {/* AI Tone & Communication Style */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    {/* Tone Selection */}
+                    <div className="bg-white rounded-xl p-5 border border-slate-200">
+                        <div className="flex items-center gap-2 mb-4">
+                            <div className="w-8 h-8 rounded-lg bg-indigo-100 flex items-center justify-center">
+                                <Heart className="w-4 h-4 text-indigo-600" />
+                            </div>
+                            <h4 className="font-semibold text-slate-900">AI Tone</h4>
+                        </div>
+                        <p className="text-sm text-slate-500 mb-4">How should your AI communicate with customers?</p>
+
+                        <div className="space-y-2">
+                            {toneOptions.map((option) => (
+                                <button
+                                    key={option.value}
+                                    onClick={() => handleToneChange(option.value)}
+                                    className={cn(
+                                        "w-full p-3 rounded-lg border text-left transition-all",
+                                        aiConfig.tone === option.value
+                                            ? "border-indigo-500 bg-indigo-50"
+                                            : "border-slate-200 hover:border-indigo-300 hover:bg-slate-50"
+                                    )}
+                                >
+                                    <div className="flex items-center justify-between">
+                                        <span className={cn(
+                                            "font-medium text-sm",
+                                            aiConfig.tone === option.value ? "text-indigo-700" : "text-slate-700"
+                                        )}>
+                                            {option.label}
+                                        </span>
+                                        {aiConfig.tone === option.value && (
+                                            <Check className="w-4 h-4 text-indigo-600" />
+                                        )}
+                                    </div>
+                                    <p className="text-xs text-slate-500 mt-0.5">{option.description}</p>
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+
+                    {/* Response Style */}
+                    <div className="bg-white rounded-xl p-5 border border-slate-200">
+                        <div className="flex items-center gap-2 mb-4">
+                            <div className="w-8 h-8 rounded-lg bg-emerald-100 flex items-center justify-center">
+                                <Target className="w-4 h-4 text-emerald-600" />
+                            </div>
+                            <h4 className="font-semibold text-slate-900">Response Style</h4>
+                        </div>
+                        <p className="text-sm text-slate-500 mb-4">How detailed should AI responses be?</p>
+
+                        <div className="space-y-2">
+                            {responseStyleOptions.map((option) => (
+                                <button
+                                    key={option.value}
+                                    onClick={() => handleResponseStyleChange(option.value)}
+                                    className={cn(
+                                        "w-full p-3 rounded-lg border text-left transition-all",
+                                        aiConfig.responseStyle === option.value
+                                            ? "border-emerald-500 bg-emerald-50"
+                                            : "border-slate-200 hover:border-emerald-300 hover:bg-slate-50"
+                                    )}
+                                >
+                                    <div className="flex items-center justify-between">
+                                        <span className={cn(
+                                            "font-medium text-sm",
+                                            aiConfig.responseStyle === option.value ? "text-emerald-700" : "text-slate-700"
+                                        )}>
+                                            {option.label}
+                                        </span>
+                                        {aiConfig.responseStyle === option.value && (
+                                            <Check className="w-4 h-4 text-emerald-600" />
+                                        )}
+                                    </div>
+                                    <p className="text-xs text-slate-500 mt-0.5">{option.description}</p>
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+
+                {/* Escalation Rules */}
+                <div className="bg-white rounded-xl p-5 border border-slate-200">
+                    <div className="flex items-center gap-2 mb-4">
+                        <div className="w-8 h-8 rounded-lg bg-amber-100 flex items-center justify-center">
+                            <AlertCircle className="w-4 h-4 text-amber-600" />
+                        </div>
+                        <h4 className="font-semibold text-slate-900">Escalation Topics</h4>
+                    </div>
+                    <p className="text-sm text-slate-500 mb-4">
+                        Select topics that should be escalated to a human instead of being handled by AI.
+                    </p>
+
+                    <div className="flex flex-wrap gap-2">
+                        {escalationOptions.map((option) => {
+                            const isSelected = (aiConfig.escalationTopics || []).includes(option.value);
+                            return (
+                                <button
+                                    key={option.value}
+                                    onClick={() => handleEscalationToggle(option.value)}
+                                    className={cn(
+                                        "px-3 py-2 rounded-lg border text-sm font-medium transition-all",
+                                        isSelected
+                                            ? "border-amber-500 bg-amber-50 text-amber-700"
+                                            : "border-slate-200 text-slate-600 hover:border-amber-300 hover:bg-slate-50"
+                                    )}
+                                >
+                                    {isSelected && <Check className="w-3 h-3 inline mr-1" />}
+                                    {option.label}
+                                </button>
+                            );
+                        })}
+                    </div>
+                    <p className="text-xs text-slate-400 mt-3">
+                        When customers ask about these topics, AI will offer to connect them with a team member.
+                    </p>
+                </div>
+
+                {/* Custom Instructions */}
+                <div className="bg-white rounded-xl p-5 border border-slate-200">
+                    <div className="flex items-center gap-2 mb-4">
+                        <div className="w-8 h-8 rounded-lg bg-purple-100 flex items-center justify-center">
+                            <Edit3 className="w-4 h-4 text-purple-600" />
+                        </div>
+                        <h4 className="font-semibold text-slate-900">Custom AI Instructions</h4>
+                    </div>
+                    <p className="text-sm text-slate-500 mb-4">
+                        Add specific instructions or guidelines for your AI agent.
+                    </p>
+
+                    <EditableField
+                        label="Custom Instructions"
+                        value={aiConfig.customInstructions || ''}
+                        onSave={(val) => onUpdate('aiConfig.customInstructions', val)}
+                        multiline={true}
+                        placeholder="e.g., Always mention our free delivery offer, never discuss competitor pricing, emphasize our 30-day return policy..."
+                        helpText="These instructions help fine-tune how your AI responds to customers."
+                    />
+                </div>
+
+                {/* Topics to Avoid */}
+                <div className="bg-white rounded-xl p-5 border border-slate-200">
+                    <div className="flex items-center gap-2 mb-4">
+                        <div className="w-8 h-8 rounded-lg bg-red-100 flex items-center justify-center">
+                            <Shield className="w-4 h-4 text-red-600" />
+                        </div>
+                        <h4 className="font-semibold text-slate-900">Topics to Avoid</h4>
+                    </div>
+                    <p className="text-sm text-slate-500 mb-4">
+                        Add topics your AI should not discuss or be cautious about.
+                    </p>
+
+                    <TagsInput
+                        items={aiConfig.topicsToAvoid || []}
+                        onAdd={(tag) => onUpdate('aiConfig.topicsToAvoid', [...(aiConfig.topicsToAvoid || []), tag])}
+                        onRemove={(idx) => {
+                            const updated = (aiConfig.topicsToAvoid || []).filter((_: string, i: number) => i !== idx);
+                            onUpdate('aiConfig.topicsToAvoid', updated);
+                        }}
+                        label="Avoided Topics"
+                        helpText="AI will politely redirect conversations away from these topics"
+                    />
+                </div>
+
+                {/* AI Insights Banner */}
+                <div className="bg-gradient-to-r from-violet-500 to-purple-600 rounded-xl p-5 text-white">
+                    <div className="flex items-start gap-4">
+                        <div className="p-2 bg-white/20 rounded-lg">
+                            <Zap className="w-6 h-6" />
+                        </div>
+                        <div>
+                            <h4 className="font-semibold mb-1">AI Performance Insights</h4>
+                            <p className="text-sm text-violet-100 mb-3">
+                                Track how your AI is performing and get suggestions for improvement.
+                            </p>
+                            <button className="px-4 py-2 bg-white/20 hover:bg-white/30 rounded-lg text-sm font-medium transition-colors">
+                                View AI Analytics
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </Section>
+    );
+}
 
 // ===== MAIN COMPONENT =====
 export default function SchemaBusinessProfile({
@@ -1519,6 +2384,39 @@ export default function SchemaBusinessProfile({
                                         defaultOpen={idx === 0}
                                         description={section.description}
                                     >
+                                        {/* Import Summary Banner for "Other useful data" section */}
+                                        {section.id === 'from-the-web' && (
+                                            <div className="mb-6 p-4 bg-gradient-to-r from-pink-50 via-purple-50 to-blue-50 rounded-xl border border-pink-100">
+                                                <div className="flex items-center justify-between">
+                                                    <div className="flex items-center gap-3">
+                                                        <div className="w-10 h-10 bg-white rounded-lg flex items-center justify-center shadow-sm">
+                                                            <Globe className="w-5 h-5 text-pink-600" />
+                                                        </div>
+                                                        <div>
+                                                            <h4 className="font-semibold text-slate-800">Web Intelligence</h4>
+                                                            <p className="text-xs text-slate-500">Data collected from Google Business & website scraping</p>
+                                                        </div>
+                                                    </div>
+                                                    <div className="flex items-center gap-4 text-xs">
+                                                        {importMeta?.lastImportAt && (
+                                                            <div className="text-slate-500">
+                                                                Last import: {new Date(importMeta.lastImportAt).toLocaleDateString()}
+                                                            </div>
+                                                        )}
+                                                        {onImportData && (
+                                                            <button
+                                                                onClick={onImportData}
+                                                                className="px-3 py-1.5 bg-pink-600 text-white rounded-lg text-xs font-medium hover:bg-pink-700 flex items-center gap-1.5 shadow-sm"
+                                                            >
+                                                                <RefreshCw className="w-3 h-3" />
+                                                                Refresh Data
+                                                            </button>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        )}
+
                                         <div className="space-y-6">
                                             {section.subSections.map((subSection: any) => {
                                                 const SubIcon = SUBSECTION_ICONS[subSection.id] || Building2;
@@ -1612,43 +2510,11 @@ export default function SchemaBusinessProfile({
                             })}
                         </div>
 
-                        {/* 7. AI Strategy (New) */}
-                        {(persona.tags && persona.tags.length > 0) && (
-                            <Section
-                                title="AI Strategy"
-                                icon={Bot}
-                                iconBg="bg-violet-600"
-                                description="AI-generated tags and insights powering your agent"
-                                defaultOpen={true}
-                            >
-                                <div className="mb-6">
-                                    <div className="bg-violet-50 rounded-xl p-5 border border-violet-100">
-                                        <div className="flex items-start gap-4">
-                                            <div className="p-2 bg-white rounded-lg shadow-sm text-violet-600">
-                                                <Sparkles className="w-6 h-6" />
-                                            </div>
-                                            <div className="flex-1">
-                                                <h4 className="font-semibold text-slate-900 mb-1">Active AI Persona Tags</h4>
-                                                <p className="text-sm text-slate-600 mb-4">
-                                                    These tags help your AI agent understand your business's unique identity, style, and offering highlights.
-                                                </p>
-                                                <div className="flex flex-wrap gap-2">
-                                                    {persona.tags.map((tag, i) => (
-                                                        <span
-                                                            key={i}
-                                                            className="px-3 py-1.5 bg-white border border-violet-200 text-violet-700 rounded-lg text-sm font-medium shadow-sm flex items-center gap-1.5"
-                                                        >
-                                                            # {tag}
-                                                        </span>
-                                                    ))}
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                    {/* Placeholder for future Tag Insights */}
-                                </div>
-                            </Section>
-                        )}
+                        {/* 7. AI Strategy (Enhanced) */}
+                        <AIStrategySection
+                            persona={persona}
+                            onUpdate={onUpdate}
+                        />
                     </>
                 ) : (
                     <div className="bg-white rounded-xl border border-slate-200 p-8 mb-6 text-center shadow-sm">
