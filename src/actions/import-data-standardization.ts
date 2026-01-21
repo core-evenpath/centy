@@ -34,17 +34,54 @@ const CANONICAL_FIELD_MAP: Record<string, CanonicalFieldMapping> = {
   'year_established': { canonicalPath: 'personality.foundedYear', transform: (v) => typeof v === 'string' ? parseInt(v, 10) : v },
   'business_types': { canonicalPath: 'industrySpecificData.businessTypes', merge: 'append' },
   'whatsapp': { canonicalPath: 'identity.whatsAppNumber' },
+  'industry': { canonicalPath: 'industrySpecificData.industry' },
+  'timezone': { canonicalPath: 'identity.timezone' },
+  'currency': { canonicalPath: 'identity.currency' },
 
-  // === SOCIAL MEDIA ===
+  // === SOCIAL MEDIA (Comprehensive) ===
   'social_media': { canonicalPath: 'identity.socialMedia', merge: 'merge' },
+  // Core platforms
   'instagram': { canonicalPath: 'identity.socialMedia.instagram' },
   'facebook': { canonicalPath: 'identity.socialMedia.facebook' },
   'linkedin': { canonicalPath: 'identity.socialMedia.linkedin' },
   'twitter': { canonicalPath: 'identity.socialMedia.twitter' },
   'youtube': { canonicalPath: 'identity.socialMedia.youtube' },
   'tiktok': { canonicalPath: 'identity.socialMedia.tiktok' },
+  'pinterest': { canonicalPath: 'identity.socialMedia.pinterest' },
+  'snapchat': { canonicalPath: 'identity.socialMedia.snapchat' },
+  'threads': { canonicalPath: 'identity.socialMedia.threads' },
+  // Messaging platforms
+  'telegram': { canonicalPath: 'identity.socialMedia.telegram' },
+  'wechat': { canonicalPath: 'identity.socialMedia.wechat' },
+  'line': { canonicalPath: 'identity.socialMedia.line' },
+  // Business/Review platforms
   'google_business': { canonicalPath: 'identity.socialMedia.googleBusiness' },
   'google_maps_url': { canonicalPath: 'identity.googleMapsUrl' },
+  'yelp': { canonicalPath: 'identity.socialMedia.yelp' },
+  'tripadvisor': { canonicalPath: 'identity.socialMedia.tripadvisor' },
+  'trustpilot': { canonicalPath: 'identity.socialMedia.trustpilot' },
+  'glassdoor': { canonicalPath: 'identity.socialMedia.glassdoor' },
+  // Food/Restaurant platforms
+  'zomato': { canonicalPath: 'identity.socialMedia.zomato' },
+  'swiggy': { canonicalPath: 'identity.socialMedia.swiggy' },
+  'ubereats': { canonicalPath: 'identity.socialMedia.ubereats' },
+  'doordash': { canonicalPath: 'identity.socialMedia.doordash' },
+  'grubhub': { canonicalPath: 'identity.socialMedia.grubhub' },
+  'opentable': { canonicalPath: 'identity.socialMedia.opentable' },
+  // Real Estate platforms
+  'zillow': { canonicalPath: 'identity.socialMedia.zillow' },
+  'realtor': { canonicalPath: 'identity.socialMedia.realtor' },
+  'trulia': { canonicalPath: 'identity.socialMedia.trulia' },
+  'houzz': { canonicalPath: 'identity.socialMedia.houzz' },
+  'redfin': { canonicalPath: 'identity.socialMedia.redfin' },
+  // Travel/Hotel platforms
+  'booking': { canonicalPath: 'identity.socialMedia.booking' },
+  'airbnb': { canonicalPath: 'identity.socialMedia.airbnb' },
+  'expedia': { canonicalPath: 'identity.socialMedia.expedia' },
+  // Professional/Portfolio
+  'github': { canonicalPath: 'identity.socialMedia.github' },
+  'behance': { canonicalPath: 'identity.socialMedia.behance' },
+  'dribbble': { canonicalPath: 'identity.socialMedia.dribbble' },
 
   // === PERSONALITY / BRAND ===
   'tagline': { canonicalPath: 'personality.tagline' },
@@ -55,6 +92,8 @@ const CANONICAL_FIELD_MAP: Record<string, CanonicalFieldMapping> = {
   'vision_statement': { canonicalPath: 'personality.visionStatement' },
   'story': { canonicalPath: 'personality.story' },
   'voice_tone': { canonicalPath: 'personality.voiceTone' },
+  'communication_style': { canonicalPath: 'personality.communicationStyle' },
+  'greeting_style': { canonicalPath: 'personality.greetingStyle' },
 
   // === CUSTOMER PROFILE / AUDIENCE & POSITIONING ===
   'target_audience': { canonicalPath: 'customerProfile.targetAudience' },
@@ -71,6 +110,8 @@ const CANONICAL_FIELD_MAP: Record<string, CanonicalFieldMapping> = {
   'demographics': { canonicalPath: 'customerProfile.customerDemographics', merge: 'append' },
   'common_queries': { canonicalPath: 'customerProfile.commonQueries', merge: 'append' },
   'acquisition_channels': { canonicalPath: 'customerProfile.acquisitionChannels', merge: 'append' },
+  'peak_contact_times': { canonicalPath: 'customerProfile.peakContactTimes', merge: 'append' },
+  'typical_journey_stages': { canonicalPath: 'customerProfile.typicalJourneyStages', merge: 'append' },
 
   // === KNOWLEDGE / TRUST & SUPPORT ===
   'services': { canonicalPath: 'knowledge.productsOrServices', merge: 'append', transform: transformServicesToProducts },
@@ -90,12 +131,19 @@ const CANONICAL_FIELD_MAP: Record<string, CanonicalFieldMapping> = {
   'years_in_business': { canonicalPath: 'industrySpecificData.yearsInBusiness' },
   'employee_count': { canonicalPath: 'industrySpecificData.employeeCount' },
   'team_size': { canonicalPath: 'industrySpecificData.employeeCount' },
+  'team': { canonicalPath: 'knowledge.teamMembers', merge: 'append' },
+  'pricing_model': { canonicalPath: 'knowledge.pricingModel' },
+  'pricing_highlights': { canonicalPath: 'knowledge.pricingHighlights' },
+  'current_offers': { canonicalPath: 'knowledge.currentOffers', merge: 'append' },
+  'guarantees': { canonicalPath: 'knowledge.guarantees', merge: 'append' },
 
   // === REPUTATION ===
   'google_rating': { canonicalPath: 'industrySpecificData.googleRating' },
   'review_count': { canonicalPath: 'industrySpecificData.googleReviewCount' },
   'reviews': { canonicalPath: 'webIntelligence.reviews', merge: 'append' },
   'testimonials': { canonicalPath: 'testimonials', merge: 'append', transform: transformTestimonials },
+  'online_presence': { canonicalPath: 'webIntelligence.onlinePresence', merge: 'append' },
+  'press_media': { canonicalPath: 'webIntelligence.pressMentions', merge: 'append' },
 
   // === INDUSTRY SPECIFIC ===
   'industry_data': { canonicalPath: 'industrySpecificData', merge: 'merge' },
@@ -103,9 +151,23 @@ const CANONICAL_FIELD_MAP: Record<string, CanonicalFieldMapping> = {
   'areas_served': { canonicalPath: 'industrySpecificData.areasServed', merge: 'append' },
   'team_members': { canonicalPath: 'knowledge.teamMembers', merge: 'append' },
   'price_level': { canonicalPath: 'industrySpecificData.priceLevel' },
+  'process_steps': { canonicalPath: 'industrySpecificData.processSteps', merge: 'append' },
+  'client_types': { canonicalPath: 'industrySpecificData.clientTypes', merge: 'append' },
+  'project_types': { canonicalPath: 'industrySpecificData.projectTypes', merge: 'append' },
+
+  // === INVENTORY (Industry-Specific) ===
+  'menu_items': { canonicalPath: 'menuItems', merge: 'append' },
+  'menu_categories': { canonicalPath: 'menuCategories', merge: 'append' },
+  'room_types': { canonicalPath: 'roomTypes', merge: 'append' },
+  'hotel_amenities': { canonicalPath: 'hotelAmenities', merge: 'append' },
+  'product_catalog': { canonicalPath: 'productCatalog', merge: 'append' },
+  'property_listings': { canonicalPath: 'propertyListings', merge: 'append' },
+  'healthcare_services': { canonicalPath: 'healthcareServices', merge: 'append' },
 
   // === MEDIA ===
   'photos': { canonicalPath: 'webIntelligence.photos', merge: 'append' },
+  'logo': { canonicalPath: 'identity.logo' },
+  'cover_image': { canonicalPath: 'identity.coverImage' },
 };
 
 // Transform functions
@@ -186,6 +248,24 @@ const GOOGLE_KEY_MAP: Record<string, { key: string; category: string; label: str
   'identity.yearEstablished': { key: 'year_established', category: 'identity', label: 'Year Established' },
   'identity.socialMedia': { key: 'social_media', category: 'contact', label: 'Social Media' },
   'identity.googleMapsUrl': { key: 'google_maps_url', category: 'contact', label: 'Google Maps URL' },
+  'identity.industry': { key: 'industry', category: 'identity', label: 'Industry' },
+  'identity.location': { key: 'location', category: 'contact', label: 'Location' },
+
+  // Social Media - Individual platforms from identity.socialMedia
+  'identity.socialMedia.instagram': { key: 'instagram', category: 'social', label: 'Instagram' },
+  'identity.socialMedia.facebook': { key: 'facebook', category: 'social', label: 'Facebook' },
+  'identity.socialMedia.linkedin': { key: 'linkedin', category: 'social', label: 'LinkedIn' },
+  'identity.socialMedia.twitter': { key: 'twitter', category: 'social', label: 'Twitter' },
+  'identity.socialMedia.youtube': { key: 'youtube', category: 'social', label: 'YouTube' },
+  'identity.socialMedia.tiktok': { key: 'tiktok', category: 'social', label: 'TikTok' },
+  'identity.socialMedia.pinterest': { key: 'pinterest', category: 'social', label: 'Pinterest' },
+  'identity.socialMedia.snapchat': { key: 'snapchat', category: 'social', label: 'Snapchat' },
+  'identity.socialMedia.threads': { key: 'threads', category: 'social', label: 'Threads' },
+  'identity.socialMedia.whatsapp': { key: 'whatsapp', category: 'social', label: 'WhatsApp' },
+  'identity.socialMedia.telegram': { key: 'telegram', category: 'social', label: 'Telegram' },
+  'identity.socialMedia.googleBusiness': { key: 'google_business', category: 'social', label: 'Google Business' },
+  'identity.socialMedia.yelp': { key: 'yelp', category: 'social', label: 'Yelp' },
+  'identity.socialMedia.tripadvisor': { key: 'tripadvisor', category: 'social', label: 'TripAdvisor' },
 
   // Personality
   'personality.tagline': { key: 'tagline', category: 'identity', label: 'Tagline' },
@@ -289,6 +369,45 @@ const WEBSITE_KEY_MAP: Record<string, { key: string; category: string; label: st
   'identity.yearEstablished': { key: 'year_established', category: 'identity', label: 'Year Established' },
   'identity.founders': { key: 'team_members', category: 'team', label: 'Founders' },
   'identity.teamSize': { key: 'team_size', category: 'team', label: 'Team Size' },
+  'identity.industry': { key: 'industry', category: 'identity', label: 'Industry' },
+  'identity.location': { key: 'location', category: 'contact', label: 'Location' },
+
+  // Social Media - Individual platforms from identity.socialMedia (comprehensive)
+  'identity.socialMedia.instagram': { key: 'instagram', category: 'social', label: 'Instagram' },
+  'identity.socialMedia.facebook': { key: 'facebook', category: 'social', label: 'Facebook' },
+  'identity.socialMedia.linkedin': { key: 'linkedin', category: 'social', label: 'LinkedIn' },
+  'identity.socialMedia.twitter': { key: 'twitter', category: 'social', label: 'Twitter' },
+  'identity.socialMedia.youtube': { key: 'youtube', category: 'social', label: 'YouTube' },
+  'identity.socialMedia.tiktok': { key: 'tiktok', category: 'social', label: 'TikTok' },
+  'identity.socialMedia.pinterest': { key: 'pinterest', category: 'social', label: 'Pinterest' },
+  'identity.socialMedia.snapchat': { key: 'snapchat', category: 'social', label: 'Snapchat' },
+  'identity.socialMedia.threads': { key: 'threads', category: 'social', label: 'Threads' },
+  'identity.socialMedia.whatsapp': { key: 'whatsapp', category: 'social', label: 'WhatsApp' },
+  'identity.socialMedia.telegram': { key: 'telegram', category: 'social', label: 'Telegram' },
+  'identity.socialMedia.wechat': { key: 'wechat', category: 'social', label: 'WeChat' },
+  'identity.socialMedia.line': { key: 'line', category: 'social', label: 'LINE' },
+  'identity.socialMedia.googleBusiness': { key: 'google_business', category: 'social', label: 'Google Business' },
+  'identity.socialMedia.yelp': { key: 'yelp', category: 'social', label: 'Yelp' },
+  'identity.socialMedia.tripadvisor': { key: 'tripadvisor', category: 'social', label: 'TripAdvisor' },
+  'identity.socialMedia.trustpilot': { key: 'trustpilot', category: 'social', label: 'Trustpilot' },
+  'identity.socialMedia.glassdoor': { key: 'glassdoor', category: 'social', label: 'Glassdoor' },
+  'identity.socialMedia.zomato': { key: 'zomato', category: 'social', label: 'Zomato' },
+  'identity.socialMedia.swiggy': { key: 'swiggy', category: 'social', label: 'Swiggy' },
+  'identity.socialMedia.ubereats': { key: 'ubereats', category: 'social', label: 'UberEats' },
+  'identity.socialMedia.doordash': { key: 'doordash', category: 'social', label: 'DoorDash' },
+  'identity.socialMedia.grubhub': { key: 'grubhub', category: 'social', label: 'Grubhub' },
+  'identity.socialMedia.opentable': { key: 'opentable', category: 'social', label: 'OpenTable' },
+  'identity.socialMedia.zillow': { key: 'zillow', category: 'social', label: 'Zillow' },
+  'identity.socialMedia.realtor': { key: 'realtor', category: 'social', label: 'Realtor' },
+  'identity.socialMedia.trulia': { key: 'trulia', category: 'social', label: 'Trulia' },
+  'identity.socialMedia.houzz': { key: 'houzz', category: 'social', label: 'Houzz' },
+  'identity.socialMedia.redfin': { key: 'redfin', category: 'social', label: 'Redfin' },
+  'identity.socialMedia.booking': { key: 'booking', category: 'social', label: 'Booking.com' },
+  'identity.socialMedia.airbnb': { key: 'airbnb', category: 'social', label: 'Airbnb' },
+  'identity.socialMedia.expedia': { key: 'expedia', category: 'social', label: 'Expedia' },
+  'identity.socialMedia.github': { key: 'github', category: 'social', label: 'GitHub' },
+  'identity.socialMedia.behance': { key: 'behance', category: 'social', label: 'Behance' },
+  'identity.socialMedia.dribbble': { key: 'dribbble', category: 'social', label: 'Dribbble' },
 
   // Personality
   'personality.tagline': { key: 'tagline', category: 'identity', label: 'Tagline' },
@@ -366,9 +485,29 @@ const WEBSITE_KEY_MAP: Record<string, { key: string; category: string; label: st
   'fromTheWeb.additionalInfo': { key: 'additional_info', category: 'other', label: 'Additional Info' },
   'fromTheWeb.otherFindings': { key: 'other_findings', category: 'other', label: 'Other Findings' },
 
-  // Testimonials
+  // Online Presence & Press
+  'onlinePresence': { key: 'online_presence', category: 'reputation', label: 'Online Presence' },
+  'pressMedia': { key: 'press_media', category: 'reputation', label: 'Press & Media' },
+
+  // Inventory (Industry-Specific)
+  'inventory.rooms': { key: 'room_types', category: 'inventory', label: 'Room Types' },
+  'inventory.menuItems': { key: 'menu_items', category: 'inventory', label: 'Menu Items' },
+  'inventory.products': { key: 'product_catalog', category: 'inventory', label: 'Product Catalog' },
+  'inventory.services': { key: 'healthcare_services', category: 'inventory', label: 'Healthcare Services' },
+  'inventory.properties': { key: 'property_listings', category: 'inventory', label: 'Property Listings' },
+
+  // Testimonials & Reviews
   'testimonials': { key: 'testimonials', category: 'reputation', label: 'Testimonials' },
   'reviews': { key: 'reviews', category: 'reputation', label: 'Reviews' },
+
+  // Direct root-level mappings (for data that comes at root level)
+  'instagram': { key: 'instagram', category: 'social', label: 'Instagram' },
+  'facebook': { key: 'facebook', category: 'social', label: 'Facebook' },
+  'linkedin': { key: 'linkedin', category: 'social', label: 'LinkedIn' },
+  'twitter': { key: 'twitter', category: 'social', label: 'Twitter' },
+  'youtube': { key: 'youtube', category: 'social', label: 'YouTube' },
+  'tiktok': { key: 'tiktok', category: 'social', label: 'TikTok' },
+  'whatsapp': { key: 'whatsapp', category: 'social', label: 'WhatsApp' },
 };
 
 /**
