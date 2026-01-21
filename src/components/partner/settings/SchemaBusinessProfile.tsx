@@ -7,7 +7,7 @@ import {
     Phone, Clock, HelpCircle, Bot, Zap, Trash2, EyeOff,
     LucideIcon, Landmark, GraduationCap, Heart, Briefcase,
     ShoppingBag, UtensilsCrossed, ShoppingCart, Car, Plane,
-    PartyPopper, Wrench, MoreHorizontal, RefreshCw, AlertCircle
+    PartyPopper, Wrench, MoreHorizontal, RefreshCw, AlertCircle, Image as ImageIcon
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { BusinessPersona, ImportMeta, UnmappedDataItem, FieldSource } from '@/lib/business-persona-types';
@@ -30,6 +30,8 @@ import {
     SelectedBusinessCategory,
 } from '@/lib/business-taxonomy';
 import { generateModulesFromCategories, type ModulesConfig } from '@/actions/module-generator-actions';
+import InventoryManager from './InventoryManager';
+import { InventoryConfig, InventoryItem, InventoryCategoryDefinition, InventoryFieldDefinition, generateItemId } from '@/lib/inventory-types';
 
 // ===== ICON MAPPINGS =====
 const SECTION_ICONS: Record<string, LucideIcon> = {
@@ -143,7 +145,47 @@ function ProgressRing({ value }: { value: number }) {
     );
 }
 
-// ===== COLLAPSIBLE SECTION =====
+// ===== INVENTORY HELPERS =====
+function getInventoryDefaults(label: string): { categories: InventoryCategoryDefinition[], fields: InventoryFieldDefinition[] } {
+    // Default categories based on label
+    let categories: InventoryCategoryDefinition[] = [
+        { id: 'general', name: 'General' }
+    ];
+
+    if (label.toLowerCase().includes('menu') || label.toLowerCase().includes('dish')) {
+        categories = [
+            { id: 'starters', name: 'Starters' },
+            { id: 'mains', name: 'Main Course' },
+            { id: 'desserts', name: 'Desserts' },
+            { id: 'beverages', name: 'Beverages' },
+        ];
+    } else if (label.toLowerCase().includes('room')) {
+        categories = [
+            { id: 'standard', name: 'Standard Rooms' },
+            { id: 'deluxe', name: 'Deluxe Rooms' },
+            { id: 'suites', name: 'Suites' },
+        ];
+    } else if (label.toLowerCase().includes('course')) {
+        categories = [
+            { id: 'beginner', name: 'Beginner' },
+            { id: 'intermediate', name: 'Intermediate' },
+            { id: 'advanced', name: 'Advanced' },
+        ];
+    }
+
+    // Default fields - valid for most items
+    const fields: InventoryFieldDefinition[] = [
+        { id: 'name', name: 'Name', type: 'text', isRequired: true, placeholder: 'Item name' },
+        { id: 'description', name: 'Description', type: 'textarea', isRequired: false, placeholder: 'Describe this item...' },
+        { id: 'price', name: 'Price', type: 'number', isRequired: true, placeholder: '0.00' },
+        // Additional common fields can be added here
+        { id: 'image', name: 'Image URL', type: 'text', isRequired: false, placeholder: 'https://...' },
+    ];
+
+    return { categories, fields };
+}
+
+// ===== COLLAPSIBLE SECTION (CARD STYLE) =====
 function Section({
     title,
     icon: Icon,
@@ -162,33 +204,42 @@ function Section({
     const [isOpen, setIsOpen] = useState(defaultOpen);
 
     return (
-        <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm">
+        <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm hover:shadow-md transition-shadow duration-300">
             <button
                 onClick={() => setIsOpen(!isOpen)}
-                className="w-full px-5 py-4 flex items-center gap-4 hover:bg-slate-50 transition-colors"
+                className="w-full px-6 py-5 flex items-start gap-5 hover:bg-slate-50 transition-colors text-left group"
             >
-                <div className={cn("w-10 h-10 rounded-lg flex items-center justify-center", iconBg)}>
-                    <Icon className="w-5 h-5 text-white" />
+                <div className={cn(
+                    "w-12 h-12 rounded-xl flex items-center justify-center shrink-0 shadow-sm group-hover:scale-105 transition-transform duration-300",
+                    iconBg
+                )}>
+                    <Icon className="w-6 h-6 text-white" />
                 </div>
-                <div className="flex-1 text-left">
-                    <h3 className="font-semibold text-slate-900">{title}</h3>
-                    {description && <p className="text-xs text-slate-500 mt-0.5">{description}</p>}
+                <div className="flex-1 pt-1">
+                    <h3 className="text-lg font-bold text-slate-900 group-hover:text-indigo-700 transition-colors">{title}</h3>
+                    {description && <p className="text-sm text-slate-500 mt-1">{description}</p>}
                 </div>
-                <ChevronDown className={cn(
-                    "w-5 h-5 text-slate-400 transition-transform",
-                    isOpen && "rotate-180"
-                )} />
+                <div className={cn(
+                    "w-8 h-8 rounded-full flex items-center justify-center transition-all mt-2",
+                    isOpen ? "bg-indigo-100 text-indigo-600 rotate-180" : "bg-slate-100 text-slate-400 group-hover:bg-slate-200"
+                )}>
+                    <ChevronDown className="w-5 h-5" />
+                </div>
             </button>
-            {isOpen && (
-                <div className="px-5 pb-5 pt-2 border-t border-slate-100">
+
+            <div className={cn(
+                "transition-all duration-300 ease-in-out border-t border-slate-100",
+                isOpen ? "max-h-[5000px] opacity-100 block" : "max-h-0 opacity-0 hidden"
+            )}>
+                <div className="p-6 md:p-8 space-y-8">
                     {children}
                 </div>
-            )}
+            </div>
         </div>
     );
 }
 
-// ===== EDITABLE FIELD =====
+// ===== EDITABLE FIELD (ENHANCED) =====
 function EditableField({
     label,
     value,
@@ -196,7 +247,8 @@ function EditableField({
     multiline = false,
     placeholder = "Click to add...",
     helpText,
-    badge
+    badge,
+    type = 'text'
 }: {
     label: string;
     value: string;
@@ -205,17 +257,30 @@ function EditableField({
     placeholder?: string;
     helpText?: string;
     badge?: string;
+    type?: string;
 }) {
     const [editing, setEditing] = useState(false);
     const [tempValue, setTempValue] = useState(value || '');
+    const [loading, setLoading] = useState(false);
 
     useEffect(() => {
         setTempValue(value || '');
     }, [value]);
 
     const handleSave = async () => {
-        await onSave(tempValue);
-        setEditing(false);
+        if (tempValue === value) {
+            setEditing(false);
+            return;
+        }
+        setLoading(true);
+        try {
+            await onSave(tempValue);
+            setEditing(false);
+        } catch (error) {
+            console.error("Failed to save field", error);
+        } finally {
+            setLoading(false);
+        }
     };
 
     const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -230,48 +295,96 @@ function EditableField({
     };
 
     return (
-        <div className="mb-3">
-            <div className="flex items-center gap-2 mb-1">
-                <label className="text-xs font-medium text-slate-500 uppercase">{label}</label>
-                {badge && <span className="px-1.5 py-0.5 bg-indigo-100 text-indigo-600 text-[10px] font-medium rounded">{badge}</span>}
+        <div className="group/field relative">
+            <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-2">
+                    <label className="text-sm font-semibold text-slate-700">{label}</label>
+                    {badge && (
+                        <span className="px-2 py-0.5 bg-indigo-50 text-indigo-600 text-[10px] font-bold uppercase tracking-wider rounded border border-indigo-100">{badge}</span>
+                    )}
+                </div>
+                {/* Focus/Edit indicator */}
+                {!editing && (
+                    <button
+                        onClick={() => setEditing(true)}
+                        className="opacity-0 group-hover/field:opacity-100 transition-opacity text-xs font-medium text-indigo-600 hover:text-indigo-700 flex items-center gap-1"
+                    >
+                        <Edit3 className="w-3 h-3" /> Edit
+                    </button>
+                )}
             </div>
-            {helpText && <p className="text-xs text-slate-400 mb-1">{helpText}</p>}
+
+            {helpText && <p className="text-xs text-slate-500 mb-2.5 leading-relaxed">{helpText}</p>}
 
             {editing ? (
-                <div className="flex items-start gap-2">
-                    {multiline ? (
-                        <textarea
-                            value={tempValue}
-                            onChange={(e) => setTempValue(e.target.value)}
-                            onKeyDown={handleKeyDown}
-                            className="flex-1 px-3 py-2 border border-indigo-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 min-h-[80px]"
-                            autoFocus
-                        />
-                    ) : (
-                        <input
-                            value={tempValue}
-                            onChange={(e) => setTempValue(e.target.value)}
-                            onKeyDown={handleKeyDown}
-                            className="flex-1 px-3 py-2 border border-indigo-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                            autoFocus
-                        />
-                    )}
-                    <button onClick={handleSave} className="p-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700">
-                        <Check className="w-4 h-4" />
-                    </button>
-                    <button onClick={() => { setTempValue(value || ''); setEditing(false); }} className="p-2 bg-slate-100 text-slate-600 rounded-lg hover:bg-slate-200">
-                        <X className="w-4 h-4" />
-                    </button>
+                <div className="relative animate-in fade-in zoom-in-95 duration-200">
+                    <div className="relative">
+                        {multiline ? (
+                            <textarea
+                                value={tempValue}
+                                onChange={(e) => setTempValue(e.target.value)}
+                                onKeyDown={handleKeyDown}
+                                className="w-full px-4 py-3 bg-white border-2 border-indigo-500 rounded-xl text-sm focus:outline-none min-h-[100px] shadow-sm resize-y"
+                                autoFocus
+                                placeholder={placeholder}
+                                disabled={loading}
+                            />
+                        ) : (
+                            <input
+                                type={type}
+                                value={tempValue}
+                                onChange={(e) => setTempValue(e.target.value)}
+                                onKeyDown={handleKeyDown}
+                                className="w-full px-4 py-2.5 bg-white border-2 border-indigo-500 rounded-xl text-sm focus:outline-none shadow-sm"
+                                autoFocus
+                                placeholder={placeholder}
+                                disabled={loading}
+                            />
+                        )}
+
+                        <div className="absolute bottom-2 right-2 flex items-center gap-1">
+                            <div className="text-[10px] text-slate-400 font-medium px-2 py-1 bg-white/80 rounded backdrop-blur-sm pointer-events-none">
+                                {multiline ? 'Shift+Enter' : 'Enter'} to save
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="flex items-center gap-2 mt-2 justify-end">
+                        <button
+                            onClick={() => { setTempValue(value || ''); setEditing(false); }}
+                            className="px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
+                            disabled={loading}
+                        >
+                            Cancel
+                        </button>
+                        <button
+                            onClick={handleSave}
+                            className="px-4 py-1.5 bg-indigo-600 text-white rounded-lg text-xs font-medium hover:bg-indigo-700 flex items-center gap-1.5 shadow-sm shadow-indigo-200 transition-all hover:shadow-md disabled:opacity-70 disabled:cursor-not-allowed"
+                            disabled={loading}
+                        >
+                            {loading ? <RefreshCw className="w-3 h-3 animate-spin" /> : <Check className="w-3 h-3" />}
+                            Save
+                        </button>
+                    </div>
                 </div>
             ) : (
                 <div
                     onClick={() => setEditing(true)}
-                    className="px-3 py-2 bg-slate-50 rounded-lg cursor-pointer hover:bg-slate-100 flex items-center justify-between group min-h-[38px]"
+                    className={cn(
+                        "w-full px-4 py-3 rounded-xl border transition-all cursor-pointer flex items-start group-hover/field:border-indigo-300 group-hover/field:shadow-sm",
+                        !value ? "bg-slate-50 border-dashed border-slate-300" : "bg-white border-slate-200"
+                    )}
                 >
-                    <span className={cn("text-sm whitespace-pre-wrap", value ? 'text-slate-700' : 'text-slate-400 italic')}>
-                        {value || placeholder}
-                    </span>
-                    <Edit3 className="w-4 h-4 text-slate-400 opacity-0 group-hover:opacity-100 flex-shrink-0 ml-2" />
+                    <div className="flex-1 min-w-0">
+                        {value ? (
+                            <div className="text-sm text-slate-800 whitespace-pre-wrap leading-relaxed">{value}</div>
+                        ) : (
+                            <div className="flex items-center gap-2 text-sm text-slate-400 italic">
+                                <Plus className="w-4 h-4 opacity-50" />
+                                {placeholder}
+                            </div>
+                        )}
+                    </div>
                 </div>
             )}
         </div>
@@ -449,40 +562,143 @@ function MultiSelectField({
     );
 }
 
-// ===== SCHEDULE DISPLAY =====
-function ScheduleDisplay({ value, label }: { value: any; label: string }) {
+// ===== SCHEDULE EDITOR (NEW) =====
+function ScheduleEditor({ value, label, onChange }: { value: any; label: string; onChange: (val: any) => void }) {
     const dayOrder = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
-    const isStructured = value && typeof value === 'object' && !Array.isArray(value);
+
+    // Normalize value to ensure it's a schedule object
+    const scheduleData = typeof value === 'object' && value !== null
+        ? (value.schedule || value)
+        : dayOrder.reduce((acc, day) => ({ ...acc, [day]: { isOpen: false, open: '09:00', close: '17:00' } }), {});
+
+    const generateTimeOptions = () => {
+        const times = [];
+        for (let i = 0; i < 24; i++) {
+            for (let j = 0; j < 60; j += 15) { // 15 min intervals
+                const hour = i.toString().padStart(2, '0');
+                const min = j.toString().padStart(2, '0');
+                times.push(`${hour}:${min}`);
+            }
+        }
+        return times;
+    };
+
+    const timeOptions = useMemo(() => generateTimeOptions(), []);
+
+    const handleDayUpdate = (day: string, field: string, val: any) => {
+        const currentParams = scheduleData[day] || { isOpen: false, open: '09:00', close: '17:00' };
+
+        // If we're opening a day, ensure defaults are set
+        let newItem = { ...currentParams };
+        if (field === 'isOpen' && val === true) {
+            newItem = {
+                ...newItem,
+                isOpen: true,
+                open: newItem.open || '09:00',
+                close: newItem.close || '17:00'
+            };
+        } else {
+            newItem[field] = val;
+        }
+
+        const nextSchedule = {
+            ...scheduleData,
+            [day]: newItem
+        };
+
+        // Return full structure if needed, or just schedule part
+        // The parent SchemaField handles path 'identity.operatingHours.schedule' typically
+        onChange(nextSchedule);
+    };
+
+    const copyMondayToAll = () => {
+        const monday = scheduleData['monday'];
+        if (!monday) return;
+
+        const nextSchedule = { ...scheduleData };
+        dayOrder.forEach(day => {
+            if (day !== 'monday') {
+                nextSchedule[day] = { ...monday };
+            }
+        });
+        onChange(nextSchedule);
+    };
 
     return (
-        <div className="bg-slate-50 rounded-xl p-4 border border-slate-200 mb-4">
-            <div className="flex justify-between items-start mb-2">
-                <label className="text-xs font-medium text-slate-500 uppercase block">{label}</label>
-                <button className="text-xs font-medium text-indigo-600 hover:text-indigo-700">Edit</button>
+        <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm">
+            <div className="bg-slate-50 px-5 py-4 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div>
+                    <h4 className="font-semibold text-slate-800 flex items-center gap-2">
+                        <Clock className="w-4 h-4 text-indigo-500" />
+                        {label}
+                    </h4>
+                    <p className="text-xs text-slate-500 mt-1">Set your standard operating hours</p>
+                </div>
+
+                <button
+                    type="button"
+                    onClick={copyMondayToAll}
+                    className="text-xs font-medium text-indigo-600 bg-indigo-50 hover:bg-indigo-100 px-3 py-1.5 rounded-lg border border-indigo-200 transition-colors flex items-center gap-1.5 self-start sm:self-auto"
+                >
+                    <RefreshCw className="w-3 h-3" />
+                    Copy Monday to All
+                </button>
             </div>
-            {isStructured ? (
-                <div className="space-y-1">
-                    {dayOrder.map(day => {
-                        const schedule = value[day];
-                        if (!schedule) return null;
-                        const isOpen = schedule.isOpen !== false && (schedule.open || schedule.openTime);
-                        const openTime = schedule.openTime || schedule.open || '';
-                        const closeTime = schedule.closeTime || schedule.close || '';
-                        return (
-                            <div key={day} className="flex justify-between text-sm">
-                                <span className="text-slate-600 capitalize w-24">{day}</span>
-                                <span className={isOpen ? 'text-slate-700 font-medium' : 'text-slate-400'}>
-                                    {isOpen ? `${openTime} - ${closeTime}` : 'Closed'}
-                                </span>
+
+            <div className="divide-y divide-slate-100">
+                {dayOrder.map(day => {
+                    const dayData = scheduleData[day] || { isOpen: false, open: '09:00', close: '17:00' };
+                    const isOpen = dayData.isOpen !== false && (dayData.isOpen === true || (dayData.open && dayData.close));
+                    // Normalize legacy data or new data
+                    const openTime = dayData.openTime || dayData.open || '09:00';
+                    const closeTime = dayData.closeTime || dayData.close || '17:00';
+
+                    return (
+                        <div key={day} className={cn("px-5 py-3 flex flex-col sm:flex-row sm:items-center gap-3 transition-colors", isOpen ? "bg-white" : "bg-slate-50/50")}>
+                            {/* Day Toggle */}
+                            <div className="w-32 flex items-center gap-3 shrink-0">
+                                <button
+                                    onClick={() => handleDayUpdate(day, 'isOpen', !isOpen)}
+                                    className={cn(
+                                        "w-5 h-5 rounded flex items-center justify-center border transition-colors focus:ring-2 focus:ring-offset-1 focus:ring-indigo-500",
+                                        isOpen ? "bg-indigo-600 border-indigo-600 text-white" : "bg-white border-slate-300"
+                                    )}
+                                >
+                                    {isOpen && <Check className="w-3.5 h-3.5" />}
+                                </button>
+                                <span className={cn("text-sm font-medium capitalize", isOpen ? "text-slate-900" : "text-slate-400")}>{day}</span>
                             </div>
-                        );
-                    })}
-                </div>
-            ) : (
-                <div className="text-sm text-slate-500 italic">
-                    {typeof value === 'string' ? value : 'No schedule configured'}
-                </div>
-            )}
+
+                            {/* Time Selectors */}
+                            <div className={cn("flex items-center gap-2 transition-opacity duration-200", isOpen ? "opacity-100" : "opacity-30 pointer-events-none blur-[1px]")}>
+                                <div className="relative">
+                                    <select
+                                        value={openTime}
+                                        onChange={(e) => handleDayUpdate(day, 'open', e.target.value)}
+                                        className="appearance-none pl-3 pr-8 py-1.5 text-sm bg-white border border-slate-200 rounded-lg focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 w-28 text-slate-700"
+                                    >
+                                        {timeOptions.map(t => <option key={t} value={t}>{t}</option>)}
+                                    </select>
+                                    <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 pointer-events-none" />
+                                </div>
+                                <span className="text-slate-400 text-sm">to</span>
+                                <div className="relative">
+                                    <select
+                                        value={closeTime}
+                                        onChange={(e) => handleDayUpdate(day, 'close', e.target.value)}
+                                        className="appearance-none pl-3 pr-8 py-1.5 text-sm bg-white border border-slate-200 rounded-lg focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 w-28 text-slate-700"
+                                    >
+                                        {timeOptions.map(t => <option key={t} value={t}>{t}</option>)}
+                                    </select>
+                                    <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 pointer-events-none" />
+                                </div>
+                            </div>
+
+                            {!isOpen && <span className="text-xs font-semibold text-slate-400 uppercase tracking-wide ml-auto sm:ml-4">Closed</span>}
+                        </div>
+                    );
+                })}
+            </div>
         </div>
     );
 }
@@ -686,6 +902,86 @@ function KeyValueList({ value, label }: { value: any[]; label: string }) {
     );
 }
 
+// ===== IMAGE GALLERY EDITOR =====
+function ImageGalleryEditor({ value, label, onChange }: { value: string[]; label: string; onChange: (val: string[]) => void }) {
+    const images = Array.isArray(value) ? value : [];
+    const [isAdding, setIsAdding] = useState(false);
+    const [newUrl, setNewUrl] = useState('');
+
+    const handleAdd = () => {
+        if (newUrl) {
+            onChange([...images, newUrl]);
+            setNewUrl('');
+            setIsAdding(false);
+        }
+    };
+
+    const handleRemove = (index: number) => {
+        const next = [...images];
+        next.splice(index, 1);
+        onChange(next);
+    };
+
+    return (
+        <div className="mb-6">
+            <label className="text-sm font-semibold text-slate-700 mb-3 block flex items-center gap-2">
+                <ImageIcon className="w-4 h-4 text-indigo-500" />
+                {label}
+            </label>
+
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                {images.map((url, i) => (
+                    <div key={i} className="group relative aspect-square bg-slate-100 rounded-xl overflow-hidden border border-slate-200 shadow-sm hover:shadow-md transition-all">
+                        <img src={url} alt={`Gallery ${i}`} className="w-full h-full object-cover" />
+                        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center opacity-0 group-hover:opacity-100">
+                            <button
+                                onClick={() => handleRemove(i)}
+                                className="p-2 bg-white text-red-600 rounded-full shadow-lg hover:scale-110 transition-transform"
+                            >
+                                <Trash2 className="w-4 h-4" />
+                            </button>
+                        </div>
+                    </div>
+                ))}
+
+                {/* Add New Card */}
+                {isAdding ? (
+                    <div className="aspect-square bg-slate-50 rounded-xl border-2 border-dashed border-indigo-300 p-4 flex flex-col justify-center gap-2 animate-in fade-in duration-200">
+                        <input
+                            autoFocus
+                            type="text"
+                            placeholder="Image URL..."
+                            className="w-full text-xs px-2 py-1.5 border border-slate-300 rounded focus:border-indigo-500 focus:outline-none"
+                            value={newUrl}
+                            onChange={(e) => setNewUrl(e.target.value)}
+                            onKeyDown={(e) => e.key === 'Enter' && handleAdd()}
+                        />
+                        <div className="flex justify-end gap-1">
+                            <button onClick={() => setIsAdding(false)} className="p-1 text-slate-400 hover:text-slate-600"><X className="w-4 h-4" /></button>
+                            <button onClick={handleAdd} className="p-1 text-indigo-600 hover:text-indigo-700"><Check className="w-4 h-4" /></button>
+                        </div>
+                    </div>
+                ) : (
+                    <button
+                        onClick={() => setIsAdding(true)}
+                        className="aspect-square bg-slate-50 rounded-xl border-2 border-dashed border-slate-300 flex flex-col items-center justify-center text-slate-400 hover:text-indigo-600 hover:border-indigo-300 hover:bg-slate-100 transition-all group"
+                    >
+                        <div className="w-10 h-10 rounded-full bg-slate-200 group-hover:bg-indigo-100 flex items-center justify-center transition-colors mb-2">
+                            <Plus className="w-5 h-5" />
+                        </div>
+                        <span className="text-xs font-medium">Add Image</span>
+                    </button>
+                )}
+            </div>
+            {images.length === 0 && !isAdding && (
+                <div className="mt-2 text-xs text-slate-400 italic text-center py-4 bg-slate-50/50 rounded-lg border border-slate-100 border-dashed">
+                    No images added yet. Add some to showcase your business!
+                </div>
+            )}
+        </div>
+    );
+}
+
 // ===== REVIEW LIST =====
 function ReviewList({ value, label }: { value: any[]; label: string }) {
     if (!value || !Array.isArray(value) || value.length === 0) {
@@ -803,6 +1099,62 @@ function SchemaField({
                 />
             );
 
+        case 'inventory':
+            if (!field.inventoryConfig) return null;
+
+            // Construct config for InventoryManager
+            const defaults = getInventoryDefaults(field.inventoryConfig.itemLabel);
+
+            // Normalize items to ensure they meet InventoryItem interface
+            // AND migrate legacy flat fields to 'fields' object if needed
+            const rawItems = Array.isArray(value) ? value : [];
+            const normalizedItems: InventoryItem[] = rawItems.map((item: any) => {
+                const existingFields = item.fields || {};
+
+                // Migrate legacy properties that match defined fields
+                const migratedFields = { ...existingFields };
+                defaults.fields.forEach(def => {
+                    // If field exists on root but not in fields object, move it
+                    if (item[def.id] !== undefined && existingFields[def.id] === undefined) {
+                        migratedFields[def.id] = item[def.id];
+                    }
+                });
+
+                return {
+                    ...item,
+                    id: item.id || generateItemId(),
+                    fields: migratedFields,
+                    isActive: item.isActive !== false,
+                };
+            });
+
+            const invConfig: InventoryConfig = {
+                itemLabel: field.inventoryConfig.itemLabel,
+                itemLabelPlural: field.inventoryConfig.itemLabelPlural,
+                priceLabel: field.inventoryConfig.priceLabel,
+                currency: 'INR', // Default currency
+                source: 'manual',
+                categories: defaults.categories,
+                fields: defaults.fields,
+                items: normalizedItems,
+                lastModifiedAt: new Date().toISOString(),
+            };
+
+            return (
+                <div className="mb-6 border border-slate-200 rounded-xl overflow-hidden">
+                    <div className="p-4 bg-slate-50 border-b border-slate-200">
+                        <h4 className="font-semibold text-slate-900">{field.inventoryConfig.itemLabelPlural} Management</h4>
+                        {field.helpText && <p className="text-sm text-slate-500 mt-1">{field.helpText}</p>}
+                    </div>
+                    <div className="p-4">
+                        <InventoryManager
+                            config={invConfig}
+                            onConfigChange={(newConfig) => onChange(newConfig.items)}
+                        />
+                    </div>
+                </div>
+            );
+
         case 'multi-select':
         case 'checkbox-group':
             return (
@@ -816,7 +1168,7 @@ function SchemaField({
             );
 
         case 'schedule':
-            return <ScheduleDisplay value={value} label={field.label} />;
+            return <ScheduleEditor value={value} label={field.label} onChange={onChange} />;
 
         case 'key-value-list':
             return <KeyValueList value={value} label={field.label} />;
@@ -826,6 +1178,12 @@ function SchemaField({
 
         case 'testimonial-list':
             return <TestimonialList value={value} label={field.label} />;
+
+        case 'faq-list':
+            return <FAQList faqs={Array.isArray(value) ? value : []} label={field.label} />;
+
+        case 'image-gallery':
+            return <ImageGalleryEditor value={value} label={field.label} onChange={onChange} />;
 
         default:
             return (
@@ -1253,6 +1611,44 @@ export default function SchemaBusinessProfile({
                                 );
                             })}
                         </div>
+
+                        {/* 7. AI Strategy (New) */}
+                        {(persona.tags && persona.tags.length > 0) && (
+                            <Section
+                                title="AI Strategy"
+                                icon={Bot}
+                                iconBg="bg-violet-600"
+                                description="AI-generated tags and insights powering your agent"
+                                defaultOpen={true}
+                            >
+                                <div className="mb-6">
+                                    <div className="bg-violet-50 rounded-xl p-5 border border-violet-100">
+                                        <div className="flex items-start gap-4">
+                                            <div className="p-2 bg-white rounded-lg shadow-sm text-violet-600">
+                                                <Sparkles className="w-6 h-6" />
+                                            </div>
+                                            <div className="flex-1">
+                                                <h4 className="font-semibold text-slate-900 mb-1">Active AI Persona Tags</h4>
+                                                <p className="text-sm text-slate-600 mb-4">
+                                                    These tags help your AI agent understand your business's unique identity, style, and offering highlights.
+                                                </p>
+                                                <div className="flex flex-wrap gap-2">
+                                                    {persona.tags.map((tag, i) => (
+                                                        <span
+                                                            key={i}
+                                                            className="px-3 py-1.5 bg-white border border-violet-200 text-violet-700 rounded-lg text-sm font-medium shadow-sm flex items-center gap-1.5"
+                                                        >
+                                                            # {tag}
+                                                        </span>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    {/* Placeholder for future Tag Insights */}
+                                </div>
+                            </Section>
+                        )}
                     </>
                 ) : (
                     <div className="bg-white rounded-xl border border-slate-200 p-8 mb-6 text-center shadow-sm">

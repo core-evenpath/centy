@@ -14,6 +14,10 @@ import {
   PlacesDetailedInfo,
   AutoFilledProfile,
 } from '@/lib/business-autofill-service';
+import {
+  parseAddress,
+  parseOperatingHoursFromGoogle,
+} from '@/lib/business-data-parsers';
 import type { BusinessPersona, IndustryCategory } from '@/lib/business-persona-types';
 
 /**
@@ -404,126 +408,6 @@ export async function processForRAGAction(
 }
 
 /**
- * Parse Google's weekdayText format to structured OperatingHours
- * Input: ["Monday: 9:00 AM – 10:00 PM", "Tuesday: Closed", ...]
- * Output: OperatingHours with WeeklySchedule
- */
-function parseOperatingHoursFromGoogle(weekdayText: string[]): any {
-  if (!weekdayText || weekdayText.length === 0) {
-    return undefined;
-  }
-
-  const dayMapping: Record<string, string> = {
-    'Monday': 'monday',
-    'Tuesday': 'tuesday',
-    'Wednesday': 'wednesday',
-    'Thursday': 'thursday',
-    'Friday': 'friday',
-    'Saturday': 'saturday',
-    'Sunday': 'sunday'
-  };
-
-  const schedule: Record<string, any> = {};
-  let isOpen24x7 = true;
-  let hasAnyHours = false;
-
-  weekdayText.forEach(dayText => {
-    // Parse: "Monday: 9:00 AM – 10:00 PM" or "Monday: Closed" or "Monday: Open 24 hours"
-    const match = dayText.match(/^(\w+):\s*(.+)$/);
-    if (!match) return;
-
-    const [, dayName, hoursStr] = match;
-    const dayKey = dayMapping[dayName];
-    if (!dayKey) return;
-
-    if (hoursStr.toLowerCase() === 'closed') {
-      schedule[dayKey] = { isOpen: false };
-      isOpen24x7 = false;
-      hasAnyHours = true;
-    } else if (hoursStr.toLowerCase().includes('open 24 hours')) {
-      schedule[dayKey] = { isOpen: true, openTime: '00:00', closeTime: '23:59' };
-      hasAnyHours = true;
-    } else {
-      // Parse time range: "9:00 AM – 10:00 PM"
-      const timeMatch = hoursStr.match(/(\d{1,2}:\d{2}\s*[AP]M)\s*[–-]\s*(\d{1,2}:\d{2}\s*[AP]M)/i);
-      if (timeMatch) {
-        isOpen24x7 = false;
-        hasAnyHours = true;
-        schedule[dayKey] = {
-          isOpen: true,
-          openTime: convertTo24Hour(timeMatch[1]),
-          closeTime: convertTo24Hour(timeMatch[2])
-        };
-      }
-    }
-  });
-
-  if (!hasAnyHours) {
-    return undefined;
-  }
-
-  // Fill in missing days with closed
-  Object.values(dayMapping).forEach(day => {
-    if (!schedule[day]) {
-      schedule[day] = { isOpen: false };
-    }
-  });
-
-  return {
-    isOpen24x7,
-    schedule,
-    specialNote: isOpen24x7 ? 'Open 24/7' : undefined
-  };
-}
-
-/**
- * Convert 12-hour time format to 24-hour format
- * "9:00 AM" -> "09:00", "10:30 PM" -> "22:30"
- */
-function convertTo24Hour(time12h: string): string {
-  const match = time12h.match(/(\d{1,2}):(\d{2})\s*(AM|PM)/i);
-  if (!match) return time12h;
-
-  let [, hours, minutes, period] = match;
-  let hour = parseInt(hours, 10);
-
-  if (period.toUpperCase() === 'PM' && hour !== 12) {
-    hour += 12;
-  } else if (period.toUpperCase() === 'AM' && hour === 12) {
-    hour = 0;
-  }
-
-  return `${hour.toString().padStart(2, '0')}:${minutes}`;
-}
-
-/**
- * Parse address from imported data to BusinessAddress format
- */
-function parseAddress(address: any): any {
-  if (!address) return undefined;
-
-  // If it's already properly structured
-  if (typeof address === 'object') {
-    return {
-      street: address.street || address.line1 || address.formattedAddress,
-      area: address.area || address.locality || address.neighborhood,
-      city: address.city,
-      state: address.state,
-      postalCode: address.postalCode || address.pincode || address.zip,
-      country: address.country,
-      googleMapsUrl: address.googleMapsUrl,
-    };
-  }
-
-  // If it's a string, use as street
-  if (typeof address === 'string') {
-    return { street: address };
-  }
-
-  return undefined;
-}
-
-/**
  * Apply imported data to BusinessPersona profile with intelligent transformations
  * This is the main action for "Apply to Profile" in import-center
  */
@@ -594,28 +478,85 @@ export async function applyImportToProfileAction(
     // Operating Hours - THE KEY TRANSFORMATION
     const rawHours = identity.operatingHours || importedData.operatingHours;
     if (rawHours) {
-      // Check if it's Google's weekdayText format
+      console.log('[ApplyImport] Processing operating hours:', typeof rawHours);
+
+      // Case 1: Google's weekdayText array
       if (rawHours.weekdayText && Array.isArray(rawHours.weekdayText)) {
         const parsedHours = parseOperatingHoursFromGoogle(rawHours.weekdayText);
         if (parsedHours) {
           (profile.identity as any).operatingHours = parsedHours;
           fieldsUpdated.push('identity.operatingHours');
         }
-      } else if (rawHours.schedule || rawHours.isOpen24x7 !== undefined) {
-        // Already in correct format
+      }
+      // Case 2: Already structured as BusinessPersona Schedule (has 'schedule' key)
+      else if (rawHours.schedule || rawHours.isOpen24x7 !== undefined) {
         (profile.identity as any).operatingHours = rawHours;
         fieldsUpdated.push('identity.operatingHours');
+      }
+      // Case 3: Simple Record<string, {open, close}> from service parsing
+      else if (typeof rawHours === 'object' && !Array.isArray(rawHours)) {
+        // Assume it's a schedule object if keys are days
+        const keys = Object.keys(rawHours);
+        const hasDays = keys.some(k => ['monday', 'tuesday', 'wednesday'].includes(k.toLowerCase()));
+
+        if (hasDays) {
+          (profile.identity as any).operatingHours = {
+            schedule: rawHours,
+            isOpen24x7: false
+          };
+          fieldsUpdated.push('identity.operatingHours');
+        }
       }
     }
 
     // Social Media
-    const socialMedia = identity.socialMedia || importedData.socialMedia;
-    if (socialMedia && Object.keys(socialMedia).some(k => socialMedia[k])) {
-      (profile.identity as any).socialMedia = {
-        ...(existingPersona?.identity?.socialMedia || {}),
-        ...socialMedia,
-      };
-      fieldsUpdated.push('identity.socialMedia');
+    const socialMedia = identity.socialMedia || importedData.socialMedia || importedData.onlinePresence;
+    if (socialMedia) {
+      // Consolidate social media from various potential sources
+      const existingSocial = existingPersona?.identity?.socialMedia || {};
+      const mergedSocial = { ...existingSocial };
+
+      // Handle standard object format
+      if (typeof socialMedia === 'object' && !Array.isArray(socialMedia)) {
+        Object.assign(mergedSocial, socialMedia);
+      }
+
+      // Handle array format (often from scraping: [{ platform: 'Instagram', url: '...' }])
+      if (Array.isArray(socialMedia)) {
+        console.log('[ApplyImport] Processing social media array:', socialMedia.length);
+        socialMedia.forEach((item: any) => {
+          if (item.platform && item.url) {
+            const platformKey = item.platform.toLowerCase().replace(/[^a-z0-9]/g, '');
+            // Map common platform names to schema keys
+            if (platformKey.includes('instagram')) mergedSocial.instagram = item.url;
+            else if (platformKey.includes('facebook')) mergedSocial.facebook = item.url;
+            else if (platformKey.includes('twitter') || platformKey.includes('xcom')) mergedSocial.twitter = item.url;
+            else if (platformKey.includes('linkedin')) mergedSocial.linkedin = item.url;
+            else if (platformKey.includes('youtube')) mergedSocial.youtube = item.url;
+            else if (platformKey.includes('tiktok')) mergedSocial.tiktok = item.url;
+            else if (platformKey.includes('pinterest')) mergedSocial.pinterest = item.url;
+            else {
+              // Try to match with known keys or just add it if it matches schema
+              if (['googleBusiness', 'snapchat', 'threads', 'yelp', 'tripadvisor'].includes(platformKey)) {
+                (mergedSocial as any)[platformKey] = item.url;
+              }
+            }
+          }
+        });
+      }
+
+      if (Object.keys(mergedSocial).length > 0) {
+        (profile.identity as any).socialMedia = mergedSocial;
+        fieldsUpdated.push('identity.socialMedia');
+      }
+    }
+
+    // AI Tags (often passed in importedData.tags or importedData.industrySpecificData.tags)
+    const tags = importedData.tags || industrySpecificData?.tags;
+    if (tags && Array.isArray(tags) && tags.length > 0) {
+      if (!profile.industrySpecificData) profile.industrySpecificData = {};
+      (profile.industrySpecificData as any).tags = tags;
+      fieldsUpdated.push('industrySpecificData.tags');
     }
 
     // Languages
@@ -646,10 +587,20 @@ export async function applyImportToProfileAction(
       fieldsUpdated.push('personality.tagline');
     }
 
-    // Unique Selling Points
-    const usps = personality.uniqueSellingPoints || importedData.uniqueSellingPoints;
-    if (usps && Array.isArray(usps) && usps.length > 0) {
-      (profile.personality as any).uniqueSellingPoints = usps;
+    // Unique Selling Points - Enhanced Merging
+    const usps = [
+      ...(personality.uniqueSellingPoints || []),
+      ...(importedData.uniqueSellingPoints || []),
+      ...(importedData.customerInsights?.valuePropositions || []),
+      ...(importedData.competitiveIntel?.differentiators?.map((d: any) => typeof d === 'string' ? d : d.point) || []),
+      ...(importedData.competitiveIntel?.competitiveAdvantages || [])
+    ];
+
+    // Deduplicate USPs
+    const uniqueUSPs = Array.from(new Set(usps.filter(Boolean)));
+
+    if (uniqueUSPs.length > 0) {
+      (profile.personality as any).uniqueSellingPoints = uniqueUSPs;
       fieldsUpdated.push('personality.uniqueSellingPoints');
     }
 
@@ -691,6 +642,19 @@ export async function applyImportToProfileAction(
         typeof p === 'string' ? p : p.problem
       );
       fieldsUpdated.push('customerProfile.customerPainPoints');
+    }
+
+    // Customer Demographics (Age, Income)
+    const demographics = [
+      ...(customerProfile.customerDemographics || []),
+      ...(importedData.customerInsights?.targetAgeGroups || []),
+      ...(importedData.customerInsights?.incomeSegments || [])
+    ];
+    const uniqueDemographics = Array.from(new Set(demographics.filter(Boolean)));
+
+    if (uniqueDemographics.length > 0) {
+      (profile.customerProfile as any).customerDemographics = uniqueDemographics;
+      fieldsUpdated.push('customerProfile.customerDemographics');
     }
 
     // ========================================
@@ -754,6 +718,23 @@ export async function applyImportToProfileAction(
       fieldsUpdated.push('knowledge.certifications');
     }
 
+    // Service Categories
+    const serviceCategories = knowledge.serviceCategories || importedData.serviceCategories;
+    if (serviceCategories && Array.isArray(serviceCategories) && serviceCategories.length > 0) {
+      (profile.knowledge as any).serviceCategories = serviceCategories;
+      fieldsUpdated.push('knowledge.serviceCategories');
+    }
+
+    // Policies
+    const policies = knowledge.policies || importedData.policies;
+    if (policies && typeof policies === 'object') {
+      (profile.knowledge as any).policies = {
+        ...((profile.knowledge as any).policies || {}),
+        ...policies
+      };
+      fieldsUpdated.push('knowledge.policies');
+    }
+
     // ========================================
     // 5. INDUSTRY SPECIFIC DATA
     // ========================================
@@ -766,6 +747,28 @@ export async function applyImportToProfileAction(
         googleReviewCount: industrySpecificData.googleReviewCount,
       };
       fieldsUpdated.push('industrySpecificData');
+    }
+
+    // ========================================
+    // 6. HOTEL AMENITIES
+    // ========================================
+    const hotelAmenities = importedData.hotelAmenities || industrySpecificData?.amenities; // Check both new and old paths
+    if (hotelAmenities && Array.isArray(hotelAmenities) && hotelAmenities.length > 0) {
+      // Map strings to HotelAmenity objects if necessary
+      const mappedAmenities = hotelAmenities.map((a: any, i: number) => {
+        if (typeof a === 'string') {
+          return {
+            id: `amenity_${i}`,
+            name: a,
+            category: 'services',
+            isActive: true,
+            isPaid: false
+          };
+        }
+        return a;
+      });
+      profile.hotelAmenities = mappedAmenities;
+      fieldsUpdated.push('hotelAmenities');
     }
 
     // ========================================
@@ -805,18 +808,23 @@ export async function applyImportToProfileAction(
           identity.yearFounded = aiMapping.identity.foundedYear;
           fieldsUpdated.push('identity.yearFounded');
         }
+        if (!identity.socialMedia && aiMapping.identity.socialMedia) {
+          identity.socialMedia = aiMapping.identity.socialMedia;
+          fieldsUpdated.push('identity.socialMedia');
+        }
       }
 
       // Personality
       if (aiMapping.personality) {
         if (!profile.personality) profile.personality = {} as any;
+        const personality = profile.personality as any;
 
-        if (!profile.personality.tagline && aiMapping.personality.tagline) {
-          profile.personality.tagline = aiMapping.personality.tagline;
+        if (!personality.tagline && aiMapping.personality.tagline) {
+          personality.tagline = aiMapping.personality.tagline;
           fieldsUpdated.push('personality.tagline');
         }
-        if ((!profile.personality.uniqueSellingPoints || profile.personality.uniqueSellingPoints.length === 0) && aiMapping.personality.uniqueSellingPoints) {
-          profile.personality.uniqueSellingPoints = aiMapping.personality.uniqueSellingPoints;
+        if ((!personality.uniqueSellingPoints || personality.uniqueSellingPoints.length === 0) && aiMapping.personality.uniqueSellingPoints) {
+          personality.uniqueSellingPoints = aiMapping.personality.uniqueSellingPoints;
           fieldsUpdated.push('personality.uniqueSellingPoints');
         }
       }
@@ -848,22 +856,63 @@ export async function applyImportToProfileAction(
       }
 
       // --- OTHER USEFUL DATA ---
+      // Combine AI-found useful data with imported 'fromTheWeb' data
+      let unmappedItems: any[] = [];
+
+      // 1. From AI Mapping
       if (aiMapping.other_useful_data && aiMapping.other_useful_data.length > 0) {
+        unmappedItems = [...unmappedItems, ...aiMapping.other_useful_data.map(item => ({
+          key: item.key,
+          value: item.value,
+          source: item.source || 'AI Analysis',
+          id: `unmapped_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`
+        }))];
+      }
+
+      // 2. From 'From The Web' section (raw import)
+      const fromTheWeb = importedData.fromTheWeb;
+      if (fromTheWeb) {
+        if (fromTheWeb.websiteContent) {
+          // Don't add full content, too big
+        }
+        if (fromTheWeb.additionalInfo) {
+          Object.entries(fromTheWeb.additionalInfo).forEach(([k, v]) => {
+            unmappedItems.push({
+              key: k,
+              value: typeof v === 'string' ? v : JSON.stringify(v),
+              source: 'website',
+              id: `web_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`
+            });
+          });
+        }
+        if (fromTheWeb.otherFindings && Array.isArray(fromTheWeb.otherFindings)) {
+          fromTheWeb.otherFindings.forEach((f: string) => {
+            unmappedItems.push({
+              key: 'Finding',
+              value: f,
+              source: 'website',
+              id: `web_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`
+            });
+          });
+        }
+      }
+
+      if (unmappedItems.length > 0) {
         if (!profile.webIntelligence) {
           profile.webIntelligence = {};
         }
 
-        // Map AI found data to our schema
-        (profile.webIntelligence as any).otherUsefulData = aiMapping.other_useful_data.map(item => ({
+        // Map AI found data to our schema field
+        (profile.webIntelligence as any).otherUsefulData = unmappedItems.map(item => ({
           key: item.key,
           value: item.value,
-          source: item.source || 'AI Analysis'
+          source: item.source
         }));
 
         fieldsUpdated.push('webIntelligence.otherUsefulData');
       }
 
-      // PERSIST FULL AI MAPPING FOR UI SUGGESTIONS
+      // PERSIST FULL AI MAPPING & UNMAPPED DATA FOR UI
       if (!profile._importMeta) {
         (profile._importMeta as any) = {
           source: 'manual',
@@ -875,9 +924,80 @@ export async function applyImportToProfileAction(
       }
       (profile._importMeta as any).mappedData = aiMapping;
 
+      // CRITICAL: Populate unmappedData for the UI to display in "From the Web" section
+      (profile._importMeta as any).unmappedData = unmappedItems.map(item => ({
+        id: item.id,
+        key: item.key,
+        value: item.value,
+        source: item.source === 'AI Analysis' ? 'google' : 'website', // Map to valid FieldSource type
+        importedAt: new Date().toISOString(),
+        usedByAI: true
+      }));
+
     } catch (err) {
       console.error('[ApplyImport] AI Analysis failed:', err);
       // Fail silently on AI part, don't block main import
+    }
+
+    // ========================================
+    // 7. INVENTORY MAPPING (SPECIALIZED)
+    // ========================================
+    // Map specialized inventory data (Menu Items, Room Types, etc.)
+    try {
+      console.log('[ApplyImport] Mapping specialized inventory data...');
+
+      // Create a temporary profile combining existing and new data for mapping context
+      const mappingContext = {
+        ...existingPersona,
+        ...profile
+      };
+
+      // Use the imported data structure which matches AutoFilledProfile for mapping
+      const mappingResult = await mapInventoryToPersonaAction(
+        importedData,
+        mappingContext
+      );
+
+      if (mappingResult.success && mappingResult.persona) {
+        // Merge mapped specialized inventory fields
+        const mappedInventory = mappingResult.persona;
+
+        // Merge specific inventory arrays if they were mapped
+        // We check specific fields that mapInventoryToPersonaAction populates
+
+        if (mappedInventory.menuItems?.length) {
+          profile.menuItems = mappedInventory.menuItems;
+          fieldsUpdated.push('menuItems');
+        }
+
+        if (mappedInventory.menuCategories?.length) {
+          profile.menuCategories = mappedInventory.menuCategories;
+          fieldsUpdated.push('menuCategories');
+        }
+
+        if (mappedInventory.roomTypes?.length) {
+          profile.roomTypes = mappedInventory.roomTypes;
+          fieldsUpdated.push('roomTypes');
+        }
+
+        if (mappedInventory.productCatalog?.length) {
+          profile.productCatalog = mappedInventory.productCatalog;
+          fieldsUpdated.push('productCatalog');
+        }
+
+        if (mappedInventory.propertyListings?.length) {
+          profile.propertyListings = mappedInventory.propertyListings;
+          fieldsUpdated.push('propertyListings');
+        }
+
+        if (mappedInventory.healthcareServices?.length) {
+          profile.healthcareServices = mappedInventory.healthcareServices;
+          fieldsUpdated.push('healthcareServices');
+        }
+      }
+    } catch (err) {
+      console.error('[ApplyImport] Inventory mapping failed:', err);
+      // Non-blocking
     }
 
     console.log('[ApplyImport] Complete. Fields updated:', fieldsUpdated.length);

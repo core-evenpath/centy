@@ -103,10 +103,10 @@ ${editorialSummary ? `- **Summary:** ${editorialSummary}` : ''}
 4. **FIND PAYMENT METHODS** - Look for payment icons on their website or booking pages
 5. **FIND FOUNDERS/LEADERSHIP** - Check About Us or Leadership pages
 6. **FIND CUSTOMER PAIN POINTS** - Look at reviews to understand what problems customers had before finding this business
-7. **FIND DIFFERENTIATORS** - Search for "why choose ${businessName}", look at their About page or value proposition sections
+7. **ANALYZE DIFFERENTIATORS** - Identify unique features or value props that distinguish them from generic competitors
 8. **FIND SUCCESS STORIES** - Look for case studies, client testimonials, or "our work" sections
 9. **FIND KEY STATS** - Search for metrics like "X customers served", "Y years experience", awards count
-10. **FIND OBJECTION HANDLING** - Look at FAQ sections, pricing pages for how they address common concerns
+10. **PROFILE AUDIENCE** - Infer target age, income, and demographics based on pricing (${config.currency.symbol}) and tone
 
 ## OUTPUT FORMAT (JSON)
 
@@ -145,10 +145,10 @@ Return ONLY valid JSON matching this structure:
     "painPoints": [
       {"problem": "What problem customers face", "solution": "How this business solves it"}
     ],
-    "targetAgeGroups": ["18-25", "26-35", "36-45", "46-55", "55+"],
-    "incomeSegments": ["budget", "middle", "upper_middle", "affluent"],
+    "targetAgeGroups": ["Infer from product/service nature (e.g. '18-25', '35-50')"],
+    "incomeSegments": ["Infer from pricing (e.g. 'budget', 'affluent')"],
     "valuePropositions": ["Key benefits customers get from choosing this business"],
-    "idealCustomerProfile": "Description of their ideal customer"
+    "idealCustomerProfile": "Detailed persona of their ideal customer (Infer if necessary)"
   },
 
   "competitiveIntel": {
@@ -222,7 +222,7 @@ ${industryDataSchema}
 4. **PLATFORMS**: Search ${config.name}-specific platforms listed above FIRST
 5. **INVENTORY DATA**: Get COMPLETE pricing from platforms - this is critical
 6. **SOURCES**: Include sourceUrl for every data point possible
-7. **NULL VALUES**: Return null for fields NOT FOUND (never guess or fabricate)
+7. **FACTS VS INSIGHTS**: Return null for factual fields (phone, address, price) if not found. For 'customerInsights' and 'competitiveIntel', INFER reasonable profiles based on business context, pricing, and services. Do not leave insights empty.
 8. **VERIFIED DATA**: Mark data as verified only if confirmed from official sources
 9. **TAGLINE**: Look for official slogan on website, marketing materials, or about page
 10. **LANGUAGES**: List ALL languages the business operates in or supports

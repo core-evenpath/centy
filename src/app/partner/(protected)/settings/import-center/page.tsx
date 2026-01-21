@@ -7,6 +7,7 @@ import { getBusinessPersonaAction, saveBusinessPersonaAction } from '@/actions/b
 import { searchBusinessesAction, autoFillProfileAction, applyImportToProfileAction } from '@/actions/business-autofill-actions';
 import { scrapeWebsiteAction } from '@/actions/website-scrape-actions';
 import { toast } from 'sonner';
+import { parseAddress, parseOperatingHoursFromGoogle } from '@/lib/business-data-parsers';
 import {
   ArrowLeft,
   Download,
@@ -36,6 +37,11 @@ import type {
   ImportStats,
   FieldSource,
 } from '@/components/partner/settings/import-center/types';
+import type {
+  SuggestedTag,
+  TagGroup,
+  TagInsight,
+} from '@/lib/profile-tags-types';
 import {
   Building2,
   Phone,
@@ -139,6 +145,12 @@ export default function ImportCenterPage() {
   const [suggestions, setSuggestions] = useState<AISuggestion[]>([]);
   const [suggestionFilter, setSuggestionFilter] = useState<'all' | 'core' | 'products' | 'testimonials'>('all');
 
+  // AI Tags state (Lifted from ApplyTab)
+  const [suggestedTags, setSuggestedTags] = useState<SuggestedTag[]>([]);
+  const [tagGroups, setTagGroups] = useState<TagGroup[]>([]);
+  const [tagInsights, setTagInsights] = useState<TagInsight[]>([]);
+  const [tagsGenerated, setTagsGenerated] = useState(false);
+
   // Apply state - expanded sections for final review
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
     identity: true,
@@ -165,6 +177,41 @@ export default function ImportCenterPage() {
   // ========================================
   // DATA LOADING
   // ========================================
+
+  // Load tags from local storage on mount (Prevent regeneration on refresh)
+  useEffect(() => {
+    if (userPartnerId && !tagsGenerated) {
+      const savedTags = localStorage.getItem(`centy_import_tags_${userPartnerId}`);
+      if (savedTags) {
+        try {
+          const parsed = JSON.parse(savedTags);
+          // Check if timestamp is valid (optional, e.g. < 24h)
+          // For now just load it
+          if (parsed && Array.isArray(parsed.tags) && parsed.tags.length > 0) {
+            setSuggestedTags(parsed.tags);
+            setTagGroups(parsed.groups || []);
+            setTagInsights(parsed.insights || []);
+            setTagsGenerated(true);
+            console.log('[ImportCenter] Restored AI tags from local storage');
+          }
+        } catch (e) {
+          console.error('[ImportCenter] Failed to parse saved tags', e);
+        }
+      }
+    }
+  }, [userPartnerId, tagsGenerated]);
+
+  // Save tags to local storage when generated
+  useEffect(() => {
+    if (userPartnerId && tagsGenerated && suggestedTags.length > 0) {
+      localStorage.setItem(`centy_import_tags_${userPartnerId}`, JSON.stringify({
+        tags: suggestedTags,
+        groups: tagGroups,
+        insights: tagInsights,
+        timestamp: new Date().toISOString()
+      }));
+    }
+  }, [userPartnerId, tagsGenerated, suggestedTags, tagGroups, tagInsights]);
 
   useEffect(() => {
     const loadPersona = async () => {
@@ -217,11 +264,34 @@ export default function ImportCenterPage() {
   // Helper to extract value from multiple possible paths
   const extractValue = (data: any, paths: string[]): any => {
     if (!data) return null;
+
+    // Special handling for social media extraction from onlinePresence array
+    if (paths.some(p => p.includes('socialMedia') || p.includes('instagram') || p.includes('facebook') || p.includes('linkedin') || p.includes('twitter'))) {
+      const socialArr = data.onlinePresence || data.socialMedia;
+      if (Array.isArray(socialArr)) {
+        // Find by platform name matching one of the paths/keys
+        for (const item of socialArr) {
+          if (item.platform && item.url) {
+            const platformKey = item.platform.toLowerCase().replace(/[^a-z0-9]/g, '');
+            // Check if any path corresponds to this platform
+            const isMatch = paths.some(path => {
+              const cleanPath = path.toLowerCase();
+              return cleanPath.includes(platformKey) ||
+                (platformKey === 'xcom' && cleanPath.includes('twitter')) ||
+                (platformKey === 'google' && cleanPath.includes('google'));
+            });
+
+            if (isMatch) return item.url;
+          }
+        }
+      }
+    }
+
     for (const path of paths) {
       const val = getNestedValue(data, path);
       if (val !== null && val !== undefined && val !== '' &&
-          !(Array.isArray(val) && val.length === 0) &&
-          !(typeof val === 'object' && Object.keys(val).length === 0)) {
+        !(Array.isArray(val) && val.length === 0) &&
+        !(typeof val === 'object' && Object.keys(val).length === 0)) {
         return val;
       }
     }
@@ -235,272 +305,501 @@ export default function ImportCenterPage() {
     // 3. fromTheWeb unmapped data
     const fieldDefinitions = [
       // === IDENTITY ===
-      { key: 'identity.name', label: 'Business Name', icon: Building2, critical: true, category: 'identity' as const,
-        paths: ['identity.name', 'identity.businessName', 'businessName', 'name'] },
-      { key: 'identity.legalName', label: 'Legal Name', icon: FileText, category: 'identity' as const,
-        paths: ['identity.legalName', 'legalName'] },
-      { key: 'personality.tagline', label: 'Tagline', icon: Sparkles, critical: true, category: 'identity' as const,
-        paths: ['personality.tagline', 'identity.tagline', 'tagline'] },
-      { key: 'personality.description', label: 'Description', icon: FileText, critical: true, multiline: true, category: 'identity' as const,
-        paths: ['personality.description', 'identity.description', 'description', 'shortDescription', 'editorialSummary'] },
-      { key: 'identity.industry', label: 'Industry', icon: Building2, category: 'identity' as const,
-        paths: ['identity.industry', 'industry'] },
-      { key: 'identity.yearEstablished', label: 'Year Established', icon: Clock, category: 'identity' as const,
-        paths: ['identity.yearEstablished', 'yearEstablished', 'personality.foundedYear', 'foundedYear'] },
-      { key: 'identity.languages', label: 'Languages', icon: Flag, category: 'identity' as const,
-        paths: ['identity.languages', 'languages', 'personality.languagePreference'] },
-      { key: 'identity.founders', label: 'Founders/Leadership', icon: Users, category: 'identity' as const,
-        paths: ['identity.founders', 'founders', 'leadership', 'founder'] },
-      { key: 'identity.teamSize', label: 'Team Size', icon: Users, category: 'identity' as const,
-        paths: ['identity.teamSize', 'teamSize', 'employeeCount'] },
+      {
+        key: 'identity.name', label: 'Business Name', icon: Building2, critical: true, category: 'identity' as const,
+        paths: ['identity.name', 'identity.businessName', 'businessName', 'name']
+      },
+      {
+        key: 'identity.legalName', label: 'Legal Name', icon: FileText, category: 'identity' as const,
+        paths: ['identity.legalName', 'legalName']
+      },
+      {
+        key: 'personality.tagline', label: 'Tagline', icon: Sparkles, critical: true, category: 'identity' as const,
+        paths: ['personality.tagline', 'identity.tagline', 'tagline']
+      },
+      {
+        key: 'personality.description', label: 'Description', icon: FileText, critical: true, multiline: true, category: 'identity' as const,
+        paths: ['personality.description', 'identity.description', 'description', 'shortDescription', 'editorialSummary']
+      },
+      {
+        key: 'identity.industry', label: 'Industry', icon: Building2, category: 'identity' as const,
+        paths: ['identity.industry', 'industry']
+      },
+      {
+        key: 'identity.yearEstablished', label: 'Year Established', icon: Clock, category: 'identity' as const,
+        paths: ['identity.yearEstablished', 'yearEstablished', 'personality.foundedYear', 'foundedYear']
+      },
+      {
+        key: 'identity.languages', label: 'Languages', icon: Flag, category: 'identity' as const,
+        paths: ['identity.languages', 'languages', 'personality.languagePreference']
+      },
+      {
+        key: 'identity.founders', label: 'Founders/Leadership', icon: Users, category: 'identity' as const,
+        paths: ['identity.founders', 'founders', 'leadership', 'founder']
+      },
+      {
+        key: 'identity.teamSize', label: 'Team Size', icon: Users, category: 'identity' as const,
+        paths: ['identity.teamSize', 'teamSize', 'employeeCount']
+      },
 
       // === CONTACT ===
-      { key: 'identity.phone', label: 'Primary Phone', icon: Phone, critical: true, category: 'contact' as const,
-        paths: ['identity.phone', 'contact.primaryPhone', 'phone', 'internationalPhone'] },
-      { key: 'identity.email', label: 'Primary Email', icon: Mail, critical: true, category: 'contact' as const,
-        paths: ['identity.email', 'contact.primaryEmail', 'email'] },
-      { key: 'identity.website', label: 'Website', icon: FileText, category: 'contact' as const,
-        paths: ['identity.website', 'website'] },
-      { key: 'identity.whatsAppNumber', label: 'WhatsApp', icon: Phone, category: 'contact' as const,
-        paths: ['identity.whatsAppNumber', 'identity.whatsapp', 'whatsapp'] },
-      { key: 'identity.address', label: 'Address', icon: MapPin, critical: true, category: 'contact' as const,
-        paths: ['identity.address', 'address', 'formattedAddress'] },
-      { key: 'identity.operatingHours', label: 'Operating Hours', icon: Clock, category: 'contact' as const,
-        paths: ['identity.operatingHours', 'operatingHours', 'openingHours'] },
-      { key: 'identity.googleMapsUrl', label: 'Google Maps URL', icon: MapPin, category: 'contact' as const,
-        paths: ['identity.googleMapsUrl', 'googleMapsUrl'] },
+      {
+        key: 'identity.phone', label: 'Primary Phone', icon: Phone, critical: true, category: 'contact' as const,
+        paths: ['identity.phone', 'contact.primaryPhone', 'phone', 'internationalPhone']
+      },
+      {
+        key: 'identity.email', label: 'Primary Email', icon: Mail, critical: true, category: 'contact' as const,
+        paths: ['identity.email', 'contact.primaryEmail', 'email']
+      },
+      {
+        key: 'identity.website', label: 'Website', icon: FileText, category: 'contact' as const,
+        paths: ['identity.website', 'website']
+      },
+      {
+        key: 'identity.whatsAppNumber', label: 'WhatsApp', icon: Phone, category: 'contact' as const,
+        paths: ['identity.whatsAppNumber', 'identity.whatsapp', 'whatsapp']
+      },
+      {
+        key: 'identity.address', label: 'Address', icon: MapPin, critical: true, category: 'contact' as const,
+        paths: ['identity.address', 'address', 'formattedAddress']
+      },
+      {
+        key: 'identity.operatingHours', label: 'Operating Hours', icon: Clock, category: 'contact' as const,
+        paths: ['identity.operatingHours', 'operatingHours', 'openingHours']
+      },
+      {
+        key: 'identity.googleMapsUrl', label: 'Google Maps URL', icon: MapPin, category: 'contact' as const,
+        paths: ['identity.googleMapsUrl', 'googleMapsUrl']
+      },
 
       // === SOCIAL MEDIA ===
-      { key: 'identity.socialMedia.instagram', label: 'Instagram', icon: FileText, category: 'social' as const,
-        paths: ['identity.socialMedia.instagram', 'socialMedia.instagram'] },
-      { key: 'identity.socialMedia.facebook', label: 'Facebook', icon: FileText, category: 'social' as const,
-        paths: ['identity.socialMedia.facebook', 'socialMedia.facebook'] },
-      { key: 'identity.socialMedia.linkedin', label: 'LinkedIn', icon: FileText, category: 'social' as const,
-        paths: ['identity.socialMedia.linkedin', 'socialMedia.linkedin'] },
-      { key: 'identity.socialMedia.twitter', label: 'Twitter/X', icon: FileText, category: 'social' as const,
-        paths: ['identity.socialMedia.twitter', 'socialMedia.twitter'] },
-      { key: 'identity.socialMedia.youtube', label: 'YouTube', icon: FileText, category: 'social' as const,
-        paths: ['identity.socialMedia.youtube', 'socialMedia.youtube'] },
-      { key: 'identity.socialMedia.tiktok', label: 'TikTok', icon: FileText, category: 'social' as const,
-        paths: ['identity.socialMedia.tiktok', 'socialMedia.tiktok'] },
-      { key: 'identity.socialMedia.pinterest', label: 'Pinterest', icon: FileText, category: 'social' as const,
-        paths: ['identity.socialMedia.pinterest', 'socialMedia.pinterest'] },
-      { key: 'identity.socialMedia.threads', label: 'Threads', icon: FileText, category: 'social' as const,
-        paths: ['identity.socialMedia.threads', 'socialMedia.threads'] },
-      { key: 'identity.socialMedia.snapchat', label: 'Snapchat', icon: FileText, category: 'social' as const,
-        paths: ['identity.socialMedia.snapchat', 'socialMedia.snapchat'] },
-      { key: 'identity.socialMedia.whatsapp', label: 'WhatsApp Business', icon: FileText, category: 'social' as const,
-        paths: ['identity.socialMedia.whatsappBusiness', 'socialMedia.whatsapp', 'identity.whatsapp'] },
-      { key: 'identity.socialMedia.telegram', label: 'Telegram', icon: FileText, category: 'social' as const,
-        paths: ['identity.socialMedia.telegram', 'socialMedia.telegram'] },
-      { key: 'identity.socialMedia.googleBusiness', label: 'Google Business', icon: FileText, category: 'social' as const,
-        paths: ['identity.socialMedia.googleBusiness', 'socialMedia.googleBusiness', 'googleMapsUrl'] },
-      { key: 'identity.socialMedia.yelp', label: 'Yelp', icon: FileText, category: 'social' as const,
-        paths: ['identity.socialMedia.yelp', 'socialMedia.yelp'] },
-      { key: 'identity.socialMedia.tripadvisor', label: 'TripAdvisor', icon: FileText, category: 'social' as const,
-        paths: ['identity.socialMedia.tripadvisor', 'socialMedia.tripadvisor'] },
-      { key: 'identity.socialMedia.trustpilot', label: 'Trustpilot', icon: FileText, category: 'social' as const,
-        paths: ['identity.socialMedia.trustpilot', 'socialMedia.trustpilot'] },
-      { key: 'identity.socialMedia.zillow', label: 'Zillow', icon: FileText, category: 'social' as const,
-        paths: ['identity.socialMedia.zillow', 'socialMedia.zillow'] },
-      { key: 'identity.socialMedia.houzz', label: 'Houzz', icon: FileText, category: 'social' as const,
-        paths: ['identity.socialMedia.houzz', 'socialMedia.houzz'] },
-      { key: 'identity.socialMedia.github', label: 'GitHub', icon: FileText, category: 'social' as const,
-        paths: ['identity.socialMedia.github', 'socialMedia.github'] },
-      { key: 'identity.socialMedia.behance', label: 'Behance', icon: FileText, category: 'social' as const,
-        paths: ['identity.socialMedia.behance', 'socialMedia.behance'] },
+      {
+        key: 'identity.socialMedia.instagram', label: 'Instagram', icon: FileText, category: 'social' as const,
+        paths: ['identity.socialMedia.instagram', 'socialMedia.instagram']
+      },
+      {
+        key: 'identity.socialMedia.facebook', label: 'Facebook', icon: FileText, category: 'social' as const,
+        paths: ['identity.socialMedia.facebook', 'socialMedia.facebook']
+      },
+      {
+        key: 'identity.socialMedia.linkedin', label: 'LinkedIn', icon: FileText, category: 'social' as const,
+        paths: ['identity.socialMedia.linkedin', 'socialMedia.linkedin']
+      },
+      {
+        key: 'identity.socialMedia.twitter', label: 'Twitter/X', icon: FileText, category: 'social' as const,
+        paths: ['identity.socialMedia.twitter', 'socialMedia.twitter']
+      },
+      {
+        key: 'identity.socialMedia.youtube', label: 'YouTube', icon: FileText, category: 'social' as const,
+        paths: ['identity.socialMedia.youtube', 'socialMedia.youtube']
+      },
+      {
+        key: 'identity.socialMedia.tiktok', label: 'TikTok', icon: FileText, category: 'social' as const,
+        paths: ['identity.socialMedia.tiktok', 'socialMedia.tiktok']
+      },
+      {
+        key: 'identity.socialMedia.pinterest', label: 'Pinterest', icon: FileText, category: 'social' as const,
+        paths: ['identity.socialMedia.pinterest', 'socialMedia.pinterest']
+      },
+      {
+        key: 'identity.socialMedia.threads', label: 'Threads', icon: FileText, category: 'social' as const,
+        paths: ['identity.socialMedia.threads', 'socialMedia.threads']
+      },
+      {
+        key: 'identity.socialMedia.snapchat', label: 'Snapchat', icon: FileText, category: 'social' as const,
+        paths: ['identity.socialMedia.snapchat', 'socialMedia.snapchat']
+      },
+      {
+        key: 'identity.socialMedia.whatsapp', label: 'WhatsApp Business', icon: FileText, category: 'social' as const,
+        paths: ['identity.socialMedia.whatsappBusiness', 'socialMedia.whatsapp', 'identity.whatsapp']
+      },
+      {
+        key: 'identity.socialMedia.telegram', label: 'Telegram', icon: FileText, category: 'social' as const,
+        paths: ['identity.socialMedia.telegram', 'socialMedia.telegram']
+      },
+      {
+        key: 'identity.socialMedia.googleBusiness', label: 'Google Business', icon: FileText, category: 'social' as const,
+        paths: ['identity.socialMedia.googleBusiness', 'socialMedia.googleBusiness', 'googleMapsUrl']
+      },
+      {
+        key: 'identity.socialMedia.yelp', label: 'Yelp', icon: FileText, category: 'social' as const,
+        paths: ['identity.socialMedia.yelp', 'socialMedia.yelp']
+      },
+      {
+        key: 'identity.socialMedia.tripadvisor', label: 'TripAdvisor', icon: FileText, category: 'social' as const,
+        paths: ['identity.socialMedia.tripadvisor', 'socialMedia.tripadvisor']
+      },
+      {
+        key: 'identity.socialMedia.trustpilot', label: 'Trustpilot', icon: FileText, category: 'social' as const,
+        paths: ['identity.socialMedia.trustpilot', 'socialMedia.trustpilot']
+      },
+      {
+        key: 'identity.socialMedia.zillow', label: 'Zillow', icon: FileText, category: 'social' as const,
+        paths: ['identity.socialMedia.zillow', 'socialMedia.zillow']
+      },
+      {
+        key: 'identity.socialMedia.houzz', label: 'Houzz', icon: FileText, category: 'social' as const,
+        paths: ['identity.socialMedia.houzz', 'socialMedia.houzz']
+      },
+      {
+        key: 'identity.socialMedia.github', label: 'GitHub', icon: FileText, category: 'social' as const,
+        paths: ['identity.socialMedia.github', 'socialMedia.github']
+      },
+      {
+        key: 'identity.socialMedia.behance', label: 'Behance', icon: FileText, category: 'social' as const,
+        paths: ['identity.socialMedia.behance', 'socialMedia.behance']
+      },
 
       // === BRAND & VALUES ===
-      { key: 'personality.missionStatement', label: 'Mission Statement', icon: Target, category: 'brand' as const,
-        paths: ['personality.missionStatement', 'missionStatement', 'mission'] },
-      { key: 'personality.visionStatement', label: 'Vision Statement', icon: Target, category: 'brand' as const,
-        paths: ['personality.visionStatement', 'visionStatement', 'vision'] },
-      { key: 'personality.story', label: 'Brand Story', icon: BookOpen, multiline: true, category: 'brand' as const,
-        paths: ['personality.story', 'story', 'founderStory', 'brandStory', 'about'] },
-      { key: 'personality.brandValues', label: 'Brand Values', icon: Flag, category: 'brand' as const,
-        paths: ['personality.brandValues', 'brandValues', 'values', 'coreValues'] },
-      { key: 'personality.uniqueSellingPoints', label: 'USPs', icon: Sparkles, critical: true, category: 'brand' as const,
-        paths: ['personality.uniqueSellingPoints', 'uniqueSellingPoints', 'usps', 'differentiators'] },
-      { key: 'personality.voiceTone', label: 'Brand Voice Tone', icon: FileText, category: 'brand' as const,
-        paths: ['personality.voiceTone', 'brandVoice.tone', 'voiceTone'] },
+      {
+        key: 'personality.missionStatement', label: 'Mission Statement', icon: Target, category: 'brand' as const,
+        paths: ['personality.missionStatement', 'missionStatement', 'mission']
+      },
+      {
+        key: 'personality.visionStatement', label: 'Vision Statement', icon: Target, category: 'brand' as const,
+        paths: ['personality.visionStatement', 'visionStatement', 'vision']
+      },
+      {
+        key: 'personality.story', label: 'Brand Story', icon: BookOpen, multiline: true, category: 'brand' as const,
+        paths: ['personality.story', 'story', 'founderStory', 'brandStory', 'about']
+      },
+      {
+        key: 'personality.brandValues', label: 'Brand Values', icon: Flag, category: 'brand' as const,
+        paths: ['personality.brandValues', 'brandValues', 'values', 'coreValues']
+      },
+      {
+        key: 'personality.uniqueSellingPoints', label: 'USPs', icon: Sparkles, critical: true, category: 'brand' as const,
+        paths: ['personality.uniqueSellingPoints', 'uniqueSellingPoints', 'usps', 'differentiators']
+      },
+      {
+        key: 'personality.voiceTone', label: 'Brand Voice Tone', icon: FileText, category: 'brand' as const,
+        paths: ['personality.voiceTone', 'brandVoice.tone', 'voiceTone']
+      },
 
       // === TARGET AUDIENCE (from customerProfile AND raw customerInsights) ===
-      { key: 'customerProfile.targetAudience', label: 'Target Audience', icon: Users, category: 'audience' as const,
-        paths: ['customerProfile.targetAudience', 'targetAudience', 'customerInsights.targetAudience'] },
-      { key: 'customerProfile.painPoints', label: 'Customer Pain Points', icon: Target, category: 'audience' as const,
-        paths: ['customerProfile.painPoints', 'customerProfile.customerPainPoints', 'customerInsights.painPoints', 'painPoints'] },
-      { key: 'customerProfile.idealCustomerProfile', label: 'Ideal Customer', icon: Users, category: 'audience' as const,
-        paths: ['customerProfile.idealCustomerProfile', 'customerInsights.idealCustomerProfile', 'idealCustomerProfile'] },
-      { key: 'customerProfile.ageGroup', label: 'Target Age Groups', icon: Users, category: 'audience' as const,
-        paths: ['customerProfile.ageGroup', 'customerInsights.targetAgeGroups', 'targetAgeGroups', 'ageGroup'] },
-      { key: 'customerProfile.incomeSegment', label: 'Income Segments', icon: Users, category: 'audience' as const,
-        paths: ['customerProfile.incomeSegment', 'customerInsights.incomeSegments', 'incomeSegments'] },
-      { key: 'customerProfile.valuePropositions', label: 'Value Propositions', icon: Sparkles, category: 'audience' as const,
-        paths: ['customerProfile.valuePropositions', 'customerInsights.valuePropositions', 'valuePropositions'] },
+      {
+        key: 'customerProfile.targetAudience', label: 'Target Audience', icon: Users, category: 'audience' as const,
+        paths: ['customerProfile.targetAudience', 'targetAudience', 'customerInsights.targetAudience']
+      },
+      {
+        key: 'customerProfile.painPoints', label: 'Customer Pain Points', icon: Target, category: 'audience' as const,
+        paths: ['customerProfile.painPoints', 'customerProfile.customerPainPoints', 'customerInsights.painPoints', 'painPoints']
+      },
+      {
+        key: 'customerProfile.idealCustomerProfile', label: 'Ideal Customer', icon: Users, category: 'audience' as const,
+        paths: ['customerProfile.idealCustomerProfile', 'customerInsights.idealCustomerProfile', 'idealCustomerProfile']
+      },
+      {
+        key: 'customerProfile.ageGroup', label: 'Target Age Groups', icon: Users, category: 'audience' as const,
+        paths: ['customerProfile.ageGroup', 'customerInsights.targetAgeGroups', 'targetAgeGroups', 'ageGroup']
+      },
+      {
+        key: 'customerProfile.incomeSegment', label: 'Income Segments', icon: Users, category: 'audience' as const,
+        paths: ['customerProfile.incomeSegment', 'customerInsights.incomeSegments', 'incomeSegments']
+      },
+      {
+        key: 'customerProfile.valuePropositions', label: 'Value Propositions', icon: Sparkles, category: 'audience' as const,
+        paths: ['customerProfile.valuePropositions', 'customerInsights.valuePropositions', 'valuePropositions']
+      },
 
       // === COMPETITIVE INTEL (from customerProfile AND raw competitiveIntel) ===
-      { key: 'customerProfile.differentiators', label: 'Key Differentiators', icon: Sparkles, category: 'competitive' as const,
-        paths: ['customerProfile.differentiators', 'competitiveIntel.differentiators', 'differentiators', 'competitiveAdvantages'] },
-      { key: 'customerProfile.objectionHandlers', label: 'Objection Handlers', icon: Target, category: 'competitive' as const,
-        paths: ['customerProfile.objectionHandlers', 'competitiveIntel.objectionHandlers', 'objectionHandlers'] },
-      { key: 'customerProfile.competitiveAdvantages', label: 'Competitive Advantages', icon: Sparkles, category: 'competitive' as const,
-        paths: ['customerProfile.competitiveAdvantages', 'competitiveIntel.competitiveAdvantages', 'competitiveAdvantages'] },
-      { key: 'customerProfile.marketPosition', label: 'Market Position', icon: Building2, category: 'competitive' as const,
-        paths: ['customerProfile.marketPosition', 'competitiveIntel.marketPosition', 'marketPosition', 'priceLevel'] },
+      {
+        key: 'customerProfile.differentiators', label: 'Key Differentiators', icon: Sparkles, category: 'competitive' as const,
+        paths: ['customerProfile.differentiators', 'competitiveIntel.differentiators', 'differentiators', 'competitiveAdvantages']
+      },
+      {
+        key: 'customerProfile.objectionHandlers', label: 'Objection Handlers', icon: Target, category: 'competitive' as const,
+        paths: ['customerProfile.objectionHandlers', 'competitiveIntel.objectionHandlers', 'objectionHandlers']
+      },
+      {
+        key: 'customerProfile.competitiveAdvantages', label: 'Competitive Advantages', icon: Sparkles, category: 'competitive' as const,
+        paths: ['customerProfile.competitiveAdvantages', 'competitiveIntel.competitiveAdvantages', 'competitiveAdvantages']
+      },
+      {
+        key: 'customerProfile.marketPosition', label: 'Market Position', icon: Building2, category: 'competitive' as const,
+        paths: ['customerProfile.marketPosition', 'competitiveIntel.marketPosition', 'marketPosition', 'priceLevel']
+      },
 
       // === CREDENTIALS (from knowledge AND raw) ===
-      { key: 'knowledge.certifications', label: 'Certifications', icon: BadgeCheck, category: 'credentials' as const,
-        paths: ['knowledge.certifications', 'certifications', 'industrySpecificData.certifications', 'industrySpecificData.accreditations'] },
-      { key: 'knowledge.awards', label: 'Awards', icon: BadgeCheck, category: 'credentials' as const,
-        paths: ['knowledge.awards', 'awards', 'industrySpecificData.awards'] },
-      { key: 'knowledge.accreditations', label: 'Accreditations', icon: BadgeCheck, category: 'credentials' as const,
-        paths: ['knowledge.accreditations', 'accreditations', 'industrySpecificData.accreditations'] },
-      { key: 'knowledge.registrations', label: 'Business Registrations', icon: BadgeCheck, category: 'credentials' as const,
-        paths: ['knowledge.registrations', 'registrations', 'businessRegistrations'] },
+      {
+        key: 'knowledge.certifications', label: 'Certifications', icon: BadgeCheck, category: 'credentials' as const,
+        paths: ['knowledge.certifications', 'certifications', 'industrySpecificData.certifications', 'industrySpecificData.accreditations']
+      },
+      {
+        key: 'knowledge.awards', label: 'Awards', icon: BadgeCheck, category: 'credentials' as const,
+        paths: ['knowledge.awards', 'awards', 'industrySpecificData.awards']
+      },
+      {
+        key: 'knowledge.accreditations', label: 'Accreditations', icon: BadgeCheck, category: 'credentials' as const,
+        paths: ['knowledge.accreditations', 'accreditations', 'industrySpecificData.accreditations']
+      },
+      {
+        key: 'knowledge.registrations', label: 'Business Registrations', icon: BadgeCheck, category: 'credentials' as const,
+        paths: ['knowledge.registrations', 'registrations', 'businessRegistrations']
+      },
 
       // === TEAM ===
-      { key: 'knowledge.teamMembers', label: 'Team Members', icon: Users, category: 'team' as const,
-        paths: ['knowledge.teamMembers', 'teamMembers', 'team', 'employees'] },
-      { key: 'knowledge.keyPeople', label: 'Key People/Doctors', icon: Users, category: 'team' as const,
-        paths: ['knowledge.keyPeople', 'keyPeople', 'leadership', 'doctors', 'industrySpecificData.doctors'] },
+      {
+        key: 'knowledge.teamMembers', label: 'Team Members', icon: Users, category: 'team' as const,
+        paths: ['knowledge.teamMembers', 'teamMembers', 'team', 'employees']
+      },
+      {
+        key: 'knowledge.keyPeople', label: 'Key People/Doctors', icon: Users, category: 'team' as const,
+        paths: ['knowledge.keyPeople', 'keyPeople', 'leadership', 'doctors', 'industrySpecificData.doctors']
+      },
 
       // === SERVICES & PRODUCTS (CRITICAL) ===
-      { key: 'knowledge.services', label: 'Services Offered', icon: GraduationCap, critical: true, category: 'industry' as const,
-        paths: ['knowledge.services', 'services', 'knowledge.productsOrServices', 'inventory.services'] },
-      { key: 'knowledge.products', label: 'Products', icon: GraduationCap, category: 'industry' as const,
-        paths: ['knowledge.products', 'products', 'inventory.products', 'inventory.menuItems'] },
-      { key: 'knowledge.paymentMethods', label: 'Payment Methods', icon: BadgeCheck, category: 'industry' as const,
-        paths: ['knowledge.paymentMethods', 'paymentMethods', 'acceptedPayments'] },
+      {
+        key: 'knowledge.services', label: 'Services Offered', icon: GraduationCap, critical: true, category: 'industry' as const,
+        paths: ['knowledge.services', 'services', 'knowledge.productsOrServices', 'inventory.services']
+      },
+      {
+        key: 'knowledge.products', label: 'Products', icon: GraduationCap, category: 'industry' as const,
+        paths: ['knowledge.products', 'products', 'inventory.products', 'inventory.menuItems']
+      },
+      {
+        key: 'knowledge.paymentMethods', label: 'Payment Methods', icon: BadgeCheck, category: 'industry' as const,
+        paths: ['knowledge.paymentMethods', 'paymentMethods', 'acceptedPayments']
+      },
 
       // === INDUSTRY SPECIFIC (dynamic based on partnerIndustry) ===
       // Common industry fields from industryData
-      { key: 'industrySpecificData.specializations', label: 'Specializations', icon: GraduationCap, category: 'industry' as const,
-        paths: ['industrySpecificData.specializations', 'specializations', 'fromTheWeb.rawIndustryData.specializations'] },
-      { key: 'industrySpecificData.facilityType', label: 'Facility Type', icon: Building2, category: 'industry' as const,
-        paths: ['industrySpecificData.facilityType', 'facilityType', 'placeType'] },
+      {
+        key: 'industrySpecificData.specialization', label: 'Specializations', icon: GraduationCap, category: 'industry' as const,
+        paths: ['industrySpecificData.specialization', 'specializations', 'fromTheWeb.rawIndustryData.specializations']
+      },
+      {
+        key: 'industrySpecificData.facilityType', label: 'Facility Type', icon: Building2, category: 'industry' as const,
+        paths: ['industrySpecificData.facilityType', 'facilityType', 'placeType']
+      },
 
       // Healthcare specific - mapped from industryData and fromTheWeb
       ...(partnerIndustry === 'healthcare' ? [
-        { key: 'industrySpecificData.doctors', label: 'Doctors', icon: Users, category: 'industry' as const,
-          paths: ['industrySpecificData.doctors', 'fromTheWeb.rawIndustryData.doctors', 'doctors'] },
-        { key: 'industrySpecificData.facilities', label: 'Medical Facilities', icon: GraduationCap, category: 'industry' as const,
-          paths: ['industrySpecificData.facilities', 'fromTheWeb.rawIndustryData.facilities', 'facilities'] },
-        { key: 'industrySpecificData.bedCount', label: 'Bed Capacity', icon: Building2, category: 'industry' as const,
-          paths: ['industrySpecificData.bedCount', 'fromTheWeb.rawIndustryData.bedCount', 'bedCount'] },
-        { key: 'industrySpecificData.diagnosticTests', label: 'Diagnostic Tests', icon: GraduationCap, category: 'industry' as const,
-          paths: ['industrySpecificData.diagnosticTests', 'fromTheWeb.rawIndustryData.diagnosticTests', 'diagnosticTests'] },
-        { key: 'industrySpecificData.emergencyServices', label: 'Emergency Services', icon: BadgeCheck, category: 'industry' as const,
-          paths: ['industrySpecificData.emergencyServices', 'fromTheWeb.rawIndustryData.emergencyServices', 'emergencyServices'] },
-        { key: 'industrySpecificData.insuranceAccepted', label: 'Insurance Partners', icon: BadgeCheck, category: 'industry' as const,
-          paths: ['industrySpecificData.insuranceAccepted', 'fromTheWeb.rawIndustryData.insuranceAccepted', 'insuranceAccepted'] },
-        { key: 'industrySpecificData.consultationTypes', label: 'Consultation Types', icon: GraduationCap, category: 'industry' as const,
-          paths: ['industrySpecificData.consultationTypes', 'fromTheWeb.rawIndustryData.consultationTypes', 'consultationTypes'] },
+        {
+          key: 'industrySpecificData.doctors', label: 'Doctors', icon: Users, category: 'industry' as const,
+          paths: ['industrySpecificData.doctors', 'fromTheWeb.rawIndustryData.doctors', 'doctors']
+        },
+        {
+          key: 'industrySpecificData.facilities', label: 'Medical Facilities', icon: GraduationCap, category: 'industry' as const,
+          paths: ['industrySpecificData.facilities', 'fromTheWeb.rawIndustryData.facilities', 'facilities']
+        },
+        {
+          key: 'industrySpecificData.bedCount', label: 'Bed Capacity', icon: Building2, category: 'industry' as const,
+          paths: ['industrySpecificData.bedCount', 'fromTheWeb.rawIndustryData.bedCount', 'bedCount']
+        },
+        {
+          key: 'industrySpecificData.diagnosticTests', label: 'Diagnostic Tests', icon: GraduationCap, category: 'industry' as const,
+          paths: ['industrySpecificData.diagnosticTests', 'fromTheWeb.rawIndustryData.diagnosticTests', 'diagnosticTests']
+        },
+        {
+          key: 'industrySpecificData.emergencyServices', label: 'Emergency Services', icon: BadgeCheck, category: 'industry' as const,
+          paths: ['industrySpecificData.emergencyServices', 'fromTheWeb.rawIndustryData.emergencyServices', 'emergencyServices']
+        },
+        {
+          key: 'industrySpecificData.insuranceAccepted', label: 'Insurance Partners', icon: BadgeCheck, category: 'industry' as const,
+          paths: ['industrySpecificData.insuranceAccepted', 'fromTheWeb.rawIndustryData.insuranceAccepted', 'insuranceAccepted']
+        },
+        {
+          key: 'industrySpecificData.consultationTypes', label: 'Consultation Types', icon: GraduationCap, category: 'industry' as const,
+          paths: ['industrySpecificData.consultationTypes', 'fromTheWeb.rawIndustryData.consultationTypes', 'consultationTypes']
+        },
       ] : []),
 
       // Food & Beverage / Hospitality specific
       ...(partnerIndustry === 'food_beverage' || partnerIndustry === 'hospitality' ? [
-        { key: 'industrySpecificData.cuisineTypes', label: 'Cuisine Types', icon: GraduationCap, category: 'industry' as const,
-          paths: ['industrySpecificData.cuisineTypes', 'fromTheWeb.rawIndustryData.cuisineTypes', 'cuisineTypes'] },
-        { key: 'industrySpecificData.dietaryOptions', label: 'Dietary Options', icon: GraduationCap, category: 'industry' as const,
-          paths: ['industrySpecificData.dietaryOptions', 'fromTheWeb.rawIndustryData.dietaryOptions', 'dietaryOptions'] },
-        { key: 'industrySpecificData.seatingCapacity', label: 'Seating Capacity', icon: Users, category: 'industry' as const,
-          paths: ['industrySpecificData.seatingCapacity', 'fromTheWeb.rawIndustryData.seatingCapacity', 'seatingCapacity'] },
-        { key: 'industrySpecificData.averageCost', label: 'Average Cost for Two', icon: BadgeCheck, category: 'industry' as const,
-          paths: ['industrySpecificData.averageCost', 'fromTheWeb.rawIndustryData.averageCost', 'averageCost'] },
-        { key: 'industrySpecificData.deliveryPartners', label: 'Delivery Partners', icon: Building2, category: 'industry' as const,
-          paths: ['industrySpecificData.deliveryPartners', 'fromTheWeb.rawIndustryData.deliveryPartners', 'deliveryPartners'] },
-        { key: 'industrySpecificData.specialties', label: 'Signature Dishes', icon: Sparkles, category: 'industry' as const,
-          paths: ['industrySpecificData.specialties', 'fromTheWeb.rawIndustryData.specialties', 'specialties'] },
-        { key: 'industrySpecificData.starRating', label: 'Star Rating', icon: BadgeCheck, category: 'industry' as const,
-          paths: ['industrySpecificData.starRating', 'fromTheWeb.rawIndustryData.starRating', 'starRating'] },
-        { key: 'industrySpecificData.totalRooms', label: 'Total Rooms', icon: Building2, category: 'industry' as const,
-          paths: ['industrySpecificData.totalRooms', 'fromTheWeb.rawIndustryData.totalRooms', 'totalRooms'] },
-        { key: 'industrySpecificData.amenities', label: 'Amenities', icon: GraduationCap, category: 'industry' as const,
-          paths: ['industrySpecificData.amenities', 'fromTheWeb.rawIndustryData.amenities', 'amenities'] },
-        { key: 'industrySpecificData.bookingPartners', label: 'Booking Platforms', icon: Building2, category: 'industry' as const,
-          paths: ['industrySpecificData.bookingPartners', 'fromTheWeb.rawIndustryData.bookingPartners', 'bookingPartners'] },
+        {
+          key: 'industrySpecificData.cuisineTypes', label: 'Cuisine Types', icon: GraduationCap, category: 'industry' as const,
+          paths: ['industrySpecificData.cuisineTypes', 'fromTheWeb.rawIndustryData.cuisineTypes', 'cuisineTypes']
+        },
+        {
+          key: 'industrySpecificData.dietaryOptions', label: 'Dietary Options', icon: GraduationCap, category: 'industry' as const,
+          paths: ['industrySpecificData.dietaryOptions', 'fromTheWeb.rawIndustryData.dietaryOptions', 'dietaryOptions']
+        },
+        {
+          key: 'industrySpecificData.seatingCapacity', label: 'Seating Capacity', icon: Users, category: 'industry' as const,
+          paths: ['industrySpecificData.seatingCapacity', 'fromTheWeb.rawIndustryData.seatingCapacity', 'seatingCapacity']
+        },
+        {
+          key: 'industrySpecificData.averageCost', label: 'Average Cost for Two', icon: BadgeCheck, category: 'industry' as const,
+          paths: ['industrySpecificData.averageCost', 'fromTheWeb.rawIndustryData.averageCost', 'averageCost']
+        },
+        {
+          key: 'industrySpecificData.deliveryPartners', label: 'Delivery Partners', icon: Building2, category: 'industry' as const,
+          paths: ['industrySpecificData.deliveryPartners', 'fromTheWeb.rawIndustryData.deliveryPartners', 'deliveryPartners']
+        },
+        {
+          key: 'industrySpecificData.signatureDishes', label: 'Signature Dishes', icon: Sparkles, category: 'industry' as const,
+          paths: ['industrySpecificData.signatureDishes', 'fromTheWeb.rawIndustryData.specialties', 'specialties']
+        },
+        {
+          key: 'industrySpecificData.starRating', label: 'Star Rating', icon: BadgeCheck, category: 'industry' as const,
+          paths: ['industrySpecificData.starRating', 'fromTheWeb.rawIndustryData.starRating', 'starRating']
+        },
+        {
+          key: 'industrySpecificData.totalRooms', label: 'Total Rooms', icon: Building2, category: 'industry' as const,
+          paths: ['industrySpecificData.totalRooms', 'fromTheWeb.rawIndustryData.totalRooms', 'totalRooms']
+        },
+        {
+          key: 'hotelAmenities', label: 'Amenities', icon: GraduationCap, category: 'industry' as const,
+          paths: ['hotelAmenities', 'fromTheWeb.rawIndustryData.amenities', 'amenities']
+        },
+        {
+          key: 'industrySpecificData.bookingPartners', label: 'Booking Platforms', icon: Building2, category: 'industry' as const,
+          paths: ['industrySpecificData.bookingPartners', 'fromTheWeb.rawIndustryData.bookingPartners', 'bookingPartners']
+        },
       ] : []),
 
       // Education / Services specific
       ...(partnerIndustry === 'education' || partnerIndustry === 'services' ? [
-        { key: 'industrySpecificData.coursesOffered', label: 'Courses Offered', icon: GraduationCap, category: 'industry' as const,
-          paths: ['industrySpecificData.coursesOffered', 'fromTheWeb.rawIndustryData.courses', 'coursesOffered'] },
-        { key: 'industrySpecificData.facultyCount', label: 'Faculty Count', icon: Users, category: 'industry' as const,
-          paths: ['industrySpecificData.facultyCount', 'facultyCount'] },
-        { key: 'industrySpecificData.studentCount', label: 'Student Count', icon: Users, category: 'industry' as const,
-          paths: ['industrySpecificData.studentCount', 'studentCount'] },
-        { key: 'industrySpecificData.placementRate', label: 'Placement Rate', icon: BadgeCheck, category: 'industry' as const,
-          paths: ['industrySpecificData.placementRate', 'placementRate'] },
+        {
+          key: 'industrySpecificData.coursesOffered', label: 'Courses Offered', icon: GraduationCap, category: 'industry' as const,
+          paths: ['industrySpecificData.coursesOffered', 'fromTheWeb.rawIndustryData.courses', 'coursesOffered']
+        },
+        {
+          key: 'industrySpecificData.facultyCount', label: 'Faculty Count', icon: Users, category: 'industry' as const,
+          paths: ['industrySpecificData.facultyCount', 'facultyCount']
+        },
+        {
+          key: 'industrySpecificData.studentCount', label: 'Student Count', icon: Users, category: 'industry' as const,
+          paths: ['industrySpecificData.studentCount', 'studentCount']
+        },
+        {
+          key: 'industrySpecificData.placementRate', label: 'Placement Rate', icon: BadgeCheck, category: 'industry' as const,
+          paths: ['industrySpecificData.placementRate', 'placementRate']
+        },
       ] : []),
 
       // Retail specific
       ...(partnerIndustry === 'retail' ? [
-        { key: 'industrySpecificData.productCategories', label: 'Product Categories', icon: GraduationCap, category: 'industry' as const,
-          paths: ['industrySpecificData.productCategories', 'fromTheWeb.rawIndustryData.productCategories', 'productCategories'] },
-        { key: 'industrySpecificData.brands', label: 'Brands Available', icon: Building2, category: 'industry' as const,
-          paths: ['industrySpecificData.brands', 'fromTheWeb.rawIndustryData.brands', 'brands'] },
-        { key: 'industrySpecificData.priceRange', label: 'Price Range', icon: BadgeCheck, category: 'industry' as const,
-          paths: ['industrySpecificData.priceRange', 'fromTheWeb.rawIndustryData.priceRange', 'priceRange'] },
-        { key: 'industrySpecificData.deliveryOptions', label: 'Delivery Options', icon: Building2, category: 'industry' as const,
-          paths: ['industrySpecificData.deliveryOptions', 'fromTheWeb.rawIndustryData.deliveryOptions', 'deliveryOptions'] },
-        { key: 'industrySpecificData.returnPolicy', label: 'Return Policy', icon: FileText, category: 'industry' as const,
-          paths: ['industrySpecificData.returnPolicy', 'fromTheWeb.rawIndustryData.returnPolicy', 'returnPolicy'] },
-        { key: 'industrySpecificData.onlineStore', label: 'E-commerce Store', icon: FileText, category: 'industry' as const,
-          paths: ['industrySpecificData.onlineStore', 'fromTheWeb.rawIndustryData.onlineStore', 'onlineStore'] },
+        {
+          key: 'knowledge.serviceCategories', label: 'Product Categories', icon: GraduationCap, category: 'industry' as const,
+          paths: ['knowledge.serviceCategories', 'fromTheWeb.rawIndustryData.productCategories', 'productCategories']
+        },
+        {
+          key: 'industrySpecificData.brands', label: 'Brands Available', icon: Building2, category: 'industry' as const,
+          paths: ['industrySpecificData.brands', 'fromTheWeb.rawIndustryData.brands', 'brands']
+        },
+        {
+          key: 'industrySpecificData.priceRange', label: 'Price Range', icon: BadgeCheck, category: 'industry' as const,
+          paths: ['industrySpecificData.priceRange', 'fromTheWeb.rawIndustryData.priceRange', 'priceRange']
+        },
+        {
+          key: 'industrySpecificData.deliveryOptions', label: 'Delivery Options', icon: Building2, category: 'industry' as const,
+          paths: ['industrySpecificData.deliveryOptions', 'fromTheWeb.rawIndustryData.deliveryOptions', 'deliveryOptions']
+        },
+        {
+          key: 'knowledge.policies.returnPolicy', label: 'Return Policy', icon: FileText, category: 'industry' as const,
+          paths: ['knowledge.policies.returnPolicy', 'fromTheWeb.rawIndustryData.returnPolicy', 'returnPolicy']
+        },
+        {
+          key: 'industrySpecificData.onlineStore', label: 'E-commerce Store', icon: FileText, category: 'industry' as const,
+          paths: ['industrySpecificData.onlineStore', 'fromTheWeb.rawIndustryData.onlineStore', 'onlineStore']
+        },
       ] : []),
 
       // Real Estate specific
       ...(partnerIndustry === 'real_estate' ? [
-        { key: 'industrySpecificData.propertyTypes', label: 'Property Types', icon: Building2, category: 'industry' as const,
-          paths: ['industrySpecificData.propertyTypes', 'fromTheWeb.rawIndustryData.propertyTypes', 'propertyTypes'] },
-        { key: 'industrySpecificData.locations', label: 'Service Areas', icon: MapPin, category: 'industry' as const,
-          paths: ['industrySpecificData.locations', 'fromTheWeb.rawIndustryData.locations', 'serviceAreas', 'locations'] },
-        { key: 'industrySpecificData.reraRegistration', label: 'RERA/License Number', icon: BadgeCheck, category: 'industry' as const,
-          paths: ['industrySpecificData.reraRegistration', 'fromTheWeb.rawIndustryData.registrationNumber', 'registrations.RERA', 'reraRegistration'] },
-        { key: 'industrySpecificData.projectsCompleted', label: 'Projects Completed', icon: BadgeCheck, category: 'industry' as const,
-          paths: ['industrySpecificData.projectsCompleted', 'fromTheWeb.rawIndustryData.projectsCompleted', 'projectsCompleted'] },
+        {
+          key: 'industrySpecificData.propertyTypes', label: 'Property Types', icon: Building2, category: 'industry' as const,
+          paths: ['industrySpecificData.propertyTypes', 'fromTheWeb.rawIndustryData.propertyTypes', 'propertyTypes']
+        },
+        {
+          key: 'industrySpecificData.locations', label: 'Service Areas', icon: MapPin, category: 'industry' as const,
+          paths: ['industrySpecificData.locations', 'fromTheWeb.rawIndustryData.locations', 'serviceAreas', 'locations']
+        },
+        {
+          key: 'industrySpecificData.reraRegistration', label: 'RERA/License Number', icon: BadgeCheck, category: 'industry' as const,
+          paths: ['industrySpecificData.reraRegistration', 'fromTheWeb.rawIndustryData.registrationNumber', 'registrations.RERA', 'reraRegistration']
+        },
+        {
+          key: 'industrySpecificData.projectsCompleted', label: 'Projects Completed', icon: BadgeCheck, category: 'industry' as const,
+          paths: ['industrySpecificData.projectsCompleted', 'fromTheWeb.rawIndustryData.projectsCompleted', 'projectsCompleted']
+        },
       ] : []),
 
       // === SUCCESS METRICS (from knowledge AND raw successMetrics) ===
-      { key: 'knowledge.caseStudies', label: 'Case Studies', icon: FileText, category: 'success' as const,
-        paths: ['knowledge.caseStudies', 'successMetrics.caseStudies', 'caseStudies', 'successStories'] },
-      { key: 'knowledge.keyStats', label: 'Key Statistics', icon: BadgeCheck, category: 'success' as const,
-        paths: ['knowledge.keyStats', 'successMetrics.keyStats', 'keyStats', 'statistics'] },
-      { key: 'industrySpecificData.notableClients', label: 'Notable Clients', icon: Users, category: 'success' as const,
-        paths: ['industrySpecificData.notableClients', 'successMetrics.notableClients', 'notableClients', 'clients'] },
-      { key: 'onlinePresence', label: 'Online Reviews Summary', icon: BadgeCheck, category: 'success' as const,
-        paths: ['onlinePresence', 'onlineReviews'] },
-      { key: 'pressMedia', label: 'Press/Media Coverage', icon: FileText, category: 'success' as const,
-        paths: ['pressMedia', 'mediaCoverage', 'press'] },
+      {
+        key: 'knowledge.caseStudies', label: 'Case Studies', icon: FileText, category: 'success' as const,
+        paths: ['knowledge.caseStudies', 'successMetrics.caseStudies', 'caseStudies', 'successStories']
+      },
+      {
+        key: 'knowledge.keyStats', label: 'Key Statistics', icon: BadgeCheck, category: 'success' as const,
+        paths: ['knowledge.keyStats', 'successMetrics.keyStats', 'keyStats', 'statistics']
+      },
+      {
+        key: 'industrySpecificData.notableClients', label: 'Notable Clients', icon: Users, category: 'success' as const,
+        paths: ['industrySpecificData.notableClients', 'successMetrics.notableClients', 'notableClients', 'clients']
+      },
+      {
+        key: 'onlinePresence', label: 'Online Reviews Summary', icon: BadgeCheck, category: 'success' as const,
+        paths: ['onlinePresence', 'onlineReviews']
+      },
+      {
+        key: 'pressMedia', label: 'Press/Media Coverage', icon: FileText, category: 'success' as const,
+        paths: ['pressMedia', 'mediaCoverage', 'press']
+      },
 
       // === DEEP EXTRACTION FIELDS (from enhanced AI scraping) ===
-      { key: 'industrySpecificData.areasServed', label: 'Areas Served', icon: MapPin, category: 'industry' as const,
-        paths: ['industrySpecificData.areasServed', 'fromTheWeb.areasServed', 'serviceAreas', 'areasServed'] },
-      { key: 'industrySpecificData.clientTypes', label: 'Client Types', icon: Users, category: 'audience' as const,
-        paths: ['industrySpecificData.clientTypes', 'fromTheWeb.clientTypes', 'clientTypes'] },
-      { key: 'industrySpecificData.projectTypes', label: 'Project Types', icon: Building2, category: 'industry' as const,
-        paths: ['industrySpecificData.projectTypes', 'fromTheWeb.projectTypes', 'projectTypes'] },
-      { key: 'industrySpecificData.processSteps', label: 'Process Steps', icon: FileText, category: 'industry' as const,
-        paths: ['industrySpecificData.processSteps', 'fromTheWeb.processSteps', 'processSteps'] },
-      { key: 'industrySpecificData.differentiators', label: 'Key Differentiators', icon: Sparkles, category: 'competitive' as const,
-        paths: ['industrySpecificData.differentiators', 'differentiators', 'competitiveAdvantages'] },
-      { key: 'industrySpecificData.additionalServices', label: 'Additional Services', icon: GraduationCap, category: 'industry' as const,
-        paths: ['industrySpecificData.additionalServices', 'additionalServices'] },
+      {
+        key: 'industrySpecificData.areasServed', label: 'Areas Served', icon: MapPin, category: 'industry' as const,
+        paths: ['industrySpecificData.areasServed', 'fromTheWeb.areasServed', 'serviceAreas', 'areasServed']
+      },
+      {
+        key: 'industrySpecificData.clientTypes', label: 'Client Types', icon: Users, category: 'audience' as const,
+        paths: ['industrySpecificData.clientTypes', 'fromTheWeb.clientTypes', 'clientTypes']
+      },
+      {
+        key: 'industrySpecificData.projectTypes', label: 'Project Types', icon: Building2, category: 'industry' as const,
+        paths: ['industrySpecificData.projectTypes', 'fromTheWeb.projectTypes', 'projectTypes']
+      },
+      {
+        key: 'industrySpecificData.processSteps', label: 'Process Steps', icon: FileText, category: 'industry' as const,
+        paths: ['industrySpecificData.processSteps', 'fromTheWeb.processSteps', 'processSteps']
+      },
+      {
+        key: 'industrySpecificData.differentiators', label: 'Key Differentiators', icon: Sparkles, category: 'competitive' as const,
+        paths: ['industrySpecificData.differentiators', 'differentiators', 'competitiveAdvantages']
+      },
+      {
+        key: 'industrySpecificData.additionalServices', label: 'Additional Services', icon: GraduationCap, category: 'industry' as const,
+        paths: ['industrySpecificData.additionalServices', 'additionalServices']
+      },
 
       // === KNOWLEDGE/FAQ ===
-      { key: 'knowledge.faqs', label: 'FAQs', icon: FileText, category: 'knowledge' as const,
-        paths: ['knowledge.faqs', 'faqs', 'faq', 'frequentlyAskedQuestions'] },
-      { key: 'knowledge.policies', label: 'Policies', icon: FileText, category: 'knowledge' as const,
-        paths: ['knowledge.policies', 'policies', 'cancellationPolicy', 'returnPolicy'] },
-      { key: 'fromTheWeb.otherFindings', label: 'Additional Web Findings', icon: FileText, category: 'knowledge' as const,
-        paths: ['fromTheWeb.otherFindings', 'fromTheWeb', 'rawWebData.otherFindings'] },
+      {
+        key: 'knowledge.faqs', label: 'FAQs', icon: FileText, category: 'knowledge' as const,
+        paths: ['knowledge.faqs', 'faqs', 'faq', 'frequentlyAskedQuestions']
+      },
+      {
+        key: 'knowledge.policies', label: 'Policies', icon: FileText, category: 'knowledge' as const,
+        paths: ['knowledge.policies', 'policies', 'cancellationPolicy', 'returnPolicy']
+      },
+      {
+        key: 'fromTheWeb.otherFindings', label: 'Additional Web Findings', icon: FileText, category: 'knowledge' as const,
+        paths: ['fromTheWeb.otherFindings', 'fromTheWeb', 'rawWebData.otherFindings']
+      },
     ];
 
     const fields: MergeField[] = [];
 
     fieldDefinitions.forEach((def) => {
-      const googleVal = extractValue(googleRawData, def.paths);
-      const websiteVal = extractValue(websiteRawData, def.paths);
+      let googleVal = extractValue(googleRawData, def.paths);
+      let websiteVal = extractValue(websiteRawData, def.paths);
+
+      // Apply shared parsers for complex fields
+      if (def.key === 'identity.address') {
+        if (googleVal) googleVal = parseAddress(googleVal);
+        if (websiteVal) websiteVal = parseAddress(websiteVal);
+      } else if (def.key === 'identity.operatingHours') {
+        // If raw Google format (weekdayText array), parse it
+        if (googleVal && (Array.isArray(googleVal) || googleVal.weekdayText)) {
+          const weekdayText = Array.isArray(googleVal) ? googleVal : googleVal.weekdayText;
+          if (Array.isArray(weekdayText)) {
+            const parsed = parseOperatingHoursFromGoogle(weekdayText);
+            if (parsed) googleVal = parsed;
+          }
+        }
+      }
 
       // Only add fields that have at least one value
       if (googleVal || websiteVal) {
@@ -907,7 +1206,7 @@ export default function ImportCenterPage() {
     const updated = {
       importedData: {
         ...(persona.importedData || {}),
-        google: null,
+        google: undefined,
       },
     };
     await saveBusinessPersonaAction(partnerId, updated as any);
@@ -927,7 +1226,7 @@ export default function ImportCenterPage() {
     const updated = {
       importedData: {
         ...(persona.importedData || {}),
-        website: null,
+        website: undefined,
       },
     };
     await saveBusinessPersonaAction(partnerId, updated as any);
@@ -944,10 +1243,10 @@ export default function ImportCenterPage() {
       prev.map((f) =>
         f.key === fieldKey
           ? {
-              ...f,
-              selectedSource: source,
-              finalValue: source === 'google' ? f.googleValue : f.websiteValue,
-            }
+            ...f,
+            selectedSource: source,
+            finalValue: source === 'google' ? f.googleValue : f.websiteValue,
+          }
           : f
       )
     );
@@ -1097,6 +1396,8 @@ export default function ImportCenterPage() {
       // Add AI-suggested tags
       if (selectedTags && selectedTags.length > 0) {
         updates.tags = selectedTags;
+        if (!updates.industrySpecificData) updates.industrySpecificData = {};
+        updates.industrySpecificData.tags = selectedTags;
       }
 
       // Add import metadata
@@ -1109,6 +1410,17 @@ export default function ImportCenterPage() {
         appliedSuggestions: suggestions.filter((s) => s.applied).map((s) => s.id),
         appliedTags: selectedTags?.length || 0,
       };
+
+      // Transform hotelAmenities if present as string array
+      if (updates.hotelAmenities && Array.isArray(updates.hotelAmenities) && typeof updates.hotelAmenities[0] === 'string') {
+        updates.hotelAmenities = updates.hotelAmenities.map((a: string, i: number) => ({
+          id: `amenity_${i}`,
+          name: a,
+          category: 'services',
+          isActive: true,
+          isPaid: false
+        }));
+      }
 
       // Also use AI-powered transformation if available
       const rawMergedData = {
@@ -1334,27 +1646,25 @@ export default function ImportCenterPage() {
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
                 disabled={tab.id !== 'import' && !canProceed}
-                className={`px-3 py-3 text-sm font-medium border-b-2 flex items-center gap-1.5 whitespace-nowrap transition-all ${
-                  activeTab === tab.id
-                    ? tab.highlight
-                      ? 'border-purple-600 text-purple-600'
-                      : 'border-indigo-600 text-indigo-600'
-                    : tab.id !== 'import' && !canProceed
-                      ? 'border-transparent text-slate-300 cursor-not-allowed'
-                      : 'border-transparent text-slate-500 hover:text-slate-700'
-                }`}
+                className={`px-3 py-3 text-sm font-medium border-b-2 flex items-center gap-1.5 whitespace-nowrap transition-all ${activeTab === tab.id
+                  ? tab.highlight
+                    ? 'border-purple-600 text-purple-600'
+                    : 'border-indigo-600 text-indigo-600'
+                  : tab.id !== 'import' && !canProceed
+                    ? 'border-transparent text-slate-300 cursor-not-allowed'
+                    : 'border-transparent text-slate-500 hover:text-slate-700'
+                  }`}
               >
                 <tab.icon className="w-4 h-4" />
                 <span className="hidden sm:inline">{tab.label}</span>
                 {tab.badge !== null && tab.badge !== undefined && tab.badge > 0 && (
                   <span
-                    className={`px-1.5 py-0.5 rounded-full text-xs font-semibold ${
-                      tab.badgeType === 'warning'
-                        ? 'bg-amber-100 text-amber-700'
-                        : tab.highlight
-                          ? 'bg-purple-100 text-purple-700'
-                          : 'bg-slate-100 text-slate-600'
-                    }`}
+                    className={`px-1.5 py-0.5 rounded-full text-xs font-semibold ${tab.badgeType === 'warning'
+                      ? 'bg-amber-100 text-amber-700'
+                      : tab.highlight
+                        ? 'bg-purple-100 text-purple-700'
+                        : 'bg-slate-100 text-slate-600'
+                      }`}
                   >
                     {tab.badge}
                   </span>
@@ -1454,6 +1764,15 @@ export default function ImportCenterPage() {
             }
             onNavigateToTab={setActiveTab}
             onApply={handleApplyToProfile}
+            // Lifted state props
+            suggestedTags={suggestedTags}
+            setSuggestedTags={setSuggestedTags}
+            tagGroups={tagGroups}
+            setTagGroups={setTagGroups}
+            tagInsights={tagInsights}
+            setTagInsights={setTagInsights}
+            tagsGenerated={tagsGenerated}
+            setTagsGenerated={setTagsGenerated}
           />
         )}
       </div>

@@ -385,6 +385,37 @@ export async function saveBusinessPersonaAction(
                 ...existingPersona.importHistory,
                 ...updates.importHistory,
             } : existingPersona.importHistory,
+
+            // === NEW FIELDS PERSISTENCE FIX ===
+            // Web Intelligence (Other useful data, etc.)
+            webIntelligence: updates.webIntelligence !== undefined ? {
+                ...existingPersona.webIntelligence,
+                ...updates.webIntelligence,
+            } : existingPersona.webIntelligence,
+
+            // Import Metadata (Unmapped data, field sources)
+            _importMeta: updates._importMeta !== undefined ? {
+                ...existingPersona._importMeta,
+                ...updates._importMeta,
+            } : existingPersona._importMeta,
+
+            // AI Suggestions
+            aiSuggestions: updates.aiSuggestions ?? existingPersona.aiSuggestions,
+
+            // Tags
+            tags: updates.tags ?? existingPersona.tags,
+
+            // Custom Fields
+            customFields: updates.customFields ?? existingPersona.customFields,
+
+            // Courses (Education)
+            courses: updates.courses ?? existingPersona.courses,
+
+            // WhatsApp Sync
+            whatsappSync: updates.whatsappSync !== undefined ? {
+                ...existingPersona.whatsappSync,
+                ...updates.whatsappSync,
+            } : existingPersona.whatsappSync,
             // Timestamps and version
             updatedAt: new Date(),
             version: (existingPersona.version || 0) + 1,

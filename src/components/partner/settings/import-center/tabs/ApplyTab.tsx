@@ -64,6 +64,15 @@ interface ApplyTabProps {
   onToggleSection: (section: string) => void;
   onNavigateToTab: (tab: ImportCenterTab) => void;
   onApply: (selectedTags?: string[]) => void;
+  // Lifted state props
+  suggestedTags: SuggestedTag[];
+  setSuggestedTags: (tags: SuggestedTag[]) => void;
+  tagGroups: TagGroup[];
+  setTagGroups: (groups: TagGroup[]) => void;
+  tagInsights: TagInsight[];
+  setTagInsights: (insights: TagInsight[]) => void;
+  tagsGenerated: boolean;
+  setTagsGenerated: (generated: boolean) => void;
 }
 
 // Category icons mapping
@@ -122,16 +131,23 @@ export function ApplyTab({
   onToggleSection,
   onNavigateToTab,
   onApply,
+  // Lifted state props
+  suggestedTags,
+  setSuggestedTags,
+  tagGroups,
+  setTagGroups,
+  tagInsights,
+  setTagInsights,
+  tagsGenerated,
+  setTagsGenerated,
 }: ApplyTabProps) {
-  const [suggestedTags, setSuggestedTags] = useState<SuggestedTag[]>([]);
-  const [tagGroups, setTagGroups] = useState<TagGroup[]>([]);
-  const [tagInsights, setTagInsights] = useState<TagInsight[]>([]);
+  // Local UI state
   const [selectedTags, setSelectedTags] = useState<Set<string>>(new Set());
   const [customTags, setCustomTags] = useState<string[]>([]);
   const [newCustomTag, setNewCustomTag] = useState('');
   const [isGeneratingTags, setIsGeneratingTags] = useState(false);
   const [tagsError, setTagsError] = useState<string | null>(null);
-  const [tagsGenerated, setTagsGenerated] = useState(false);
+
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set(['industry', 'service', 'audience']));
   const [showAllGroups, setShowAllGroups] = useState(false);
   const [hoveredTag, setHoveredTag] = useState<string | null>(null);
@@ -786,6 +802,91 @@ export function ApplyTab({
             ))}
           </div>
         </ReviewAccordionSection>
+
+        {/* Social Media */}
+        {mergeFields.some(f => f.category === 'social' && f.finalValue) && (
+          <ReviewAccordionSection
+            title="Social Media"
+            icon={Users}
+            count={`${mergeFields.filter((f) => f.category === 'social' && f.finalValue).length} profiles`}
+            status="complete"
+            isExpanded={expandedSections.social || false}
+            onToggle={() => onToggleSection('social')}
+            onEdit={() => onNavigateToTab('merge')}
+            previewContent={
+              mergeFields.filter((f) => f.category === 'social' && f.finalValue)
+                .map(f => f.label)
+                .slice(0, 3)
+                .join(', ')
+            }
+          >
+            <div className="pt-4">
+              {mergeFields.filter((f) => f.category === 'social').map((f) => (
+                <ReviewFieldRow
+                  key={f.key}
+                  label={f.label}
+                  value={f.finalValue}
+                  source={f.selectedSource}
+                  icon={f.icon}
+                />
+              ))}
+            </div>
+          </ReviewAccordionSection>
+        )}
+
+        {/* Brand & Strategy (Aggregated) */}
+        {(mergeFields.some(f => ['brand', 'audience', 'competitive'].includes(f.category) && f.finalValue)) && (
+          <ReviewAccordionSection
+            title="Brand & Strategy"
+            icon={Target}
+            count={`${mergeFields.filter((f) => ['brand', 'audience', 'competitive'].includes(f.category) && f.finalValue).length} fields`}
+            status="complete"
+            isExpanded={expandedSections.brand || false}
+            onToggle={() => onToggleSection('brand')}
+            onEdit={() => onNavigateToTab('merge')}
+            previewContent={
+              mergeFields.find((f) => f.key === 'personality.uniqueSellingPoints')?.finalValue?.[0] || 'Brand Strategy'
+            }
+          >
+            <div className="pt-4">
+              {mergeFields.filter((f) => ['brand', 'audience', 'competitive'].includes(f.category)).map((f) => (
+                <ReviewFieldRow
+                  key={f.key}
+                  label={f.label}
+                  value={f.finalValue}
+                  source={f.selectedSource}
+                  icon={f.icon}
+                />
+              ))}
+            </div>
+          </ReviewAccordionSection>
+        )}
+
+        {/* Knowledge Base (Aggregated) */}
+        {(mergeFields.some(f => ['knowledge', 'credentials', 'team', 'success'].includes(f.category) && f.finalValue)) && (
+          <ReviewAccordionSection
+            title="Knowledge Base"
+            icon={ShieldCheck}
+            count={`${mergeFields.filter((f) => ['knowledge', 'credentials', 'team', 'success'].includes(f.category) && f.finalValue).length} fields`}
+            status="complete"
+            isExpanded={expandedSections.knowledge || false}
+            onToggle={() => onToggleSection('knowledge')}
+            onEdit={() => onNavigateToTab('merge')}
+            previewContent="Credentials, FAQs, Team"
+          >
+            <div className="pt-4">
+              {mergeFields.filter((f) => ['knowledge', 'credentials', 'team', 'success'].includes(f.category)).map((f) => (
+                <ReviewFieldRow
+                  key={f.key}
+                  label={f.label}
+                  value={f.finalValue}
+                  source={f.selectedSource}
+                  icon={f.icon}
+                />
+              ))}
+            </div>
+          </ReviewAccordionSection>
+        )}
 
         {/* Industry Metrics */}
         {industryFields.length > 0 && (

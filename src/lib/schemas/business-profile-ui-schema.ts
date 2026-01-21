@@ -55,7 +55,8 @@ export type FieldType =
     | 'key-value-list'
     | 'testimonial-list'
     | 'review-list'
-    | 'rich-text';
+    | 'rich-text'
+    | 'inventory'; // NEW: Embedded inventory manager
 
 export interface FieldOption {
     value: string;
@@ -85,6 +86,13 @@ export interface FieldConfig {
     defaultValue?: any;
     schemaPath: string;           // Maps to BusinessPersona path
 
+    // Inventory Configuration (NEW)
+    inventoryConfig?: {
+        itemLabel: string;       // e.g. "Dish", "Product"
+        itemLabelPlural: string; // e.g. "Dishes", "Products"
+        priceLabel: string;      // e.g. "Price", "Rate"
+    };
+
     // Value-based conditional display
     showCondition?: {
         field: string;
@@ -110,6 +118,7 @@ export interface FieldConfig {
     gridSpan?: 1 | 2;             // For 2-column layouts
     aiSuggestionEnabled?: boolean; // Can AI suggest values?
     fetchable?: boolean;          // Can be auto-filled from web?
+    badge?: string;               // Optional badge to display next to label
 }
 
 export interface SubSectionConfig {

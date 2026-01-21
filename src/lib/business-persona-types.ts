@@ -40,6 +40,18 @@ export interface SocialMediaLinks {
     linkedin?: string;
     youtube?: string;
     googleBusiness?: string;
+    tiktok?: string;
+    pinterest?: string;
+    snapchat?: string;
+    threads?: string;
+    yelp?: string;
+    tripadvisor?: string;
+    whatsapp?: string;
+    trustpilot?: string;
+    zillow?: string;
+    houzz?: string;
+    github?: string;
+    behance?: string;
 }
 
 /**
@@ -1553,6 +1565,38 @@ export interface HotelPolicy {
 }
 
 // ============================================
+// EDUCATION - COURSE CATALOG
+// ============================================
+
+export interface Course {
+    id: string;
+    name: string;
+    description: string;
+    shortDescription?: string;
+
+    // Course Details
+    category?: string;
+    level?: 'beginner' | 'intermediate' | 'advanced' | 'all_levels';
+    duration?: string; // "4 weeks", "3 months"
+    format?: 'online' | 'offline' | 'hybrid';
+    language?: string;
+
+    // Pricing
+    price?: number;
+    currency?: string;
+    priceType?: 'one_time' | 'subscription' | 'installment';
+
+    // Schedule
+    startDate?: string;
+    schedule?: string; // "Mon, Wed, Fri 6PM"
+
+    // Meta
+    instructor?: string;
+    certificationProvided?: boolean;
+    isActive: boolean;
+}
+
+// ============================================
 // FOOD & RESTAURANT - MENU SYSTEM
 // ============================================
 
@@ -1962,7 +2006,7 @@ export interface BusinessPersona {
     importedData?: {
         google?: {
             rawData: any;
-            categories: Array<{
+            categories?: Array<{
                 id: string;
                 label: string;
                 fields: Array<{
@@ -1981,7 +2025,7 @@ export interface BusinessPersona {
         };
         website?: {
             rawData: any;
-            categories: Array<{
+            categories?: Array<{
                 id: string;
                 label: string;
                 fields: Array<{
@@ -1999,6 +2043,12 @@ export interface BusinessPersona {
             pagesScraped?: string[];
         };
     };
+
+    // AI Tags
+    tags?: string[];
+
+    // Education - Courses
+    courses?: Course[];
 
     // Metadata
     createdAt: Date;
