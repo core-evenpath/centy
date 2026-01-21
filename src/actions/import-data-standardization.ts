@@ -324,6 +324,34 @@ const GOOGLE_KEY_MAP: Record<string, { key: string; category: string; label: str
 
   // Testimonials
   'testimonials': { key: 'testimonials', category: 'reputation', label: 'Testimonials' },
+
+  // ========== NESTED SCRAPER STRUCTURES (For Google autofill profile) ==========
+  // customerInsights nested object
+  'customerInsights': { key: 'customer_insights', category: 'audience', label: 'Customer Insights' },
+  'customerInsights.painPoints': { key: 'pain_points', category: 'audience', label: 'Pain Points' },
+  'customerInsights.valuePropositions': { key: 'value_propositions', category: 'audience', label: 'Value Propositions' },
+  'customerInsights.targetAgeGroups': { key: 'age_group', category: 'audience', label: 'Target Age Groups' },
+  'customerInsights.incomeSegments': { key: 'income_segment', category: 'audience', label: 'Income Segments' },
+  'customerInsights.targetAudience': { key: 'target_audience', category: 'audience', label: 'Target Audience' },
+  'customerInsights.customerType': { key: 'customer_type', category: 'audience', label: 'Customer Type' },
+  'customerInsights.demographics': { key: 'demographics', category: 'audience', label: 'Demographics' },
+
+  // competitiveIntel nested object
+  'competitiveIntel': { key: 'competitive_intel', category: 'audience', label: 'Competitive Intel' },
+  'competitiveIntel.differentiators': { key: 'differentiators', category: 'audience', label: 'Differentiators' },
+  'competitiveIntel.competitiveAdvantages': { key: 'differentiators', category: 'audience', label: 'Competitive Advantages' },
+  'competitiveIntel.uniqueFeatures': { key: 'differentiators', category: 'audience', label: 'Unique Features' },
+  'competitiveIntel.marketPosition': { key: 'value_propositions', category: 'audience', label: 'Market Position' },
+  'competitiveIntel.targetMarket': { key: 'target_audience', category: 'audience', label: 'Target Market' },
+
+  // Direct audience fields that might come from Google
+  'targetAudience': { key: 'target_audience', category: 'audience', label: 'Target Audience' },
+  'targetCustomers': { key: 'primary_audience', category: 'audience', label: 'Target Customers' },
+  'painPoints': { key: 'pain_points', category: 'audience', label: 'Pain Points' },
+  'differentiators': { key: 'differentiators', category: 'audience', label: 'Differentiators' },
+  'valuePropositions': { key: 'value_propositions', category: 'audience', label: 'Value Propositions' },
+  'usps': { key: 'differentiators', category: 'audience', label: 'USPs' },
+  'uniqueSellingPoints': { key: 'differentiators', category: 'audience', label: 'USPs' },
 };
 
 // Semantic key mapping for Website data
@@ -468,10 +496,121 @@ const WEBSITE_KEY_MAP: Record<string, { key: string; category: string; label: st
 
   // Direct website scrape fields for Audience & Trust
   'targetAudience': { key: 'target_audience', category: 'audience', label: 'Target Audience' },
+  'target_audience': { key: 'target_audience', category: 'audience', label: 'Target Audience' },
+  'targetCustomers': { key: 'primary_audience', category: 'audience', label: 'Target Customers' },
+  'target_customers': { key: 'primary_audience', category: 'audience', label: 'Target Customers' },
+  'idealCustomer': { key: 'ideal_customer_profile', category: 'audience', label: 'Ideal Customer' },
+  'ideal_customer': { key: 'ideal_customer_profile', category: 'audience', label: 'Ideal Customer' },
+  'customerTypes': { key: 'customer_type', category: 'audience', label: 'Customer Types' },
+  'customer_types': { key: 'customer_type', category: 'audience', label: 'Customer Types' },
+  'whoWeServe': { key: 'primary_audience', category: 'audience', label: 'Who We Serve' },
+  'who_we_serve': { key: 'primary_audience', category: 'audience', label: 'Who We Serve' },
+  'ourCustomers': { key: 'primary_audience', category: 'audience', label: 'Our Customers' },
+  'our_customers': { key: 'primary_audience', category: 'audience', label: 'Our Customers' },
+  'audience': { key: 'target_audience', category: 'audience', label: 'Audience' },
+  'demographics': { key: 'demographics', category: 'audience', label: 'Demographics' },
+  'customerDemographics': { key: 'demographics', category: 'audience', label: 'Customer Demographics' },
+  'ageGroups': { key: 'age_group', category: 'audience', label: 'Age Groups' },
+  'age_groups': { key: 'age_group', category: 'audience', label: 'Age Groups' },
+  'targetAge': { key: 'age_group', category: 'audience', label: 'Target Age' },
+
+  // Pain points and value propositions
   'painPoints': { key: 'pain_points', category: 'audience', label: 'Pain Points' },
+  'pain_points': { key: 'pain_points', category: 'audience', label: 'Pain Points' },
+  'customerProblems': { key: 'pain_points', category: 'audience', label: 'Customer Problems' },
+  'customer_problems': { key: 'pain_points', category: 'audience', label: 'Customer Problems' },
+  'problemsSolved': { key: 'pain_points', category: 'audience', label: 'Problems Solved' },
+  'problems_solved': { key: 'pain_points', category: 'audience', label: 'Problems Solved' },
+  'challenges': { key: 'pain_points', category: 'audience', label: 'Challenges' },
+  'customerChallenges': { key: 'pain_points', category: 'audience', label: 'Customer Challenges' },
+
+  // Differentiators and USPs
   'differentiators': { key: 'differentiators', category: 'audience', label: 'Differentiators' },
   'uniqueSellingPoints': { key: 'differentiators', category: 'audience', label: 'USPs' },
+  'unique_selling_points': { key: 'differentiators', category: 'audience', label: 'USPs' },
+  'usps': { key: 'differentiators', category: 'audience', label: 'USPs' },
   'whyChooseUs': { key: 'differentiators', category: 'audience', label: 'Why Choose Us' },
+  'why_choose_us': { key: 'differentiators', category: 'audience', label: 'Why Choose Us' },
+  'whyUs': { key: 'differentiators', category: 'audience', label: 'Why Us' },
+  'why_us': { key: 'differentiators', category: 'audience', label: 'Why Us' },
+  'whatMakesUsDifferent': { key: 'differentiators', category: 'audience', label: 'What Makes Us Different' },
+  'competitive_advantage': { key: 'differentiators', category: 'audience', label: 'Competitive Advantage' },
+  'competitiveAdvantage': { key: 'differentiators', category: 'audience', label: 'Competitive Advantage' },
+  'strengths': { key: 'differentiators', category: 'audience', label: 'Strengths' },
+  'ourAdvantages': { key: 'differentiators', category: 'audience', label: 'Our Advantages' },
+
+  // Value propositions
+  'valuePropositions': { key: 'value_propositions', category: 'audience', label: 'Value Propositions' },
+  'value_propositions': { key: 'value_propositions', category: 'audience', label: 'Value Propositions' },
+  'valueProps': { key: 'value_propositions', category: 'audience', label: 'Value Props' },
+  'benefits': { key: 'value_propositions', category: 'audience', label: 'Benefits' },
+  'customerBenefits': { key: 'value_propositions', category: 'audience', label: 'Customer Benefits' },
+  'customer_benefits': { key: 'value_propositions', category: 'audience', label: 'Customer Benefits' },
+  'keyBenefits': { key: 'value_propositions', category: 'audience', label: 'Key Benefits' },
+  'key_benefits': { key: 'value_propositions', category: 'audience', label: 'Key Benefits' },
+  'whatWeOffer': { key: 'value_propositions', category: 'audience', label: 'What We Offer' },
+  'ourPromise': { key: 'value_propositions', category: 'audience', label: 'Our Promise' },
+
+  // Objection handlers
+  'objectionHandlers': { key: 'objection_handlers', category: 'audience', label: 'Objection Handlers' },
+  'objection_handlers': { key: 'objection_handlers', category: 'audience', label: 'Objection Handlers' },
+  'commonObjections': { key: 'objection_handlers', category: 'audience', label: 'Common Objections' },
+  'common_objections': { key: 'objection_handlers', category: 'audience', label: 'Common Objections' },
+  'concerns': { key: 'objection_handlers', category: 'audience', label: 'Concerns' },
+  'customerConcerns': { key: 'objection_handlers', category: 'audience', label: 'Customer Concerns' },
+
+  // B2B/B2C indicators
+  'businessModel': { key: 'customer_type', category: 'audience', label: 'Business Model' },
+  'business_model': { key: 'customer_type', category: 'audience', label: 'Business Model' },
+  'b2b': { key: 'customer_type', category: 'audience', label: 'B2B' },
+  'b2c': { key: 'customer_type', category: 'audience', label: 'B2C' },
+  'clientTypes': { key: 'customer_type', category: 'audience', label: 'Client Types' },
+  'client_types': { key: 'customer_type', category: 'audience', label: 'Client Types' },
+  'segmentServed': { key: 'customer_type', category: 'audience', label: 'Segment Served' },
+  'marketSegment': { key: 'customer_type', category: 'audience', label: 'Market Segment' },
+  'market_segment': { key: 'customer_type', category: 'audience', label: 'Market Segment' },
+
+  // ========== NESTED SCRAPER STRUCTURES ==========
+  // customerInsights nested object (from website scraper AI extraction)
+  'customerInsights': { key: 'customer_insights', category: 'audience', label: 'Customer Insights' },
+  'customerInsights.painPoints': { key: 'pain_points', category: 'audience', label: 'Pain Points' },
+  'customerInsights.valuePropositions': { key: 'value_propositions', category: 'audience', label: 'Value Propositions' },
+  'customerInsights.targetAgeGroups': { key: 'age_group', category: 'audience', label: 'Target Age Groups' },
+  'customerInsights.incomeSegments': { key: 'income_segment', category: 'audience', label: 'Income Segments' },
+  'customerInsights.targetAudience': { key: 'target_audience', category: 'audience', label: 'Target Audience' },
+  'customerInsights.customerType': { key: 'customer_type', category: 'audience', label: 'Customer Type' },
+  'customerInsights.demographics': { key: 'demographics', category: 'audience', label: 'Demographics' },
+  'customerInsights.buyingMotivations': { key: 'value_propositions', category: 'audience', label: 'Buying Motivations' },
+  'customerInsights.commonObjections': { key: 'objection_handlers', category: 'audience', label: 'Common Objections' },
+  'customerInsights.purchaseFrequency': { key: 'common_queries', category: 'audience', label: 'Purchase Frequency' },
+
+  // competitiveIntel nested object (from website scraper AI extraction)
+  'competitiveIntel': { key: 'competitive_intel', category: 'audience', label: 'Competitive Intel' },
+  'competitiveIntel.differentiators': { key: 'differentiators', category: 'audience', label: 'Differentiators' },
+  'competitiveIntel.competitiveAdvantages': { key: 'differentiators', category: 'audience', label: 'Competitive Advantages' },
+  'competitiveIntel.uniqueFeatures': { key: 'differentiators', category: 'audience', label: 'Unique Features' },
+  'competitiveIntel.marketPosition': { key: 'value_propositions', category: 'audience', label: 'Market Position' },
+  'competitiveIntel.pricingStrategy': { key: 'pricing_model', category: 'knowledge', label: 'Pricing Strategy' },
+  'competitiveIntel.targetMarket': { key: 'target_audience', category: 'audience', label: 'Target Market' },
+
+  // aiExtracted nested object (from AI-powered website scraping)
+  'aiExtracted': { key: 'ai_extracted', category: 'other', label: 'AI Extracted Data' },
+  'aiExtracted.targetAudience': { key: 'target_audience', category: 'audience', label: 'Target Audience' },
+  'aiExtracted.customerType': { key: 'customer_type', category: 'audience', label: 'Customer Type' },
+  'aiExtracted.painPoints': { key: 'pain_points', category: 'audience', label: 'Pain Points' },
+  'aiExtracted.valuePropositions': { key: 'value_propositions', category: 'audience', label: 'Value Propositions' },
+  'aiExtracted.differentiators': { key: 'differentiators', category: 'audience', label: 'Differentiators' },
+  'aiExtracted.usps': { key: 'differentiators', category: 'audience', label: 'USPs' },
+  'aiExtracted.demographics': { key: 'demographics', category: 'audience', label: 'Demographics' },
+  'aiExtracted.ageGroups': { key: 'age_group', category: 'audience', label: 'Age Groups' },
+  'aiExtracted.incomeSegment': { key: 'income_segment', category: 'audience', label: 'Income Segment' },
+
+  // Additional nested structures
+  'marketingData': { key: 'marketing_data', category: 'audience', label: 'Marketing Data' },
+  'marketingData.targetAudience': { key: 'target_audience', category: 'audience', label: 'Target Audience' },
+  'marketingData.idealCustomer': { key: 'ideal_customer_profile', category: 'audience', label: 'Ideal Customer' },
+  'marketingData.buyerPersona': { key: 'ideal_customer_profile', category: 'audience', label: 'Buyer Persona' },
+
   'clientList': { key: 'notable_clients', category: 'trust', label: 'Client List' },
   'clients': { key: 'notable_clients', category: 'trust', label: 'Clients' },
   'caseStudies': { key: 'case_studies', category: 'trust', label: 'Case Studies' },
