@@ -183,10 +183,28 @@ Return ONLY valid JSON with this comprehensive structure:
     "Who the business serves"
   ],
 
+  "primaryAudience": "Main customer demographic (e.g., 'Business professionals aged 30-50')",
+
   "customerPainPoints": [
     "Problems the business solves",
     "Customer challenges addressed"
   ],
+
+  "marketPosition": "How the business positions itself in the market (e.g., 'Premium', 'Budget-friendly', 'Luxury', 'Value leader')",
+
+  "differentiators": [
+    "What makes this business different from competitors",
+    "Competitive advantages and unique strengths"
+  ],
+
+  "valuePropositions": [
+    "Key benefits customers get",
+    "Value delivered to customers"
+  ],
+
+  "idealCustomerProfile": "Description of the ideal customer",
+
+  "customerType": "B2B, B2C, or Both with specifics (e.g., 'B2B - Small businesses', 'B2C - Families')",
 
   "productsOrServices": [
     {
@@ -263,8 +281,24 @@ Return ONLY valid JSON with this comprehensive structure:
     "freeShippingThreshold": "Minimum order for free shipping",
     "deliveryTimeline": "Expected delivery time",
     "privacyHighlights": "Key privacy policy points",
-    "termsHighlights": "Key terms of service points"
+    "termsHighlights": "Key terms of service points",
+    "checkInCheckOut": {
+      "checkIn": "Check-in time (e.g., 2:00 PM)",
+      "checkOut": "Check-out time (e.g., 11:00 AM)",
+      "earlyCheckIn": "Early check-in policy if available",
+      "lateCheckOut": "Late check-out policy if available"
+    },
+    "petPolicy": "Pet policy details (e.g., 'Pets allowed with $50 fee', 'No pets allowed')",
+    "smokingPolicy": "Smoking policy",
+    "childPolicy": "Child policy/extra bed policy",
+    "dresscode": "Dress code if applicable"
   },
+
+  "amenities": [
+    "List of all amenities/facilities available",
+    "For hotels: Pool, Spa, Restaurant, Bar, Gym, WiFi, Parking, etc.",
+    "For restaurants: WiFi, AC, Outdoor seating, Private dining, etc."
+  ],
 
   "inventory": {
     "rooms": [
