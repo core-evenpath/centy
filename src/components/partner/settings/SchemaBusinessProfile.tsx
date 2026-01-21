@@ -2384,34 +2384,19 @@ export default function SchemaBusinessProfile({
                                         defaultOpen={idx === 0}
                                         description={section.description}
                                     >
-                                        {/* Import Summary Banner for "Other useful data" section */}
+                                        {/* Info Banner for Unmapped Data section */}
                                         {section.id === 'from-the-web' && (
-                                            <div className="mb-6 p-4 bg-gradient-to-r from-pink-50 via-purple-50 to-blue-50 rounded-xl border border-pink-100">
-                                                <div className="flex items-center justify-between">
-                                                    <div className="flex items-center gap-3">
-                                                        <div className="w-10 h-10 bg-white rounded-lg flex items-center justify-center shadow-sm">
-                                                            <Globe className="w-5 h-5 text-pink-600" />
-                                                        </div>
-                                                        <div>
-                                                            <h4 className="font-semibold text-slate-800">Web Intelligence</h4>
-                                                            <p className="text-xs text-slate-500">Data collected from Google Business & website scraping</p>
-                                                        </div>
+                                            <div className="mb-6 p-4 bg-amber-50 rounded-xl border border-amber-200">
+                                                <div className="flex items-start gap-3">
+                                                    <div className="w-8 h-8 bg-amber-100 rounded-lg flex items-center justify-center shrink-0">
+                                                        <AlertCircle className="w-4 h-4 text-amber-600" />
                                                     </div>
-                                                    <div className="flex items-center gap-4 text-xs">
-                                                        {importMeta?.lastImportAt && (
-                                                            <div className="text-slate-500">
-                                                                Last import: {new Date(importMeta.lastImportAt).toLocaleDateString()}
-                                                            </div>
-                                                        )}
-                                                        {onImportData && (
-                                                            <button
-                                                                onClick={onImportData}
-                                                                className="px-3 py-1.5 bg-pink-600 text-white rounded-lg text-xs font-medium hover:bg-pink-700 flex items-center gap-1.5 shadow-sm"
-                                                            >
-                                                                <RefreshCw className="w-3 h-3" />
-                                                                Refresh Data
-                                                            </button>
-                                                        )}
+                                                    <div>
+                                                        <h4 className="font-semibold text-slate-800 text-sm">Unmapped Data</h4>
+                                                        <p className="text-xs text-slate-600 mt-1">
+                                                            This section contains data imported from Google or your website that could not be automatically
+                                                            mapped to a specific field. You can edit, delete, or manually move this data to the appropriate sections above.
+                                                        </p>
                                                     </div>
                                                 </div>
                                             </div>

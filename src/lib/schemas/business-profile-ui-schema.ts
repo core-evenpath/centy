@@ -766,98 +766,25 @@ export const TRUST_SUPPORT_SECTION: SectionConfig = {
 };
 
 // ============================================
-// SECTION 6: FROM THE WEB
+// SECTION 6: FROM THE WEB (Unmapped Data Only)
 // ============================================
 
 export const FROM_THE_WEB_SECTION: SectionConfig = {
     id: 'from-the-web',
     title: 'Other useful data',
     icon: '🌐',
-    description: 'Additional information found online or unmapped data',
+    description: 'Unmapped data that could not be automatically categorized',
     subSections: [
         {
-            id: 'reviews-ratings',
-            title: 'Reviews & Ratings',
-            icon: '⭐',
-            fields: [
-                {
-                    key: 'reviewSummary',
-                    label: 'AI Analysis',
-                    type: 'rich-text',
-                    helpText: 'AI-generated summary of customer sentiment',
-                    schemaPath: 'webIntelligence.reviewSummary',
-                    gridSpan: 2,
-                },
-                {
-                    key: 'reviews',
-                    label: 'Customer Reviews',
-                    type: 'review-list',
-                    helpText: 'Reviews from Google, Zomato, Swiggy, etc.',
-                    schemaPath: 'webIntelligence.reviews',
-                    fetchable: true,
-                    gridSpan: 2,
-                },
-            ],
-        },
-        {
-            id: 'testimonials',
-            title: 'Testimonials',
-            icon: '💬',
-            fields: [
-                {
-                    key: 'testimonials',
-                    label: 'Customer Testimonials',
-                    type: 'testimonial-list',
-                    helpText: 'Scraped from website + manually added',
-                    schemaPath: 'webIntelligence.testimonials',
-                    fetchable: true,
-                    gridSpan: 2,
-                },
-            ],
-        },
-        {
-            id: 'press-media',
-            title: 'Press & Media',
-            icon: '📰',
-            fields: [
-                {
-                    key: 'pressMentions',
-                    label: 'Press Mentions',
-                    type: 'key-value-list',
-                    placeholder: 'Publication: Article title or quote',
-                    helpText: 'Articles, features, or mentions in media',
-                    schemaPath: 'webIntelligence.pressMentions',
-                    fetchable: true,
-                    gridSpan: 2,
-                },
-            ],
-        },
-        {
-            id: 'website-content',
-            title: 'Website Content',
-            icon: '🌐',
-            fields: [
-                {
-                    key: 'scrapedContent',
-                    label: 'Scraped Website Content',
-                    type: 'rich-text',
-                    helpText: 'Content extracted from your website',
-                    schemaPath: 'webIntelligence.websiteContent',
-                    fetchable: true,
-                    gridSpan: 2,
-                },
-            ],
-        },
-        {
             id: 'additional-info',
-            title: 'Additional Information',
+            title: 'Unmapped Information',
             icon: '📝',
             fields: [
                 {
                     key: 'otherUsefulData',
-                    label: 'Other Useful Data',
+                    label: 'Additional Data',
                     type: 'key-value-list',
-                    helpText: 'Other structured data points deemed useful by AI',
+                    helpText: 'Data imported from Google or your website that was not mapped to a specific field. You can edit or delete these items.',
                     schemaPath: 'webIntelligence.otherUsefulData',
                     gridSpan: 2,
                 },
