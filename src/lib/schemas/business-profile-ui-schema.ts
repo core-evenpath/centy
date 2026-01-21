@@ -773,7 +773,7 @@ export const FROM_THE_WEB_SECTION: SectionConfig = {
     id: 'from-the-web',
     title: 'Other useful data',
     icon: '🌐',
-    description: 'Unmapped data that could not be automatically categorized',
+    description: 'Additional information found online or unmapped data',
     subSections: [
         {
             id: 'additional-info',

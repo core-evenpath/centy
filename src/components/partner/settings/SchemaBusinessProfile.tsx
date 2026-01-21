@@ -1824,7 +1824,7 @@ function AIStrategySection({
             icon={Bot}
             iconBg="bg-violet-600"
             description="Configure how your AI agent communicates and behaves"
-            defaultOpen={true}
+            defaultOpen={false}
         >
             <div className="space-y-8">
                 {/* AI Persona Tags */}
