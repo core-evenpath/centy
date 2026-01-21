@@ -2044,6 +2044,12 @@ export interface BusinessPersona {
         };
     };
 
+    // Standardized import data storage (structured format for export)
+    standardizedImports?: {
+        google?: StandardizedImportStorage;
+        website?: StandardizedImportStorage;
+    };
+
     // AI Tags
     tags?: string[];
 
@@ -2176,6 +2182,72 @@ export interface FieldSource {
     source: 'google' | 'website' | 'manual';
     importedAt: string;
     importId: string;
+}
+
+// ============================================
+// STANDARDIZED IMPORT DATA TYPES
+// ============================================
+
+/**
+ * Standardized Import Data Point
+ * Every data point from Import Center must conform to this schema
+ */
+export interface StandardizedImportDataPoint {
+    id: string;                          // Unique identifier: `${source}_${key}_${timestamp}`
+    key: string;                         // Semantic key (e.g., 'business_name', 'phone', 'services')
+    value: string | string[] | Record<string, any>;  // The actual value (can be string, array, or blob)
+    source: 'google' | 'website';        // Where it came from
+    checked: boolean;                    // User intent - was this selected for import?
+    confidence: number;                  // 0-1, how confident the extraction is
+    imported_at: string;                 // ISO timestamp
+    raw_context?: {                      // Original context for reprocessing
+        original_key?: string;           // Original field name from source
+        original_path?: string;          // JSON path in raw data
+        extraction_method?: 'direct' | 'ai' | 'inferred';
+        raw_snippet?: string;            // Surrounding context if applicable
+    };
+    display_label?: string;              // Human-readable label for UI
+    category?: string;                   // Category grouping (identity, contact, services, etc.)
+    taxonomy_hint?: string;              // Hint for future taxonomy mapping (do NOT resolve)
+}
+
+/**
+ * Standardized Import Storage
+ * Replaces the unstructured rawData approach
+ */
+export interface StandardizedImportStorage {
+    version: '1.0';                      // Schema version for future migrations
+    data_points: StandardizedImportDataPoint[];
+    import_session: {
+        id: string;                      // Session ID for grouping
+        source: 'google' | 'website';
+        source_identifier: string;       // Place ID or URL
+        imported_at: string;
+        pages_scraped?: string[];        // For website imports
+    };
+    raw_data_backup?: any;               // Original raw data for fallback/reprocessing
+}
+
+/**
+ * Export format for downstream consumers (Partner Settings)
+ */
+export interface ImportDataExport {
+    version: '1.0';
+    exported_at: string;
+    partner_id: string;
+    data_by_key: Record<string, StandardizedImportDataPoint[]>;  // Grouped by key
+    sources: {
+        google?: {
+            place_id?: string;
+            place_name?: string;
+            imported_at: string;
+        };
+        website?: {
+            url?: string;
+            pages_scraped?: string[];
+            imported_at: string;
+        };
+    };
 }
 
 /**
