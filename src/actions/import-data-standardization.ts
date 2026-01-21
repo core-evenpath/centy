@@ -33,6 +33,7 @@ const CANONICAL_FIELD_MAP: Record<string, CanonicalFieldMapping> = {
   'languages': { canonicalPath: 'identity.languages', merge: 'append' },
   'year_established': { canonicalPath: 'personality.foundedYear', transform: (v) => typeof v === 'string' ? parseInt(v, 10) : v },
   'business_types': { canonicalPath: 'industrySpecificData.businessTypes', merge: 'append' },
+  'whatsapp': { canonicalPath: 'identity.whatsAppNumber' },
 
   // === SOCIAL MEDIA ===
   'social_media': { canonicalPath: 'identity.socialMedia', merge: 'merge' },
@@ -42,6 +43,7 @@ const CANONICAL_FIELD_MAP: Record<string, CanonicalFieldMapping> = {
   'twitter': { canonicalPath: 'identity.socialMedia.twitter' },
   'youtube': { canonicalPath: 'identity.socialMedia.youtube' },
   'tiktok': { canonicalPath: 'identity.socialMedia.tiktok' },
+  'google_business': { canonicalPath: 'identity.socialMedia.googleBusiness' },
   'google_maps_url': { canonicalPath: 'identity.googleMapsUrl' },
 
   // === PERSONALITY / BRAND ===
@@ -54,14 +56,23 @@ const CANONICAL_FIELD_MAP: Record<string, CanonicalFieldMapping> = {
   'story': { canonicalPath: 'personality.story' },
   'voice_tone': { canonicalPath: 'personality.voiceTone' },
 
-  // === CUSTOMER PROFILE ===
+  // === CUSTOMER PROFILE / AUDIENCE & POSITIONING ===
   'target_audience': { canonicalPath: 'customerProfile.targetAudience' },
-  'pain_points': { canonicalPath: 'customerProfile.customerPainPoints', merge: 'append' },
+  'primary_audience': { canonicalPath: 'customerProfile.primaryAudience' },
+  'customer_type': { canonicalPath: 'customerProfile.customerType' },
+  'age_group': { canonicalPath: 'customerProfile.ageGroup', merge: 'append' },
+  'income_segment': { canonicalPath: 'customerProfile.incomeSegment', merge: 'append' },
+  'pain_points': { canonicalPath: 'customerProfile.painPoints', merge: 'append' },
+  'customer_pain_points': { canonicalPath: 'customerProfile.customerPainPoints', merge: 'append' },
+  'differentiators': { canonicalPath: 'customerProfile.differentiators', merge: 'append' },
+  'value_propositions': { canonicalPath: 'customerProfile.valuePropositions', merge: 'append' },
+  'objection_handlers': { canonicalPath: 'customerProfile.objectionHandlers', merge: 'append' },
   'ideal_customer_profile': { canonicalPath: 'customerProfile.idealCustomerProfile' },
   'demographics': { canonicalPath: 'customerProfile.customerDemographics', merge: 'append' },
-  'value_propositions': { canonicalPath: 'customerProfile.valuePropositions', merge: 'append' },
+  'common_queries': { canonicalPath: 'customerProfile.commonQueries', merge: 'append' },
+  'acquisition_channels': { canonicalPath: 'customerProfile.acquisitionChannels', merge: 'append' },
 
-  // === KNOWLEDGE ===
+  // === KNOWLEDGE / TRUST & SUPPORT ===
   'services': { canonicalPath: 'knowledge.productsOrServices', merge: 'append', transform: transformServicesToProducts },
   'products': { canonicalPath: 'knowledge.productsOrServices', merge: 'append', transform: transformServicesToProducts },
   'products_services': { canonicalPath: 'knowledge.productsOrServices', merge: 'append' },
@@ -69,8 +80,16 @@ const CANONICAL_FIELD_MAP: Record<string, CanonicalFieldMapping> = {
   'policies': { canonicalPath: 'knowledge.policies', merge: 'merge' },
   'payment_methods': { canonicalPath: 'knowledge.acceptedPayments', merge: 'append' },
   'certifications': { canonicalPath: 'knowledge.certifications', merge: 'append' },
+  'licenses': { canonicalPath: 'industrySpecificData.registrations', merge: 'append' },
+  'registrations': { canonicalPath: 'industrySpecificData.registrations', merge: 'append' },
   'awards': { canonicalPath: 'knowledge.awards', merge: 'append' },
   'service_categories': { canonicalPath: 'knowledge.serviceCategories', merge: 'append' },
+  'case_studies': { canonicalPath: 'knowledge.caseStudies', merge: 'append' },
+  'key_stats': { canonicalPath: 'knowledge.keyStats', merge: 'append' },
+  'notable_clients': { canonicalPath: 'industrySpecificData.notableClients', merge: 'append' },
+  'years_in_business': { canonicalPath: 'industrySpecificData.yearsInBusiness' },
+  'employee_count': { canonicalPath: 'industrySpecificData.employeeCount' },
+  'team_size': { canonicalPath: 'industrySpecificData.employeeCount' },
 
   // === REPUTATION ===
   'google_rating': { canonicalPath: 'industrySpecificData.googleRating' },
@@ -83,6 +102,7 @@ const CANONICAL_FIELD_MAP: Record<string, CanonicalFieldMapping> = {
   'specializations': { canonicalPath: 'industrySpecificData.specialization', merge: 'append' },
   'areas_served': { canonicalPath: 'industrySpecificData.areasServed', merge: 'append' },
   'team_members': { canonicalPath: 'knowledge.teamMembers', merge: 'append' },
+  'price_level': { canonicalPath: 'industrySpecificData.priceLevel' },
 
   // === MEDIA ===
   'photos': { canonicalPath: 'webIntelligence.photos', merge: 'append' },
@@ -190,20 +210,37 @@ const GOOGLE_KEY_MAP: Record<string, { key: string; category: string; label: str
   'knowledge.serviceCategories': { key: 'service_categories', category: 'offerings', label: 'Service Categories' },
   'knowledge.teamMembers': { key: 'team_members', category: 'team', label: 'Team Members' },
 
-  // Customer Profile
+  // Customer Profile / Audience & Positioning
   'customerProfile.targetAudience': { key: 'target_audience', category: 'audience', label: 'Target Audience' },
+  'customerProfile.primaryAudience': { key: 'primary_audience', category: 'audience', label: 'Primary Audience' },
+  'customerProfile.customerType': { key: 'customer_type', category: 'audience', label: 'Customer Type' },
+  'customerProfile.ageGroup': { key: 'age_group', category: 'audience', label: 'Age Group' },
+  'customerProfile.incomeSegment': { key: 'income_segment', category: 'audience', label: 'Income Segment' },
   'customerProfile.painPoints': { key: 'pain_points', category: 'audience', label: 'Pain Points' },
-  'customerProfile.customerPainPoints': { key: 'pain_points', category: 'audience', label: 'Customer Pain Points' },
+  'customerProfile.customerPainPoints': { key: 'customer_pain_points', category: 'audience', label: 'Customer Pain Points' },
+  'customerProfile.differentiators': { key: 'differentiators', category: 'audience', label: 'Differentiators' },
+  'customerProfile.valuePropositions': { key: 'value_propositions', category: 'audience', label: 'Value Propositions' },
+  'customerProfile.objectionHandlers': { key: 'objection_handlers', category: 'audience', label: 'Objection Handlers' },
   'customerProfile.idealCustomerProfile': { key: 'ideal_customer_profile', category: 'audience', label: 'Ideal Customer' },
   'customerProfile.customerDemographics': { key: 'demographics', category: 'audience', label: 'Demographics' },
-  'customerProfile.valuePropositions': { key: 'value_propositions', category: 'audience', label: 'Value Propositions' },
+  'customerProfile.commonQueries': { key: 'common_queries', category: 'audience', label: 'Common Queries' },
+  'customerProfile.acquisitionChannels': { key: 'acquisition_channels', category: 'audience', label: 'Acquisition Channels' },
 
-  // Industry Specific
+  // Industry Specific / Trust & Support
   'industrySpecificData': { key: 'industry_data', category: 'industry', label: 'Industry Data' },
   'industrySpecificData.googleRating': { key: 'google_rating', category: 'reputation', label: 'Google Rating' },
   'industrySpecificData.googleReviewCount': { key: 'review_count', category: 'reputation', label: 'Review Count' },
   'industrySpecificData.specialization': { key: 'specializations', category: 'industry', label: 'Specializations' },
   'industrySpecificData.areasServed': { key: 'areas_served', category: 'industry', label: 'Areas Served' },
+  'industrySpecificData.yearsInBusiness': { key: 'years_in_business', category: 'trust', label: 'Years in Business' },
+  'industrySpecificData.employeeCount': { key: 'employee_count', category: 'trust', label: 'Employee Count' },
+  'industrySpecificData.notableClients': { key: 'notable_clients', category: 'trust', label: 'Notable Clients' },
+  'industrySpecificData.registrations': { key: 'registrations', category: 'trust', label: 'Registrations' },
+  'industrySpecificData.licenses': { key: 'licenses', category: 'trust', label: 'Licenses' },
+
+  // Trust & Support - Knowledge
+  'knowledge.caseStudies': { key: 'case_studies', category: 'trust', label: 'Case Studies' },
+  'knowledge.keyStats': { key: 'key_stats', category: 'trust', label: 'Key Stats' },
 
   // Testimonials
   'testimonials': { key: 'testimonials', category: 'reputation', label: 'Testimonials' },
@@ -278,21 +315,52 @@ const WEBSITE_KEY_MAP: Record<string, { key: string; category: string; label: st
   'knowledge.teamMembers': { key: 'team_members', category: 'team', label: 'Team Members' },
   'knowledge.keyPeople': { key: 'team_members', category: 'team', label: 'Key People' },
 
-  // Customer Profile
+  // Customer Profile / Audience & Positioning
   'customerProfile.targetAudience': { key: 'target_audience', category: 'audience', label: 'Target Audience' },
+  'customerProfile.primaryAudience': { key: 'primary_audience', category: 'audience', label: 'Primary Audience' },
+  'customerProfile.customerType': { key: 'customer_type', category: 'audience', label: 'Customer Type' },
+  'customerProfile.ageGroup': { key: 'age_group', category: 'audience', label: 'Age Group' },
+  'customerProfile.incomeSegment': { key: 'income_segment', category: 'audience', label: 'Income Segment' },
   'customerProfile.painPoints': { key: 'pain_points', category: 'audience', label: 'Pain Points' },
-  'customerProfile.customerPainPoints': { key: 'pain_points', category: 'audience', label: 'Customer Pain Points' },
+  'customerProfile.customerPainPoints': { key: 'customer_pain_points', category: 'audience', label: 'Customer Pain Points' },
+  'customerProfile.differentiators': { key: 'differentiators', category: 'audience', label: 'Differentiators' },
+  'customerProfile.valuePropositions': { key: 'value_propositions', category: 'audience', label: 'Value Propositions' },
+  'customerProfile.objectionHandlers': { key: 'objection_handlers', category: 'audience', label: 'Objection Handlers' },
   'customerProfile.idealCustomerProfile': { key: 'ideal_customer_profile', category: 'audience', label: 'Ideal Customer' },
   'customerProfile.customerDemographics': { key: 'demographics', category: 'audience', label: 'Demographics' },
-  'customerProfile.valuePropositions': { key: 'value_propositions', category: 'audience', label: 'Value Propositions' },
-  'customerProfile.differentiators': { key: 'unique_selling_points', category: 'identity', label: 'Differentiators' },
+  'customerProfile.commonQueries': { key: 'common_queries', category: 'audience', label: 'Common Queries' },
+  'customerProfile.acquisitionChannels': { key: 'acquisition_channels', category: 'audience', label: 'Acquisition Channels' },
 
-  // Industry Specific
+  // Industry Specific / Trust & Support
   'industrySpecificData': { key: 'industry_data', category: 'industry', label: 'Industry Data' },
   'industrySpecificData.specialization': { key: 'specializations', category: 'industry', label: 'Specializations' },
   'industrySpecificData.areasServed': { key: 'areas_served', category: 'industry', label: 'Areas Served' },
-  'industrySpecificData.clientTypes': { key: 'target_audience', category: 'audience', label: 'Client Types' },
+  'industrySpecificData.clientTypes': { key: 'customer_type', category: 'audience', label: 'Client Types' },
   'industrySpecificData.projectTypes': { key: 'service_categories', category: 'offerings', label: 'Project Types' },
+  'industrySpecificData.yearsInBusiness': { key: 'years_in_business', category: 'trust', label: 'Years in Business' },
+  'industrySpecificData.employeeCount': { key: 'employee_count', category: 'trust', label: 'Employee Count' },
+  'industrySpecificData.notableClients': { key: 'notable_clients', category: 'trust', label: 'Notable Clients' },
+  'industrySpecificData.registrations': { key: 'registrations', category: 'trust', label: 'Registrations' },
+  'industrySpecificData.licenses': { key: 'licenses', category: 'trust', label: 'Licenses' },
+
+  // Trust & Support - Knowledge
+  'knowledge.caseStudies': { key: 'case_studies', category: 'trust', label: 'Case Studies' },
+  'knowledge.keyStats': { key: 'key_stats', category: 'trust', label: 'Key Stats' },
+
+  // Direct website scrape fields for Audience & Trust
+  'targetAudience': { key: 'target_audience', category: 'audience', label: 'Target Audience' },
+  'painPoints': { key: 'pain_points', category: 'audience', label: 'Pain Points' },
+  'differentiators': { key: 'differentiators', category: 'audience', label: 'Differentiators' },
+  'uniqueSellingPoints': { key: 'differentiators', category: 'audience', label: 'USPs' },
+  'whyChooseUs': { key: 'differentiators', category: 'audience', label: 'Why Choose Us' },
+  'clientList': { key: 'notable_clients', category: 'trust', label: 'Client List' },
+  'clients': { key: 'notable_clients', category: 'trust', label: 'Clients' },
+  'caseStudies': { key: 'case_studies', category: 'trust', label: 'Case Studies' },
+  'yearsInBusiness': { key: 'years_in_business', category: 'trust', label: 'Years in Business' },
+  'founded': { key: 'year_established', category: 'identity', label: 'Founded' },
+  'teamSize': { key: 'employee_count', category: 'trust', label: 'Team Size' },
+  'employees': { key: 'employee_count', category: 'trust', label: 'Employees' },
+  'licenses': { key: 'licenses', category: 'trust', label: 'Licenses' },
 
   // From the web section
   'fromTheWeb.additionalInfo': { key: 'additional_info', category: 'other', label: 'Additional Info' },
