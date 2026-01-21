@@ -6,6 +6,10 @@ import { useAuth } from '@/hooks/use-auth';
 import { getBusinessPersonaAction, saveBusinessPersonaAction } from '@/actions/business-persona-actions';
 import { searchBusinessesAction, autoFillProfileAction, applyImportToProfileAction } from '@/actions/business-autofill-actions';
 import { scrapeWebsiteAction } from '@/actions/website-scrape-actions';
+import {
+  standardizeGoogleImportData,
+  standardizeWebsiteImportData
+} from '@/actions/import-data-standardization';
 import { toast } from 'sonner';
 import { parseAddress, parseOperatingHoursFromGoogle } from '@/lib/business-data-parsers';
 import {
@@ -1102,6 +1106,15 @@ export default function ImportCenterPage() {
 
         // Auto-save to Firestore
         const placeName = selectedPlace.mainText || selectedPlace.name || selectedPlace.description;
+
+        // Generate standardized import data
+        const standardizedData = await standardizeGoogleImportData(
+          result.profile,
+          selectedPlace.placeId,
+          placeName,
+          {} // Will be populated with checked fields from UI state when user makes selections
+        );
+
         const importedDataUpdate = {
           importedData: {
             ...(persona.importedData || {}),
@@ -1111,6 +1124,11 @@ export default function ImportCenterPage() {
               placeName,
               placeId: selectedPlace.placeId,
             },
+          },
+          // Also save standardized import data
+          standardizedImports: {
+            ...(persona.standardizedImports || {}),
+            google: standardizedData,
           },
           importHistory: {
             ...persona.importHistory,
@@ -1159,6 +1177,14 @@ export default function ImportCenterPage() {
       setWebsiteRawData(result.profile);
       setWebsiteImported(true);
 
+      // Generate standardized import data
+      const standardizedData = await standardizeWebsiteImportData(
+        result.profile,
+        websiteUrl,
+        result.pagesScraped || [],
+        {} // Will be populated with checked fields from UI state when user makes selections
+      );
+
       // Auto-save to Firestore
       const importedDataUpdate = {
         importedData: {
@@ -1169,6 +1195,11 @@ export default function ImportCenterPage() {
             url: websiteUrl,
             pagesScraped: result.pagesScraped,
           },
+        },
+        // Also save standardized import data
+        standardizedImports: {
+          ...(persona.standardizedImports || {}),
+          website: standardizedData,
         },
         importHistory: {
           ...persona.importHistory,
@@ -1202,10 +1233,14 @@ export default function ImportCenterPage() {
     setGoogleRawData(null);
     setGoogleSearchError(null);
 
-    // Update Firestore
+    // Update Firestore - clear both legacy and standardized data
     const updated = {
       importedData: {
         ...(persona.importedData || {}),
+        google: undefined,
+      },
+      standardizedImports: {
+        ...(persona.standardizedImports || {}),
         google: undefined,
       },
     };
@@ -1222,10 +1257,14 @@ export default function ImportCenterPage() {
     setWebsiteRawData(null);
     setWebsiteError(null);
 
-    // Update Firestore
+    // Update Firestore - clear both legacy and standardized data
     const updated = {
       importedData: {
         ...(persona.importedData || {}),
+        website: undefined,
+      },
+      standardizedImports: {
+        ...(persona.standardizedImports || {}),
         website: undefined,
       },
     };
