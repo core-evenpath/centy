@@ -4,12 +4,139 @@ import { v4 as uuidv4 } from 'uuid';
 import type {
   StandardizedImportDataPoint,
   StandardizedImportStorage,
-  ImportDataExport
+  ImportDataExport,
+  BusinessPersona
 } from '@/lib/business-persona-types';
 import { db } from '@/lib/firebase-admin';
 
+// ============================================
+// CANONICAL FIELD MAP
+// Maps semantic keys to canonical BusinessPersona paths
+// ============================================
+
+interface CanonicalFieldMapping {
+  canonicalPath: string;  // Dot-notation path in BusinessPersona
+  transform?: (value: any) => any;  // Optional transform function
+  merge?: 'replace' | 'append' | 'merge';  // How to handle existing values
+}
+
+const CANONICAL_FIELD_MAP: Record<string, CanonicalFieldMapping> = {
+  // === IDENTITY ===
+  'business_name': { canonicalPath: 'identity.name' },
+  'phone': { canonicalPath: 'identity.phone' },
+  'phone_international': { canonicalPath: 'identity.phone' },
+  'email': { canonicalPath: 'identity.email' },
+  'website': { canonicalPath: 'identity.website' },
+  'address': { canonicalPath: 'identity.address' },
+  'address_formatted': { canonicalPath: 'identity.address' },
+  'operating_hours': { canonicalPath: 'identity.operatingHours' },
+  'languages': { canonicalPath: 'identity.languages', merge: 'append' },
+  'year_established': { canonicalPath: 'personality.foundedYear', transform: (v) => typeof v === 'string' ? parseInt(v, 10) : v },
+  'business_types': { canonicalPath: 'industrySpecificData.businessTypes', merge: 'append' },
+
+  // === SOCIAL MEDIA ===
+  'social_media': { canonicalPath: 'identity.socialMedia', merge: 'merge' },
+  'instagram': { canonicalPath: 'identity.socialMedia.instagram' },
+  'facebook': { canonicalPath: 'identity.socialMedia.facebook' },
+  'linkedin': { canonicalPath: 'identity.socialMedia.linkedin' },
+  'twitter': { canonicalPath: 'identity.socialMedia.twitter' },
+  'youtube': { canonicalPath: 'identity.socialMedia.youtube' },
+  'tiktok': { canonicalPath: 'identity.socialMedia.tiktok' },
+  'google_maps_url': { canonicalPath: 'identity.googleMapsUrl' },
+
+  // === PERSONALITY / BRAND ===
+  'tagline': { canonicalPath: 'personality.tagline' },
+  'description': { canonicalPath: 'personality.description' },
+  'unique_selling_points': { canonicalPath: 'personality.uniqueSellingPoints', merge: 'append' },
+  'brand_values': { canonicalPath: 'personality.brandValues', merge: 'append' },
+  'mission_statement': { canonicalPath: 'personality.missionStatement' },
+  'vision_statement': { canonicalPath: 'personality.visionStatement' },
+  'story': { canonicalPath: 'personality.story' },
+  'voice_tone': { canonicalPath: 'personality.voiceTone' },
+
+  // === CUSTOMER PROFILE ===
+  'target_audience': { canonicalPath: 'customerProfile.targetAudience' },
+  'pain_points': { canonicalPath: 'customerProfile.customerPainPoints', merge: 'append' },
+  'ideal_customer_profile': { canonicalPath: 'customerProfile.idealCustomerProfile' },
+  'demographics': { canonicalPath: 'customerProfile.customerDemographics', merge: 'append' },
+  'value_propositions': { canonicalPath: 'customerProfile.valuePropositions', merge: 'append' },
+
+  // === KNOWLEDGE ===
+  'services': { canonicalPath: 'knowledge.productsOrServices', merge: 'append', transform: transformServicesToProducts },
+  'products': { canonicalPath: 'knowledge.productsOrServices', merge: 'append', transform: transformServicesToProducts },
+  'products_services': { canonicalPath: 'knowledge.productsOrServices', merge: 'append' },
+  'faqs': { canonicalPath: 'knowledge.faqs', merge: 'append', transform: transformFaqs },
+  'policies': { canonicalPath: 'knowledge.policies', merge: 'merge' },
+  'payment_methods': { canonicalPath: 'knowledge.acceptedPayments', merge: 'append' },
+  'certifications': { canonicalPath: 'knowledge.certifications', merge: 'append' },
+  'awards': { canonicalPath: 'knowledge.awards', merge: 'append' },
+  'service_categories': { canonicalPath: 'knowledge.serviceCategories', merge: 'append' },
+
+  // === REPUTATION ===
+  'google_rating': { canonicalPath: 'industrySpecificData.googleRating' },
+  'review_count': { canonicalPath: 'industrySpecificData.googleReviewCount' },
+  'reviews': { canonicalPath: 'webIntelligence.reviews', merge: 'append' },
+  'testimonials': { canonicalPath: 'testimonials', merge: 'append', transform: transformTestimonials },
+
+  // === INDUSTRY SPECIFIC ===
+  'industry_data': { canonicalPath: 'industrySpecificData', merge: 'merge' },
+  'specializations': { canonicalPath: 'industrySpecificData.specialization', merge: 'append' },
+  'areas_served': { canonicalPath: 'industrySpecificData.areasServed', merge: 'append' },
+  'team_members': { canonicalPath: 'knowledge.teamMembers', merge: 'append' },
+
+  // === MEDIA ===
+  'photos': { canonicalPath: 'webIntelligence.photos', merge: 'append' },
+};
+
+// Transform functions
+function transformServicesToProducts(value: any): any[] {
+  if (!value) return [];
+  if (Array.isArray(value)) {
+    return value.map((item, idx) => {
+      if (typeof item === 'string') {
+        return { id: `svc_${idx}`, name: item, description: '', isService: true };
+      }
+      return { id: item.id || `svc_${idx}`, ...item };
+    });
+  }
+  return [];
+}
+
+function transformFaqs(value: any): any[] {
+  if (!value) return [];
+  if (Array.isArray(value)) {
+    return value.map((faq, idx) => ({
+      id: faq.id || `faq_${idx}`,
+      question: faq.question || faq.q || '',
+      answer: faq.answer || faq.a || '',
+      category: faq.category || 'General',
+    }));
+  }
+  return [];
+}
+
+function transformTestimonials(value: any): any[] {
+  if (!value) return [];
+  if (Array.isArray(value)) {
+    return value.map((t, idx) => ({
+      id: t.id || `testimonial_${idx}`,
+      quote: t.quote || t.text || '',
+      author: t.author || t.name || 'Anonymous',
+      rating: t.rating,
+      date: t.date,
+      source: t.source || 'website',
+    }));
+  }
+  return [];
+}
+
+// ============================================
+// SOURCE KEY MAPPINGS
+// ============================================
+
 // Semantic key mapping for Google data
 const GOOGLE_KEY_MAP: Record<string, { key: string; category: string; label: string }> = {
+  // Raw Google Places API fields
   'name': { key: 'business_name', category: 'identity', label: 'Business Name' },
   'formatted_phone_number': { key: 'phone', category: 'contact', label: 'Phone' },
   'international_phone_number': { key: 'phone_international', category: 'contact', label: 'International Phone' },
@@ -18,56 +145,162 @@ const GOOGLE_KEY_MAP: Record<string, { key: string; category: string; label: str
   'rating': { key: 'google_rating', category: 'reputation', label: 'Google Rating' },
   'user_ratings_total': { key: 'review_count', category: 'reputation', label: 'Review Count' },
   'types': { key: 'business_types', category: 'identity', label: 'Business Types' },
+  'opening_hours': { key: 'operating_hours', category: 'operations', label: 'Operating Hours' },
   'opening_hours.weekday_text': { key: 'operating_hours', category: 'operations', label: 'Operating Hours' },
   'reviews': { key: 'reviews', category: 'reputation', label: 'Customer Reviews' },
   'photos': { key: 'photos', category: 'media', label: 'Photos' },
-  // Mapped from autofill profile structure
+  'url': { key: 'google_maps_url', category: 'contact', label: 'Google Maps URL' },
+  'price_level': { key: 'price_level', category: 'industry', label: 'Price Level' },
+  'editorialSummary': { key: 'description', category: 'identity', label: 'Description' },
+  'editorial_summary': { key: 'description', category: 'identity', label: 'Description' },
+
+  // Mapped from autofill profile structure - Identity
   'identity.name': { key: 'business_name', category: 'identity', label: 'Business Name' },
+  'identity.businessName': { key: 'business_name', category: 'identity', label: 'Business Name' },
   'identity.phone': { key: 'phone', category: 'contact', label: 'Phone' },
   'identity.email': { key: 'email', category: 'contact', label: 'Email' },
   'identity.website': { key: 'website', category: 'contact', label: 'Website' },
   'identity.address': { key: 'address', category: 'contact', label: 'Address' },
   'identity.operatingHours': { key: 'operating_hours', category: 'operations', label: 'Operating Hours' },
+  'identity.languages': { key: 'languages', category: 'identity', label: 'Languages' },
+  'identity.yearEstablished': { key: 'year_established', category: 'identity', label: 'Year Established' },
+  'identity.socialMedia': { key: 'social_media', category: 'contact', label: 'Social Media' },
+  'identity.googleMapsUrl': { key: 'google_maps_url', category: 'contact', label: 'Google Maps URL' },
+
+  // Personality
   'personality.tagline': { key: 'tagline', category: 'identity', label: 'Tagline' },
   'personality.description': { key: 'description', category: 'identity', label: 'Description' },
   'personality.uniqueSellingPoints': { key: 'unique_selling_points', category: 'identity', label: 'USPs' },
+  'personality.brandValues': { key: 'brand_values', category: 'identity', label: 'Brand Values' },
+  'personality.missionStatement': { key: 'mission_statement', category: 'identity', label: 'Mission Statement' },
+  'personality.visionStatement': { key: 'vision_statement', category: 'identity', label: 'Vision Statement' },
+  'personality.story': { key: 'story', category: 'identity', label: 'Brand Story' },
+  'personality.voiceTone': { key: 'voice_tone', category: 'identity', label: 'Voice Tone' },
+  'personality.foundedYear': { key: 'year_established', category: 'identity', label: 'Founded Year' },
+
+  // Knowledge
   'knowledge.productsOrServices': { key: 'products_services', category: 'offerings', label: 'Products & Services' },
+  'knowledge.services': { key: 'services', category: 'offerings', label: 'Services' },
+  'knowledge.products': { key: 'products', category: 'offerings', label: 'Products' },
   'knowledge.faqs': { key: 'faqs', category: 'knowledge', label: 'FAQs' },
+  'knowledge.policies': { key: 'policies', category: 'knowledge', label: 'Policies' },
+  'knowledge.certifications': { key: 'certifications', category: 'credentials', label: 'Certifications' },
+  'knowledge.awards': { key: 'awards', category: 'credentials', label: 'Awards' },
+  'knowledge.acceptedPayments': { key: 'payment_methods', category: 'operations', label: 'Payment Methods' },
+  'knowledge.serviceCategories': { key: 'service_categories', category: 'offerings', label: 'Service Categories' },
+  'knowledge.teamMembers': { key: 'team_members', category: 'team', label: 'Team Members' },
+
+  // Customer Profile
+  'customerProfile.targetAudience': { key: 'target_audience', category: 'audience', label: 'Target Audience' },
+  'customerProfile.painPoints': { key: 'pain_points', category: 'audience', label: 'Pain Points' },
+  'customerProfile.customerPainPoints': { key: 'pain_points', category: 'audience', label: 'Customer Pain Points' },
+  'customerProfile.idealCustomerProfile': { key: 'ideal_customer_profile', category: 'audience', label: 'Ideal Customer' },
+  'customerProfile.customerDemographics': { key: 'demographics', category: 'audience', label: 'Demographics' },
+  'customerProfile.valuePropositions': { key: 'value_propositions', category: 'audience', label: 'Value Propositions' },
+
+  // Industry Specific
+  'industrySpecificData': { key: 'industry_data', category: 'industry', label: 'Industry Data' },
+  'industrySpecificData.googleRating': { key: 'google_rating', category: 'reputation', label: 'Google Rating' },
+  'industrySpecificData.googleReviewCount': { key: 'review_count', category: 'reputation', label: 'Review Count' },
+  'industrySpecificData.specialization': { key: 'specializations', category: 'industry', label: 'Specializations' },
+  'industrySpecificData.areasServed': { key: 'areas_served', category: 'industry', label: 'Areas Served' },
+
+  // Testimonials
+  'testimonials': { key: 'testimonials', category: 'reputation', label: 'Testimonials' },
 };
 
 // Semantic key mapping for Website data
 const WEBSITE_KEY_MAP: Record<string, { key: string; category: string; label: string }> = {
+  // Direct website scrape fields
   'businessName': { key: 'business_name', category: 'identity', label: 'Business Name' },
   'description': { key: 'description', category: 'identity', label: 'Description' },
+  'shortDescription': { key: 'description', category: 'identity', label: 'Description' },
   'phone': { key: 'phone', category: 'contact', label: 'Phone' },
   'email': { key: 'email', category: 'contact', label: 'Email' },
   'address': { key: 'address', category: 'contact', label: 'Address' },
   'services': { key: 'services', category: 'offerings', label: 'Services' },
   'products': { key: 'products', category: 'offerings', label: 'Products' },
   'socialMedia': { key: 'social_media', category: 'contact', label: 'Social Media' },
+  'onlinePresence': { key: 'social_media', category: 'contact', label: 'Online Presence' },
   'testimonials': { key: 'testimonials', category: 'reputation', label: 'Testimonials' },
   'faqs': { key: 'faqs', category: 'knowledge', label: 'FAQs' },
+  'faq': { key: 'faqs', category: 'knowledge', label: 'FAQs' },
   'team': { key: 'team_members', category: 'team', label: 'Team Members' },
-  // Mapped from scraper profile structure
+  'tagline': { key: 'tagline', category: 'identity', label: 'Tagline' },
+  'mission': { key: 'mission_statement', category: 'identity', label: 'Mission' },
+  'vision': { key: 'vision_statement', category: 'identity', label: 'Vision' },
+  'about': { key: 'story', category: 'identity', label: 'About' },
+  'story': { key: 'story', category: 'identity', label: 'Story' },
+  'values': { key: 'brand_values', category: 'identity', label: 'Values' },
+  'coreValues': { key: 'brand_values', category: 'identity', label: 'Core Values' },
+  'awards': { key: 'awards', category: 'credentials', label: 'Awards' },
+  'certifications': { key: 'certifications', category: 'credentials', label: 'Certifications' },
+  'accreditations': { key: 'certifications', category: 'credentials', label: 'Accreditations' },
+  'operatingHours': { key: 'operating_hours', category: 'operations', label: 'Operating Hours' },
+  'openingHours': { key: 'operating_hours', category: 'operations', label: 'Opening Hours' },
+
+  // Mapped from scraper profile structure - Identity
   'identity.name': { key: 'business_name', category: 'identity', label: 'Business Name' },
+  'identity.businessName': { key: 'business_name', category: 'identity', label: 'Business Name' },
   'identity.phone': { key: 'phone', category: 'contact', label: 'Phone' },
   'identity.email': { key: 'email', category: 'contact', label: 'Email' },
   'identity.website': { key: 'website', category: 'contact', label: 'Website' },
   'identity.address': { key: 'address', category: 'contact', label: 'Address' },
   'identity.operatingHours': { key: 'operating_hours', category: 'operations', label: 'Operating Hours' },
   'identity.socialMedia': { key: 'social_media', category: 'contact', label: 'Social Media' },
+  'identity.languages': { key: 'languages', category: 'identity', label: 'Languages' },
+  'identity.yearEstablished': { key: 'year_established', category: 'identity', label: 'Year Established' },
+  'identity.founders': { key: 'team_members', category: 'team', label: 'Founders' },
+  'identity.teamSize': { key: 'team_size', category: 'team', label: 'Team Size' },
+
+  // Personality
   'personality.tagline': { key: 'tagline', category: 'identity', label: 'Tagline' },
   'personality.description': { key: 'description', category: 'identity', label: 'Description' },
   'personality.uniqueSellingPoints': { key: 'unique_selling_points', category: 'identity', label: 'USPs' },
   'personality.brandValues': { key: 'brand_values', category: 'identity', label: 'Brand Values' },
   'personality.missionStatement': { key: 'mission_statement', category: 'identity', label: 'Mission Statement' },
+  'personality.visionStatement': { key: 'vision_statement', category: 'identity', label: 'Vision Statement' },
+  'personality.story': { key: 'story', category: 'identity', label: 'Brand Story' },
+  'personality.voiceTone': { key: 'voice_tone', category: 'identity', label: 'Voice Tone' },
+  'personality.foundedYear': { key: 'year_established', category: 'identity', label: 'Founded Year' },
+
+  // Knowledge
   'knowledge.productsOrServices': { key: 'products_services', category: 'offerings', label: 'Products & Services' },
   'knowledge.services': { key: 'services', category: 'offerings', label: 'Services' },
+  'knowledge.products': { key: 'products', category: 'offerings', label: 'Products' },
   'knowledge.faqs': { key: 'faqs', category: 'knowledge', label: 'FAQs' },
   'knowledge.policies': { key: 'policies', category: 'knowledge', label: 'Policies' },
+  'knowledge.certifications': { key: 'certifications', category: 'credentials', label: 'Certifications' },
+  'knowledge.awards': { key: 'awards', category: 'credentials', label: 'Awards' },
+  'knowledge.acceptedPayments': { key: 'payment_methods', category: 'operations', label: 'Payment Methods' },
+  'knowledge.paymentMethods': { key: 'payment_methods', category: 'operations', label: 'Payment Methods' },
+  'knowledge.serviceCategories': { key: 'service_categories', category: 'offerings', label: 'Service Categories' },
+  'knowledge.teamMembers': { key: 'team_members', category: 'team', label: 'Team Members' },
+  'knowledge.keyPeople': { key: 'team_members', category: 'team', label: 'Key People' },
+
+  // Customer Profile
   'customerProfile.targetAudience': { key: 'target_audience', category: 'audience', label: 'Target Audience' },
   'customerProfile.painPoints': { key: 'pain_points', category: 'audience', label: 'Pain Points' },
+  'customerProfile.customerPainPoints': { key: 'pain_points', category: 'audience', label: 'Customer Pain Points' },
+  'customerProfile.idealCustomerProfile': { key: 'ideal_customer_profile', category: 'audience', label: 'Ideal Customer' },
+  'customerProfile.customerDemographics': { key: 'demographics', category: 'audience', label: 'Demographics' },
+  'customerProfile.valuePropositions': { key: 'value_propositions', category: 'audience', label: 'Value Propositions' },
+  'customerProfile.differentiators': { key: 'unique_selling_points', category: 'identity', label: 'Differentiators' },
+
+  // Industry Specific
   'industrySpecificData': { key: 'industry_data', category: 'industry', label: 'Industry Data' },
+  'industrySpecificData.specialization': { key: 'specializations', category: 'industry', label: 'Specializations' },
+  'industrySpecificData.areasServed': { key: 'areas_served', category: 'industry', label: 'Areas Served' },
+  'industrySpecificData.clientTypes': { key: 'target_audience', category: 'audience', label: 'Client Types' },
+  'industrySpecificData.projectTypes': { key: 'service_categories', category: 'offerings', label: 'Project Types' },
+
+  // From the web section
+  'fromTheWeb.additionalInfo': { key: 'additional_info', category: 'other', label: 'Additional Info' },
+  'fromTheWeb.otherFindings': { key: 'other_findings', category: 'other', label: 'Other Findings' },
+
+  // Testimonials
+  'testimonials': { key: 'testimonials', category: 'reputation', label: 'Testimonials' },
+  'reviews': { key: 'reviews', category: 'reputation', label: 'Reviews' },
 };
 
 /**
@@ -386,6 +619,383 @@ export async function getStandardizedImportData(
     };
   } catch (error: any) {
     console.error('[GetStandardizedImportData] Error:', error);
+    return { success: false, error: error.message };
+  }
+}
+
+// ============================================
+// CANONICAL PROFILE MAPPING
+// ============================================
+
+/**
+ * Set a value at a dot-notation path in an object
+ */
+function setNestedValue(obj: any, path: string, value: any, merge: 'replace' | 'append' | 'merge' = 'replace'): void {
+  const parts = path.split('.');
+  let current = obj;
+
+  for (let i = 0; i < parts.length - 1; i++) {
+    const part = parts[i];
+    if (!current[part]) {
+      current[part] = {};
+    }
+    current = current[part];
+  }
+
+  const lastKey = parts[parts.length - 1];
+
+  if (merge === 'append' && Array.isArray(current[lastKey])) {
+    // Append to existing array
+    if (Array.isArray(value)) {
+      current[lastKey] = [...current[lastKey], ...value];
+    } else {
+      current[lastKey].push(value);
+    }
+  } else if (merge === 'merge' && typeof current[lastKey] === 'object' && typeof value === 'object') {
+    // Merge objects
+    current[lastKey] = { ...current[lastKey], ...value };
+  } else {
+    // Replace value
+    current[lastKey] = value;
+  }
+}
+
+/**
+ * Get a value at a dot-notation path in an object
+ */
+function getNestedValue(obj: any, path: string): any {
+  return path.split('.').reduce((acc, part) => acc?.[part], obj);
+}
+
+/**
+ * Map standardized import data to canonical BusinessPersona profile
+ * This is the deterministic mapping function that ensures data goes to the right place
+ */
+export async function mapStandardizedDataToCanonicalProfile(
+  standardizedImports: {
+    google?: StandardizedImportStorage;
+    website?: StandardizedImportStorage;
+  },
+  existingPersona?: Partial<BusinessPersona>,
+  options: {
+    onlyChecked?: boolean;  // Only map data points that user checked
+    preferSource?: 'google' | 'website';  // Prefer one source over another for conflicts
+  } = {}
+): Promise<{
+  success: boolean;
+  profile?: Partial<BusinessPersona>;
+  mappedFields?: string[];
+  unmappedData?: StandardizedImportDataPoint[];
+  error?: string;
+}> {
+  try {
+    console.log('[MapStandardizedData] Starting canonical mapping...');
+
+    const { onlyChecked = true, preferSource = 'website' } = options;
+
+    // Collect all data points from both sources
+    const allDataPoints: StandardizedImportDataPoint[] = [];
+
+    if (standardizedImports.google?.data_points) {
+      allDataPoints.push(...standardizedImports.google.data_points);
+    }
+    if (standardizedImports.website?.data_points) {
+      allDataPoints.push(...standardizedImports.website.data_points);
+    }
+
+    // Filter by checked status if requested
+    const dataPointsToMap = onlyChecked
+      ? allDataPoints.filter(dp => dp.checked)
+      : allDataPoints;
+
+    // Group by semantic key to handle conflicts
+    const byKey: Record<string, StandardizedImportDataPoint[]> = {};
+    for (const dp of dataPointsToMap) {
+      if (!byKey[dp.key]) {
+        byKey[dp.key] = [];
+      }
+      byKey[dp.key].push(dp);
+    }
+
+    // Start with existing persona or empty object
+    const profile: Partial<BusinessPersona> = existingPersona
+      ? JSON.parse(JSON.stringify(existingPersona))  // Deep clone
+      : {};
+
+    const mappedFields: string[] = [];
+    const unmappedData: StandardizedImportDataPoint[] = [];
+
+    // Process each semantic key
+    for (const [semanticKey, dataPoints] of Object.entries(byKey)) {
+      const mapping = CANONICAL_FIELD_MAP[semanticKey];
+
+      if (!mapping) {
+        // No canonical mapping - goes to unmapped/additional data
+        unmappedData.push(...dataPoints);
+        continue;
+      }
+
+      // Choose the best data point if there are multiple
+      let selectedDataPoint: StandardizedImportDataPoint;
+
+      if (dataPoints.length === 1) {
+        selectedDataPoint = dataPoints[0];
+      } else {
+        // Multiple data points - resolve conflict
+        // Sort by: 1) Preferred source, 2) Higher confidence, 3) More recent
+        const sorted = [...dataPoints].sort((a, b) => {
+          // Preferred source first
+          if (a.source === preferSource && b.source !== preferSource) return -1;
+          if (b.source === preferSource && a.source !== preferSource) return 1;
+
+          // Higher confidence second
+          if (a.confidence !== b.confidence) return b.confidence - a.confidence;
+
+          // More recent third
+          return new Date(b.imported_at).getTime() - new Date(a.imported_at).getTime();
+        });
+
+        selectedDataPoint = sorted[0];
+      }
+
+      // Apply transform if defined
+      let value = selectedDataPoint.value;
+      if (mapping.transform) {
+        value = mapping.transform(value);
+      }
+
+      // Set the value in the profile
+      setNestedValue(profile, mapping.canonicalPath, value, mapping.merge);
+      mappedFields.push(mapping.canonicalPath);
+    }
+
+    // Handle unmapped data - store in webIntelligence.otherUsefulData
+    if (unmappedData.length > 0) {
+      if (!profile.webIntelligence) {
+        profile.webIntelligence = {};
+      }
+
+      const existingOther = (profile.webIntelligence as any).otherUsefulData || [];
+
+      (profile.webIntelligence as any).otherUsefulData = [
+        ...existingOther,
+        ...unmappedData
+          .filter(dp => !dp.key.startsWith('unmapped_'))  // Skip already-unmapped items
+          .map(dp => ({
+            key: dp.display_label || dp.key,
+            value: typeof dp.value === 'string' ? dp.value : JSON.stringify(dp.value),
+            source: dp.source,
+          })),
+      ];
+    }
+
+    console.log('[MapStandardizedData] Complete. Mapped fields:', mappedFields.length, 'Unmapped:', unmappedData.length);
+
+    return {
+      success: true,
+      profile,
+      mappedFields,
+      unmappedData,
+    };
+  } catch (error: any) {
+    console.error('[MapStandardizedData] Error:', error);
+    return { success: false, error: error.message };
+  }
+}
+
+/**
+ * Apply standardized import data to a partner's canonical profile
+ * This is the main entry point for transferring data from import-center to settings
+ */
+export async function applyStandardizedImportToProfile(
+  partnerId: string,
+  options: {
+    onlyChecked?: boolean;
+    preferSource?: 'google' | 'website';
+  } = {}
+): Promise<{
+  success: boolean;
+  mappedFields?: string[];
+  unmappedCount?: number;
+  error?: string;
+}> {
+  if (!db) {
+    return { success: false, error: 'Database unavailable' };
+  }
+
+  try {
+    // Get current partner data
+    const partnerRef = db.collection('partners').doc(partnerId);
+    const partnerDoc = await partnerRef.get();
+
+    if (!partnerDoc.exists) {
+      return { success: false, error: 'Partner not found' };
+    }
+
+    const data = partnerDoc.data();
+    const existingPersona = data?.businessPersona || {};
+    const standardizedImports = existingPersona.standardizedImports || {};
+
+    if (!standardizedImports.google && !standardizedImports.website) {
+      return { success: false, error: 'No standardized import data found' };
+    }
+
+    // Map the standardized data to canonical profile
+    const mappingResult = await mapStandardizedDataToCanonicalProfile(
+      standardizedImports,
+      existingPersona,
+      options
+    );
+
+    if (!mappingResult.success || !mappingResult.profile) {
+      return { success: false, error: mappingResult.error };
+    }
+
+    // Save the mapped profile
+    await partnerRef.update({
+      businessPersona: mappingResult.profile,
+    });
+
+    return {
+      success: true,
+      mappedFields: mappingResult.mappedFields,
+      unmappedCount: mappingResult.unmappedData?.length || 0,
+    };
+  } catch (error: any) {
+    console.error('[ApplyStandardizedImport] Error:', error);
+    return { success: false, error: error.message };
+  }
+}
+
+/**
+ * Get mapping preview without applying changes
+ * Useful for showing users what will be mapped before they confirm
+ */
+export async function previewStandardizedImportMapping(
+  partnerId: string,
+  options: {
+    onlyChecked?: boolean;
+    preferSource?: 'google' | 'website';
+  } = {}
+): Promise<{
+  success: boolean;
+  preview?: {
+    mappedFields: Array<{
+      canonicalPath: string;
+      value: any;
+      source: 'google' | 'website';
+      confidence: number;
+    }>;
+    unmappedData: Array<{
+      key: string;
+      value: any;
+      source: 'google' | 'website';
+      displayLabel?: string;
+    }>;
+  };
+  error?: string;
+}> {
+  if (!db) {
+    return { success: false, error: 'Database unavailable' };
+  }
+
+  try {
+    const partnerRef = db.collection('partners').doc(partnerId);
+    const partnerDoc = await partnerRef.get();
+
+    if (!partnerDoc.exists) {
+      return { success: false, error: 'Partner not found' };
+    }
+
+    const data = partnerDoc.data();
+    const standardizedImports = data?.businessPersona?.standardizedImports || {};
+
+    const { onlyChecked = true, preferSource = 'website' } = options;
+
+    // Collect all data points
+    const allDataPoints: StandardizedImportDataPoint[] = [];
+
+    if (standardizedImports.google?.data_points) {
+      allDataPoints.push(...standardizedImports.google.data_points);
+    }
+    if (standardizedImports.website?.data_points) {
+      allDataPoints.push(...standardizedImports.website.data_points);
+    }
+
+    const dataPointsToMap = onlyChecked
+      ? allDataPoints.filter(dp => dp.checked)
+      : allDataPoints;
+
+    // Group by key
+    const byKey: Record<string, StandardizedImportDataPoint[]> = {};
+    for (const dp of dataPointsToMap) {
+      if (!byKey[dp.key]) {
+        byKey[dp.key] = [];
+      }
+      byKey[dp.key].push(dp);
+    }
+
+    const mappedFields: Array<{
+      canonicalPath: string;
+      value: any;
+      source: 'google' | 'website';
+      confidence: number;
+    }> = [];
+
+    const unmappedData: Array<{
+      key: string;
+      value: any;
+      source: 'google' | 'website';
+      displayLabel?: string;
+    }> = [];
+
+    for (const [semanticKey, dataPoints] of Object.entries(byKey)) {
+      const mapping = CANONICAL_FIELD_MAP[semanticKey];
+
+      if (!mapping) {
+        // Unmapped
+        for (const dp of dataPoints) {
+          unmappedData.push({
+            key: dp.key,
+            value: dp.value,
+            source: dp.source,
+            displayLabel: dp.display_label,
+          });
+        }
+        continue;
+      }
+
+      // Select best data point
+      const sorted = [...dataPoints].sort((a, b) => {
+        if (a.source === preferSource && b.source !== preferSource) return -1;
+        if (b.source === preferSource && a.source !== preferSource) return 1;
+        if (a.confidence !== b.confidence) return b.confidence - a.confidence;
+        return new Date(b.imported_at).getTime() - new Date(a.imported_at).getTime();
+      });
+
+      const selected = sorted[0];
+      let value = selected.value;
+      if (mapping.transform) {
+        value = mapping.transform(value);
+      }
+
+      mappedFields.push({
+        canonicalPath: mapping.canonicalPath,
+        value,
+        source: selected.source,
+        confidence: selected.confidence,
+      });
+    }
+
+    return {
+      success: true,
+      preview: {
+        mappedFields,
+        unmappedData,
+      },
+    };
+  } catch (error: any) {
+    console.error('[PreviewMapping] Error:', error);
     return { success: false, error: error.message };
   }
 }
