@@ -10,6 +10,225 @@ import type {
 import { db } from '@/lib/firebase-admin';
 
 // ============================================
+// HUMAN-READABLE LABEL TO KEY NORMALIZATION
+// Maps display labels to programmatic keys
+// ============================================
+
+const HUMAN_LABEL_TO_KEY: Record<string, string> = {
+  // Identity / Contact
+  'address': 'address',
+  'business address': 'address',
+  'location': 'address',
+  'street address': 'address',
+  'google maps link': 'google_maps_url',
+  'google maps url': 'google_maps_url',
+  'maps link': 'google_maps_url',
+  'directions': 'google_maps_url',
+  'languages spoken': 'languages',
+  'languages': 'languages',
+  'supported languages': 'languages',
+  'year established': 'year_established',
+  'established': 'year_established',
+  'founded': 'year_established',
+  'founded year': 'year_established',
+  'since': 'year_established',
+  'in business since': 'year_established',
+  'phone': 'phone',
+  'phone number': 'phone',
+  'contact number': 'phone',
+  'telephone': 'phone',
+  'mobile': 'phone',
+  'email': 'email',
+  'email address': 'email',
+  'contact email': 'email',
+  'website': 'website',
+  'website url': 'website',
+  'web': 'website',
+  'homepage': 'website',
+
+  // Audience & Positioning
+  'target audience': 'target_audience',
+  'target market': 'target_audience',
+  'audience': 'target_audience',
+  'who we serve': 'target_audience',
+  'ideal customer': 'ideal_customer_profile',
+  'ideal client': 'ideal_customer_profile',
+  'customer profile': 'ideal_customer_profile',
+  'market position': 'market_position',
+  'market positioning': 'market_position',
+  'positioning': 'market_position',
+  'competitive position': 'market_position',
+  'unique selling points': 'unique_selling_points',
+  'usps': 'unique_selling_points',
+  'what makes us different': 'differentiators',
+  'differentiators': 'differentiators',
+  'why choose us': 'differentiators',
+  'competitive advantage': 'differentiators',
+
+  // Hotel / Hospitality specific
+  'check-in/check-out': 'checkin_checkout',
+  'check in check out': 'checkin_checkout',
+  'check-in time': 'checkin_checkout',
+  'check-out time': 'checkin_checkout',
+  'checkin checkout': 'checkin_checkout',
+  'pet policy': 'pet_policy',
+  'pets allowed': 'pet_policy',
+  'pets': 'pet_policy',
+  'pet friendly': 'pet_policy',
+  'key amenities': 'amenities',
+  'amenities': 'amenities',
+  'facilities': 'amenities',
+  'hotel amenities': 'amenities',
+  'room amenities': 'amenities',
+  'property amenities': 'amenities',
+  'room types': 'room_types',
+  'rooms': 'room_types',
+  'accommodation types': 'room_types',
+  'cancellation policy': 'cancellation_policy',
+  'cancellation': 'cancellation_policy',
+  'refund policy': 'cancellation_policy',
+
+  // Payments & Operations
+  'accepted payment methods': 'payment_methods',
+  'payment methods': 'payment_methods',
+  'payments accepted': 'payment_methods',
+  'we accept': 'payment_methods',
+  'payment options': 'payment_methods',
+  'forms of payment': 'payment_methods',
+  'operating hours': 'operating_hours',
+  'hours': 'operating_hours',
+  'business hours': 'operating_hours',
+  'opening hours': 'operating_hours',
+  'open hours': 'operating_hours',
+  'working hours': 'operating_hours',
+  'timings': 'operating_hours',
+
+  // Products & Services
+  'services': 'services',
+  'our services': 'services',
+  'services offered': 'services',
+  'products': 'products',
+  'our products': 'products',
+  'menu': 'menu',
+  'food menu': 'menu',
+  'pricing': 'pricing',
+  'prices': 'pricing',
+  'price list': 'pricing',
+  'rates': 'pricing',
+
+  // Credentials
+  'awards': 'awards',
+  'awards and recognition': 'awards',
+  'achievements': 'awards',
+  'certifications': 'certifications',
+  'certificates': 'certifications',
+  'accreditations': 'certifications',
+  'licenses': 'certifications',
+
+  // Reviews & Ratings
+  'google rating': 'google_rating',
+  'rating': 'google_rating',
+  'reviews': 'reviews',
+  'customer reviews': 'reviews',
+  'testimonials': 'testimonials',
+  'review count': 'review_count',
+  'number of reviews': 'review_count',
+  'total reviews': 'review_count',
+
+  // Brand & Personality
+  'description': 'description',
+  'about': 'description',
+  'about us': 'description',
+  'company description': 'description',
+  'overview': 'description',
+  'tagline': 'tagline',
+  'slogan': 'tagline',
+  'motto': 'tagline',
+  'mission': 'mission_statement',
+  'mission statement': 'mission_statement',
+  'our mission': 'mission_statement',
+  'vision': 'vision_statement',
+  'vision statement': 'vision_statement',
+  'our vision': 'vision_statement',
+  'values': 'brand_values',
+  'core values': 'brand_values',
+  'brand values': 'brand_values',
+  'our values': 'brand_values',
+  'story': 'story',
+  'our story': 'story',
+  'brand story': 'story',
+  'history': 'story',
+
+  // Social Media
+  'social media': 'social_media',
+  'social links': 'social_media',
+  'follow us': 'social_media',
+  'instagram': 'instagram',
+  'facebook': 'facebook',
+  'twitter': 'twitter',
+  'x': 'twitter',
+  'linkedin': 'linkedin',
+  'youtube': 'youtube',
+  'tiktok': 'tiktok',
+  'pinterest': 'pinterest',
+
+  // Team
+  'team': 'team_members',
+  'team members': 'team_members',
+  'our team': 'team_members',
+  'staff': 'team_members',
+  'employees': 'team_members',
+  'founders': 'founders',
+  'leadership': 'team_members',
+  'management': 'team_members',
+
+  // Industry Specific
+  'cuisine': 'cuisine_type',
+  'cuisine type': 'cuisine_type',
+  'food type': 'cuisine_type',
+  'specialties': 'specialties',
+  'specialities': 'specialties',
+  'specialty': 'specialties',
+  'spa services': 'spa_services',
+  'wellness': 'spa_services',
+  'parking': 'parking',
+  'parking available': 'parking',
+  'valet': 'parking',
+  'wifi': 'wifi',
+  'internet': 'wifi',
+  'free wifi': 'wifi',
+};
+
+/**
+ * Normalize a key from human-readable label to programmatic key
+ */
+function normalizeKeyFromLabel(key: string): string {
+  if (!key) return key;
+
+  // Convert to lowercase and trim for matching
+  const normalizedLabel = key.toLowerCase().trim();
+
+  // Direct match in label map
+  if (HUMAN_LABEL_TO_KEY[normalizedLabel]) {
+    return HUMAN_LABEL_TO_KEY[normalizedLabel];
+  }
+
+  // Try without special characters
+  const cleanLabel = normalizedLabel.replace(/[^a-z0-9\s]/g, ' ').replace(/\s+/g, ' ').trim();
+  if (HUMAN_LABEL_TO_KEY[cleanLabel]) {
+    return HUMAN_LABEL_TO_KEY[cleanLabel];
+  }
+
+  // Convert spaces/dashes to underscores for programmatic key format
+  const programmaticKey = normalizedLabel
+    .replace(/[^a-z0-9]/g, '_')
+    .replace(/_+/g, '_')
+    .replace(/^_|_$/g, '');
+
+  return programmaticKey;
+}
+
+// ============================================
 // CANONICAL FIELD MAP
 // Maps semantic keys to canonical BusinessPersona paths
 // ============================================
@@ -168,6 +387,27 @@ const CANONICAL_FIELD_MAP: Record<string, CanonicalFieldMapping> = {
   'photos': { canonicalPath: 'webIntelligence.photos', merge: 'append' },
   'logo': { canonicalPath: 'identity.logo' },
   'cover_image': { canonicalPath: 'identity.coverImage' },
+
+  // === HOTEL / HOSPITALITY SPECIFIC ===
+  'checkin_checkout': { canonicalPath: 'knowledge.policies.checkInCheckOut' },
+  'check_in_checkout': { canonicalPath: 'knowledge.policies.checkInCheckOut' },
+  'pet_policy': { canonicalPath: 'knowledge.policies.petPolicy' },
+  'cancellation_policy': { canonicalPath: 'knowledge.policies.cancellationPolicy' },
+  'amenities': { canonicalPath: 'hotelAmenities', merge: 'append' },
+  'room_types': { canonicalPath: 'roomTypes', merge: 'append' },
+  'spa_services': { canonicalPath: 'industrySpecificData.spaServices', merge: 'append' },
+  'parking': { canonicalPath: 'industrySpecificData.parking' },
+  'wifi': { canonicalPath: 'industrySpecificData.wifi' },
+
+  // === RESTAURANT SPECIFIC ===
+  'cuisine_type': { canonicalPath: 'industrySpecificData.cuisineType' },
+  'menu': { canonicalPath: 'menuItems', merge: 'append' },
+  'specialties': { canonicalPath: 'industrySpecificData.specialties', merge: 'append' },
+
+  // === ADDITIONAL COMMON FIELDS ===
+  'market_position': { canonicalPath: 'customerProfile.marketPosition' },
+  'pricing': { canonicalPath: 'knowledge.pricingModel' },
+  'founders': { canonicalPath: 'knowledge.teamMembers', merge: 'append' },
 };
 
 // Transform functions
