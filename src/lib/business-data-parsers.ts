@@ -92,7 +92,7 @@ export function parseOperatingHoursFromGoogle(weekdayText: string[]): any {
     return {
         isOpen24x7,
         schedule,
-        specialNote: isOpen24x7 ? 'Open 24/7' : undefined
+        specialNote: isOpen24x7 ? 'Open 24/7' : null
     };
 }
 
@@ -105,20 +105,29 @@ export function parseAddress(address: any): any {
     // If it's already properly structured
     if (typeof address === 'object') {
         return {
-            street: address.street || address.line1 || address.formattedAddress,
-            area: address.area || address.locality || address.neighborhood,
-            city: address.city,
-            state: address.state,
-            postalCode: address.postalCode || address.pincode || address.zip,
-            country: address.country,
-            googleMapsUrl: address.googleMapsUrl,
+            street: address.street || address.line1 || address.formattedAddress || '',
+            area: address.area || address.locality || address.neighborhood || '',
+            city: address.city || '',
+            state: address.state || '',
+            postalCode: address.postalCode || address.pincode || address.zip || '',
+            country: address.country || '',
+            googleMapsUrl: address.googleMapsUrl || '',
         };
     }
 
     // If it's a string, use as street
     if (typeof address === 'string') {
-        return { street: address };
+        return {
+            street: address,
+            area: '',
+            city: '',
+            state: '',
+            postalCode: '',
+            country: '',
+            googleMapsUrl: ''
+        };
     }
 
     return undefined;
 }
+

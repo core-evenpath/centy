@@ -11,14 +11,8 @@ import type { BusinessPersona, BusinessAddress, OperatingHours } from '@/lib/bus
 // TYPE DEFINITIONS
 // =============================================================================
 
-/**
- * Import sources supported by the system
- */
 export type ImportSource = 'google' | 'website' | 'manual' | 'csv' | 'api';
 
-/**
- * Field categories for grouping and UI organization
- */
 export type FieldCategory =
   | 'identity'
   | 'contact'
@@ -32,9 +26,6 @@ export type FieldCategory =
   | 'success'
   | 'knowledge';
 
-/**
- * Transform types for converting raw data to structured format
- */
 export type FieldTransform =
   | 'address'
   | 'operatingHours'
@@ -45,28 +36,20 @@ export type FieldTransform =
   | 'stringArray'
   | 'objectArray';
 
-/**
- * Field definition - describes a single field in the registry
- */
 export interface FieldDefinition {
-  targetPath: string;           // Canonical path in BusinessPersona: 'identity.name'
-  label: string;                // Human-readable label
-  category: FieldCategory;      // Category for grouping
-  iconName: string;             // Lucide icon name
-  critical?: boolean;           // Flag for key/required fields
-  multiline?: boolean;          // Whether to show multiline input
-  sourcePaths: string[];        // Ordered paths to try from raw imported data
-  transform?: FieldTransform;   // Transform to apply
-
-  // Taxonomy filtering (empty = applies to all)
-  industries?: string[];        // Filter by industry
-  countries?: string[];         // Filter by country code
-  subCategories?: string[];     // Filter by sub-category
+  targetPath: string;
+  label: string;
+  category: FieldCategory;
+  iconName: string;
+  critical?: boolean;
+  multiline?: boolean;
+  sourcePaths: string[];
+  transform?: FieldTransform;
+  industries?: string[];
+  countries?: string[];
+  subCategories?: string[];
 }
 
-/**
- * Imported field value with source tracking
- */
 export interface ImportedFieldValue {
   value: any;
   source: ImportSource;
@@ -75,9 +58,6 @@ export interface ImportedFieldValue {
   rawPath?: string;
 }
 
-/**
- * Merge field for conflict resolution UI
- */
 export interface MergeField {
   definition: FieldDefinition;
   values: Partial<Record<ImportSource, any>>;
@@ -87,27 +67,18 @@ export interface MergeField {
   hasConflict: boolean;
 }
 
-/**
- * Transform context for country/industry-specific transformations
- */
 export interface TransformContext {
   country?: string;
   industry?: string;
   subCategory?: string;
 }
 
-/**
- * Taxonomy filter for field selection
- */
 export interface TaxonomyFilter {
   industry?: string;
   country?: string;
   subCategory?: string;
 }
 
-/**
- * Import metadata for tracking
- */
 export interface ImportMetadata {
   importedAt: string;
   sources: ImportSource[];
@@ -121,9 +92,6 @@ export interface ImportMetadata {
   }>;
 }
 
-/**
- * Category configuration for UI
- */
 export interface CategoryConfig {
   id: FieldCategory;
   label: string;
@@ -232,7 +200,7 @@ export const FIELD_REGISTRY: FieldDefinition[] = [
     critical: true,
     sourcePaths: [
       'identity.name',
-      'identity.businessName',  // AutoFilledProfile uses this path
+      'identity.businessName',
       'name',
       'businessName',
       'displayName',
@@ -260,7 +228,7 @@ export const FIELD_REGISTRY: FieldDefinition[] = [
     critical: true,
     sourcePaths: [
       'personality.tagline',
-      'identity.tagline',  // AutoFilledProfile may use this path
+      'identity.tagline',
       'tagline',
       'slogan',
       'motto',
@@ -276,7 +244,7 @@ export const FIELD_REGISTRY: FieldDefinition[] = [
     multiline: true,
     sourcePaths: [
       'personality.description',
-      'identity.description',  // AutoFilledProfile may use this path
+      'identity.description',
       'description',
       'about',
       'summary',
@@ -285,16 +253,17 @@ export const FIELD_REGISTRY: FieldDefinition[] = [
       'companyDescription',
     ],
   },
+  // FIX #1: Changed from 'industry' to 'identity.industry' to match UI schema
   {
-    targetPath: 'industry',
+    targetPath: 'identity.industry',
     label: 'Industry',
     category: 'identity',
     iconName: 'Briefcase',
     critical: true,
     transform: 'industry',
     sourcePaths: [
+      'identity.industry',
       'industry',
-      'identity.industry',  // AutoFilledProfile uses this path
       'businessCategory',
       'category',
       'primaryCategory',
@@ -302,12 +271,14 @@ export const FIELD_REGISTRY: FieldDefinition[] = [
       'industryType',
     ],
   },
+  // FIX #2: Changed from 'identity.yearEstablished' to 'identity.foundedYear' to match UI schema
   {
-    targetPath: 'identity.yearEstablished',
+    targetPath: 'identity.foundedYear',
     label: 'Year Established',
     category: 'identity',
     iconName: 'Calendar',
     sourcePaths: [
+      'identity.foundedYear',
       'identity.yearEstablished',
       'yearEstablished',
       'foundedYear',
@@ -343,13 +314,15 @@ export const FIELD_REGISTRY: FieldDefinition[] = [
       'numberOfEmployees',
     ],
   },
+  // FIX #3: Changed from 'identity.languages' to 'personality.languagePreference' to match UI schema
   {
-    targetPath: 'identity.languages',
+    targetPath: 'personality.languagePreference',
     label: 'Languages Spoken',
     category: 'identity',
     iconName: 'Globe',
     transform: 'stringArray',
     sourcePaths: [
+      'personality.languagePreference',
       'identity.languages',
       'languages',
       'languagesSpoken',
@@ -1621,27 +1594,17 @@ export const FIELD_REGISTRY: FieldDefinition[] = [
 // TRANSFORM FUNCTIONS
 // =============================================================================
 
-/**
- * Transform functions for converting raw data to structured format
- */
 export const TRANSFORMS: Record<FieldTransform, (raw: any, context?: TransformContext) => any> = {
-  /**
-   * Transform address data to BusinessAddress format
-   */
   address: (raw: any, ctx?: TransformContext): BusinessAddress | null => {
     if (!raw) return null;
 
-    // If already a structured address, use parseAddress to normalize
     if (typeof raw === 'object' && !Array.isArray(raw)) {
-      // Check if it has addressComponents (Google format)
       if (raw.addressComponents) {
         return parseAddressFromGoogle(raw.addressComponents);
       }
-      // Otherwise use the existing parseAddress utility
       return parseAddress(raw);
     }
 
-    // If string, create a basic address object
     if (typeof raw === 'string') {
       return {
         street: raw,
@@ -1656,28 +1619,21 @@ export const TRANSFORMS: Record<FieldTransform, (raw: any, context?: TransformCo
     return null;
   },
 
-  /**
-   * Transform operating hours data
-   */
   operatingHours: (raw: any, ctx?: TransformContext): OperatingHours | null => {
     if (!raw) return null;
 
-    // If already structured
     if (raw.isOpen24x7 !== undefined || raw.schedule) {
       return raw as OperatingHours;
     }
 
-    // Google format: weekdayText array or periods
     if (raw.weekdayText && Array.isArray(raw.weekdayText)) {
       return parseOperatingHoursFromGoogle(raw.weekdayText);
     }
 
-    // Google format: regularOpeningHours or currentOpeningHours
     if (raw.weekdayDescriptions && Array.isArray(raw.weekdayDescriptions)) {
       return parseOperatingHoursFromGoogle(raw.weekdayDescriptions);
     }
 
-    // Boolean 24x7
     if (typeof raw === 'boolean') {
       return { isOpen24x7: raw, schedule: {} };
     }
@@ -1685,23 +1641,17 @@ export const TRANSFORMS: Record<FieldTransform, (raw: any, context?: TransformCo
     return null;
   },
 
-  /**
-   * Transform social media data from various formats
-   */
   socialMedia: (raw: any, ctx?: TransformContext): string | null => {
     if (!raw) return null;
 
-    // If it's already a URL string
     if (typeof raw === 'string') {
       return raw;
     }
 
-    // If it's an object with url property
     if (typeof raw === 'object' && raw.url) {
       return raw.url;
     }
 
-    // If it's an object with uri property (Google format)
     if (typeof raw === 'object' && raw.uri) {
       return raw.uri;
     }
@@ -1709,18 +1659,13 @@ export const TRANSFORMS: Record<FieldTransform, (raw: any, context?: TransformCo
     return null;
   },
 
-  /**
-   * Transform industry data to structured format
-   */
   industry: (raw: any, ctx?: TransformContext): { category: string; name: string; subCategory?: string } | null => {
     if (!raw) return null;
 
-    // If already structured
     if (typeof raw === 'object' && raw.category) {
       return raw;
     }
 
-    // If string, try to map to known industry
     if (typeof raw === 'string') {
       const normalized = raw.toLowerCase().replace(/[^a-z]/g, '_');
       return {
@@ -1729,7 +1674,6 @@ export const TRANSFORMS: Record<FieldTransform, (raw: any, context?: TransformCo
       };
     }
 
-    // If array (Google types), take first
     if (Array.isArray(raw) && raw.length > 0) {
       const first = raw[0];
       return {
@@ -1741,26 +1685,17 @@ export const TRANSFORMS: Record<FieldTransform, (raw: any, context?: TransformCo
     return null;
   },
 
-  /**
-   * Normalize phone number format
-   */
   phoneNumber: (raw: any, ctx?: TransformContext): string | null => {
     if (!raw) return null;
 
-    // Convert to string
     let phone = String(raw).trim();
-
-    // Remove common formatting characters but keep + and digits
     phone = phone.replace(/[\s\-\(\)\.]/g, '');
 
-    // Country-specific formatting
     if (ctx?.country === 'IN' && !phone.startsWith('+')) {
-      // Indian number without country code
       if (phone.length === 10) {
         phone = '+91' + phone;
       }
     } else if (ctx?.country === 'US' && !phone.startsWith('+')) {
-      // US number without country code
       if (phone.length === 10) {
         phone = '+1' + phone;
       }
@@ -1769,9 +1704,6 @@ export const TRANSFORMS: Record<FieldTransform, (raw: any, context?: TransformCo
     return phone || null;
   },
 
-  /**
-   * Transform currency data
-   */
   currency: (raw: any, ctx?: TransformContext): string | null => {
     if (!raw) return null;
 
@@ -1783,7 +1715,6 @@ export const TRANSFORMS: Record<FieldTransform, (raw: any, context?: TransformCo
       return raw.code.toUpperCase();
     }
 
-    // Default by country
     const countryToCurrency: Record<string, string> = {
       IN: 'INR',
       US: 'USD',
@@ -1795,13 +1726,9 @@ export const TRANSFORMS: Record<FieldTransform, (raw: any, context?: TransformCo
     return ctx?.country ? countryToCurrency[ctx.country] || null : null;
   },
 
-  /**
-   * Ensure value is a string array
-   */
   stringArray: (raw: any): string[] | null => {
     if (!raw) return null;
 
-    // Already an array
     if (Array.isArray(raw)) {
       return raw.map(item => {
         if (typeof item === 'string') return item;
@@ -1811,7 +1738,6 @@ export const TRANSFORMS: Record<FieldTransform, (raw: any, context?: TransformCo
       }).filter(Boolean);
     }
 
-    // String - split by common delimiters
     if (typeof raw === 'string') {
       return raw.split(/[,;|]/).map(s => s.trim()).filter(Boolean);
     }
@@ -1819,18 +1745,13 @@ export const TRANSFORMS: Record<FieldTransform, (raw: any, context?: TransformCo
     return null;
   },
 
-  /**
-   * Ensure value is an object array
-   */
   objectArray: (raw: any): any[] | null => {
     if (!raw) return null;
 
-    // Already an array
     if (Array.isArray(raw)) {
       return raw;
     }
 
-    // Single object - wrap in array
     if (typeof raw === 'object') {
       return [raw];
     }
@@ -1839,9 +1760,6 @@ export const TRANSFORMS: Record<FieldTransform, (raw: any, context?: TransformCo
   },
 };
 
-/**
- * Parse address from Google addressComponents format
- */
 function parseAddressFromGoogle(components: any[]): BusinessAddress {
   const address: BusinessAddress = {
     street: '',
@@ -1882,9 +1800,6 @@ function parseAddressFromGoogle(components: any[]): BusinessAddress {
 // UTILITY FUNCTIONS
 // =============================================================================
 
-/**
- * Get value from nested object using dot notation path
- */
 function getNestedValue(obj: any, path: string): any {
   if (!obj || !path) return undefined;
 
@@ -1899,9 +1814,6 @@ function getNestedValue(obj: any, path: string): any {
   return current;
 }
 
-/**
- * Set value in nested object using dot notation path
- */
 function setNestedValue(obj: any, path: string, value: any): void {
   if (!path) return;
 
@@ -1919,9 +1831,6 @@ function setNestedValue(obj: any, path: string, value: any): void {
   current[parts[parts.length - 1]] = value;
 }
 
-/**
- * Extract value from raw data using field definition
- */
 export function extractValue(
   data: Record<string, any>,
   field: FieldDefinition,
@@ -1932,9 +1841,7 @@ export function extractValue(
 
   let value: any = null;
 
-  // Try each source path in order
   for (const path of field.sourcePaths) {
-    // Handle special case: onlinePresence array for social media
     if (path.startsWith('onlinePresence.')) {
       const platform = path.split('.')[1];
       value = extractFromOnlinePresence(data, platform);
@@ -1945,7 +1852,6 @@ export function extractValue(
     }
   }
 
-  // Apply transform if specified
   if (value !== null && value !== undefined && field.transform) {
     const transformer = TRANSFORMS[field.transform];
     if (transformer) {
@@ -1956,9 +1862,6 @@ export function extractValue(
   return value;
 }
 
-/**
- * Extract social media URL from onlinePresence array
- */
 function extractFromOnlinePresence(data: any, platform: string): string | null {
   const onlinePresence = data.onlinePresence || data.webIntelligence?.onlinePresence;
 
@@ -1966,36 +1869,28 @@ function extractFromOnlinePresence(data: any, platform: string): string | null {
 
   const platformLower = platform.toLowerCase();
   const entry = onlinePresence.find((item: any) => {
-    // Support multiple property names: platform, type, source
     const itemPlatform = (item.platform || item.type || item.source || '').toLowerCase();
     return itemPlatform === platformLower || itemPlatform.includes(platformLower);
   });
 
-  // Support multiple URL property names: url, link, sourceUrl
   return entry?.url || entry?.link || entry?.sourceUrl || null;
 }
 
-/**
- * Check if a field applies to the given taxonomy
- */
 function fieldMatchesTaxonomy(field: FieldDefinition, taxonomy?: TaxonomyFilter): boolean {
   if (!taxonomy) return true;
 
-  // Check industry filter
   if (field.industries && field.industries.length > 0) {
     if (!taxonomy.industry || !field.industries.includes(taxonomy.industry)) {
       return false;
     }
   }
 
-  // Check country filter
   if (field.countries && field.countries.length > 0) {
     if (!taxonomy.country || !field.countries.includes(taxonomy.country)) {
       return false;
     }
   }
 
-  // Check sub-category filter
   if (field.subCategories && field.subCategories.length > 0) {
     if (!taxonomy.subCategory || !field.subCategories.includes(taxonomy.subCategory)) {
       return false;
@@ -2005,16 +1900,12 @@ function fieldMatchesTaxonomy(field: FieldDefinition, taxonomy?: TaxonomyFilter)
   return true;
 }
 
-/**
- * Build merge fields from multiple import sources
- */
 export function buildMergeFields(
   sources: Partial<Record<ImportSource, any>>,
   taxonomy?: TaxonomyFilter
 ): MergeField[] {
   const mergeFields: MergeField[] = [];
 
-  // Get applicable fields based on taxonomy
   const applicableFields = FIELD_REGISTRY.filter(field =>
     fieldMatchesTaxonomy(field, taxonomy)
   );
@@ -2029,7 +1920,6 @@ export function buildMergeFields(
     const values: Partial<Record<ImportSource, any>> = {};
     let hasAnyValue = false;
 
-    // Extract value from each source
     for (const [source, data] of Object.entries(sources)) {
       if (data) {
         const value = extractValue(data, field, source as ImportSource, context);
@@ -2040,9 +1930,7 @@ export function buildMergeFields(
       }
     }
 
-    // Only include field if at least one source has a value
     if (hasAnyValue) {
-      // Detect conflicts (different non-null values)
       const uniqueValues = new Set(
         Object.values(values)
           .filter(v => v !== null && v !== undefined)
@@ -2050,21 +1938,18 @@ export function buildMergeFields(
       );
       const hasConflict = uniqueValues.size > 1;
 
-      // Determine default selected source (website > google > first available)
       let selectedSource: ImportSource | 'custom' | 'none' = 'none';
       if (values.website !== undefined) {
         selectedSource = 'website';
       } else if (values.google !== undefined) {
         selectedSource = 'google';
       } else {
-        // Use first available source
         const firstSource = Object.keys(values)[0] as ImportSource;
         if (firstSource) {
           selectedSource = firstSource;
         }
       }
 
-      // Get final value based on selected source
       const finalValue = selectedSource !== 'none' && selectedSource !== 'custom'
         ? values[selectedSource]
         : null;
@@ -2082,9 +1967,6 @@ export function buildMergeFields(
   return mergeFields;
 }
 
-/**
- * Apply merge fields to create a BusinessPersona
- */
 export function applyMergeFieldsToPersona(
   mergeFields: MergeField[],
   products: Array<{ id: string; name: string; description: string; category?: string; pricing?: string; features?: string[]; selected: boolean }>,
@@ -2101,7 +1983,6 @@ export function applyMergeFieldsToPersona(
 
   const now = new Date().toISOString();
 
-  // Apply each merge field with a final value
   for (const mergeField of mergeFields) {
     const value = mergeField.selectedSource === 'custom'
       ? mergeField.customValue
@@ -2112,7 +1993,6 @@ export function applyMergeFieldsToPersona(
       setNestedValue(persona, path, value);
       updatedPaths.push(path);
 
-      // Track source
       if (mergeField.selectedSource !== 'custom' && mergeField.selectedSource !== 'none') {
         sourcesUsed.add(mergeField.selectedSource);
         fieldSources[path] = {
@@ -2123,7 +2003,6 @@ export function applyMergeFieldsToPersona(
     }
   }
 
-  // Map selected products to knowledge.productsOrServices
   const selectedProducts = products.filter(p => p.selected);
   if (selectedProducts.length > 0) {
     const productsOrServices = selectedProducts.map(p => ({
@@ -2137,7 +2016,6 @@ export function applyMergeFieldsToPersona(
     updatedPaths.push('knowledge.productsOrServices');
   }
 
-  // Map selected testimonials
   const selectedTestimonials = testimonials.filter(t => t.selected);
   if (selectedTestimonials.length > 0) {
     const mappedTestimonials = selectedTestimonials.map(t => ({
@@ -2152,7 +2030,6 @@ export function applyMergeFieldsToPersona(
     updatedPaths.push('testimonials');
   }
 
-  // Build metadata
   const metadata: ImportMetadata = {
     importedAt: now,
     sources: Array.from(sourcesUsed),
@@ -2165,9 +2042,6 @@ export function applyMergeFieldsToPersona(
   return { persona, updatedPaths, metadata };
 }
 
-/**
- * Save persona to Firestore using Firebase Client SDK
- */
 export async function savePersonaToFirestore(
   partnerId: string,
   persona: Partial<BusinessPersona>,
@@ -2176,7 +2050,6 @@ export async function savePersonaToFirestore(
   try {
     const partnerRef = doc(db, 'partners', partnerId);
 
-    // Prepare the document data
     const updateData: Record<string, any> = {
       businessPersona: {
         ...persona,
@@ -2190,7 +2063,6 @@ export async function savePersonaToFirestore(
       updatedAt: Timestamp.now(),
     };
 
-    // Use setDoc with merge to update only specified fields
     await setDoc(partnerRef, updateData, { merge: true });
 
     return { success: true };
@@ -2207,9 +2079,6 @@ export async function savePersonaToFirestore(
 // FIELD RETRIEVAL UTILITIES
 // =============================================================================
 
-/**
- * Get fields by category, optionally filtered by taxonomy
- */
 export function getFieldsByCategory(
   category: FieldCategory,
   taxonomy?: TaxonomyFilter
@@ -2219,29 +2088,22 @@ export function getFieldsByCategory(
   );
 }
 
-/**
- * Get fields applicable for a specific industry
- */
 export function getFieldsForIndustry(
   industry: string,
   country?: string
 ): FieldDefinition[] {
   return FIELD_REGISTRY.filter(field => {
-    // Universal fields (no industry filter) always apply
     if (!field.industries || field.industries.length === 0) {
-      // But check country filter
       if (field.countries && field.countries.length > 0) {
         return country ? field.countries.includes(country) : false;
       }
       return true;
     }
 
-    // Industry-specific fields
     if (!field.industries.includes(industry)) {
       return false;
     }
 
-    // Check country filter
     if (field.countries && field.countries.length > 0) {
       return country ? field.countries.includes(country) : false;
     }
@@ -2250,39 +2112,24 @@ export function getFieldsForIndustry(
   });
 }
 
-/**
- * Get all applicable fields for a given taxonomy
- */
 export function getApplicableFields(taxonomy: TaxonomyFilter): FieldDefinition[] {
   return FIELD_REGISTRY.filter(field => fieldMatchesTaxonomy(field, taxonomy));
 }
 
-/**
- * Get a specific field by target path
- */
 export function getFieldByPath(targetPath: string): FieldDefinition | undefined {
   return FIELD_REGISTRY.find(field => field.targetPath === targetPath);
 }
 
-/**
- * Get all critical fields, optionally filtered by taxonomy
- */
 export function getCriticalFields(taxonomy?: TaxonomyFilter): FieldDefinition[] {
   return FIELD_REGISTRY.filter(field =>
     field.critical && fieldMatchesTaxonomy(field, taxonomy)
   );
 }
 
-/**
- * Get category configuration by ID
- */
 export function getCategoryConfig(categoryId: FieldCategory): CategoryConfig | undefined {
   return CATEGORY_CONFIG.find(cat => cat.id === categoryId);
 }
 
-/**
- * Get all categories that have fields for a given taxonomy
- */
 export function getCategoriesWithFields(taxonomy?: TaxonomyFilter): CategoryConfig[] {
   const categoriesWithFields = new Set<FieldCategory>();
 
