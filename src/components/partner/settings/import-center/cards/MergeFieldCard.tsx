@@ -1,10 +1,150 @@
 'use client';
 
 import React from 'react';
-import { FileText, CheckCircle2, AlertTriangle, Pencil, Check, ArrowLeftRight } from 'lucide-react';
+import {
+  FileText,
+  CheckCircle2,
+  AlertTriangle,
+  Pencil,
+  Check,
+  ArrowLeftRight,
+  Building2,
+  Phone,
+  Mail,
+  Globe,
+  MapPin,
+  Clock,
+  MessageCircle,
+  Instagram,
+  Facebook,
+  Linkedin,
+  Twitter,
+  Youtube,
+  Store,
+  Target,
+  Eye,
+  Heart,
+  Star,
+  BookOpen,
+  Quote,
+  Users,
+  BarChart2,
+  HelpCircle,
+  AlertCircle,
+  TrendingUp,
+  Zap,
+  Shield,
+  Compass,
+  DollarSign,
+  Award,
+  Trophy,
+  CheckCircle,
+  FileCheck,
+  UserCircle,
+  Briefcase,
+  Package,
+  CreditCard,
+  Calendar,
+  Hash,
+  Map,
+  Share2,
+  MessageSquare,
+  AlignLeft,
+  ShieldCheck,
+  Pill,
+  Building,
+  Smartphone,
+  Stethoscope,
+  Home,
+  Receipt,
+  BedDouble,
+  TestTube2,
+  Siren,
+  Video,
+  UtensilsCrossed,
+  Utensils,
+  Leaf,
+  Truck,
+  Grid,
+  Tag,
+  RotateCcw,
+  ShoppingCart,
+  GraduationCap,
+  Link,
+} from 'lucide-react';
 import { SourceBadge } from '../badges';
-import type { MergeField, FieldSource } from '../types';
+import type { MergeField, FieldSource, ImportSource } from '../types';
 import type { LucideIcon } from 'lucide-react';
+
+// Icon mapping from string names to Lucide icons
+const ICON_MAP: Record<string, LucideIcon> = {
+  Building2,
+  Phone,
+  Mail,
+  Globe,
+  MapPin,
+  Clock,
+  MessageCircle,
+  Instagram,
+  Facebook,
+  Linkedin,
+  Twitter,
+  Youtube,
+  Store,
+  Target,
+  Eye,
+  Heart,
+  Star,
+  BookOpen,
+  Quote,
+  Users,
+  BarChart2,
+  HelpCircle,
+  AlertCircle,
+  TrendingUp,
+  Zap,
+  Shield,
+  Compass,
+  DollarSign,
+  Award,
+  Trophy,
+  CheckCircle,
+  FileCheck,
+  FileText,
+  UserCircle,
+  Briefcase,
+  Package,
+  CreditCard,
+  Calendar,
+  Hash,
+  Map,
+  Share2,
+  MessageSquare,
+  AlignLeft,
+  ShieldCheck,
+  Pill,
+  Building,
+  Smartphone,
+  Stethoscope,
+  Home,
+  Receipt,
+  BedDouble,
+  TestTube2,
+  Siren,
+  Video,
+  UtensilsCrossed,
+  Utensils,
+  Leaf,
+  Truck,
+  Grid,
+  Tag,
+  RotateCcw,
+  ShoppingCart,
+  GraduationCap,
+  Link,
+  Sparkles: Star, // Fallback for Sparkles
+  IdCard: CreditCard, // Fallback for IdCard
+};
 
 // Helper to format any value for display
 function formatDisplayValue(value: any): string {
@@ -36,6 +176,10 @@ function formatDisplayValue(value: any): string {
     // Handle operating hours
     if (value.isOpen24x7 !== undefined) {
       return value.isOpen24x7 ? 'Open 24/7' : 'Custom hours';
+    }
+    // Handle industry object
+    if (value.category && value.name) {
+      return value.name;
     }
     // Handle other objects - try to make a readable string
     try {
@@ -70,10 +214,25 @@ export function MergeFieldCard({
   onSaveEdit,
   onCancelEdit,
 }: MergeFieldCardProps) {
-  const Icon = field.icon || FileText;
+  // Get icon from definition or fallback to FileText
+  const iconName = field.definition?.iconName || 'FileText';
+  const Icon = ICON_MAP[iconName] || FileText;
+
+  // Get field properties from definition
+  const label = field.definition?.label || 'Unknown Field';
+  const critical = field.definition?.critical || false;
+  const multiline = field.definition?.multiline || false;
+
   const displayValue = formatDisplayValue(field.finalValue);
-  const googleDisplayValue = formatDisplayValue(field.googleValue);
-  const websiteDisplayValue = formatDisplayValue(field.websiteValue);
+
+  // Get values from both sources
+  const googleValue = field.values?.google;
+  const websiteValue = field.values?.website;
+  const googleDisplayValue = formatDisplayValue(googleValue);
+  const websiteDisplayValue = formatDisplayValue(websiteValue);
+
+  // Determine which sources are available
+  const availableSources = Object.keys(field.values || {}) as ImportSource[];
 
   return (
     <div
@@ -88,19 +247,19 @@ export function MergeFieldCard({
           {/* Icon */}
           <div
             className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${
-              field.critical ? 'bg-indigo-100' : 'bg-slate-100'
+              critical ? 'bg-indigo-100' : 'bg-slate-100'
             }`}
           >
             <Icon
-              className={`w-5 h-5 ${field.critical ? 'text-indigo-600' : 'text-slate-500'}`}
+              className={`w-5 h-5 ${critical ? 'text-indigo-600' : 'text-slate-500'}`}
             />
           </div>
 
           <div className="flex-1 min-w-0">
             {/* Label & Badges */}
             <div className="flex items-center gap-2 mb-2 flex-wrap">
-              <span className="font-semibold text-slate-900">{field.label}</span>
-              {field.critical && (
+              <span className="font-semibold text-slate-900">{label}</span>
+              {critical && (
                 <span className="px-2 py-0.5 bg-indigo-100 text-indigo-700 text-xs rounded-full font-medium">
                   Key
                 </span>
@@ -115,7 +274,7 @@ export function MergeFieldCard({
             {/* Editing Mode */}
             {isEditing ? (
               <div className="space-y-3">
-                {field.multiline ? (
+                {multiline ? (
                   <textarea
                     value={editValue}
                     onChange={(e) => onEditChange(e.target.value)}
@@ -185,44 +344,48 @@ export function MergeFieldCard({
             </p>
             <div className="grid grid-cols-2 gap-3">
               {/* Google Option */}
-              <button
-                onClick={() => onSelectSource('google')}
-                className={`p-3 rounded-xl border-2 text-left transition-all ${
-                  field.selectedSource === 'google'
-                    ? 'border-blue-400 bg-blue-50 ring-2 ring-blue-200'
-                    : 'border-slate-200 hover:border-blue-300 bg-white'
-                }`}
-              >
-                <div className="flex items-center justify-between mb-2">
-                  <SourceBadge source="google" />
-                  {field.selectedSource === 'google' && (
-                    <CheckCircle2 className="w-4 h-4 text-blue-600" />
-                  )}
-                </div>
-                <p className="text-sm text-slate-700 line-clamp-2">
-                  {googleDisplayValue || 'No value'}
-                </p>
-              </button>
+              {googleValue !== undefined && (
+                <button
+                  onClick={() => onSelectSource('google')}
+                  className={`p-3 rounded-xl border-2 text-left transition-all ${
+                    field.selectedSource === 'google'
+                      ? 'border-blue-400 bg-blue-50 ring-2 ring-blue-200'
+                      : 'border-slate-200 hover:border-blue-300 bg-white'
+                  }`}
+                >
+                  <div className="flex items-center justify-between mb-2">
+                    <SourceBadge source="google" />
+                    {field.selectedSource === 'google' && (
+                      <CheckCircle2 className="w-4 h-4 text-blue-600" />
+                    )}
+                  </div>
+                  <p className="text-sm text-slate-700 line-clamp-2">
+                    {googleDisplayValue || 'No value'}
+                  </p>
+                </button>
+              )}
 
               {/* Website Option */}
-              <button
-                onClick={() => onSelectSource('website')}
-                className={`p-3 rounded-xl border-2 text-left transition-all ${
-                  field.selectedSource === 'website'
-                    ? 'border-purple-400 bg-purple-50 ring-2 ring-purple-200'
-                    : 'border-slate-200 hover:border-purple-300 bg-white'
-                }`}
-              >
-                <div className="flex items-center justify-between mb-2">
-                  <SourceBadge source="website" />
-                  {field.selectedSource === 'website' && (
-                    <CheckCircle2 className="w-4 h-4 text-purple-600" />
-                  )}
-                </div>
-                <p className="text-sm text-slate-700 line-clamp-2">
-                  {websiteDisplayValue || 'No value'}
-                </p>
-              </button>
+              {websiteValue !== undefined && (
+                <button
+                  onClick={() => onSelectSource('website')}
+                  className={`p-3 rounded-xl border-2 text-left transition-all ${
+                    field.selectedSource === 'website'
+                      ? 'border-purple-400 bg-purple-50 ring-2 ring-purple-200'
+                      : 'border-slate-200 hover:border-purple-300 bg-white'
+                  }`}
+                >
+                  <div className="flex items-center justify-between mb-2">
+                    <SourceBadge source="website" />
+                    {field.selectedSource === 'website' && (
+                      <CheckCircle2 className="w-4 h-4 text-purple-600" />
+                    )}
+                  </div>
+                  <p className="text-sm text-slate-700 line-clamp-2">
+                    {websiteDisplayValue || 'No value'}
+                  </p>
+                </button>
+              )}
             </div>
           </div>
         )}

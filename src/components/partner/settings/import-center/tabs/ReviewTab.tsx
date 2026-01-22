@@ -15,9 +15,17 @@ import {
   Award,
   FileText,
   BookOpen,
+  MapPin,
+  Sparkles,
+  Target,
+  UserCircle,
+  Briefcase,
+  Trophy,
 } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 import { MergeFieldCard } from '../cards';
 import type { MergeField, FieldSource, FieldCategory } from '../types';
+import { CATEGORY_CONFIG } from '@/lib/field-registry';
 
 interface ReviewTabProps {
   mergeFields: MergeField[];
@@ -34,19 +42,43 @@ interface ReviewTabProps {
   partnerIndustry?: string | null;
 }
 
-// Category configuration with icons and colors
-const CATEGORY_CONFIG: Record<FieldCategory, { label: string; icon: typeof Building2; color: string }> = {
-  identity: { label: 'Brand Identity', icon: Building2, color: 'bg-indigo-500' },
-  contact: { label: 'Contact & Location', icon: Phone, color: 'bg-blue-500' },
-  social: { label: 'Social Media', icon: Share2, color: 'bg-pink-500' },
-  brand: { label: 'Brand & Values', icon: Heart, color: 'bg-rose-500' },
-  audience: { label: 'Target Audience', icon: Users, color: 'bg-orange-500' },
-  competitive: { label: 'Competitive Intel', icon: Zap, color: 'bg-violet-500' },
-  credentials: { label: 'Credentials', icon: BadgeCheck, color: 'bg-emerald-500' },
-  team: { label: 'Team', icon: Users, color: 'bg-purple-500' },
-  industry: { label: 'Industry Specific', icon: GraduationCap, color: 'bg-cyan-500' },
-  success: { label: 'Success Metrics', icon: Award, color: 'bg-amber-500' },
-  knowledge: { label: 'Knowledge Base', icon: BookOpen, color: 'bg-slate-500' },
+// Icon mapping from icon names to Lucide icons for categories
+const CATEGORY_ICON_MAP: Record<string, LucideIcon> = {
+  Building2,
+  MapPin,
+  Share2,
+  Sparkles,
+  Users,
+  Target,
+  Award,
+  UserCircle,
+  Briefcase,
+  Trophy,
+  BookOpen,
+  Phone,
+  GraduationCap,
+  Heart,
+  Zap,
+  BadgeCheck,
+  FileText,
+};
+
+// Color mapping for categories
+const CATEGORY_COLOR_MAP: Record<string, string> = {
+  blue: 'bg-blue-500',
+  green: 'bg-green-500',
+  purple: 'bg-purple-500',
+  amber: 'bg-amber-500',
+  cyan: 'bg-cyan-500',
+  red: 'bg-red-500',
+  yellow: 'bg-yellow-500',
+  indigo: 'bg-indigo-500',
+  slate: 'bg-slate-500',
+  emerald: 'bg-emerald-500',
+  orange: 'bg-orange-500',
+  pink: 'bg-pink-500',
+  rose: 'bg-rose-500',
+  violet: 'bg-violet-500',
 };
 
 export function ReviewTab({
@@ -63,21 +95,34 @@ export function ReviewTab({
   aiScore = 78,
   partnerIndustry,
 }: ReviewTabProps) {
-  // Group fields by category
+  // Build category config map from field registry
+  const categoryConfigMap = useMemo(() => {
+    const map: Record<FieldCategory, { label: string; icon: LucideIcon; color: string }> = {} as any;
+    for (const cat of CATEGORY_CONFIG) {
+      const Icon = CATEGORY_ICON_MAP[cat.iconName] || FileText;
+      const color = CATEGORY_COLOR_MAP[cat.color] || 'bg-slate-500';
+      map[cat.id] = { label: cat.label, icon: Icon, color };
+    }
+    return map;
+  }, []);
+
+  // Group fields by category (from definition)
   const fieldsByCategory = useMemo(() => {
     const grouped: Partial<Record<FieldCategory, MergeField[]>> = {};
     mergeFields.forEach((field) => {
-      if (!grouped[field.category]) {
-        grouped[field.category] = [];
+      const category = field.definition?.category || 'knowledge';
+      if (!grouped[category]) {
+        grouped[category] = [];
       }
-      grouped[field.category]!.push(field);
+      grouped[category]!.push(field);
     });
     return grouped;
   }, [mergeFields]);
 
   // Get active categories (ones with fields)
   const activeCategories = useMemo(() => {
-    return (Object.keys(CATEGORY_CONFIG) as FieldCategory[]).filter(
+    const categories = CATEGORY_CONFIG.map(c => c.id);
+    return categories.filter(
       (cat) => fieldsByCategory[cat] && fieldsByCategory[cat]!.length > 0
     );
   }, [fieldsByCategory]);
@@ -85,8 +130,11 @@ export function ReviewTab({
   // Calculate total stats
   const totalFields = mergeFields.length;
   const filledFields = mergeFields.filter((f) => f.finalValue).length;
-  const criticalFields = mergeFields.filter((f) => f.critical);
+  const criticalFields = mergeFields.filter((f) => f.definition?.critical);
   const criticalFilled = criticalFields.filter((f) => f.finalValue).length;
+
+  // Get field key for operations (use targetPath from definition)
+  const getFieldKey = (field: MergeField) => field.definition?.targetPath || '';
 
   return (
     <div className="grid lg:grid-cols-3 gap-6">
@@ -136,7 +184,9 @@ export function ReviewTab({
 
         {/* Dynamic Category Sections */}
         {activeCategories.map((categoryKey) => {
-          const config = CATEGORY_CONFIG[categoryKey];
+          const config = categoryConfigMap[categoryKey];
+          if (!config) return null;
+
           const fields = fieldsByCategory[categoryKey] || [];
           const Icon = config.icon;
           const filledCount = fields.filter((f) => f.finalValue).length;
@@ -166,19 +216,22 @@ export function ReviewTab({
 
               {/* Fields */}
               <div className="p-4 space-y-3">
-                {fields.map((field) => (
-                  <MergeFieldCard
-                    key={field.key}
-                    field={field}
-                    onSelectSource={(source) => onSelectSource(field.key, source)}
-                    onEdit={() => onStartEdit(field)}
-                    isEditing={editingField === field.key}
-                    editValue={editValue}
-                    onEditChange={onEditChange}
-                    onSaveEdit={() => onSaveEdit(field.key)}
-                    onCancelEdit={onCancelEdit}
-                  />
-                ))}
+                {fields.map((field) => {
+                  const fieldKey = getFieldKey(field);
+                  return (
+                    <MergeFieldCard
+                      key={fieldKey}
+                      field={field}
+                      onSelectSource={(source) => onSelectSource(fieldKey, source)}
+                      onEdit={() => onStartEdit(field)}
+                      isEditing={editingField === fieldKey}
+                      editValue={editValue}
+                      onEditChange={onEditChange}
+                      onSaveEdit={() => onSaveEdit(fieldKey)}
+                      onCancelEdit={onCancelEdit}
+                    />
+                  );
+                })}
               </div>
             </div>
           );
@@ -216,14 +269,18 @@ export function ReviewTab({
         <div className="bg-white rounded-2xl border p-5">
           <h3 className="font-bold text-slate-900 mb-3">Critical Fields</h3>
           <div className="space-y-2">
-            {criticalFields.slice(0, 5).map((field) => (
-              <div key={field.key} className="flex items-center gap-2">
-                <div className={`w-2 h-2 rounded-full ${field.finalValue ? 'bg-emerald-500' : 'bg-slate-300'}`} />
-                <span className={`text-sm ${field.finalValue ? 'text-slate-700' : 'text-slate-400'}`}>
-                  {field.label}
-                </span>
-              </div>
-            ))}
+            {criticalFields.slice(0, 5).map((field) => {
+              const fieldKey = getFieldKey(field);
+              const label = field.definition?.label || 'Unknown';
+              return (
+                <div key={fieldKey} className="flex items-center gap-2">
+                  <div className={`w-2 h-2 rounded-full ${field.finalValue ? 'bg-emerald-500' : 'bg-slate-300'}`} />
+                  <span className={`text-sm ${field.finalValue ? 'text-slate-700' : 'text-slate-400'}`}>
+                    {label}
+                  </span>
+                </div>
+              );
+            })}
           </div>
           <p className="text-xs text-slate-500 mt-3">
             {criticalFilled}/{criticalFields.length} critical fields filled
@@ -235,7 +292,8 @@ export function ReviewTab({
           <h3 className="font-bold text-slate-900 mb-3">Categories Found</h3>
           <div className="space-y-2">
             {activeCategories.map((cat) => {
-              const config = CATEGORY_CONFIG[cat];
+              const config = categoryConfigMap[cat];
+              if (!config) return null;
               const fields = fieldsByCategory[cat] || [];
               const filled = fields.filter((f) => f.finalValue).length;
               return (

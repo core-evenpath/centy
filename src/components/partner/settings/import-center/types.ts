@@ -1,49 +1,30 @@
 // src/components/partner/settings/import-center/types.ts
-// Types for Import Center v5
+// Types for Import Center v6 - Using Field Registry
 
 import type { LucideIcon } from 'lucide-react';
+import type {
+  FieldDefinition,
+  ImportSource,
+  FieldCategory,
+  ImportMetadata,
+} from '@/lib/field-registry';
+
+// Re-export types from field registry for convenience
+export type { FieldDefinition, ImportSource, FieldCategory, ImportMetadata };
 
 // Tab types
 export type ImportCenterTab = 'import' | 'merge' | 'products' | 'testimonials' | 'ai' | 'final';
 
-// Field source type
-export type FieldSource = 'google' | 'website' | 'custom' | 'manual' | 'none';
+// Legacy field source type (for backward compatibility during transition)
+export type FieldSource = ImportSource | 'custom' | 'none';
 
-// Imported field with source tracking
-export interface ImportedField<T = any> {
-  value: T;
-  source: FieldSource;
-  confidence?: number;
-  importedAt?: string;
-  verified?: boolean;
-}
-
-// Field category types (expanded for comprehensive data capture)
-export type FieldCategory =
-  | 'identity'      // Business name, tagline, description
-  | 'contact'       // Phone, email, address, hours
-  | 'social'        // Social media links
-  | 'brand'         // Mission, vision, story, values, USPs
-  | 'audience'      // Target audience, pain points, customer profile
-  | 'competitive'   // Differentiators, objection handlers
-  | 'credentials'   // Certifications, awards, accreditations
-  | 'team'          // Team members, key people
-  | 'industry'      // Industry-specific fields
-  | 'success'       // Case studies, key stats, notable clients
-  | 'knowledge';    // FAQs, policies
-
-// Merge field for conflict resolution
+// Merge field for conflict resolution UI
 export interface MergeField {
-  key: string;              // e.g., "identity.tagline"
-  label: string;
-  icon?: LucideIcon;
-  category: FieldCategory;
-  critical?: boolean;       // Key field flag
-  multiline?: boolean;
-  googleValue: any | null;
-  websiteValue: any | null;
-  finalValue: any | null;
-  selectedSource: FieldSource;
+  definition: FieldDefinition;
+  values: Partial<Record<ImportSource, any>>;
+  selectedSource: ImportSource | 'custom' | 'none';
+  finalValue: any;
+  customValue?: any;
   hasConflict: boolean;
 }
 
@@ -139,6 +120,10 @@ export interface ImportCenterState {
   websiteUrl: string;
   importing: 'google' | 'website' | null;
 
+  // Raw data
+  googleRawData: any | null;
+  websiteRawData: any | null;
+
   // Data
   mergeFields: MergeField[];
   products: ImportedProduct[];
@@ -156,21 +141,37 @@ export interface ImportCenterState {
   applied: boolean;
 }
 
-// Field definition for merge
-export interface FieldDefinition {
-  key: string;
-  label: string;
-  icon?: LucideIcon;
-  category: FieldCategory;
-  critical?: boolean;
-  multiline?: boolean;
-  paths?: string[];  // Multiple paths to try when extracting value
-}
-
-// Category definition
+// Category definition for UI display
 export interface CategoryDefinition {
-  id: string;
+  id: FieldCategory;
   label: string;
   icon: LucideIcon;
+  iconName: string;
   color: string;
+  description?: string;
+}
+
+// Taxonomy for field filtering
+export interface TaxonomyConfig {
+  industry?: string;
+  country?: string;
+  subCategory?: string;
+}
+
+// Import result from sources
+export interface ImportResult {
+  success: boolean;
+  data?: any;
+  error?: string;
+  source: ImportSource;
+  timestamp: string;
+}
+
+// Field update record
+export interface FieldUpdate {
+  path: string;
+  oldValue: any;
+  newValue: any;
+  source: ImportSource | 'custom';
+  timestamp: string;
 }
