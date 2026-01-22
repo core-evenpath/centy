@@ -20,6 +20,331 @@ import {
 } from '@/lib/business-data-parsers';
 import type { BusinessPersona, IndustryCategory } from '@/lib/business-persona-types';
 
+// ============================================
+// HUMAN-READABLE LABEL TO KEY NORMALIZATION
+// Maps display labels to programmatic keys
+// ============================================
+
+const HUMAN_LABEL_TO_KEY: Record<string, string> = {
+  // Identity / Contact
+  'address': 'address',
+  'business address': 'address',
+  'location': 'location',
+  'street address': 'address',
+  'google maps link': 'google_maps_url',
+  'google maps url': 'google_maps_url',
+  'maps link': 'google_maps_url',
+  'directions': 'google_maps_url',
+  'languages spoken': 'languages',
+  'languages': 'languages',
+  'supported languages': 'languages',
+  'year established': 'year_established',
+  'established': 'year_established',
+  'founded': 'year_established',
+  'founded year': 'year_established',
+  'since': 'year_established',
+  'in business since': 'year_established',
+  'phone': 'phone',
+  'phone number': 'phone',
+  'contact number': 'phone',
+  'telephone': 'phone',
+  'mobile': 'phone',
+  'email': 'email',
+  'email address': 'email',
+  'contact email': 'email',
+  'website': 'website',
+  'website url': 'website',
+  'web': 'website',
+  'homepage': 'website',
+
+  // Audience & Positioning
+  'target audience': 'target_audience',
+  'target market': 'target_audience',
+  'audience': 'target_audience',
+  'who we serve': 'target_audience',
+  'ideal customer': 'ideal_customer_profile',
+  'ideal client': 'ideal_customer_profile',
+  'customer profile': 'ideal_customer_profile',
+  'market position': 'market_position',
+  'market positioning': 'market_position',
+  'positioning': 'market_position',
+  'competitive position': 'market_position',
+  'unique selling points': 'unique_selling_points',
+  'usps': 'unique_selling_points',
+  'what makes us different': 'differentiators',
+  'differentiators': 'differentiators',
+  'why choose us': 'differentiators',
+  'competitive advantage': 'differentiators',
+
+  // Hotel / Hospitality specific
+  'check-in/check-out': 'checkin_checkout',
+  'check in check out': 'checkin_checkout',
+  'check-in time': 'checkin_checkout',
+  'check-out time': 'checkin_checkout',
+  'checkin checkout': 'checkin_checkout',
+  'check in/check out': 'checkin_checkout',
+  'pet policy': 'pet_policy',
+  'pets allowed': 'pet_policy',
+  'pets': 'pet_policy',
+  'pet friendly': 'pet_policy',
+  'key amenities': 'amenities',
+  'amenities': 'amenities',
+  'facilities': 'amenities',
+  'hotel amenities': 'amenities',
+  'room amenities': 'amenities',
+  'property amenities': 'amenities',
+  'room types': 'room_types',
+  'rooms': 'room_types',
+  'accommodation types': 'room_types',
+  'cancellation policy': 'cancellation_policy',
+  'cancellation': 'cancellation_policy',
+  'refund policy': 'cancellation_policy',
+
+  // Payments & Operations
+  'accepted payment methods': 'payment_methods',
+  'payment methods': 'payment_methods',
+  'payments accepted': 'payment_methods',
+  'we accept': 'payment_methods',
+  'payment options': 'payment_methods',
+  'forms of payment': 'payment_methods',
+  'operating hours': 'operating_hours',
+  'hours': 'operating_hours',
+  'business hours': 'operating_hours',
+  'opening hours': 'operating_hours',
+  'open hours': 'operating_hours',
+  'working hours': 'operating_hours',
+  'timings': 'operating_hours',
+
+  // Products & Services
+  'services': 'services',
+  'our services': 'services',
+  'services offered': 'services',
+  'products': 'products',
+  'our products': 'products',
+  'menu': 'menu',
+  'food menu': 'menu',
+  'pricing': 'pricing',
+  'prices': 'pricing',
+  'price list': 'pricing',
+  'rates': 'pricing',
+
+  // Credentials
+  'awards': 'awards',
+  'awards and recognition': 'awards',
+  'achievements': 'awards',
+  'certifications': 'certifications',
+  'certificates': 'certifications',
+  'accreditations': 'certifications',
+  'licenses': 'certifications',
+
+  // Reviews & Ratings
+  'google rating': 'google_rating',
+  'rating': 'google_rating',
+  'reviews': 'reviews',
+  'customer reviews': 'reviews',
+  'testimonials': 'testimonials',
+  'review count': 'review_count',
+  'number of reviews': 'review_count',
+  'total reviews': 'review_count',
+
+  // Brand & Personality
+  'description': 'description',
+  'about': 'description',
+  'about us': 'description',
+  'company description': 'description',
+  'overview': 'description',
+  'tagline': 'tagline',
+  'slogan': 'tagline',
+  'motto': 'tagline',
+  'mission': 'mission_statement',
+  'mission statement': 'mission_statement',
+  'our mission': 'mission_statement',
+  'vision': 'vision_statement',
+  'vision statement': 'vision_statement',
+  'our vision': 'vision_statement',
+  'values': 'brand_values',
+  'core values': 'brand_values',
+  'brand values': 'brand_values',
+  'our values': 'brand_values',
+  'story': 'story',
+  'our story': 'story',
+  'brand story': 'story',
+  'history': 'story',
+
+  // Social Media
+  'social media': 'social_media',
+  'social links': 'social_media',
+  'follow us': 'social_media',
+  'instagram': 'instagram',
+  'facebook': 'facebook',
+  'twitter': 'twitter',
+  'x': 'twitter',
+  'linkedin': 'linkedin',
+  'youtube': 'youtube',
+  'tiktok': 'tiktok',
+  'pinterest': 'pinterest',
+
+  // Team
+  'team': 'team_members',
+  'team members': 'team_members',
+  'our team': 'team_members',
+  'staff': 'team_members',
+  'employees': 'team_members',
+  'founders': 'founders',
+  'leadership': 'team_members',
+  'management': 'team_members',
+
+  // Industry Specific
+  'cuisine': 'cuisine_type',
+  'cuisine type': 'cuisine_type',
+  'food type': 'cuisine_type',
+  'specialties': 'specialties',
+  'specialities': 'specialties',
+  'specialty': 'specialties',
+  'spa services': 'spa_services',
+  'wellness': 'spa_services',
+  'parking': 'parking',
+  'parking available': 'parking',
+  'valet': 'parking',
+  'wifi': 'wifi',
+  'internet': 'wifi',
+  'free wifi': 'wifi',
+};
+
+/**
+ * Normalize a key from human-readable label to programmatic key
+ */
+function normalizeKeyFromLabel(key: string): string {
+  if (!key) return key;
+
+  // Convert to lowercase and trim for matching
+  const normalizedLabel = key.toLowerCase().trim();
+
+  // Direct match in label map
+  if (HUMAN_LABEL_TO_KEY[normalizedLabel]) {
+    return HUMAN_LABEL_TO_KEY[normalizedLabel];
+  }
+
+  // Try without special characters
+  const cleanLabel = normalizedLabel.replace(/[^a-z0-9\s]/g, ' ').replace(/\s+/g, ' ').trim();
+  if (HUMAN_LABEL_TO_KEY[cleanLabel]) {
+    return HUMAN_LABEL_TO_KEY[cleanLabel];
+  }
+
+  // Convert spaces/dashes to underscores for programmatic key format
+  const programmaticKey = normalizedLabel
+    .replace(/[^a-z0-9]/g, '_')
+    .replace(/_+/g, '_')
+    .replace(/^_|_$/g, '');
+
+  return programmaticKey;
+}
+
+/**
+ * Map normalized key to canonical profile path
+ */
+const KEY_TO_PROFILE_PATH: Record<string, { path: string; section: string }> = {
+  // Identity
+  'address': { path: 'identity.address', section: 'identity' },
+  'google_maps_url': { path: 'identity.googleMapsUrl', section: 'identity' },
+  'languages': { path: 'identity.languages', section: 'identity' },
+  'year_established': { path: 'personality.foundedYear', section: 'personality' },
+  'phone': { path: 'identity.phone', section: 'identity' },
+  'email': { path: 'identity.email', section: 'identity' },
+  'website': { path: 'identity.website', section: 'identity' },
+  'location': { path: 'identity.address', section: 'identity' },
+
+  // Audience & Positioning
+  'target_audience': { path: 'customerProfile.targetAudience', section: 'customerProfile' },
+  'ideal_customer_profile': { path: 'customerProfile.idealCustomerProfile', section: 'customerProfile' },
+  'market_position': { path: 'customerProfile.marketPosition', section: 'customerProfile' },
+  'unique_selling_points': { path: 'personality.uniqueSellingPoints', section: 'personality' },
+  'differentiators': { path: 'customerProfile.differentiators', section: 'customerProfile' },
+
+  // Hotel / Hospitality
+  'checkin_checkout': { path: 'knowledge.policies.checkInCheckOut', section: 'knowledge' },
+  'pet_policy': { path: 'knowledge.policies.petPolicy', section: 'knowledge' },
+  'amenities': { path: 'hotelAmenities', section: 'hotelAmenities' },
+  'room_types': { path: 'roomTypes', section: 'roomTypes' },
+  'cancellation_policy': { path: 'knowledge.policies.cancellationPolicy', section: 'knowledge' },
+
+  // Payments & Operations
+  'payment_methods': { path: 'knowledge.acceptedPayments', section: 'knowledge' },
+  'operating_hours': { path: 'identity.operatingHours', section: 'identity' },
+
+  // Products & Services
+  'services': { path: 'knowledge.productsOrServices', section: 'knowledge' },
+  'products': { path: 'knowledge.productsOrServices', section: 'knowledge' },
+  'menu': { path: 'menuItems', section: 'menuItems' },
+  'pricing': { path: 'knowledge.pricingModel', section: 'knowledge' },
+
+  // Credentials
+  'awards': { path: 'knowledge.awards', section: 'knowledge' },
+  'certifications': { path: 'knowledge.certifications', section: 'knowledge' },
+
+  // Reviews
+  'google_rating': { path: 'industrySpecificData.googleRating', section: 'industrySpecificData' },
+  'reviews': { path: 'webIntelligence.reviews', section: 'webIntelligence' },
+  'testimonials': { path: 'testimonials', section: 'testimonials' },
+  'review_count': { path: 'industrySpecificData.googleReviewCount', section: 'industrySpecificData' },
+
+  // Brand
+  'description': { path: 'personality.description', section: 'personality' },
+  'tagline': { path: 'personality.tagline', section: 'personality' },
+  'mission_statement': { path: 'personality.missionStatement', section: 'personality' },
+  'vision_statement': { path: 'personality.visionStatement', section: 'personality' },
+  'brand_values': { path: 'personality.brandValues', section: 'personality' },
+  'story': { path: 'personality.story', section: 'personality' },
+
+  // Social
+  'social_media': { path: 'identity.socialMedia', section: 'identity' },
+  'instagram': { path: 'identity.socialMedia.instagram', section: 'identity' },
+  'facebook': { path: 'identity.socialMedia.facebook', section: 'identity' },
+  'twitter': { path: 'identity.socialMedia.twitter', section: 'identity' },
+  'linkedin': { path: 'identity.socialMedia.linkedin', section: 'identity' },
+  'youtube': { path: 'identity.socialMedia.youtube', section: 'identity' },
+
+  // Team
+  'team_members': { path: 'knowledge.teamMembers', section: 'knowledge' },
+  'founders': { path: 'knowledge.teamMembers', section: 'knowledge' },
+
+  // Industry Specific
+  'cuisine_type': { path: 'industrySpecificData.cuisineType', section: 'industrySpecificData' },
+  'specialties': { path: 'industrySpecificData.specialties', section: 'industrySpecificData' },
+  'spa_services': { path: 'industrySpecificData.spaServices', section: 'industrySpecificData' },
+  'parking': { path: 'industrySpecificData.parking', section: 'industrySpecificData' },
+  'wifi': { path: 'industrySpecificData.wifi', section: 'industrySpecificData' },
+};
+
+/**
+ * Set a nested value in an object using dot notation path
+ */
+function setNestedValue(obj: any, path: string, value: any): void {
+  const parts = path.split('.');
+  let current = obj;
+
+  for (let i = 0; i < parts.length - 1; i++) {
+    if (!current[parts[i]]) {
+      current[parts[i]] = {};
+    }
+    current = current[parts[i]];
+  }
+
+  const lastKey = parts[parts.length - 1];
+  const existingValue = current[lastKey];
+
+  // Smart merge: append to arrays, merge objects, replace primitives
+  if (Array.isArray(existingValue) && Array.isArray(value)) {
+    current[lastKey] = [...existingValue, ...value];
+  } else if (Array.isArray(value)) {
+    current[lastKey] = value;
+  } else if (typeof existingValue === 'object' && typeof value === 'object' && existingValue && value) {
+    current[lastKey] = { ...existingValue, ...value };
+  } else {
+    current[lastKey] = value;
+  }
+}
+
 /**
  * Search for businesses using Google Places Autocomplete
  */
@@ -657,6 +982,84 @@ export async function applyImportToProfileAction(
       fieldsUpdated.push('customerProfile.customerDemographics');
     }
 
+    // Differentiators - from multiple sources
+    const differentiators = [
+      ...(customerProfile.differentiators || []),
+      ...(importedData.differentiators || []),
+      ...(importedData.competitiveIntel?.differentiators?.map((d: any) => typeof d === 'string' ? d : d.point) || []),
+      ...(importedData.competitiveIntel?.competitiveAdvantages || []),
+      ...(importedData.whyChooseUs || []),
+      ...(importedData.competitive_advantage || []),
+    ];
+    const uniqueDifferentiators = Array.from(new Set(differentiators.filter(Boolean)));
+    if (uniqueDifferentiators.length > 0) {
+      (profile.customerProfile as any).differentiators = uniqueDifferentiators;
+      fieldsUpdated.push('customerProfile.differentiators');
+    }
+
+    // Value Propositions
+    const valueProps = [
+      ...(customerProfile.valuePropositions || []),
+      ...(importedData.valuePropositions || []),
+      ...(importedData.customerInsights?.valuePropositions || []),
+      ...(importedData.benefits || []),
+      ...(importedData.keyBenefits || []),
+    ];
+    const uniqueValueProps = Array.from(new Set(valueProps.filter(Boolean)));
+    if (uniqueValueProps.length > 0) {
+      (profile.customerProfile as any).valuePropositions = uniqueValueProps;
+      fieldsUpdated.push('customerProfile.valuePropositions');
+    }
+
+    // Objection Handlers
+    const objectionHandlers = [
+      ...(customerProfile.objectionHandlers || []),
+      ...(importedData.objectionHandlers || []),
+      ...(importedData.customerInsights?.commonObjections?.map((o: any) =>
+        typeof o === 'string' ? { objection: o, response: '' } : o
+      ) || []),
+    ];
+    if (objectionHandlers.length > 0) {
+      (profile.customerProfile as any).objectionHandlers = objectionHandlers;
+      fieldsUpdated.push('customerProfile.objectionHandlers');
+    }
+
+    // Ideal Customer Profile
+    const icp = customerProfile.idealCustomerProfile || importedData.idealCustomerProfile ||
+                importedData.customerInsights?.idealCustomerProfile || importedData.idealCustomer;
+    if (icp) {
+      (profile.customerProfile as any).idealCustomerProfile = icp;
+      fieldsUpdated.push('customerProfile.idealCustomerProfile');
+    }
+
+    // Primary Audience
+    const primaryAudience = customerProfile.primaryAudience || importedData.primaryAudience ||
+                            importedData.whoWeServe || importedData.targetCustomers;
+    if (primaryAudience) {
+      (profile.customerProfile as any).primaryAudience = Array.isArray(primaryAudience)
+        ? primaryAudience.join(', ')
+        : primaryAudience;
+      fieldsUpdated.push('customerProfile.primaryAudience');
+    }
+
+    // Customer Type (B2B, B2C, etc.)
+    const customerType = customerProfile.customerType || importedData.customerType ||
+                         importedData.clientTypes || industrySpecificData?.clientTypes;
+    if (customerType) {
+      (profile.customerProfile as any).customerType = Array.isArray(customerType)
+        ? customerType.join(', ')
+        : customerType;
+      fieldsUpdated.push('customerProfile.customerType');
+    }
+
+    // Common Queries
+    const commonQueries = customerProfile.commonQueries || importedData.commonQueries ||
+                          importedData.customerInsights?.commonQuestions;
+    if (commonQueries && Array.isArray(commonQueries) && commonQueries.length > 0) {
+      (profile.customerProfile as any).commonQueries = commonQueries;
+      fieldsUpdated.push('customerProfile.commonQueries');
+    }
+
     // ========================================
     // 4. KNOWLEDGE SECTION
     // ========================================
@@ -856,20 +1259,41 @@ export async function applyImportToProfileAction(
       }
 
       // --- OTHER USEFUL DATA ---
-      // Combine AI-found useful data with imported 'fromTheWeb' data
+      // First try to map data using key normalization, then collect truly unmapped items
       let unmappedItems: any[] = [];
 
-      // 1. From AI Mapping
+      /**
+       * Try to map a key-value pair to the profile using normalization
+       * Returns true if mapped successfully, false if unmapped
+       */
+      const tryMapToProfile = (key: string, value: any, source: string): boolean => {
+        const normalizedKey = normalizeKeyFromLabel(key);
+        const mapping = KEY_TO_PROFILE_PATH[normalizedKey];
+
+        if (mapping && value) {
+          console.log(`[ApplyImport] Mapping "${key}" -> ${mapping.path}`);
+          setNestedValue(profile, mapping.path, value);
+          fieldsUpdated.push(mapping.path);
+          return true;
+        }
+        return false;
+      };
+
+      // 1. From AI Mapping - try to map first, then collect unmapped
       if (aiMapping.other_useful_data && aiMapping.other_useful_data.length > 0) {
-        unmappedItems = [...unmappedItems, ...aiMapping.other_useful_data.map(item => ({
-          key: item.key,
-          value: item.value,
-          source: item.source || 'AI Analysis',
-          id: `unmapped_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`
-        }))];
+        aiMapping.other_useful_data.forEach((item: any) => {
+          if (!tryMapToProfile(item.key, item.value, item.source || 'AI Analysis')) {
+            unmappedItems.push({
+              key: item.key,
+              value: item.value,
+              source: item.source || 'AI Analysis',
+              id: `unmapped_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`
+            });
+          }
+        });
       }
 
-      // 2. From 'From The Web' section (raw import)
+      // 2. From 'From The Web' section (raw import) - try to map first
       const fromTheWeb = importedData.fromTheWeb;
       if (fromTheWeb) {
         if (fromTheWeb.websiteContent) {
@@ -877,12 +1301,15 @@ export async function applyImportToProfileAction(
         }
         if (fromTheWeb.additionalInfo) {
           Object.entries(fromTheWeb.additionalInfo).forEach(([k, v]) => {
-            unmappedItems.push({
-              key: k,
-              value: typeof v === 'string' ? v : JSON.stringify(v),
-              source: 'website',
-              id: `web_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`
-            });
+            const value = typeof v === 'string' ? v : JSON.stringify(v);
+            if (!tryMapToProfile(k, value, 'website')) {
+              unmappedItems.push({
+                key: k,
+                value: value,
+                source: 'website',
+                id: `web_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`
+              });
+            }
           });
         }
         if (fromTheWeb.otherFindings && Array.isArray(fromTheWeb.otherFindings)) {
@@ -896,6 +1323,38 @@ export async function applyImportToProfileAction(
           });
         }
       }
+
+      // 3. Also process top-level flat importedData keys that might be human-readable labels
+      const processedKeys = new Set([
+        'identity', 'personality', 'knowledge', 'customerProfile', 'industrySpecificData',
+        'webIntelligence', 'hotelAmenities', 'menuItems', 'roomTypes', 'fromTheWeb',
+        'testimonials', 'productCatalog', 'propertyListings', 'healthcareServices'
+      ]);
+
+      Object.entries(importedData).forEach(([key, value]) => {
+        if (!processedKeys.has(key) && value !== null && value !== undefined) {
+          // Skip if already a structured section
+          if (typeof value === 'object' && !Array.isArray(value) && Object.keys(value).length > 3) {
+            return; // Likely a nested section, not a simple field
+          }
+
+          const stringValue = typeof value === 'string' ? value :
+                             Array.isArray(value) ? value.join(', ') :
+                             JSON.stringify(value);
+
+          if (stringValue && !tryMapToProfile(key, value, 'import')) {
+            // Only add to unmapped if it's a meaningful value
+            if (stringValue.length > 0 && stringValue !== '{}' && stringValue !== '[]') {
+              unmappedItems.push({
+                key: key,
+                value: stringValue,
+                source: 'import',
+                id: `import_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`
+              });
+            }
+          }
+        }
+      });
 
       if (unmappedItems.length > 0) {
         if (!profile.webIntelligence) {
