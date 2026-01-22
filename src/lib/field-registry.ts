@@ -232,6 +232,7 @@ export const FIELD_REGISTRY: FieldDefinition[] = [
     critical: true,
     sourcePaths: [
       'identity.name',
+      'identity.businessName',  // AutoFilledProfile uses this path
       'name',
       'businessName',
       'displayName',
@@ -259,6 +260,7 @@ export const FIELD_REGISTRY: FieldDefinition[] = [
     critical: true,
     sourcePaths: [
       'personality.tagline',
+      'identity.tagline',  // AutoFilledProfile may use this path
       'tagline',
       'slogan',
       'motto',
@@ -274,6 +276,7 @@ export const FIELD_REGISTRY: FieldDefinition[] = [
     multiline: true,
     sourcePaths: [
       'personality.description',
+      'identity.description',  // AutoFilledProfile may use this path
       'description',
       'about',
       'summary',
@@ -291,6 +294,7 @@ export const FIELD_REGISTRY: FieldDefinition[] = [
     transform: 'industry',
     sourcePaths: [
       'industry',
+      'identity.industry',  // AutoFilledProfile uses this path
       'businessCategory',
       'category',
       'primaryCategory',
@@ -1962,11 +1966,13 @@ function extractFromOnlinePresence(data: any, platform: string): string | null {
 
   const platformLower = platform.toLowerCase();
   const entry = onlinePresence.find((item: any) => {
-    const itemPlatform = (item.platform || item.type || '').toLowerCase();
+    // Support multiple property names: platform, type, source
+    const itemPlatform = (item.platform || item.type || item.source || '').toLowerCase();
     return itemPlatform === platformLower || itemPlatform.includes(platformLower);
   });
 
-  return entry?.url || entry?.link || null;
+  // Support multiple URL property names: url, link, sourceUrl
+  return entry?.url || entry?.link || entry?.sourceUrl || null;
 }
 
 /**
