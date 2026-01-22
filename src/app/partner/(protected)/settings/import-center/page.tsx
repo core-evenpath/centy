@@ -25,7 +25,6 @@ import type { BusinessPersona } from '@/lib/business-persona-types';
 import {
   buildMergeFields as buildMergeFieldsFromRegistry,
   applyMergeFieldsToPersona,
-  savePersonaToFirestore,
 } from '@/lib/field-registry';
 import type { ImportSource } from '@/lib/field-registry';
 import {
@@ -870,16 +869,13 @@ export default function ImportCenterPage() {
           tags: (newPersona as any).tags,
         };
 
-        // Save using field registry function
-        const saveResult = await savePersonaToFirestore(partnerId, finalPersona, metadata);
-
-        if (!saveResult.success) {
-          throw new Error(saveResult.error || 'Failed to save to Firestore');
-        }
-
-        // Also save via the existing action for additional processing
-        await saveBusinessPersonaAction(partnerId, {
+        // Save via server action which does proper deep merging with existing data
+        // NOTE: Removed savePersonaToFirestore call - it was using setDoc which replaces
+        // the entire businessPersona object instead of deep merging, causing data loss
+        const saveResult = await saveBusinessPersonaAction(partnerId, {
           ...finalPersona,
+          _importMeta: metadata,
+          _fieldSources: metadata.fieldSources,
           importHistory: {
             ...persona.importHistory,
             lastAppliedAt: new Date(),
@@ -890,16 +886,17 @@ export default function ImportCenterPage() {
             appliedTags: selectedTags?.length || 0,
           },
         });
+
+        if (!saveResult.success) {
+          throw new Error(saveResult.message || 'Failed to save to Firestore');
+        }
       } else {
         // Fall back to just field registry output
-        const saveResult = await savePersonaToFirestore(partnerId, newPersona, metadata);
-
-        if (!saveResult.success) {
-          throw new Error(saveResult.error || 'Failed to save to Firestore');
-        }
-
-        await saveBusinessPersonaAction(partnerId, {
+        // Use server action for proper deep merging
+        const saveResult = await saveBusinessPersonaAction(partnerId, {
           ...newPersona,
+          _importMeta: metadata,
+          _fieldSources: metadata.fieldSources,
           importHistory: {
             ...persona.importHistory,
             lastAppliedAt: new Date(),
@@ -910,6 +907,10 @@ export default function ImportCenterPage() {
             appliedTags: selectedTags?.length || 0,
           },
         });
+
+        if (!saveResult.success) {
+          throw new Error(saveResult.message || 'Failed to save to Firestore');
+        }
       }
 
       setApplied(true);
