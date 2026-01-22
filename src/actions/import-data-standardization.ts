@@ -1362,16 +1362,24 @@ export async function mapStandardizedDataToCanonicalProfile(
       }
 
       const existingOther = (profile.webIntelligence as any).otherUsefulData || [];
+      const existingKeys = new Set(existingOther.map((item: any) => item.key?.toLowerCase()));
+
+      // Add new unmapped items, avoiding duplicates by key
+      const newUnmappedItems = unmappedData
+        .map(dp => {
+          // Use display_label if available, otherwise clean up the key
+          const displayKey = dp.display_label || dp.key.replace(/^unmapped_/, '').replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+          return {
+            key: displayKey,
+            value: typeof dp.value === 'string' ? dp.value : JSON.stringify(dp.value),
+            source: dp.source,
+          };
+        })
+        .filter(item => !existingKeys.has(item.key.toLowerCase()));  // Skip duplicates
 
       (profile.webIntelligence as any).otherUsefulData = [
         ...existingOther,
-        ...unmappedData
-          .filter(dp => !dp.key.startsWith('unmapped_'))  // Skip already-unmapped items
-          .map(dp => ({
-            key: dp.display_label || dp.key,
-            value: typeof dp.value === 'string' ? dp.value : JSON.stringify(dp.value),
-            source: dp.source,
-          })),
+        ...newUnmappedItems,
       ];
     }
 
