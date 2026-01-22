@@ -5,7 +5,7 @@ import {
     HelpCircle, Trophy, ArrowRight, Cpu, Loader2, Trash2, Globe,
     Landmark, GraduationCap, Heart, Briefcase, ShoppingBag, UtensilsCrossed,
     ShoppingCart, Car, Plane, Building, PartyPopper, Wrench, MoreHorizontal,
-    LucideIcon, Zap
+    LucideIcon, Zap, FileQuestion, ExternalLink
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { BusinessPersona } from '@/lib/business-persona-types';
@@ -368,7 +368,14 @@ export default function BusinessProfileTab({
     // We want to show industrySpecificData that we didn't explicitly render
     const industryData = get('industrySpecificData', {});
     const knownKeys = ['registrations', 'reraNumber', 'teamSize', 'propertyTypes', 'transactionTypes', 'serviceLocalities', 'keyLocalities'];
-    const extraData = Object.entries(industryData).filter(([key]) => !knownKeys.includes(key));
+    const extraIndustryData = Object.entries(industryData).filter(([key]) => !knownKeys.includes(key));
+
+    // Unmapped data from imports (webIntelligence.otherUsefulData)
+    const webIntelligence = get('webIntelligence', {});
+    const otherUsefulData: { key: string; value: string; source?: string }[] = webIntelligence.otherUsefulData || [];
+
+    // Combine all unmapped data for display
+    const hasUnmappedData = extraIndustryData.length > 0 || otherUsefulData.length > 0;
 
 
     return (
@@ -723,6 +730,99 @@ export default function BusinessProfileTab({
                                     </div>
                                 </div>
                             </Section>
+
+                            {/* 8. Unmapped Information - Data imported but not mapped to standard fields */}
+                            {hasUnmappedData && (
+                                <Section title="Unmapped Information" icon={FileQuestion} iconBg="bg-slate-500">
+                                    <div className="space-y-4">
+                                        <div className="p-3 bg-amber-50 rounded-lg border border-amber-200 mb-4">
+                                            <p className="text-sm text-amber-800">
+                                                This data was imported but couldn't be automatically mapped to standard fields.
+                                                The AI assistant can still use this information when helping customers.
+                                            </p>
+                                        </div>
+
+                                        {/* Imported data from webIntelligence.otherUsefulData */}
+                                        {otherUsefulData.length > 0 && (
+                                            <div className="space-y-3">
+                                                <h4 className="text-xs font-medium text-slate-500 uppercase tracking-wide">Imported Data</h4>
+                                                {otherUsefulData.map((item, index) => (
+                                                    <div key={`imported-${index}`} className="p-4 bg-slate-50 rounded-xl border border-slate-200">
+                                                        <div className="flex items-start justify-between gap-3">
+                                                            <div className="flex-1 min-w-0">
+                                                                <div className="flex items-center gap-2 mb-1">
+                                                                    <span className="font-medium text-slate-700 text-sm">{item.key}</span>
+                                                                    {item.source && (
+                                                                        <span className="px-1.5 py-0.5 text-[10px] font-medium bg-slate-200 text-slate-600 rounded capitalize">
+                                                                            {item.source}
+                                                                        </span>
+                                                                    )}
+                                                                </div>
+                                                                <p className="text-sm text-slate-600 whitespace-pre-wrap break-words">
+                                                                    {typeof item.value === 'string'
+                                                                        ? item.value
+                                                                        : JSON.stringify(item.value, null, 2)}
+                                                                </p>
+                                                            </div>
+                                                            <button
+                                                                onClick={async () => {
+                                                                    const updated = otherUsefulData.filter((_, i) => i !== index);
+                                                                    await onUpdate('webIntelligence.otherUsefulData', updated);
+                                                                }}
+                                                                className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors flex-shrink-0"
+                                                                title="Remove this item"
+                                                            >
+                                                                <Trash2 className="w-4 h-4" />
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )}
+
+                                        {/* Extra industry-specific data */}
+                                        {extraIndustryData.length > 0 && (
+                                            <div className="space-y-3">
+                                                <h4 className="text-xs font-medium text-slate-500 uppercase tracking-wide mt-4">Additional Industry Data</h4>
+                                                {extraIndustryData.map(([key, value]) => (
+                                                    <div key={`industry-${key}`} className="p-4 bg-slate-50 rounded-xl border border-slate-200">
+                                                        <div className="flex items-start justify-between gap-3">
+                                                            <div className="flex-1 min-w-0">
+                                                                <span className="font-medium text-slate-700 text-sm mb-1 block">
+                                                                    {key.replace(/([A-Z])/g, ' $1').replace(/^./, s => s.toUpperCase())}
+                                                                </span>
+                                                                <p className="text-sm text-slate-600 whitespace-pre-wrap break-words">
+                                                                    {typeof value === 'string'
+                                                                        ? value
+                                                                        : Array.isArray(value)
+                                                                            ? value.join(', ')
+                                                                            : JSON.stringify(value, null, 2)}
+                                                                </p>
+                                                            </div>
+                                                            <button
+                                                                onClick={async () => {
+                                                                    await onUpdate(`industrySpecificData.${key}`, null);
+                                                                }}
+                                                                className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors flex-shrink-0"
+                                                                title="Remove this item"
+                                                            >
+                                                                <Trash2 className="w-4 h-4" />
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )}
+
+                                        {/* Empty state - this shouldn't show since we check hasUnmappedData */}
+                                        {otherUsefulData.length === 0 && extraIndustryData.length === 0 && (
+                                            <div className="text-center py-6 text-slate-400">
+                                                No unmapped data available.
+                                            </div>
+                                        )}
+                                    </div>
+                                </Section>
+                            )}
                         </div>
                     </>
                 ) : (
