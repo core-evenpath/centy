@@ -37,7 +37,54 @@ import {
   Briefcase,
   Info,
   Search,
+  Mail,
+  Globe,
+  MessageCircle,
+  Instagram,
+  Facebook,
+  Linkedin,
+  Twitter,
+  Youtube,
+  Store,
+  Eye,
+  Heart,
+  BookOpen,
+  BarChart2,
+  HelpCircle,
+  AlertCircle,
+  Shield,
+  Trophy,
+  CheckCircle,
+  FileCheck,
+  UserCircle,
+  CreditCard,
+  Calendar,
+  Hash,
+  Map,
+  Share2,
+  MessageSquare,
+  AlignLeft,
+  Pill,
+  Building,
+  Smartphone,
+  Stethoscope,
+  Home,
+  Receipt,
+  BedDouble,
+  TestTube2,
+  Siren,
+  Video,
+  UtensilsCrossed,
+  Utensils,
+  Leaf,
+  Truck,
+  Grid,
+  Tag,
+  RotateCcw,
+  ShoppingCart,
+  Link,
 } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 import { ReviewAccordionSection } from '../cards';
 import { ReviewFieldRow, ReviewProductRow, ReviewTestimonialRow } from '../rows';
 import {
@@ -51,6 +98,97 @@ import {
   TAG_CATEGORY_META,
 } from '@/lib/profile-tags-types';
 import type { MergeField, ImportedProduct, EnrichedTestimonial, AISuggestion, ImportCenterTab } from '../types';
+
+// Icon mapping from string names to Lucide icons
+const ICON_MAP: Record<string, LucideIcon> = {
+  Building2,
+  Phone,
+  Mail,
+  Globe,
+  MapPin,
+  Clock,
+  MessageCircle,
+  Instagram,
+  Facebook,
+  Linkedin,
+  Twitter,
+  Youtube,
+  Store,
+  Target,
+  Eye,
+  Heart,
+  Star,
+  BookOpen,
+  Quote,
+  Users,
+  BarChart2,
+  HelpCircle,
+  AlertCircle,
+  TrendingUp,
+  Zap,
+  Shield,
+  Compass,
+  DollarSign,
+  Award,
+  Trophy,
+  CheckCircle,
+  FileCheck,
+  FileText,
+  UserCircle,
+  Briefcase,
+  Package,
+  CreditCard,
+  Calendar,
+  Hash,
+  Map,
+  Share2,
+  MessageSquare,
+  AlignLeft,
+  ShieldCheck,
+  Pill,
+  Building,
+  Smartphone,
+  Stethoscope,
+  Home,
+  Receipt,
+  BedDouble,
+  TestTube2,
+  Siren,
+  Video,
+  UtensilsCrossed,
+  Utensils,
+  Leaf,
+  Truck,
+  Grid,
+  Tag,
+  RotateCcw,
+  ShoppingCart,
+  GraduationCap,
+  Link,
+  Sparkles: Star, // Fallback
+  IdCard: CreditCard, // Fallback
+};
+
+// Helper to get icon from field
+function getFieldIcon(field: MergeField): LucideIcon {
+  const iconName = field.definition?.iconName || 'FileText';
+  return ICON_MAP[iconName] || FileText;
+}
+
+// Helper to get field key (targetPath)
+function getFieldKey(field: MergeField): string {
+  return field.definition?.targetPath || '';
+}
+
+// Helper to get field label
+function getFieldLabel(field: MergeField): string {
+  return field.definition?.label || 'Unknown';
+}
+
+// Helper to get field category
+function getFieldCategory(field: MergeField): string {
+  return field.definition?.category || 'knowledge';
+}
 
 interface ApplyTabProps {
   mergeFields: MergeField[];
@@ -152,9 +290,10 @@ export function ApplyTab({
   const [showAllGroups, setShowAllGroups] = useState(false);
   const [hoveredTag, setHoveredTag] = useState<string | null>(null);
 
-  const identityFields = mergeFields.filter((f) => f.category === 'identity');
-  const contactFields = mergeFields.filter((f) => f.category === 'contact');
-  const industryFields = mergeFields.filter((f) => f.category === 'industry');
+  // Filter fields by category using the new structure
+  const identityFields = mergeFields.filter((f) => getFieldCategory(f) === 'identity');
+  const contactFields = mergeFields.filter((f) => getFieldCategory(f) === 'contact');
+  const industryFields = mergeFields.filter((f) => getFieldCategory(f) === 'industry');
 
   const selectedProducts = products.filter((p) => p.selected);
   const selectedTestimonials = testimonials.filter((t) => t.selected);
@@ -164,20 +303,23 @@ export function ApplyTab({
 
   // Build profile data for tag generation
   const buildProfileData = useCallback(() => {
-    const getFieldValue = (key: string) => {
-      const field = mergeFields.find(f => f.key === key || f.key.endsWith(key));
+    const getFieldValue = (targetPath: string) => {
+      const field = mergeFields.find(f => {
+        const path = getFieldKey(f);
+        return path === targetPath || path.endsWith(targetPath);
+      });
       return field?.finalValue;
     };
 
     return {
-      businessName: getFieldValue('businessName') as string,
+      businessName: getFieldValue('identity.name') as string,
       industry: getFieldValue('industry') as string,
-      subIndustry: getFieldValue('subIndustry') as string,
-      description: getFieldValue('description') as string,
-      shortDescription: getFieldValue('shortDescription') as string,
-      tagline: getFieldValue('tagline') as string,
-      missionStatement: getFieldValue('missionStatement') as string,
-      services: (getFieldValue('services') || getFieldValue('productsOrServices')) as string[],
+      subIndustry: getFieldValue('industry.subCategory') as string,
+      description: getFieldValue('personality.description') as string,
+      shortDescription: getFieldValue('personality.description') as string,
+      tagline: getFieldValue('personality.tagline') as string,
+      missionStatement: getFieldValue('personality.missionStatement') as string,
+      services: (getFieldValue('knowledge.productsOrServices') || getFieldValue('knowledge.services')) as string[],
       products: selectedProducts.map(p => ({
         name: p.name,
         category: p.category,
@@ -185,22 +327,22 @@ export function ApplyTab({
         price: p.pricing ? parseFloat(p.pricing.replace(/[^0-9.]/g, '')) : undefined,
         features: p.features,
       })),
-      targetAudience: getFieldValue('targetAudience') as string[],
-      uniqueSellingPoints: getFieldValue('uniqueSellingPoints') as string[],
-      specializations: getFieldValue('specializations') as string[],
-      differentiators: getFieldValue('differentiators') as string[],
-      areasServed: getFieldValue('areasServed') as string[],
-      brandValues: getFieldValue('brandValues') as string[],
+      targetAudience: getFieldValue('customerProfile.targetAudience') as string[],
+      uniqueSellingPoints: getFieldValue('personality.uniqueSellingPoints') as string[],
+      specializations: getFieldValue('industrySpecificData.specializations') as string[],
+      differentiators: getFieldValue('competitive.differentiators') as string[],
+      areasServed: getFieldValue('identity.serviceArea') as string[],
+      brandValues: getFieldValue('personality.brandValues') as string[],
       location: {
-        city: getFieldValue('address.city') as string,
-        state: getFieldValue('address.state') as string,
-        country: getFieldValue('address.country') as string,
+        city: getFieldValue('identity.address.city') as string,
+        state: getFieldValue('identity.address.state') as string,
+        country: getFieldValue('identity.address.country') as string,
       },
       testimonials: selectedTestimonials.map(t => ({
         quote: t.quote,
         rating: t.rating,
       })),
-      yearEstablished: getFieldValue('yearEstablished') as number,
+      yearEstablished: getFieldValue('identity.yearEstablished') as number,
     };
   }, [mergeFields, selectedProducts, selectedTestimonials]);
 
@@ -763,17 +905,17 @@ export function ApplyTab({
           onToggle={() => onToggleSection('identity')}
           onEdit={() => onNavigateToTab('merge')}
           previewContent={
-            identityFields.find((f) => f.key === 'identity.businessName')?.finalValue as string
+            identityFields.find((f) => getFieldKey(f) === 'identity.name')?.finalValue as string
           }
         >
           <div className="pt-4">
             {identityFields.map((f) => (
               <ReviewFieldRow
-                key={f.key}
-                label={f.label}
+                key={getFieldKey(f)}
+                label={getFieldLabel(f)}
                 value={f.finalValue}
                 source={f.selectedSource}
-                icon={f.icon}
+                icon={getFieldIcon(f)}
               />
             ))}
           </div>
@@ -788,46 +930,46 @@ export function ApplyTab({
           isExpanded={expandedSections.contact || false}
           onToggle={() => onToggleSection('contact')}
           onEdit={() => onNavigateToTab('merge')}
-          previewContent={contactFields.find((f) => f.key === 'contact.phone')?.finalValue as string}
+          previewContent={contactFields.find((f) => getFieldKey(f) === 'identity.phone')?.finalValue as string}
         >
           <div className="pt-4">
             {contactFields.map((f) => (
               <ReviewFieldRow
-                key={f.key}
-                label={f.label}
+                key={getFieldKey(f)}
+                label={getFieldLabel(f)}
                 value={f.finalValue}
                 source={f.selectedSource}
-                icon={f.icon}
+                icon={getFieldIcon(f)}
               />
             ))}
           </div>
         </ReviewAccordionSection>
 
         {/* Social Media */}
-        {mergeFields.some(f => f.category === 'social' && f.finalValue) && (
+        {mergeFields.some(f => getFieldCategory(f) === 'social' && f.finalValue) && (
           <ReviewAccordionSection
             title="Social Media"
             icon={Users}
-            count={`${mergeFields.filter((f) => f.category === 'social' && f.finalValue).length} profiles`}
+            count={`${mergeFields.filter((f) => getFieldCategory(f) === 'social' && f.finalValue).length} profiles`}
             status="complete"
             isExpanded={expandedSections.social || false}
             onToggle={() => onToggleSection('social')}
             onEdit={() => onNavigateToTab('merge')}
             previewContent={
-              mergeFields.filter((f) => f.category === 'social' && f.finalValue)
-                .map(f => f.label)
+              mergeFields.filter((f) => getFieldCategory(f) === 'social' && f.finalValue)
+                .map(f => getFieldLabel(f))
                 .slice(0, 3)
                 .join(', ')
             }
           >
             <div className="pt-4">
-              {mergeFields.filter((f) => f.category === 'social').map((f) => (
+              {mergeFields.filter((f) => getFieldCategory(f) === 'social').map((f) => (
                 <ReviewFieldRow
-                  key={f.key}
-                  label={f.label}
+                  key={getFieldKey(f)}
+                  label={getFieldLabel(f)}
                   value={f.finalValue}
                   source={f.selectedSource}
-                  icon={f.icon}
+                  icon={getFieldIcon(f)}
                 />
               ))}
             </div>
@@ -835,27 +977,27 @@ export function ApplyTab({
         )}
 
         {/* Brand & Strategy (Aggregated) */}
-        {(mergeFields.some(f => ['brand', 'audience', 'competitive'].includes(f.category) && f.finalValue)) && (
+        {(mergeFields.some(f => ['brand', 'audience', 'competitive'].includes(getFieldCategory(f)) && f.finalValue)) && (
           <ReviewAccordionSection
             title="Brand & Strategy"
             icon={Target}
-            count={`${mergeFields.filter((f) => ['brand', 'audience', 'competitive'].includes(f.category) && f.finalValue).length} fields`}
+            count={`${mergeFields.filter((f) => ['brand', 'audience', 'competitive'].includes(getFieldCategory(f)) && f.finalValue).length} fields`}
             status="complete"
             isExpanded={expandedSections.brand || false}
             onToggle={() => onToggleSection('brand')}
             onEdit={() => onNavigateToTab('merge')}
             previewContent={
-              mergeFields.find((f) => f.key === 'personality.uniqueSellingPoints')?.finalValue?.[0] || 'Brand Strategy'
+              mergeFields.find((f) => getFieldKey(f) === 'personality.uniqueSellingPoints')?.finalValue?.[0] || 'Brand Strategy'
             }
           >
             <div className="pt-4">
-              {mergeFields.filter((f) => ['brand', 'audience', 'competitive'].includes(f.category)).map((f) => (
+              {mergeFields.filter((f) => ['brand', 'audience', 'competitive'].includes(getFieldCategory(f))).map((f) => (
                 <ReviewFieldRow
-                  key={f.key}
-                  label={f.label}
+                  key={getFieldKey(f)}
+                  label={getFieldLabel(f)}
                   value={f.finalValue}
                   source={f.selectedSource}
-                  icon={f.icon}
+                  icon={getFieldIcon(f)}
                 />
               ))}
             </div>
@@ -863,11 +1005,11 @@ export function ApplyTab({
         )}
 
         {/* Knowledge Base (Aggregated) */}
-        {(mergeFields.some(f => ['knowledge', 'credentials', 'team', 'success'].includes(f.category) && f.finalValue)) && (
+        {(mergeFields.some(f => ['knowledge', 'credentials', 'team', 'success'].includes(getFieldCategory(f)) && f.finalValue)) && (
           <ReviewAccordionSection
             title="Knowledge Base"
             icon={ShieldCheck}
-            count={`${mergeFields.filter((f) => ['knowledge', 'credentials', 'team', 'success'].includes(f.category) && f.finalValue).length} fields`}
+            count={`${mergeFields.filter((f) => ['knowledge', 'credentials', 'team', 'success'].includes(getFieldCategory(f)) && f.finalValue).length} fields`}
             status="complete"
             isExpanded={expandedSections.knowledge || false}
             onToggle={() => onToggleSection('knowledge')}
@@ -875,13 +1017,13 @@ export function ApplyTab({
             previewContent="Credentials, FAQs, Team"
           >
             <div className="pt-4">
-              {mergeFields.filter((f) => ['knowledge', 'credentials', 'team', 'success'].includes(f.category)).map((f) => (
+              {mergeFields.filter((f) => ['knowledge', 'credentials', 'team', 'success'].includes(getFieldCategory(f))).map((f) => (
                 <ReviewFieldRow
-                  key={f.key}
-                  label={f.label}
+                  key={getFieldKey(f)}
+                  label={getFieldLabel(f)}
                   value={f.finalValue}
                   source={f.selectedSource}
-                  icon={f.icon}
+                  icon={getFieldIcon(f)}
                 />
               ))}
             </div>
@@ -899,17 +1041,17 @@ export function ApplyTab({
             onToggle={() => onToggleSection('industry')}
             onEdit={() => onNavigateToTab('merge')}
             previewContent={
-              industryFields.find((f) => f.key.includes('visaSuccess'))?.finalValue as string
+              industryFields.find((f) => getFieldKey(f).includes('visaSuccess'))?.finalValue as string
             }
           >
             <div className="pt-4">
               {industryFields.map((f) => (
                 <ReviewFieldRow
-                  key={f.key}
-                  label={f.label}
+                  key={getFieldKey(f)}
+                  label={getFieldLabel(f)}
                   value={f.finalValue}
                   source={f.selectedSource}
-                  icon={f.icon}
+                  icon={getFieldIcon(f)}
                 />
               ))}
             </div>
