@@ -109,7 +109,7 @@ export async function POST(request: NextRequest) {
 
     // Generate tags using AI
     const { output } = await ai.generate({
-      model: googleAI.model("gemini-2.0-flash-lite"),
+      model: googleAI.model("gemini-2.5-flash-lite"),
       prompt: `Analyze this document and generate smart tags for search and organization.
 
 Document: ${fileName || "Unknown"}

@@ -275,7 +275,7 @@ Analyze the profile deeply and generate strategic, valuable tags.`;
     console.log('[TagGen] Generating comprehensive tags for profile...');
 
     const response = await ai.models.generateContent({
-      model: 'gemini-2.0-flash',
+      model: 'gemini-2.5-flash',
       contents: prompt,
       config: {
         temperature: 0.4,
@@ -398,7 +398,7 @@ Return as a simple JSON array of lowercase strings:
 Focus on tags customers actually search for.`;
 
     const response = await ai.models.generateContent({
-      model: 'gemini-2.0-flash',
+      model: 'gemini-2.5-flash',
       contents: prompt,
       config: { temperature: 0.3 },
     });
