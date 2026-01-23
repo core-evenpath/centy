@@ -895,7 +895,7 @@ async function extractBusinessDataWithAI(
 
   // First pass - comprehensive extraction
   const response = await geminiAI.models.generateContent({
-    model: 'gemini-2.0-flash',
+    model: 'gemini-2.5-flash',
     contents: prompt,
     config: {
       temperature: 0.1,
@@ -1131,7 +1131,7 @@ IMPORTANT:
 - Return ONLY valid JSON - no markdown, no explanation`;
 
   const response = await geminiAI.models.generateContent({
-    model: 'gemini-2.0-flash',
+    model: 'gemini-2.5-flash',
     contents: deepPrompt,
     config: {
       temperature: 0.1,

@@ -94,7 +94,7 @@ const generateTagsFlow = ai.defineFlow(
   async (input) => {
     try {
       const { output } = await ai.generate({
-        model: googleAI.model('gemini-2.0-flash-lite'),
+        model: googleAI.model('gemini-2.5-flash-lite'),
         prompt: generateTagsPrompt.compile({ input }),
         output: { schema: GenerateTagsOutputSchema },
       });

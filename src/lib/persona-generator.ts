@@ -12,7 +12,7 @@ import {
 } from './types-contact';
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "");
-const PERSONA_MODEL = "gemini-2.0-flash";
+const PERSONA_MODEL = "gemini-2.5-flash";
 
 export interface ConversationMessage {
     role: 'customer' | 'business';

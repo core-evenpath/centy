@@ -890,7 +890,7 @@ export async function testAgentAction(
             .join('\n\n---\n\n');
 
         const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
-        const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
+        const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
 
         const prompt = `${systemPrompt}
 
@@ -988,7 +988,7 @@ export async function generateInboxSuggestionAction(
             console.log('🤖 General Mode selected - skipping document queries');
 
             const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
-            const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
+            const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
 
             const prompt = `${GENERAL_MODE_SYSTEM_PROMPT}
 
@@ -1343,7 +1343,7 @@ CUSTOMER PERSONA:
         }
 
         const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
-        const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
+        const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
 
         const prompt = `${finalSystemPrompt}
 
