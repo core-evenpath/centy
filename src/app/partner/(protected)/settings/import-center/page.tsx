@@ -55,6 +55,26 @@ import type {
 // HELPER FUNCTIONS
 // ========================================
 
+// Tags cache expiration time (7 days in milliseconds)
+const TAGS_CACHE_EXPIRATION_MS = 7 * 24 * 60 * 60 * 1000;
+
+/**
+ * Clear cached import tags from localStorage for a specific partner
+ */
+function clearCachedTags(partnerId: string): void {
+  localStorage.removeItem(`centy_import_tags_${partnerId}`);
+}
+
+/**
+ * Check if cached tags are expired
+ */
+function isCachedTagsExpired(timestamp: string | undefined): boolean {
+  if (!timestamp) return true;
+  const savedTime = new Date(timestamp).getTime();
+  const now = Date.now();
+  return now - savedTime > TAGS_CACHE_EXPIRATION_MS;
+}
+
 function analyzeSentiment(text: string): 'positive' | 'neutral' | 'negative' {
   const positiveWords = [
     'great', 'excellent', 'amazing', 'wonderful', 'fantastic', 'love', 'best',
@@ -159,20 +179,29 @@ export default function ImportCenterPage() {
   const [isApplying, setIsApplying] = useState(false);
   const [applied, setApplied] = useState(false);
 
-  // Get partnerId from user claims
-  const userPartnerId = (user as any)?.customClaims?.partnerId;
+  // Get partnerId from user claims (properly typed from FirebaseAuthUser)
+  const userPartnerId = user?.customClaims?.partnerId;
 
   // ========================================
   // DATA LOADING
   // ========================================
 
   // Load tags from local storage on mount (Prevent regeneration on refresh)
+  // Also handles cleanup of expired tags
   useEffect(() => {
     if (userPartnerId && !tagsGenerated) {
       const savedTags = localStorage.getItem(`centy_import_tags_${userPartnerId}`);
       if (savedTags) {
         try {
           const parsed = JSON.parse(savedTags);
+
+          // Check if cached tags are expired
+          if (isCachedTagsExpired(parsed.timestamp)) {
+            console.log('[ImportCenter] Cached tags expired, clearing...');
+            clearCachedTags(userPartnerId);
+            return;
+          }
+
           if (parsed && Array.isArray(parsed.tags) && parsed.tags.length > 0) {
             setSuggestedTags(parsed.tags);
             setTagGroups(parsed.groups || []);
@@ -182,6 +211,8 @@ export default function ImportCenterPage() {
           }
         } catch (e) {
           console.error('[ImportCenter] Failed to parse saved tags', e);
+          // Clear corrupted data
+          clearCachedTags(userPartnerId);
         }
       }
     }
@@ -648,6 +679,16 @@ export default function ImportCenterPage() {
     };
     await saveBusinessPersonaAction(partnerId, updated as any);
     setPersona((prev) => ({ ...prev, ...updated }));
+
+    // Clear cached tags when Google import is cleared (if no website import exists)
+    if (!websiteImported) {
+      clearCachedTags(partnerId);
+      setSuggestedTags([]);
+      setTagGroups([]);
+      setTagInsights([]);
+      setTagsGenerated(false);
+    }
+
     toast.success('Google import cleared');
   };
 
@@ -671,6 +712,16 @@ export default function ImportCenterPage() {
     };
     await saveBusinessPersonaAction(partnerId, updated as any);
     setPersona((prev) => ({ ...prev, ...updated }));
+
+    // Clear cached tags when Website import is cleared (if no Google import exists)
+    if (!googleImported) {
+      clearCachedTags(partnerId);
+      setSuggestedTags([]);
+      setTagGroups([]);
+      setTagInsights([]);
+      setTagsGenerated(false);
+    }
+
     toast.success('Website import cleared');
   };
 

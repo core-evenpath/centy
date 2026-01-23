@@ -4,12 +4,17 @@ import React from 'react';
 import { Search, Globe, Pencil } from 'lucide-react';
 
 interface SourceBadgeProps {
-  source: 'google' | 'website' | 'custom' | 'manual';
+  source: 'google' | 'website' | 'custom' | 'manual' | 'none';
   size?: 'xs' | 'sm' | 'md';
 }
 
 export function SourceBadge({ source, size = 'sm' }: SourceBadgeProps) {
   const showLabel = size !== 'xs';
+
+  // Return null for 'none' source - nothing to display
+  if (source === 'none') {
+    return null;
+  }
 
   if (source === 'google') {
     return (

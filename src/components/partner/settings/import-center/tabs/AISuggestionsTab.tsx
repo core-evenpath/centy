@@ -34,6 +34,7 @@ export function AISuggestionsTab({
   const filterOptions: { value: SuggestionFilter; label: string }[] = [
     { value: 'all', label: 'All' },
     { value: 'core', label: 'Core' },
+    { value: 'products', label: 'Products' },
     { value: 'testimonials', label: 'Testimonials' },
   ];
 

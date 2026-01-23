@@ -6,3 +6,4 @@ export * from './rows';
 export * from './shared';
 export * from './screens';
 export * from './tabs';
+export * from './modals';
