@@ -1,6 +1,6 @@
 "use client";
 
-import React from 'react';
+import React, { useState } from 'react';
 import { usePartnerHub } from '@/hooks/use-partnerhub';
 import {
     FileText,
@@ -8,14 +8,21 @@ import {
     CheckCircle2,
     Clock,
     Bot,
-    ArrowRight
+    ArrowRight,
+    Building2,
+    Brain
 } from 'lucide-react';
 import { ProcessingStatus } from '@/lib/partnerhub-types';
 import DocumentsView from '@/components/partner/core/DocumentsView';
+import BusinessProfileView from '@/components/partner/core/BusinessProfileView';
 import Link from 'next/link';
+import { cn } from '@/lib/utils';
+
+type TabType = 'documents' | 'profile';
 
 export default function CorePage() {
     const { documents, partnerId } = usePartnerHub();
+    const [activeTab, setActiveTab] = useState<TabType>('documents');
 
     const completedDocs = documents.filter(d => d.status === ProcessingStatus.COMPLETED).length;
     const processingDocs = documents.filter(d => d.status === ProcessingStatus.PROCESSING).length;
@@ -35,35 +42,37 @@ export default function CorePage() {
                     <div className="flex items-start justify-between">
                         <div className="flex items-center gap-4">
                             <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-lg shadow-indigo-200">
-                                <FileText className="w-6 h-6 text-white" />
+                                <Brain className="w-6 h-6 text-white" />
                             </div>
                             <div>
-                                <h1 className="text-xl font-semibold text-slate-900">Knowledge Base</h1>
+                                <h1 className="text-xl font-semibold text-slate-900">AI Knowledge</h1>
                                 <p className="text-sm text-slate-500 mt-0.5">
-                                    Upload documents to train your AI assistants
+                                    Configure what your AI knows about your business
                                 </p>
                             </div>
                         </div>
 
                         <div className="flex items-center gap-6">
-                            <div className="flex items-center gap-4">
-                                {completedDocs > 0 && (
-                                    <div className="flex items-center gap-2 px-3 py-1.5 bg-emerald-50 rounded-lg">
-                                        <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                                        <span className="text-sm font-medium text-emerald-700">
-                                            {completedDocs} ready
-                                        </span>
-                                    </div>
-                                )}
-                                {processingDocs > 0 && (
-                                    <div className="flex items-center gap-2 px-3 py-1.5 bg-amber-50 rounded-lg">
-                                        <Clock className="w-4 h-4 text-amber-600 animate-pulse" />
-                                        <span className="text-sm font-medium text-amber-700">
-                                            {processingDocs} processing
-                                        </span>
-                                    </div>
-                                )}
-                            </div>
+                            {activeTab === 'documents' && (
+                                <div className="flex items-center gap-4">
+                                    {completedDocs > 0 && (
+                                        <div className="flex items-center gap-2 px-3 py-1.5 bg-emerald-50 rounded-lg">
+                                            <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                                            <span className="text-sm font-medium text-emerald-700">
+                                                {completedDocs} ready
+                                            </span>
+                                        </div>
+                                    )}
+                                    {processingDocs > 0 && (
+                                        <div className="flex items-center gap-2 px-3 py-1.5 bg-amber-50 rounded-lg">
+                                            <Clock className="w-4 h-4 text-amber-600 animate-pulse" />
+                                            <span className="text-sm font-medium text-amber-700">
+                                                {processingDocs} processing
+                                            </span>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
 
                             <Link
                                 href="/partner/agents"
@@ -76,26 +85,72 @@ export default function CorePage() {
                         </div>
                     </div>
 
-                    {documents.length === 0 && (
-                        <div className="mt-4 p-4 bg-gradient-to-r from-indigo-50 to-purple-50 rounded-xl border border-indigo-100">
-                            <div className="flex items-start gap-3">
-                                <Sparkles className="w-5 h-5 text-indigo-600 flex-shrink-0 mt-0.5" />
-                                <div>
-                                    <p className="text-sm font-medium text-indigo-900">
-                                        Get started by uploading your business documents
-                                    </p>
-                                    <p className="text-sm text-indigo-700 mt-1">
-                                        FAQs, pricing, product info, policies — your AI will learn from these to answer customer questions accurately.
-                                    </p>
-                                </div>
-                            </div>
-                        </div>
-                    )}
+                    {/* Tab Navigation */}
+                    <div className="flex items-center gap-1 mt-5 -mb-5 border-b-0">
+                        <button
+                            onClick={() => setActiveTab('documents')}
+                            className={cn(
+                                "flex items-center gap-2 px-4 py-2.5 text-sm font-medium rounded-t-lg border-b-2 transition-colors",
+                                activeTab === 'documents'
+                                    ? "text-indigo-600 border-indigo-600 bg-indigo-50/50"
+                                    : "text-slate-500 border-transparent hover:text-slate-700 hover:bg-slate-50"
+                            )}
+                        >
+                            <FileText className="w-4 h-4" />
+                            Documents
+                            {completedDocs > 0 && (
+                                <span className={cn(
+                                    "text-xs px-1.5 py-0.5 rounded-full",
+                                    activeTab === 'documents'
+                                        ? "bg-indigo-100 text-indigo-700"
+                                        : "bg-slate-100 text-slate-600"
+                                )}>
+                                    {completedDocs}
+                                </span>
+                            )}
+                        </button>
+                        <button
+                            onClick={() => setActiveTab('profile')}
+                            className={cn(
+                                "flex items-center gap-2 px-4 py-2.5 text-sm font-medium rounded-t-lg border-b-2 transition-colors",
+                                activeTab === 'profile'
+                                    ? "text-indigo-600 border-indigo-600 bg-indigo-50/50"
+                                    : "text-slate-500 border-transparent hover:text-slate-700 hover:bg-slate-50"
+                            )}
+                        >
+                            <Building2 className="w-4 h-4" />
+                            Business Profile
+                        </button>
+                    </div>
                 </div>
             </div>
 
+            {/* Tab Content */}
             <div className="flex-1 overflow-hidden">
-                <DocumentsView />
+                {activeTab === 'documents' ? (
+                    <>
+                        {documents.length === 0 && (
+                            <div className="px-6 pt-6">
+                                <div className="p-4 bg-gradient-to-r from-indigo-50 to-purple-50 rounded-xl border border-indigo-100">
+                                    <div className="flex items-start gap-3">
+                                        <Sparkles className="w-5 h-5 text-indigo-600 flex-shrink-0 mt-0.5" />
+                                        <div>
+                                            <p className="text-sm font-medium text-indigo-900">
+                                                Get started by uploading your business documents
+                                            </p>
+                                            <p className="text-sm text-indigo-700 mt-1">
+                                                FAQs, pricing, product info, policies — your AI will learn from these to answer customer questions accurately.
+                                            </p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+                        <DocumentsView />
+                    </>
+                ) : (
+                    <BusinessProfileView partnerId={partnerId} />
+                )}
             </div>
         </div>
     );
