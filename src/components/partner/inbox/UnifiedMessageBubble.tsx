@@ -175,8 +175,8 @@ export function UnifiedMessageBubble({ message, platform, onDelete, isLatest }: 
 
         return (
             <div className={cn(
-                "text-[14px] whitespace-pre-wrap break-words leading-relaxed tracking-normal",
-                isOutbound ? "text-white" : "text-gray-900"
+                "text-[14px] whitespace-pre-wrap break-words leading-[1.6]",
+                isOutbound ? "text-white" : "text-[#111]"
             )}>
                 <ReactMarkdown
                     components={{
@@ -186,8 +186,8 @@ export function UnifiedMessageBubble({ message, platform, onDelete, isLatest }: 
                         ul: ({ children }) => <ul className="list-disc list-inside my-1 space-y-0.5">{children}</ul>,
                         ol: ({ children }) => <ol className="list-decimal list-inside my-1 space-y-0.5">{children}</ol>,
                         code: ({ children }) => <code className={cn(
-                            "px-1 py-0.5 rounded text-xs font-mono",
-                            isOutbound ? "bg-white/20 text-white" : "bg-gray-100 text-gray-700"
+                            "px-1 py-0.5 rounded text-[12px] font-mono",
+                            isOutbound ? "bg-white/20 text-white" : "bg-[#f5f5f5] text-[#333]"
                         )}>{children}</code>,
                     }}
                 >
@@ -206,8 +206,8 @@ export function UnifiedMessageBubble({ message, platform, onDelete, isLatest }: 
             <div className={cn(
                 "relative max-w-[85%] sm:max-w-[65%] px-4 py-3 text-left",
                 isOutbound
-                    ? "bg-[#111] rounded-2xl rounded-tr-sm"
-                    : "bg-white border border-gray-200 rounded-2xl rounded-tl-sm"
+                    ? "bg-[#111] rounded-[16px] rounded-br-[4px]"
+                    : "bg-white border border-[#e5e5e5] rounded-[16px] rounded-bl-[4px]"
             )}>
                 {onDelete && (
                     <div className={cn(
@@ -245,8 +245,8 @@ export function UnifiedMessageBubble({ message, platform, onDelete, isLatest }: 
                     isOutbound ? "justify-end" : "justify-start"
                 )}>
                     <span className={cn(
-                        "text-[11px]",
-                        isOutbound ? "text-gray-400" : "text-gray-400"
+                        "text-[11px] opacity-50",
+                        isOutbound ? "text-white" : "text-[#111]"
                     )}>
                         {getTimestamp()}
                     </span>

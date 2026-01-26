@@ -223,7 +223,7 @@ export function MessageInput({
     // Recording mode - show full-width recorder
     if (isRecordingMode) {
         return (
-            <div className="p-4 bg-white border-t border-gray-200 pb-safe">
+            <div className="px-6 py-4 bg-white border-t border-[#e5e5e5] pb-safe">
                 <div className="max-w-4xl mx-auto">
                     <AudioRecorder
                         onRecordingComplete={handleRecordingComplete}
@@ -236,11 +236,11 @@ export function MessageInput({
     }
 
     return (
-        <div className="p-4 bg-white border-t border-gray-200 pb-safe">
+        <div className="px-6 py-4 bg-white border-t border-[#e5e5e5] pb-safe">
             <div className="max-w-4xl mx-auto relative">
                 {/* Upload Error */}
                 {uploadError && (
-                    <div className="mb-3 px-3 py-2 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700 flex items-center justify-between">
+                    <div className="mb-3 px-3 py-2 bg-red-50 border border-red-200 rounded-lg text-[13px] text-red-700 flex items-center justify-between">
                         <span>{uploadError}</span>
                         <button onClick={() => setUploadError(null)} className="text-red-500 hover:text-red-700">
                             <X className="w-4 h-4" />
@@ -253,7 +253,7 @@ export function MessageInput({
                     "flex items-end gap-3",
                     (disabled || sending) && "opacity-60 pointer-events-none"
                 )}>
-                    <div className="flex-1 flex flex-col bg-gray-50 border border-gray-200 rounded-xl focus-within:border-gray-300 focus-within:bg-white transition-colors">
+                    <div className="flex-1 flex flex-col bg-[#fafafa] border border-[#e5e5e5] rounded-xl focus-within:border-[#000] focus-within:bg-white transition-colors">
                         {/* Media Previews */}
                         <MediaPreviewList
                             attachments={attachments}
@@ -267,7 +267,7 @@ export function MessageInput({
                             onChange={(e) => onChange(e.target.value)}
                             onKeyDown={handleKeyDown}
                             placeholder={attachments.length > 0 ? "Add a caption..." : "Type your message..."}
-                            className="min-h-[48px] max-h-[120px] w-full border-none bg-transparent resize-none px-4 py-3 focus-visible:ring-0 text-[#111] placeholder:text-gray-400 text-sm"
+                            className="min-h-[48px] max-h-[120px] w-full border-none bg-transparent resize-none px-[18px] py-3 focus-visible:ring-0 text-[#111] placeholder:text-[#999] text-[14px]"
                             rows={1}
                         />
 
@@ -301,7 +301,7 @@ export function MessageInput({
                                         size="icon"
                                         disabled={disabled || sending}
                                         onClick={() => setIsRecordingMode(true)}
-                                        className="h-8 w-8 text-gray-400 hover:text-gray-600 rounded-lg"
+                                        className="h-8 w-8 text-[#999] hover:text-[#666] rounded-lg"
                                     >
                                         <Mic className="w-4 h-4" />
                                     </Button>
@@ -312,7 +312,7 @@ export function MessageInput({
                                     variant="ghost"
                                     size="sm"
                                     disabled={isGenerating}
-                                    className="h-8 px-3 text-xs font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg gap-1.5"
+                                    className="h-8 px-3 text-[12px] font-medium text-[#666] hover:text-[#000] hover:bg-[#f5f5f5] rounded-lg gap-1.5"
                                 >
                                     {isGenerating ? (
                                         <Loader2 className="w-3.5 h-3.5 animate-spin" />
@@ -331,16 +331,16 @@ export function MessageInput({
                         disabled={!canSend}
                         size="icon"
                         className={cn(
-                            "h-12 w-12 rounded-xl shrink-0",
+                            "h-12 w-12 rounded-xl shrink-0 transition-colors",
                             canSend
-                                ? "bg-[#111] hover:bg-[#222] text-white"
-                                : "bg-gray-100 text-gray-400"
+                                ? "bg-[#111] hover:bg-[#000] text-white"
+                                : "bg-[#f5f5f5] text-[#999]"
                         )}
                     >
                         {sending ? (
                             <Loader2 className="w-5 h-5 animate-spin" />
                         ) : (
-                            <span className="text-lg">↑</span>
+                            <span className="text-[18px]">↑</span>
                         )}
                     </Button>
                 </div>
