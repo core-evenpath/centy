@@ -18,9 +18,10 @@ interface UnifiedMessageBubbleProps {
     message: any;
     platform: Platform;
     onDelete?: (messageId: string) => void;
+    isLatest?: boolean;
 }
 
-export function UnifiedMessageBubble({ message, platform, onDelete }: UnifiedMessageBubbleProps) {
+export function UnifiedMessageBubble({ message, platform, onDelete, isLatest }: UnifiedMessageBubbleProps) {
     const isOutbound = message.direction === 'outbound';
 
     const getTimestamp = () => {
@@ -199,13 +200,13 @@ export function UnifiedMessageBubble({ message, platform, onDelete }: UnifiedMes
     const getPlatformIndicator = () => {
         if (platform === 'meta_whatsapp') {
             return (
-                <div className="flex items-center gap-1 text-[10px] text-green-500">
+                <div className="flex items-center gap-1 text-[10px] text-emerald-500">
                     <MessageCircle className="w-3 h-3" />
                 </div>
             );
         }
         return (
-            <div className="flex items-center gap-1 text-[10px] text-blue-500">
+            <div className="flex items-center gap-1 text-[10px] text-sky-500">
                 <Send className="w-3 h-3" />
             </div>
         );
@@ -213,34 +214,35 @@ export function UnifiedMessageBubble({ message, platform, onDelete }: UnifiedMes
 
     return (
         <div className={cn(
-            "flex w-full mb-3 group",
-            isOutbound ? "justify-end" : "justify-start"
+            "flex w-full group",
+            isOutbound ? "justify-end" : "justify-start",
+            isLatest && "inbox-message-enter"
         )}>
             <div className={cn(
-                "relative max-w-[85%] sm:max-w-[70%] px-3.5 py-2.5 shadow-sm text-left transition-all",
+                "relative max-w-[85%] sm:max-w-[70%] px-4 py-3 text-left transition-all duration-200",
                 isOutbound
-                    ? "bg-indigo-600 rounded-2xl rounded-tr-sm"
-                    : "bg-white border border-gray-100 rounded-2xl rounded-tl-sm hover:shadow-md"
+                    ? "bg-gradient-to-br from-indigo-600 to-violet-600 rounded-2xl rounded-tr-md shadow-md shadow-indigo-500/20"
+                    : "bg-white border border-gray-100/80 rounded-2xl rounded-tl-md shadow-sm hover:shadow-md hover:border-gray-200/80"
             )}>
                 {onDelete && (
                     <div className={cn(
-                        "absolute top-0 right-0 p-1 opacity-0 group-hover:opacity-100 transition-opacity z-10",
-                        isOutbound ? "-right-8" : "-left-8"
+                        "absolute top-1 p-1 opacity-0 group-hover:opacity-100 transition-all duration-200 z-10",
+                        isOutbound ? "-right-9" : "-left-9"
                     )}>
                         <DropdownMenu>
                             <DropdownMenuTrigger asChild>
                                 <Button
                                     variant="ghost"
                                     size="icon"
-                                    className="h-7 w-7 text-gray-400 hover:text-gray-600"
+                                    className="h-7 w-7 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-full transition-colors"
                                 >
                                     <MoreVertical className="w-4 h-4" />
                                 </Button>
                             </DropdownMenuTrigger>
-                            <DropdownMenuContent align={isOutbound ? "end" : "start"}>
+                            <DropdownMenuContent align={isOutbound ? "end" : "start"} className="shadow-lg">
                                 <DropdownMenuItem
                                     onClick={() => onDelete(message.id)}
-                                    className="text-red-600"
+                                    className="text-red-600 cursor-pointer focus:text-red-600 focus:bg-red-50"
                                 >
                                     <Trash2 className="w-4 h-4 mr-2" />
                                     Delete
@@ -254,13 +256,13 @@ export function UnifiedMessageBubble({ message, platform, onDelete }: UnifiedMes
                 {renderTextContent()}
 
                 <div className={cn(
-                    "flex items-center gap-1.5 mt-1.5",
+                    "flex items-center gap-1.5 mt-2",
                     isOutbound ? "justify-end" : "justify-start"
                 )}>
                     {getPlatformIndicator()}
                     <span className={cn(
-                        "text-[10px]",
-                        isOutbound ? "text-indigo-200" : "text-gray-400"
+                        "text-[10px] font-medium",
+                        isOutbound ? "text-indigo-200/80" : "text-gray-400"
                     )}>
                         {getTimestamp()}
                     </span>

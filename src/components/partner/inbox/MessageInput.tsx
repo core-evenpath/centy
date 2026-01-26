@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useRef, useEffect, useState, useCallback } from 'react';
-import { Send, Sparkles, Loader2, Mic, Plus } from 'lucide-react';
+import { Send, Sparkles, Loader2, Mic, Plus, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { cn } from '@/lib/utils';
@@ -223,7 +223,7 @@ export function MessageInput({
     // Recording mode - show full-width recorder
     if (isRecordingMode) {
         return (
-            <div className="p-3 md:p-4 bg-white border-t border-gray-100 pb-safe">
+            <div className="p-3 md:p-4 bg-gradient-to-t from-white to-gray-50/50 border-t border-gray-100/80 pb-safe">
                 <div className="max-w-4xl mx-auto">
                     <AudioRecorder
                         onRecordingComplete={handleRecordingComplete}
@@ -236,24 +236,25 @@ export function MessageInput({
     }
 
     return (
-        <div className="p-3 md:p-4 bg-white border-t border-gray-100 pb-safe">
+        <div className="p-3 md:p-4 bg-gradient-to-t from-white to-gray-50/30 border-t border-gray-100/80 pb-safe">
             <div className="max-w-4xl mx-auto relative group">
                 {/* Upload Error */}
                 {uploadError && (
-                    <div className="mb-2 px-3 py-2 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700 flex items-center justify-between">
-                        <span>{uploadError}</span>
+                    <div className="mb-3 px-4 py-3 bg-red-50 border border-red-200 rounded-xl text-sm text-red-700 flex items-center justify-between shadow-sm animate-in slide-in-from-top-2 duration-200">
+                        <span className="font-medium">{uploadError}</span>
                         <button
                             onClick={() => setUploadError(null)}
-                            className="text-red-500 hover:text-red-700"
+                            className="text-red-400 hover:text-red-600 transition-colors ml-2 hover:bg-red-100 rounded-lg p-1"
                         >
-                            &times;
+                            <X className="w-4 h-4" />
                         </button>
                     </div>
                 )}
 
                 {/* Floating Input Container */}
                 <div className={cn(
-                    "flex flex-col bg-gray-50 border border-gray-200 rounded-2xl transition-all shadow-sm focus-within:shadow-md focus-within:bg-white focus-within:border-indigo-200",
+                    "flex flex-col bg-white border border-gray-200/80 rounded-2xl transition-all duration-200 shadow-sm",
+                    "focus-within:shadow-lg focus-within:border-indigo-300 focus-within:ring-2 focus-within:ring-indigo-100",
                     (disabled || sending) && "opacity-60 pointer-events-none"
                 )}>
                     {/* Media Previews */}
@@ -269,14 +270,14 @@ export function MessageInput({
                         onChange={(e) => onChange(e.target.value)}
                         onKeyDown={handleKeyDown}
                         placeholder={attachments.length > 0 ? "Add a caption..." : "Type a message..."}
-                        className="min-h-[44px] md:min-h-[50px] max-h-[100px] md:max-h-[120px] w-full border-none bg-transparent resize-none p-3 md:p-3.5 focus-visible:ring-0 text-gray-900 placeholder:text-gray-400 text-[16px] md:text-sm"
+                        className="min-h-[44px] md:min-h-[50px] max-h-[100px] md:max-h-[120px] w-full border-none bg-transparent resize-none p-3 md:p-3.5 focus-visible:ring-0 text-gray-900 placeholder:text-gray-400 text-[16px] md:text-sm leading-relaxed"
                         rows={1}
                     />
 
                     {/* Toolbar */}
-                    <div className="flex items-center justify-between px-2 pb-2">
+                    <div className="flex items-center justify-between px-2.5 pb-2.5">
                         {/* Left side - attachment buttons */}
-                        <div className="flex items-center gap-0.5">
+                        <div className="flex items-center gap-1">
                             {/* Mobile: Plus button opens attachment menu */}
                             <div className="md:hidden">
                                 <AttachmentMenu
@@ -286,7 +287,7 @@ export function MessageInput({
                             </div>
 
                             {/* Desktop: Individual attachment buttons */}
-                            <div className="hidden md:flex items-center gap-0.5">
+                            <div className="hidden md:flex items-center gap-1">
                                 <AttachmentMenu
                                     onFileSelect={handleFileSelect}
                                     disabled={disabled || sending}
@@ -316,7 +317,7 @@ export function MessageInput({
                                                 size="icon"
                                                 disabled={disabled || sending}
                                                 onClick={() => setIsRecordingMode(true)}
-                                                className="h-9 w-9 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-full transition-colors"
+                                                className="h-9 w-9 text-gray-400 hover:text-rose-500 hover:bg-rose-50 rounded-xl transition-all active:scale-95"
                                             >
                                                 <Mic className="w-5 h-5" />
                                             </Button>
@@ -334,8 +335,8 @@ export function MessageInput({
                                     size="sm"
                                     disabled={isGenerating}
                                     className={cn(
-                                        "h-9 w-9 p-0 rounded-full transition-all",
-                                        "bg-gradient-to-r from-indigo-50 to-purple-50 text-indigo-700 hover:from-indigo-100 hover:to-purple-100 hover:text-indigo-800 border border-indigo-100/50"
+                                        "h-9 w-9 p-0 rounded-xl transition-all active:scale-95",
+                                        "bg-gradient-to-r from-indigo-50 to-violet-50 text-indigo-600 hover:from-indigo-100 hover:to-violet-100 hover:text-indigo-700 border border-indigo-200/50 shadow-sm"
                                     )}
                                 >
                                     {isGenerating ? (
@@ -357,8 +358,8 @@ export function MessageInput({
                                                 size="sm"
                                                 disabled={isGenerating}
                                                 className={cn(
-                                                    "h-8 px-3 text-xs font-medium rounded-full transition-all gap-1.5",
-                                                    "bg-gradient-to-r from-indigo-50 to-purple-50 text-indigo-700 hover:from-indigo-100 hover:to-purple-100 hover:text-indigo-800 border border-indigo-100/50"
+                                                    "h-9 px-3.5 text-xs font-medium rounded-xl transition-all gap-1.5 active:scale-[0.97]",
+                                                    "bg-gradient-to-r from-indigo-50 to-violet-50 text-indigo-600 hover:from-indigo-100 hover:to-violet-100 hover:text-indigo-700 border border-indigo-200/50 shadow-sm"
                                                 )}
                                             >
                                                 {isGenerating ? (
@@ -374,7 +375,7 @@ export function MessageInput({
                                 </TooltipProvider>
                             </div>
 
-                            <div className="hidden md:block h-5 w-px bg-gray-200 mx-1" />
+                            <div className="hidden md:block h-5 w-px bg-gray-200/80 mx-1" />
 
                             {/* Send Button */}
                             <Button
@@ -382,9 +383,9 @@ export function MessageInput({
                                 disabled={!canSend}
                                 size="icon"
                                 className={cn(
-                                    "h-10 w-10 md:h-9 md:w-9 rounded-full transition-all shadow-sm touch-manipulation",
+                                    "h-10 w-10 md:h-9 md:w-9 rounded-xl transition-all touch-manipulation",
                                     canSend
-                                        ? "bg-indigo-600 hover:bg-indigo-700 text-white active:scale-95"
+                                        ? "bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700 text-white shadow-md shadow-indigo-500/25 active:scale-95"
                                         : "bg-gray-100 text-gray-400"
                                 )}
                             >
@@ -399,7 +400,7 @@ export function MessageInput({
                 </div>
 
                 {/* Character Count helper (optional - hidden on mobile) */}
-                <div className="absolute -bottom-6 right-2 text-[10px] text-gray-400 opacity-0 group-focus-within:opacity-100 transition-opacity hidden md:block">
+                <div className="absolute -bottom-6 right-2 text-[10px] text-gray-400 opacity-0 group-focus-within:opacity-100 transition-opacity duration-200 hidden md:block">
                     {value.length} chars
                 </div>
             </div>

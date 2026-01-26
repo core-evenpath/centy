@@ -36,29 +36,29 @@ function getPlatformLabel(platform: Platform) {
 
 function getPlatformColor(platform: Platform) {
     if (platform === 'meta_whatsapp') {
-        return 'text-green-600 bg-green-50 border-green-200';
+        return 'text-emerald-700 bg-emerald-50/80 border-emerald-200';
     }
-    return 'text-blue-600 bg-blue-50 border-blue-200';
+    return 'text-sky-700 bg-sky-50/80 border-sky-200';
 }
 
 export function UnifiedChatHeader({ conversation, onDelete, onBack }: UnifiedChatHeaderProps) {
     const displayName = conversation.contactName || conversation.title || conversation.customerIdentifier;
 
     return (
-        <div className="h-[70px] bg-white border-b border-gray-100 px-4 md:px-6 flex items-center justify-between shrink-0 shadow-[0_1px_2px_0_rgba(0,0,0,0.02)] z-10">
-            <div className="flex items-center gap-2 md:gap-3">
+        <div className="h-[72px] bg-white/95 backdrop-blur-sm border-b border-gray-100/80 px-4 md:px-6 flex items-center justify-between shrink-0 shadow-sm z-10">
+            <div className="flex items-center gap-2.5 md:gap-3.5">
                 <Button
                     variant="ghost"
                     size="icon"
-                    className="md:hidden -ml-2 h-10 w-10 text-gray-600 hover:text-indigo-600 hover:bg-indigo-50/50 rounded-full transition-colors active:scale-95"
+                    className="md:hidden -ml-2 h-10 w-10 text-gray-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all active:scale-95"
                     onClick={onBack}
                 >
                     <ChevronLeft className="w-6 h-6" />
                 </Button>
 
-                <Avatar className="w-9 h-9 md:w-10 md:h-10 border border-gray-100 shadow-sm">
+                <Avatar className="w-10 h-10 md:w-11 md:h-11 border-2 border-white shadow-md ring-1 ring-gray-100">
                     <AvatarImage src={conversation.contact?.avatarUrl} />
-                    <AvatarFallback className="bg-gradient-to-br from-indigo-500 to-purple-600 text-white font-medium text-xs">
+                    <AvatarFallback className="bg-gradient-to-br from-indigo-500 to-violet-600 text-white font-semibold text-sm">
                         {displayName?.[0]?.toUpperCase()}
                     </AvatarFallback>
                 </Avatar>
@@ -69,16 +69,16 @@ export function UnifiedChatHeader({ conversation, onDelete, onBack }: UnifiedCha
                             {displayName}
                         </h2>
                         {conversation.contactCompany && (
-                            <span className="text-[10px] md:text-[11px] text-gray-400 truncate max-w-[80px] md:max-w-none hidden sm:inline">
+                            <span className="text-[10px] md:text-[11px] text-gray-400 truncate max-w-[80px] md:max-w-none hidden sm:inline font-medium">
                                 · {conversation.contactCompany}
                             </span>
                         )}
                     </div>
-                    <div className="flex items-center gap-1.5 text-[11px] text-gray-500 mt-0.5">
+                    <div className="flex items-center gap-1.5 text-[11px] text-gray-500 mt-1">
                         <Badge
                             variant="outline"
                             className={cn(
-                                "h-5 text-[10px] font-medium border",
+                                "h-5 text-[10px] font-medium border shadow-sm",
                                 getPlatformColor(conversation.platform)
                             )}
                         >
@@ -86,7 +86,7 @@ export function UnifiedChatHeader({ conversation, onDelete, onBack }: UnifiedCha
                             <span className="ml-1">{getPlatformLabel(conversation.platform)}</span>
                         </Badge>
                         <span className="text-gray-300">•</span>
-                        <span className="truncate max-w-[120px] md:max-w-none">
+                        <span className="truncate max-w-[120px] md:max-w-none text-gray-400 font-medium">
                             {conversation.customerIdentifier}
                         </span>
                     </div>
@@ -99,7 +99,7 @@ export function UnifiedChatHeader({ conversation, onDelete, onBack }: UnifiedCha
                         <Button
                             variant="ghost"
                             size="sm"
-                            className="text-xs text-gray-500 hover:text-indigo-600 hidden md:flex"
+                            className="text-xs text-gray-500 hover:text-indigo-600 hover:bg-indigo-50 hidden md:flex rounded-lg transition-all"
                         >
                             View Contact
                         </Button>
@@ -111,15 +111,15 @@ export function UnifiedChatHeader({ conversation, onDelete, onBack }: UnifiedCha
                         <Button
                             variant="ghost"
                             size="icon"
-                            className="h-9 w-9 text-gray-400 hover:text-gray-600"
+                            className="h-9 w-9 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-xl transition-all"
                         >
                             <MoreHorizontal className="w-5 h-5" />
                         </Button>
                     </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" className="w-48">
+                    <DropdownMenuContent align="end" className="w-48 shadow-lg border-gray-200">
                         {conversation.contactId && (
                             <>
-                                <DropdownMenuItem asChild>
+                                <DropdownMenuItem asChild className="cursor-pointer">
                                     <Link href={`/partner/contacts/${conversation.contactId}`}>
                                         View Contact Profile
                                     </Link>
@@ -129,7 +129,7 @@ export function UnifiedChatHeader({ conversation, onDelete, onBack }: UnifiedCha
                         )}
                         <DropdownMenuItem
                             onClick={onDelete}
-                            className="text-red-600 focus:text-red-600 focus:bg-red-50"
+                            className="text-red-600 focus:text-red-600 focus:bg-red-50 cursor-pointer"
                         >
                             <Trash2 className="w-4 h-4 mr-2" />
                             Delete Conversation
