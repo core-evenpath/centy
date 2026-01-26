@@ -120,7 +120,7 @@ export function UnifiedMessageBubble({ message, platform, onDelete, isLatest }: 
                         </p>
                         <p className={cn(
                             "text-xs",
-                            isOutbound ? "text-indigo-200" : "text-gray-500"
+                            isOutbound ? "text-gray-400" : "text-gray-500"
                         )}>
                             Document
                         </p>
@@ -131,7 +131,7 @@ export function UnifiedMessageBubble({ message, platform, onDelete, isLatest }: 
                         rel="noopener noreferrer"
                         className={cn(
                             "p-2 rounded-lg transition-colors",
-                            isOutbound ? "hover:bg-white/10 text-indigo-100" : "hover:bg-gray-200 text-gray-500"
+                            isOutbound ? "hover:bg-white/10 text-gray-300" : "hover:bg-gray-200 text-gray-500"
                         )}
                     >
                         <Download className="w-4 h-4" />
@@ -187,27 +187,12 @@ export function UnifiedMessageBubble({ message, platform, onDelete, isLatest }: 
                         ol: ({ children }) => <ol className="list-decimal list-inside my-1 space-y-0.5">{children}</ol>,
                         code: ({ children }) => <code className={cn(
                             "px-1 py-0.5 rounded text-xs font-mono",
-                            isOutbound ? "bg-white/20 text-white" : "bg-gray-100 text-indigo-600"
+                            isOutbound ? "bg-white/20 text-white" : "bg-gray-100 text-gray-700"
                         )}>{children}</code>,
                     }}
                 >
                     {content}
                 </ReactMarkdown>
-            </div>
-        );
-    };
-
-    const getPlatformIndicator = () => {
-        if (platform === 'meta_whatsapp') {
-            return (
-                <div className="flex items-center gap-1 text-[10px] text-emerald-500">
-                    <MessageCircle className="w-3 h-3" />
-                </div>
-            );
-        }
-        return (
-            <div className="flex items-center gap-1 text-[10px] text-sky-500">
-                <Send className="w-3 h-3" />
             </div>
         );
     };
@@ -219,14 +204,14 @@ export function UnifiedMessageBubble({ message, platform, onDelete, isLatest }: 
             isLatest && "inbox-message-enter"
         )}>
             <div className={cn(
-                "relative max-w-[85%] sm:max-w-[70%] px-4 py-3 text-left transition-all duration-200",
+                "relative max-w-[85%] sm:max-w-[65%] px-4 py-3 text-left",
                 isOutbound
-                    ? "bg-gradient-to-br from-indigo-600 to-violet-600 rounded-2xl rounded-tr-md shadow-md shadow-indigo-500/20"
-                    : "bg-white border border-gray-100/80 rounded-2xl rounded-tl-md shadow-sm hover:shadow-md hover:border-gray-200/80"
+                    ? "bg-[#111] rounded-2xl rounded-tr-sm"
+                    : "bg-white border border-gray-200 rounded-2xl rounded-tl-sm"
             )}>
                 {onDelete && (
                     <div className={cn(
-                        "absolute top-1 p-1 opacity-0 group-hover:opacity-100 transition-all duration-200 z-10",
+                        "absolute top-1 p-1 opacity-0 group-hover:opacity-100 transition-opacity z-10",
                         isOutbound ? "-right-9" : "-left-9"
                     )}>
                         <DropdownMenu>
@@ -234,12 +219,12 @@ export function UnifiedMessageBubble({ message, platform, onDelete, isLatest }: 
                                 <Button
                                     variant="ghost"
                                     size="icon"
-                                    className="h-7 w-7 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-full transition-colors"
+                                    className="h-7 w-7 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-full"
                                 >
                                     <MoreVertical className="w-4 h-4" />
                                 </Button>
                             </DropdownMenuTrigger>
-                            <DropdownMenuContent align={isOutbound ? "end" : "start"} className="shadow-lg">
+                            <DropdownMenuContent align={isOutbound ? "end" : "start"}>
                                 <DropdownMenuItem
                                     onClick={() => onDelete(message.id)}
                                     className="text-red-600 cursor-pointer focus:text-red-600 focus:bg-red-50"
@@ -259,10 +244,9 @@ export function UnifiedMessageBubble({ message, platform, onDelete, isLatest }: 
                     "flex items-center gap-1.5 mt-2",
                     isOutbound ? "justify-end" : "justify-start"
                 )}>
-                    {getPlatformIndicator()}
                     <span className={cn(
-                        "text-[10px] font-medium",
-                        isOutbound ? "text-indigo-200/80" : "text-gray-400"
+                        "text-[11px]",
+                        isOutbound ? "text-gray-400" : "text-gray-400"
                     )}>
                         {getTimestamp()}
                     </span>

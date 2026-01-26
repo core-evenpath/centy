@@ -136,7 +136,7 @@ const inboxStyles = `
 }
 
 .chat-area-gradient {
-    background: linear-gradient(180deg, #fafafa 0%, #f5f5f7 100%);
+    background: #f9fafb;
 }
 
 .message-container-scroll {
@@ -627,13 +627,10 @@ export default function UnifiedInboxPage() {
         return (
             <>
                 <style dangerouslySetInnerHTML={{ __html: inboxStyles }} />
-                <div className="flex items-center justify-center h-full bg-gradient-to-br from-slate-50 via-white to-indigo-50/30">
+                <div className="flex items-center justify-center h-full bg-gray-50">
                     <div className="flex flex-col items-center gap-4 inbox-fade-in">
-                        <div className="relative">
-                            <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center shadow-lg shadow-indigo-500/25">
-                                <Loader2 className="w-7 h-7 text-white animate-spin" />
-                            </div>
-                            <div className="absolute -inset-1 rounded-2xl bg-gradient-to-br from-indigo-500 to-violet-600 opacity-20 blur-lg animate-pulse" />
+                        <div className="w-12 h-12 rounded-xl bg-[#111] flex items-center justify-center">
+                            <Loader2 className="w-6 h-6 text-white animate-spin" />
                         </div>
                         <div className="text-center">
                             <p className="text-sm font-medium text-gray-700">Loading inbox</p>
@@ -648,7 +645,7 @@ export default function UnifiedInboxPage() {
     return (
         <>
             <style dangerouslySetInnerHTML={{ __html: inboxStyles }} />
-            <div className="h-full flex bg-gradient-to-br from-slate-50/80 via-white to-indigo-50/20 overflow-hidden inbox-fade-in">
+            <div className="h-full flex bg-gray-50 overflow-hidden inbox-fade-in">
                 <div className={cn(
                     "md:block",
                     mobileShowChat ? "hidden" : "block w-full md:w-auto"
@@ -701,9 +698,9 @@ export default function UnifiedInboxPage() {
                                     <div className="flex items-center justify-center h-full">
                                         <div className="flex flex-col items-center gap-3 inbox-fade-in">
                                             <div className="flex gap-1.5">
-                                                <div className="w-2.5 h-2.5 rounded-full bg-indigo-400 inbox-typing-dot" />
-                                                <div className="w-2.5 h-2.5 rounded-full bg-indigo-400 inbox-typing-dot" />
-                                                <div className="w-2.5 h-2.5 rounded-full bg-indigo-400 inbox-typing-dot" />
+                                                <div className="w-2 h-2 rounded-full bg-gray-400 inbox-typing-dot" />
+                                                <div className="w-2 h-2 rounded-full bg-gray-400 inbox-typing-dot" />
+                                                <div className="w-2 h-2 rounded-full bg-gray-400 inbox-typing-dot" />
                                             </div>
                                             <p className="text-xs text-gray-400">Loading messages</p>
                                         </div>
@@ -711,12 +708,12 @@ export default function UnifiedInboxPage() {
                                 ) : messages.length === 0 ? (
                                     <div className="flex items-center justify-center h-full inbox-slide-up">
                                         <div className="text-center">
-                                            <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-gradient-to-br from-gray-100 to-gray-50 flex items-center justify-center">
-                                                <svg className="w-8 h-8 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <div className="w-14 h-14 mx-auto mb-4 rounded-xl bg-gray-100 flex items-center justify-center">
+                                                <svg className="w-7 h-7 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
                                                 </svg>
                                             </div>
-                                            <Badge variant="outline" className="mb-3 bg-white text-gray-400 border-gray-200 shadow-sm">No messages yet</Badge>
+                                            <Badge variant="outline" className="mb-3 bg-white text-gray-500 border-gray-200">No messages yet</Badge>
                                             <p className="text-gray-400 text-sm">Start the conversation by typing a message below.</p>
                                         </div>
                                     </div>
