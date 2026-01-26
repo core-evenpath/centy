@@ -32,6 +32,135 @@ import CoreMemorySuggestion from '@/components/partner/inbox/CoreMemorySuggestio
 import { Badge } from '@/components/ui/badge';
 import { useContacts } from '@/hooks/useContacts';
 
+// CSS Animations for the inbox
+const inboxStyles = `
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+@keyframes fadeSlideUp {
+    from {
+        opacity: 0;
+        transform: translateY(12px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes fadeSlideIn {
+    from {
+        opacity: 0;
+        transform: translateX(-12px);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
+
+@keyframes messageSlideIn {
+    from {
+        opacity: 0;
+        transform: translateY(16px) scale(0.97);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+@keyframes subtlePulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.7; }
+}
+
+@keyframes spinLoader {
+    to { transform: rotate(360deg); }
+}
+
+@keyframes typingBounce {
+    0%, 60%, 100% { transform: translateY(0); }
+    30% { transform: translateY(-4px); }
+}
+
+@keyframes shimmer {
+    0% { background-position: -200% 0; }
+    100% { background-position: 200% 0; }
+}
+
+@keyframes scaleIn {
+    from { transform: scale(0.95); opacity: 0; }
+    to { transform: scale(1); opacity: 1; }
+}
+
+@keyframes slideInRight {
+    from { transform: translateX(100%); opacity: 0; }
+    to { transform: translateX(0); opacity: 1; }
+}
+
+.inbox-fade-in {
+    animation: fadeIn 0.4s ease-out;
+}
+
+.inbox-slide-up {
+    animation: fadeSlideUp 0.4s ease-out;
+}
+
+.inbox-message-enter {
+    animation: messageSlideIn 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.inbox-scale-in {
+    animation: scaleIn 0.3s ease-out;
+}
+
+.inbox-typing-dot {
+    animation: typingBounce 1.4s infinite;
+}
+
+.inbox-typing-dot:nth-child(2) {
+    animation-delay: 0.2s;
+}
+
+.inbox-typing-dot:nth-child(3) {
+    animation-delay: 0.4s;
+}
+
+.inbox-shimmer {
+    background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+    background-size: 200% 100%;
+    animation: shimmer 1.5s infinite;
+}
+
+.chat-area-gradient {
+    background: linear-gradient(180deg, #fafafa 0%, #f5f5f7 100%);
+}
+
+.message-container-scroll {
+    scroll-behavior: smooth;
+}
+
+.message-container-scroll::-webkit-scrollbar {
+    width: 6px;
+}
+
+.message-container-scroll::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.message-container-scroll::-webkit-scrollbar-thumb {
+    background: #e0e0e0;
+    border-radius: 3px;
+}
+
+.message-container-scroll::-webkit-scrollbar-thumb:hover {
+    background: #d0d0d0;
+}
+`;
+
 interface RAGSuggestion {
     suggestedReply: string;
     confidence: number;
@@ -496,138 +625,165 @@ export default function UnifiedInboxPage() {
 
     if (authLoading || convsLoading) {
         return (
-            <div className="flex items-center justify-center h-full bg-gray-50/50">
-                <div className="flex flex-col items-center gap-3">
-                    <Loader2 className="w-8 h-8 animate-spin text-indigo-500" />
-                    <p className="text-sm text-gray-500">Loading inbox...</p>
+            <>
+                <style dangerouslySetInnerHTML={{ __html: inboxStyles }} />
+                <div className="flex items-center justify-center h-full bg-gradient-to-br from-slate-50 via-white to-indigo-50/30">
+                    <div className="flex flex-col items-center gap-4 inbox-fade-in">
+                        <div className="relative">
+                            <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center shadow-lg shadow-indigo-500/25">
+                                <Loader2 className="w-7 h-7 text-white animate-spin" />
+                            </div>
+                            <div className="absolute -inset-1 rounded-2xl bg-gradient-to-br from-indigo-500 to-violet-600 opacity-20 blur-lg animate-pulse" />
+                        </div>
+                        <div className="text-center">
+                            <p className="text-sm font-medium text-gray-700">Loading inbox</p>
+                            <p className="text-xs text-gray-400 mt-1">Fetching your conversations...</p>
+                        </div>
+                    </div>
                 </div>
-            </div>
+            </>
         );
     }
 
     return (
-        <div className="h-full flex bg-gray-50/30 overflow-hidden">
-            <div className={cn(
-                "md:block",
-                mobileShowChat ? "hidden" : "block w-full md:w-auto"
-            )}>
-                <UnifiedConversationSidebar
-                    conversations={filteredConversations}
-                    selectedId={selectedConversation?.id || null}
-                    onSelect={handleSelectConversation}
-                    searchQuery={searchQuery}
-                    onSearchChange={setSearchQuery}
-                    loading={convsLoading}
-                    isMobile={!mobileShowChat}
-                    onNewConversation={() => setShowNewConversationDialog(true)}
-                    platformFilter={platformFilter}
-                    onPlatformFilterChange={setPlatformFilter}
-                    whatsAppCount={whatsAppCount}
-                    telegramCount={telegramCount}
+        <>
+            <style dangerouslySetInnerHTML={{ __html: inboxStyles }} />
+            <div className="h-full flex bg-gradient-to-br from-slate-50/80 via-white to-indigo-50/20 overflow-hidden inbox-fade-in">
+                <div className={cn(
+                    "md:block",
+                    mobileShowChat ? "hidden" : "block w-full md:w-auto"
+                )}>
+                    <UnifiedConversationSidebar
+                        conversations={filteredConversations}
+                        selectedId={selectedConversation?.id || null}
+                        onSelect={handleSelectConversation}
+                        searchQuery={searchQuery}
+                        onSearchChange={setSearchQuery}
+                        loading={convsLoading}
+                        isMobile={!mobileShowChat}
+                        onNewConversation={() => setShowNewConversationDialog(true)}
+                        platformFilter={platformFilter}
+                        onPlatformFilterChange={setPlatformFilter}
+                        whatsAppCount={whatsAppCount}
+                        telegramCount={telegramCount}
+                    />
+                </div>
+
+                {!selectedConversation ? (
+                    <div className={cn(
+                        "flex-1",
+                        mobileShowChat ? "hidden md:flex" : "hidden md:flex"
+                    )}>
+                        <UnifiedEmptyState
+                            isWhatsAppConnected={isWhatsAppConnected}
+                            isTelegramConnected={isTelegramConnected}
+                            whatsAppStatus={whatsAppStatus}
+                        />
+                    </div>
+                ) : (
+                    <div className={cn(
+                        "flex-1 flex min-w-0",
+                        mobileShowChat ? "flex" : "hidden md:flex"
+                    )}>
+                        <div className="flex-1 flex flex-col min-w-0 bg-white md:border-x border-gray-100/80 shadow-sm">
+                            <UnifiedChatHeader
+                                conversation={selectedConversation}
+                                onDelete={handleDeleteConversation}
+                                onBack={handleMobileBack}
+                            />
+
+                            <div
+                                ref={messagesContainerRef}
+                                className="flex-1 overflow-y-auto overflow-x-hidden overscroll-contain px-4 md:px-6 py-4 chat-area-gradient message-container-scroll"
+                                style={{ WebkitOverflowScrolling: 'touch' }}
+                            >
+                                {msgsLoading ? (
+                                    <div className="flex items-center justify-center h-full">
+                                        <div className="flex flex-col items-center gap-3 inbox-fade-in">
+                                            <div className="flex gap-1.5">
+                                                <div className="w-2.5 h-2.5 rounded-full bg-indigo-400 inbox-typing-dot" />
+                                                <div className="w-2.5 h-2.5 rounded-full bg-indigo-400 inbox-typing-dot" />
+                                                <div className="w-2.5 h-2.5 rounded-full bg-indigo-400 inbox-typing-dot" />
+                                            </div>
+                                            <p className="text-xs text-gray-400">Loading messages</p>
+                                        </div>
+                                    </div>
+                                ) : messages.length === 0 ? (
+                                    <div className="flex items-center justify-center h-full inbox-slide-up">
+                                        <div className="text-center">
+                                            <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-gradient-to-br from-gray-100 to-gray-50 flex items-center justify-center">
+                                                <svg className="w-8 h-8 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                                                </svg>
+                                            </div>
+                                            <Badge variant="outline" className="mb-3 bg-white text-gray-400 border-gray-200 shadow-sm">No messages yet</Badge>
+                                            <p className="text-gray-400 text-sm">Start the conversation by typing a message below.</p>
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <div className="chat-messages-container">
+                                        <div className="chat-messages-wrapper space-y-3 md:space-y-4">
+                                            {messages.map((msg: any, index: number) => (
+                                                <UnifiedMessageBubble
+                                                    key={msg.id}
+                                                    message={msg}
+                                                    platform={selectedConversation.platform}
+                                                    onDelete={handleDeleteMessage}
+                                                    isLatest={index === messages.length - 1}
+                                                />
+                                            ))}
+                                            <div ref={messagesEndRef} className="h-1" />
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+
+                            <div className="shrink-0">
+                                <MessageInput
+                                    value={messageInput}
+                                    onChange={setMessageInput}
+                                    onSend={() => handleSendMessage()}
+                                    onSendMedia={handleSendMedia}
+                                    onGenerateSuggestion={() => handleGenerateSuggestion()}
+                                    isGenerating={isLoadingSuggestion}
+                                    sending={sending}
+                                    partnerId={currentPartnerId}
+                                />
+                            </div>
+                        </div>
+
+                        <CoreMemorySuggestion
+                            suggestion={aiSuggestion}
+                            isLoading={isLoadingSuggestion}
+                            isVisible={showAISuggestion}
+                            onEdit={(text) => {
+                                setMessageInput(text);
+                                setShowAISuggestion(false);
+                                setAISuggestion(null);
+                            }}
+                            onSend={(text) => {
+                                handleSendMessage(text);
+                            }}
+                            onDismiss={() => {
+                                setShowAISuggestion(false);
+                                setAISuggestion(null);
+                                setPendingIncomingMessage('');
+                            }}
+                            onRegenerate={() => handleGenerateSuggestion()}
+                            onRefine={handleRefineSuggestion}
+                            incomingMessage={pendingIncomingMessage}
+                        />
+                    </div>
+                )}
+
+                <NewConversationDialog
+                    open={showNewConversationDialog}
+                    onOpenChange={setShowNewConversationDialog}
+                    onStartConversation={handleStartNewConversation}
+                    contacts={contacts}
+                    contactsLoading={contactsLoading}
                 />
             </div>
-
-            {!selectedConversation ? (
-                <div className={cn(
-                    "flex-1",
-                    mobileShowChat ? "hidden md:flex" : "hidden md:flex"
-                )}>
-                    <UnifiedEmptyState
-                        isWhatsAppConnected={isWhatsAppConnected}
-                        isTelegramConnected={isTelegramConnected}
-                        whatsAppStatus={whatsAppStatus}
-                    />
-                </div>
-            ) : (
-                <div className={cn(
-                    "flex-1 flex min-w-0",
-                    mobileShowChat ? "flex" : "hidden md:flex"
-                )}>
-                    <div className="flex-1 flex flex-col min-w-0 bg-white md:border-x border-gray-100">
-                        <UnifiedChatHeader
-                            conversation={selectedConversation}
-                            onDelete={handleDeleteConversation}
-                            onBack={handleMobileBack}
-                        />
-
-                        <div
-                            ref={messagesContainerRef}
-                            className="flex-1 overflow-y-auto overflow-x-hidden overscroll-contain px-4 md:px-6 py-4"
-                            style={{ WebkitOverflowScrolling: 'touch' }}
-                        >
-                            {msgsLoading ? (
-                                <div className="flex items-center justify-center h-full">
-                                    <Loader2 className="w-6 h-6 animate-spin text-indigo-400" />
-                                </div>
-                            ) : messages.length === 0 ? (
-                                <div className="flex items-center justify-center h-full">
-                                    <div className="text-center">
-                                        <Badge variant="outline" className="mb-4 bg-gray-50 text-gray-400 border-dashed">No messages yet</Badge>
-                                        <p className="text-gray-400 text-sm">Start the conversation by typing a message below.</p>
-                                    </div>
-                                </div>
-                            ) : (
-                                <div className="chat-messages-container">
-                                    <div className="chat-messages-wrapper space-y-4 md:space-y-6">
-                                        {messages.map((msg: any) => (
-                                            <UnifiedMessageBubble
-                                                key={msg.id}
-                                                message={msg}
-                                                platform={selectedConversation.platform}
-                                                onDelete={handleDeleteMessage}
-                                            />
-                                        ))}
-                                        <div ref={messagesEndRef} className="h-1" />
-                                    </div>
-                                </div>
-                            )}
-                        </div>
-
-                        <div className="shrink-0">
-                            <MessageInput
-                                value={messageInput}
-                                onChange={setMessageInput}
-                                onSend={() => handleSendMessage()}
-                                onSendMedia={handleSendMedia}
-                                onGenerateSuggestion={() => handleGenerateSuggestion()}
-                                isGenerating={isLoadingSuggestion}
-                                sending={sending}
-                                partnerId={currentPartnerId}
-                            />
-                        </div>
-                    </div>
-
-                    <CoreMemorySuggestion
-                        suggestion={aiSuggestion}
-                        isLoading={isLoadingSuggestion}
-                        isVisible={showAISuggestion}
-                        onEdit={(text) => {
-                            setMessageInput(text);
-                            setShowAISuggestion(false);
-                            setAISuggestion(null);
-                        }}
-                        onSend={(text) => {
-                            handleSendMessage(text);
-                        }}
-                        onDismiss={() => {
-                            setShowAISuggestion(false);
-                            setAISuggestion(null);
-                            setPendingIncomingMessage('');
-                        }}
-                        onRegenerate={() => handleGenerateSuggestion()}
-                        onRefine={handleRefineSuggestion}
-                        incomingMessage={pendingIncomingMessage}
-                    />
-                </div>
-            )}
-
-            <NewConversationDialog
-                open={showNewConversationDialog}
-                onOpenChange={setShowNewConversationDialog}
-                onStartConversation={handleStartNewConversation}
-                contacts={contacts}
-                contactsLoading={contactsLoading}
-            />
-        </div>
+        </>
     );
 }
