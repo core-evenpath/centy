@@ -50,18 +50,24 @@ export function UnifiedChatHeader({ conversation, onDelete, onBack }: UnifiedCha
 
                 <div className="min-w-0">
                     <div className="flex items-center gap-2.5">
-                        <span className="font-semibold text-[#000] text-[15px] tracking-[-0.3px] truncate max-w-[140px] md:max-w-xs">
+                        <span className="font-semibold text-[#000] text-[15px] truncate max-w-[140px] md:max-w-xs">
                             {displayName}
                         </span>
                         <span
-                            className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-semibold text-white"
+                            className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-semibold text-white"
                             style={{ backgroundColor: platform.bg }}
                         >
                             {platform.label}
                         </span>
                     </div>
-                    <div className="flex items-center gap-2 text-[13px] text-[#666] mt-0.5">
+                    <div className="flex items-center text-[13px] text-[#666] mt-0.5">
                         <span>{conversation.contactCompany || 'Contact'}</span>
+                        {conversation.contact?.customFields?.aum && (
+                            <>
+                                <span className="mx-1.5">·</span>
+                                <span className="text-[#000] font-medium">AUM {conversation.contact.customFields.aum}</span>
+                            </>
+                        )}
                     </div>
                 </div>
             </div>

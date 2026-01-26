@@ -186,7 +186,7 @@ export function UnifiedConversationSidebar({
                                 >
                                     {/* Avatar */}
                                     <div className="relative flex-shrink-0">
-                                        <Avatar className="w-11 h-11 rounded-xl shadow-sm">
+                                        <Avatar className="w-11 h-11 rounded-xl">
                                             <AvatarImage src={conv.contact?.avatarUrl} />
                                             <AvatarFallback className="bg-[#111] text-white font-semibold text-[13px] rounded-xl">
                                                 {conv.title?.substring(0, 2).toUpperCase() || '?'}
@@ -194,34 +194,36 @@ export function UnifiedConversationSidebar({
                                         </Avatar>
                                         {conv.unreadCount > 0 && (
                                             <span
-                                                className="absolute -top-1 -right-1 w-4 h-4 bg-[#ef4444] rounded-full border-2 border-white flex items-center justify-center"
+                                                className="absolute -top-1 -right-1 w-3.5 h-3.5 bg-[#ef4444] rounded-full border-2 border-white"
                                                 style={{ animation: 'scaleIn 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)' }}
-                                            >
-                                                <span className="text-[9px] font-bold text-white">
-                                                    {conv.unreadCount > 9 ? '9+' : conv.unreadCount}
-                                                </span>
-                                            </span>
+                                            />
                                         )}
                                     </div>
 
                                     {/* Content */}
                                     <div className="flex-1 min-w-0">
                                         {/* Name & Time */}
-                                        <div className="flex items-center justify-between mb-1">
-                                            <span className="font-semibold text-[14px] text-[#000] truncate tracking-[-0.2px]">
+                                        <div className="flex items-center justify-between mb-0.5">
+                                            <span className="font-semibold text-[14px] text-[#000] truncate">
                                                 {conv.title}
                                             </span>
                                             <span className={cn(
-                                                "text-[11px] ml-2 flex-shrink-0 tabular-nums",
+                                                "text-[12px] ml-2 flex-shrink-0",
                                                 conv.unreadCount > 0 ? "text-[#000] font-semibold" : "text-[#999]"
                                             )}>
                                                 {formatTime(conv.lastMessageAt)}
                                             </span>
                                         </div>
 
-                                        {/* Company/Contact */}
-                                        <div className="flex items-center gap-2 mb-1.5">
-                                            <span className="text-[12px] text-[#666] font-medium">{conv.contactCompany || 'Contact'}</span>
+                                        {/* Company · Value */}
+                                        <div className="flex items-center gap-1.5 mb-1.5">
+                                            <span className="text-[12px] text-[#666]">{conv.contactCompany || 'Contact'}</span>
+                                            {conv.contact?.customFields?.aum && (
+                                                <>
+                                                    <span className="text-[12px] text-[#999]">·</span>
+                                                    <span className="text-[12px] text-[#000] font-semibold">{conv.contact.customFields.aum}</span>
+                                                </>
+                                            )}
                                         </div>
 
                                         {/* Platform & Preview */}
@@ -231,7 +233,7 @@ export function UnifiedConversationSidebar({
                                                 conv.platform === 'meta_whatsapp' ? "bg-[#25D366]" : "bg-[#0088cc]"
                                             )} />
                                             <p className={cn(
-                                                "text-[12px] truncate leading-relaxed",
+                                                "text-[12px] truncate",
                                                 conv.unreadCount > 0 ? "text-[#000] font-medium" : "text-[#888]"
                                             )}>
                                                 {conv.lastMessagePreview || 'No messages yet'}
