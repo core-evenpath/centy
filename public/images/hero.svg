@@ -1,0 +1,123 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" fill="none">
+  <!-- Background -->
+  <rect width="1200" height="630" fill="#FAFAF9"/>
+
+  <!-- Browser Window Frame -->
+  <rect x="60" y="40" width="1080" height="550" rx="16" fill="white" stroke="#E7E5E4" stroke-width="2"/>
+
+  <!-- Browser Header -->
+  <rect x="60" y="40" width="1080" height="50" rx="16" fill="#F5F5F4"/>
+  <rect x="60" y="74" width="1080" height="16" fill="#F5F5F4"/>
+
+  <!-- Window Buttons -->
+  <circle cx="92" cy="65" r="7" fill="#F87171"/>
+  <circle cx="116" cy="65" r="7" fill="#FBBF24"/>
+  <circle cx="140" cy="65" r="7" fill="#4ADE80"/>
+
+  <!-- URL Bar -->
+  <rect x="400" y="52" width="400" height="26" rx="6" fill="white"/>
+  <text x="530" y="70" font-family="system-ui, sans-serif" font-size="12" fill="#78716C">app.pingbox.io</text>
+
+  <!-- Sidebar -->
+  <rect x="60" y="90" width="220" height="500" fill="#F5F5F4"/>
+
+  <!-- Logo in Sidebar -->
+  <rect x="84" y="114" width="36" height="36" rx="8" fill="#059669"/>
+  <text x="102" y="138" font-family="system-ui, sans-serif" font-size="18" fill="white" text-anchor="middle" font-weight="bold">P</text>
+  <text x="134" y="138" font-family="system-ui, sans-serif" font-size="16" fill="#1C1917" font-weight="600">PingBox</text>
+
+  <!-- Sidebar Menu Items -->
+  <rect x="84" y="174" width="172" height="40" rx="8" fill="#059669"/>
+  <text x="108" y="199" font-family="system-ui, sans-serif" font-size="14" fill="white">Inbox</text>
+
+  <text x="108" y="249" font-family="system-ui, sans-serif" font-size="14" fill="#78716C">Documents</text>
+  <text x="108" y="289" font-family="system-ui, sans-serif" font-size="14" fill="#78716C">Broadcasts</text>
+  <text x="108" y="329" font-family="system-ui, sans-serif" font-size="14" fill="#78716C">Analytics</text>
+  <text x="108" y="369" font-family="system-ui, sans-serif" font-size="14" fill="#78716C">Settings</text>
+
+  <!-- Main Content Area -->
+  <rect x="280" y="90" width="860" height="500" fill="white"/>
+
+  <!-- Header Bar -->
+  <rect x="280" y="90" width="860" height="60" fill="white" stroke="#E7E5E4" stroke-width="1"/>
+  <text x="308" y="126" font-family="system-ui, sans-serif" font-size="18" fill="#1C1917" font-weight="600">Customer Inbox</text>
+
+  <!-- Channel Badges -->
+  <rect x="970" y="106" width="80" height="28" rx="14" fill="#DCFCE7"/>
+  <circle cx="986" cy="120" r="4" fill="#22C55E"/>
+  <text x="996" y="125" font-family="system-ui, sans-serif" font-size="11" fill="#166534">WhatsApp</text>
+
+  <rect x="870" y="106" width="90" height="28" rx="14" fill="#DBEAFE"/>
+  <circle cx="886" cy="120" r="4" fill="#3B82F6"/>
+  <text x="896" y="125" font-family="system-ui, sans-serif" font-size="11" fill="#1D4ED8">Telegram</text>
+
+  <!-- Conversation List -->
+  <rect x="280" y="150" width="300" height="440" fill="#FAFAF9" stroke="#E7E5E4" stroke-width="1"/>
+
+  <!-- Conversation Items -->
+  <rect x="296" y="166" width="268" height="72" rx="8" fill="white" stroke="#059669" stroke-width="2"/>
+  <circle cx="324" cy="202" r="18" fill="#E7E5E4"/>
+  <text x="324" y="207" font-family="system-ui, sans-serif" font-size="12" fill="#78716C" text-anchor="middle">RS</text>
+  <text x="354" y="192" font-family="system-ui, sans-serif" font-size="14" fill="#1C1917" font-weight="500">Rajesh Sharma</text>
+  <text x="354" y="210" font-family="system-ui, sans-serif" font-size="12" fill="#78716C">Need 500 units of 2HP pumps...</text>
+  <circle cx="540" cy="178" r="8" fill="#059669"/>
+  <text x="540" y="182" font-family="system-ui, sans-serif" font-size="9" fill="white" text-anchor="middle">2</text>
+
+  <rect x="296" y="250" width="268" height="72" rx="8" fill="white"/>
+  <circle cx="324" cy="286" r="18" fill="#E7E5E4"/>
+  <text x="324" y="291" font-family="system-ui, sans-serif" font-size="12" fill="#78716C" text-anchor="middle">PM</text>
+  <text x="354" y="276" font-family="system-ui, sans-serif" font-size="14" fill="#1C1917" font-weight="500">Priya Menon</text>
+  <text x="354" y="294" font-family="system-ui, sans-serif" font-size="12" fill="#78716C">What documents for Canada...</text>
+
+  <rect x="296" y="334" width="268" height="72" rx="8" fill="white"/>
+  <circle cx="324" cy="370" r="18" fill="#E7E5E4"/>
+  <text x="324" y="375" font-family="system-ui, sans-serif" font-size="12" fill="#78716C" text-anchor="middle">AK</text>
+  <text x="354" y="360" font-family="system-ui, sans-serif" font-size="14" fill="#1C1917" font-weight="500">Amit Kumar</text>
+  <text x="354" y="378" font-family="system-ui, sans-serif" font-size="12" fill="#78716C">GST filing deadline?</text>
+
+  <!-- Chat Area -->
+  <rect x="580" y="150" width="560" height="440" fill="white"/>
+
+  <!-- Chat Header -->
+  <rect x="580" y="150" width="560" height="56" fill="white" stroke="#E7E5E4" stroke-width="1"/>
+  <circle cx="616" cy="178" r="20" fill="#E7E5E4"/>
+  <text x="616" y="183" font-family="system-ui, sans-serif" font-size="14" fill="#78716C" text-anchor="middle">RS</text>
+  <text x="652" y="172" font-family="system-ui, sans-serif" font-size="15" fill="#1C1917" font-weight="600">Rajesh Sharma</text>
+  <text x="652" y="190" font-family="system-ui, sans-serif" font-size="12" fill="#78716C">Industrial Pumps Inquiry</text>
+  <rect x="1060" y="162" width="64" height="28" rx="6" fill="#DCFCE7"/>
+  <text x="1092" y="180" font-family="system-ui, sans-serif" font-size="10" fill="#166534" text-anchor="middle">WhatsApp</text>
+
+  <!-- Customer Message -->
+  <rect x="604" y="226" width="320" height="60" rx="12" fill="#F5F5F4"/>
+  <text x="620" y="250" font-family="system-ui, sans-serif" font-size="13" fill="#1C1917">Hi, I need 500 units of 2HP industrial</text>
+  <text x="620" y="268" font-family="system-ui, sans-serif" font-size="13" fill="#1C1917">pumps. What's your best price?</text>
+  <text x="620" y="282" font-family="system-ui, sans-serif" font-size="10" fill="#A8A29E">2:34 PM</text>
+
+  <!-- AI Response -->
+  <rect x="720" y="300" width="400" height="180" rx="12" fill="#ECFDF5" stroke="#A7F3D0" stroke-width="1"/>
+  <rect x="736" y="316" width="24" height="24" rx="12" fill="#059669"/>
+  <text x="748" y="333" font-family="system-ui, sans-serif" font-size="14" fill="white" text-anchor="middle">AI</text>
+  <text x="770" y="330" font-family="system-ui, sans-serif" font-size="11" fill="#059669" font-weight="500">AI Generated Response</text>
+
+  <text x="736" y="358" font-family="system-ui, sans-serif" font-size="12" fill="#1C1917">Hi Rajesh! For 500 units of 2HP Industrial</text>
+  <text x="736" y="376" font-family="system-ui, sans-serif" font-size="12" fill="#1C1917">Pumps (Model IP-2000):</text>
+  <text x="736" y="400" font-family="system-ui, sans-serif" font-size="12" fill="#1C1917">Unit price: Rs.12,500</text>
+  <text x="736" y="418" font-family="system-ui, sans-serif" font-size="12" fill="#1C1917">Bulk discount (200+ units): 8% off</text>
+  <text x="736" y="436" font-family="system-ui, sans-serif" font-size="12" fill="#1C1917">Your total: Rs.57,50,000</text>
+  <text x="736" y="460" font-family="system-ui, sans-serif" font-size="12" fill="#1C1917">Want me to send a formal quotation?</text>
+
+  <!-- Action Buttons -->
+  <rect x="740" y="500" width="100" height="36" rx="8" fill="#059669"/>
+  <text x="790" y="524" font-family="system-ui, sans-serif" font-size="13" fill="white" text-anchor="middle" font-weight="500">Send</text>
+
+  <rect x="856" y="500" width="100" height="36" rx="8" fill="white" stroke="#E7E5E4" stroke-width="1"/>
+  <text x="906" y="524" font-family="system-ui, sans-serif" font-size="13" fill="#57534E" text-anchor="middle">Edit</text>
+
+  <!-- Source Card -->
+  <rect x="980" y="320" width="130" height="80" rx="8" fill="#FAFAF9" stroke="#E7E5E4" stroke-width="1"/>
+  <text x="996" y="342" font-family="system-ui, sans-serif" font-size="10" fill="#78716C" font-weight="500">SOURCES</text>
+  <rect x="996" y="354" width="100" height="16" rx="4" fill="white" stroke="#E7E5E4" stroke-width="1"/>
+  <text x="1010" y="366" font-family="system-ui, sans-serif" font-size="9" fill="#059669">Product_Catalog.xlsx</text>
+  <rect x="996" y="376" width="100" height="16" rx="4" fill="white" stroke="#E7E5E4" stroke-width="1"/>
+  <text x="1010" y="388" font-family="system-ui, sans-serif" font-size="9" fill="#059669">Pricing_Policy.pdf</text>
+</svg>
