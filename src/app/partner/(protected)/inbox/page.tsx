@@ -34,6 +34,14 @@ import { useContacts } from '@/hooks/useContacts';
 
 // CSS Animations for the inbox
 const inboxStyles = `
+/* Base font stack for better typography */
+.inbox-container {
+    font-family: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", Roboto, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+
+/* Keyframe Animations */
 @keyframes fadeIn {
     from { opacity: 0; }
     to { opacity: 1; }
@@ -42,7 +50,7 @@ const inboxStyles = `
 @keyframes fadeSlideUp {
     from {
         opacity: 0;
-        transform: translateY(12px);
+        transform: translateY(16px);
     }
     to {
         opacity: 1;
@@ -53,7 +61,7 @@ const inboxStyles = `
 @keyframes fadeSlideIn {
     from {
         opacity: 0;
-        transform: translateX(-12px);
+        transform: translateX(-16px);
     }
     to {
         opacity: 1;
@@ -64,7 +72,7 @@ const inboxStyles = `
 @keyframes messageSlideIn {
     from {
         opacity: 0;
-        transform: translateY(16px) scale(0.97);
+        transform: translateY(20px) scale(0.95);
     }
     to {
         opacity: 1;
@@ -73,8 +81,8 @@ const inboxStyles = `
 }
 
 @keyframes subtlePulse {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0.7; }
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.8; transform: scale(1.05); }
 }
 
 @keyframes spinLoader {
@@ -82,8 +90,8 @@ const inboxStyles = `
 }
 
 @keyframes typingBounce {
-    0%, 60%, 100% { transform: translateY(0); }
-    30% { transform: translateY(-4px); }
+    0%, 60%, 100% { transform: translateY(0); opacity: 0.4; }
+    30% { transform: translateY(-6px); opacity: 1; }
 }
 
 @keyframes shimmer {
@@ -92,7 +100,7 @@ const inboxStyles = `
 }
 
 @keyframes scaleIn {
-    from { transform: scale(0.95); opacity: 0; }
+    from { transform: scale(0.9); opacity: 0; }
     to { transform: scale(1); opacity: 1; }
 }
 
@@ -101,44 +109,74 @@ const inboxStyles = `
     to { transform: translateX(0); opacity: 1; }
 }
 
+@keyframes float {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-8px); }
+}
+
+@keyframes gentlePulse {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(0, 0, 0, 0.1); }
+    50% { box-shadow: 0 0 0 8px rgba(0, 0, 0, 0); }
+}
+
+@keyframes badgePop {
+    from { transform: scale(0); }
+    to { transform: scale(1); }
+}
+
+/* Animation Classes */
 .inbox-fade-in {
-    animation: fadeIn 0.4s ease-out;
+    animation: fadeIn 0.5s ease-out;
 }
 
 .inbox-slide-up {
-    animation: fadeSlideUp 0.4s ease-out;
+    animation: fadeSlideUp 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.inbox-slide-in {
+    animation: fadeSlideIn 0.4s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .inbox-message-enter {
-    animation: messageSlideIn 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+    animation: messageSlideIn 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
 .inbox-scale-in {
-    animation: scaleIn 0.3s ease-out;
+    animation: scaleIn 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
 .inbox-typing-dot {
-    animation: typingBounce 1.4s infinite;
+    animation: typingBounce 1.4s infinite ease-in-out;
 }
 
 .inbox-typing-dot:nth-child(2) {
-    animation-delay: 0.2s;
+    animation-delay: 0.15s;
 }
 
 .inbox-typing-dot:nth-child(3) {
-    animation-delay: 0.4s;
+    animation-delay: 0.3s;
 }
 
 .inbox-shimmer {
-    background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+    background: linear-gradient(90deg, #f5f5f5 25%, #eaeaea 50%, #f5f5f5 75%);
     background-size: 200% 100%;
-    animation: shimmer 1.5s infinite;
+    animation: shimmer 1.5s infinite linear;
 }
 
+.inbox-float {
+    animation: float 3s ease-in-out infinite;
+}
+
+.inbox-pulse {
+    animation: gentlePulse 2s infinite;
+}
+
+/* Chat Area */
 .chat-area-gradient {
-    background: linear-gradient(180deg, #fafafa 0%, #f5f5f7 100%);
+    background: linear-gradient(180deg, #fafafa 0%, #f5f5f5 100%);
 }
 
+/* Custom Scrollbar */
 .message-container-scroll {
     scroll-behavior: smooth;
 }
@@ -152,12 +190,36 @@ const inboxStyles = `
 }
 
 .message-container-scroll::-webkit-scrollbar-thumb {
-    background: #e0e0e0;
+    background: rgba(0, 0, 0, 0.1);
     border-radius: 3px;
 }
 
 .message-container-scroll::-webkit-scrollbar-thumb:hover {
-    background: #d0d0d0;
+    background: rgba(0, 0, 0, 0.2);
+}
+
+/* Staggered animation for list items */
+.inbox-list-item {
+    opacity: 0;
+    animation: fadeSlideIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* Interactive hover effects */
+.inbox-interactive {
+    transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.inbox-interactive:hover {
+    transform: translateY(-1px);
+}
+
+.inbox-interactive:active {
+    transform: scale(0.98);
+}
+
+/* Button press effect */
+button:active {
+    transform: scale(0.97);
 }
 `;
 
@@ -627,17 +689,16 @@ export default function UnifiedInboxPage() {
         return (
             <>
                 <style dangerouslySetInnerHTML={{ __html: inboxStyles }} />
-                <div className="flex items-center justify-center h-full bg-gradient-to-br from-slate-50 via-white to-indigo-50/30">
-                    <div className="flex flex-col items-center gap-4 inbox-fade-in">
+                <div className="inbox-container flex items-center justify-center h-full bg-[#fafafa]">
+                    <div className="flex flex-col items-center gap-5 inbox-fade-in">
                         <div className="relative">
-                            <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center shadow-lg shadow-indigo-500/25">
-                                <Loader2 className="w-7 h-7 text-white animate-spin" />
+                            <div className="w-14 h-14 rounded-2xl bg-[#000] flex items-center justify-center inbox-pulse">
+                                <Loader2 className="w-6 h-6 text-white animate-spin" />
                             </div>
-                            <div className="absolute -inset-1 rounded-2xl bg-gradient-to-br from-indigo-500 to-violet-600 opacity-20 blur-lg animate-pulse" />
                         </div>
                         <div className="text-center">
-                            <p className="text-sm font-medium text-gray-700">Loading inbox</p>
-                            <p className="text-xs text-gray-400 mt-1">Fetching your conversations...</p>
+                            <p className="text-[15px] font-semibold text-[#000] tracking-[-0.3px]">Loading inbox</p>
+                            <p className="text-[13px] text-[#999] mt-1.5">Fetching your conversations...</p>
                         </div>
                     </div>
                 </div>
@@ -648,9 +709,9 @@ export default function UnifiedInboxPage() {
     return (
         <>
             <style dangerouslySetInnerHTML={{ __html: inboxStyles }} />
-            <div className="h-full flex bg-gradient-to-br from-slate-50/80 via-white to-indigo-50/20 overflow-hidden inbox-fade-in">
+            <div className="inbox-container h-full flex bg-[#fafafa] overflow-hidden inbox-fade-in">
                 <div className={cn(
-                    "md:block",
+                    "md:block inbox-slide-in",
                     mobileShowChat ? "hidden" : "block w-full md:w-auto"
                 )}>
                     <UnifiedConversationSidebar
@@ -685,7 +746,7 @@ export default function UnifiedInboxPage() {
                         "flex-1 flex min-w-0",
                         mobileShowChat ? "flex" : "hidden md:flex"
                     )}>
-                        <div className="flex-1 flex flex-col min-w-0 bg-white md:border-x border-gray-100/80 shadow-sm">
+                        <div className="flex-1 flex flex-col min-w-0 bg-white md:border-x border-[#e5e5e5]">
                             <UnifiedChatHeader
                                 conversation={selectedConversation}
                                 onDelete={handleDeleteConversation}
@@ -694,35 +755,33 @@ export default function UnifiedInboxPage() {
 
                             <div
                                 ref={messagesContainerRef}
-                                className="flex-1 overflow-y-auto overflow-x-hidden overscroll-contain px-4 md:px-6 py-4 chat-area-gradient message-container-scroll"
+                                className="flex-1 overflow-y-auto overflow-x-hidden overscroll-contain px-4 md:px-6 py-5 chat-area-gradient message-container-scroll"
                                 style={{ WebkitOverflowScrolling: 'touch' }}
                             >
                                 {msgsLoading ? (
                                     <div className="flex items-center justify-center h-full">
-                                        <div className="flex flex-col items-center gap-3 inbox-fade-in">
-                                            <div className="flex gap-1.5">
-                                                <div className="w-2.5 h-2.5 rounded-full bg-indigo-400 inbox-typing-dot" />
-                                                <div className="w-2.5 h-2.5 rounded-full bg-indigo-400 inbox-typing-dot" />
-                                                <div className="w-2.5 h-2.5 rounded-full bg-indigo-400 inbox-typing-dot" />
+                                        <div className="flex flex-col items-center gap-4 inbox-fade-in">
+                                            <div className="flex gap-2">
+                                                <div className="w-2.5 h-2.5 rounded-full bg-[#000] inbox-typing-dot" />
+                                                <div className="w-2.5 h-2.5 rounded-full bg-[#000] inbox-typing-dot" />
+                                                <div className="w-2.5 h-2.5 rounded-full bg-[#000] inbox-typing-dot" />
                                             </div>
-                                            <p className="text-xs text-gray-400">Loading messages</p>
+                                            <p className="text-[13px] text-[#999]">Loading messages</p>
                                         </div>
                                     </div>
                                 ) : messages.length === 0 ? (
                                     <div className="flex items-center justify-center h-full inbox-slide-up">
                                         <div className="text-center">
-                                            <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-gradient-to-br from-gray-100 to-gray-50 flex items-center justify-center">
-                                                <svg className="w-8 h-8 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-                                                </svg>
+                                            <div className="w-16 h-16 mx-auto mb-5 rounded-2xl bg-[#f0f0f0] flex items-center justify-center inbox-float">
+                                                <span className="text-2xl">💬</span>
                                             </div>
-                                            <Badge variant="outline" className="mb-3 bg-white text-gray-400 border-gray-200 shadow-sm">No messages yet</Badge>
-                                            <p className="text-gray-400 text-sm">Start the conversation by typing a message below.</p>
+                                            <p className="text-[15px] font-semibold text-[#000] tracking-[-0.3px] mb-2">No messages yet</p>
+                                            <p className="text-[13px] text-[#999] max-w-[240px]">Start the conversation by typing a message below.</p>
                                         </div>
                                     </div>
                                 ) : (
                                     <div className="chat-messages-container">
-                                        <div className="chat-messages-wrapper space-y-3 md:space-y-4">
+                                        <div className="chat-messages-wrapper space-y-4">
                                             {messages.map((msg: any, index: number) => (
                                                 <UnifiedMessageBubble
                                                     key={msg.id}
