@@ -276,28 +276,28 @@ export default function HomePage() {
         <div className="max-w-5xl mx-auto">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-8 text-center">
             <div>
-              <div className="text-3xl sm:text-4xl font-bold text-white mb-1">98%</div>
+              <div className="text-3xl sm:text-4xl font-bold text-white mb-1">~98%</div>
               <div className="text-emerald-100/50 text-sm">Message Open Rate</div>
-              <div className="text-emerald-100/30 text-xs mt-1">vs 20% for email</div>
+              <div className="text-emerald-100/30 text-xs mt-1">vs ~20% for email</div>
             </div>
             <div>
-              <div className="text-3xl sm:text-4xl font-bold text-white mb-1">45s</div>
-              <div className="text-emerald-100/50 text-sm">Avg Response Expected</div>
-              <div className="text-emerald-100/30 text-xs mt-1">by customers</div>
+              <div className="text-3xl sm:text-4xl font-bold text-white mb-1">&lt;10 min</div>
+              <div className="text-emerald-100/50 text-sm">Response Expected</div>
+              <div className="text-emerald-100/30 text-xs mt-1">by 80% of customers</div>
             </div>
             <div>
-              <div className="text-3xl sm:text-4xl font-bold text-white mb-1">67%</div>
+              <div className="text-3xl sm:text-4xl font-bold text-white mb-1">~67%</div>
               <div className="text-emerald-100/50 text-sm">Prefer Messaging</div>
               <div className="text-emerald-100/30 text-xs mt-1">over calls & email</div>
             </div>
             <div>
-              <div className="text-3xl sm:text-4xl font-bold text-white mb-1">2x</div>
-              <div className="text-emerald-100/50 text-sm">Higher Conversions</div>
-              <div className="text-emerald-100/30 text-xs mt-1">with instant replies</div>
+              <div className="text-3xl sm:text-4xl font-bold text-white mb-1">45-60%</div>
+              <div className="text-emerald-100/50 text-sm">Click-Through Rate</div>
+              <div className="text-emerald-100/30 text-xs mt-1">vs 2-5% for email</div>
             </div>
           </div>
           <p className="text-center text-emerald-100/30 text-xs mt-6">
-            Source: Meta, HubSpot, Infobip WhatsApp Business Statistics 2024-25
+            Industry data from Meta, HubSpot, Infobip (2024-25)
           </p>
         </div>
       </section>
