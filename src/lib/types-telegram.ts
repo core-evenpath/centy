@@ -218,6 +218,7 @@ export interface TelegramStoredMessage {
         fileSize?: number;
         caption?: string;
         status?: 'sent' | 'delivered' | 'read';
+        audioTranscription?: string;
     };
     createdAt: any;
     updatedAt?: any;

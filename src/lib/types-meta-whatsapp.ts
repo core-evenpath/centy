@@ -196,6 +196,7 @@ export interface MetaWhatsAppMessage {
         templateName?: string;
         errorCode?: number;
         errorMessage?: string;
+        audioTranscription?: string;
     };
     createdAt: any;
     updatedAt?: any;

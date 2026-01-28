@@ -8,6 +8,7 @@ import {
     downloadTelegramFile,
     getFile,
 } from '@/lib/telegram-service';
+import { transcribeAudioFromUrl } from '@/lib/gemini-service';
 import type {
     TelegramUpdate,
     TelegramMessage,
@@ -176,11 +177,31 @@ async function handleIncomingMessage(
     }
 
     const conversationId = await getOrCreateConversation(partnerId, message);
-    const { type, content, fileId, mimeType, fileName, fileSize } = extractMessageContent(message);
+    let { type, content, fileId, mimeType, fileName, fileSize } = extractMessageContent(message);
 
     let mediaUpload: { storagePath: string; downloadUrl: string } | null = null;
+    let audioTranscription = '';
+
     if (fileId) {
         mediaUpload = await handleMediaUpload(partnerId, botToken, fileId, type);
+
+        // Transcribe audio/voice messages
+        if ((type === 'audio' || type === 'voice') && mediaUpload?.downloadUrl) {
+            console.log('🎙️ Starting Telegram audio transcription...');
+            try {
+                const transcriptionResult = await transcribeAudioFromUrl(
+                    mediaUpload.downloadUrl,
+                    mimeType || 'audio/ogg'
+                );
+                if (transcriptionResult.transcription) {
+                    audioTranscription = transcriptionResult.transcription;
+                    content = `[AUDIO] ${transcriptionResult.transcription}`;
+                    console.log(`✅ Telegram audio transcribed: ${transcriptionResult.transcription.substring(0, 100)}...`);
+                }
+            } catch (transcribeErr) {
+                console.error('⚠️ Telegram audio transcription failed (non-blocking):', transcribeErr);
+            }
+        }
     }
 
     const messageRef = db.collection('telegramMessages').doc();
@@ -205,6 +226,7 @@ async function handleIncomingMessage(
             fileName,
             fileSize,
             caption: message.caption,
+            audioTranscription: audioTranscription || undefined,
         },
         createdAt: FieldValue.serverTimestamp(),
     };
@@ -213,7 +235,7 @@ async function handleIncomingMessage(
 
     const messagePreview = type === 'text'
         ? content.substring(0, 50)
-        : `📎 ${type}`;
+        : (audioTranscription ? audioTranscription.substring(0, 50) : `📎 ${type}`);
 
     await db.collection('telegramConversations').doc(conversationId).update({
         lastMessageAt: FieldValue.serverTimestamp(),

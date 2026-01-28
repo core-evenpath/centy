@@ -4,6 +4,7 @@ import { FieldValue } from 'firebase-admin/firestore';
 import { findPartnerByPhoneNumberId, processAndUploadMedia, getWhatsAppProfilePicture } from '@/lib/meta-whatsapp-service';
 import { incrementContactMessageCountAction, triggerPersonaGenerationAction } from '@/actions/persona-actions';
 import { getPlatformMetaConfig, getDecryptedAppSecret } from '@/actions/admin-platform-actions';
+import { transcribeAudioFromUrl } from '@/lib/gemini-service';
 import crypto from 'crypto';
 import type {
     MetaWebhookPayload,
@@ -274,6 +275,7 @@ async function handleIncomingMessage(
     let mimeType = '';
     let filename = '';
     let mediaId = '';
+    let audioTranscription = '';
 
     switch (message.type) {
         case 'text':
@@ -294,6 +296,11 @@ async function handleIncomingMessage(
             content = '[AUDIO]';
             mediaId = message.audio?.id || '';
             mimeType = message.audio?.mime_type || '';
+            break;
+        case 'voice':
+            content = '[VOICE]';
+            mediaId = (message as any).voice?.id || '';
+            mimeType = (message as any).voice?.mime_type || 'audio/ogg';
             break;
         case 'video':
             content = message.video?.caption || '[VIDEO]';
@@ -329,6 +336,21 @@ async function handleIncomingMessage(
             if (uploadedUrl) {
                 mediaUrl = uploadedUrl;
                 console.log(`✅ Media URL stored: ${uploadedUrl.substring(0, 50)}...`);
+
+                // Transcribe audio/voice messages
+                if (message.type === 'audio' || message.type === 'voice') {
+                    console.log('🎙️ Starting audio transcription...');
+                    try {
+                        const transcriptionResult = await transcribeAudioFromUrl(uploadedUrl, mimeType);
+                        if (transcriptionResult.transcription) {
+                            audioTranscription = transcriptionResult.transcription;
+                            content = `[AUDIO] ${transcriptionResult.transcription}`;
+                            console.log(`✅ Audio transcribed: ${transcriptionResult.transcription.substring(0, 100)}...`);
+                        }
+                    } catch (transcribeErr) {
+                        console.error('⚠️ Audio transcription failed (non-blocking):', transcribeErr);
+                    }
+                }
             } else {
                 console.error(`❌ Failed to upload media for ID: ${mediaId}`);
             }
@@ -355,6 +377,7 @@ async function handleIncomingMessage(
             mimeType: mimeType || undefined,
             filename: filename || undefined,
             mediaId: mediaId || undefined,
+            audioTranscription: audioTranscription || undefined,
         },
         createdAt: FieldValue.serverTimestamp(),
     };
