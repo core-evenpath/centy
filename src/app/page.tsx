@@ -274,6 +274,9 @@ export default function HomePage() {
       {/* Industry Stats Banner */}
       <section className="py-12 px-6 border-y border-emerald-900/30" style={{ backgroundColor: 'rgba(16, 30, 22, 0.3)' }}>
         <div className="max-w-5xl mx-auto">
+          <p className="text-center text-emerald-400 text-sm font-medium tracking-wider mb-8">
+            WHY WHATSAPP WINS
+          </p>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-8 text-center">
             <div>
               <div className="text-3xl sm:text-4xl font-bold text-white mb-1">~98%</div>
