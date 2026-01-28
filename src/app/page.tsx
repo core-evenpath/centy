@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { ArrowRight, Check, X, FileText, TrendingUp, MessageSquare, User, Sparkles, Database, CheckCircle2, DollarSign, History, Tag, Package, Phone, Bot, Loader2, AlertCircle, Star } from 'lucide-react';
+import { ArrowRight, Check, X, FileText, TrendingUp, MessageSquare, User, Sparkles, Database, CheckCircle2, DollarSign, History, Tag, Package, Phone, Bot, Loader2, AlertCircle } from 'lucide-react';
 
 function GlowOrb({ className }: { className: string }) {
   return (
@@ -271,20 +271,34 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* Social Proof Banner */}
+      {/* Industry Stats Banner */}
       <section className="py-12 px-6 border-y border-emerald-900/30" style={{ backgroundColor: 'rgba(16, 30, 22, 0.3)' }}>
-        <div className="max-w-4xl mx-auto text-center">
-          <div className="flex items-center justify-center gap-1 mb-4">
-            {[...Array(5)].map((_, i) => (
-              <Star key={i} className="w-5 h-5 text-amber-400 fill-amber-400" />
-            ))}
+        <div className="max-w-5xl mx-auto">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-8 text-center">
+            <div>
+              <div className="text-3xl sm:text-4xl font-bold text-white mb-1">98%</div>
+              <div className="text-emerald-100/50 text-sm">Message Open Rate</div>
+              <div className="text-emerald-100/30 text-xs mt-1">vs 20% for email</div>
+            </div>
+            <div>
+              <div className="text-3xl sm:text-4xl font-bold text-white mb-1">45s</div>
+              <div className="text-emerald-100/50 text-sm">Avg Response Expected</div>
+              <div className="text-emerald-100/30 text-xs mt-1">by customers</div>
+            </div>
+            <div>
+              <div className="text-3xl sm:text-4xl font-bold text-white mb-1">67%</div>
+              <div className="text-emerald-100/50 text-sm">Prefer Messaging</div>
+              <div className="text-emerald-100/30 text-xs mt-1">over calls & email</div>
+            </div>
+            <div>
+              <div className="text-3xl sm:text-4xl font-bold text-white mb-1">2x</div>
+              <div className="text-emerald-100/50 text-sm">Higher Conversions</div>
+              <div className="text-emerald-100/30 text-xs mt-1">with instant replies</div>
+            </div>
           </div>
-          <blockquote className="text-xl text-white mb-4">
-            "I used to lose 5-6 inquiries a month to slower competitors. Last month I closed 23 — responding at 11pm while I was asleep."
-          </blockquote>
-          <cite className="text-emerald-100/50 not-italic">
-            — Priya M., Consultant, Mumbai
-          </cite>
+          <p className="text-center text-emerald-100/30 text-xs mt-6">
+            Source: Meta, HubSpot, Infobip WhatsApp Business Statistics 2024-25
+          </p>
         </div>
       </section>
 
