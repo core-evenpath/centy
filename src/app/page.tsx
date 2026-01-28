@@ -215,10 +215,10 @@ export default function HomePage() {
           </div>
           <div className="flex items-center gap-4">
             <Link href="/partner/login" className="text-sm text-emerald-100/60 hover:text-white transition-colors hidden sm:block">Login</Link>
-            <button className="text-sm bg-emerald-500 hover:bg-emerald-400 text-white px-5 py-2.5 rounded-full font-medium transition-colors flex items-center gap-2">
+            <Link href="/early-access" className="text-sm bg-emerald-500 hover:bg-emerald-400 text-white px-5 py-2.5 rounded-full font-medium transition-colors flex items-center gap-2">
               Start Free
               <ArrowRight className="w-4 h-4" />
-            </button>
+            </Link>
           </div>
         </div>
       </nav>
@@ -253,10 +253,10 @@ export default function HomePage() {
           </p>
 
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-8">
-            <button className="group flex items-center gap-2 bg-gradient-to-r from-emerald-500 to-emerald-600 text-white px-8 py-4 rounded-full font-semibold hover:from-emerald-400 hover:to-emerald-500 transition-all shadow-lg shadow-emerald-500/25">
+            <Link href="/early-access" className="group flex items-center gap-2 bg-gradient-to-r from-emerald-500 to-emerald-600 text-white px-8 py-4 rounded-full font-semibold hover:from-emerald-400 hover:to-emerald-500 transition-all shadow-lg shadow-emerald-500/25">
               Connect WhatsApp — Free 14 Days
               <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
-            </button>
+            </Link>
           </div>
 
           <p className="text-sm text-emerald-100/40">
@@ -840,10 +840,10 @@ export default function HomePage() {
             </div>
 
             <div className="text-center">
-              <button className="inline-flex items-center justify-center gap-2 w-full sm:w-auto bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-400 hover:to-emerald-500 text-white px-12 py-4 rounded-full font-semibold transition-all shadow-lg shadow-emerald-500/25">
+              <Link href="/early-access" className="inline-flex items-center justify-center gap-2 w-full sm:w-auto bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-400 hover:to-emerald-500 text-white px-12 py-4 rounded-full font-semibold transition-all shadow-lg shadow-emerald-500/25">
                 Start Free — No Credit Card
                 <ArrowRight className="w-4 h-4" />
-              </button>
+              </Link>
               <p className="text-sm text-emerald-100/40 mt-4">
                 Not satisfied? Full refund in first 30 days. No questions asked.
               </p>
@@ -865,10 +865,10 @@ export default function HomePage() {
             Connect your WhatsApp. Upload one document. See your first AI response in 5 minutes.
           </p>
 
-          <button className="inline-flex items-center gap-2 bg-white text-gray-900 px-8 py-4 rounded-full font-semibold hover:bg-emerald-100 transition-all mb-10">
+          <Link href="/early-access" className="inline-flex items-center gap-2 bg-white text-gray-900 px-8 py-4 rounded-full font-semibold hover:bg-emerald-100 transition-all mb-10">
             Start Free — No Credit Card
             <ArrowRight className="w-4 h-4" />
-          </button>
+          </Link>
 
           <p className="text-sm text-emerald-100/40 mt-8">
             Questions? <a href="mailto:hello@pingbox.io" className="text-emerald-400 hover:underline">hello@pingbox.io</a>
