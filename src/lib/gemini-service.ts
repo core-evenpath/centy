@@ -109,6 +109,150 @@ export const processDocumentWithGemini = async (
     }
 };
 
+/**
+ * Transcribe audio from a URL using Gemini
+ * Downloads the audio and sends it to Gemini for transcription
+ */
+export const transcribeAudioFromUrl = async (
+    audioUrl: string,
+    mimeType?: string
+): Promise<{ transcription: string; summary: string }> => {
+    try {
+        console.log('🎙️ Starting audio transcription from URL...');
+
+        // Fetch the audio file
+        const response = await fetch(audioUrl);
+        if (!response.ok) {
+            throw new Error(`Failed to fetch audio: ${response.status}`);
+        }
+
+        const arrayBuffer = await response.arrayBuffer();
+        const base64Data = Buffer.from(arrayBuffer).toString('base64');
+        const detectedMimeType = mimeType || response.headers.get('content-type') || 'audio/ogg';
+
+        console.log(`📦 Audio fetched: ${(arrayBuffer.byteLength / 1024).toFixed(1)}KB, type: ${detectedMimeType}`);
+
+        // Use Gemini to transcribe
+        const transcriptionResponse = await retryWithBackoff(() => ai.models.generateContent({
+            model: GENERATION_MODEL,
+            contents: {
+                parts: [
+                    { inlineData: { mimeType: detectedMimeType, data: base64Data } },
+                    { text: `Listen to this audio message carefully.
+
+Transcribe the spoken content verbatim - exactly what is being said.
+Then provide a brief one-sentence summary of what the speaker is communicating.
+
+Respond in JSON format:
+{
+    "transcription": "The exact words spoken in the audio",
+    "summary": "A brief summary of what the speaker is saying/asking"
+}
+
+If the audio is unclear or you cannot understand it, indicate that in the transcription.` }
+                ]
+            },
+            config: {
+                temperature: 0.1,
+                responseMimeType: "application/json",
+                responseSchema: {
+                    type: Type.OBJECT,
+                    properties: {
+                        transcription: { type: Type.STRING },
+                        summary: { type: Type.STRING }
+                    },
+                    required: ["transcription", "summary"]
+                }
+            }
+        }));
+
+        const jsonText = transcriptionResponse.text;
+        if (!jsonText) {
+            throw new Error("No transcription response from Gemini");
+        }
+
+        const result = JSON.parse(jsonText);
+        console.log('✅ Audio transcription complete');
+
+        return {
+            transcription: result.transcription || '',
+            summary: result.summary || ''
+        };
+    } catch (error: any) {
+        console.error('❌ Audio transcription error:', error);
+        return {
+            transcription: '',
+            summary: 'Unable to transcribe audio'
+        };
+    }
+};
+
+/**
+ * Transcribe audio from base64 data
+ */
+export const transcribeAudioFromBase64 = async (
+    base64Data: string,
+    mimeType: string
+): Promise<{ transcription: string; summary: string }> => {
+    try {
+        console.log('🎙️ Starting audio transcription from base64...');
+
+        const cleanBase64 = base64Data.split(',')[1] || base64Data;
+
+        const transcriptionResponse = await retryWithBackoff(() => ai.models.generateContent({
+            model: GENERATION_MODEL,
+            contents: {
+                parts: [
+                    { inlineData: { mimeType, data: cleanBase64 } },
+                    { text: `Listen to this audio message carefully.
+
+Transcribe the spoken content verbatim - exactly what is being said.
+Then provide a brief one-sentence summary of what the speaker is communicating.
+
+Respond in JSON format:
+{
+    "transcription": "The exact words spoken in the audio",
+    "summary": "A brief summary of what the speaker is saying/asking"
+}
+
+If the audio is unclear or you cannot understand it, indicate that in the transcription.` }
+                ]
+            },
+            config: {
+                temperature: 0.1,
+                responseMimeType: "application/json",
+                responseSchema: {
+                    type: Type.OBJECT,
+                    properties: {
+                        transcription: { type: Type.STRING },
+                        summary: { type: Type.STRING }
+                    },
+                    required: ["transcription", "summary"]
+                }
+            }
+        }));
+
+        const jsonText = transcriptionResponse.text;
+        if (!jsonText) {
+            throw new Error("No transcription response from Gemini");
+        }
+
+        const result = JSON.parse(jsonText);
+        console.log('✅ Audio transcription complete');
+
+        return {
+            transcription: result.transcription || '',
+            summary: result.summary || ''
+        };
+    } catch (error: any) {
+        console.error('❌ Audio transcription error:', error);
+        return {
+            transcription: '',
+            summary: 'Unable to transcribe audio'
+        };
+    }
+};
+
 export const generateEmbedding = async (text: string): Promise<number[]> => {
     const safeText = text.slice(0, 9000);
     try {

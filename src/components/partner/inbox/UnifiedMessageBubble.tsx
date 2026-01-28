@@ -91,9 +91,19 @@ export function UnifiedMessageBubble({ message, platform, onDelete, isLatest }: 
         }
 
         if (type === 'audio' || type === 'voice') {
+            const transcription = metadata?.audioTranscription;
             return (
-                <div className="mb-2">
+                <div className="mb-2 space-y-2">
                     <audio src={mediaUrl} controls className="w-full max-w-[280px]" />
+                    {transcription && (
+                        <div className={cn(
+                            "text-[13px] italic px-3 py-2 rounded-lg",
+                            isOutbound ? "bg-white/10 text-gray-300" : "bg-gray-100 text-gray-600"
+                        )}>
+                            <span className="text-[10px] uppercase tracking-wide opacity-60 block mb-1">Transcription</span>
+                            "{transcription}"
+                        </div>
+                    )}
                 </div>
             );
         }
@@ -169,7 +179,10 @@ export function UnifiedMessageBubble({ message, platform, onDelete, isLatest }: 
 
     const renderTextContent = () => {
         const content = message.content;
-        if (!content || content.match(/^\[(PHOTO|IMAGE|VIDEO|DOCUMENT|AUDIO|VOICE|STICKER|LOCATION)\]$/i)) {
+        // Skip rendering text for media-only messages or audio with transcriptions (shown in audio player area)
+        if (!content ||
+            content.match(/^\[(PHOTO|IMAGE|VIDEO|DOCUMENT|AUDIO|VOICE|STICKER|LOCATION)\]$/i) ||
+            content.match(/^\[(AUDIO|VOICE)\]\s+.+$/i)) {
             return null;
         }
 
