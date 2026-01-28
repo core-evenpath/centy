@@ -254,13 +254,13 @@ export default function HomePage() {
 
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-8">
             <Link href="/early-access" className="group flex items-center gap-2 bg-gradient-to-r from-emerald-500 to-emerald-600 text-white px-8 py-4 rounded-full font-semibold hover:from-emerald-400 hover:to-emerald-500 transition-all shadow-lg shadow-emerald-500/25">
-              Connect WhatsApp — Free 14 Days
+              Get Early Access
               <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
             </Link>
           </div>
 
           <p className="text-sm text-emerald-100/40">
-            No credit card. No sales call. Working in 5 minutes.
+            Limited spots available. Join 500+ businesses on the waitlist.
           </p>
         </div>
 
@@ -841,11 +841,11 @@ export default function HomePage() {
 
             <div className="text-center">
               <Link href="/early-access" className="inline-flex items-center justify-center gap-2 w-full sm:w-auto bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-400 hover:to-emerald-500 text-white px-12 py-4 rounded-full font-semibold transition-all shadow-lg shadow-emerald-500/25">
-                Start Free — No Credit Card
+                Join the Waitlist
                 <ArrowRight className="w-4 h-4" />
               </Link>
               <p className="text-sm text-emerald-100/40 mt-4">
-                Not satisfied? Full refund in first 30 days. No questions asked.
+                Early access members get exclusive pricing.
               </p>
             </div>
           </div>
@@ -866,7 +866,7 @@ export default function HomePage() {
           </p>
 
           <Link href="/early-access" className="inline-flex items-center gap-2 bg-white text-gray-900 px-8 py-4 rounded-full font-semibold hover:bg-emerald-100 transition-all mb-10">
-            Start Free — No Credit Card
+            Get Early Access
             <ArrowRight className="w-4 h-4" />
           </Link>
 
