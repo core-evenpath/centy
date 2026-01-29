@@ -30,6 +30,10 @@ import AutoFillPreviewModal from '@/components/partner/settings/AutoFillPreviewM
 import WebsiteImportPreviewModal from '@/components/partner/settings/WebsiteImportPreviewModal';
 import SchemaBusinessProfile from '@/components/partner/settings/SchemaBusinessProfile';
 import { Building2, Database, Trash2 } from 'lucide-react';
+import { useTaxonomyIndustries, useResolvedFunctions } from '@/hooks/use-taxonomy';
+import { Badge } from '@/components/ui/badge';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 const SettingsUltimate = () => {
   const router = useRouter();
@@ -112,6 +116,64 @@ const SettingsUltimate = () => {
   const userRole = user?.customClaims?.role || 'member';
   const isAdmin = userRole === 'partner_admin' || userRole === 'Super Admin';
   const profileScore = persona.setupProgress?.overallPercentage || 0;
+
+  // Taxonomy Hooks
+  const { industries: taxonomyIndustries, loading: industriesLoading } = useTaxonomyIndustries();
+
+  // Selected Industry for Functions (use the first selected or the primary one)
+  const primaryIndustryId = selectedBusinessTypes.length > 0 ? selectedBusinessTypes[0] : undefined;
+  const countryCode = persona?.identity?.countryCode || 'GLOBAL';
+
+  const { functions: taxonomyFunctions, loading: functionsLoading } = useResolvedFunctions(primaryIndustryId, countryCode);
+
+  // Selected Functions State
+  const [selectedFunctions, setSelectedFunctions] = useState<string[]>([]);
+
+  useEffect(() => {
+    // Initialize selected functions from persona
+    if (persona.industrySpecificData?.selectedFunctions) {
+      setSelectedFunctions(persona.industrySpecificData.selectedFunctions);
+    }
+  }, [persona.industrySpecificData]);
+
+  const handleFunctionToggle = (functionId: string, checked: boolean) => {
+    const newFunctions = checked
+      ? [...selectedFunctions, functionId]
+      : selectedFunctions.filter(id => id !== functionId);
+
+    setSelectedFunctions(newFunctions);
+    handleFieldUpdate('industrySpecificData.selectedFunctions', newFunctions);
+  };
+
+  // Map Firestore Industry IDs to Config Keys
+  const TAXONOMY_TO_CONFIG_MAP: Record<string, string> = {
+    'financial_services': 'finance',
+    'education_learning': 'education',
+    'healthcare_medical': 'healthcare',
+    'business_professional': 'services', // Maps to Professional Services
+    'retail_commerce': 'retail',
+    'food_beverage': 'food_beverage',
+    'hospitality': 'hospitality',
+    'real_estate': 'real_estate', // Note: Real Estate is now a function, but we keep config support
+  };
+
+  // Icon Mapping
+  const ICON_MAP: Record<string, string> = {
+    'Landmark': '💰',
+    'GraduationCap': '📚',
+    'Heart': '🏥',
+    'Briefcase': '💼',
+    'ShoppingBag': '🛒',
+    'UtensilsCrossed': '🍕',
+    'ShoppingCart': '🥦',
+    'Sparkles': '✨',
+    'Car': '🚗',
+    'Plane': '✈️',
+    'Building': '🏨',
+    'PartyPopper': '🎉',
+    'Wrench': '🔧',
+    'MoreHorizontal': '🏛️'
+  };
 
   // Initialize Data
   useEffect(() => {
@@ -527,17 +589,13 @@ const SettingsUltimate = () => {
 
 
   // Configuration Data
+  // Replaced with dynamic industries from Firestore
+  /* 
   const businessTypes = [
     { id: 'services', icon: '💼', name: 'Professional Services', desc: 'Consulting, Legal, Agency' },
-    { id: 'real_estate', icon: '🏠', name: 'Real Estate', desc: 'Agents, Brokers, Property' },
-    { id: 'finance', icon: '💰', name: 'Financial Services', desc: 'Advisors, Insurance, Loans' },
-    { id: 'retail', icon: '🛒', name: 'Retail & E-Commerce', desc: 'Stores, Shops, D2C' },
-    { id: 'healthcare', icon: '🏥', name: 'Healthcare', desc: 'Clinics, Doctors, Wellness' },
-    { id: 'education', icon: '📚', name: 'Education', desc: 'Coaching, Courses, Tutoring' },
-    { id: 'food_beverage', icon: '🍕', name: 'Food & Restaurant', desc: 'Restaurant, Cloud Kitchen' },
-    { id: 'hospitality', icon: '🏨', name: 'Hospitality', desc: 'Hotels, Travel, Events' },
-    { id: 'custom', icon: '🔧', name: 'Custom / Other', desc: 'Build your own profile' },
+    ...
   ];
+  */
 
   // Industry Fields Configuration
   const industryData: Record<string, any> = {
@@ -1069,7 +1127,9 @@ const SettingsUltimate = () => {
     const sectionSources: Record<string, string[]> = {}; // Track which types contributed each section
 
     typesToUse.forEach(type => {
-      const industryConfig = industryData[type] || {};
+      // Map the type ID (from Firestore) to the Config ID (local)
+      const configKey = TAXONOMY_TO_CONFIG_MAP[type] || 'custom';
+      const industryConfig = industryData[configKey] || industryData['custom'] || {};
       Object.entries(industryConfig).forEach(([sectionKey, sectionData]: [string, any]) => {
         if (!mergedSections[sectionKey]) {
           mergedSections[sectionKey] = { ...sectionData, fields: [...sectionData.fields] };
@@ -1252,7 +1312,47 @@ const SettingsUltimate = () => {
             {activeTab === 'profile' && (
               <div className="-m-4 md:-m-8">
                 {/* Business Profile Sections */}
-                <div>
+                <div className="space-y-6">
+                  {/* Functions Selector */}
+                  {selectedBusinessTypes.length > 0 && (
+                    <div className="bg-white p-6 rounded-2xl border border-slate-200">
+                      <h3 className="font-semibold text-slate-900 mb-4 flex items-center gap-2">
+                        <Database className="w-5 h-5 text-indigo-600" />
+                        Business Functions & Specializations
+                      </h3>
+
+                      {functionsLoading ? (
+                        <div className="flex items-center gap-2 text-slate-500 animate-pulse">
+                          <div className="w-4 h-4 bg-slate-200 rounded-full"></div>
+                          Loading functions...
+                        </div>
+                      ) : taxonomyFunctions.length > 0 ? (
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                          {taxonomyFunctions.map(func => (
+                            <div key={func.functionId} className="flex items-center space-x-2">
+                              <Checkbox
+                                id={`func-${func.functionId}`}
+                                checked={selectedFunctions.includes(func.functionId)}
+                                onCheckedChange={(checked) => handleFunctionToggle(func.functionId, checked as boolean)}
+                              />
+                              <label
+                                htmlFor={`func-${func.functionId}`}
+                                className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
+                              >
+                                {func.displayLabel}
+                                {func.isLocalized && (
+                                  <Badge variant="outline" className="ml-2 text-[10px] px-1 h-4">Local</Badge>
+                                )}
+                              </label>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="text-sm text-slate-500 italic">No specific functions available for this industry.</p>
+                      )}
+                    </div>
+                  )}
+
                   <SchemaBusinessProfile
                     persona={persona}
                     onUpdate={async (path, value) => {
@@ -2012,32 +2112,39 @@ const SettingsUltimate = () => {
                 <p className="text-slate-500 mt-1">This customizes your profile fields and AI suggestions</p>
               </div>
               <div className="p-6 grid grid-cols-1 sm:grid-cols-2 gap-3 overflow-y-auto">
-                {businessTypes.map(type => {
-                  const isSelected = selectedBusinessTypes.includes(type.id);
-                  return (
-                    <button
-                      key={type.id}
-                      onClick={() => toggleBusinessType(type.id)}
-                      className={cn(
-                        "p-4 rounded-xl border-2 text-left transition-all relative",
-                        isSelected
-                          ? 'border-indigo-500 bg-indigo-50'
-                          : 'border-slate-200 hover:border-slate-300'
-                      )}
-                    >
-                      {/* Checkbox */}
-                      <div className={cn(
-                        "absolute top-3 right-3 w-6 h-6 rounded-full flex items-center justify-center text-sm",
-                        isSelected ? 'bg-indigo-500 text-white' : 'bg-slate-200 text-slate-400'
-                      )}>
-                        {isSelected ? '✓' : ''}
-                      </div>
-                      <div className="text-2xl mb-2">{type.icon}</div>
-                      <h3 className="font-semibold text-slate-900">{type.name}</h3>
-                      <p className="text-xs text-slate-500 mt-0.5">{type.desc}</p>
-                    </button>
-                  );
-                })}
+                {
+                  industriesLoading ? (
+                    <div className="col-span-full py-10 flex justify-center">
+                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
+                    </div>
+                  ) : taxonomyIndustries.map(industry => {
+                    const isSelected = selectedBusinessTypes.includes(industry.industryId);
+                    const icon = ICON_MAP[industry.iconName] || '🏢';
+
+                    return (
+                      <button
+                        key={industry.industryId}
+                        onClick={() => toggleBusinessType(industry.industryId)}
+                        className={cn(
+                          "p-4 rounded-xl border-2 text-left transition-all relative",
+                          isSelected
+                            ? 'border-indigo-500 bg-indigo-50'
+                            : 'border-slate-200 hover:border-slate-300'
+                        )}
+                      >
+                        {/* Checkbox */}
+                        <div className={cn(
+                          "absolute top-3 right-3 w-6 h-6 rounded-full flex items-center justify-center text-sm",
+                          isSelected ? 'bg-indigo-500 text-white' : 'bg-slate-200 text-slate-400'
+                        )}>
+                          {isSelected ? '✓' : ''}
+                        </div>
+                        <div className="text-2xl mb-2">{icon}</div>
+                        <h3 className="font-semibold text-slate-900">{industry.name}</h3>
+                        <p className="text-xs text-slate-500 mt-0.5">{industry.description}</p>
+                      </button>
+                    );
+                  })}
               </div>
               <div className="p-4 border-t border-slate-100 flex items-center justify-between bg-slate-50">
                 <span className="text-sm text-slate-600">
