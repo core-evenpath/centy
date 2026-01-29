@@ -28,6 +28,13 @@ export interface Industry {
     iconName: string;
 }
 
+export interface TaxonomyIndustry extends Industry {
+    isActive: boolean;
+    sortOrder: number;
+    createdAt?: any;
+    updatedAt?: any;
+}
+
 /**
  * Level 2: Business Function
  */
@@ -40,6 +47,11 @@ export interface BusinessFunction {
     keywords?: string[];
 }
 
+export interface TaxonomyFunction extends BusinessFunction {
+    isActive: boolean;
+    sortOrder: number;
+}
+
 /**
  * Level 3: Specialization (optional)
  */
@@ -47,6 +59,11 @@ export interface Specialization {
     specializationId: string;
     functionId: string;
     name: string;
+}
+
+export interface TaxonomySpecialization extends Specialization {
+    isActive: boolean;
+    sortOrder: number;
 }
 
 /**
@@ -60,6 +77,10 @@ export interface CountryOverride {
     aliases?: string[];
     regulationLevel?: RegulationLevel;
     googlePlacesTypes?: string[]; // Override Google types if different
+}
+
+export interface TaxonomyCountryOverride extends CountryOverride {
+    // Firestore specific fields if any
 }
 
 /**

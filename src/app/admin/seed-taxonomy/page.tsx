@@ -1,273 +1,247 @@
 'use client';
 
-import { useState } from 'react';
-import { getAuth } from 'firebase/auth';
+import { useState, useEffect } from 'react';
+import { getAuth, onAuthStateChanged, User } from 'firebase/auth';
 import { app } from '@/lib/firebase';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import {
-    Card,
-    CardContent,
-    CardDescription,
-    CardHeader,
-    CardTitle,
-} from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Loader2, CheckCircle2, XCircle, RefreshCw, Database, AlertTriangle } from 'lucide-react';
+
+interface SeedResult {
+    success: boolean;
+    summary: {
+        industries: { seeded: number; errors: number };
+        functions: { seeded: number; errors: number };
+        specializations: { seeded: number; errors: number };
+        countryOverrides: { seeded: number; errors: number };
+        broadcastTemplates: { seeded: number; errors: number };
+    };
+    errors: string[];
+    timestamp: string;
+}
+
+interface VerifyResult {
+    success: boolean;
+    counts: {
+        industries: number;
+        functions: number;
+        specializations: number;
+        countryOverrides: number;
+        broadcastTemplates: number;
+    };
+    expected: {
+        industries: number;
+        functions: number;
+        specializations: number;
+        countryOverrides: number;
+        broadcastTemplates: number;
+    };
+    inSync: boolean;
+    lastSeededAt?: string;
+}
 
 export default function SeedTaxonomyPage() {
+    const [user, setUser] = useState<User | null>(null);
     const [seedLoading, setSeedLoading] = useState(false);
-    const [verifyLoading, setVerifyLoading] = useState(false);
-    const [seedResult, setSeedResult] = useState<any>(null);
-    const [verifyResult, setVerifyResult] = useState<any>(null);
+    const [verifyLoading, setVerifyLoading] = useState(false); // Start false until we have a user
+    const [seedResult, setSeedResult] = useState<SeedResult | null>(null);
+    const [verifyResult, setVerifyResult] = useState<VerifyResult | null>(null);
     const [error, setError] = useState<string | null>(null);
 
-    const getAuthToken = async () => {
+    // Auth Subscription
+    useEffect(() => {
         const auth = getAuth(app);
-        const user = auth.currentUser;
-
-        if (!user) {
-            throw new Error('You must be logged in to perform this action');
-        }
-
-        return await user.getIdToken();
-    };
-
-    const handleSeedTaxonomy = async () => {
-        setSeedLoading(true);
-        setError(null);
-        setSeedResult(null);
-
-        try {
-            const token = await getAuthToken();
-
-            const response = await fetch('/api/admin/seed-taxonomy', {
-                method: 'POST',
-                headers: {
-                    Authorization: `Bearer ${token}`,
-                    'Content-Type': 'application/json',
-                },
-            });
-
-            const data = await response.json();
-
-            if (!response.ok) {
-                throw new Error(data.error || data.details || 'Failed to seed taxonomy');
+        const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+            setUser(currentUser);
+            if (currentUser) {
+                // Auto-verify when user is found
+                handleVerify(currentUser);
             }
+        });
 
-            setSeedResult(data);
-        } catch (err: any) {
-            setError(err.message);
-            console.error('Error seeding taxonomy:', err);
-        } finally {
-            setSeedLoading(false);
-        }
+        return () => unsubscribe();
+    }, []);
+
+    const getToken = async (currentUser: User | null = user) => {
+        if (!currentUser) throw new Error('Not authenticated');
+        return await currentUser.getIdToken();
     };
 
-    const handleVerifyData = async () => {
+    const handleVerify = async (currentUser: User | null = user) => {
+        if (!currentUser) return;
+
         setVerifyLoading(true);
         setError(null);
-        setVerifyResult(null);
-
         try {
-            const token = await getAuthToken();
-
+            const token = await getToken(currentUser);
             const response = await fetch('/api/admin/seed-taxonomy', {
                 method: 'GET',
-                headers: {
-                    Authorization: `Bearer ${token}`,
-                },
+                headers: { Authorization: `Bearer ${token}` },
             });
-
             const data = await response.json();
-
-            if (!response.ok) {
-                throw new Error(data.error || data.details || 'Failed to verify taxonomy');
-            }
-
+            if (!response.ok) throw new Error(data.error || 'Verification failed');
             setVerifyResult(data);
         } catch (err: any) {
             setError(err.message);
-            console.error('Error verifying taxonomy:', err);
         } finally {
             setVerifyLoading(false);
         }
     };
 
+    const handleSeed = async () => {
+        if (!user) return;
+
+        setSeedLoading(true);
+        setError(null);
+        try {
+            const token = await getToken(user);
+            const response = await fetch('/api/admin/seed-taxonomy', {
+                method: 'POST',
+                headers: { Authorization: `Bearer ${token}` },
+            });
+            const data = await response.json();
+            if (!response.ok) throw new Error(data.error || 'Seeding failed');
+            setSeedResult(data);
+            await handleVerify(user);
+        } catch (err: any) {
+            setError(err.message);
+        } finally {
+            setSeedLoading(false);
+        }
+    };
+
     return (
-        <div className="container mx-auto py-10 px-4">
-            <div className="max-w-4xl mx-auto space-y-8">
-                {/* Header */}
-                <div>
-                    <h1 className="text-3xl font-bold mb-2">Seed System Taxonomy</h1>
-                    <p className="text-muted-foreground">
-                        Seed and verify the systemTaxonomy collections in Firestore. This operation is
-                        idempotent and safe to run multiple times.
-                    </p>
-                </div>
-
-                {/* Action Buttons */}
-                <Card>
-                    <CardHeader>
-                        <CardTitle>Actions</CardTitle>
-                        <CardDescription>
-                            Use these buttons to seed or verify taxonomy data
-                        </CardDescription>
-                    </CardHeader>
-                    <CardContent className="flex gap-4">
-                        <Button
-                            onClick={handleSeedTaxonomy}
-                            disabled={seedLoading}
-                            size="lg"
-                            variant="default"
-                        >
-                            {seedLoading ? 'Seeding...' : 'Seed Taxonomy'}
-                        </Button>
-                        <Button
-                            onClick={handleVerifyData}
-                            disabled={verifyLoading}
-                            size="lg"
-                            variant="outline"
-                        >
-                            {verifyLoading ? 'Verifying...' : 'Verify Data'}
-                        </Button>
-                    </CardContent>
-                </Card>
-
-                {/* Error Display */}
-                {error && (
-                    <Card className="border-red-500">
-                        <CardHeader>
-                            <CardTitle className="text-red-600">Error</CardTitle>
-                        </CardHeader>
-                        <CardContent>
-                            <p className="text-red-600">{error}</p>
-                        </CardContent>
-                    </Card>
-                )}
-
-                {/* Seed Results */}
-                {seedResult && (
-                    <Card className={seedResult.success ? 'border-green-500' : 'border-yellow-500'}>
-                        <CardHeader>
-                            <CardTitle className={seedResult.success ? 'text-green-600' : 'text-yellow-600'}>
-                                {seedResult.success ? '✓ Seeding Complete' : '⚠ Seeding Completed with Errors'}
-                            </CardTitle>
-                            <CardDescription>{seedResult.message}</CardDescription>
-                        </CardHeader>
-                        <CardContent className="space-y-4">
-                            {/* Summary */}
-                            <div>
-                                <h3 className="font-semibold mb-2">Summary</h3>
-                                <div className="grid grid-cols-2 gap-4 text-sm">
-                                    <div>
-                                        <span className="font-medium">Industries:</span>{' '}
-                                        {seedResult.summary.industries.seeded} seeded
-                                        {seedResult.summary.industries.errors > 0 &&
-                                            `, ${seedResult.summary.industries.errors} errors`}
-                                    </div>
-                                    <div>
-                                        <span className="font-medium">Functions:</span>{' '}
-                                        {seedResult.summary.functions.seeded} seeded
-                                        {seedResult.summary.functions.errors > 0 &&
-                                            `, ${seedResult.summary.functions.errors} errors`}
-                                    </div>
-                                    <div>
-                                        <span className="font-medium">Specializations:</span>{' '}
-                                        {seedResult.summary.specializations.seeded} seeded
-                                        {seedResult.summary.specializations.errors > 0 &&
-                                            `, ${seedResult.summary.specializations.errors} errors`}
-                                    </div>
-                                    <div>
-                                        <span className="font-medium">Country Overrides:</span>{' '}
-                                        {seedResult.summary.countryOverrides.seeded} seeded
-                                        {seedResult.summary.countryOverrides.errors > 0 &&
-                                            `, ${seedResult.summary.countryOverrides.errors} errors`}
-                                    </div>
-                                    <div>
-                                        <span className="font-medium">Broadcast Templates:</span>{' '}
-                                        {seedResult.summary.broadcastTemplates.seeded} seeded
-                                        {seedResult.summary.broadcastTemplates.errors > 0 &&
-                                            `, ${seedResult.summary.broadcastTemplates.errors} errors`}
-                                    </div>
-                                </div>
-                            </div>
-
-                            {/* Errors */}
-                            {seedResult.errors && seedResult.errors.length > 0 && (
-                                <div>
-                                    <h3 className="font-semibold mb-2 text-red-600">Errors</h3>
-                                    <div className="bg-red-50 p-4 rounded-md max-h-60 overflow-y-auto">
-                                        <ul className="text-sm text-red-800 space-y-1">
-                                            {seedResult.errors.map((err: string, idx: number) => (
-                                                <li key={idx}>• {err}</li>
-                                            ))}
-                                        </ul>
-                                    </div>
-                                </div>
-                            )}
-                        </CardContent>
-                    </Card>
-                )}
-
-                {/* Verify Results */}
-                {verifyResult && (
-                    <Card className="border-blue-500">
-                        <CardHeader>
-                            <CardTitle className="text-blue-600">✓ Verification Complete</CardTitle>
-                            <CardDescription>{verifyResult.message}</CardDescription>
-                        </CardHeader>
-                        <CardContent>
-                            <div>
-                                <h3 className="font-semibold mb-2">Document Counts</h3>
-                                <div className="grid grid-cols-2 gap-4 text-sm">
-                                    <div>
-                                        <span className="font-medium">Industries:</span>{' '}
-                                        {verifyResult.counts.industries}
-                                    </div>
-                                    <div>
-                                        <span className="font-medium">Functions:</span>{' '}
-                                        {verifyResult.counts.functions}
-                                    </div>
-                                    <div>
-                                        <span className="font-medium">Specializations:</span>{' '}
-                                        {verifyResult.counts.specializations}
-                                    </div>
-                                    <div>
-                                        <span className="font-medium">Country Overrides:</span>{' '}
-                                        {verifyResult.counts.countryOverrides}
-                                    </div>
-                                    <div>
-                                        <span className="font-medium">Broadcast Templates:</span>{' '}
-                                        {verifyResult.counts.broadcastTemplates}
-                                    </div>
-                                </div>
-                            </div>
-                        </CardContent>
-                    </Card>
-                )}
-
-                {/* Info Card */}
-                <Card>
-                    <CardHeader>
-                        <CardTitle>About This Tool</CardTitle>
-                    </CardHeader>
-                    <CardContent className="text-sm text-muted-foreground space-y-2">
-                        <p>
-                            This tool seeds the <code className="bg-muted px-1 py-0.5 rounded">systemTaxonomy</code>{' '}
-                            collections in Firestore with:
-                        </p>
-                        <ul className="list-disc list-inside space-y-1 ml-4">
-                            <li>14 Industries</li>
-                            <li>~100 Business Functions</li>
-                            <li>~20 Specializations</li>
-                            <li>~400 Country Overrides</li>
-                            <li>8 Broadcast Templates</li>
-                        </ul>
-                        <p className="mt-4">
-                            The seeding operation uses <code className="bg-muted px-1 py-0.5 rounded">merge: true</code>,
-                            making it safe to run multiple times without creating duplicates.
-                        </p>
-                    </CardContent>
-                </Card>
+        <div className="container mx-auto py-10 px-4 max-w-4xl">
+            <div className="mb-8">
+                <h1 className="text-3xl font-bold flex items-center gap-3">
+                    <Database className="w-8 h-8 text-indigo-600" />
+                    System Taxonomy Sync
+                </h1>
+                <p className="text-muted-foreground mt-2">
+                    Sync business categories from code to Firestore for runtime access.
+                </p>
             </div>
+
+            {/* Sync Status Card */}
+            <Card className={verifyResult?.inSync ? 'border-green-200 bg-green-50/50' : 'border-amber-200 bg-amber-50/50'}>
+                <CardHeader>
+                    <CardTitle className="flex items-center justify-between">
+                        <span className="flex items-center gap-2">
+                            {verifyLoading ? (
+                                <Loader2 className="w-5 h-5 animate-spin" />
+                            ) : verifyResult?.inSync ? (
+                                <CheckCircle2 className="w-5 h-5 text-green-600" />
+                            ) : (
+                                <AlertTriangle className="w-5 h-5 text-amber-600" />
+                            )}
+                            Sync Status
+                        </span>
+                        <Badge variant={verifyResult?.inSync ? 'default' : 'destructive'}>
+                            {verifyResult?.inSync ? 'In Sync' : 'Out of Sync'}
+                        </Badge>
+                    </CardTitle>
+                    {verifyResult?.lastSeededAt && (
+                        <CardDescription>
+                            Last synced: {new Date(verifyResult.lastSeededAt).toLocaleString()}
+                        </CardDescription>
+                    )}
+                </CardHeader>
+                <CardContent>
+                    {verifyResult && (
+                        <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
+                            {(['industries', 'functions', 'specializations', 'countryOverrides', 'broadcastTemplates'] as const).map(key => (
+                                <div key={key} className="text-center p-3 bg-white rounded-lg border">
+                                    <div className="text-2xl font-bold">
+                                        {verifyResult.counts[key]}
+                                        <span className="text-sm font-normal text-slate-400">
+                                            /{verifyResult.expected[key]}
+                                        </span>
+                                    </div>
+                                    <div className="text-xs text-slate-500 capitalize">
+                                        {key.replace(/([A-Z])/g, ' $1').trim()}
+                                    </div>
+                                    {verifyResult.counts[key] !== verifyResult.expected[key] && (
+                                        <Badge variant="destructive" className="mt-1 text-[10px]">
+                                            Missing {verifyResult.expected[key] - verifyResult.counts[key]}
+                                        </Badge>
+                                    )}
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                </CardContent>
+            </Card>
+
+            {/* Actions */}
+            <Card className="mt-6">
+                <CardHeader>
+                    <CardTitle>Actions</CardTitle>
+                    <CardDescription>
+                        Seed taxonomy data from code to Firestore. This operation is idempotent (safe to run multiple times).
+                    </CardDescription>
+                </CardHeader>
+                <CardContent className="flex gap-4">
+                    <Button onClick={handleSeed} disabled={seedLoading || !user} size="lg">
+                        {seedLoading ? (
+                            <><Loader2 className="w-4 h-4 animate-spin mr-2" /> Syncing...</>
+                        ) : (
+                            <><Database className="w-4 h-4 mr-2" /> Sync Now</>
+                        )}
+                    </Button>
+                    <Button onClick={() => handleVerify(user)} disabled={verifyLoading || !user} variant="outline" size="lg">
+                        <RefreshCw className={`w-4 h-4 mr-2 ${verifyLoading ? 'animate-spin' : ''}`} />
+                        Refresh Status
+                    </Button>
+                </CardContent>
+            </Card>
+
+            {/* Error */}
+            {error && (
+                <Card className="mt-6 border-red-200 bg-red-50">
+                    <CardContent className="pt-6">
+                        <p className="text-red-600 flex items-center gap-2">
+                            <XCircle className="w-5 h-5" /> {error}
+                        </p>
+                    </CardContent>
+                </Card>
+            )}
+
+            {/* Seed Result */}
+            {seedResult && (
+                <Card className="mt-6 border-green-200">
+                    <CardHeader>
+                        <CardTitle className="text-green-600 flex items-center gap-2">
+                            <CheckCircle2 className="w-5 h-5" /> Sync Complete
+                        </CardTitle>
+                        <CardDescription>{seedResult.timestamp}</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                        <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
+                            <div className="text-center p-3 bg-green-50 rounded-lg">
+                                <div className="text-2xl font-bold text-green-700">{seedResult.summary.industries.seeded}</div>
+                                <div className="text-xs text-green-600">Industries</div>
+                            </div>
+                            <div className="text-center p-3 bg-green-50 rounded-lg">
+                                <div className="text-2xl font-bold text-green-700">{seedResult.summary.functions.seeded}</div>
+                                <div className="text-xs text-green-600">Functions</div>
+                            </div>
+                            <div className="text-center p-3 bg-green-50 rounded-lg">
+                                <div className="text-2xl font-bold text-green-700">{seedResult.summary.specializations.seeded}</div>
+                                <div className="text-xs text-green-600">Specializations</div>
+                            </div>
+                            <div className="text-center p-3 bg-green-50 rounded-lg">
+                                <div className="text-2xl font-bold text-green-700">{seedResult.summary.countryOverrides.seeded}</div>
+                                <div className="text-xs text-green-600">Overrides</div>
+                            </div>
+                            <div className="text-center p-3 bg-green-50 rounded-lg">
+                                <div className="text-2xl font-bold text-green-700">{seedResult.summary.broadcastTemplates.seeded}</div>
+                                <div className="text-xs text-green-600">Templates</div>
+                            </div>
+                        </div>
+                    </CardContent>
+                </Card>
+            )}
         </div>
     );
 }

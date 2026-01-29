@@ -76,6 +76,8 @@ export async function POST(request: Request) {
         return NextResponse.json({
             success: true,
             summary: result.summary,
+            errors: result.errors,
+            timestamp: result.timestamp,
             message: 'Taxonomy seeded successfully',
         });
     } catch (error: any) {
@@ -151,7 +153,10 @@ export async function GET(request: Request) {
             return NextResponse.json(
                 {
                     success: false,
-                    error: result.error,
+                    counts: result.counts,
+                    expected: result.expected,
+                    inSync: result.inSync,
+                    error: (result as any).error,
                 },
                 { status: 500 }
             );
@@ -160,6 +165,9 @@ export async function GET(request: Request) {
         return NextResponse.json({
             success: true,
             counts: result.counts,
+            expected: result.expected,
+            inSync: result.inSync,
+            lastSeededAt: result.lastSeededAt,
             message: 'Taxonomy verified successfully',
         });
     } catch (error: any) {

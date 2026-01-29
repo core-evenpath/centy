@@ -10,17 +10,12 @@ import {
 import { cn } from '@/lib/utils';
 import { BusinessPersona } from '@/lib/business-persona-types';
 import {
-    getIndustries,
-    getResolvedFunctions,
-    searchFunctions,
-    toSelectedCategories,
-    findFunctionInfo,
     getCountriesForDropdown,
-    CountryCode,
-    Industry,
-    ResolvedFunction,
-    SelectedBusinessCategory,
+    type CountryCode,
 } from '@/lib/business-taxonomy';
+import { BusinessCategoriesModal } from './BusinessCategoriesModal';
+import { findFunctionInfoAction } from '@/actions/taxonomy-actions';
+import { type SelectedBusinessCategory } from '@/hooks/use-taxonomy';
 import { generateModulesFromCategories, type ModulesConfig } from '@/actions/module-generator-actions';
 import { CoreVisibilityPanel } from './CoreVisibilityPanel';
 import { OtherUsefulDataAccordion } from './OtherUsefulDataAccordion';
@@ -249,30 +244,42 @@ export default function BusinessProfileTab({
 
     // UI State for editing
     const [showCategoryModal, setShowCategoryModal] = useState(false);
-    const [selectedIndustry, setSelectedIndustry] = useState<string | null>(null);
-    const [categorySearch, setCategorySearch] = useState('');
 
-    // Multi-select state for business functions
     // Get currently selected categories from persona
     const selectedCategories: SelectedBusinessCategory[] =
         (persona.identity as any)?.businessCategories || [];
-    const [pendingSelections, setPendingSelections] = useState<string[]>(
-        selectedCategories.map(c => c.functionId)
-    );
 
     // Check if user has selected at least one category
     const hasSelectedCategories = selectedCategories.length > 0;
 
-    // Get industries and functions from new taxonomy
-    const industries = getIndustries();
+    const handleSaveCategories = async (categories: SelectedBusinessCategory[], country: CountryCode) => {
+        // Save to persona
+        await onUpdate('identity.businessCategories', categories);
+        await onUpdate('identity.country', country);
 
-    // Sync pending selections when modal opens
-    useEffect(() => {
-        if (showCategoryModal) {
-            setPendingSelections(selectedCategories.map(c => c.functionId));
-            setCategorySearch('');
+        // Update primary industry
+        if (categories.length > 0) {
+            const firstInfo = await findFunctionInfoAction(categories[0].functionId, country);
+            if (firstInfo.success && firstInfo.data?.function && firstInfo.data?.industry) {
+                await onUpdate('identity.industry', {
+                    name: firstInfo.data.displayLabel,
+                    category: firstInfo.data.industry.industryId
+                });
+            }
+
+            // Generate modules
+            if (onModulesGenerated) {
+                try {
+                    const result = await generateModulesFromCategories(categories, country);
+                    if (result.success && result.config) {
+                        await onModulesGenerated(result.config);
+                    }
+                } catch (error) {
+                    console.error('Error generating modules:', error);
+                }
+            }
         }
-    }, [showCategoryModal]);
+    };
 
     // Helper to safely get nested values
     const get = (path: string, def: any = '') => {
@@ -867,267 +874,14 @@ export default function BusinessProfileTab({
                 )}
             </div>
 
-            {/* Category Modal - Multi-Select with Country Localization */}
-            {showCategoryModal && (
-                <div className="fixed inset-0 bg-black/50 z-[100] flex items-center justify-center p-4 backdrop-blur-sm">
-                    <div className="bg-white rounded-2xl w-full max-w-4xl max-h-[85vh] overflow-hidden flex flex-col shadow-2xl">
-                        <div className="p-4 border-b border-slate-100 bg-slate-50">
-                            <div className="flex items-center justify-between mb-3">
-                                <div>
-                                    <h3 className="font-bold text-lg text-slate-800">Select Business Categories</h3>
-                                    <p className="text-xs text-slate-500">
-                                        Choose one or more categories that describe your business
-                                        {pendingSelections.length > 0 && (
-                                            <span className="ml-2 px-2 py-0.5 bg-indigo-100 text-indigo-700 rounded-full text-xs font-medium">
-                                                {pendingSelections.length} selected
-                                            </span>
-                                        )}
-                                    </p>
-                                </div>
-                                <button onClick={() => setShowCategoryModal(false)} className="p-2 hover:bg-slate-200 rounded-full">
-                                    <X className="w-5 h-5 text-slate-500" />
-                                </button>
-                            </div>
-                            {/* Country selector and Search */}
-                            <div className="flex gap-3">
-                                <div className="relative">
-                                    <Globe className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-slate-400" />
-                                    <select
-                                        value={selectedCountry}
-                                        onChange={(e) => setSelectedCountry(e.target.value as CountryCode)}
-                                        className="pl-10 pr-8 py-2 rounded-lg bg-white border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300 appearance-none cursor-pointer"
-                                    >
-                                        {getCountriesForDropdown().map(c => (
-                                            <option key={c.code} value={c.code}>
-                                                {c.flag} {c.name}{c.hasOverrides ? ' ✦' : ''}
-                                            </option>
-                                        ))}
-                                    </select>
-                                    <ChevronDown className="absolute right-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
-                                </div>
-                                <div className="relative flex-1">
-                                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-slate-400" />
-                                    <input
-                                        type="text"
-                                        placeholder="Search categories..."
-                                        value={categorySearch}
-                                        onChange={(e) => setCategorySearch(e.target.value)}
-                                        className="w-full pl-10 pr-4 py-2 rounded-lg bg-white border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300"
-                                    />
-                                    {categorySearch && (
-                                        <button
-                                            onClick={() => setCategorySearch('')}
-                                            className="absolute right-3 top-1/2 transform -translate-y-1/2"
-                                        >
-                                            <X className="w-4 h-4 text-slate-400 hover:text-slate-600" />
-                                        </button>
-                                    )}
-                                </div>
-                            </div>
-                        </div>
-
-                        <div className="flex-1 overflow-hidden flex flex-col md:flex-row">
-                            {/* Left: Industries */}
-                            <div className="w-full md:w-1/3 border-r border-slate-100 overflow-y-auto bg-slate-50/50 p-2">
-                                {industries.map(industry => {
-                                    // Count selected functions in this industry
-                                    const functionsInIndustry = getResolvedFunctions(industry.industryId, selectedCountry);
-                                    const selectedInIndustry = functionsInIndustry.filter(f =>
-                                        pendingSelections.includes(f.functionId)
-                                    ).length;
-
-                                    const IconComponent = CATEGORY_ICONS[industry.iconName] || Building2;
-
-                                    return (
-                                        <button
-                                            key={industry.industryId}
-                                            onClick={() => setSelectedIndustry(industry.industryId)}
-                                            className={cn(
-                                                "w-full text-left px-3 py-3 rounded-xl text-sm font-medium transition-all mb-1.5 flex items-center justify-between",
-                                                selectedIndustry === industry.industryId
-                                                    ? "bg-indigo-600 text-white shadow-lg shadow-indigo-200"
-                                                    : "text-slate-700 hover:bg-white hover:shadow-md border border-transparent hover:border-slate-100"
-                                            )}
-                                        >
-                                            <span className="flex items-center gap-3">
-                                                <span className={cn(
-                                                    "w-8 h-8 rounded-lg flex items-center justify-center",
-                                                    selectedIndustry === industry.industryId
-                                                        ? "bg-white/20"
-                                                        : "bg-slate-100"
-                                                )}>
-                                                    <IconComponent className={cn(
-                                                        "w-4 h-4",
-                                                        selectedIndustry === industry.industryId
-                                                            ? "text-white"
-                                                            : "text-slate-500"
-                                                    )} />
-                                                </span>
-                                                <span className="truncate">{industry.name}</span>
-                                            </span>
-                                            {selectedInIndustry > 0 && (
-                                                <span className={cn(
-                                                    "text-xs px-2 py-0.5 rounded-full font-semibold flex-shrink-0",
-                                                    selectedIndustry === industry.industryId
-                                                        ? "bg-white/20 text-white"
-                                                        : "bg-indigo-100 text-indigo-700"
-                                                )}>
-                                                    {selectedInIndustry}
-                                                </span>
-                                            )}
-                                        </button>
-                                    );
-                                })}
-                            </div>
-
-                            {/* Right: Business Functions with Checkboxes (Hidden as requested) */}
-                            <div className="hidden">
-                                {(() => {
-                                    // Get functions to display
-                                    let functionsToShow: ResolvedFunction[] = [];
-
-                                    if (categorySearch.trim()) {
-                                        // Search across ALL functions
-                                        functionsToShow = searchFunctions(categorySearch, selectedCountry);
-                                    } else if (selectedIndustry) {
-                                        // Show selected industry's functions
-                                        functionsToShow = getResolvedFunctions(selectedIndustry, selectedCountry);
-                                    }
-
-                                    if (functionsToShow.length > 0) {
-                                        return (
-                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                                {functionsToShow.map((func) => {
-                                                    const isSelected = pendingSelections.includes(func.functionId);
-
-                                                    return (
-                                                        <button
-                                                            key={func.functionId}
-                                                            onClick={() => {
-                                                                if (isSelected) {
-                                                                    setPendingSelections(prev => prev.filter(id => id !== func.functionId));
-                                                                } else {
-                                                                    setPendingSelections(prev => [...prev, func.functionId]);
-                                                                }
-                                                            }}
-                                                            className={cn(
-                                                                "text-left p-3 rounded-xl border transition-all flex items-center gap-3",
-                                                                isSelected
-                                                                    ? "border-indigo-500 bg-indigo-50"
-                                                                    : "border-slate-200 hover:border-indigo-300 hover:bg-slate-50"
-                                                            )}
-                                                        >
-                                                            <div className={cn(
-                                                                "w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0",
-                                                                isSelected
-                                                                    ? "bg-indigo-600 border-indigo-600"
-                                                                    : "border-slate-300"
-                                                            )}>
-                                                                {isSelected && <Check className="w-3 h-3 text-white" />}
-                                                            </div>
-                                                            <div className="flex-1 min-w-0">
-                                                                <div className={cn(
-                                                                    "text-sm font-medium",
-                                                                    isSelected ? "text-indigo-700" : "text-slate-700"
-                                                                )}>
-                                                                    {func.displayLabel}
-                                                                    {func.isLocalized && (
-                                                                        <span className="ml-1.5 text-xs text-indigo-400">✦</span>
-                                                                    )}
-                                                                </div>
-                                                                <div className="text-xs text-slate-400 truncate">
-                                                                    {categorySearch ? func.industryName : (func.isLocalized ? func.name : func.googlePlacesTypes[0])}
-                                                                </div>
-                                                            </div>
-                                                        </button>
-                                                    );
-                                                })}
-                                            </div>
-                                        );
-                                    } else if (categorySearch) {
-                                        return (
-                                            <div className="h-full flex flex-col items-center justify-center text-slate-400">
-                                                <Search className="w-12 h-12 mb-4 opacity-20" />
-                                                <p>No categories found for "{categorySearch}"</p>
-                                            </div>
-                                        );
-                                    } else {
-                                        return (
-                                            <div className="h-full flex flex-col items-center justify-center text-slate-400">
-                                                <Building2 className="w-12 h-12 mb-4 opacity-20" />
-                                                <p>Select an industry or search to see options</p>
-                                            </div>
-                                        );
-                                    }
-                                })()}
-                            </div>
-                        </div>
-
-                        {/* Footer with Save Button */}
-                        <div className="p-4 border-t border-slate-100 bg-slate-50 flex items-center justify-between">
-                            <div className="text-sm text-slate-500">
-                                {pendingSelections.length > 0 ? (
-                                    <span>{pendingSelections.length} categor{pendingSelections.length === 1 ? 'y' : 'ies'} selected</span>
-                                ) : (
-                                    <span>Select at least one category</span>
-                                )}
-                            </div>
-                            <div className="flex gap-3">
-                                <button
-                                    onClick={() => setShowCategoryModal(false)}
-                                    className="px-4 py-2 text-slate-600 hover:bg-slate-200 rounded-lg text-sm font-medium"
-                                >
-                                    Cancel
-                                </button>
-                                <button
-                                    onClick={async () => {
-                                        // Convert selected IDs to full category objects
-                                        const categories = toSelectedCategories(pendingSelections, selectedCountry);
-
-                                        // Save to persona
-                                        await onUpdate('identity.businessCategories', categories);
-
-                                        // Save the selected country
-                                        await onUpdate('identity.country', selectedCountry);
-
-                                        // Also update the primary industry based on first selection
-                                        if (categories.length > 0) {
-                                            const firstInfo = findFunctionInfo(categories[0].functionId, selectedCountry);
-                                            if (firstInfo.function && firstInfo.industry) {
-                                                await onUpdate('identity.industry', {
-                                                    name: firstInfo.displayLabel,
-                                                    category: firstInfo.industry.industryId
-                                                });
-                                            }
-
-                                            // Auto-generate modules based on selected categories
-                                            if (onModulesGenerated) {
-                                                generateModulesFromCategories(categories, selectedCountry).then(result => {
-                                                    if (result.success && result.config) {
-                                                        onModulesGenerated(result.config);
-                                                    }
-                                                }).catch(console.error);
-                                            }
-                                        }
-
-                                        setShowCategoryModal(false);
-                                    }}
-                                    disabled={pendingSelections.length === 0}
-                                    className={cn(
-                                        "px-6 py-2 rounded-lg text-sm font-medium flex items-center gap-2 transition-colors",
-                                        pendingSelections.length > 0
-                                            ? "bg-indigo-600 text-white hover:bg-indigo-700"
-                                            : "bg-slate-200 text-slate-400 cursor-not-allowed"
-                                    )}
-                                >
-                                    <Check className="w-4 h-4" />
-                                    Save Categories
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            )}
+            {/* Category Modal */}
+            <BusinessCategoriesModal
+                isOpen={showCategoryModal}
+                onClose={() => setShowCategoryModal(false)}
+                onSave={handleSaveCategories}
+                initialSelections={selectedCategories.map(c => c.functionId)}
+                initialCountry={selectedCountry}
+            />
         </div>
     );
 }

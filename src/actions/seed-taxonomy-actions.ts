@@ -173,9 +173,6 @@ const SEED_BROADCAST_TEMPLATES = [
     },
 ];
 
-/**
- * Result interface
- */
 interface SeedResult {
     success: boolean;
     summary: {
@@ -186,11 +183,9 @@ interface SeedResult {
         broadcastTemplates: { seeded: number; errors: number };
     };
     errors: string[];
+    timestamp: string;
 }
 
-/**
- * Seed all systemTaxonomy collections
- */
 export async function seedSystemTaxonomy(): Promise<SeedResult> {
     const result: SeedResult = {
         success: true,
@@ -202,218 +197,287 @@ export async function seedSystemTaxonomy(): Promise<SeedResult> {
             broadcastTemplates: { seeded: 0, errors: 0 },
         },
         errors: [],
+        timestamp: new Date().toISOString(),
     };
 
-    // Check if database is initialized
     if (!db) {
         result.success = false;
-        result.errors.push('Database not initialized. Check Firebase Admin SDK environment variables.');
+        result.errors.push('Database not initialized');
         return result;
     }
 
-    console.log('Starting systemTaxonomy seeding...');
+    console.log('🚀 Starting systemTaxonomy seeding with batch operations...');
 
-    // Seed Industries
-    console.log(`Seeding ${INDUSTRIES.length} industries...`);
-    for (let i = 0; i < INDUSTRIES.length; i++) {
-        const industry = INDUSTRIES[i];
-        try {
-            await db
-                .collection('systemTaxonomy')
-                .doc('industries')
-                .collection('items')
-                .doc(industry.industryId)
-                .set(
-                    {
-                        ...industry,
-                        isActive: true,
-                        sortOrder: i + 1,
-                        createdAt: Timestamp.now(),
-                        updatedAt: Timestamp.now(),
-                    },
-                    { merge: true }
-                );
-            result.summary.industries.seeded++;
-            console.log(`✓ Seeded industry: ${industry.industryId}`);
-        } catch (error: any) {
-            result.summary.industries.errors++;
-            result.errors.push(`Industry ${industry.industryId}: ${error.message}`);
-            console.error(`✗ Error seeding industry ${industry.industryId}:`, error.message);
+    try {
+        // ========================================
+        // SEED INDUSTRIES
+        // ========================================
+        console.log(`📦 Seeding ${INDUSTRIES.length} industries...`);
+
+        const industriesBatch = db.batch();
+        const industriesRef = db.collection('systemTaxonomy').doc('industries').collection('items');
+
+        INDUSTRIES.forEach((industry, index) => {
+            const docRef = industriesRef.doc(industry.industryId);
+            industriesBatch.set(docRef, {
+                industryId: industry.industryId,
+                name: industry.name,
+                description: industry.description || '',
+                iconName: industry.iconName,
+                isActive: true,
+                sortOrder: index + 1,
+                createdAt: Timestamp.now(),
+                updatedAt: Timestamp.now(),
+            }, { merge: true });
+        });
+
+        await industriesBatch.commit();
+        result.summary.industries.seeded = INDUSTRIES.length;
+        console.log(`✅ Seeded ${INDUSTRIES.length} industries`);
+
+        // ========================================
+        // SEED BUSINESS FUNCTIONS (in batches of 450)
+        // ========================================
+        console.log(`📦 Seeding ${BUSINESS_FUNCTIONS.length} business functions...`);
+
+        const functionsRef = db.collection('systemTaxonomy').doc('businessFunctions').collection('items');
+        const functionBatches = chunkArray(BUSINESS_FUNCTIONS, 450); // Firestore batch limit is 500
+
+        for (const batch of functionBatches) {
+            const functionsBatch = db.batch();
+            batch.forEach((func, index) => {
+                const globalIndex = BUSINESS_FUNCTIONS.indexOf(func);
+                const docRef = functionsRef.doc(func.functionId);
+                functionsBatch.set(docRef, {
+                    functionId: func.functionId,
+                    industryId: func.industryId,
+                    name: func.name,
+                    description: func.description || '',
+                    googlePlacesTypes: func.googlePlacesTypes || [],
+                    keywords: func.keywords || [],
+                    isActive: true,
+                    sortOrder: globalIndex + 1,
+                    createdAt: Timestamp.now(),
+                    updatedAt: Timestamp.now(),
+                }, { merge: true });
+            });
+            await functionsBatch.commit();
         }
-    }
 
-    // Seed Business Functions
-    console.log(`Seeding ${BUSINESS_FUNCTIONS.length} business functions...`);
-    for (let i = 0; i < BUSINESS_FUNCTIONS.length; i++) {
-        const func = BUSINESS_FUNCTIONS[i];
-        try {
-            await db
-                .collection('systemTaxonomy')
-                .doc('businessFunctions')
-                .collection('items')
-                .doc(func.functionId)
-                .set(
-                    {
-                        ...func,
-                        isActive: true,
-                        sortOrder: i + 1,
-                        createdAt: Timestamp.now(),
-                        updatedAt: Timestamp.now(),
-                    },
-                    { merge: true }
-                );
-            result.summary.functions.seeded++;
-            console.log(`✓ Seeded function: ${func.functionId}`);
-        } catch (error: any) {
-            result.summary.functions.errors++;
-            result.errors.push(`Function ${func.functionId}: ${error.message}`);
-            console.error(`✗ Error seeding function ${func.functionId}:`, error.message);
+        result.summary.functions.seeded = BUSINESS_FUNCTIONS.length;
+        console.log(`✅ Seeded ${BUSINESS_FUNCTIONS.length} business functions`);
+
+        // ========================================
+        // SEED SPECIALIZATIONS
+        // ========================================
+        console.log(`📦 Seeding ${SPECIALIZATIONS.length} specializations...`);
+
+        const specializationsRef = db.collection('systemTaxonomy').doc('specializations').collection('items');
+        const specBatches = chunkArray(SPECIALIZATIONS, 450);
+
+        for (const batch of specBatches) {
+            const specBatch = db.batch();
+            batch.forEach((spec, index) => {
+                const globalIndex = SPECIALIZATIONS.indexOf(spec);
+                const docRef = specializationsRef.doc(spec.specializationId);
+                specBatch.set(docRef, {
+                    specializationId: spec.specializationId,
+                    functionId: spec.functionId,
+                    name: spec.name,
+                    isActive: true,
+                    sortOrder: globalIndex + 1,
+                    createdAt: Timestamp.now(),
+                    updatedAt: Timestamp.now(),
+                }, { merge: true });
+            });
+            await specBatch.commit();
         }
-    }
 
-    // Seed Specializations
-    console.log(`Seeding ${SPECIALIZATIONS.length} specializations...`);
-    for (let i = 0; i < SPECIALIZATIONS.length; i++) {
-        const spec = SPECIALIZATIONS[i];
-        try {
-            await db
-                .collection('systemTaxonomy')
-                .doc('specializations')
-                .collection('items')
-                .doc(spec.specializationId)
-                .set(
-                    {
-                        ...spec,
-                        isActive: true,
-                        sortOrder: i + 1,
-                        createdAt: Timestamp.now(),
-                        updatedAt: Timestamp.now(),
-                    },
-                    { merge: true }
-                );
-            result.summary.specializations.seeded++;
-            console.log(`✓ Seeded specialization: ${spec.specializationId}`);
-        } catch (error: any) {
-            result.summary.specializations.errors++;
-            result.errors.push(`Specialization ${spec.specializationId}: ${error.message}`);
-            console.error(`✗ Error seeding specialization ${spec.specializationId}:`, error.message);
+        result.summary.specializations.seeded = SPECIALIZATIONS.length;
+        console.log(`✅ Seeded ${SPECIALIZATIONS.length} specializations`);
+
+        // ========================================
+        // SEED COUNTRY OVERRIDES
+        // ========================================
+        console.log(`📦 Seeding ${COUNTRY_OVERRIDES.length} country overrides...`);
+
+        const overridesRef = db.collection('systemTaxonomy').doc('countryOverrides').collection('items');
+        const overrideBatches = chunkArray(COUNTRY_OVERRIDES, 450);
+
+        for (const batch of overrideBatches) {
+            const overridesBatch = db.batch();
+            batch.forEach((override, index) => {
+                const globalIndex = COUNTRY_OVERRIDES.indexOf(override);
+                const docRef = overridesRef.doc(override.overrideId);
+                overridesBatch.set(docRef, {
+                    overrideId: override.overrideId,
+                    functionId: override.functionId,
+                    countryCode: override.countryCode,
+                    localLabel: override.localLabel,
+                    aliases: override.aliases || [],
+                    regulationLevel: override.regulationLevel || 'low',
+                    // Optional field in overrides
+                    // googlePlacesTypes: override.googlePlacesTypes || [], 
+                    isActive: true,
+                    sortOrder: globalIndex + 1,
+                    createdAt: Timestamp.now(),
+                    updatedAt: Timestamp.now(),
+                }, { merge: true });
+            });
+            await overridesBatch.commit();
         }
-    }
 
-    // Seed Country Overrides
-    console.log(`Seeding ${COUNTRY_OVERRIDES.length} country overrides...`);
-    for (let i = 0; i < COUNTRY_OVERRIDES.length; i++) {
-        const override = COUNTRY_OVERRIDES[i];
-        try {
-            await db
-                .collection('systemTaxonomy')
-                .doc('countryOverrides')
-                .collection('items')
-                .doc(override.overrideId)
-                .set(
-                    {
-                        ...override,
-                        isActive: true,
-                        sortOrder: i + 1,
-                        createdAt: Timestamp.now(),
-                        updatedAt: Timestamp.now(),
-                    },
-                    { merge: true }
-                );
-            result.summary.countryOverrides.seeded++;
-            console.log(`✓ Seeded override: ${override.overrideId}`);
-        } catch (error: any) {
-            result.summary.countryOverrides.errors++;
-            result.errors.push(`Override ${override.overrideId}: ${error.message}`);
-            console.error(`✗ Error seeding override ${override.overrideId}:`, error.message);
+        result.summary.countryOverrides.seeded = COUNTRY_OVERRIDES.length;
+        console.log(`✅ Seeded ${COUNTRY_OVERRIDES.length} country overrides`);
+
+        // ========================================
+        // SEED BROADCAST TEMPLATES
+        // ========================================
+        console.log(`📦 Seeding ${SEED_BROADCAST_TEMPLATES.length} broadcast templates...`);
+
+        const templatesRef = db.collection('systemTaxonomy').doc('broadcastTemplates').collection('items');
+        const templateBatches = chunkArray(SEED_BROADCAST_TEMPLATES, 450);
+
+        for (const batch of templateBatches) {
+            const templatesBatch = db.batch();
+            batch.forEach((template, index) => {
+                const docRef = templatesRef.doc(template.templateId);
+                templatesBatch.set(docRef, {
+                    ...template,
+                    createdAt: Timestamp.now(),
+                    updatedAt: Timestamp.now(),
+                }, { merge: true });
+            });
+            await templatesBatch.commit();
         }
-    }
 
-    // Seed Broadcast Templates
-    console.log(`Seeding ${SEED_BROADCAST_TEMPLATES.length} broadcast templates...`);
-    for (let i = 0; i < SEED_BROADCAST_TEMPLATES.length; i++) {
-        const template = SEED_BROADCAST_TEMPLATES[i];
-        try {
-            await db
-                .collection('systemTaxonomy')
-                .doc('broadcastTemplates')
-                .collection('items')
-                .doc(template.templateId)
-                .set(
-                    {
-                        ...template,
-                        createdAt: Timestamp.now(),
-                        updatedAt: Timestamp.now(),
-                    },
-                    { merge: true }
-                );
-            result.summary.broadcastTemplates.seeded++;
-            console.log(`✓ Seeded template: ${template.templateId}`);
-        } catch (error: any) {
-            result.summary.broadcastTemplates.errors++;
-            result.errors.push(`Template ${template.templateId}: ${error.message}`);
-            console.error(`✗ Error seeding template ${template.templateId}:`, error.message);
-        }
-    }
+        result.summary.broadcastTemplates.seeded = SEED_BROADCAST_TEMPLATES.length;
+        console.log(`✅ Seeded ${SEED_BROADCAST_TEMPLATES.length} broadcast templates`);
 
-    // Set overall success based on whether we had any errors
-    if (result.errors.length > 0) {
+        // ========================================
+        // UPDATE METADATA DOC
+        // ========================================
+        await db.collection('systemTaxonomy').doc('_metadata').set({
+            lastSeededAt: Timestamp.now(),
+            version: '2.0.0',
+            counts: {
+                industries: INDUSTRIES.length,
+                functions: BUSINESS_FUNCTIONS.length,
+                specializations: SPECIALIZATIONS.length,
+                countryOverrides: COUNTRY_OVERRIDES.length,
+                broadcastTemplates: SEED_BROADCAST_TEMPLATES.length,
+            },
+            source: 'code-sync',
+        }, { merge: true });
+
+        console.log('🎉 Taxonomy seeding complete!');
+
+    } catch (error: any) {
         result.success = false;
+        result.errors.push(error.message);
+        console.error('❌ Seeding error:', error);
     }
-
-    console.log('Seeding complete!');
-    console.log('Summary:', result.summary);
 
     return result;
 }
 
-/**
- * Verify taxonomy seeding by counting documents
- */
-export async function verifyTaxonomySeeding() {
+function chunkArray<T>(array: T[], size: number): T[][] {
+    const chunks: T[][] = [];
+    for (let i = 0; i < array.length; i += size) {
+        chunks.push(array.slice(i, i + size));
+    }
+    return chunks;
+}
+
+export async function verifyTaxonomySeeding(): Promise<{
+    success: boolean;
+    counts: {
+        industries: number;
+        functions: number;
+        specializations: number;
+        countryOverrides: number;
+        broadcastTemplates: number;
+    };
+    expected: {
+        industries: number;
+        functions: number;
+        specializations: number;
+        countryOverrides: number;
+        broadcastTemplates: number;
+    };
+    inSync: boolean;
+    lastSeededAt?: string;
+}> {
     if (!db) {
         return {
             success: false,
-            error: 'Database not initialized',
+            counts: { industries: 0, functions: 0, specializations: 0, countryOverrides: 0, broadcastTemplates: 0 },
+            expected: {
+                industries: INDUSTRIES.length,
+                functions: BUSINESS_FUNCTIONS.length,
+                specializations: SPECIALIZATIONS.length,
+                countryOverrides: COUNTRY_OVERRIDES.length,
+                broadcastTemplates: SEED_BROADCAST_TEMPLATES.length,
+            },
+            inSync: false,
         };
     }
 
-    console.log('Verifying taxonomy seeding...');
-
     try {
-        const [
-            industriesSnapshot,
-            functionsSnapshot,
-            specializationsSnapshot,
-            overridesSnapshot,
-            templatesSnapshot,
-        ] = await Promise.all([
+        const [industriesSnap, functionsSnap, specsSnap, overridesSnap, templatesSnap, metaSnap] = await Promise.all([
             db.collection('systemTaxonomy').doc('industries').collection('items').get(),
             db.collection('systemTaxonomy').doc('businessFunctions').collection('items').get(),
             db.collection('systemTaxonomy').doc('specializations').collection('items').get(),
             db.collection('systemTaxonomy').doc('countryOverrides').collection('items').get(),
             db.collection('systemTaxonomy').doc('broadcastTemplates').collection('items').get(),
+            db.collection('systemTaxonomy').doc('_metadata').get(),
         ]);
 
         const counts = {
-            industries: industriesSnapshot.size,
-            functions: functionsSnapshot.size,
-            specializations: specializationsSnapshot.size,
-            countryOverrides: overridesSnapshot.size,
-            broadcastTemplates: templatesSnapshot.size,
+            industries: industriesSnap.size,
+            functions: functionsSnap.size,
+            specializations: specsSnap.size,
+            countryOverrides: overridesSnap.size,
+            broadcastTemplates: templatesSnap.size,
         };
 
-        console.log('Verification counts:', counts);
+        const expected = {
+            industries: INDUSTRIES.length,
+            functions: BUSINESS_FUNCTIONS.length,
+            specializations: SPECIALIZATIONS.length,
+            countryOverrides: COUNTRY_OVERRIDES.length,
+            broadcastTemplates: SEED_BROADCAST_TEMPLATES.length,
+        };
+
+        const inSync =
+            counts.industries === expected.industries &&
+            counts.functions === expected.functions &&
+            counts.specializations === expected.specializations &&
+            counts.countryOverrides === expected.countryOverrides &&
+            counts.broadcastTemplates === expected.broadcastTemplates;
+
+        const metadata = metaSnap.data();
 
         return {
             success: true,
             counts,
+            expected,
+            inSync,
+            lastSeededAt: metadata?.lastSeededAt?.toDate?.()?.toISOString(),
         };
     } catch (error: any) {
-        console.error('Error verifying taxonomy:', error);
+        console.error('Verify error:', error);
         return {
             success: false,
-            error: error.message,
+            counts: { industries: 0, functions: 0, specializations: 0, countryOverrides: 0, broadcastTemplates: 0 },
+            expected: {
+                industries: INDUSTRIES.length,
+                functions: BUSINESS_FUNCTIONS.length,
+                specializations: SPECIALIZATIONS.length,
+                countryOverrides: COUNTRY_OVERRIDES.length,
+                broadcastTemplates: SEED_BROADCAST_TEMPLATES.length,
+            },
+            inSync: false,
         };
     }
 }
