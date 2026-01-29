@@ -24,6 +24,7 @@ import {
 import { generateModulesFromCategories, type ModulesConfig } from '@/actions/module-generator-actions';
 import { CoreVisibilityPanel } from './CoreVisibilityPanel';
 import { OtherUsefulDataAccordion } from './OtherUsefulDataAccordion';
+import { PublishedStatusBanner } from './PublishedStatusBanner';
 
 // Icon mapping for category icons
 const CATEGORY_ICONS: Record<string, LucideIcon> = {
@@ -486,6 +487,11 @@ export default function BusinessProfileTab({
 
                 {/* AI Visibility Control Panel */}
                 <div className="mb-8">
+                    {/* Published Status Banner */}
+                    <div className="mb-6">
+                        <PublishedStatusBanner partnerId={partnerId} persona={persona} />
+                    </div>
+
                     <CoreVisibilityPanel partnerId={partnerId} persona={persona} />
                 </div>
 
@@ -974,8 +980,8 @@ export default function BusinessProfileTab({
                                 })}
                             </div>
 
-                            {/* Right: Business Functions with Checkboxes */}
-                            <div className="w-full md:w-2/3 overflow-y-auto p-4 bg-white">
+                            {/* Right: Business Functions with Checkboxes (Hidden as requested) */}
+                            <div className="hidden">
                                 {(() => {
                                     // Get functions to display
                                     let functionsToShow: ResolvedFunction[] = [];

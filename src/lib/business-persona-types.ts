@@ -2554,7 +2554,11 @@ export interface CoreVisibilitySettings {
         otherUsefulData: boolean;    // Unmapped import data
     };
 
-    // Field-level overrides (optional granular control)
+    // Field-level overrides (granular control)
+    // Key is dot-notation path (e.g. "identity.phone"), Value is visibility
+    fields: Record<string, boolean>;
+
+    // Deprecated: existing field overrides if any
     fieldOverrides?: Record<string, boolean>;
 
     // Metadata
@@ -2589,6 +2593,7 @@ export const DEFAULT_CORE_VISIBILITY: CoreVisibilitySettings = {
         industrySpecificData: true,
         otherUsefulData: true,
     },
+    fields: {},
     fieldOverrides: {},
     lastUpdatedAt: new Date().toISOString(),
     lastUpdatedBy: 'system',

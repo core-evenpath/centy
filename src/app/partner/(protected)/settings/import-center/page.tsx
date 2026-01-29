@@ -22,7 +22,7 @@ import {
   Rocket,
   Loader2,
 } from 'lucide-react';
-import type { BusinessPersona } from '@/lib/business-persona-types';
+import type { BusinessPersona, OtherUsefulDataItem } from '@/lib/business-persona-types';
 import {
   buildMergeFields as buildMergeFieldsFromRegistry,
   applyMergeFieldsToPersona,
@@ -882,7 +882,15 @@ export default function ImportCenterPage() {
           );
 
           if (mappingResult.success && mappingResult.profile?.otherUsefulData) {
-            finalPersona.otherUsefulData = mappingResult.profile.otherUsefulData;
+            const newItems = mappingResult.profile.otherUsefulData;
+            const existingItems = persona.otherUsefulData || [];
+
+            // Avoid duplicates by key (case-insensitive)
+            const uniqueNewItems = newItems.filter((newItem: OtherUsefulDataItem) =>
+              !existingItems.some((existing: OtherUsefulDataItem) => existing.key.toLowerCase() === newItem.key.toLowerCase())
+            );
+
+            finalPersona.otherUsefulData = [...existingItems, ...uniqueNewItems];
           }
         } catch (e) {
           console.error('Failed to map unmapped data:', e);

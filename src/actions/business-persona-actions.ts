@@ -1,6 +1,7 @@
 // src/actions/business-persona-actions.ts
 'use server';
 
+import { revalidatePath } from 'next/cache';
 import { db } from '@/lib/firebase-admin';
 import { FieldValue, Timestamp } from 'firebase-admin/firestore';
 import type {
@@ -247,7 +248,7 @@ export async function getBusinessPersonaAction(partnerId: string): Promise<{
         return {
             success: true,
             message: 'Basic persona created from existing data',
-            persona: basicPersona as BusinessPersona,
+            persona: serializeForClient(basicPersona),
             setupProgress: progress,
             isNewPersona: true, // Flag to indicate this is a new persona built from partner data
         };
@@ -1094,6 +1095,7 @@ export async function getCoreAccessibleDataAction(
                 industrySpecificData: true,
                 otherUsefulData: true,
             },
+            fields: {},
             lastUpdatedAt: new Date().toISOString(),
             lastUpdatedBy: 'system',
         };
@@ -1128,6 +1130,10 @@ export async function getCoreAccessibleDataAction(
             accessibleData.customerProfile = persona.customerProfile;
         }
 
+        if (visibility.sections.industrySpecificData && persona.industrySpecificData) {
+            accessibleData.industrySpecificData = persona.industrySpecificData;
+        }
+
         // Other useful data with individual visibility checks
         if (visibility.sections.otherUsefulData) {
             const otherData = persona.otherUsefulData || persona.webIntelligence?.otherUsefulData || [];
@@ -1142,10 +1148,12 @@ export async function getCoreAccessibleDataAction(
 
         return {
             success: true,
-            data: {
-                ...accessibleData,
-                summary: summaryParts.join('\n'),
-            },
+            data: serializeForClient(
+                filterDataByVisibility({
+                    ...accessibleData,
+                    summary: summaryParts.join('\n'),
+                }, visibility.fields || {})
+            ),
         };
 
     } catch (error: any) {
@@ -1167,14 +1175,46 @@ export async function updateCoreVisibilityAction(
 
     try {
         const partnerRef = db.collection('partners').doc(partnerId);
+        const partnerDoc = await partnerRef.get();
+
+        if (!partnerDoc.exists) {
+            return { success: false, message: 'Partner not found' };
+        }
+
+        const existingData = partnerDoc.data();
+        const existingVisibility = existingData?.businessPersona?.coreVisibility || {};
+        const existingSections = existingVisibility.sections || {};
+
+        const mergedSettings: CoreVisibilitySettings = {
+            sections: {
+                identity: true,
+                personality: true,
+                knowledge: true,
+                customerProfile: true,
+                webIntelligence: true,
+                industrySpecificData: true,
+                otherUsefulData: true,
+                ...existingSections,
+                ...(settings.sections || {}),
+            },
+            fields: {
+                ...existingVisibility.fields,
+                ...(settings.fields || {}),
+            },
+            fieldOverrides: {
+                ...existingVisibility.fieldOverrides,
+                ...(settings.fieldOverrides || {}),
+            },
+            lastUpdatedAt: settings.lastUpdatedAt || new Date().toISOString(),
+            lastUpdatedBy: settings.lastUpdatedBy || 'user',
+        };
 
         await partnerRef.update({
-            'businessPersona.coreVisibility': {
-                ...settings,
-                lastUpdatedAt: new Date().toISOString(),
-            },
+            'businessPersona.coreVisibility': mergedSettings,
             updatedAt: FieldValue.serverTimestamp(),
         });
+
+        revalidatePath('/partner/settings');
 
         return { success: true, message: 'Visibility settings updated' };
     } catch (error: any) {
@@ -1182,6 +1222,47 @@ export async function updateCoreVisibilityAction(
         return { success: false, message: error.message };
     }
 }
+
+/**
+ * Clean data by removing disallowed fields recursively
+ */
+function filterDataByVisibility(data: any, fields: Record<string, boolean>, parentPath = ''): any {
+    if (!data || typeof data !== 'object') {
+        return data;
+    }
+
+    // Handle arrays (recurse into items)
+    if (Array.isArray(data)) {
+        return data.map((item: any) => filterDataByVisibility(item, fields, parentPath));
+    }
+
+    // Handle Date/Timestamp objects (return as is, serialization happens later)
+    if (data instanceof Date || (data && typeof data.toDate === 'function')) {
+        return data;
+    }
+
+    const filtered: any = {};
+
+    for (const key of Object.keys(data)) {
+        // Construct path
+        const currentPath = parentPath ? `${parentPath}.${key}` : key;
+
+        // Check if explicitly hidden
+        if (fields[currentPath] === false) {
+            continue;
+        }
+
+        // Check if this is a nested object that needs recursion
+        if (typeof data[key] === 'object' && data[key] !== null) {
+            filtered[key] = filterDataByVisibility(data[key], fields, currentPath);
+        } else {
+            filtered[key] = data[key];
+        }
+    }
+
+    return filtered;
+}
+
 
 /**
  * Toggle visibility for a single "Other Useful Data" item

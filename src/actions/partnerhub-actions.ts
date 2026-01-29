@@ -21,6 +21,7 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 import { isGeneralModeAssistant, getEssentialAssistantById } from '@/lib/types-assistant';
 import { getAgentTemplatesForIndustry } from '@/lib/business-type-agents';
 import type { IndustryCategory } from '@/lib/business-persona-types';
+import { getCoreAccessibleDataAction } from './business-persona-actions';
 
 const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -1050,13 +1051,17 @@ Respond in JSON format:
             };
         }
 
-        // Fetch partner profile as the single source of truth for business info
-        const partnerDoc = await db.collection('partners').doc(partnerId).get();
-        let partnerInfo: any = null;
-        if (partnerDoc.exists) {
-            partnerInfo = partnerDoc.data();
+        // Fetch partner profile data through the visibility-controlled action
+        const accessibleDataResult = await getCoreAccessibleDataAction(partnerId);
+        let accessibleData: any = {};
+        let businessSummary = '';
+
+        if (accessibleDataResult.success && accessibleDataResult.data) {
+            accessibleData = accessibleDataResult.data;
+            businessSummary = accessibleDataResult.data.summary || '';
         }
 
+        // Fetch agents logic remains the same
         let assistants: any[] = [];
         if (assistantIds && assistantIds.length > 0) {
             const assistantPromises = assistantIds.map(id =>
@@ -1236,15 +1241,13 @@ CUSTOMER PERSONA:
             .map((c) => `[Source: ${c.source}]\n${c.text}`)
             .join('\n\n---\n\n');
 
-        // Get business persona for enhanced context
-        const persona = partnerInfo?.businessPersona;
-        const identity = persona?.identity;
-        const personality = persona?.personality;
-        const knowledge = persona?.knowledge;
+        // Use accessible data for system prompt construction
+        const identity = accessibleData?.identity;
+        const personality = accessibleData?.personality;
 
         let finalSystemPrompt = systemPrompt;
         if (!finalSystemPrompt) {
-            const businessName = identity?.name || partnerInfo?.businessName || partnerInfo?.name || 'the business';
+            const businessName = identity?.name || 'the business';
             finalSystemPrompt = `You are a helpful AI assistant for ${businessName}. Answer questions based on the provided context.`;
 
             if (personality?.tagline) {
@@ -1252,70 +1255,14 @@ CUSTOMER PERSONA:
             }
         }
 
-        // Add business info from partner profile (single source of truth)
-        const businessDetails: string[] = [];
-        const businessName = identity?.name || partnerInfo?.businessName || partnerInfo?.name;
-        if (businessName) businessDetails.push(`Business: ${businessName}`);
-        if (identity?.phone || partnerInfo?.phone) businessDetails.push(`Phone: ${identity?.phone || partnerInfo.phone}`);
-        if (identity?.email || partnerInfo?.email) businessDetails.push(`Email: ${identity?.email || partnerInfo.email}`);
-        if (identity?.address?.city && identity?.address?.state) {
-            businessDetails.push(`Location: ${identity.address.city}, ${identity.address.state}`);
-        } else if (partnerInfo?.location?.city && partnerInfo?.location?.state) {
-            businessDetails.push(`Location: ${partnerInfo.location.city}, ${partnerInfo.location.state}`);
-        }
-        if (identity?.website) businessDetails.push(`Website: ${identity.website}`);
-        if (identity?.currency) businessDetails.push(`Currency: ${identity.currency}`);
-
-        // Add operating hours (complete schedule from Business Manager AI)
-        if (identity?.operatingHours) {
-            if (identity.operatingHours.isOpen24x7) {
-                businessDetails.push(`Operating Hours: Open 24/7`);
-            } else if (identity.operatingHours.schedule) {
-                const dayOrder = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
-                const schedule = identity.operatingHours.schedule;
-                const hoursLines: string[] = [];
-
-                for (const day of dayOrder) {
-                    const sched = schedule[day];
-                    if (sched?.isOpen) {
-                        const dayName = day.charAt(0).toUpperCase() + day.slice(1);
-                        let timeStr = `${sched.openTime} - ${sched.closeTime}`;
-                        if (sched.breakTime?.start && sched.breakTime?.end) {
-                            timeStr += ` (Break: ${sched.breakTime.start}-${sched.breakTime.end})`;
-                        }
-                        hoursLines.push(`  ${dayName}: ${timeStr}`);
-                    } else if (sched) {
-                        const dayName = day.charAt(0).toUpperCase() + day.slice(1);
-                        hoursLines.push(`  ${dayName}: Closed`);
-                    }
-                }
-
-                if (hoursLines.length > 0) {
-                    businessDetails.push(`Operating Hours:\n${hoursLines.join('\n')}`);
-                }
-            }
-            if (identity.operatingHours.appointmentOnly) {
-                businessDetails.push(`Note: By appointment only`);
-            }
-            if (identity.operatingHours.onlineAlways) {
-                businessDetails.push(`Note: Online services available 24/7`);
-            }
-            if (identity.operatingHours.specialNote) {
-                businessDetails.push(`Special Note: ${identity.operatingHours.specialNote}`);
-            }
-            if (identity.operatingHours.holidays?.length > 0) {
-                businessDetails.push(`Closed on holidays: ${identity.operatingHours.holidays.join(', ')}`);
-            }
+        // Add business info from accessible summary
+        if (businessSummary) {
+            finalSystemPrompt += `\n\nBUSINESS KNOWLEDGE:\n${businessSummary}`;
         }
 
-        if (businessDetails.length > 0) {
-            finalSystemPrompt += `\n\nBUSINESS INFORMATION:\n${businessDetails.join('\n')}`;
-        }
-
-        // Add business description
-        if (personality?.description) {
-            finalSystemPrompt += `\n\nAbout the business: ${personality.description}`;
-        }
+        // Add detailed fields if available/accessible
+        if (identity?.website) finalSystemPrompt += `\nWebsite: ${identity.website}`;
+        if (personality?.description) finalSystemPrompt += `\nAbout: ${personality.description}`;
 
         if (personaContext) {
             finalSystemPrompt += `\n\n${personaContext}\nUse this persona information to personalize your response appropriately.`;
