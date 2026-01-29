@@ -29,10 +29,8 @@ import BusinessProfileAgent from '@/components/partner/settings/BusinessProfileA
 import AutoFillPreviewModal from '@/components/partner/settings/AutoFillPreviewModal';
 import WebsiteImportPreviewModal from '@/components/partner/settings/WebsiteImportPreviewModal';
 import SchemaBusinessProfile from '@/components/partner/settings/SchemaBusinessProfile';
-import { Building2, Database, Trash2 } from 'lucide-react';
-import { useTaxonomyIndustries, useResolvedFunctions } from '@/hooks/use-taxonomy';
-import { Badge } from '@/components/ui/badge';
-import { Checkbox } from '@/components/ui/checkbox';
+import { Building2, Trash2 } from 'lucide-react';
+import { useTaxonomyIndustries } from '@/hooks/use-taxonomy';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 const SettingsUltimate = () => {
@@ -119,31 +117,6 @@ const SettingsUltimate = () => {
 
   // Taxonomy Hooks
   const { industries: taxonomyIndustries, loading: industriesLoading } = useTaxonomyIndustries();
-
-  // Selected Industry for Functions (use the first selected or the primary one)
-  const primaryIndustryId = selectedBusinessTypes.length > 0 ? selectedBusinessTypes[0] : undefined;
-  const countryCode = (persona?.identity as any)?.country || 'GLOBAL';
-
-  const { functions: taxonomyFunctions, loading: functionsLoading } = useResolvedFunctions(primaryIndustryId, countryCode);
-
-  // Selected Functions State
-  const [selectedFunctions, setSelectedFunctions] = useState<string[]>([]);
-
-  useEffect(() => {
-    // Initialize selected functions from persona
-    if (persona.industrySpecificData?.selectedFunctions) {
-      setSelectedFunctions(persona.industrySpecificData.selectedFunctions);
-    }
-  }, [persona.industrySpecificData]);
-
-  const handleFunctionToggle = (functionId: string, checked: boolean) => {
-    const newFunctions = checked
-      ? [...selectedFunctions, functionId]
-      : selectedFunctions.filter(id => id !== functionId);
-
-    setSelectedFunctions(newFunctions);
-    handleFieldUpdate('industrySpecificData.selectedFunctions', newFunctions);
-  };
 
   // Map Firestore Industry IDs to Config Keys
   const TAXONOMY_TO_CONFIG_MAP: Record<string, string> = {
@@ -1313,46 +1286,6 @@ const SettingsUltimate = () => {
               <div className="-m-4 md:-m-8">
                 {/* Business Profile Sections */}
                 <div className="space-y-6">
-                  {/* Functions Selector */}
-                  {selectedBusinessTypes.length > 0 && (
-                    <div className="bg-white p-6 rounded-2xl border border-slate-200">
-                      <h3 className="font-semibold text-slate-900 mb-4 flex items-center gap-2">
-                        <Database className="w-5 h-5 text-indigo-600" />
-                        Business Functions & Specializations
-                      </h3>
-
-                      {functionsLoading ? (
-                        <div className="flex items-center gap-2 text-slate-500 animate-pulse">
-                          <div className="w-4 h-4 bg-slate-200 rounded-full"></div>
-                          Loading functions...
-                        </div>
-                      ) : taxonomyFunctions.length > 0 ? (
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                          {taxonomyFunctions.map(func => (
-                            <div key={func.functionId} className="flex items-center space-x-2">
-                              <Checkbox
-                                id={`func-${func.functionId}`}
-                                checked={selectedFunctions.includes(func.functionId)}
-                                onCheckedChange={(checked) => handleFunctionToggle(func.functionId, checked as boolean)}
-                              />
-                              <label
-                                htmlFor={`func-${func.functionId}`}
-                                className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
-                              >
-                                {func.displayLabel}
-                                {func.isLocalized && (
-                                  <Badge variant="outline" className="ml-2 text-[10px] px-1 h-4">Local</Badge>
-                                )}
-                              </label>
-                            </div>
-                          ))}
-                        </div>
-                      ) : (
-                        <p className="text-sm text-slate-500 italic">No specific functions available for this industry.</p>
-                      )}
-                    </div>
-                  )}
-
                   <SchemaBusinessProfile
                     partnerId={partnerId}
                     persona={persona}
