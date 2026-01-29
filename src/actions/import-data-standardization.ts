@@ -5,7 +5,8 @@ import type {
   StandardizedImportDataPoint,
   StandardizedImportStorage,
   ImportDataExport,
-  BusinessPersona
+  BusinessPersona,
+  OtherUsefulDataItem
 } from '@/lib/business-persona-types';
 import { db } from '@/lib/firebase-admin';
 
@@ -394,7 +395,6 @@ const CANONICAL_FIELD_MAP: Record<string, CanonicalFieldMapping> = {
   'pet_policy': { canonicalPath: 'knowledge.policies.petPolicy' },
   'cancellation_policy': { canonicalPath: 'knowledge.policies.cancellationPolicy' },
   'amenities': { canonicalPath: 'hotelAmenities', merge: 'append' },
-  'room_types': { canonicalPath: 'roomTypes', merge: 'append' },
   'spa_services': { canonicalPath: 'industrySpecificData.spaServices', merge: 'append' },
   'parking': { canonicalPath: 'industrySpecificData.parking' },
   'wifi': { canonicalPath: 'industrySpecificData.wifi' },
@@ -606,7 +606,7 @@ const WEBSITE_KEY_MAP: Record<string, { key: string; category: string; label: st
   'services': { key: 'services', category: 'offerings', label: 'Services' },
   'products': { key: 'products', category: 'offerings', label: 'Products' },
   'socialMedia': { key: 'social_media', category: 'contact', label: 'Social Media' },
-  'onlinePresence': { key: 'social_media', category: 'contact', label: 'Online Presence' },
+  'onlinePresence': { key: 'online_presence', category: 'reputation', label: 'Online Presence' },
   'testimonials': { key: 'testimonials', category: 'reputation', label: 'Testimonials' },
   'faqs': { key: 'faqs', category: 'knowledge', label: 'FAQs' },
   'faq': { key: 'faqs', category: 'knowledge', label: 'FAQs' },
@@ -876,7 +876,7 @@ const WEBSITE_KEY_MAP: Record<string, { key: string; category: string; label: st
   'inventory.properties': { key: 'property_listings', category: 'inventory', label: 'Property Listings' },
 
   // Testimonials & Reviews
-  'testimonials': { key: 'testimonials', category: 'reputation', label: 'Testimonials' },
+
   'reviews': { key: 'reviews', category: 'reputation', label: 'Reviews' },
 
   // Direct root-level mappings (for data that comes at root level)
@@ -1355,29 +1355,33 @@ export async function mapStandardizedDataToCanonicalProfile(
       mappedFields.push(mapping.canonicalPath);
     }
 
-    // Handle unmapped data - store in webIntelligence.otherUsefulData
+    // Handle unmapped data - store in otherUsefulData (root level)
     if (unmappedData.length > 0) {
-      if (!profile.webIntelligence) {
-        profile.webIntelligence = {};
-      }
-
-      const existingOther = (profile.webIntelligence as any).otherUsefulData || [];
-      const existingKeys = new Set(existingOther.map((item: any) => item.key?.toLowerCase()));
+      const existingOther = profile.otherUsefulData || [];
+      const existingKeys = new Set(existingOther.map(item => item.key.toLowerCase()));
 
       // Add new unmapped items, avoiding duplicates by key
       const newUnmappedItems = unmappedData
         .map(dp => {
           // Use display_label if available, otherwise clean up the key
           const displayKey = dp.display_label || dp.key.replace(/^unmapped_/, '').replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+
+          // Skip if key already exists
+          if (existingKeys.has(displayKey.toLowerCase())) return null;
+
           return {
+            id: `imported_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
             key: displayKey,
             value: typeof dp.value === 'string' ? dp.value : JSON.stringify(dp.value),
             source: dp.source,
-          };
+            importedAt: new Date().toISOString(),
+            visibleToCore: true, // Default to visible
+            category: 'General',
+          } as OtherUsefulDataItem;
         })
-        .filter(item => !existingKeys.has(item.key.toLowerCase()));  // Skip duplicates
+        .filter((item): item is OtherUsefulDataItem => item !== null);
 
-      (profile.webIntelligence as any).otherUsefulData = [
+      profile.otherUsefulData = [
         ...existingOther,
         ...newUnmappedItems,
       ];

@@ -8,7 +8,8 @@ import { searchBusinessesAction, autoFillProfileAction, applyImportToProfileActi
 import { scrapeWebsiteAction } from '@/actions/website-scrape-actions';
 import {
   standardizeGoogleImportData,
-  standardizeWebsiteImportData
+  standardizeWebsiteImportData,
+  mapStandardizedDataToCanonicalProfile
 } from '@/actions/import-data-standardization';
 import { toast } from 'sonner';
 import {
@@ -869,13 +870,32 @@ export default function ImportCenterPage() {
           tags: (newPersona as any).tags,
         };
 
+        // Fetch unmapped data (Other Useful Data) using server-side canonical logic
+        try {
+          const mappingResult = await mapStandardizedDataToCanonicalProfile(
+            {
+              google: persona.standardizedImports?.google,
+              website: persona.standardizedImports?.website,
+            },
+            persona,
+            { onlyChecked: true }
+          );
+
+          if (mappingResult.success && mappingResult.profile?.otherUsefulData) {
+            finalPersona.otherUsefulData = mappingResult.profile.otherUsefulData;
+          }
+        } catch (e) {
+          console.error('Failed to map unmapped data:', e);
+          // Non-blocking error, continue with saving mapped data
+        }
+
         // Save via server action which does proper deep merging with existing data
         // NOTE: Removed savePersonaToFirestore call - it was using setDoc which replaces
         // the entire businessPersona object instead of deep merging, causing data loss
         const saveResult = await saveBusinessPersonaAction(partnerId, {
           ...finalPersona,
-          _importMeta: metadata,
-          _fieldSources: metadata.fieldSources,
+          _importMeta: metadata as any,
+
           importHistory: {
             ...persona.importHistory,
             lastAppliedAt: new Date(),
@@ -895,8 +915,8 @@ export default function ImportCenterPage() {
         // Use server action for proper deep merging
         const saveResult = await saveBusinessPersonaAction(partnerId, {
           ...newPersona,
-          _importMeta: metadata,
-          _fieldSources: metadata.fieldSources,
+          _importMeta: metadata as any,
+
           importHistory: {
             ...persona.importHistory,
             lastAppliedAt: new Date(),

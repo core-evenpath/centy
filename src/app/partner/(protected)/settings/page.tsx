@@ -122,7 +122,7 @@ const SettingsUltimate = () => {
 
   // Selected Industry for Functions (use the first selected or the primary one)
   const primaryIndustryId = selectedBusinessTypes.length > 0 ? selectedBusinessTypes[0] : undefined;
-  const countryCode = persona?.identity?.countryCode || 'GLOBAL';
+  const countryCode = (persona?.identity as any)?.country || 'GLOBAL';
 
   const { functions: taxonomyFunctions, loading: functionsLoading } = useResolvedFunctions(primaryIndustryId, countryCode);
 
@@ -1354,6 +1354,7 @@ const SettingsUltimate = () => {
                   )}
 
                   <SchemaBusinessProfile
+                    partnerId={partnerId}
                     persona={persona}
                     onUpdate={async (path, value) => {
                       await handleFieldUpdate(path, value);

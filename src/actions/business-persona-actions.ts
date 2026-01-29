@@ -12,6 +12,8 @@ import type {
     SetupProgress,
     FrequentlyAskedQuestion,
     VoiceTone,
+    CoreVisibilitySettings,
+    OtherUsefulDataItem,
 } from '@/lib/business-persona-types';
 import { ProcessingStatus } from '@/lib/partnerhub-types';
 import { GoogleGenerativeAI, SchemaType } from '@google/generative-ai';
@@ -1038,6 +1040,252 @@ ${documentContext || "No documents available in Vault."}
 
     } catch (error: any) {
         console.error('Error in chatWithPersonaManagerAction:', error);
+        return { success: false, message: error.message };
+    }
+}
+// ==============================================
+// CORE VISIBILITY ACTIONS
+// ==============================================
+
+/**
+ * Get data that Core can access based on visibility settings
+ * This is what AI/RAG systems should call, NOT getBusinessPersonaAction
+ */
+export async function getCoreAccessibleDataAction(
+    partnerId: string
+): Promise<{
+    success: boolean;
+    data?: {
+        identity?: Partial<BusinessIdentity>;
+        personality?: Partial<BusinessPersonality>;
+        knowledge?: Partial<BusinessKnowledge>;
+        customerProfile?: Partial<CustomerProfile>;
+        otherUsefulData?: OtherUsefulDataItem[];
+        summary: string;
+    };
+    message?: string;
+}> {
+    if (!db) {
+        return { success: false, message: 'Database unavailable' };
+    }
+
+    try {
+        const partnerDoc = await db.collection('partners').doc(partnerId).get();
+
+        if (!partnerDoc.exists) {
+            return { success: false, message: 'Partner not found' };
+        }
+
+        const partnerData = partnerDoc.data();
+        const persona = partnerData?.businessPersona;
+
+        if (!persona) {
+            return { success: false, message: 'No business persona configured' };
+        }
+
+        // Get visibility settings (default to all visible)
+        const visibility: CoreVisibilitySettings = persona.coreVisibility || {
+            sections: {
+                identity: true,
+                personality: true,
+                knowledge: true,
+                customerProfile: true,
+                webIntelligence: true,
+                industrySpecificData: true,
+                otherUsefulData: true,
+            },
+            lastUpdatedAt: new Date().toISOString(),
+            lastUpdatedBy: 'system',
+        };
+
+        // Build accessible data based on visibility
+        const accessibleData: any = {};
+        const summaryParts: string[] = [];
+
+        if (visibility.sections.identity && persona.identity) {
+            accessibleData.identity = persona.identity;
+            if (persona.identity.name) summaryParts.push(`Business: ${persona.identity.name}`);
+            if (persona.identity.phone) summaryParts.push(`Phone: ${persona.identity.phone}`);
+            if (persona.identity.email) summaryParts.push(`Email: ${persona.identity.email}`);
+            if (persona.identity.address?.city) {
+                summaryParts.push(`Location: ${persona.identity.address.city}, ${persona.identity.address.state || ''}`);
+            }
+        }
+
+        if (visibility.sections.personality && persona.personality) {
+            accessibleData.personality = persona.personality;
+            if (persona.personality.tagline) summaryParts.push(`Tagline: ${persona.personality.tagline}`);
+            if (persona.personality.description) summaryParts.push(`About: ${persona.personality.description}`);
+        }
+
+        if (visibility.sections.knowledge && persona.knowledge) {
+            accessibleData.knowledge = persona.knowledge;
+            const products = persona.knowledge.productsOrServices?.slice(0, 5)?.map((p: any) => p.name).filter(Boolean);
+            if (products?.length) summaryParts.push(`Offerings: ${products.join(', ')}`);
+        }
+
+        if (visibility.sections.customerProfile && persona.customerProfile) {
+            accessibleData.customerProfile = persona.customerProfile;
+        }
+
+        // Other useful data with individual visibility checks
+        if (visibility.sections.otherUsefulData) {
+            const otherData = persona.otherUsefulData || persona.webIntelligence?.otherUsefulData || [];
+            accessibleData.otherUsefulData = otherData.filter(
+                (item: OtherUsefulDataItem) => item.visibleToCore !== false
+            );
+
+            if (accessibleData.otherUsefulData.length > 0) {
+                summaryParts.push(`Additional context: ${accessibleData.otherUsefulData.length} items`);
+            }
+        }
+
+        return {
+            success: true,
+            data: {
+                ...accessibleData,
+                summary: summaryParts.join('\n'),
+            },
+        };
+
+    } catch (error: any) {
+        console.error('Error getting core accessible data:', error);
+        return { success: false, message: error.message };
+    }
+}
+
+/**
+ * Update Core visibility settings
+ */
+export async function updateCoreVisibilityAction(
+    partnerId: string,
+    settings: Partial<CoreVisibilitySettings>
+): Promise<{ success: boolean; message: string }> {
+    if (!db) {
+        return { success: false, message: 'Database unavailable' };
+    }
+
+    try {
+        const partnerRef = db.collection('partners').doc(partnerId);
+
+        await partnerRef.update({
+            'businessPersona.coreVisibility': {
+                ...settings,
+                lastUpdatedAt: new Date().toISOString(),
+            },
+            updatedAt: FieldValue.serverTimestamp(),
+        });
+
+        return { success: true, message: 'Visibility settings updated' };
+    } catch (error: any) {
+        console.error('Error updating visibility:', error);
+        return { success: false, message: error.message };
+    }
+}
+
+/**
+ * Toggle visibility for a single "Other Useful Data" item
+ */
+export async function toggleOtherDataVisibilityAction(
+    partnerId: string,
+    itemId: string,
+    visible: boolean
+): Promise<{ success: boolean; message: string }> {
+    if (!db) {
+        return { success: false, message: 'Database unavailable' };
+    }
+
+    try {
+        const partnerRef = db.collection('partners').doc(partnerId);
+        const partnerDoc = await partnerRef.get();
+
+        if (!partnerDoc.exists) {
+            return { success: false, message: 'Partner not found' };
+        }
+
+        const data = partnerDoc.data();
+        const otherData = data?.businessPersona?.otherUsefulData || [];
+
+        const updatedData = otherData.map((item: OtherUsefulDataItem) =>
+            item.id === itemId ? { ...item, visibleToCore: visible } : item
+        );
+
+        await partnerRef.update({
+            'businessPersona.otherUsefulData': updatedData,
+            updatedAt: FieldValue.serverTimestamp(),
+        });
+
+        return { success: true, message: 'Item visibility updated' };
+    } catch (error: any) {
+        console.error('Error toggling visibility:', error);
+        return { success: false, message: error.message };
+    }
+}
+
+/**
+ * Add manual "Other Useful Data" item
+ */
+export async function addOtherUsefulDataAction(
+    partnerId: string,
+    item: Omit<OtherUsefulDataItem, 'id' | 'importedAt'>
+): Promise<{ success: boolean; message: string }> {
+    if (!db) {
+        return { success: false, message: 'Database unavailable' };
+    }
+
+    try {
+        const newItem: OtherUsefulDataItem = {
+            ...item,
+            id: `manual_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+            importedAt: new Date().toISOString(),
+            visibleToCore: item.visibleToCore ?? true,
+        };
+
+        const partnerRef = db.collection('partners').doc(partnerId);
+
+        await partnerRef.update({
+            'businessPersona.otherUsefulData': FieldValue.arrayUnion(newItem),
+            updatedAt: FieldValue.serverTimestamp(),
+        });
+
+        return { success: true, message: 'Data added successfully' };
+    } catch (error: any) {
+        console.error('Error adding other data:', error);
+        return { success: false, message: error.message };
+    }
+}
+
+/**
+ * Delete "Other Useful Data" item
+ */
+export async function deleteOtherUsefulDataAction(
+    partnerId: string,
+    itemId: string
+): Promise<{ success: boolean; message: string }> {
+    if (!db) {
+        return { success: false, message: 'Database unavailable' };
+    }
+
+    try {
+        const partnerRef = db.collection('partners').doc(partnerId);
+        const partnerDoc = await partnerRef.get();
+
+        if (!partnerDoc.exists) {
+            return { success: false, message: 'Partner not found' };
+        }
+
+        const data = partnerDoc.data();
+        const otherData = data?.businessPersona?.otherUsefulData || [];
+        const updatedData = otherData.filter((item: OtherUsefulDataItem) => item.id !== itemId);
+
+        await partnerRef.update({
+            'businessPersona.otherUsefulData': updatedData,
+            updatedAt: FieldValue.serverTimestamp(),
+        });
+
+        return { success: true, message: 'Item deleted' };
+    } catch (error: any) {
+        console.error('Error deleting other data:', error);
         return { success: false, message: error.message };
     }
 }

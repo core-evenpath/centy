@@ -32,6 +32,8 @@ import {
 import { generateModulesFromCategories, type ModulesConfig } from '@/actions/module-generator-actions';
 import InventoryManager from './InventoryManager';
 import { InventoryConfig, InventoryItem, InventoryCategoryDefinition, InventoryFieldDefinition, generateItemId } from '@/lib/inventory-types';
+import { CoreVisibilityPanel } from './CoreVisibilityPanel';
+import { OtherUsefulDataAccordion } from './OtherUsefulDataAccordion';
 
 // ===== ICON MAPPINGS =====
 const SECTION_ICONS: Record<string, LucideIcon> = {
@@ -113,6 +115,7 @@ const EMPTY_CATEGORIES: any[] = [];
 
 // ===== PROPS =====
 interface SchemaBusinessProfileProps {
+    partnerId?: string;
     persona: Partial<BusinessPersona>;
     onUpdate: (path: string, value: any) => Promise<void>;
     onPreviewAI?: () => void;
@@ -1112,8 +1115,8 @@ function KeyValueList({
                                             <span className={cn(
                                                 "text-[10px] px-1.5 py-0.5 rounded",
                                                 item.source === 'google' ? "bg-blue-100 text-blue-700" :
-                                                item.source === 'website' ? "bg-purple-100 text-purple-700" :
-                                                "bg-slate-100 text-slate-600"
+                                                    item.source === 'website' ? "bg-purple-100 text-purple-700" :
+                                                        "bg-slate-100 text-slate-600"
                                             )}>
                                                 {item.source === 'google' ? 'Google' : item.source === 'website' ? 'Website' : 'Manual'}
                                             </span>
@@ -1339,8 +1342,8 @@ function ReviewList({
                                     <span className={cn(
                                         "text-[10px] px-1.5 py-0.5 rounded",
                                         review.source === 'google' ? "bg-blue-100 text-blue-700" :
-                                        review.source === 'website' ? "bg-purple-100 text-purple-700" :
-                                        "bg-slate-100 text-slate-600"
+                                            review.source === 'website' ? "bg-purple-100 text-purple-700" :
+                                                "bg-slate-100 text-slate-600"
                                     )}>
                                         {review.source === 'google' ? 'Google' : review.source === 'website' ? 'Website' : 'Manual'}
                                     </span>
@@ -1520,8 +1523,8 @@ function TestimonialList({
                                             <span className={cn(
                                                 "text-[10px] px-1.5 py-0.5 rounded",
                                                 item.source === 'google' ? "bg-blue-100 text-blue-700" :
-                                                item.source === 'website' ? "bg-purple-100 text-purple-700" :
-                                                "bg-slate-100 text-slate-600"
+                                                    item.source === 'website' ? "bg-purple-100 text-purple-700" :
+                                                        "bg-slate-100 text-slate-600"
                                             )}>
                                                 {item.source === 'google' ? 'Google' : item.source === 'website' ? 'Website' : 'Manual'}
                                             </span>
@@ -2090,7 +2093,8 @@ export default function SchemaBusinessProfile({
     onProcessAI,
     onModulesGenerated,
     onImportData,
-    onClearAll
+    onClearAll,
+    partnerId
 }: SchemaBusinessProfileProps) {
 
     // Country selection for localized labels
@@ -2304,6 +2308,13 @@ export default function SchemaBusinessProfile({
                 {/* Show rest of UI only when categories are selected */}
                 {hasSelectedCategories ? (
                     <>
+                        {/* AI Visibility Control Panel */}
+                        <div className="mb-6">
+                            {/* We cast persona to any here because partial types can be tricky with the component's strict requirements, 
+                                but in practice the persona object will have the necessary structure */}
+                            <CoreVisibilityPanel partnerId={partnerId || ''} persona={persona as any} />
+                        </div>
+
                         {/* Business Type Display Banner - Read Only */}
                         {selectedCategories.length > 0 && (
                             <div className="bg-gradient-to-r from-indigo-50 to-purple-50 border border-indigo-100 rounded-xl p-4 mb-6">
@@ -2344,29 +2355,18 @@ export default function SchemaBusinessProfile({
                             </div>
                         )}
 
-                        {/* Import Data Section - Only shown after categories selected */}
-                        {onImportData && (
-                            <div className="bg-gradient-to-r from-teal-50 to-emerald-50 border border-teal-100 rounded-xl p-4 mb-6">
-                                <div className="flex items-center justify-between">
-                                    <div className="flex items-center gap-3">
-                                        <div className="w-10 h-10 bg-teal-100 rounded-xl flex items-center justify-center">
-                                            <Globe className="w-5 h-5 text-teal-600" />
-                                        </div>
-                                        <div>
-                                            <h3 className="font-semibold text-teal-900">Import Business Data</h3>
-                                            <p className="text-xs text-teal-600">Import from Google Business, website, or other sources</p>
-                                        </div>
-                                    </div>
-                                    <button
-                                        onClick={onImportData}
-                                        className="px-4 py-2 bg-teal-600 text-white rounded-lg text-sm font-medium hover:bg-teal-700 flex items-center gap-2"
-                                    >
-                                        <Plus className="w-4 h-4" />
-                                        Import Data
-                                    </button>
-                                </div>
-                            </div>
-                        )}
+
+
+
+
+                        {/* Custom & Unmapped Data Accordion */}
+                        <div className="mb-6">
+                            <h4 className="text-xs font-medium text-slate-500 uppercase tracking-wide mb-3">Custom & Unmapped Data</h4>
+                            <OtherUsefulDataAccordion
+                                partnerId={partnerId || ''}
+                                items={(persona as any).otherUsefulData || []}
+                            />
+                        </div>
 
                         {/* Schema-Driven Sections */}
                         <div className="space-y-4">

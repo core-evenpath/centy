@@ -22,6 +22,8 @@ import {
     SelectedBusinessCategory,
 } from '@/lib/business-taxonomy';
 import { generateModulesFromCategories, type ModulesConfig } from '@/actions/module-generator-actions';
+import { CoreVisibilityPanel } from './CoreVisibilityPanel';
+import { OtherUsefulDataAccordion } from './OtherUsefulDataAccordion';
 
 // Icon mapping for category icons
 const CATEGORY_ICONS: Record<string, LucideIcon> = {
@@ -43,7 +45,8 @@ const CATEGORY_ICONS: Record<string, LucideIcon> = {
 
 
 interface BusinessProfileTabProps {
-    persona: Partial<BusinessPersona>;
+    partnerId: string;
+    persona: BusinessPersona; // More strict type for better intellisense
     onUpdate: (path: string, value: any) => Promise<void>;
     // Auto-fill props
     autoFillSearch: string;
@@ -220,6 +223,7 @@ function Tags({ items = [], onAdd, onRemove, color = 'slate' }: any) {
 }
 
 export default function BusinessProfileTab({
+    partnerId,
     persona,
     onUpdate,
     autoFillSearch,
@@ -478,6 +482,11 @@ export default function BusinessProfileTab({
                             </div>
                         </div>
                     </div>
+                </div>
+
+                {/* AI Visibility Control Panel */}
+                <div className="mb-8">
+                    <CoreVisibilityPanel partnerId={partnerId} persona={persona} />
                 </div>
 
                 {/* Show rest of UI only when categories are selected */}
@@ -779,6 +788,15 @@ export default function BusinessProfileTab({
                                                 ))}
                                             </div>
                                         )}
+
+                                        {/* New Managed Other Data */}
+                                        <div className="mt-6">
+                                            <h4 className="text-xs font-medium text-slate-500 uppercase tracking-wide mb-3">Custom & Unmapped Data</h4>
+                                            <OtherUsefulDataAccordion
+                                                partnerId={partnerId}
+                                                items={persona.otherUsefulData || []}
+                                            />
+                                        </div>
 
                                         {/* Extra industry-specific data */}
                                         {extraIndustryData.length > 0 && (

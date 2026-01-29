@@ -1935,6 +1935,12 @@ export interface BusinessPersona {
     customerProfile: CustomerProfile;
     knowledge: BusinessKnowledge;
 
+    // Core visibility settings
+    coreVisibility?: CoreVisibilitySettings;
+
+    // Unified "Other Useful Data" storage
+    otherUsefulData?: OtherUsefulDataItem[];
+
     // Industry specific extended data (legacy catch-all)
     industrySpecificData?: Record<string, any>;
 
@@ -2119,6 +2125,14 @@ export interface ImportHistory {
     };
     // Import log for audit
     history?: ImportHistoryEntry[];
+
+    // Last application stats
+    lastAppliedAt?: Date;
+    appliedFields?: string[];
+    appliedProducts?: number;
+    appliedTestimonials?: number;
+    appliedSuggestions?: string[];
+    appliedTags?: number;
 }
 
 // ============================================
@@ -2134,7 +2148,7 @@ export interface ImportMeta {
     history: ImportRecord[];
 
     // Data that didn't map to specific fields
-    unmappedData: UnmappedDataItem[];
+    unmappedData?: UnmappedDataItem[];
 
     // Which fields came from which source
     fieldSources: Record<string, FieldSource>;
@@ -2519,3 +2533,63 @@ export function formatPrice(amount: number, currencyCode: string): string {
 
     return `${currency.symbol}${formattedAmount}`;
 }
+
+// ==============================================
+// CORE VISIBILITY & AI ACCESS CONTROL
+// ==============================================
+
+/**
+ * Defines which sections/fields Core (The Brain) can access
+ * Users control this from Business Profile settings
+ */
+export interface CoreVisibilitySettings {
+    // Section-level toggles
+    sections: {
+        identity: boolean;           // Business name, contact, location
+        personality: boolean;        // Voice tone, tagline, USPs
+        knowledge: boolean;          // Products, FAQs, policies
+        customerProfile: boolean;    // Target audience, pain points
+        webIntelligence: boolean;    // Imported web data
+        industrySpecificData: boolean;
+        otherUsefulData: boolean;    // Unmapped import data
+    };
+
+    // Field-level overrides (optional granular control)
+    fieldOverrides?: Record<string, boolean>;
+
+    // Metadata
+    lastUpdatedAt: Date | string;
+    lastUpdatedBy: string;
+}
+
+/**
+ * Unified storage for "Other Useful Data" - unmapped import data
+ * that AI can still use for context
+ */
+export interface OtherUsefulDataItem {
+    id: string;
+    key: string;              // Display label (e.g., "Parking Info")
+    value: string;            // The actual content
+    source: 'google' | 'website' | 'manual';
+    importedAt: string;       // ISO date
+    visibleToCore: boolean;   // User can toggle this
+    category?: string;        // Optional grouping
+}
+
+/**
+ * Default visibility settings
+ */
+export const DEFAULT_CORE_VISIBILITY: CoreVisibilitySettings = {
+    sections: {
+        identity: true,
+        personality: true,
+        knowledge: true,
+        customerProfile: true,
+        webIntelligence: true,
+        industrySpecificData: true,
+        otherUsefulData: true,
+    },
+    fieldOverrides: {},
+    lastUpdatedAt: new Date().toISOString(),
+    lastUpdatedBy: 'system',
+};
