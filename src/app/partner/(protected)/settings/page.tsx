@@ -254,37 +254,56 @@ const SettingsUltimate = () => {
   }, [partnerId]);
 
 
-  // Field Updates Logic
+  // Field Updates Logic - FIXED for deep paths
   const handleFieldUpdate = async (path: string, value: any) => {
-    if (!partnerId) return;
+    if (!partnerId) {
+      console.error('[Settings] No partnerId, cannot save');
+      return;
+    }
+
+    console.log(`[Settings] handleFieldUpdate called:`, { path, value });
 
     // Update local state immediately for UI responsiveness
     setPersona(prev => {
-      const newData = { ...prev };
+      const newData = JSON.parse(JSON.stringify(prev)); // Deep clone
       const keys = path.split('.');
       let current: any = newData;
+
       for (let i = 0; i < keys.length - 1; i++) {
         if (!current[keys[i]]) current[keys[i]] = {};
         current = current[keys[i]];
       }
       current[keys[keys.length - 1]] = value;
+
+      console.log(`[Settings] Local state updated:`, { path, newValue: value });
       return newData;
     });
 
-    // Debounced save could be better, but for now strict save on blur/change
+    // Construct partial update object - FIXED for ANY depth
     try {
-      // Construct partial update object
-      const updateObj: any = {};
       const keys = path.split('.');
-      if (keys.length === 1) updateObj[keys[0]] = value;
-      else if (keys.length === 2) updateObj[keys[0]] = { [keys[1]]: value };
-      else if (keys.length === 3) updateObj[keys[0]] = { [keys[1]]: { [keys[2]]: value } };
+      const updateObj: any = {};
 
-      // For arrays like USPs, we need to pass the whole array, which we do via value
+      // Build nested object for any depth
+      let current = updateObj;
+      for (let i = 0; i < keys.length - 1; i++) {
+        current[keys[i]] = {};
+        current = current[keys[i]];
+      }
+      current[keys[keys.length - 1]] = value;
 
-      await saveBusinessPersonaAction(partnerId, updateObj as Partial<BusinessPersona>);
+      console.log(`[Settings] Saving to Firestore:`, JSON.stringify(updateObj, null, 2));
+
+      const result = await saveBusinessPersonaAction(partnerId, updateObj as Partial<BusinessPersona>);
+
+      if (result.success) {
+        console.log(`[Settings] ✅ Saved successfully:`, path);
+      } else {
+        console.error(`[Settings] ❌ Save failed:`, result.message);
+        toast.error("Failed to save changes");
+      }
     } catch (e) {
-      console.error("Save failed", e);
+      console.error("[Settings] Save error:", e);
       toast.error("Failed to save changes");
     }
   };

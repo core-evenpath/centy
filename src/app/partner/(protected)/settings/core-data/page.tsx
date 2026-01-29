@@ -3,7 +3,6 @@
 import React, { useState, useEffect, useTransition } from 'react';
 import { useAuth } from '@/hooks/use-auth';
 import {
-    getCoreAccessibleDataAction,
     getBusinessPersonaAction,
     updateCoreVisibilityAction
 } from '@/actions/business-persona-actions';
@@ -13,12 +12,6 @@ import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Separator } from '@/components/ui/separator';
-import {
-    Accordion,
-    AccordionContent,
-    AccordionItem,
-    AccordionTrigger,
-} from '@/components/ui/accordion';
 import {
     ArrowLeft,
     Brain,
@@ -41,18 +34,21 @@ import {
     ShieldCheck,
     Boxes,
     AlertCircle,
-    Save
+    ExternalLink,
+    Instagram,
+    Facebook,
+    Linkedin,
+    Twitter,
+    Youtube
 } from 'lucide-react';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
-import type { CoreVisibilitySettings } from '@/lib/business-persona-types';
 
 interface FieldConfig {
     key: string;
     label: string;
     icon: React.ElementType;
-    description?: string;
 }
 
 interface SectionConfig {
@@ -81,6 +77,8 @@ const SECTIONS_CONFIG: SectionConfig[] = [
             { key: 'identity.operatingHours', label: 'Operating Hours', icon: Clock },
             { key: 'identity.socialMedia', label: 'Social Media Links', icon: Users },
             { key: 'identity.industry', label: 'Industry & Category', icon: Boxes },
+            { key: 'identity.currency', label: 'Currency', icon: DollarSign },
+            { key: 'identity.timezone', label: 'Timezone', icon: Clock },
         ]
     },
     {
@@ -97,6 +95,7 @@ const SECTIONS_CONFIG: SectionConfig[] = [
             { key: 'personality.uniqueSellingPoints', label: 'Unique Selling Points', icon: Sparkles },
             { key: 'personality.brandValues', label: 'Brand Values', icon: ShieldCheck },
             { key: 'personality.languagePreference', label: 'Language Preference', icon: Globe },
+            { key: 'personality.foundedYear', label: 'Founded Year', icon: Clock },
         ]
     },
     {
@@ -157,6 +156,126 @@ const COLOR_CLASSES: Record<string, { bg: string, text: string, border: string, 
     slate: { bg: 'bg-slate-100', text: 'text-slate-700', border: 'border-slate-200', light: 'bg-slate-50' },
 };
 
+function formatOperatingHours(hours: any): string {
+    if (!hours) return '—';
+    if (hours.isOpen24x7) return 'Open 24/7';
+    if (hours.appointmentOnly) return 'By Appointment Only';
+
+    if (hours.schedule) {
+        const dayOrder = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
+        const shortDays: Record<string, string> = {
+            monday: 'Mon', tuesday: 'Tue', wednesday: 'Wed',
+            thursday: 'Thu', friday: 'Fri', saturday: 'Sat', sunday: 'Sun'
+        };
+
+        const openDays: string[] = [];
+        const closedDays: string[] = [];
+        let sampleTime = '';
+
+        dayOrder.forEach(day => {
+            const sched = hours.schedule[day];
+            if (sched?.isOpen || (sched?.openTime && sched?.closeTime)) {
+                openDays.push(shortDays[day]);
+                if (!sampleTime && (sched.openTime || sched.open)) {
+                    const open = sched.openTime || sched.open;
+                    const close = sched.closeTime || sched.close;
+                    sampleTime = `${open} - ${close}`;
+                }
+            } else {
+                closedDays.push(shortDays[day]);
+            }
+        });
+
+        if (openDays.length === 0) return 'Closed';
+        if (openDays.length === 7) return sampleTime ? `Daily ${sampleTime}` : 'Open Daily';
+
+        if (openDays.length >= 5 && closedDays.length <= 2) {
+            const closedStr = closedDays.length > 0 ? ` (Closed ${closedDays.join(', ')})` : '';
+            return sampleTime ? `${sampleTime}${closedStr}` : `Open ${openDays.length} days/week`;
+        }
+
+        return `${openDays.join(', ')}${sampleTime ? ` · ${sampleTime}` : ''}`;
+    }
+
+    if (hours.specialNote) return hours.specialNote;
+    return 'Schedule configured';
+}
+
+function formatAddress(address: any): string {
+    if (!address) return '—';
+    if (typeof address === 'string') return address;
+
+    const parts: string[] = [];
+    if (address.street) parts.push(address.street);
+    if (address.city) parts.push(address.city);
+    if (address.state) parts.push(address.state);
+    if (address.postalCode || address.pincode) parts.push(address.postalCode || address.pincode);
+    if (address.country) parts.push(address.country);
+
+    return parts.length > 0 ? parts.join(', ') : '—';
+}
+
+function formatSocialMedia(social: any): string {
+    if (!social || typeof social !== 'object') return '—';
+
+    const platforms = Object.entries(social)
+        .filter(([_, value]) => value && value !== '')
+        .map(([key]) => key.charAt(0).toUpperCase() + key.slice(1));
+
+    if (platforms.length === 0) return '—';
+    if (platforms.length <= 3) return platforms.join(', ');
+    return `${platforms.slice(0, 3).join(', ')} +${platforms.length - 3} more`;
+}
+
+function formatIndustry(industry: any): string {
+    if (!industry) return '—';
+    if (typeof industry === 'string') return industry;
+
+    const parts: string[] = [];
+    if (industry.category) {
+        parts.push(industry.category.replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase()));
+    }
+    if (industry.name && industry.name !== industry.category) {
+        parts.push(industry.name);
+    }
+
+    return parts.length > 0 ? parts.join(' → ') : '—';
+}
+
+function formatPolicies(policies: any): string {
+    if (!policies || typeof policies !== 'object') return '—';
+
+    const enabled = Object.entries(policies)
+        .filter(([_, value]) => value === true)
+        .map(([key]) => key.replace(/([A-Z])/g, ' $1').trim());
+
+    if (enabled.length === 0) return 'No policies set';
+    if (enabled.length <= 2) return enabled.join(', ');
+    return `${enabled.length} policies configured`;
+}
+
+function formatProducts(products: any): string {
+    if (!products) return '—';
+    if (!Array.isArray(products)) return '—';
+    if (products.length === 0) return '—';
+
+    const names = products
+        .slice(0, 3)
+        .map((p: any) => typeof p === 'string' ? p : p.name)
+        .filter(Boolean);
+
+    if (names.length === 0) return `${products.length} items`;
+    if (products.length <= 3) return names.join(', ');
+    return `${names.join(', ')} +${products.length - 3} more`;
+}
+
+function formatFAQs(faqs: any): string {
+    if (!faqs) return '—';
+    if (!Array.isArray(faqs)) return '—';
+    if (faqs.length === 0) return '—';
+    return `${faqs.length} FAQ${faqs.length === 1 ? '' : 's'} configured`;
+}
+
 export default function CoreDataPage() {
     const { user, loading: authLoading } = useAuth();
     const [isPending, startTransition] = useTransition();
@@ -179,7 +298,11 @@ export default function CoreDataPage() {
         try {
             const personaResult = await getBusinessPersonaAction(partnerId);
 
+            console.log('[CoreData] Fetched persona:', JSON.stringify(personaResult.persona, null, 2));
+            console.log('[CoreData] Operating Hours:', personaResult.persona?.identity?.operatingHours);
+
             if (personaResult.success && personaResult.persona) {
+                console.log('[CoreData] Loaded persona:', personaResult.persona);
                 setPersona(personaResult.persona);
                 const cv = personaResult.persona.coreVisibility || { sections: {}, fields: {} };
                 setVisibilityState({
@@ -263,26 +386,83 @@ export default function CoreDataPage() {
         return value;
     };
 
-    const formatFieldValue = (value: any): string => {
+    const formatFieldValue = (path: string, value: any): string => {
         if (value === undefined || value === null) return '—';
+
+        // Handle specific field types by path
+        if (path.endsWith('.operatingHours') || path === 'identity.operatingHours') {
+            return formatOperatingHours(value);
+        }
+        if (path.endsWith('.address') || path === 'identity.address') {
+            return formatAddress(value);
+        }
+        if (path.endsWith('.socialMedia') || path === 'identity.socialMedia') {
+            return formatSocialMedia(value);
+        }
+        if (path.endsWith('.industry') || path === 'identity.industry') {
+            return formatIndustry(value);
+        }
+        if (path.endsWith('.policies') || path === 'knowledge.policies') {
+            return formatPolicies(value);
+        }
+        if (path.endsWith('.productsOrServices') || path === 'knowledge.productsOrServices') {
+            return formatProducts(value);
+        }
+        if (path.endsWith('.faqs') || path === 'knowledge.faqs') {
+            return formatFAQs(value);
+        }
+
+        // Handle arrays
         if (Array.isArray(value)) {
             if (value.length === 0) return '—';
-            if (typeof value[0] === 'object') return `${value.length} items`;
+            if (typeof value[0] === 'object') {
+                const names = value.slice(0, 3).map((v: any) => v.name || v.label || v.title).filter(Boolean);
+                if (names.length > 0) {
+                    return value.length <= 3 ? names.join(', ') : `${names.join(', ')} +${value.length - 3}`;
+                }
+                return `${value.length} items`;
+            }
             return value.slice(0, 3).join(', ') + (value.length > 3 ? ` +${value.length - 3}` : '');
         }
+
+        // Handle objects (generic fallback)
         if (typeof value === 'object') {
-            if (value.city) return `${value.city}${value.state ? `, ${value.state}` : ''}`;
-            return 'Configured';
+            // Check for common patterns
+            if (value.city) return formatAddress(value);
+            if (value.name) return value.name;
+            if (value.label) return value.label;
+            if (value.value) return String(value.value);
+
+            // Count non-empty keys
+            const nonEmptyKeys = Object.entries(value).filter(([_, v]) => v && v !== '').length;
+            if (nonEmptyKeys > 0) return `${nonEmptyKeys} fields configured`;
+            return '—';
         }
-        if (typeof value === 'string' && value.length > 50) {
-            return value.substring(0, 50) + '...';
+
+        // Handle strings
+        if (typeof value === 'string') {
+            if (value === '') return '—';
+            if (value.length > 60) return value.substring(0, 60) + '...';
+            return value;
         }
+
+        // Handle numbers, booleans
         return String(value);
+    };
+
+    const hasFieldValue = (path: string): boolean => {
+        const value = getFieldValue(path);
+        if (value === undefined || value === null || value === '') return false;
+        if (Array.isArray(value) && value.length === 0) return false;
+        if (typeof value === 'object' && !Array.isArray(value)) {
+            return Object.values(value).some(v => v !== undefined && v !== null && v !== '');
+        }
+        return true;
     };
 
     if (authLoading || loading) {
         return (
-            <div className="p-8 space-y-4">
+            <div className="p-8 space-y-4 max-w-4xl mx-auto">
                 <Skeleton className="h-8 w-48" />
                 <Skeleton className="h-[200px] w-full" />
                 <Skeleton className="h-[200px] w-full" />
@@ -315,7 +495,7 @@ export default function CoreDataPage() {
                         </div>
 
                         <p className="text-slate-500 max-w-2xl">
-                            Control exactly what your AI assistant can see and use. Toggle entire sections or individual data points to manage privacy and context.
+                            Control exactly what your AI assistant can see and use. Toggle sections or individual fields to manage privacy and context.
                         </p>
                     </div>
 
@@ -323,7 +503,6 @@ export default function CoreDataPage() {
                         <div className="text-sm font-medium text-slate-900 mb-1">
                             {enabledCount}/7 sections active
                         </div>
-
                         <Button
                             variant="ghost"
                             size="sm"
@@ -336,12 +515,16 @@ export default function CoreDataPage() {
                     </div>
                 </div>
 
-                {/* Info Banner */}
-                <div className="bg-blue-50 border border-blue-100 rounded-lg p-4 flex gap-3 text-blue-800 text-sm">
-                    <CheckCircle2 className="w-5 h-5 text-blue-600 shrink-0" />
-                    <p>
-                        How it works: Toggle sections or individual fields to control what data Core (your AI) can access when responding to customers. Hidden data won't be included in AI responses.
-                    </p>
+                {/* Sync Notice */}
+                <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 flex gap-3 text-amber-800 text-sm">
+                    <AlertCircle className="w-5 h-5 text-amber-600 shrink-0" />
+                    <div>
+                        <strong>Data synced from Business Profile.</strong> Changes made in{' '}
+                        <Link href="/partner/settings" className="text-amber-700 underline hover:text-amber-900">
+                            Settings → Business Profile
+                        </Link>{' '}
+                        will appear here automatically. Use toggles below to control AI visibility.
+                    </div>
                 </div>
 
                 {/* Sections */}
@@ -352,12 +535,17 @@ export default function CoreDataPage() {
                         const colors = COLOR_CLASSES[section.color];
 
                         const dynamicFields = section.key === 'industrySpecificData' && persona?.industrySpecificData
-                            ? Object.keys(persona.industrySpecificData).map(k => ({
-                                key: `industrySpecificData.${k}`,
-                                label: k.replace(/([A-Z])/g, ' $1').replace(/^./, s => s.toUpperCase()),
-                                icon: Boxes
-                            }))
+                            ? Object.keys(persona.industrySpecificData)
+                                .filter(k => k !== 'ragStatus')
+                                .map(k => ({
+                                    key: `industrySpecificData.${k}`,
+                                    label: k.replace(/([A-Z])/g, ' $1').replace(/^./, s => s.toUpperCase()),
+                                    icon: Boxes
+                                }))
                             : section.fields;
+
+                        const fieldsWithData = dynamicFields.filter(f => hasFieldValue(f.key));
+                        const fieldsWithoutData = dynamicFields.filter(f => !hasFieldValue(f.key));
 
                         return (
                             <Card key={section.key} className={cn("overflow-hidden border-2 transition-colors",
@@ -371,9 +559,14 @@ export default function CoreDataPage() {
                                             <div>
                                                 <CardTitle className="text-base flex items-center gap-2">
                                                     {section.label}
+                                                    {fieldsWithData.length > 0 && (
+                                                        <Badge variant="secondary" className="text-xs">
+                                                            {fieldsWithData.length} fields
+                                                        </Badge>
+                                                    )}
                                                     {!isSectionEnabled && (
-                                                        <Badge variant="outline" className="bg-white/50 text-slate-500 border-slate-200 h-5 text-[10px] font-normal gap-1">
-                                                            <EyeOff className="w-3 h-3" />
+                                                        <Badge variant="outline" className="text-xs text-slate-500">
+                                                            <EyeOff className="w-3 h-3 mr-1" />
                                                             Hidden
                                                         </Badge>
                                                     )}
@@ -383,9 +576,8 @@ export default function CoreDataPage() {
                                                 </CardDescription>
                                             </div>
                                         </div>
-
                                         <div className="flex items-center gap-3">
-                                            <span className="text-xs font-medium text-slate-500 uppercase tracking-wider">
+                                            <span className="text-xs text-slate-500">
                                                 {isSectionEnabled ? 'Visible to Core' : 'Hidden from Core'}
                                             </span>
                                             <Switch
@@ -399,58 +591,93 @@ export default function CoreDataPage() {
                                 </CardHeader>
 
                                 {isSectionEnabled && dynamicFields.length > 0 && (
-                                    <div className="divide-y divide-slate-100">
-                                        <div className="p-1 bg-white">
-                                            {dynamicFields.map((field) => {
-                                                const FieldIcon = field.icon || Boxes;
-                                                const isFieldEnabled = visibilityState.fields[field.key] !== false;
-                                                const value = getFieldValue(field.key);
-                                                const hasValue = value !== undefined && value !== null && value !== '' &&
-                                                    !(Array.isArray(value) && value.length === 0);
+                                    <CardContent className="pt-0 pb-4">
+                                        <Separator className="mb-4" />
 
-                                                return (
-                                                    <div key={field.key} className="flex items-center justify-between p-3 hover:bg-slate-50/50 rounded-md transition-colors group">
-                                                        <div className="flex items-start gap-3 min-w-0 flex-1">
-                                                            <div className="mt-1">
-                                                                <FieldIcon className="w-4 h-4 text-slate-400 group-hover:text-slate-600" />
-                                                            </div>
-                                                            <div className="min-w-0 flex-1">
-                                                                <div className="text-sm font-medium text-slate-700">
-                                                                    {field.label}
-                                                                </div>
-                                                                <div className={cn("text-sm truncate", hasValue ? "text-slate-600" : "text-slate-400 italic")}>
-                                                                    {hasValue ? formatFieldValue(value) : 'No data'}
-                                                                </div>
-                                                            </div>
-                                                        </div>
+                                        {/* Fields with data */}
+                                        {fieldsWithData.length > 0 && (
+                                            <div className="space-y-2 mb-4">
+                                                {fieldsWithData.map((field) => {
+                                                    const FieldIcon = field.icon;
+                                                    const isFieldEnabled = visibilityState.fields[field.key] !== false;
+                                                    const value = getFieldValue(field.key);
+                                                    const displayValue = formatFieldValue(field.key, value);
 
-                                                        <div className="flex items-center gap-3 pl-4">
-                                                            {!isFieldEnabled && (
-                                                                <Badge variant="secondary" className="bg-slate-100 text-slate-500 h-5 px-1.5 text-[10px]">
-                                                                    <EyeOff className="w-3 h-3 mr-1" />
-                                                                    Excluded
-                                                                </Badge>
+                                                    return (
+                                                        <div
+                                                            key={field.key}
+                                                            className={cn(
+                                                                "flex items-center justify-between p-3 rounded-lg border transition-all",
+                                                                isFieldEnabled
+                                                                    ? "bg-white border-slate-200 hover:border-slate-300"
+                                                                    : "bg-slate-50 border-slate-100"
                                                             )}
-                                                            <Switch
-                                                                checked={isFieldEnabled}
-                                                                onCheckedChange={() => handleFieldToggle(field.key)}
-                                                                disabled={isPending}
-                                                                className="scale-90 data-[state=checked]:bg-indigo-500"
-                                                            />
+                                                        >
+                                                            <div className="flex items-center gap-3 flex-1 min-w-0">
+                                                                <FieldIcon className={cn(
+                                                                    "w-4 h-4 shrink-0",
+                                                                    isFieldEnabled ? "text-slate-500" : "text-slate-300"
+                                                                )} />
+                                                                <div className="flex-1 min-w-0">
+                                                                    <div className={cn(
+                                                                        "text-sm font-medium",
+                                                                        isFieldEnabled ? "text-slate-700" : "text-slate-400"
+                                                                    )}>
+                                                                        {field.label}
+                                                                    </div>
+                                                                    <div className={cn(
+                                                                        "text-xs truncate",
+                                                                        isFieldEnabled ? "text-green-600 font-medium" : "text-slate-400"
+                                                                    )}>
+                                                                        {displayValue}
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                            <div className="flex items-center gap-2 ml-4">
+                                                                {!isFieldEnabled && (
+                                                                    <Badge variant="outline" className="text-xs text-slate-400 border-slate-200">
+                                                                        <EyeOff className="w-3 h-3" />
+                                                                    </Badge>
+                                                                )}
+                                                                <Switch
+                                                                    checked={isFieldEnabled}
+                                                                    onCheckedChange={() => handleFieldToggle(field.key)}
+                                                                    disabled={isPending}
+                                                                    className="scale-90 data-[state=checked]:bg-indigo-500"
+                                                                />
+                                                            </div>
                                                         </div>
-                                                    </div>
-                                                );
-                                            })}
-                                        </div>
-                                    </div>
+                                                    );
+                                                })}
+                                            </div>
+                                        )}
+
+                                        {/* Fields without data */}
+                                        {fieldsWithoutData.length > 0 && (
+                                            <div className="space-y-1">
+                                                <p className="text-xs text-slate-400 mb-2">Missing data (add in Business Profile):</p>
+                                                <div className="flex flex-wrap gap-2">
+                                                    {fieldsWithoutData.map((field) => (
+                                                        <Badge key={field.key} variant="outline" className="text-xs text-slate-400 border-dashed">
+                                                            {field.label}
+                                                        </Badge>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        )}
+                                    </CardContent>
                                 )}
 
                                 {isSectionEnabled && dynamicFields.length === 0 && section.key !== 'otherUsefulData' && (
-                                    <div className="p-8 text-center bg-slate-50/50">
-                                        <div className="text-sm text-slate-400">
-                                            No data in this section yet
-                                        </div>
-                                    </div>
+                                    <CardContent className="pt-0 pb-4">
+                                        <Separator className="mb-4" />
+                                        <p className="text-sm text-slate-400 italic text-center py-4">
+                                            No data in this section yet.{' '}
+                                            <Link href="/partner/settings" className="text-indigo-500 hover:underline">
+                                                Add in Business Profile →
+                                            </Link>
+                                        </p>
+                                    </CardContent>
                                 )}
                             </Card>
                         );
@@ -458,9 +685,9 @@ export default function CoreDataPage() {
                 </div>
 
                 {/* Back Button */}
-                <div className="flex justify-center pt-8">
+                <div className="mt-8 text-center">
                     <Link href="/partner/settings">
-                        <Button variant="outline" className="gap-2">
+                        <Button variant="outline" size="lg" className="gap-2">
                             <ArrowLeft className="w-4 h-4" />
                             Back to Settings
                         </Button>

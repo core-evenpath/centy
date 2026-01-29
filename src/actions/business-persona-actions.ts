@@ -271,6 +271,10 @@ export async function saveBusinessPersonaAction(
     message: string;
     setupProgress?: SetupProgress;
 }> {
+    // ADD THIS LOGGING
+    console.log(`[SavePersona] Called for partner ${partnerId}`);
+    console.log(`[SavePersona] Updates received:`, JSON.stringify(updates, null, 2));
+
     if (!db) {
         return { success: false, message: 'Database unavailable' };
     }
@@ -463,6 +467,10 @@ export async function saveBusinessPersonaAction(
         if (updates.identity?.industry !== undefined) {
             topLevelUpdates.industry = updates.identity.industry;
         }
+
+        // After building updatedPersona, before the partnerRef.update call:
+        console.log(`[SavePersona] Merged persona identity:`, JSON.stringify(updatedPersona.identity, null, 2));
+        console.log(`[SavePersona] Writing to Firestore...`);
 
         await partnerRef.update(topLevelUpdates);
 
