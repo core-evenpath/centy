@@ -1244,6 +1244,10 @@ CUSTOMER PERSONA:
         // Use accessible data for system prompt construction
         const identity = accessibleData?.identity;
         const personality = accessibleData?.personality;
+        const knowledge = accessibleData?.knowledge;
+        const customerProfile = accessibleData?.customerProfile;
+        const industrySpecificData = accessibleData?.industrySpecificData;
+        const otherUsefulData = accessibleData?.otherUsefulData;
 
         let finalSystemPrompt = systemPrompt;
         if (!finalSystemPrompt) {
@@ -1255,14 +1259,230 @@ CUSTOMER PERSONA:
             }
         }
 
-        // Add business info from accessible summary
-        if (businessSummary) {
-            finalSystemPrompt += `\n\nBUSINESS KNOWLEDGE:\n${businessSummary}`;
+        // ========== BUILD COMPREHENSIVE BUSINESS KNOWLEDGE ==========
+        const businessKnowledge: string[] = [];
+
+        // --- IDENTITY SECTION ---
+        if (identity) {
+            if (identity.name) businessKnowledge.push(`Business Name: ${identity.name}`);
+            if (identity.phone) businessKnowledge.push(`Phone: ${identity.phone}`);
+            if (identity.email) businessKnowledge.push(`Email: ${identity.email}`);
+            if (identity.website) businessKnowledge.push(`Website: ${identity.website}`);
+            if (identity.whatsAppNumber) businessKnowledge.push(`WhatsApp: ${identity.whatsAppNumber}`);
+
+            // Full Address
+            if (identity.address) {
+                const addr = identity.address;
+                const addressParts = [addr.street, addr.area, addr.city, addr.state, addr.postalCode || addr.pincode, addr.country].filter(Boolean);
+                if (addressParts.length > 0) {
+                    businessKnowledge.push(`Address: ${addressParts.join(', ')}`);
+                }
+            }
+
+            // Full Operating Hours
+            if (identity.operatingHours) {
+                const hours = identity.operatingHours;
+                if (hours.isOpen24x7) {
+                    businessKnowledge.push(`Operating Hours: Open 24/7`);
+                } else if (hours.appointmentOnly) {
+                    businessKnowledge.push(`Operating Hours: By Appointment Only`);
+                } else if (hours.schedule) {
+                    const dayOrder = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
+                    const scheduleLines: string[] = [];
+                    for (const day of dayOrder) {
+                        const sched = hours.schedule[day];
+                        if (sched) {
+                            const isOpen = sched.isOpen || (sched.openTime && sched.closeTime);
+                            const openTime = sched.openTime || sched.open;
+                            const closeTime = sched.closeTime || sched.close;
+                            const dayName = day.charAt(0).toUpperCase() + day.slice(1);
+                            if (isOpen && openTime && closeTime) {
+                                scheduleLines.push(`  ${dayName}: ${openTime} - ${closeTime}`);
+                            } else {
+                                scheduleLines.push(`  ${dayName}: Closed`);
+                            }
+                        }
+                    }
+                    if (scheduleLines.length > 0) {
+                        businessKnowledge.push(`Operating Hours:\n${scheduleLines.join('\n')}`);
+                    }
+                }
+                if (hours.specialNote) {
+                    businessKnowledge.push(`Hours Note: ${hours.specialNote}`);
+                }
+            }
+
+            // Social Media
+            if (identity.socialMedia) {
+                const social = identity.socialMedia;
+                const platforms = Object.entries(social)
+                    .filter(([_, url]) => url && url !== '')
+                    .map(([platform, url]) => `${platform}: ${url}`);
+                if (platforms.length > 0) {
+                    businessKnowledge.push(`Social Media:\n  ${platforms.join('\n  ')}`);
+                }
+            }
+
+            // Industry
+            if (identity.industry) {
+                const ind = identity.industry;
+                if (typeof ind === 'string') {
+                    businessKnowledge.push(`Industry: ${ind}`);
+                } else if (ind.name || ind.category) {
+                    businessKnowledge.push(`Industry: ${ind.category ? ind.category.replace(/_/g, ' ') : ''} ${ind.name ? '- ' + ind.name : ''}`);
+                }
+            }
+
+            if (identity.currency) businessKnowledge.push(`Currency: ${identity.currency}`);
+            if (identity.timezone) businessKnowledge.push(`Timezone: ${identity.timezone}`);
         }
 
-        // Add detailed fields if available/accessible
-        if (identity?.website) finalSystemPrompt += `\nWebsite: ${identity.website}`;
-        if (personality?.description) finalSystemPrompt += `\nAbout: ${personality.description}`;
+        // --- PERSONALITY SECTION ---
+        if (personality) {
+            if (personality.description) {
+                businessKnowledge.push(`About the Business: ${personality.description}`);
+            }
+            if (personality.uniqueSellingPoints?.length > 0) {
+                businessKnowledge.push(`Unique Selling Points:\n  - ${personality.uniqueSellingPoints.join('\n  - ')}`);
+            }
+            if (personality.voiceTone?.length > 0) {
+                businessKnowledge.push(`Communication Style: ${personality.voiceTone.join(', ')}`);
+            }
+            if (personality.brandValues?.length > 0) {
+                businessKnowledge.push(`Brand Values: ${personality.brandValues.join(', ')}`);
+            }
+            if (personality.languagePreference?.length > 0) {
+                businessKnowledge.push(`Languages: ${personality.languagePreference.join(', ')}`);
+            }
+        }
+
+        // --- KNOWLEDGE SECTION (Products, Services, FAQs, Policies) ---
+        if (knowledge) {
+            // ALL Products/Services (not just first 5)
+            if (knowledge.productsOrServices?.length > 0) {
+                const products = knowledge.productsOrServices.map((p: any) => {
+                    const parts = [p.name];
+                    if (p.priceRange) parts.push(`(${p.priceRange})`);
+                    if (p.description) parts.push(`- ${p.description}`);
+                    return parts.join(' ');
+                });
+                businessKnowledge.push(`Products & Services:\n  - ${products.join('\n  - ')}`);
+            }
+
+            // ALL FAQs with answers
+            if (knowledge.faqs?.length > 0) {
+                const faqText = knowledge.faqs.map((faq: any) => {
+                    const q = faq.question || faq.q;
+                    const a = faq.answer || faq.a;
+                    return `Q: ${q}\n   A: ${a}`;
+                }).join('\n\n');
+                businessKnowledge.push(`Frequently Asked Questions:\n${faqText}`);
+            }
+
+            // Pricing
+            if (knowledge.pricingModel) {
+                businessKnowledge.push(`Pricing Model: ${knowledge.pricingModel}`);
+            }
+            if (knowledge.pricingHighlights) {
+                businessKnowledge.push(`Pricing Info: ${knowledge.pricingHighlights}`);
+            }
+
+            // Payment Methods
+            if (knowledge.acceptedPayments?.length > 0) {
+                businessKnowledge.push(`Accepted Payments: ${knowledge.acceptedPayments.join(', ')}`);
+            }
+
+            // Policies
+            if (knowledge.policies) {
+                const policies = knowledge.policies;
+                const policyLines: string[] = [];
+                Object.entries(policies).forEach(([key, value]) => {
+                    if (value !== undefined && value !== null && value !== '') {
+                        const label = key.replace(/([A-Z])/g, ' $1').trim();
+                        if (typeof value === 'boolean') {
+                            policyLines.push(`${label}: ${value ? 'Yes' : 'No'}`);
+                        } else {
+                            policyLines.push(`${label}: ${value}`);
+                        }
+                    }
+                });
+                if (policyLines.length > 0) {
+                    businessKnowledge.push(`Policies:\n  - ${policyLines.join('\n  - ')}`);
+                }
+            }
+
+            // Current Offers
+            if (knowledge.currentOffers?.length > 0) {
+                businessKnowledge.push(`Current Offers:\n  - ${knowledge.currentOffers.join('\n  - ')}`);
+            }
+        }
+
+        // --- CUSTOMER PROFILE SECTION ---
+        if (customerProfile) {
+            if (customerProfile.targetAudience) {
+                businessKnowledge.push(`Target Audience: ${customerProfile.targetAudience}`);
+            }
+            if (customerProfile.customerPainPoints?.length > 0) {
+                businessKnowledge.push(`Common Customer Pain Points:\n  - ${customerProfile.customerPainPoints.join('\n  - ')}`);
+            }
+            if (customerProfile.commonQueries?.length > 0) {
+                businessKnowledge.push(`Common Customer Questions:\n  - ${customerProfile.commonQueries.join('\n  - ')}`);
+            }
+        }
+
+        // --- INDUSTRY SPECIFIC DATA ---
+        if (industrySpecificData && Object.keys(industrySpecificData).length > 0) {
+            const industryLines: string[] = [];
+
+            const formatValue = (val: any): string => {
+                if (Array.isArray(val)) return val.join(', ');
+                if (typeof val === 'object' && val !== null) {
+                    return Object.entries(val)
+                        .filter(([_, v]) => v !== null && v !== undefined && v !== '')
+                        .map(([k, v]) => `${k}: ${formatValue(v)}`)
+                        .join('; ');
+                }
+                return String(val);
+            };
+
+            Object.entries(industrySpecificData).forEach(([section, data]) => {
+                if (section === 'ragStatus' || section === 'fetchedReviews') return;
+                if (data && typeof data === 'object') {
+                    Object.entries(data as Record<string, any>).forEach(([key, value]) => {
+                        if (value !== null && value !== undefined && value !== '') {
+                            const label = key.replace(/([A-Z])/g, ' $1').replace(/_/g, ' ').trim();
+                            industryLines.push(`${label}: ${formatValue(value)}`);
+                        }
+                    });
+                }
+            });
+
+            if (industryLines.length > 0) {
+                businessKnowledge.push(`Industry-Specific Information:\n  - ${industryLines.join('\n  - ')}`);
+            }
+        }
+
+        // --- OTHER USEFUL DATA ---
+        if (otherUsefulData?.length > 0) {
+            const otherLines = otherUsefulData
+                .filter((item: any) => item.visibleToCore !== false)
+                .map((item: any) => `${item.key}: ${item.value}`);
+            if (otherLines.length > 0) {
+                businessKnowledge.push(`Additional Information:\n  - ${otherLines.join('\n  - ')}`);
+            }
+        }
+
+        // ========== ADD TO SYSTEM PROMPT ==========
+        if (businessKnowledge.length > 0) {
+            finalSystemPrompt += `\n\n========== BUSINESS KNOWLEDGE ==========\n`;
+            finalSystemPrompt += businessKnowledge.join('\n\n');
+            finalSystemPrompt += `\n========================================\n`;
+            finalSystemPrompt += `\nIMPORTANT: Use the business knowledge above to answer customer questions accurately. Reference specific details like operating hours, products, prices, and policies when relevant.`;
+        }
+
+        // Add logging for debugging
+        console.log(`[InboxAI] Business knowledge sections: ${businessKnowledge.length}`);
+        console.log(`[InboxAI] System prompt length: ${finalSystemPrompt.length} chars`);
 
         if (personaContext) {
             finalSystemPrompt += `\n\n${personaContext}\nUse this persona information to personalize your response appropriately.`;

@@ -2,6 +2,7 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
+import { invalidatePartnerBusinessCache } from '@/lib/cache-utils';
 import { db } from '@/lib/firebase-admin';
 import { FieldValue, Timestamp } from 'firebase-admin/firestore';
 import type {
@@ -509,6 +510,12 @@ export async function saveBusinessPersonaAction(
         }
 
         console.log(`✅ Business persona saved for partner ${partnerId} (${setupProgress.overallPercentage}% complete)`);
+
+        try {
+            await invalidatePartnerBusinessCache(partnerId);
+        } catch (e) {
+            console.error('Cache invalidation error:', e);
+        }
 
         return {
             success: true,
@@ -1079,7 +1086,12 @@ export async function getCoreAccessibleDataAction(
     }
 
     try {
+        const fetchTimestamp = Date.now();
+        console.log(`[CoreData] Fetching fresh data for ${partnerId} at ${fetchTimestamp}`);
+
         const partnerDoc = await db.collection('partners').doc(partnerId).get();
+
+        console.log(`[CoreData] Document exists: ${partnerDoc.exists}, updateTime: ${partnerDoc.updateTime?.toDate()}`);
 
         if (!partnerDoc.exists) {
             return { success: false, message: 'Partner not found' };

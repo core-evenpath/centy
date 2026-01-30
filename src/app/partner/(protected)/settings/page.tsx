@@ -298,6 +298,8 @@ const SettingsUltimate = () => {
 
       if (result.success) {
         console.log(`[Settings] ✅ Saved successfully:`, path);
+        // Force router refresh to clear any client-side cache and ensure inbox gets fresh data
+        router.refresh();
       } else {
         console.error(`[Settings] ❌ Save failed:`, result.message);
         toast.error("Failed to save changes");

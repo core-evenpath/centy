@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useCallback, useRef, useLayoutEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { useMultiWorkspaceAuth } from '@/hooks/use-multi-workspace-auth';
 import { useUnifiedConversations, UnifiedConversation, Platform } from '@/hooks/useUnifiedConversations';
 import { useMetaMessages } from '@/hooks/useMetaWhatsApp';
@@ -253,6 +254,12 @@ interface RAGSuggestion {
 export default function UnifiedInboxPage() {
     const { currentWorkspace, loading: authLoading } = useMultiWorkspaceAuth();
     const currentPartnerId = currentWorkspace?.partnerId;
+    const router = useRouter();
+
+    const handleRefreshBusinessData = useCallback(() => {
+        router.refresh();
+        toast.success('Refreshing data...');
+    }, [router]);
 
     const [platformFilter, setPlatformFilter] = useState<Platform | 'all'>('all');
     const { conversations, loading: convsLoading, markAsRead, whatsAppCount, telegramCount } = useUnifiedConversations(currentPartnerId);
@@ -727,6 +734,7 @@ export default function UnifiedInboxPage() {
                         onPlatformFilterChange={setPlatformFilter}
                         whatsAppCount={whatsAppCount}
                         telegramCount={telegramCount}
+                        onRefresh={handleRefreshBusinessData}
                     />
                 </div>
 

@@ -1,5 +1,5 @@
 import React from 'react';
-import { Search, Plus, MessageCircle, Filter } from 'lucide-react';
+import { Search, Plus, MessageCircle, Filter, RefreshCw } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Button } from '@/components/ui/button';
@@ -26,6 +26,7 @@ interface UnifiedConversationSidebarProps {
     onPlatformFilterChange: (platform: Platform | 'all') => void;
     whatsAppCount: number;
     telegramCount: number;
+    onRefresh?: () => void;
 }
 
 function getPlatformLabel(platform: Platform) {
@@ -48,6 +49,7 @@ export function UnifiedConversationSidebar({
     onPlatformFilterChange,
     whatsAppCount,
     telegramCount,
+    onRefresh,
 }: UnifiedConversationSidebarProps) {
 
     const formatTime = (timestamp: any) => {
@@ -136,6 +138,18 @@ export function UnifiedConversationSidebar({
                         </DropdownMenuContent>
                     </DropdownMenu>
                 </div>
+
+                {onRefresh && (
+                    <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={onRefresh}
+                        className="h-8 w-8 p-0 rounded-lg hover:bg-[#f5f5f5] text-[#666] transition-all duration-200"
+                        title="Refresh Business Data"
+                    >
+                        <RefreshCw className="w-3.5 h-3.5" />
+                    </Button>
+                )}
             </div>
 
             {/* Conversation List */}
@@ -248,7 +262,8 @@ export function UnifiedConversationSidebar({
             </ScrollArea>
 
             {/* Inline styles for animations */}
-            <style dangerouslySetInnerHTML={{ __html: `
+            <style dangerouslySetInnerHTML={{
+                __html: `
                 @keyframes fadeSlideIn {
                     from {
                         opacity: 0;
@@ -264,6 +279,6 @@ export function UnifiedConversationSidebar({
                     to { transform: scale(1); }
                 }
             `}} />
-        </div>
+        </div >
     );
 }
