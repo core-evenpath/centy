@@ -47,6 +47,9 @@ export async function sendMetaTextMessage(
     const accessToken = await getDecryptedAccessToken(partnerId);
     const normalizedTo = to.replace(/\D/g, '');
 
+    console.log(`url = ${META_API_BASE}/${config.phoneNumberId}/message`);
+    console.log(`accessToken = ${accessToken}`);
+
     const response = await fetch(
         `${META_API_BASE}/${config.phoneNumberId}/messages`,
         {

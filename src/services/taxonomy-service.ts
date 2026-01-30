@@ -18,6 +18,38 @@ import {
     SelectedBusinessCategory
 } from '@/lib/business-taxonomy/types';
 
+// Helper to serialize Timestamps
+function serializeTimestamps<T>(obj: T): T {
+    if (obj === null || obj === undefined) return obj;
+
+    if (Array.isArray(obj)) {
+        return obj.map(item => serializeTimestamps(item)) as any;
+    }
+
+    if (typeof obj === 'object') {
+        // Check if it's a Firestore Timestamp
+        if ('_seconds' in obj && '_nanoseconds' in obj) {
+            return new Date((obj as any)._seconds * 1000).toISOString() as any;
+        }
+
+        // Check for toDate method (Firestore Timestamp instance)
+        if (typeof (obj as any).toDate === 'function') {
+            return (obj as any).toDate().toISOString() as any;
+        }
+
+        // Recursively process object properties
+        const result: any = {};
+        for (const key in obj) {
+            if (Object.prototype.hasOwnProperty.call(obj, key)) {
+                result[key] = serializeTimestamps((obj as any)[key]);
+            }
+        }
+        return result as T;
+    }
+
+    return obj;
+}
+
 export const getIndustries = unstable_cache(
     async (): Promise<TaxonomyIndustry[]> => {
         try {
@@ -47,7 +79,7 @@ export const getIndustries = unstable_cache(
                 }));
             }
 
-            return snapshot.docs.map(doc => ({
+            return snapshot.docs.map(doc => serializeTimestamps({
                 industryId: doc.id,
                 ...doc.data()
             } as TaxonomyIndustry));
@@ -114,7 +146,7 @@ export const getBusinessFunctions = unstable_cache(
                 }));
             }
 
-            return snapshot.docs.map(doc => ({
+            return snapshot.docs.map(doc => serializeTimestamps({
                 functionId: doc.id,
                 ...doc.data()
             } as TaxonomyFunction));
@@ -166,7 +198,7 @@ export const getCountryOverrides = unstable_cache(
                 return overrides;
             }
 
-            return snapshot.docs.map(doc => ({
+            return snapshot.docs.map(doc => serializeTimestamps({
                 overrideId: doc.id,
                 ...doc.data()
             } as TaxonomyCountryOverride));
