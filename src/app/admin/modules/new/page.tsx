@@ -1,18 +1,18 @@
+'use client';
 
-import { adminAuth } from '@/lib/firebase-admin';
-import { notFound, redirect } from 'next/navigation';
-import { getUser } from '@/actions/auth-actions';
+import { useAuth } from '@/hooks/use-auth';
 import { AIModuleWizard } from '@/components/admin/modules/AIModuleWizard';
 
-export default async function NewModulePage() {
-    // 1. Verify Authentication
-    const user = await getUser();
-    if (!user) {
-        redirect('/login');
+export default function NewModulePage() {
+    const { user, loading } = useAuth();
+
+    if (loading) {
+        return null;
     }
 
-    // 2. Verify Admin Role (optional, depending on requirements)
-    // if (user.role !== 'admin') { ... }
+    if (!user) {
+        return null;
+    }
 
     return (
         <div className="container max-w-5xl mx-auto py-10 px-4">
