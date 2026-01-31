@@ -15,7 +15,6 @@ import {
   Database,
   Bot,
   Radio,
-  Radio,
   BarChart3,
   Package
 } from 'lucide-react';
