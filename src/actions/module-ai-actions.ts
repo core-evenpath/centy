@@ -31,7 +31,7 @@ export async function generateModuleSchemaAction(
     error?: string;
 }> {
     try {
-        const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+        const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash-lite" });
 
         const prompt = `You are a business configuration expert. Generate a module schema for "${moduleName}" for ${industryName} businesses in ${countryCode}.
 
