@@ -98,6 +98,7 @@ export default function UnifiedPartnerSidebar() {
       href: '/partner/contacts'
     },
     {
+      icon: LinkIcon,
       label: 'Integrations',
       href: '/partner/apps'
     },
