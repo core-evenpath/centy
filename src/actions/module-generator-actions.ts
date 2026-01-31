@@ -2,6 +2,7 @@
 
 import { GoogleGenAI } from "@google/genai";
 import type { SelectedBusinessCategory } from '@/lib/business-taxonomy/types';
+import { cleanAndParseJSON } from '@/lib/modules/utils';
 
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || process.env.GOOGLE_GENAI_API_KEY });
 
@@ -220,14 +221,11 @@ OUTPUT FORMAT (valid JSON only, no markdown, no code blocks):
 
         let parsed: { modules: GeneratedModule[] };
         try {
-            parsed = JSON.parse(text);
-        } catch {
-            const jsonMatch = text.match(/\{[\s\S]*\}/);
-            if (jsonMatch) {
-                parsed = JSON.parse(jsonMatch[0]);
-            } else {
-                throw new Error('Could not parse AI response');
-            }
+            parsed = cleanAndParseJSON(text);
+        } catch (e) {
+            console.error("JSON Parse Error:", e);
+            console.log("Raw Text:", text);
+            throw new Error('Could not parse AI response: ' + (e instanceof Error ? e.message : String(e)));
         }
 
         const config: ModulesConfig = {
@@ -323,3 +321,5 @@ OUTPUT (valid JSON only):
         return { success: false, error: error instanceof Error ? error.message : 'Failed' };
     }
 }
+
+

@@ -8,7 +8,8 @@ import {
   FolderOpen,
   Users,
   LayoutGrid,
-  Settings
+  Settings,
+  Package
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -32,6 +33,11 @@ const navigationItems = [
     name: 'Apps',
     href: '/partner/apps',
     icon: LayoutGrid
+  },
+  {
+    name: 'Modules',
+    href: '/partner/modules',
+    icon: Package
   },
   {
     name: 'Settings',

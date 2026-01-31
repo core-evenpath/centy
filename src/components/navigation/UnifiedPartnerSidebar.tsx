@@ -15,7 +15,9 @@ import {
   Database,
   Bot,
   Radio,
-  BarChart3
+  Radio,
+  BarChart3,
+  Package
 } from 'lucide-react';
 import { Button } from '../ui/button';
 import { cn } from '@/lib/utils';
@@ -97,9 +99,13 @@ export default function UnifiedPartnerSidebar() {
       href: '/partner/contacts'
     },
     {
-      icon: LinkIcon,
       label: 'Integrations',
       href: '/partner/apps'
+    },
+    {
+      icon: Package,
+      label: 'Modules',
+      href: '/partner/modules'
     },
     {
       icon: Settings,
