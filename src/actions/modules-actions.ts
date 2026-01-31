@@ -52,12 +52,21 @@ export const getCachedSystemModules = unstable_cache(
 );
 
 export async function getSystemModuleAction(
-    moduleSlug: string
+    identifier: string
 ): Promise<ModulesActionResponse<SystemModule>> {
     try {
+        // If identifier looks like a document ID (starts with 'mod_'), fetch by ID first
+        if (identifier.startsWith('mod_')) {
+            const doc = await adminDb.collection('systemModules').doc(identifier).get();
+            if (doc.exists) {
+                return { success: true, data: { id: doc.id, ...doc.data() } as SystemModule };
+            }
+        }
+
+        // Otherwise (or if ID lookup missed), search by slug
         const snapshot = await adminDb
             .collection('systemModules')
-            .where('slug', '==', moduleSlug)
+            .where('slug', '==', identifier)
             .limit(1)
             .get();
 
