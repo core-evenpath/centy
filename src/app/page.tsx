@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { ArrowRight, Check, X, FileText, TrendingUp, MessageSquare, User, Sparkles, Database, CheckCircle2, DollarSign, History, Tag, Package, Phone, Bot, Loader2, Star } from 'lucide-react';
+import { AlertCircle, ArrowRight, Check, X, FileText, TrendingUp, MessageSquare, User, Sparkles, Database, CheckCircle2, DollarSign, History, Tag, Package, Phone, Bot, Loader2, Star } from 'lucide-react';
 
 const howItWorks = [
   { step: '1', title: 'Upload your docs', desc: 'Product catalogs, price lists, FAQs — any documents your business runs on.' },
@@ -214,28 +214,36 @@ export default function HomePage() {
       {/* Hero */}
       <section className="relative min-h-screen flex items-center justify-center pt-20 pb-16 overflow-hidden" style={{ backgroundColor: '#faf8f5' }}>
         <div className="relative z-10 max-w-5xl mx-auto px-6 text-center">
-          <h1 className="font-serif text-5xl sm:text-7xl lg:text-8xl tracking-tight text-stone-900 mb-8 leading-[1.05]">
-            AI that <em>responds</em> to{' '}
-            <br className="hidden sm:block" />
-            leads and <em>makes</em>{' '}
-            <br className="hidden sm:block" />
-            you money.
+          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-red-50 border border-red-200 mb-6">
+            <AlertCircle className="w-4 h-4 text-red-400" />
+            <span className="text-sm text-red-500">You&apos;re losing leads right now</span>
+          </div>
+
+          <h1 className="font-serif text-4xl sm:text-6xl lg:text-7xl tracking-tight text-stone-900 mb-6 leading-[1.05]">
+            <span className="text-stone-400">That message from</span>
+            <br />
+            <span className="text-stone-900">2 hours ago?</span>
+            <br />
+            <em className="text-rose-500">Gone.</em>
           </h1>
 
-          <p className="text-lg sm:text-xl text-stone-500 max-w-2xl mx-auto mb-10 leading-relaxed">
-            An AI employee that puts in the work 24/7, turning messages
-            into revenue — on WhatsApp, Telegram, and SMS.
+          <p className="text-lg sm:text-xl text-stone-500 max-w-2xl mx-auto mb-4 leading-relaxed">
+            You&apos;re losing 2-3 leads per week to faster competitors. Not because you&apos;re bad — because you&apos;re <span className="text-stone-900 font-medium">busy</span>.
+          </p>
+
+          <p className="text-base text-stone-400 max-w-xl mx-auto mb-10">
+            PingBox reads your documents and responds on WhatsApp in <span className="text-rose-500 font-semibold">30 seconds</span>. You just approve.
           </p>
 
           <Link href="/early-access" className="inline-flex items-center bg-stone-900 text-white pl-8 pr-2 py-2 rounded-full font-medium hover:bg-stone-800 transition-colors">
-            <span className="mr-4">Start free trial</span>
+            <span className="mr-4">Connect WhatsApp — Free 14 Days</span>
             <div className="w-10 h-10 bg-rose-500 rounded-full flex items-center justify-center">
               <ArrowRight className="w-5 h-5 text-white" />
             </div>
           </Link>
 
           <p className="text-sm text-stone-400 mt-6">
-            No credit card required. Setup in 5 minutes.
+            No credit card. No sales call. Working in 5 minutes.
           </p>
         </div>
       </section>
