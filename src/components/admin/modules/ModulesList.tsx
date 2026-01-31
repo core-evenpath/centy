@@ -1,31 +1,25 @@
 'use client';
 
 import { useState } from 'react';
-
 import { useSystemModules } from '@/hooks/use-modules';
 import { ModuleCard } from './ModuleCard';
-import { Button } from '@/components/ui/button';
-import { Plus } from 'lucide-react';
-import Link from 'next/link';
-import { Skeleton } from '@/components/ui/skeleton';
 import { BulkGenerationDialog } from './BulkGenerationDialog';
 import { BulkDeleteDialog } from './BulkDeleteDialog';
-import { Sparkles, Package, LayoutGrid, Trash2 } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Skeleton } from '@/components/ui/skeleton';
+import Link from 'next/link';
+import { Plus, Sparkles, Package, Trash2, RefreshCw, Brain } from 'lucide-react';
 
 export function ModulesList() {
     const [bulkDialogOpen, setBulkDialogOpen] = useState(false);
     const [bulkDeleteDialogOpen, setBulkDeleteDialogOpen] = useState(false);
     const { modules, isLoading, error, refetch } = useSystemModules();
 
-    const handleBulkComplete = () => {
-        refetch();
-    };
-
     if (isLoading) {
         return (
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                {[1, 2, 3, 4, 5, 6].map((i) => (
-                    <Skeleton key={i} className="h-[200px] w-full rounded-xl" />
+                {[1, 2, 3, 4, 5, 6].map(i => (
+                    <Skeleton key={i} className="h-[200px] rounded-xl" />
                 ))}
             </div>
         );
@@ -33,98 +27,100 @@ export function ModulesList() {
 
     if (error) {
         return (
-            <div className="flex h-[200px] w-full items-center justify-center rounded-xl border border-destructive/20 bg-destructive/5 text-destructive">
-                <p>Error loading modules: {error}</p>
+            <div className="flex h-[200px] items-center justify-center rounded-xl border border-red-200 bg-red-50 text-red-600">
+                <p>Error: {error}</p>
+                <Button variant="ghost" size="sm" onClick={refetch} className="ml-2">
+                    <RefreshCw className="h-4 w-4 mr-1" /> Retry
+                </Button>
             </div>
         );
     }
 
+    // Empty state - matches modules-demo
     if (modules.length === 0) {
         return (
-            <div className="space-y-6">
-                <div className="relative rounded-xl border-2 border-dashed border-slate-200 bg-gradient-to-br from-slate-50 to-white p-12">
-                    <div className="absolute inset-0 bg-grid-slate-100 [mask-image:linear-gradient(0deg,white,transparent)]" />
-
-                    <div className="relative flex flex-col items-center text-center">
-                        <div className="mb-4 rounded-full bg-gradient-to-br from-blue-100 to-purple-100 p-4">
-                            <Package className="h-8 w-8 text-blue-600" />
+            <>
+                <div className="rounded-2xl border-2 border-dashed border-slate-200 bg-gradient-to-br from-slate-50 via-indigo-50/30 to-white p-12">
+                    <div className="flex flex-col items-center text-center">
+                        <div className="mb-6 w-16 h-16 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-2xl flex items-center justify-center shadow-lg">
+                            <Package className="h-8 w-8 text-white" />
                         </div>
 
-                        <h3 className="text-lg font-semibold text-slate-900">No modules found</h3>
-                        <p className="mt-1 text-sm text-slate-500 max-w-md">
-                            Get started by creating your first module, or let AI generate a comprehensive set for all industries.
+                        <h3 className="text-xl font-bold text-slate-900">No modules yet</h3>
+                        <p className="mt-2 text-sm text-slate-500 max-w-md">
+                            Let AI generate modules for all industries, or create one manually.
                         </p>
 
-                        <div className="mt-6 flex flex-col sm:flex-row gap-3">
-                            <Button variant="outline" asChild>
+                        {/* Info Banner */}
+                        <div className="mt-6 p-4 bg-gradient-to-r from-indigo-50 to-purple-50 border border-indigo-200 rounded-xl flex items-start gap-3 max-w-lg text-left">
+                            <Brain className="w-5 h-5 text-indigo-600 mt-0.5 shrink-0" />
+                            <div className="text-sm text-indigo-700">
+                                <p className="font-medium text-indigo-800">How this works:</p>
+                                <p>AI generates fields, categories, and sample data for Hotels, Restaurants, Salons, Retail, and more.</p>
+                            </div>
+                        </div>
+
+                        <div className="mt-8 flex gap-3">
+                            <Button variant="outline" size="lg" asChild>
                                 <Link href="/admin/modules/new">
                                     <Plus className="h-4 w-4 mr-2" />
-                                    Create Module
+                                    Create Manually
                                 </Link>
                             </Button>
 
-                            <Button onClick={() => setBulkDialogOpen(true)}>
+                            <Button
+                                size="lg"
+                                onClick={() => setBulkDialogOpen(true)}
+                                className="bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700"
+                            >
                                 <Sparkles className="h-4 w-4 mr-2" />
                                 Generate All with AI
                             </Button>
                         </div>
 
-
-                        <div className="mt-8 grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs text-slate-400">
-                            <span>🏨 Hospitality</span>
-                            <span>🍽️ Food & Bev</span>
-                            <span>💼 Professional</span>
-                            <span>🏥 Healthcare</span>
-                            <span>💆 Wellness</span>
-                            <span>🛒 Retail</span>
-                            <span>🎓 Education</span>
-                            <span>🏠 Real Estate</span>
+                        {/* Industry Icons */}
+                        <div className="mt-8 flex flex-wrap justify-center gap-3 text-2xl">
+                            {['🏨', '🍽️', '💼', '🏥', '💆', '🛒', '🎓', '🏠'].map((icon, i) => (
+                                <div key={i} className="w-10 h-10 bg-white border border-slate-200 rounded-lg flex items-center justify-center shadow-sm">
+                                    {icon}
+                                </div>
+                            ))}
                         </div>
-                    </div >
-                </div >
+                    </div>
+                </div>
 
                 <BulkGenerationDialog
                     open={bulkDialogOpen}
                     onOpenChange={setBulkDialogOpen}
-                    onComplete={handleBulkComplete}
+                    onComplete={refetch}
                 />
-            </div >
+            </>
         );
     }
 
+    // Has modules
     return (
-        <div className="space-y-6">
-            <div className="flex justify-end gap-2">
-                <Button variant="outline"
-                    className="text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200"
-                    onClick={() => setBulkDeleteDialogOpen(true)}
-                >
-                    <Trash2 className="h-4 w-4 mr-2" />
-                    Delete All
-                </Button>
-                <Button variant="outline" onClick={() => setBulkDialogOpen(true)}>
-                    <Sparkles className="h-4 w-4 mr-2" />
-                    Bulk Generate
-                </Button>
+        <>
+            <div className="flex items-center justify-between mb-6">
+                <span className="text-sm text-slate-500">{modules.length} modules</span>
+                <div className="flex gap-2">
+                    <Button variant="outline" size="sm" onClick={() => setBulkDeleteDialogOpen(true)} className="text-red-600 hover:text-red-700 hover:bg-red-50">
+                        <Trash2 className="h-4 w-4 mr-1" /> Clear All
+                    </Button>
+                    <Button variant="outline" size="sm" onClick={() => setBulkDialogOpen(true)}>
+                        <Sparkles className="h-4 w-4 mr-1" /> Generate More
+                    </Button>
+                </div>
             </div>
+
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                {modules.map((module) => (
+                {modules.map(module => (
                     <ModuleCard key={module.id} module={module} />
                 ))}
             </div>
 
-            <BulkGenerationDialog
-                open={bulkDialogOpen}
-                onOpenChange={setBulkDialogOpen}
-                onComplete={handleBulkComplete}
-            />
-
-
-            <BulkDeleteDialog
-                open={bulkDeleteDialogOpen}
-                onOpenChange={setBulkDeleteDialogOpen}
-                onComplete={handleBulkComplete}
-            />
-        </div>
+            <BulkGenerationDialog open={bulkDialogOpen} onOpenChange={setBulkDialogOpen} onComplete={refetch} />
+            <BulkDeleteDialog open={bulkDeleteDialogOpen} onOpenChange={setBulkDeleteDialogOpen} onComplete={refetch} />
+        </>
     );
 }

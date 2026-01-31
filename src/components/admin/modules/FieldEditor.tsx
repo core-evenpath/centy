@@ -106,7 +106,10 @@ export function FieldEditor({ field, onSave, open, onOpenChange }: FieldEditorPr
                                     <FormItem>
                                         <FormLabel>Field Name</FormLabel>
                                         <FormControl>
-                                            <Input placeholder="e.g. Bed Type" onBlur={handleNameBlur} {...field} />
+                                            <Input placeholder="e.g. Bed Type" {...field} onBlur={(e) => {
+                                                field.onBlur();
+                                                handleNameBlur(e);
+                                            }} />
                                         </FormControl>
                                         <FormMessage />
                                     </FormItem>

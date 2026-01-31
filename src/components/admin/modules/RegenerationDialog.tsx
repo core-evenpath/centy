@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { generateModuleSchemaWithAI } from '@/actions/module-ai-actions';
+import { generateModuleSchemaAction } from '@/actions/module-ai-actions';
 import { ModuleSchema, ModuleGenerationResult } from '@/lib/modules/types';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter, DialogTrigger } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -24,34 +24,40 @@ export function RegenerationDialog({ currentSchema, onApply, moduleSlug }: Regen
 
     const [params, setParams] = useState({
         industryName: '',
-        functionName: '',
+        moduleName: '',
         countryCode: 'IN',
-        prompt: '',
+        itemLabel: 'Item',
     });
 
     const handleGenerate = async () => {
-        if (!params.industryName || !params.functionName) {
-            toast.error('Industry and Business Type are required');
+        if (!params.industryName || !params.moduleName) {
+            toast.error('Industry and Module Name are required');
             return;
         }
 
         setIsGenerating(true);
         try {
-            const result = await generateModuleSchemaWithAI({
-                moduleSlug,
-                industryId: params.industryName.toLowerCase().replace(/\s+/g, '_'),
-                functionId: params.functionName.toLowerCase().replace(/\s+/g, '_'),
-                industryName: params.industryName,
-                functionName: params.functionName,
-                countryCode: params.countryCode,
-                existingSchema: currentSchema,
-                enhancementPrompt: params.prompt,
-            });
+            // Using the new generation action which creates a fresh schema
+            const result = await generateModuleSchemaAction(
+                params.industryName.toLowerCase().replace(/\s+/g, '_'),
+                params.industryName,
+                params.moduleName,
+                params.itemLabel,
+                params.countryCode
+            );
 
             if (result.success && result.schema) {
-                onApply(result);
+                // Adapt the result to ModuleGenerationResult expected by parent
+                onApply({
+                    success: true,
+                    schema: result.schema,
+                    suggestedItems: result.suggestedItems || [],
+                    generatedAt: new Date().toISOString(),
+                    model: 'gemini-1.5-flash',
+                    promptTokens: 0,
+                    completionTokens: 0
+                });
                 setIsOpen(false);
-                setParams({ ...params, prompt: '' }); // Reset prompt but keep context
             } else {
                 toast.error(result.error || 'Failed to generate schema');
             }
@@ -90,11 +96,11 @@ export function RegenerationDialog({ currentSchema, onApply, moduleSlug }: Regen
                             />
                         </div>
                         <div className="space-y-2">
-                            <Label>Business Type</Label>
+                            <Label>Module Name / Business Type</Label>
                             <Input
-                                placeholder="e.g. Dental Clinic"
-                                value={params.functionName}
-                                onChange={e => setParams({ ...params, functionName: e.target.value })}
+                                placeholder="e.g. Dental Clinic Services"
+                                value={params.moduleName}
+                                onChange={e => setParams({ ...params, moduleName: e.target.value })}
                             />
                         </div>
                     </div>
@@ -115,12 +121,11 @@ export function RegenerationDialog({ currentSchema, onApply, moduleSlug }: Regen
                     </div>
 
                     <div className="space-y-2">
-                        <Label>Additional Requirements (Prompt)</Label>
-                        <Textarea
-                            placeholder="e.g. Make sure to include fields for insurance details and follow-up appointment tracking."
-                            value={params.prompt}
-                            onChange={e => setParams({ ...params, prompt: e.target.value })}
-                            rows={3}
+                        <Label>Item Label (Singular)</Label>
+                        <Input
+                            placeholder="e.g. Service or Product"
+                            value={params.itemLabel}
+                            onChange={e => setParams({ ...params, itemLabel: e.target.value })}
                         />
                     </div>
                 </div>

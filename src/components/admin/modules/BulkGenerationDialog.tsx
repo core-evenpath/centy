@@ -1,15 +1,20 @@
-
 'use client';
 
 import { useState } from 'react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
+import {
+    Dialog,
+    DialogContent,
+    DialogHeader,
+    DialogTitle,
+    DialogDescription,
+    DialogFooter,
+} from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Progress } from '@/components/ui/progress';
-import { Sparkles, Check, Loader2, AlertCircle } from 'lucide-react';
+import { Sparkles, Check, Loader2, AlertCircle, Brain } from 'lucide-react';
 import { bulkGenerateModulesAction } from '@/actions/module-ai-actions';
-import { DEFAULT_BULK_CONFIG } from '@/lib/modules/constants';
+import { BULK_INDUSTRY_CONFIGS } from '@/lib/modules/constants';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 
@@ -21,66 +26,18 @@ interface BulkGenerationDialogProps {
 
 export function BulkGenerationDialog({ open, onOpenChange, onComplete }: BulkGenerationDialogProps) {
     const [selectedIndustries, setSelectedIndustries] = useState<string[]>(
-        DEFAULT_BULK_CONFIG.industries.map(i => i.id)
+        BULK_INDUSTRY_CONFIGS.map(i => i.id)
     );
     const [countryCode, setCountryCode] = useState('IN');
     const [isGenerating, setIsGenerating] = useState(false);
-    const [progress, setProgress] = useState({ completed: 0, total: 0, current: '' });
     const [results, setResults] = useState<{
-        generated: { slug: string; name: string }[];
+        generated: { slug: string; name: string; fieldsCount: number; categoriesCount: number }[];
         failed: { slug: string; name: string; error: string }[];
     } | null>(null);
 
-    const totalPossibleModules = DEFAULT_BULK_CONFIG.industries
+    const totalModules = BULK_INDUSTRY_CONFIGS
         .filter(i => selectedIndustries.includes(i.id))
         .reduce((acc, i) => acc + i.modules.length, 0);
-
-    const handleGenerate = async () => {
-        setIsGenerating(true);
-        // Since server action doesn't stream progress easily in this setup without complex streaming,
-        // we'll simulate progress visually while waiting, or just specific stages. 
-        // The server action returns final result.
-        // For better UX, we could break it down by industry calls on client side, 
-        // but the bulk action handles it efficiently in batch.
-        // Let's implement client-side batching here for better progress bars?
-        // Actually the requested implementation put logic in server action.
-        // So we'll show an indeterminate or estimated progress.
-
-        // NOTE: In a real app we'd stream this. For now let's just await the big promise 
-        // and show a "Scanning..." state.
-
-        setProgress({ completed: 0, total: totalPossibleModules, current: 'Initializing AI models...' });
-
-        try {
-            const filteredConfig = {
-                industryIds: selectedIndustries,
-                countryCode,
-            };
-
-            const result = await bulkGenerateModulesAction(
-                filteredConfig,
-                'admin', // userId
-                // Progress callback won't work over serializable boundary naturally without specialized setup
-            );
-
-            setResults({ generated: result.generated, failed: result.failed });
-
-            if (result.success) {
-                toast.success(`Generated ${result.generated.length} modules successfully`);
-                setTimeout(() => {
-                    onComplete();
-                    // Don't auto close immediately so they can see results
-                }, 1500);
-            } else {
-                toast.error('Some modules failed to generate');
-            }
-        } catch (e) {
-            toast.error('Bulk generation failed');
-            console.error(e);
-        } finally {
-            setIsGenerating(false);
-        }
-    };
 
     const toggleIndustry = (industryId: string) => {
         setSelectedIndustries(prev =>
@@ -90,116 +47,169 @@ export function BulkGenerationDialog({ open, onOpenChange, onComplete }: BulkGen
         );
     };
 
+    const handleGenerate = async () => {
+        setIsGenerating(true);
+        setResults(null);
+
+        try {
+            const result = await bulkGenerateModulesAction(
+                { industryIds: selectedIndustries, countryCode },
+                'admin'
+            );
+
+            setResults({
+                generated: result.generated,
+                failed: result.failed,
+            });
+
+            if (result.generated.length > 0) {
+                toast.success(`Generated ${result.generated.length} modules!`);
+            }
+            if (result.failed.length > 0) {
+                toast.warning(`${result.failed.length} modules failed`);
+            }
+        } catch (error) {
+            console.error('Generation error:', error);
+            toast.error('Generation failed');
+            setResults({
+                generated: [],
+                failed: [{ slug: 'error', name: 'Error', error: String(error) }],
+            });
+        } finally {
+            setIsGenerating(false);
+        }
+    };
+
+    const handleClose = () => {
+        if (results?.generated.length) {
+            onComplete();
+        }
+        setResults(null);
+        onOpenChange(false);
+    };
+
     return (
-        <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="max-w-2xl">
+        <Dialog open={open} onOpenChange={handleClose}>
+            <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
                 <DialogHeader>
                     <DialogTitle className="flex items-center gap-2">
-                        <Sparkles className="h-5 w-5 text-blue-500" />
-                        Generate All Modules with AI
+                        <div className="w-8 h-8 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-lg flex items-center justify-center">
+                            <Sparkles className="h-4 w-4 text-white" />
+                        </div>
+                        Generate Modules with AI
                     </DialogTitle>
                     <DialogDescription>
-                        AI will create comprehensive modules for each industry category.
+                        AI will create module schemas for each selected industry.
                     </DialogDescription>
                 </DialogHeader>
 
+                {/* Info Banner */}
+                <div className="p-4 bg-gradient-to-r from-indigo-50 to-purple-50 border border-indigo-200 rounded-xl flex items-start gap-3">
+                    <Brain className="w-5 h-5 text-indigo-600 mt-0.5 shrink-0" />
+                    <div className="text-sm text-indigo-700">
+                        <p className="font-medium text-indigo-800">How this works:</p>
+                        <p>Each module gets 8-12 fields, 5-7 categories, and sample items.</p>
+                    </div>
+                </div>
+
                 {!isGenerating && !results && (
                     <>
-                        <div className="space-y-4 py-4">
-                            <div className="space-y-3">
-                                <label className="text-sm font-medium">Select Industries to Generate</label>
-                                <div className="grid gap-2 max-h-64 overflow-y-auto">
-                                    {DEFAULT_BULK_CONFIG.industries.map(industry => (
-                                        <label
-                                            key={industry.id}
-                                            className={cn(
-                                                "flex items-start gap-3 rounded-lg border p-3 cursor-pointer transition-colors",
-                                                selectedIndustries.includes(industry.id)
-                                                    ? "border-blue-200 bg-blue-50/50"
-                                                    : "border-slate-200 hover:border-slate-300"
-                                            )}
-                                        >
-                                            <Checkbox
-                                                checked={selectedIndustries.includes(industry.id)}
-                                                onCheckedChange={() => toggleIndustry(industry.id)}
-                                            />
-                                            <div className="flex-1">
-                                                <div className="font-medium text-sm">{industry.name}</div>
-                                                <div className="text-xs text-muted-foreground mt-0.5">
-                                                    {industry.modules.map(m => m.name).join(', ')}
-                                                </div>
+                        {/* Industry Selection */}
+                        <div className="space-y-3">
+                            <label className="text-sm font-medium">Select Industries</label>
+                            <div className="grid gap-2 max-h-64 overflow-y-auto pr-2">
+                                {BULK_INDUSTRY_CONFIGS.map(industry => (
+                                    <label
+                                        key={industry.id}
+                                        className={cn(
+                                            "flex items-start gap-3 rounded-xl border p-3 cursor-pointer transition-all",
+                                            selectedIndustries.includes(industry.id)
+                                                ? "border-indigo-300 bg-indigo-50/50"
+                                                : "border-slate-200 hover:border-slate-300"
+                                        )}
+                                    >
+                                        <Checkbox
+                                            checked={selectedIndustries.includes(industry.id)}
+                                            onCheckedChange={() => toggleIndustry(industry.id)}
+                                        />
+                                        <div className="flex-1">
+                                            <div className="flex items-center gap-2">
+                                                <span>{industry.icon}</span>
+                                                <span className="font-medium">{industry.name}</span>
                                             </div>
-                                        </label>
-                                    ))}
-                                </div>
-                            </div>
-
-                            <div className="flex items-center gap-4">
-                                <div className="flex-1">
-                                    <label className="text-sm font-medium">Target Market</label>
-                                    <Select value={countryCode} onValueChange={setCountryCode}>
-                                        <SelectTrigger className="mt-1">
-                                            <SelectValue />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            <SelectItem value="IN">🇮🇳 India</SelectItem>
-                                            <SelectItem value="US">🇺🇸 United States</SelectItem>
-                                            <SelectItem value="GB">🇬🇧 United Kingdom</SelectItem>
-                                            <SelectItem value="AE">🇦🇪 UAE</SelectItem>
-                                        </SelectContent>
-                                    </Select>
-                                </div>
-                                {/* 
-                <div className="text-right">
-                  <div className="text-2xl font-bold text-blue-600">{totalPossibleModules}</div>
-                  <div className="text-xs text-muted-foreground">est. modules</div>
-                </div>
-                */}
+                                            <div className="text-xs text-slate-500 mt-1">
+                                                {industry.modules.map(m => m.name).join(' • ')}
+                                            </div>
+                                        </div>
+                                        <span className="text-xs text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full">
+                                            {industry.modules.length}
+                                        </span>
+                                    </label>
+                                ))}
                             </div>
                         </div>
 
-                        <DialogFooter>
-                            <Button variant="outline" onClick={() => onOpenChange(false)}>
-                                Cancel
-                            </Button>
-                            <Button onClick={handleGenerate} disabled={selectedIndustries.length === 0}>
+                        {/* Country */}
+                        <div className="flex items-center gap-4 pt-2">
+                            <div className="flex-1">
+                                <label className="text-sm font-medium">Target Market</label>
+                                <Select value={countryCode} onValueChange={setCountryCode}>
+                                    <SelectTrigger className="mt-1">
+                                        <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="IN">🇮🇳 India (INR)</SelectItem>
+                                        <SelectItem value="US">🇺🇸 USA (USD)</SelectItem>
+                                        <SelectItem value="GB">🇬🇧 UK (GBP)</SelectItem>
+                                        <SelectItem value="AE">🇦🇪 UAE (AED)</SelectItem>
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                            <div className="text-right pt-6">
+                                <div className="text-2xl font-bold text-indigo-600">{totalModules}</div>
+                                <div className="text-xs text-slate-500">modules</div>
+                            </div>
+                        </div>
+
+                        <DialogFooter className="gap-2 pt-4">
+                            <Button variant="outline" onClick={handleClose}>Cancel</Button>
+                            <Button
+                                onClick={handleGenerate}
+                                disabled={totalModules === 0}
+                                className="bg-gradient-to-r from-indigo-600 to-purple-600"
+                            >
                                 <Sparkles className="h-4 w-4 mr-2" />
-                                Generate Modules
+                                Generate {totalModules} Modules
                             </Button>
                         </DialogFooter>
                     </>
                 )}
 
                 {isGenerating && (
-                    <div className="py-8 space-y-6">
-                        <div className="space-y-2">
-                            <div className="flex justify-between text-sm">
-                                <span className="text-muted-foreground">Generating modules... this may take a minute</span>
-                                {/* <span className="font-medium">{progress.completed} / {progress.total}</span> */}
-                            </div>
-                            <Progress value={30} className="animate-pulse" />
-                            {/* Indeterminate loader since we don't have stream */}
-
-                            <div className="text-sm text-muted-foreground flex items-center justify-center gap-2 mt-4">
-                                <Loader2 className="h-4 w-4 animate-spin text-blue-500" />
-                                AI is analyzing industries and building schemas...
-                            </div>
+                    <div className="py-12 flex flex-col items-center gap-4">
+                        <Loader2 className="h-10 w-10 text-indigo-600 animate-spin" />
+                        <div className="text-center">
+                            <p className="font-medium">Generating modules...</p>
+                            <p className="text-sm text-slate-500">This may take 1-2 minutes</p>
                         </div>
                     </div>
                 )}
 
                 {results && (
-                    <div className="py-4 space-y-4">
+                    <div className="space-y-4">
                         {results.generated.length > 0 && (
                             <div className="space-y-2">
-                                <div className="flex items-center gap-2 text-sm font-medium text-green-600">
+                                <div className="flex items-center gap-2 text-emerald-600 text-sm font-medium">
                                     <Check className="h-4 w-4" />
-                                    Generated Successfully ({results.generated.length})
+                                    Generated ({results.generated.length})
                                 </div>
-                                <div className="grid grid-cols-2 gap-2 max-h-40 overflow-y-auto">
+                                <div className="grid grid-cols-2 gap-2">
                                     {results.generated.map(m => (
-                                        <div key={m.slug} className="text-sm text-muted-foreground bg-green-50 rounded px-2 py-1 truncate">
-                                            {m.name}
+                                        <div key={m.slug} className="text-sm bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2">
+                                            <div className="font-medium text-emerald-800">{m.name}</div>
+                                            <div className="text-xs text-emerald-600">
+                                                {m.fieldsCount} fields • {m.categoriesCount} categories
+                                            </div>
                                         </div>
                                     ))}
                                 </div>
@@ -208,23 +218,21 @@ export function BulkGenerationDialog({ open, onOpenChange, onComplete }: BulkGen
 
                         {results.failed.length > 0 && (
                             <div className="space-y-2">
-                                <div className="flex items-center gap-2 text-sm font-medium text-red-600">
+                                <div className="flex items-center gap-2 text-red-600 text-sm font-medium">
                                     <AlertCircle className="h-4 w-4" />
                                     Failed ({results.failed.length})
                                 </div>
-                                <div className="space-y-1 max-h-40 overflow-y-auto">
-                                    {results.failed.map(m => (
-                                        <div key={m.slug} className="text-sm text-red-600 bg-red-50 rounded px-2 py-1">
-                                            {m.name}: {m.error}
-                                        </div>
-                                    ))}
-                                </div>
+                                {results.failed.map(m => (
+                                    <div key={m.slug} className="text-sm bg-red-50 border border-red-200 rounded-lg px-3 py-2 text-red-700">
+                                        {m.name}: {m.error}
+                                    </div>
+                                ))}
                             </div>
                         )}
 
                         <DialogFooter>
-                            <Button onClick={() => { onComplete(); onOpenChange(false); }}>
-                                Done
+                            <Button onClick={handleClose} className="w-full">
+                                {results.generated.length > 0 ? 'Done - View Modules' : 'Close'}
                             </Button>
                         </DialogFooter>
                     </div>

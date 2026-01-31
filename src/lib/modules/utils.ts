@@ -216,26 +216,33 @@ export function cleanAndParseJSON(text: string): any {
         // Continue to cleanup
     }
 
-    // 2. Extract JSON block if wrapped in markdown or other text
-    let cleanText = text;
-    const jsonMatch = text.match(/\{[\s\S]*\}/);
+    // 2. Remove markdown code blocks
+    let cleaned = text
+        .replace(/```json\s*/gi, '')
+        .replace(/```\s*/g, '')
+        .trim();
+
+    // 3. Try to extract JSON object or array
+    const jsonMatch = cleaned.match(/(\{[\s\S]*\}|\[[\s\S]*\])/);
     if (jsonMatch) {
-        cleanText = jsonMatch[0];
+        cleaned = jsonMatch[1];
     }
 
-    // 3. Common LLM JSON fix: Bad escaped characters
+    // 4. Common LLM JSON fix: Bad escaped characters
     // Replace backslashes that are NOT followed by specific JSON escape chars
-    // Valid escapes: \" \\ \/ \b \f \n \r \t \uXXXX
-    // We want to escape invalid backslashes (e.g. "path:\to" -> "path:\\to")
-    // This regex looks for \ that is NOT followed by ["\\/bfnrtu]
-    cleanText = cleanText.replace(/\\(?!["\\/bfnrtu])/g, "\\\\");
+    cleaned = cleaned.replace(/\\(?!["\\/bfnrtu])/g, "\\\\");
 
-    // 4. Try parsing again
+    // 5. Try parsing cleaned text
     try {
-        return JSON.parse(cleanText);
+        return JSON.parse(cleaned);
     } catch (e) {
-        // 5. Last resort: Try to remove control characters that might be invalid
-        cleanText = cleanText.replace(/[\x00-\x1F\x7F-\x9F]/g, "");
-        return JSON.parse(cleanText);
+        console.error('JSON parse error. Cleaned text:', cleaned.substring(0, 500));
+        // Last resort: Try to remove control characters that might be invalid
+        cleaned = cleaned.replace(/[\x00-\x1F\x7F-\x9F]/g, "");
+        try {
+            return JSON.parse(cleaned);
+        } catch (e2) {
+            throw new Error(`Failed to parse JSON: ${e instanceof Error ? e.message : 'Unknown error'}`);
+        }
     }
 }

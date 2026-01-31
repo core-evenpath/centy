@@ -84,15 +84,93 @@ export const SUPPORTED_CURRENCIES = [
     { code: 'AED', symbol: 'د.إ', name: 'UAE Dirham' },
 ];
 
+// ============================================================================
+// BULK GENERATION CONFIG
+// ============================================================================
+
+export interface BulkIndustryConfig {
+    id: string;
+    name: string;
+    icon: string;
+    modules: {
+        slug: string;
+        name: string;
+        itemLabel: string;
+        priceType: string;
+    }[];
+}
+
+export const BULK_INDUSTRY_CONFIGS: BulkIndustryConfig[] = [
+    {
+        id: 'hospitality',
+        name: 'Hospitality',
+        icon: '🏨',
+        modules: [
+            { slug: 'room_inventory', name: 'Room Inventory', itemLabel: 'Room', priceType: 'per_night' },
+            { slug: 'hotel_fb_menu', name: 'F&B Menu', itemLabel: 'Item', priceType: 'one_time' },
+        ]
+    },
+    {
+        id: 'food_beverage',
+        name: 'Food & Beverage',
+        icon: '🍽️',
+        modules: [
+            { slug: 'restaurant_menu', name: 'Menu Items', itemLabel: 'Item', priceType: 'one_time' },
+        ]
+    },
+    {
+        id: 'business_professional',
+        name: 'Professional Services',
+        icon: '💼',
+        modules: [
+            { slug: 'service_catalog', name: 'Service Catalog', itemLabel: 'Service', priceType: 'per_session' },
+        ]
+    },
+    {
+        id: 'healthcare_medical',
+        name: 'Healthcare',
+        icon: '🏥',
+        modules: [
+            { slug: 'treatment_services', name: 'Treatments', itemLabel: 'Treatment', priceType: 'per_session' },
+        ]
+    },
+    {
+        id: 'personal_wellness',
+        name: 'Wellness & Beauty',
+        icon: '💆',
+        modules: [
+            { slug: 'salon_services', name: 'Services', itemLabel: 'Service', priceType: 'per_session' },
+            { slug: 'beauty_products', name: 'Products', itemLabel: 'Product', priceType: 'one_time' },
+        ]
+    },
+    {
+        id: 'retail_commerce',
+        name: 'Retail',
+        icon: '🛒',
+        modules: [
+            { slug: 'product_catalog', name: 'Product Catalog', itemLabel: 'Product', priceType: 'one_time' },
+        ]
+    },
+    {
+        id: 'education_learning',
+        name: 'Education',
+        icon: '🎓',
+        modules: [
+            { slug: 'course_catalog', name: 'Courses', itemLabel: 'Course', priceType: 'one_time' },
+        ]
+    },
+    {
+        id: 'home_property',
+        name: 'Real Estate',
+        icon: '🏠',
+        modules: [
+            { slug: 'property_listings', name: 'Properties', itemLabel: 'Property', priceType: 'per_month' },
+        ]
+    },
+];
+
+// Keep old export for backwards compatibility but mark deprecated
+/** @deprecated Use BULK_INDUSTRY_CONFIGS instead */
 export const DEFAULT_BULK_CONFIG = {
-    industries: [
-        { id: 'hospitality', name: 'Hospitality', modules: [{ id: 'rooms', name: 'Room Inventory' }, { id: 'food', name: 'Food & Beverage' }] },
-        { id: 'food_beverage', name: 'Food & Beverage', modules: [{ id: 'menu', name: 'Menu Items' }] },
-        { id: 'business_professional', name: 'Professional Services', modules: [{ id: 'services', name: 'Service Catalog' }] },
-        { id: 'healthcare_medical', name: 'Healthcare', modules: [{ id: 'treatments', name: 'Treatments' }, { id: 'appointments', name: 'Appointments' }] },
-        { id: 'personal_wellness', name: 'Wellness', modules: [{ id: 'services', name: 'Service Menu' }, { id: 'products', name: 'Retail Products' }] },
-        { id: 'retail_commerce', name: 'Retail', modules: [{ id: 'catalog', name: 'Product Catalog' }] },
-        { id: 'education_learning', name: 'Education', modules: [{ id: 'courses', name: 'Course Catalog' }] },
-        { id: 'home_property', name: 'Real Estate', modules: [{ id: 'properties', name: 'Property Listings' }] },
-    ]
+    industries: BULK_INDUSTRY_CONFIGS
 };

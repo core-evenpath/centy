@@ -2,7 +2,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { seedAllModuleData } from '@/lib/modules/seed-modules';
 import { bulkGenerateModulesAction } from '@/actions/module-ai-actions';
-import { DEFAULT_BULK_CONFIG } from '@/lib/modules/constants';
+
 
 export async function POST(request: NextRequest) {
     try {
@@ -16,8 +16,10 @@ export async function POST(request: NextRequest) {
 
         if (useAI) {
             // Use AI to generate modules
+            // Use AI to generate modules
+            const industryIds = body.industryIds as string[] | undefined;
             const result = await bulkGenerateModulesAction(
-                { ...DEFAULT_BULK_CONFIG, countryCode },
+                { industryIds, countryCode },
                 'system'
             );
 

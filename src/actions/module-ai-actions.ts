@@ -1,41 +1,131 @@
-
 'use server';
 
-import { GoogleGenAI } from "@google/genai";
+import { GoogleGenerativeAI } from "@google/generative-ai";
 import type {
-    ModuleGenerationRequest,
-    ModuleGenerationResult,
     ModuleSchema,
     ModuleFieldDefinition,
     ModuleCategoryDefinition,
-    ModuleFieldType,
-    SystemModule
 } from '@/lib/modules/types';
-import { generateFieldId, generateCategoryId, generateModuleId, slugify, cleanAndParseJSON } from '@/lib/modules/utils';
-import { generateModulesFromCategories, type GeneratedModule } from './module-generator-actions';
-import { convertToUnifiedInventory } from '@/lib/module-converters';
-import { getIndustries, getFunctionsByIndustry } from '@/lib/business-taxonomy';
+import { generateFieldId, generateCategoryId, cleanAndParseJSON } from '@/lib/modules/utils';
 import { createSystemModuleAction, getSystemModuleAction } from './modules-actions';
-import { adminAuth } from '@/lib/firebase-admin';
+import { BULK_INDUSTRY_CONFIGS, DEFAULT_MODULE_SETTINGS } from '@/lib/modules/constants';
 
-const ai = new GoogleGenAI({
-    apiKey: process.env.GEMINI_API_KEY || process.env.GOOGLE_GENAI_API_KEY
-});
+const genAI = new GoogleGenerativeAI(
+    process.env.GEMINI_API_KEY || process.env.GOOGLE_GENAI_API_KEY || ''
+);
 
-import { DEFAULT_BULK_CONFIG } from '@/lib/modules/constants';
+// ============================================================================
+// SINGLE MODULE SCHEMA GENERATION
+// ============================================================================
 
-// Remove local DEFAULT_BULK_CONFIG export
+export async function generateModuleSchemaAction(
+    industryId: string,
+    industryName: string,
+    moduleName: string,
+    itemLabel: string,
+    countryCode: string = 'IN'
+): Promise<{
+    success: boolean;
+    schema?: ModuleSchema;
+    suggestedItems?: any[];
+    error?: string;
+}> {
+    try {
+        const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
+        const prompt = `You are a business configuration expert. Generate a module schema for "${moduleName}" for ${industryName} businesses in ${countryCode}.
 
-export interface BulkGenerationConfig {
-    industryIds: string[];  // Which industries to generate for
-    countryCode: string;
+Generate JSON with:
+1. "fields" - Array of 8-12 field definitions for ${itemLabel} items
+2. "categories" - Array of 5-7 category definitions  
+3. "suggestedItems" - Array of 4-6 sample items
+
+FIELD STRUCTURE (each field):
+{
+  "id": "snake_case_id",
+  "name": "Display Name",
+  "type": "text|number|currency|select|multi_select|toggle|tags|textarea|date|time",
+  "description": "Help text",
+  "isRequired": true/false,
+  "isSearchable": true/false,
+  "showInList": true/false,
+  "showInCard": true/false,
+  "options": ["opt1", "opt2"] // only for select/multi_select
 }
 
+CATEGORY STRUCTURE:
+{
+  "id": "snake_case_id",
+  "name": "Category Name",
+  "icon": "🏷️",
+  "description": "What belongs here",
+  "color": "blue"
+}
+
+ITEM STRUCTURE:
+{
+  "name": "Item Name",
+  "description": "Description",
+  "category": "category_id",
+  "price": 1000,
+  "fields": { "field_id": "value" }
+}
+
+Currency: ${countryCode === 'IN' ? 'INR' : 'USD'}
+
+Respond with ONLY valid JSON, no markdown:
+{"fields": [...], "categories": [...], "suggestedItems": [...]}`;
+
+        const result = await model.generateContent(prompt);
+        const text = result.response.text();
+
+        const parsed = cleanAndParseJSON(text);
+
+        const schema: ModuleSchema = {
+            fields: (parsed.fields || []).map((f: any, i: number) => ({
+                id: f.id || generateFieldId(),
+                name: f.name || 'Field',
+                type: f.type || 'text',
+                description: f.description || '',
+                isRequired: f.isRequired ?? false,
+                isSearchable: f.isSearchable ?? true,
+                showInList: f.showInList ?? (i < 5),
+                showInCard: f.showInCard ?? (i < 3),
+                options: f.options,
+                defaultValue: f.defaultValue,
+                order: i + 1,
+            })) as ModuleFieldDefinition[],
+            categories: (parsed.categories || []).map((c: any, i: number) => ({
+                id: c.id || generateCategoryId(),
+                name: c.name || 'Category',
+                icon: c.icon || '📁',
+                description: c.description || '',
+                color: c.color || 'slate',
+                order: i + 1,
+            })) as ModuleCategoryDefinition[],
+        };
+
+        return {
+            success: true,
+            schema,
+            suggestedItems: parsed.suggestedItems || []
+        };
+    } catch (error) {
+        console.error('Schema generation error:', error);
+        return {
+            success: false,
+            error: error instanceof Error ? error.message : 'Generation failed',
+        };
+    }
+}
+
+// ============================================================================
+// BULK GENERATION - USING PREDEFINED CONFIGS
+// ============================================================================
+
 export async function bulkGenerateModulesAction(
-    config: { industryIds?: string[]; countryCode?: string; } | undefined,
-    userId: string = 'system',
-    onProgress?: (completed: number, total: number, current: string) => void
+    config?: { industryIds?: string[]; countryCode?: string },
+    userId: string = 'system'
 ): Promise<{
     success: boolean;
     generated: { slug: string; name: string; fieldsCount: number; categoriesCount: number }[];
@@ -45,460 +135,104 @@ export async function bulkGenerateModulesAction(
     const startTime = Date.now();
     const generated: { slug: string; name: string; fieldsCount: number; categoriesCount: number }[] = [];
     const failed: { slug: string; name: string; error: string }[] = [];
+    const countryCode = config?.countryCode || 'IN';
 
-    // Use passed config or default to all industries
-    const targetIndustries = config?.industryIds
-        ? getIndustries().filter(i => config.industryIds!.includes(i.industryId))
-        : getIndustries();
+    // Filter industries based on config
+    const industries = config?.industryIds
+        ? BULK_INDUSTRY_CONFIGS.filter(i => config.industryIds!.includes(i.id))
+        : BULK_INDUSTRY_CONFIGS;
 
-    // Build list of all function combinations we want to generate
-    const allCategories: { industryId: string; functionId: string; label: string; googlePlacesTypes?: string[] }[] = [];
-
-    for (const industry of targetIndustries) {
-        const functions = getFunctionsByIndustry(industry.industryId);
-        // Take first 2-3 functions per industry to avoid crawling everything
-        const primaryFunctions = functions.slice(0, 3);
-
-        for (const func of primaryFunctions) {
-            allCategories.push({
-                industryId: industry.industryId,
-                functionId: func.functionId,
-                label: func.name,
-                googlePlacesTypes: func.googlePlacesTypes,
-            });
-        }
-    }
-
-    const totalModules = allCategories.length;
-    let completed = 0;
-
-    // Process in batches to avoid rate limits
-    const batchSize = 3;
-
-    for (let i = 0; i < allCategories.length; i += batchSize) {
-        const batch = allCategories.slice(i, i + batchSize);
-
-        await Promise.all(batch.map(async (category) => {
-            const moduleSlug = `${category.industryId}_${category.functionId}`;
-
+    for (const industry of industries) {
+        for (const moduleConfig of industry.modules) {
             try {
-                // Check if module already exists using server action (mocked check if action not avail directly)
-                // We'll trust createSystemModuleAction to handle duplicate checks or we fetch first.
-                // Assuming we want to skip if exists:
-                const existingResult = await getSystemModuleAction(moduleSlug);
-                if (existingResult.success && existingResult.data) {
+                // Check if already exists
+                const existing = await getSystemModuleAction(moduleConfig.slug);
+                if (existing.success && existing.data) {
                     generated.push({
-                        slug: moduleSlug,
-                        name: existingResult.data.name,
-                        fieldsCount: existingResult.data.schema.fields.length,
-                        categoriesCount: existingResult.data.schema.categories.length,
+                        slug: moduleConfig.slug,
+                        name: moduleConfig.name,
+                        fieldsCount: existing.data.schema.fields.length,
+                        categoriesCount: existing.data.schema.categories.length,
                     });
-                    return;
+                    continue;
                 }
 
-                // Use existing generateModulesFromCategories
-                const result = await generateModulesFromCategories([{
-                    industryId: category.industryId,
-                    functionId: category.functionId,
-                    label: category.label,
-                    googlePlacesTypes: category.googlePlacesTypes || [],
-                }], config?.countryCode || 'IN');
+                // Generate schema with AI
+                const schemaResult = await generateModuleSchemaAction(
+                    industry.id,
+                    industry.name,
+                    moduleConfig.name,
+                    moduleConfig.itemLabel,
+                    countryCode
+                );
 
-                if (!result.success || !result.config) {
-                    throw new Error(result.error || 'Generation failed');
+                if (!schemaResult.success || !schemaResult.schema) {
+                    throw new Error(schemaResult.error || 'Schema generation failed');
                 }
 
-                // Convert to unified inventory format
-                const inventoryConfig = convertToUnifiedInventory(result.config.modules);
-
-                if (!inventoryConfig) {
-                    throw new Error('No inventory config generated');
-                }
-
-                // Convert inventory config to SystemModule schema
-                const schema = convertInventoryToSchema(inventoryConfig);
-
-                // Create system module
+                // Create the system module
                 const createResult = await createSystemModuleAction({
-                    slug: moduleSlug,
-                    name: inventoryConfig.itemLabelPlural || category.label,
-                    description: `AI-generated module for ${category.label}`,
-                    icon: getIndustryIcon(category.industryId),
-                    color: getIndustryColor(category.industryId),
-                    itemLabel: inventoryConfig.itemLabel || 'Item',
-                    itemLabelPlural: inventoryConfig.itemLabelPlural || 'Items',
-                    priceLabel: inventoryConfig.priceLabel || 'Price',
-                    priceType: 'one_time',
-                    defaultCurrency: inventoryConfig.currency || (config?.countryCode === 'IN' ? 'INR' : 'USD'),
-                    applicableIndustries: [category.industryId],
-                    applicableFunctions: [category.functionId],
+                    slug: moduleConfig.slug,
+                    name: moduleConfig.name,
+                    description: `${moduleConfig.name} for ${industry.name} businesses`,
+                    icon: industry.icon,
+                    color: getIndustryColor(industry.id),
+                    itemLabel: moduleConfig.itemLabel,
+                    itemLabelPlural: moduleConfig.itemLabel + 's',
+                    priceLabel: 'Price',
+                    priceType: moduleConfig.priceType as any,
+                    defaultCurrency: countryCode === 'IN' ? 'INR' : 'USD',
+                    applicableIndustries: [industry.id],
+                    applicableFunctions: [],
                     status: 'active',
-                    settings: {
-                        allowCustomFields: true,
-                        allowCustomCategories: true,
-                        maxItems: 1000,
-                        maxCustomFields: 10,
-                        maxCustomCategories: 20,
-                        requiresPrice: true,
-                        requiresImage: false,
-                        requiresCategory: true,
-                        enableVariants: false,
-                        enableInventoryTracking: false,
-                        minSchemaVersion: 1,
-                    },
-                    schema,
+                    settings: DEFAULT_MODULE_SETTINGS,
+                    schema: schemaResult.schema,
                     createdBy: userId,
                 });
 
                 if (!createResult.success) {
-                    throw new Error(createResult.error || 'Failed to create module');
+                    throw new Error(createResult.error || 'Failed to save module');
                 }
 
                 generated.push({
-                    slug: moduleSlug,
-                    name: inventoryConfig.itemLabelPlural || category.label,
-                    fieldsCount: schema.fields.length,
-                    categoriesCount: schema.categories.length,
+                    slug: moduleConfig.slug,
+                    name: moduleConfig.name,
+                    fieldsCount: schemaResult.schema.fields.length,
+                    categoriesCount: schemaResult.schema.categories.length,
                 });
 
+                // Rate limit delay
+                await new Promise(r => setTimeout(r, 1000));
+
             } catch (error) {
-                console.error(`Failed to generate module ${moduleSlug}:`, error);
+                console.error(`Failed: ${moduleConfig.slug}`, error);
                 failed.push({
-                    slug: moduleSlug,
-                    name: category.label,
+                    slug: moduleConfig.slug,
+                    name: moduleConfig.name,
                     error: error instanceof Error ? error.message : 'Unknown error',
                 });
             }
-        }));
-
-        // Progress update placeholder (in real scenario, we'd use a stream or DB to track progress if client-facing)
-        // onProgress?.(completed, totalModules, category.label); // callback not serializable
-
-        completed += batch.length;
-
-        // Small delay between batches
-        if (i + batchSize < allCategories.length) {
-            await new Promise(resolve => setTimeout(resolve, 1000));
         }
     }
 
     return {
-        success: failed.length === 0 && generated.length > 0,
+        success: failed.length === 0,
         generated,
         failed,
         totalTime: Date.now() - startTime,
     };
 }
 
-export async function generateModuleSchemaWithAI(
-    request: ModuleGenerationRequest
-): Promise<ModuleGenerationResult> {
-    const startTime = Date.now();
-
-    try {
-        const existingFieldsContext = request.existingSchema
-            ? `\n\nEXISTING SCHEMA (improve upon this, maintain backward compatibility where sensible):\nFields: ${request.existingSchema.fields.map(f => `${f.id}: ${f.name} (${f.type})`).join(', ')}\nCategories: ${request.existingSchema.categories.map(c => c.name).join(', ')}`
-            : '';
-
-        const enhancementContext = request.enhancementPrompt
-            ? `\n\nADDITIONAL REQUIREMENTS:\n${request.enhancementPrompt}`
-            : '';
-
-        const prompt = `You are an expert business configuration AI. Generate a comprehensive, production-ready module schema for a business.
-
-BUSINESS CONTEXT:
-- Industry: ${request.industryName} (${request.industryId})
-- Business Type: ${request.functionName} (${request.functionId})
-- Country: ${request.countryCode}
-${existingFieldsContext}
-${enhancementContext}
-
-Generate a detailed JSON schema with:
-
-## 1. FIELDS (10-15 industry-specific fields)
-Design fields that capture ALL important attributes for this business type.
-
-FIELD TYPES AVAILABLE:
-- text: Short text input
-- number: Numeric value
-- currency: Price/money value
-- select: Single choice dropdown (provide options array)
-- multi_select: Multiple choice (provide options array)
-- toggle: Boolean on/off
-- tags: Free-form tags array
-- textarea: Long text
-- image: Image URL
-- date: Date picker
-- time: Time picker
-- duration: Duration in minutes
-- url: Website link
-- email: Email address
-- phone: Phone number
-
-FOR EACH FIELD, specify:
-- id: snake_case unique identifier
-- name: Human-readable label
-- type: One of the types above
-- description: Help text explaining the field
-- isRequired: true/false
-- isSearchable: true if should be included in RAG search
-- showInList: true if should show in list view
-- showInCard: true if should show in card view
-- placeholder: Example input
-- options: Array of choices (for select/multi_select only)
-- defaultValue: Default value if any
-- order: Display order (1-15)
-
-## 2. CATEGORIES (6-10 logical groupings)
-Create categories that help organize items logically.
-
-FOR EACH CATEGORY:
-- id: snake_case unique identifier
-- name: Human-readable name
-- icon: Single emoji representing category
-- description: What items belong here
-- color: Tailwind color (e.g., "blue", "green", "orange")
-- order: Display order (1-10)
-
-## 3. SUGGESTED ITEMS (5-8 realistic examples)
-Create sample items with realistic data including:
-- name, description, category (matching a category id)
-- price (realistic for ${request.countryCode} market)
-- All field values filled appropriately
-
-OUTPUT FORMAT (valid JSON only, no markdown):
-{
-  "schema": {
-    "fields": [...],
-    "categories": [...]
-  },
-  "suggestedItems": [
-    {
-      "name": "...",
-      "description": "...",
-      "category": "category_id",
-      "price": 1000,
-      "fields": {
-        "field_id": "value",
-        ...
-      }
-    }
-  ]
-}`;
-
-        const response = await ai.models.generateContent({
-            model: 'gemini-2.5-flash',
-            contents: prompt,
-            config: {
-                temperature: 0.7,
-                responseMimeType: 'application/json',
-            }
-        });
-
-        const text = response.text || '';
-
-        let parsed: { schema: ModuleSchema; suggestedItems: any[] };
-        try {
-            parsed = cleanAndParseJSON(text);
-        } catch (e) {
-            console.error("JSON Parse Error:", e);
-            console.log("Raw text:", text);
-            throw new Error('Could not parse AI response as JSON: ' + (e instanceof Error ? e.message : String(e)));
-        }
-
-        const schema: ModuleSchema = {
-            fields: parsed.schema.fields.map((f: any, index: number) => ({
-                ...f,
-                id: f.id || generateFieldId(),
-                order: f.order || index + 1,
-                isSearchable: f.isSearchable ?? true,
-                showInList: f.showInList ?? true,
-                showInCard: f.showInCard ?? false,
-            })) as ModuleFieldDefinition[],
-            categories: parsed.schema.categories.map((c: any, index: number) => ({
-                ...c,
-                id: c.id || generateCategoryId(),
-                order: c.order || index + 1,
-            })) as ModuleCategoryDefinition[],
-        };
-
-        return {
-            success: true,
-            schema,
-            suggestedItems: parsed.suggestedItems || [],
-            generatedAt: new Date().toISOString(),
-            model: 'gemini-2.5-flash',
-            promptTokens: 0,
-            completionTokens: 0,
-        };
-    } catch (error) {
-        console.error('AI module generation error:', error);
-        return {
-            success: false,
-            error: error instanceof Error ? error.message : 'Failed to generate module schema',
-            generatedAt: new Date().toISOString(),
-            model: 'gemini-2.5-flash',
-            promptTokens: 0,
-            completionTokens: 0,
-        };
-    }
-}
-
-export async function generateAdditionalItemsWithAI(
-    moduleSlug: string,
-    industryName: string,
-    functionName: string,
-    existingCategories: string[],
-    existingItemNames: string[],
-    countryCode: string = 'IN',
-    count: number = 5
-): Promise<{ success: boolean; items?: any[]; error?: string }> {
-    try {
-        const prompt = `Generate ${count} NEW inventory items for a ${functionName} business in the ${industryName} industry.
-
-COUNTRY: ${countryCode}
-AVAILABLE CATEGORIES: ${existingCategories.join(', ')}
-EXISTING ITEMS (do NOT duplicate): ${existingItemNames.slice(0, 20).join(', ')}
-
-Generate diverse, realistic items with appropriate pricing for the ${countryCode} market.
-
-OUTPUT (valid JSON only):
-{
-  "items": [
-    {
-      "name": "...",
-      "description": "...",
-      "category": "one_of_the_categories",
-      "price": 1000,
-      "fields": {}
-    }
-  ]
-}`;
-
-        const response = await ai.models.generateContent({
-            model: 'gemini-2.5-flash',
-            contents: prompt,
-            config: {
-                temperature: 0.8,
-                responseMimeType: 'application/json'
-            }
-        });
-
-        const parsed = JSON.parse(response.text || '{}');
-        return { success: true, items: parsed.items || [] };
-    } catch (error) {
-        console.error('AI item generation error:', error);
-        return {
-            success: false,
-            error: error instanceof Error ? error.message : 'Failed to generate items'
-        };
-    }
-}
-
-// Helper to convert InventoryConfig to ModuleSchema
-function convertInventoryToSchema(inventory: any): ModuleSchema {
-    const fields: ModuleFieldDefinition[] = [];
-    const categories: ModuleCategoryDefinition[] = [];
-
-    // Convert inventory fields to schema fields
-    if (inventory.fields) {
-        for (const [index, field] of inventory.fields.entries()) {
-            fields.push({
-                id: field.id || `field_${index}`,
-                name: field.label || field.name,
-                type: mapFieldType(field.type),
-                description: field.description || field.helpText,
-                isRequired: field.required || false,
-                isSearchable: true,
-                showInList: index < 5, // Show first 5 fields in list
-                showInCard: index < 3, // Show first 3 fields in card
-                options: field.options?.map((o: any) => typeof o === 'string' ? o : o.value),
-                defaultValue: field.defaultValue,
-                order: index + 1,
-            });
-        }
-    }
-
-    // Convert categories
-    if (inventory.categories) {
-        for (const [index, cat] of inventory.categories.entries()) {
-            categories.push({
-                id: cat.id || `cat_${index}`,
-                name: cat.name || cat.label,
-                icon: cat.icon,
-                description: cat.description,
-                color: cat.color,
-                order: index + 1,
-            });
-        }
-    }
-
-    return { fields, categories };
-}
-
-function mapFieldType(type: string): ModuleFieldType {
-    const mapping: Record<string, ModuleFieldType> = {
-        'text': 'text',
-        'string': 'text',
-        'number': 'number',
-        'currency': 'currency',
-        'price': 'currency',
-        'select': 'select',
-        'dropdown': 'select',
-        'multi_select': 'multi_select',
-        'multiselect': 'multi_select',
-        'checkbox': 'multi_select',
-        'boolean': 'toggle',
-        'toggle': 'toggle',
-        'switch': 'toggle',
-        'textarea': 'textarea',
-        'longtext': 'textarea',
-        'tags': 'tags',
-        'image': 'image',
-        'date': 'date',
-        'time': 'time',
-        'duration': 'duration',
-        'url': 'url',
-        'email': 'email',
-        'phone': 'phone',
-    };
-    return mapping[type.toLowerCase()] || 'text';
-}
-
-function getIndustryIcon(industryId: string): string {
-    const icons: Record<string, string> = {
-        'financial_services': '🏦',
-        'education_learning': '📚',
-        'healthcare_medical': '🏥',
-        'business_professional': '💼',
-        'retail_commerce': '🛒',
-        'food_beverage': '🍕',
-        'personal_wellness': '✨',
-        'automotive_mobility': '🚗',
-        'travel_transport': '✈️',
-        'hospitality': '🏨',
-        'events_entertainment': '🎉',
-        'home_property': '🔧',
-        'public_nonprofit': '🏛️',
-    };
-    return icons[industryId] || '📦';
-}
-
 function getIndustryColor(industryId: string): string {
     const colors: Record<string, string> = {
-        'financial_services': 'emerald',
-        'education_learning': 'blue',
-        'healthcare_medical': 'red',
-        'business_professional': 'purple',
-        'retail_commerce': 'orange',
-        'food_beverage': 'amber',
-        'personal_wellness': 'pink',
-        'automotive_mobility': 'slate',
-        'travel_transport': 'sky',
-        'hospitality': 'indigo',
-        'events_entertainment': 'violet',
-        'home_property': 'stone',
-        'public_nonprofit': 'teal',
+        hospitality: 'blue',
+        food_beverage: 'orange',
+        business_professional: 'purple',
+        healthcare_medical: 'red',
+        personal_wellness: 'pink',
+        retail_commerce: 'emerald',
+        education_learning: 'indigo',
+        home_property: 'amber',
     };
     return colors[industryId] || 'slate';
 }

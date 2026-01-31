@@ -11,7 +11,8 @@ import { Textarea } from '@/components/ui/textarea';
 import { ArrowRight, ChevronRight, Loader2, Sparkles, Building2, Layers, Globe } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { getIndustries, getFunctionsByIndustry } from '@/lib/business-taxonomy';
-import { generateModuleSchemaWithAI } from '@/actions/module-ai-actions';
+import { generateModuleSchemaAction } from '@/actions/module-ai-actions';
+import { DEFAULT_MODULE_SETTINGS } from '@/lib/modules/constants';
 import { GenerationPreview } from './GenerationPreview';
 import { createSystemModuleAction } from '@/actions/modules-actions';
 import { useRouter } from 'next/navigation';
@@ -46,14 +47,13 @@ export function AIModuleWizard({ userId }: AIModuleWizardProps) {
         const functionName = functions.find(f => f.functionId === selectedFunction)?.name || "";
 
         try {
-            const result = await generateModuleSchemaWithAI({
-                industryId: selectedIndustry,
+            const result = await generateModuleSchemaAction(
+                selectedIndustry,
                 industryName,
-                functionId: selectedFunction,
                 functionName,
-                countryCode: country,
-                enhancementPrompt: additionalContext
-            });
+                'Item', // Default item label
+                country
+            );
 
             if (result.success) {
                 setGeneratedResult(result);
@@ -95,12 +95,13 @@ export function AIModuleWizard({ userId }: AIModuleWizardProps) {
                 applicableFunctions: [selectedFunction],
                 status: 'active' as const, // or 'draft'
                 settings: {
+                    ...DEFAULT_MODULE_SETTINGS,
                     allowCustomFields: true,
                     allowCustomCategories: true,
                     maxItems: 1000,
                 },
                 schema: generatedResult.schema,
-                createdBy: userId
+                createdBy: userId || 'system'
             };
 
             const result = await createSystemModuleAction(finalData);
@@ -163,13 +164,13 @@ export function AIModuleWizard({ userId }: AIModuleWizardProps) {
                                 ].map((s) => (
                                     <button
                                         key={s.id}
-                                        onClick={() => step > s.id && setStep(s.id as any)}
-                                        disabled={step < s.id}
+                                        onClick={() => (step === 'preview' ? 4 : step) > s.id && setStep(s.id as any)}
+                                        disabled={(step === 'preview' ? 4 : step) < s.id}
                                         className={cn(
                                             "flex items-center gap-3 w-full p-2 rounded-lg text-sm font-medium transition-colors",
                                             step === s.id
                                                 ? "bg-white text-indigo-600 shadow-sm border border-indigo-100"
-                                                : step > s.id
+                                                : (step === 'preview' ? 4 : step) > s.id
                                                     ? "text-slate-600 hover:bg-slate-100"
                                                     : "text-slate-400 cursor-not-allowed"
                                         )}
@@ -178,11 +179,11 @@ export function AIModuleWizard({ userId }: AIModuleWizardProps) {
                                             "h-8 w-8 rounded-full flex items-center justify-center border transition-colors",
                                             step === s.id
                                                 ? "border-indigo-200 bg-indigo-50 text-indigo-600"
-                                                : step > s.id
+                                                : (step === 'preview' ? 4 : step) > s.id
                                                     ? "border-green-200 bg-green-50 text-green-600"
                                                     : "border-slate-200 bg-slate-50"
                                         )}>
-                                            {step > s.id ? (
+                                            {(step === 'preview' ? 4 : step) > s.id ? (
                                                 <div className="h-2.5 w-2.5 rounded-full bg-green-500" />
                                             ) : (
                                                 <s.icon className="h-4 w-4" />

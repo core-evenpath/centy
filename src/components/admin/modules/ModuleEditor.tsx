@@ -100,7 +100,13 @@ export function ModuleEditor({ module }: ModuleEditorProps) {
 
         try {
             if (module) {
-                const result = await updateSystemModuleAction(module.id, values);
+                const result = await updateSystemModuleAction(module.id, {
+                    ...values,
+                    settings: {
+                        ...DEFAULT_MODULE_SETTINGS,
+                        ...values.settings
+                    }
+                });
                 if (result.success) {
                     toast.success('Module updated successfully');
                     router.refresh();
@@ -110,10 +116,15 @@ export function ModuleEditor({ module }: ModuleEditorProps) {
             } else {
                 const result = await createSystemModuleAction({
                     ...values,
+                    settings: {
+                        ...DEFAULT_MODULE_SETTINGS,
+                        ...values.settings
+                    },
                     color: 'blue', // Default color for new modules
-                    applicableIndustries: [],
-                    applicableFunctions: [],
+                    applicableIndustries: [] as string[],
+                    applicableFunctions: [] as string[],
                     schema: { fields: [], categories: [] }, // Empty schema for new modules
+                    createdBy: 'admin', // Placeholder, should be handled by auth context or action
                 });
 
                 if (result.success && result.data) {
@@ -157,7 +168,10 @@ export function ModuleEditor({ module }: ModuleEditorProps) {
                                         <FormItem>
                                             <FormLabel>Module Name</FormLabel>
                                             <FormControl>
-                                                <Input placeholder="e.g. Room Inventory" onBlur={handleNameBlur} {...field} />
+                                                <Input placeholder="e.g. Room Inventory" {...field} onBlur={(e) => {
+                                                    field.onBlur();
+                                                    handleNameBlur(e);
+                                                }} />
                                             </FormControl>
                                             <FormMessage />
                                         </FormItem>
