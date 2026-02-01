@@ -784,6 +784,7 @@ export async function createModuleItemAction(
             createdAt: now,
             updatedAt: now,
             createdBy: userId,
+            sortOrder: partnerModule.itemCount,
         };
 
         await adminDb
@@ -1390,6 +1391,7 @@ export async function bulkCreateModuleItemsAction(
     }
 }
 
+
 export async function deleteAllModuleItemsAction(
     partnerId: string,
     moduleId: string
@@ -1436,6 +1438,7 @@ export async function deleteAllModuleItemsAction(
         if (moduleSlug) {
             revalidatePath(`/partner/modules/${moduleSlug}`);
         }
+        revalidatePath(`/partner/modules`);
 
         return { success: true, data: { deleted } };
     } catch (error) {
@@ -1443,3 +1446,43 @@ export async function deleteAllModuleItemsAction(
         return { success: false, error: 'Failed to delete items' };
     }
 }
+
+export async function resetPartnerModulesAction(
+    partnerId: string
+): Promise<ModulesActionResponse<{ deleted: number }>> {
+    try {
+        const modulesRef = adminDb.collection(`partners/${partnerId}/businessModules`);
+        const snapshot = await modulesRef.get();
+
+        if (snapshot.empty) {
+            return { success: true, data: { deleted: 0 } };
+        }
+
+        let deleted = 0;
+
+        // We use a simpler approach for the main modules collection since we know the approximate scale
+        const docs = snapshot.docs;
+        for (let i = 0; i < docs.length; i += 500) {
+            const batch = adminDb.batch();
+            const chunk = docs.slice(i, i + 500);
+
+            for (const doc of chunk) {
+                // We will rely on orphaned subcollections for now as is standard in many Firestore patterns
+                // unless cloud functions are set up for recursive delete.
+                batch.delete(doc.ref);
+                deleted++;
+            }
+
+            await batch.commit();
+        }
+
+        revalidatePath('/partner/modules');
+        return { success: true, data: { deleted } };
+
+    } catch (error) {
+        console.error('Error resetting partner modules:', error);
+        return { success: false, error: 'Failed to reset modules' };
+    }
+}
+
+

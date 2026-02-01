@@ -193,11 +193,26 @@ export function useModuleItems(
     const [error, setError] = useState<string | null>(null);
 
     const fetchItems = useCallback(async () => {
-        if (!partnerId || !moduleId) return;
+        // CRITICAL: Don't fetch if partnerId or moduleId is empty
+        if (!partnerId || !moduleId) {
+            setIsLoading(false);
+            setData(null);
+            return;
+        }
 
         setIsLoading(true);
         setError(null);
+
+        console.log('[useModuleItems] Fetching items:', { partnerId, moduleId, options });
+
         const result = await getModuleItemsAction(partnerId, moduleId, options);
+
+        console.log('[useModuleItems] Result:', {
+            success: result.success,
+            itemCount: result.data?.items?.length,
+            error: result.error
+        });
+
         if (result.success && result.data) {
             setData(result.data);
         } else {
