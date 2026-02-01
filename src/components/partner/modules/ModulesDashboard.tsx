@@ -1,6 +1,7 @@
 'use client';
 
 import { usePartnerModules, useAvailableModules } from '@/hooks/use-modules';
+import { useAuth } from '@/hooks/use-auth';
 import { ModuleCard } from './ModuleCard';
 import { EnableModuleDialog } from './EnableModuleDialog';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -8,14 +9,13 @@ import { Button } from '@/components/ui/button';
 import { Plus } from 'lucide-react';
 import { useState } from 'react';
 
-// This would usually come from auth context
-const MOCK_PARTNER_ID = 'test-partner-id';
-
 interface ModulesDashboardProps {
     partnerId?: string;
 }
 
-export function ModulesDashboard({ partnerId = MOCK_PARTNER_ID }: ModulesDashboardProps) {
+export function ModulesDashboard({ partnerId: partnerIdProp }: ModulesDashboardProps) {
+    const { user } = useAuth();
+    const partnerId = partnerIdProp || user?.customClaims?.partnerId || '';
     const { modules: enabledModules, isLoading: enabledLoading, refetch } = usePartnerModules(partnerId);
     const { modules: availableModules, isLoading: availableLoading } = useAvailableModules(partnerId);
     const [isEnableDialogOpen, setIsEnableDialogOpen] = useState(false);

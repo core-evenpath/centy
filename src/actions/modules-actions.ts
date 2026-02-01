@@ -381,12 +381,19 @@ export async function updateModuleAssignmentAction(
 }
 
 // ============================================================================
-// PARTNER MODULES - PARTNER ACTIONS
+// PARTNER MODULES - AUTOMATIC MATCHING BY INDUSTRY
 // ============================================================================
 
+/**
+ * Get available modules for a partner based on their business categories.
+ * Automatically matches modules by applicableIndustries - no manual assignments needed.
+ */
 export async function getAvailableModulesForPartnerAction(
     partnerId: string
-): Promise<ModulesActionResponse<{ modules: SystemModule[]; assignment: ModuleAssignment | null }>> {
+): Promise<ModulesActionResponse<{
+    modules: SystemModule[];
+    matchedByIndustry: Record<string, SystemModule[]>;
+}>> {
     try {
         const partnerDoc = await adminDb.collection('partners').doc(partnerId).get();
 
@@ -397,32 +404,79 @@ export async function getAvailableModulesForPartnerAction(
         const partner = partnerDoc.data();
         const businessCategories = partner?.businessPersona?.identity?.businessCategories || [];
 
-        if (businessCategories.length === 0) {
-            const allModulesSnapshot = await adminDb
-                .collection('systemModules')
-                .where('status', '==', 'active')
-                .get();
-
-            const modules = allModulesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as SystemModule));
-            return { success: true, data: { modules, assignment: null } };
-        }
-
-        const primaryCategory = businessCategories[0];
-        const assignmentId = `${primaryCategory.industryId}_${primaryCategory.functionId}`;
-
-        const assignmentDoc = await adminDb
-            .collection('systemTaxonomy')
-            .doc('moduleAssignments')
-            .collection('items')
-            .doc(assignmentId)
+        // Get all active system modules
+        const modulesSnapshot = await adminDb
+            .collection('systemModules')
+            .where('status', '==', 'active')
             .get();
 
-        let assignment: ModuleAssignment | null = null;
-        let moduleSlugs: string[] = [];
+        const allModules = modulesSnapshot.docs.map(doc => ({
+            id: doc.id,
+            ...doc.data()
+        } as SystemModule));
 
-        if (assignmentDoc.exists) {
-            assignment = { id: assignmentDoc.id, ...assignmentDoc.data() } as ModuleAssignment;
-            moduleSlugs = assignment.modules.map(m => m.moduleSlug);
+        // If no business categories selected, return all modules
+        if (businessCategories.length === 0) {
+            return {
+                success: true,
+                data: {
+                    modules: allModules,
+                    matchedByIndustry: { 'all': allModules }
+                }
+            };
+        }
+
+        // Extract unique industry IDs from partner's business categories
+        const partnerIndustryIds = [...new Set(
+            businessCategories.map((cat: any) => cat.industryId).filter(Boolean)
+        )] as string[];
+
+        // Filter modules that match partner's industries
+        const matchedModules = allModules.filter(module =>
+            module.applicableIndustries.some((ind: string) => partnerIndustryIds.includes(ind))
+        );
+
+        // Group by industry for UI display
+        const matchedByIndustry: Record<string, SystemModule[]> = {};
+        for (const industryId of partnerIndustryIds) {
+            matchedByIndustry[industryId] = allModules.filter(m =>
+                m.applicableIndustries.includes(industryId)
+            );
+        }
+
+        // If no specific matches, return all modules as fallback
+        if (matchedModules.length === 0) {
+            return {
+                success: true,
+                data: {
+                    modules: allModules,
+                    matchedByIndustry: { 'all': allModules }
+                }
+            };
+        }
+
+        return {
+            success: true,
+            data: {
+                modules: matchedModules,
+                matchedByIndustry
+            }
+        };
+    } catch (error) {
+        console.error('Error fetching available modules for partner:', error);
+        return { success: false, error: 'Failed to fetch available modules' };
+    }
+}
+
+/**
+ * Get modules matching specific industries (for use in onboarding flows)
+ */
+export async function getModulesForIndustriesAction(
+    industryIds: string[]
+): Promise<ModulesActionResponse<SystemModule[]>> {
+    try {
+        if (industryIds.length === 0) {
+            return { success: true, data: [] };
         }
 
         const modulesSnapshot = await adminDb
@@ -430,16 +484,19 @@ export async function getAvailableModulesForPartnerAction(
             .where('status', '==', 'active')
             .get();
 
-        let modules = modulesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as SystemModule));
+        const allModules = modulesSnapshot.docs.map(doc => ({
+            id: doc.id,
+            ...doc.data()
+        } as SystemModule));
 
-        if (moduleSlugs.length > 0) {
-            modules = modules.filter(m => moduleSlugs.includes(m.slug));
-        }
+        const matchedModules = allModules.filter(module =>
+            module.applicableIndustries.some((ind: string) => industryIds.includes(ind))
+        );
 
-        return { success: true, data: { modules, assignment } };
+        return { success: true, data: matchedModules };
     } catch (error) {
-        console.error('Error fetching available modules:', error);
-        return { success: false, error: 'Failed to fetch available modules' };
+        console.error('Error fetching modules for industries:', error);
+        return { success: false, error: 'Failed to fetch modules' };
     }
 }
 
