@@ -1292,3 +1292,158 @@ async function getPartnerModuleByIdAction(
         return { success: false, error: 'Failed to fetch module' };
     }
 }
+
+// ============================================================================
+// BULK OPERATIONS FOR PARTNER MODULE ITEMS
+// ============================================================================
+
+export async function bulkCreateModuleItemsAction(
+    partnerId: string,
+    moduleId: string,
+    items: Array<Partial<ModuleItem>>,
+    userId: string
+): Promise<ModulesActionResponse<{ created: number; failed: number }>> {
+    try {
+        const partnerModuleResult = await getPartnerModuleByIdAction(partnerId, moduleId);
+
+        if (!partnerModuleResult.success || !partnerModuleResult.data) {
+            return { success: false, error: 'Module not found', code: 'NOT_FOUND' };
+        }
+
+        const { partnerModule, systemModule } = partnerModuleResult.data;
+
+        if (partnerModule.itemCount + items.length > systemModule.settings.maxItems) {
+            return {
+                success: false,
+                error: `Would exceed maximum items limit (${systemModule.settings.maxItems})`,
+                code: 'LIMIT_REACHED'
+            };
+        }
+
+        const batch = adminDb.batch();
+        const now = new Date().toISOString();
+        let created = 0;
+        let failed = 0;
+        let activeCount = 0;
+
+        for (const itemData of items) {
+            try {
+                const itemId = generateItemId();
+
+                const ragText = generateRAGText(
+                    { ...itemData, id: itemId, moduleId, partnerId } as ModuleItem,
+                    systemModule.schemaHistory[partnerModule.schemaVersion] || systemModule.schema
+                );
+
+                const item: ModuleItem = {
+                    name: itemData.name || 'Untitled',
+                    description: itemData.description || '',
+                    category: itemData.category || 'general',
+                    price: itemData.price || 0,
+                    currency: itemData.currency || partnerModule.settings.defaultCurrency || 'INR',
+                    images: itemData.images || [],
+                    fields: itemData.fields || {},
+                    isActive: itemData.isActive ?? true,
+                    isFeatured: itemData.isFeatured ?? false,
+                    sortOrder: partnerModule.itemCount + created,
+                    trackInventory: itemData.trackInventory ?? false,
+                    id: itemId,
+                    moduleId,
+                    partnerId,
+                    _schemaVersion: partnerModule.schemaVersion,
+                    ragText,
+                    ragUpdatedAt: now,
+                    createdAt: now,
+                    updatedAt: now,
+                    createdBy: userId,
+                };
+
+                const itemRef = adminDb
+                    .collection(`partners/${partnerId}/businessModules/${moduleId}/items`)
+                    .doc(itemId);
+
+                batch.set(itemRef, item);
+                created++;
+
+                if (item.isActive) {
+                    activeCount++;
+                }
+            } catch (e) {
+                console.error('Error preparing item for bulk create:', e);
+                failed++;
+            }
+        }
+
+        await batch.commit();
+
+        await adminDb
+            .collection(`partners/${partnerId}/businessModules`)
+            .doc(moduleId)
+            .update({
+                itemCount: FieldValue.increment(created),
+                activeItemCount: FieldValue.increment(activeCount),
+                lastItemAddedAt: now,
+                updatedAt: now,
+            });
+
+        revalidatePath(`/partner/modules/${partnerModule.moduleSlug}`);
+        return { success: true, data: { created, failed } };
+    } catch (error) {
+        console.error('Error bulk creating module items:', error);
+        return { success: false, error: 'Failed to bulk create items' };
+    }
+}
+
+export async function deleteAllModuleItemsAction(
+    partnerId: string,
+    moduleId: string
+): Promise<ModulesActionResponse<{ deleted: number }>> {
+    try {
+        const itemsRef = adminDb.collection(`partners/${partnerId}/businessModules/${moduleId}/items`);
+        const snapshot = await itemsRef.get();
+
+        if (snapshot.empty) {
+            return { success: true, data: { deleted: 0 } };
+        }
+
+        const batchSize = 500;
+        let deleted = 0;
+
+        const docs = snapshot.docs;
+        for (let i = 0; i < docs.length; i += batchSize) {
+            const batch = adminDb.batch();
+            const chunk = docs.slice(i, i + batchSize);
+
+            for (const doc of chunk) {
+                batch.delete(doc.ref);
+                deleted++;
+            }
+
+            await batch.commit();
+        }
+
+        await adminDb
+            .collection(`partners/${partnerId}/businessModules`)
+            .doc(moduleId)
+            .update({
+                itemCount: 0,
+                activeItemCount: 0,
+                updatedAt: new Date().toISOString(),
+            });
+
+        const partnerModuleDoc = await adminDb
+            .collection(`partners/${partnerId}/businessModules`)
+            .doc(moduleId)
+            .get();
+
+        const moduleSlug = partnerModuleDoc.data()?.moduleSlug;
+        if (moduleSlug) {
+            revalidatePath(`/partner/modules/${moduleSlug}`);
+        }
+
+        return { success: true, data: { deleted } };
+    } catch (error) {
+        console.error('Error deleting all module items:', error);
+        return { success: false, error: 'Failed to delete items' };
+    }
+}
