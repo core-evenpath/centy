@@ -390,10 +390,7 @@ export async function updateModuleAssignmentAction(
  */
 export async function getAvailableModulesForPartnerAction(
     partnerId: string
-): Promise<ModulesActionResponse<{
-    modules: SystemModule[];
-    matchedByIndustry: Record<string, SystemModule[]>;
-}>> {
+): Promise<ModulesActionResponse<{ modules: SystemModule[]; assignment: ModuleAssignment | null }>> {
     try {
         const partnerDoc = await adminDb.collection('partners').doc(partnerId).get();
 
@@ -421,36 +418,39 @@ export async function getAvailableModulesForPartnerAction(
                 success: true,
                 data: {
                     modules: allModules,
-                    matchedByIndustry: { 'all': allModules }
+                    assignment: null
                 }
             };
         }
 
         // Extract unique industry IDs from partner's business categories
         const partnerIndustryIds = [...new Set(
-            businessCategories.map((cat: any) => cat.industryId).filter(Boolean)
+            businessCategories
+                .map((cat: any) => cat.industryId)
+                .filter(Boolean)
         )] as string[];
 
-        // Filter modules that match partner's industries
-        const matchedModules = allModules.filter(module =>
-            module.applicableIndustries.some((ind: string) => partnerIndustryIds.includes(ind))
-        );
+        console.log('[getAvailableModulesForPartner] Partner industries:', partnerIndustryIds);
+        console.log('[getAvailableModulesForPartner] Total modules:', allModules.length);
 
-        // Group by industry for UI display
-        const matchedByIndustry: Record<string, SystemModule[]> = {};
-        for (const industryId of partnerIndustryIds) {
-            matchedByIndustry[industryId] = allModules.filter(m =>
-                m.applicableIndustries.includes(industryId)
-            );
-        }
+        // Filter modules that match partner's industries
+        const matchedModules = allModules.filter(module => {
+            const moduleIndustries = module.applicableIndustries || [];
+            const matches = moduleIndustries.some((ind: string) => partnerIndustryIds.includes(ind));
+            console.log(`[getAvailableModulesForPartner] Module ${module.slug}: industries=${moduleIndustries.join(',')}, matches=${matches}`);
+            return matches;
+        });
+
+        console.log('[getAvailableModulesForPartner] Matched modules:', matchedModules.length);
 
         // If no specific matches, return all modules as fallback
         if (matchedModules.length === 0) {
+            console.log('[getAvailableModulesForPartner] No matches, returning all modules');
             return {
                 success: true,
                 data: {
                     modules: allModules,
-                    matchedByIndustry: { 'all': allModules }
+                    assignment: null
                 }
             };
         }
@@ -459,7 +459,7 @@ export async function getAvailableModulesForPartnerAction(
             success: true,
             data: {
                 modules: matchedModules,
-                matchedByIndustry
+                assignment: null
             }
         };
     } catch (error) {

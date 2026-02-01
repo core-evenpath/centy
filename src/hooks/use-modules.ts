@@ -96,7 +96,6 @@ export function useModuleAssignments(industryId?: string) {
 
 export function useAvailableModules(partnerId: string) {
     const [modules, setModules] = useState<SystemModule[]>([]);
-    const [matchedByIndustry, setMatchedByIndustry] = useState<Record<string, SystemModule[]>>({});
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
 
@@ -111,7 +110,6 @@ export function useAvailableModules(partnerId: string) {
         const result = await getAvailableModulesForPartnerAction(partnerId);
         if (result.success && result.data) {
             setModules(result.data.modules);
-            setMatchedByIndustry(result.data.matchedByIndustry);
         } else {
             setError(result.error || 'Failed to fetch available modules');
         }
@@ -122,7 +120,7 @@ export function useAvailableModules(partnerId: string) {
         fetchAvailable();
     }, [fetchAvailable]);
 
-    return { modules, matchedByIndustry, isLoading, error, refetch: fetchAvailable };
+    return { modules, isLoading, error, refetch: fetchAvailable };
 }
 
 export function usePartnerModules(partnerId: string) {
