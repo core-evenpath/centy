@@ -1,6 +1,7 @@
 
 'use client';
 
+import { useMultiWorkspaceAuth } from "@/hooks/use-multi-workspace-auth";
 import { usePartnerModules } from "@/hooks/use-modules";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
@@ -8,22 +9,15 @@ import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useState } from "react";
 import { toast } from "sonner";
 import { ArrowLeft } from "lucide-react";
 import Link from "next/link";
 
-const MOCK_PARTNER_ID = 'test-partner-id';
-
 export default function ModuleSettingsPage() {
-    // In a real app we'd fetch global partner settings or iterate through modules
-    // valid specific settings. For now, we'll placeholder generic settings or
-    // modify the hook to support settings updates.
+    const { user, currentWorkspace } = useMultiWorkspaceAuth();
+    const partnerId = currentWorkspace?.partnerId || user?.customClaims?.partnerId || '';
 
-    // Assuming each module has settings, but maybe we want a global view?
-    // Let's list enabled modules and allow configuring them.
-
-    const { modules, isLoading } = usePartnerModules(MOCK_PARTNER_ID);
+    const { modules, isLoading } = usePartnerModules(partnerId);
 
     if (isLoading) {
         return (

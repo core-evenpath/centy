@@ -52,12 +52,21 @@ export const getCachedSystemModules = unstable_cache(
 );
 
 export async function getSystemModuleAction(
-    moduleSlug: string
+    identifier: string
 ): Promise<ModulesActionResponse<SystemModule>> {
     try {
+        // If identifier looks like a document ID (starts with 'mod_'), fetch by ID first
+        if (identifier.startsWith('mod_')) {
+            const doc = await adminDb.collection('systemModules').doc(identifier).get();
+            if (doc.exists) {
+                return { success: true, data: { id: doc.id, ...doc.data() } as SystemModule };
+            }
+        }
+
+        // Otherwise (or if ID lookup missed), search by slug
         const snapshot = await adminDb
             .collection('systemModules')
-            .where('slug', '==', moduleSlug)
+            .where('slug', '==', identifier)
             .limit(1)
             .get();
 
@@ -259,8 +268,9 @@ export async function deleteSystemModuleAction(
 }
 
 export async function bulkDeleteSystemModulesAction(
-    moduleIds: string[] = [] // Empty array means delete ALL
-): Promise<ModulesActionResponse<{ deletedCount: number }>> {
+    moduleIds: string[] = [],
+    force: boolean = false
+): Promise<ModulesActionResponse<{ deletedCount: number; skippedCount: number }>> {
     try {
         let query: FirebaseFirestore.Query = adminDb.collection('systemModules');
 
@@ -271,40 +281,35 @@ export async function bulkDeleteSystemModulesAction(
         const snapshot = await query.get();
 
         if (snapshot.empty) {
-            return { success: true, data: { deletedCount: 0 } };
+            return { success: true, data: { deletedCount: 0, skippedCount: 0 } };
         }
 
-        const batch = adminDb.batch();
         let deletedCount = 0;
+        let skippedCount = 0;
+        const docs = snapshot.docs;
 
-        for (const doc of snapshot.docs) {
-            const module = doc.data() as SystemModule;
-            // For testing: we allow deleting specific modules even if used, 
-            // but maybe we should be careful? 
-            // The prompt says "for testing", so usually we want to clear everything.
-            // Let's add a safe guard: only delete if usageCount is 0, UNLESS force is implied?
-            // Actually, for "bulk remove", let's just delete them. 
-            // If they are used, the references will break. Ideally we clean up partners too, but that's expensive.
-            // Let's print a warning but allow it for now if usageCount > 0, or maybe skip?
-            // The existing deleteSystemModuleAction blocks it.
-            // Let's stick to the same logic: Skip unused ones unless we want a "Force Delete" flag.
-            // For now, I'll silently skip used ones to be safe, or maybe just delete them if usageCount is low?
-            // Re-reading user request: "remove modules... for testing". Usually implies clearing generated stuff.
-            // Generated modules usually have 0 usage initially.
+        for (let i = 0; i < docs.length; i += 500) {
+            const batch = adminDb.batch();
+            const chunk = docs.slice(i, i + 500);
 
-            if (module.usageCount > 0) {
-                console.warn(`Skipping module ${module.slug} as it is in use.`);
-                continue;
+            for (const doc of chunk) {
+                const module = doc.data() as SystemModule;
+
+                if (!force && module.usageCount > 0) {
+                    console.warn(`Skipping module ${module.slug} (usageCount: ${module.usageCount})`);
+                    skippedCount++;
+                    continue;
+                }
+
+                batch.delete(doc.ref);
+                deletedCount++;
             }
 
-            batch.delete(doc.ref);
-            deletedCount++;
+            await batch.commit();
         }
 
-        await batch.commit();
-
         revalidatePath('/admin/modules');
-        return { success: true, data: { deletedCount } };
+        return { success: true, data: { deletedCount, skippedCount } };
     } catch (error) {
         console.error('Error bulk deleting system modules:', error);
         return { success: false, error: 'Failed to bulk delete system modules' };
@@ -372,9 +377,13 @@ export async function updateModuleAssignmentAction(
 }
 
 // ============================================================================
-// PARTNER MODULES - PARTNER ACTIONS
+// PARTNER MODULES - AUTOMATIC MATCHING BY INDUSTRY
 // ============================================================================
 
+/**
+ * Get available modules for a partner based on their business categories.
+ * Automatically matches modules by applicableIndustries - no manual assignments needed.
+ */
 export async function getAvailableModulesForPartnerAction(
     partnerId: string
 ): Promise<ModulesActionResponse<{ modules: SystemModule[]; assignment: ModuleAssignment | null }>> {
@@ -388,32 +397,82 @@ export async function getAvailableModulesForPartnerAction(
         const partner = partnerDoc.data();
         const businessCategories = partner?.businessPersona?.identity?.businessCategories || [];
 
-        if (businessCategories.length === 0) {
-            const allModulesSnapshot = await adminDb
-                .collection('systemModules')
-                .where('status', '==', 'active')
-                .get();
-
-            const modules = allModulesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as SystemModule));
-            return { success: true, data: { modules, assignment: null } };
-        }
-
-        const primaryCategory = businessCategories[0];
-        const assignmentId = `${primaryCategory.industryId}_${primaryCategory.functionId}`;
-
-        const assignmentDoc = await adminDb
-            .collection('systemTaxonomy')
-            .doc('moduleAssignments')
-            .collection('items')
-            .doc(assignmentId)
+        // Get all active system modules
+        const modulesSnapshot = await adminDb
+            .collection('systemModules')
+            .where('status', '==', 'active')
             .get();
 
-        let assignment: ModuleAssignment | null = null;
-        let moduleSlugs: string[] = [];
+        const allModules = modulesSnapshot.docs.map(doc => ({
+            id: doc.id,
+            ...doc.data()
+        } as SystemModule));
 
-        if (assignmentDoc.exists) {
-            assignment = { id: assignmentDoc.id, ...assignmentDoc.data() } as ModuleAssignment;
-            moduleSlugs = assignment.modules.map(m => m.moduleSlug);
+        // If no business categories selected, return all modules
+        if (businessCategories.length === 0) {
+            return {
+                success: true,
+                data: {
+                    modules: allModules,
+                    assignment: null
+                }
+            };
+        }
+
+        // Extract unique industry IDs from partner's business categories
+        const partnerIndustryIds = [...new Set(
+            businessCategories
+                .map((cat: any) => cat.industryId)
+                .filter(Boolean)
+        )] as string[];
+
+        console.log('[getAvailableModulesForPartner] Partner industries:', partnerIndustryIds);
+        console.log('[getAvailableModulesForPartner] Total modules:', allModules.length);
+
+        // Filter modules that match partner's industries
+        const matchedModules = allModules.filter(module => {
+            const moduleIndustries = module.applicableIndustries || [];
+            const matches = moduleIndustries.some((ind: string) => partnerIndustryIds.includes(ind));
+            console.log(`[getAvailableModulesForPartner] Module ${module.slug}: industries=${moduleIndustries.join(',')}, matches=${matches}`);
+            return matches;
+        });
+
+        console.log('[getAvailableModulesForPartner] Matched modules:', matchedModules.length);
+
+        // If no specific matches, return all modules as fallback
+        if (matchedModules.length === 0) {
+            console.log('[getAvailableModulesForPartner] No matches, returning all modules');
+            return {
+                success: true,
+                data: {
+                    modules: allModules,
+                    assignment: null
+                }
+            };
+        }
+
+        return {
+            success: true,
+            data: {
+                modules: matchedModules,
+                assignment: null
+            }
+        };
+    } catch (error) {
+        console.error('Error fetching available modules for partner:', error);
+        return { success: false, error: 'Failed to fetch available modules' };
+    }
+}
+
+/**
+ * Get modules matching specific industries (for use in onboarding flows)
+ */
+export async function getModulesForIndustriesAction(
+    industryIds: string[]
+): Promise<ModulesActionResponse<SystemModule[]>> {
+    try {
+        if (industryIds.length === 0) {
+            return { success: true, data: [] };
         }
 
         const modulesSnapshot = await adminDb
@@ -421,16 +480,19 @@ export async function getAvailableModulesForPartnerAction(
             .where('status', '==', 'active')
             .get();
 
-        let modules = modulesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as SystemModule));
+        const allModules = modulesSnapshot.docs.map(doc => ({
+            id: doc.id,
+            ...doc.data()
+        } as SystemModule));
 
-        if (moduleSlugs.length > 0) {
-            modules = modules.filter(m => moduleSlugs.includes(m.slug));
-        }
+        const matchedModules = allModules.filter(module =>
+            module.applicableIndustries.some((ind: string) => industryIds.includes(ind))
+        );
 
-        return { success: true, data: { modules, assignment } };
+        return { success: true, data: matchedModules };
     } catch (error) {
-        console.error('Error fetching available modules:', error);
-        return { success: false, error: 'Failed to fetch available modules' };
+        console.error('Error fetching modules for industries:', error);
+        return { success: false, error: 'Failed to fetch modules' };
     }
 }
 
@@ -1224,5 +1286,160 @@ async function getPartnerModuleByIdAction(
     } catch (error) {
         console.error('Error fetching partner module by ID:', error);
         return { success: false, error: 'Failed to fetch module' };
+    }
+}
+
+// ============================================================================
+// BULK OPERATIONS FOR PARTNER MODULE ITEMS
+// ============================================================================
+
+export async function bulkCreateModuleItemsAction(
+    partnerId: string,
+    moduleId: string,
+    items: Array<Partial<ModuleItem>>,
+    userId: string
+): Promise<ModulesActionResponse<{ created: number; failed: number }>> {
+    try {
+        const partnerModuleResult = await getPartnerModuleByIdAction(partnerId, moduleId);
+
+        if (!partnerModuleResult.success || !partnerModuleResult.data) {
+            return { success: false, error: 'Module not found', code: 'NOT_FOUND' };
+        }
+
+        const { partnerModule, systemModule } = partnerModuleResult.data;
+
+        if (partnerModule.itemCount + items.length > systemModule.settings.maxItems) {
+            return {
+                success: false,
+                error: `Would exceed maximum items limit (${systemModule.settings.maxItems})`,
+                code: 'LIMIT_REACHED'
+            };
+        }
+
+        const batch = adminDb.batch();
+        const now = new Date().toISOString();
+        let created = 0;
+        let failed = 0;
+        let activeCount = 0;
+
+        for (const itemData of items) {
+            try {
+                const itemId = generateItemId();
+
+                const ragText = generateRAGText(
+                    { ...itemData, id: itemId, moduleId, partnerId } as ModuleItem,
+                    systemModule.schemaHistory[partnerModule.schemaVersion] || systemModule.schema
+                );
+
+                const item: ModuleItem = {
+                    name: itemData.name || 'Untitled',
+                    description: itemData.description || '',
+                    category: itemData.category || 'general',
+                    price: itemData.price || 0,
+                    currency: itemData.currency || partnerModule.settings.defaultCurrency || 'INR',
+                    images: itemData.images || [],
+                    fields: itemData.fields || {},
+                    isActive: itemData.isActive ?? true,
+                    isFeatured: itemData.isFeatured ?? false,
+                    sortOrder: partnerModule.itemCount + created,
+                    trackInventory: itemData.trackInventory ?? false,
+                    id: itemId,
+                    moduleId,
+                    partnerId,
+                    _schemaVersion: partnerModule.schemaVersion,
+                    ragText,
+                    ragUpdatedAt: now,
+                    createdAt: now,
+                    updatedAt: now,
+                    createdBy: userId,
+                };
+
+                const itemRef = adminDb
+                    .collection(`partners/${partnerId}/businessModules/${moduleId}/items`)
+                    .doc(itemId);
+
+                batch.set(itemRef, item);
+                created++;
+
+                if (item.isActive) {
+                    activeCount++;
+                }
+            } catch (e) {
+                console.error('Error preparing item for bulk create:', e);
+                failed++;
+            }
+        }
+
+        await batch.commit();
+
+        await adminDb
+            .collection(`partners/${partnerId}/businessModules`)
+            .doc(moduleId)
+            .update({
+                itemCount: FieldValue.increment(created),
+                activeItemCount: FieldValue.increment(activeCount),
+                lastItemAddedAt: now,
+                updatedAt: now,
+            });
+
+        revalidatePath(`/partner/modules/${partnerModule.moduleSlug}`);
+        return { success: true, data: { created, failed } };
+    } catch (error) {
+        console.error('Error bulk creating module items:', error);
+        return { success: false, error: 'Failed to bulk create items' };
+    }
+}
+
+export async function deleteAllModuleItemsAction(
+    partnerId: string,
+    moduleId: string
+): Promise<ModulesActionResponse<{ deleted: number }>> {
+    try {
+        const itemsRef = adminDb.collection(`partners/${partnerId}/businessModules/${moduleId}/items`);
+        const snapshot = await itemsRef.get();
+
+        if (snapshot.empty) {
+            return { success: true, data: { deleted: 0 } };
+        }
+
+        const batchSize = 500;
+        let deleted = 0;
+
+        const docs = snapshot.docs;
+        for (let i = 0; i < docs.length; i += batchSize) {
+            const batch = adminDb.batch();
+            const chunk = docs.slice(i, i + batchSize);
+
+            for (const doc of chunk) {
+                batch.delete(doc.ref);
+                deleted++;
+            }
+
+            await batch.commit();
+        }
+
+        await adminDb
+            .collection(`partners/${partnerId}/businessModules`)
+            .doc(moduleId)
+            .update({
+                itemCount: 0,
+                activeItemCount: 0,
+                updatedAt: new Date().toISOString(),
+            });
+
+        const partnerModuleDoc = await adminDb
+            .collection(`partners/${partnerId}/businessModules`)
+            .doc(moduleId)
+            .get();
+
+        const moduleSlug = partnerModuleDoc.data()?.moduleSlug;
+        if (moduleSlug) {
+            revalidatePath(`/partner/modules/${moduleSlug}`);
+        }
+
+        return { success: true, data: { deleted } };
+    } catch (error) {
+        console.error('Error deleting all module items:', error);
+        return { success: false, error: 'Failed to delete items' };
     }
 }

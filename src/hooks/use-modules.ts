@@ -96,30 +96,31 @@ export function useModuleAssignments(industryId?: string) {
 
 export function useAvailableModules(partnerId: string) {
     const [modules, setModules] = useState<SystemModule[]>([]);
-    const [assignment, setAssignment] = useState<ModuleAssignment | null>(null);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
 
-    useEffect(() => {
-        if (!partnerId) return;
-
-        const fetchAvailable = async () => {
-            setIsLoading(true);
-            setError(null);
-            const result = await getAvailableModulesForPartnerAction(partnerId);
-            if (result.success && result.data) {
-                setModules(result.data.modules);
-                setAssignment(result.data.assignment);
-            } else {
-                setError(result.error || 'Failed to fetch available modules');
-            }
+    const fetchAvailable = useCallback(async () => {
+        if (!partnerId) {
             setIsLoading(false);
-        };
+            return;
+        }
 
-        fetchAvailable();
+        setIsLoading(true);
+        setError(null);
+        const result = await getAvailableModulesForPartnerAction(partnerId);
+        if (result.success && result.data) {
+            setModules(result.data.modules);
+        } else {
+            setError(result.error || 'Failed to fetch available modules');
+        }
+        setIsLoading(false);
     }, [partnerId]);
 
-    return { modules, assignment, isLoading, error };
+    useEffect(() => {
+        fetchAvailable();
+    }, [fetchAvailable]);
+
+    return { modules, isLoading, error, refetch: fetchAvailable };
 }
 
 export function usePartnerModules(partnerId: string) {

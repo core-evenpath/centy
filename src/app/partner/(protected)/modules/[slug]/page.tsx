@@ -1,7 +1,8 @@
 'use client';
 
 import { useState } from 'react';
-import { usePartnerModule, useModuleItems, useSystemModule } from '@/hooks/use-modules';
+import { useMultiWorkspaceAuth } from '@/hooks/use-multi-workspace-auth';
+import { usePartnerModule, useModuleItems } from '@/hooks/use-modules';
 import { ItemsList } from '@/components/partner/modules/ItemsList';
 import { ItemEditor } from '@/components/partner/modules/ItemEditor';
 import { ModuleItem } from '@/lib/modules/types';
@@ -11,7 +12,7 @@ import {
     reorderItemsAction
 } from '@/actions/modules-actions';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Plus, Settings } from 'lucide-react';
+import { ArrowLeft, Plus, Settings, Package } from 'lucide-react';
 import Link from 'next/link';
 import { Skeleton } from '@/components/ui/skeleton';
 import { toast } from 'sonner';
@@ -23,26 +24,44 @@ interface PageProps {
     };
 }
 
-const MOCK_PARTNER_ID = 'test-partner-id';
-
 export default function ModuleManagePage({ params }: PageProps) {
-    const { partnerModule, isLoading: pLoading } = usePartnerModule(MOCK_PARTNER_ID, params.slug);
-    // Important: useModuleItems expects moduleId (UUID), not slug!
-    // But we might only have slug initially. Wait, useModuleItems calls getModuleItemsAction which uses moduleId.
-    // So we need partnerModule.id. 
-    // If partnerModule is null, we can't fetch items yet.
-    const { items, isLoading: iLoading, refetch } = useModuleItems(
-        MOCK_PARTNER_ID,
-        partnerModule?.id || '',
-        { pageSize: 100 } // Fetch more items for this view
+    const { user, currentWorkspace, loading: authLoading } = useMultiWorkspaceAuth();
+    const partnerId = currentWorkspace?.partnerId || user?.customClaims?.partnerId;
+
+    const { partnerModule, systemModule, isLoading: pLoading, refetch: refetchModule } = usePartnerModule(
+        partnerId || '',
+        params.slug
     );
 
-    const { module: systemModule, isLoading: sLoading } = useSystemModule(partnerModule?.moduleSlug || '');
+    const { items, isLoading: iLoading, refetch } = useModuleItems(
+        partnerId || '',
+        partnerModule?.id || '',
+        { pageSize: 100 }
+    );
 
     const [isEditorOpen, setIsEditorOpen] = useState(false);
     const [editingItem, setEditingItem] = useState<Partial<ModuleItem> | undefined>(undefined);
 
-    const isLoading = pLoading || (partnerModule && iLoading) || sLoading;
+    const isLoading = authLoading || pLoading || (partnerModule && iLoading);
+
+    if (authLoading) {
+        return (
+            <div className="container mx-auto py-8 space-y-4">
+                <Skeleton className="h-10 w-1/3" />
+                <Skeleton className="h-[200px] w-full" />
+            </div>
+        );
+    }
+
+    if (!partnerId) {
+        return (
+            <div className="container mx-auto py-8">
+                <div className="text-center py-12">
+                    <p className="text-muted-foreground">Please sign in to view modules.</p>
+                </div>
+            </div>
+        );
+    }
 
     if (isLoading && !partnerModule) {
         return (
@@ -54,64 +73,101 @@ export default function ModuleManagePage({ params }: PageProps) {
     }
 
     if (!partnerModule || !systemModule) {
-        if (isLoading) return null; // Still loading subsequent data
-        return <div className="container mx-auto py-8">Module not found</div>;
+        return (
+            <div className="container mx-auto py-8">
+                <Button variant="ghost" className="mb-4 pl-0 hover:pl-0 hover:bg-transparent" asChild>
+                    <Link href="/partner/modules">
+                        <ArrowLeft className="mr-2 h-4 w-4" />
+                        Back to Modules
+                    </Link>
+                </Button>
+                <div className="text-center py-12">
+                    <Package className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+                    <h2 className="text-lg font-medium">Module not found</h2>
+                    <p className="text-muted-foreground mt-1">
+                        This module may not be enabled for your account.
+                    </p>
+                    <Button asChild className="mt-4">
+                        <Link href="/partner/modules">Browse Available Modules</Link>
+                    </Button>
+                </div>
+            </div>
+        );
     }
 
-    // Merge schemas if needed. For now using systemModule.schema
     const schema = systemModule.schema;
-
-    const handleEdit = (item: ModuleItem) => {
-        setEditingItem(item);
-        setIsEditorOpen(true);
-    };
+    const itemLabel = systemModule.itemLabel || 'Item';
+    const itemLabelPlural = systemModule.itemLabelPlural || 'Items';
 
     const handleCreate = () => {
         setEditingItem(undefined);
         setIsEditorOpen(true);
     };
 
+    const handleEdit = (item: ModuleItem) => {
+        setEditingItem(item);
+        setIsEditorOpen(true);
+    };
+
     const handleSave = async (data: Partial<ModuleItem>) => {
+        if (!partnerId) return;
+
         try {
             if (editingItem?.id) {
-                // Update
-                const result = await updateModuleItemAction(MOCK_PARTNER_ID, partnerModule.id, editingItem.id, data, MOCK_PARTNER_ID);
+                const result = await updateModuleItemAction(
+                    partnerId,
+                    partnerModule.id,
+                    editingItem.id,
+                    data,
+                    user?.uid || 'unknown'
+                );
                 if (result.success) {
-                    toast.success('Item updated');
+                    toast.success(`${itemLabel} updated`);
                     refetch();
                     setIsEditorOpen(false);
                 } else {
-                    toast.error(result.error);
+                    toast.error(result.error || 'Failed to update');
                 }
             } else {
-                // Create
-                // Need to cast data to required type or handle missing fields
-                const result = await createModuleItemAction(MOCK_PARTNER_ID, partnerModule.id, data as any, MOCK_PARTNER_ID);
+                const result = await createModuleItemAction(
+                    partnerId,
+                    partnerModule.id,
+                    data as any,
+                    user?.uid || 'unknown'
+                );
                 if (result.success) {
-                    toast.success('Item created');
+                    toast.success(`${itemLabel} created`);
                     refetch();
+                    refetchModule();
                     setIsEditorOpen(false);
                 } else {
-                    toast.error(result.error);
+                    toast.error(result.error || 'Failed to create');
                 }
             }
         } catch (e) {
             toast.error('Operation failed');
+            console.error(e);
         }
     };
 
     const handleReorder = async (newItems: ModuleItem[]) => {
-        // Optimistic update locally? The list component handles display.
-        // Call server action
+        if (!partnerId) return;
         const itemIds = newItems.map(i => i.id);
-        await reorderItemsAction(MOCK_PARTNER_ID, partnerModule.id, itemIds);
-        refetch(); // Revalidate
+        await reorderItemsAction(partnerId, partnerModule.id, itemIds);
+        refetch();
     };
 
     const handleToggleStatus = async (item: ModuleItem) => {
-        await updateModuleItemAction(MOCK_PARTNER_ID, partnerModule.id, item.id, { isActive: !item.isActive }, MOCK_PARTNER_ID);
+        if (!partnerId) return;
+        await updateModuleItemAction(
+            partnerId,
+            partnerModule.id,
+            item.id,
+            { isActive: !item.isActive },
+            user?.uid || 'unknown'
+        );
         refetch();
-        toast.success(`Item ${item.isActive ? 'deactivated' : 'activated'}`);
+        toast.success(`${itemLabel} ${item.isActive ? 'deactivated' : 'activated'}`);
     };
 
     return (
@@ -120,7 +176,7 @@ export default function ModuleManagePage({ params }: PageProps) {
                 <Button variant="ghost" className="mb-4 pl-0 hover:pl-0 hover:bg-transparent" asChild>
                     <Link href="/partner/modules">
                         <ArrowLeft className="mr-2 h-4 w-4" />
-                        Back to Dashboard
+                        Back to Modules
                     </Link>
                 </Button>
 
@@ -128,7 +184,8 @@ export default function ModuleManagePage({ params }: PageProps) {
                     <div>
                         <h1 className="text-3xl font-bold tracking-tight">{partnerModule.name}</h1>
                         <p className="text-muted-foreground mt-2">
-                            Manage your {partnerModule.name.toLowerCase()} items
+                            {items.length} {items.length === 1 ? itemLabel.toLowerCase() : itemLabelPlural.toLowerCase()} •{' '}
+                            {schema.categories.length} categories
                         </p>
                     </div>
                     <div className="flex gap-2">
@@ -139,7 +196,7 @@ export default function ModuleManagePage({ params }: PageProps) {
                             <DialogTrigger asChild>
                                 <Button onClick={handleCreate}>
                                     <Plus className="mr-2 h-4 w-4" />
-                                    Add Item
+                                    Add {itemLabel}
                                 </Button>
                             </DialogTrigger>
                             <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
@@ -156,14 +213,28 @@ export default function ModuleManagePage({ params }: PageProps) {
                 </div>
             </div>
 
-            <ItemsList
-                items={items}
-                module={partnerModule}
-                schema={schema}
-                onEdit={handleEdit}
-                onToggleStatus={handleToggleStatus}
-                onReorder={handleReorder}
-            />
+            {items.length === 0 ? (
+                <div className="border-2 border-dashed border-slate-200 rounded-xl p-12 text-center bg-slate-50/50">
+                    <Package className="w-12 h-12 text-slate-300 mx-auto mb-4" />
+                    <h3 className="font-medium text-slate-900 mb-1">No {itemLabelPlural.toLowerCase()} yet</h3>
+                    <p className="text-sm text-slate-500 mb-4">
+                        Add your first {itemLabel.toLowerCase()} to get started
+                    </p>
+                    <Button onClick={handleCreate}>
+                        <Plus className="mr-2 h-4 w-4" />
+                        Add {itemLabel}
+                    </Button>
+                </div>
+            ) : (
+                <ItemsList
+                    items={items}
+                    module={partnerModule}
+                    schema={schema}
+                    onEdit={handleEdit}
+                    onToggleStatus={handleToggleStatus}
+                    onReorder={handleReorder}
+                />
+            )}
         </div>
     );
 }
