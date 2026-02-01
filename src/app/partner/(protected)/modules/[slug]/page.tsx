@@ -45,17 +45,7 @@ export default function ModuleManagePage({ params }: PageProps) {
     const { user, currentWorkspace, loading: authLoading } = useMultiWorkspaceAuth();
     const partnerId = currentWorkspace?.partnerId || user?.customClaims?.partnerId;
 
-    // Debug logging
-    useEffect(() => {
-        console.log('[ModuleManagePage] Auth state:', {
-            authLoading,
-            partnerId,
-            slug,
-            userId: user?.uid,
-            workspacePartnerId: currentWorkspace?.partnerId,
-            claimsPartnerId: user?.customClaims?.partnerId,
-        });
-    }, [authLoading, partnerId, slug, user, currentWorkspace]);
+
 
     const {
         partnerModule,
@@ -65,18 +55,7 @@ export default function ModuleManagePage({ params }: PageProps) {
         refetch: refetchModule
     } = usePartnerModule(partnerId || '', slug);
 
-    // Debug logging for module
-    useEffect(() => {
-        console.log('[ModuleManagePage] Module state:', {
-            pLoading,
-            pError,
-            partnerModuleId: partnerModule?.id,
-            partnerModuleName: partnerModule?.name,
-            partnerModuleSlug: partnerModule?.moduleSlug,
-            systemModuleId: systemModule?.id,
-            systemModuleName: systemModule?.name,
-        });
-    }, [pLoading, pError, partnerModule, systemModule]);
+
 
     // Only fetch items when we have a valid moduleId
     const moduleId = partnerModule?.id || '';
@@ -87,16 +66,7 @@ export default function ModuleManagePage({ params }: PageProps) {
         refetch
     } = useModuleItems(partnerId || '', moduleId, { pageSize: 100 });
 
-    // Debug logging for items
-    useEffect(() => {
-        console.log('[ModuleManagePage] Items state:', {
-            iLoading,
-            iError,
-            moduleId,
-            itemsCount: items?.length,
-            items: items?.slice(0, 3).map(i => ({ id: i.id, name: i.name })),
-        });
-    }, [iLoading, iError, moduleId, items]);
+
 
     const [isEditorOpen, setIsEditorOpen] = useState(false);
     const [editingItem, setEditingItem] = useState<Partial<ModuleItem> | undefined>(undefined);
@@ -350,25 +320,7 @@ export default function ModuleManagePage({ params }: PageProps) {
                 </div>
             </div>
 
-            {/* Debug Panel - Remove in production */}
-            <div className="mb-4 p-4 bg-slate-100 rounded-lg text-xs font-mono">
-                <details>
-                    <summary className="cursor-pointer font-semibold">Debug Info (click to expand)</summary>
-                    <pre className="mt-2 overflow-auto">
-                        {JSON.stringify({
-                            partnerId,
-                            slug,
-                            partnerModuleId: partnerModule.id,
-                            partnerModuleSlug: partnerModule.moduleSlug,
-                            systemModuleId: systemModule.id,
-                            itemCount: partnerModule.itemCount,
-                            actualItemsLoaded: items.length,
-                            iLoading,
-                            iError,
-                        }, null, 2)}
-                    </pre>
-                </details>
-            </div>
+
 
             {iLoading && moduleId ? (
                 <div className="space-y-3">
