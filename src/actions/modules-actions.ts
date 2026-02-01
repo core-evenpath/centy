@@ -268,8 +268,9 @@ export async function deleteSystemModuleAction(
 }
 
 export async function bulkDeleteSystemModulesAction(
-    moduleIds: string[] = [] // Empty array means delete ALL
-): Promise<ModulesActionResponse<{ deletedCount: number }>> {
+    moduleIds: string[] = [],
+    force: boolean = false
+): Promise<ModulesActionResponse<{ deletedCount: number; skippedCount: number }>> {
     try {
         let query: FirebaseFirestore.Query = adminDb.collection('systemModules');
 
@@ -280,40 +281,35 @@ export async function bulkDeleteSystemModulesAction(
         const snapshot = await query.get();
 
         if (snapshot.empty) {
-            return { success: true, data: { deletedCount: 0 } };
+            return { success: true, data: { deletedCount: 0, skippedCount: 0 } };
         }
 
-        const batch = adminDb.batch();
         let deletedCount = 0;
+        let skippedCount = 0;
+        const docs = snapshot.docs;
 
-        for (const doc of snapshot.docs) {
-            const module = doc.data() as SystemModule;
-            // For testing: we allow deleting specific modules even if used, 
-            // but maybe we should be careful? 
-            // The prompt says "for testing", so usually we want to clear everything.
-            // Let's add a safe guard: only delete if usageCount is 0, UNLESS force is implied?
-            // Actually, for "bulk remove", let's just delete them. 
-            // If they are used, the references will break. Ideally we clean up partners too, but that's expensive.
-            // Let's print a warning but allow it for now if usageCount > 0, or maybe skip?
-            // The existing deleteSystemModuleAction blocks it.
-            // Let's stick to the same logic: Skip unused ones unless we want a "Force Delete" flag.
-            // For now, I'll silently skip used ones to be safe, or maybe just delete them if usageCount is low?
-            // Re-reading user request: "remove modules... for testing". Usually implies clearing generated stuff.
-            // Generated modules usually have 0 usage initially.
+        for (let i = 0; i < docs.length; i += 500) {
+            const batch = adminDb.batch();
+            const chunk = docs.slice(i, i + 500);
 
-            if (module.usageCount > 0) {
-                console.warn(`Skipping module ${module.slug} as it is in use.`);
-                continue;
+            for (const doc of chunk) {
+                const module = doc.data() as SystemModule;
+
+                if (!force && module.usageCount > 0) {
+                    console.warn(`Skipping module ${module.slug} (usageCount: ${module.usageCount})`);
+                    skippedCount++;
+                    continue;
+                }
+
+                batch.delete(doc.ref);
+                deletedCount++;
             }
 
-            batch.delete(doc.ref);
-            deletedCount++;
+            await batch.commit();
         }
 
-        await batch.commit();
-
         revalidatePath('/admin/modules');
-        return { success: true, data: { deletedCount } };
+        return { success: true, data: { deletedCount, skippedCount } };
     } catch (error) {
         console.error('Error bulk deleting system modules:', error);
         return { success: false, error: 'Failed to bulk delete system modules' };
