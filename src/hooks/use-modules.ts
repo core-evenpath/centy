@@ -203,15 +203,11 @@ export function useModuleItems(
         setIsLoading(true);
         setError(null);
 
-        console.log('[useModuleItems] Fetching items:', { partnerId, moduleId, options });
+
 
         const result = await getModuleItemsAction(partnerId, moduleId, options);
 
-        console.log('[useModuleItems] Result:', {
-            success: result.success,
-            itemCount: result.data?.items?.length,
-            error: result.error
-        });
+
 
         if (result.success && result.data) {
             setData(result.data);
