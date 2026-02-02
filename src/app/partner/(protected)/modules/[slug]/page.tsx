@@ -45,8 +45,6 @@ export default function ModuleManagePage({ params }: PageProps) {
     const { user, currentWorkspace, loading: authLoading } = useMultiWorkspaceAuth();
     const partnerId = currentWorkspace?.partnerId || user?.customClaims?.partnerId;
 
-
-
     const {
         partnerModule,
         systemModule,
@@ -55,9 +53,6 @@ export default function ModuleManagePage({ params }: PageProps) {
         refetch: refetchModule
     } = usePartnerModule(partnerId || '', slug);
 
-
-
-    // Only fetch items when we have a valid moduleId
     const moduleId = partnerModule?.id || '';
     const {
         items,
@@ -65,8 +60,6 @@ export default function ModuleManagePage({ params }: PageProps) {
         error: iError,
         refetch
     } = useModuleItems(partnerId || '', moduleId, { pageSize: 100 });
-
-
 
     const [isEditorOpen, setIsEditorOpen] = useState(false);
     const [editingItem, setEditingItem] = useState<Partial<ModuleItem> | undefined>(undefined);
@@ -319,8 +312,6 @@ export default function ModuleManagePage({ params }: PageProps) {
                     </div>
                 </div>
             </div>
-
-
 
             {iLoading && moduleId ? (
                 <div className="space-y-3">

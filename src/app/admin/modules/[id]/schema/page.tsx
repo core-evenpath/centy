@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { use, useState } from 'react';
 import { SchemaBuilder } from '@/components/admin/modules/SchemaBuilder';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft } from 'lucide-react';
@@ -10,16 +10,16 @@ import { publishNewSchemaVersionAction } from '@/actions/modules-actions';
 import { toast } from 'sonner';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ModuleSchema } from '@/lib/modules/types';
-import { notFound } from 'next/navigation';
 
 interface PageProps {
-    params: {
+    params: Promise<{
         id: string;
-    };
+    }>;
 }
 
 export default function SchemaPage({ params }: PageProps) {
-    const { module, isLoading, error } = useSystemModule(params.id);
+    const { id } = use(params);
+    const { module, isLoading, error } = useSystemModule(id);
     const [isSaving, setIsSaving] = useState(false);
 
     if (isLoading) {
