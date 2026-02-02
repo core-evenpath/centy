@@ -128,6 +128,13 @@ interface RAGSuggestion {
     suggestedReply: string;
     confidence: number;
     reasoning: string;
+    source?: {
+        businessProfile: boolean;
+        moduleItems: { count: number; modules: string[] };
+        documents: { count: number; names: string[] };
+        faqs: number;
+        persona: boolean;
+    };
     sources: RAGSource[];
     personaUsed?: boolean;
     assistantUsed?: {
@@ -370,7 +377,17 @@ export default function CoreMemorySuggestion({
                                         )}
                                     </div>
                                     <p className="text-[12px] text-[#999] mt-0.5">
-                                        {documentSources.length > 0 ? documentSources.map(s => s.name).slice(0, 3).join(' · ') : 'Knowledge Base'}
+                                        {(() => {
+                                            const src = suggestion?.source;
+                                            if (!src) return 'Knowledge Base';
+                                            const parts: string[] = [];
+                                            if (src.businessProfile) parts.push('Profile');
+                                            if (src.moduleItems.count > 0) parts.push(`${src.moduleItems.count} Items`);
+                                            if (src.documents.count > 0) parts.push(`${src.documents.count} Docs`);
+                                            if (src.faqs > 0) parts.push(`${src.faqs} FAQs`);
+                                            if (src.persona) parts.push('Persona');
+                                            return parts.length > 0 ? parts.join(' · ') : 'Knowledge Base';
+                                        })()}
                                     </p>
                                 </div>
                             </div>
@@ -479,15 +496,62 @@ export default function CoreMemorySuggestion({
                                     </div>
                                 )}
 
-                                {/* Sources Section - Hidden for cleaner UI */}
+                                {/* Data Sources */}
+                                {suggestion.source && (
+                                    <div className="space-y-2">
+                                        <button
+                                            onClick={() => setShowSources(!showSources)}
+                                            className="flex items-center gap-1.5 text-[10px] font-semibold text-[#999] uppercase tracking-wider hover:text-[#666] transition-colors"
+                                        >
+                                            <Database className="w-3 h-3" />
+                                            Sources
+                                            {showSources ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                                        </button>
 
-                                {/* Personalization Badge */}
-                                {suggestion.personaUsed && (
-                                    <div className="flex items-center gap-2 px-3 py-2.5 bg-gray-50 rounded-lg border border-gray-200">
-                                        <User className="w-4 h-4 text-gray-500" />
-                                        <span className="text-xs text-gray-600">
-                                            Personalized using customer profile
-                                        </span>
+                                        {showSources && (
+                                            <div className="bg-white rounded-xl border border-[#e5e5e5] p-3.5 space-y-2 text-[12px]">
+                                                {suggestion.source.businessProfile && (
+                                                    <div className="flex items-center gap-2 text-[#555]">
+                                                        <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0" />
+                                                        <span>Business Profile</span>
+                                                    </div>
+                                                )}
+                                                {suggestion.source.moduleItems.count > 0 && (
+                                                    <div className="flex items-center gap-2 text-[#555]">
+                                                        <div className="w-1.5 h-1.5 rounded-full bg-violet-400 shrink-0" />
+                                                        <span>
+                                                            {suggestion.source.moduleItems.count} Module Items
+                                                            {suggestion.source.moduleItems.modules.length > 0 && (
+                                                                <span className="text-[#999]"> ({suggestion.source.moduleItems.modules.join(', ')})</span>
+                                                            )}
+                                                        </span>
+                                                    </div>
+                                                )}
+                                                {suggestion.source.documents.count > 0 && (
+                                                    <div className="flex items-center gap-2 text-[#555]">
+                                                        <div className="w-1.5 h-1.5 rounded-full bg-sky-400 shrink-0" />
+                                                        <span>
+                                                            {suggestion.source.documents.count} Documents
+                                                            {suggestion.source.documents.names.length > 0 && (
+                                                                <span className="text-[#999]"> ({suggestion.source.documents.names.slice(0, 3).join(', ')}{suggestion.source.documents.names.length > 3 ? '...' : ''})</span>
+                                                            )}
+                                                        </span>
+                                                    </div>
+                                                )}
+                                                {suggestion.source.faqs > 0 && (
+                                                    <div className="flex items-center gap-2 text-[#555]">
+                                                        <div className="w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0" />
+                                                        <span>{suggestion.source.faqs} FAQs</span>
+                                                    </div>
+                                                )}
+                                                {suggestion.source.persona && (
+                                                    <div className="flex items-center gap-2 text-[#555]">
+                                                        <div className="w-1.5 h-1.5 rounded-full bg-rose-400 shrink-0" />
+                                                        <span>Customer Persona</span>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        )}
                                     </div>
                                 )}
                             </>

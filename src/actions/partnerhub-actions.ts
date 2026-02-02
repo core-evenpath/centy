@@ -959,6 +959,13 @@ export async function generateInboxSuggestionAction(
     suggestedReply?: string;
     confidence?: number;
     reasoning?: string;
+    source?: {
+        businessProfile: boolean;
+        moduleItems: { count: number; modules: string[] };
+        documents: { count: number; names: string[] };
+        faqs: number;
+        persona: boolean;
+    };
     sources?: Array<{
         type: 'document';
         name: string;
@@ -1367,12 +1374,29 @@ Respond in JSON format:
         const elapsed = Date.now() - startTime;
         console.log(`✅ Inbox AI Suggestion completed in ${elapsed}ms`);
 
+        // Build source tracking
+        const coreData = coreDataResult.success ? coreDataResult.data : null;
+        const sourceInfo = {
+            businessProfile: !!(coreData?.identity?.name || coreData?.personality?.description),
+            moduleItems: {
+                count: coreData?.moduleItems?.reduce((sum: number, m: any) => sum + m.items.length, 0) || 0,
+                modules: coreData?.moduleItems?.map((m: any) => m.moduleName) || [],
+            },
+            documents: {
+                count: contextSnippets.length,
+                names: contextSnippets.map(s => s.source),
+            },
+            faqs: coreData?.faqs?.length || 0,
+            persona: personaUsed,
+        };
+
         return {
             success: true,
             message: 'Suggestion generated successfully',
             suggestedReply: parsed.suggestedReply,
             confidence: parsed.confidence || 0.85,
             reasoning: parsed.reasoning || 'Based on your business documents',
+            source: sourceInfo,
             sources,
             personaUsed,
             assistantUsed: usedAssistant ? {

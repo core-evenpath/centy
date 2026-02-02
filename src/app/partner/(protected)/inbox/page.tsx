@@ -228,6 +228,13 @@ interface RAGSuggestion {
     suggestedReply: string;
     confidence: number;
     reasoning: string;
+    source?: {
+        businessProfile: boolean;
+        moduleItems: { count: number; modules: string[] };
+        documents: { count: number; names: string[] };
+        faqs: number;
+        persona: boolean;
+    };
     sources: Array<{
         type: 'conversation' | 'document';
         name: string;
@@ -575,6 +582,7 @@ export default function UnifiedInboxPage() {
                     suggestedReply: result.suggestedReply,
                     confidence: result.confidence || 0.85,
                     reasoning: result.reasoning || 'Generated based on your business documents and conversation history.',
+                    source: result.source,
                     sources: (result.sources || []).map((s: any) => ({ ...s, type: 'document' as const, excerpt: s.excerpt || '' })),
                     personaUsed: result.personaUsed,
                     assistantUsed: result.assistantUsed,
