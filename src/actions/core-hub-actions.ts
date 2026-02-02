@@ -256,7 +256,9 @@ export async function syncModulesToCoreHub(partnerId: string): Promise<CoreHubSy
 }
 
 /**
- * Get Core Hub context for AI suggestions
+ * Get Core Hub context for AI suggestions.
+ * This is a pure read operation - it never triggers sync.
+ * If Core Hub hasn't been synced yet, it returns empty context.
  */
 export async function getCoreHubContext(partnerId: string): Promise<CoreHubContext> {
   if (!db) {
@@ -267,32 +269,7 @@ export async function getCoreHubContext(partnerId: string): Promise<CoreHubConte
     const configDoc = await db.doc(`partners/${partnerId}/coreHub/config`).get();
 
     if (!configDoc.exists) {
-      console.log('[CoreHub] Not initialized, triggering sync...');
-      const syncResult = await syncModulesToCoreHub(partnerId);
-
-      if (!syncResult.success) {
-        return { success: false, message: syncResult.message };
-      }
-
-      // Re-fetch after sync
-      const retryConfig = await db.doc(`partners/${partnerId}/coreHub/config`).get();
-      if (!retryConfig.exists) {
-        return { success: false, message: 'Core Hub config not found after sync' };
-      }
-
-      const config = retryConfig.data() as CoreHubConfig;
-      const itemsSnapshot = await db
-        .collection(`partners/${partnerId}/coreHub/data/items`)
-        .where('isActive', '==', true)
-        .get();
-
-      return {
-        success: true,
-        businessContext: config.businessContext,
-        moduleItems: itemsSnapshot.docs.map(doc => doc.data() as CoreHubItem),
-        itemCount: itemsSnapshot.docs.length,
-        lastSyncedAt: config.lastSyncedAt?.toDate?.() || undefined,
-      };
+      return { success: false, message: 'Core Hub not initialized yet' };
     }
 
     const config = configDoc.data() as CoreHubConfig;

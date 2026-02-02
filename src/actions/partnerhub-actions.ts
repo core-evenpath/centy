@@ -1064,29 +1064,29 @@ Respond in JSON format:
 
         // ══════════════════════════════════════════════════════════════
         // CORE HUB: Fetch aggregated module items & business context
+        // Non-blocking: if Core Hub isn't ready, skip it and trigger
+        // a background sync so it's available on the next request.
         // ══════════════════════════════════════════════════════════════
         let coreHubContext = '';
         try {
-            // Check if Core Hub is stale (older than 1 hour) and trigger background sync
-            const isStale = await isCoreHubStale(partnerId, 3600000);
-            if (isStale) {
-                console.log('[InboxAI] Core Hub stale, triggering background sync...');
-                syncModulesToCoreHub(partnerId).catch(err =>
-                    console.error('[InboxAI] Background sync error:', err)
-                );
-            }
-
             coreHubContext = await getCoreHubContextString(partnerId);
-
-            // If Core Hub was empty (first time), try once more after sync completes
-            if (!coreHubContext) {
-                console.log('[InboxAI] Core Hub empty, triggering sync...');
-                await syncModulesToCoreHub(partnerId);
-                coreHubContext = await getCoreHubContextString(partnerId);
-            }
 
             if (coreHubContext) {
                 console.log(`[InboxAI] Core Hub context: ${coreHubContext.length} chars`);
+
+                // If data exists but is stale, trigger background refresh for next time
+                const isStale = await isCoreHubStale(partnerId, 3600000);
+                if (isStale) {
+                    syncModulesToCoreHub(partnerId).catch(err =>
+                        console.error('[InboxAI] Background sync error:', err)
+                    );
+                }
+            } else {
+                // Core Hub not synced yet - trigger background sync for next time
+                console.log('[InboxAI] Core Hub not available, triggering background sync for next request...');
+                syncModulesToCoreHub(partnerId).catch(err =>
+                    console.error('[InboxAI] Background sync error:', err)
+                );
             }
         } catch (coreHubError: any) {
             console.warn('[InboxAI] Core Hub context fetch failed:', coreHubError.message);
