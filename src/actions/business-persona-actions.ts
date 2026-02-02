@@ -1206,6 +1206,7 @@ export async function getCoreDataForAIAction(
                 price?: number;
                 currency?: string;
                 fields: Record<string, any>;
+                ragText?: string;
             }>;
         }>;
         faqs: Array<{ question: string; answer: string }>;
@@ -1245,6 +1246,7 @@ export async function getCoreDataForAIAction(
                 price?: number;
                 currency?: string;
                 fields: Record<string, any>;
+                ragText?: string;
             }>;
         }> = [];
 
@@ -1256,10 +1258,10 @@ export async function getCoreDataForAIAction(
 
             for (const moduleDoc of modulesSnapshot.docs) {
                 const moduleData = moduleDoc.data();
+                // Simple query without orderBy to avoid composite index requirement
                 const itemsSnapshot = await db
                     .collection(`partners/${partnerId}/businessModules/${moduleDoc.id}/items`)
                     .where('isActive', '==', true)
-                    .orderBy('sortOrder', 'asc')
                     .limit(50)
                     .get();
 
@@ -1273,6 +1275,7 @@ export async function getCoreDataForAIAction(
                             price: item.price,
                             currency: item.currency || 'INR',
                             fields: item.fields || {},
+                            ragText: item.ragText || '',
                         };
                     });
 
@@ -1284,7 +1287,7 @@ export async function getCoreDataForAIAction(
                 }
             }
         } catch (moduleError) {
-            console.warn('[getCoreDataForAI] Error fetching module items:', moduleError);
+            console.error('[getCoreDataForAI] Error fetching module items:', moduleError);
         }
 
         // 4. Build comprehensive context string for AI
@@ -1379,10 +1382,26 @@ export async function getCoreDataForAIAction(
         // Module Items (Products, Menu Items, Services, etc.)
         if (moduleItems.length > 0) {
             for (const module of moduleItems) {
-                const itemLines = module.items.slice(0, 20).map(item => {
+                const itemLines = module.items.slice(0, 30).map((item: any) => {
+                    // Prefer ragText (pre-formatted with all schema fields) over manual formatting
+                    if (item.ragText) {
+                        return `  - ${item.ragText}`;
+                    }
                     let line = `  - ${item.name}`;
                     if (item.price) line += ` (${item.currency} ${item.price})`;
                     if (item.description) line += `: ${item.description}`;
+                    // Include dynamic fields
+                    if (item.fields && Object.keys(item.fields).length > 0) {
+                        const fieldParts = Object.entries(item.fields)
+                            .filter(([_, v]) => v !== undefined && v !== null && v !== '')
+                            .map(([k, v]) => {
+                                if (Array.isArray(v)) return `${k}: ${(v as any[]).join(', ')}`;
+                                if (typeof v === 'boolean') return v ? k : '';
+                                return `${k}: ${v}`;
+                            })
+                            .filter(Boolean);
+                        if (fieldParts.length > 0) line += ` | ${fieldParts.join(', ')}`;
+                    }
                     return line;
                 });
                 contextParts.push(`\n${module.moduleName}:\n${itemLines.join('\n')}`);
