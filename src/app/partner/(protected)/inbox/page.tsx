@@ -300,6 +300,7 @@ export default function UnifiedInboxPage() {
     const lastSuggestionContext = useRef<string>('');
     const suggestionDebounceTimer = useRef<NodeJS.Timeout | null>(null);
     const handleGenerateSuggestionRef = useRef<(incomingMessage?: string, refinementInstruction?: string) => void>();
+    const isGeneratingRef = useRef(false);
 
     useEffect(() => {
         async function checkConnections() {
@@ -409,14 +410,19 @@ export default function UnifiedInboxPage() {
             handleGenerateSuggestionRef.current?.(messageContent);
         }, 300);
 
-        return () => {
-            if (suggestionDebounceTimer.current) {
-                clearTimeout(suggestionDebounceTimer.current);
-            }
-        };
+        // NOTE: No cleanup function here. The debounce timer must NOT be
+        // canceled on every `messages` change (Firestore emits frequent
+        // snapshots for delivery status, read receipts, etc.). The timer is
+        // cleared in the conversation-change reset effect instead.
     }, [messages, selectedConversation?.id]);
 
     useEffect(() => {
+        // Clear debounce timer from previous conversation
+        if (suggestionDebounceTimer.current) {
+            clearTimeout(suggestionDebounceTimer.current);
+            suggestionDebounceTimer.current = null;
+        }
+        isGeneratingRef.current = false;
         processedMessageIds.current.clear();
         lastSuggestionContext.current = '';
         setShowAISuggestion(false);
@@ -535,6 +541,9 @@ export default function UnifiedInboxPage() {
     ) => {
         if (!currentPartnerId || !selectedConversation) return;
 
+        // Prevent concurrent generation (Firestore snapshots can re-trigger)
+        if (isGeneratingRef.current && !refinementInstruction) return;
+
         const messageToAnalyze = incomingMessage || pendingIncomingMessage || messages[messages.length - 1]?.content || "Hello";
 
         if (!refinementInstruction) {
@@ -544,6 +553,7 @@ export default function UnifiedInboxPage() {
 
         setShowAISuggestion(true);
         setIsLoadingSuggestion(true);
+        isGeneratingRef.current = true;
 
         try {
             let context = messages.slice(-5).map((m: any) => `${m.direction}: ${m.content}`).join('\n');
@@ -572,14 +582,15 @@ export default function UnifiedInboxPage() {
                 });
             } else {
                 toast.error(result.message || "Failed to generate suggestion");
-                if (!refinementInstruction) setShowAISuggestion(false);
+                // Keep panel open so user can retry via Regenerate button
             }
         } catch (e: any) {
             console.error('AI suggestion error:', e);
             toast.error("AI Generation failed");
-            if (!refinementInstruction) setShowAISuggestion(false);
+            // Keep panel open so user can retry via Regenerate button
         } finally {
             setIsLoadingSuggestion(false);
+            isGeneratingRef.current = false;
         }
     };
 
