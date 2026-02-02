@@ -36,11 +36,13 @@ import Link from 'next/link';
 import { toast } from 'sonner';
 
 import { getBusinessPersonaAction } from '@/actions/business-persona-actions';
+import { getPartnerModulesAction, getModuleItemsAction } from '@/actions/modules-actions';
 import type {
   BusinessPersona,
   SetupProgress,
   ProductService,
 } from '@/lib/business-persona-types';
+import type { PartnerModule, ModuleItem } from '@/lib/modules/types';
 
 import TestAIResponseModal from './TestAIResponseModal';
 
@@ -174,6 +176,8 @@ export default function BusinessProfileView({ partnerId }: BusinessProfileViewPr
   const [setupProgress, setSetupProgress] = useState<SetupProgress | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isTestModalOpen, setIsTestModalOpen] = useState(false);
+  const [moduleData, setModuleData] = useState<{module: PartnerModule; items: ModuleItem[]}[]>([]);
+  const [isLoadingModules, setIsLoadingModules] = useState(false);
 
   const loadPersona = async () => {
     setIsLoading(true);
@@ -193,8 +197,33 @@ export default function BusinessProfileView({ partnerId }: BusinessProfileViewPr
     }
   };
 
+  const loadModules = async () => {
+    setIsLoadingModules(true);
+    try {
+      const modulesResult = await getPartnerModulesAction(partnerId);
+      if (modulesResult.success && modulesResult.data) {
+        const results: {module: PartnerModule; items: ModuleItem[]}[] = [];
+        for (const mod of modulesResult.data.filter(m => m.enabled)) {
+          const itemsResult = await getModuleItemsAction(partnerId, mod.id, {
+            isActive: true,
+            pageSize: 50,
+          });
+          if (itemsResult.success && itemsResult.data?.items) {
+            results.push({ module: mod, items: itemsResult.data.items });
+          }
+        }
+        setModuleData(results);
+      }
+    } catch (error) {
+      console.error('Error loading modules:', error);
+    } finally {
+      setIsLoadingModules(false);
+    }
+  };
+
   useEffect(() => {
     loadPersona();
+    loadModules();
   }, [partnerId]);
 
   if (isLoading) {
@@ -665,6 +694,77 @@ export default function BusinessProfileView({ partnerId }: BusinessProfileViewPr
             </div>
           </ProfileSection>
         </div>
+
+        {/* Section 7: Module Items (Full Width) */}
+        {isLoadingModules && moduleData.length === 0 && (
+          <div className="bg-white rounded-xl border border-slate-200 p-6">
+            <div className="flex items-center gap-3">
+              <Loader2 className="w-5 h-5 animate-spin text-slate-400" />
+              <span className="text-sm text-slate-500">Loading module items...</span>
+            </div>
+          </div>
+        )}
+
+        {moduleData.filter(({ items }) => items.length > 0).map(({ module: mod, items }) => (
+          <ProfileSection
+            key={mod.id}
+            title={mod.name}
+            icon={<Package className="w-5 h-5 text-indigo-600" />}
+            iconBg="bg-indigo-100"
+            editLink={`/partner/modules/${mod.moduleSlug}`}
+          >
+            <div className="space-y-3">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-sm text-slate-500">
+                  {items.length} active item{items.length !== 1 ? 's' : ''}
+                </span>
+                <Badge variant="secondary" className="text-xs">
+                  {mod.moduleSlug}
+                </Badge>
+              </div>
+              <div className="grid gap-2">
+                {items.slice(0, 6).map((item) => (
+                  <div key={item.id} className="p-3 bg-slate-50 rounded-lg border border-slate-100">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium text-slate-900 truncate">{item.name}</p>
+                        {item.description && (
+                          <p className="text-xs text-slate-500 mt-0.5 line-clamp-2">{item.description}</p>
+                        )}
+                      </div>
+                      {item.price != null && (
+                        <Badge variant="secondary" className="flex-shrink-0 text-xs">
+                          {item.currency === 'INR' ? '\u20B9' : item.currency === 'USD' ? '$' : item.currency}
+                          {item.price.toLocaleString()}
+                        </Badge>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2 mt-2">
+                      {item.category && item.category !== 'general' && (
+                        <Badge variant="outline" className="text-xs">
+                          {item.category}
+                        </Badge>
+                      )}
+                      {item.isFeatured && (
+                        <Badge className="text-xs bg-amber-100 text-amber-700 hover:bg-amber-100">
+                          Featured
+                        </Badge>
+                      )}
+                    </div>
+                  </div>
+                ))}
+                {items.length > 6 && (
+                  <Link href={`/partner/modules/${mod.moduleSlug}`}>
+                    <Button variant="ghost" size="sm" className="w-full text-slate-600">
+                      View all {items.length} items
+                      <ChevronRight className="w-4 h-4 ml-1" />
+                    </Button>
+                  </Link>
+                )}
+              </div>
+            </div>
+          </ProfileSection>
+        ))}
       </div>
 
       {/* Test AI Response Modal */}

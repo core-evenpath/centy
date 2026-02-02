@@ -1204,7 +1204,7 @@ CUSTOMER PERSONA:
                 .limit(15)
                 .get();
 
-            if (docsSnapshot.empty && !coreHubContext) {
+            if (docsSnapshot.empty) {
                 return {
                     success: false,
                     message: 'No documents found. Please upload documents in Core Memory first.',
@@ -1244,7 +1244,7 @@ CUSTOMER PERSONA:
             });
         }
 
-        if (contextSnippets.length === 0 && !usedAssistant && !coreHubContext) {
+        if (contextSnippets.length === 0 && !usedAssistant) {
             return {
                 success: false,
                 message: 'No document content available for request.',
