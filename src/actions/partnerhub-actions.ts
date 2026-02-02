@@ -1131,7 +1131,7 @@ CUSTOMER PERSONA:
                     .doc(partnerId)
                     .collection('hubDocuments')
                     .where('status', '==', ProcessingStatus.COMPLETED)
-                    .limit(15)
+                    .limit(20)
                     .get();
                 primaryDocIds = allDocsSnapshot.docs.map(d => d.id);
             } else {
@@ -1160,7 +1160,7 @@ CUSTOMER PERSONA:
                             .doc(partnerId)
                             .collection('hubDocuments')
                             .where('status', '==', ProcessingStatus.COMPLETED)
-                            .limit(15)
+                            .limit(20)
                             .get();
                         fallbackDocIds = allDocsSnapshot.docs.map(d => d.id);
                     } else {
@@ -1187,7 +1187,7 @@ CUSTOMER PERSONA:
                 .doc(partnerId)
                 .collection('hubDocuments')
                 .where('status', '==', ProcessingStatus.COMPLETED)
-                .limit(15)
+                .limit(20)
                 .get();
 
             if (docsSnapshot.empty) {
@@ -1207,7 +1207,7 @@ CUSTOMER PERSONA:
         let contextSnippets: { source: string; text: string; docId: string }[] = [];
 
         if (documentIds.length > 0) {
-            const docPromises = documentIds.slice(0, 10).map(docId =>
+            const docPromises = documentIds.slice(0, 20).map(docId =>
                 db!.collection('partners')
                     .doc(partnerId)
                     .collection('hubDocuments')
@@ -1222,7 +1222,7 @@ CUSTOMER PERSONA:
                     if (data?.extractedText) {
                         contextSnippets.push({
                             source: data.name || doc.id,
-                            text: data.extractedText.substring(0, 2000),
+                            text: data.extractedText.substring(0, 30000),
                             docId: doc.id,
                         });
                     }
