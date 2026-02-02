@@ -1200,13 +1200,17 @@ CUSTOMER PERSONA:
                 .get();
 
             if (docsSnapshot.empty) {
-                return {
-                    success: false,
-                    message: 'No documents found. Please upload documents in Core Memory first.',
-                };
+                // No documents, but we can still proceed if we have business knowledge
+                if (!businessKnowledgeSection) {
+                    return {
+                        success: false,
+                        message: 'No documents found. Please upload documents in Core Memory first.',
+                    };
+                }
+                console.log('📂 No documents found, but business knowledge available - continuing');
+            } else {
+                documentIds = docsSnapshot.docs.map(d => d.id);
             }
-
-            documentIds = docsSnapshot.docs.map(d => d.id);
         } else if (documentIds.length === 0 && assistants.length > 0) {
             console.log('⚠️ Assistants selected but no content found. Using Primary Assistant (Pure Generation).');
             usedAssistant = assistants[0];
@@ -1239,7 +1243,7 @@ CUSTOMER PERSONA:
             });
         }
 
-        if (contextSnippets.length === 0 && !usedAssistant) {
+        if (contextSnippets.length === 0 && !usedAssistant && !businessKnowledgeSection) {
             return {
                 success: false,
                 message: 'No document content available for request.',

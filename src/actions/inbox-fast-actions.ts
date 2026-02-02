@@ -33,6 +33,15 @@ export async function generateInboxSuggestionFastAction(
             return { success: false, message: "Database unavailable" };
         }
 
+        // Fetch business data first (no visibility gating, includes module items)
+        const coreDataResult = await getCoreDataForAIAction(partnerId);
+        let businessKnowledgeText = '';
+
+        if (coreDataResult.success && coreDataResult.data) {
+            businessKnowledgeText = coreDataResult.data.businessContext.substring(0, 3000);
+        }
+
+        // Fetch documents (optional - not required if business knowledge exists)
         const docsSnapshot = await db
             .collection("partners")
             .doc(partnerId)
@@ -41,28 +50,24 @@ export async function generateInboxSuggestionFastAction(
             .limit(5)
             .get();
 
-        if (docsSnapshot.empty) {
-            return {
-                success: false,
-                message: "No documents found. Upload documents in Core Memory first.",
-            };
+        const contextSnippets: { source: string; text: string }[] = [];
+        if (!docsSnapshot.empty) {
+            docsSnapshot.docs.forEach((doc) => {
+                const data = doc.data();
+                if (data?.extractedText) {
+                    contextSnippets.push({
+                        source: data.name || data.originalName || doc.id,
+                        text: data.extractedText.substring(0, 2000),
+                    });
+                }
+            });
         }
 
-        const contextSnippets: { source: string; text: string }[] = [];
-        docsSnapshot.docs.forEach((doc) => {
-            const data = doc.data();
-            if (data?.extractedText) {
-                contextSnippets.push({
-                    source: data.name || data.originalName || doc.id,
-                    text: data.extractedText.substring(0, 2000),
-                });
-            }
-        });
-
-        if (contextSnippets.length === 0) {
+        // Must have at least some context (documents OR business knowledge)
+        if (contextSnippets.length === 0 && !businessKnowledgeText) {
             return {
                 success: false,
-                message: "No text extracted from documents.",
+                message: "No documents or business data found. Upload documents or set up your business profile first.",
             };
         }
 
@@ -74,20 +79,16 @@ export async function generateInboxSuggestionFastAction(
             ? `\nRecent chat:\n${conversationContext}\n`
             : "";
 
-        // Fetch comprehensive business data for AI (no visibility gating, includes module items)
-        const coreDataResult = await getCoreDataForAIAction(partnerId);
-        let businessKnowledgeText = '';
+        const businessPart = businessKnowledgeText
+            ? `\nBUSINESS INFO:\n${businessKnowledgeText}\n`
+            : "";
 
-        if (coreDataResult.success && coreDataResult.data) {
-            // Use the pre-formatted context (truncate for fast action)
-            businessKnowledgeText = `\nBUSINESS INFO:\n${coreDataResult.data.businessContext.substring(0, 3000)}\n`;
-        }
+        const documentPart = contextString
+            ? `\nKNOWLEDGE FROM DOCUMENTS:\n${contextString}\n`
+            : "";
 
         const prompt = `You are a helpful assistant. Use the knowledge below to answer.
-${businessKnowledgeText}
-KNOWLEDGE FROM DOCUMENTS:
-${contextString}
-
+${businessPart}${documentPart}
 ${conversationPart}
 Customer: "${customerMessage}"
 
@@ -122,8 +123,8 @@ Reply in 2-3 sentences. Be helpful and direct. If unsure, say so.`;
             success: true,
             message: "Success",
             suggestedReply: responseText,
-            confidence: contextSnippets.length > 0 ? 0.85 : 0.5,
-            reasoning: `Based on ${contextSnippets.length} document${contextSnippets.length > 1 ? "s" : ""} (${totalTime}ms)`,
+            confidence: contextSnippets.length > 0 ? 0.85 : 0.7,
+            reasoning: `Based on ${contextSnippets.length} document${contextSnippets.length !== 1 ? "s" : ""} + business profile (${totalTime}ms)`,
             sources,
         };
     } catch (error: any) {
