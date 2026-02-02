@@ -300,6 +300,17 @@ service cloud.firestore {
                          resource.data.partnerId == partnerId;
         allow delete: if isSignedIn() && canModifyPartner(partnerId);
       }
+
+      // ============================================================================
+      // CORE HUB - Aggregated Module Data for AI (server-side write only)
+      // ============================================================================
+      match /coreHub/{document=**} {
+        // Read: Partner members can read
+        allow read: if isSignedIn() && canAccessPartner(partnerId);
+        // Write: Only server-side (admin SDK) should write
+        // This prevents client-side tampering with aggregated data
+        allow write: if false;
+      }
     }
 
     // ============================================================================
