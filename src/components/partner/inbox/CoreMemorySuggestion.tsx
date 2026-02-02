@@ -251,8 +251,6 @@ export default function CoreMemorySuggestion({
         return () => window.removeEventListener('keydown', handleEscape);
     }, [isVisible, onDismiss]);
 
-    if (!isVisible) return null;
-
     const getConfidenceInfo = (confidence: number) => {
         if (confidence >= 0.85) return { label: 'High', color: 'bg-emerald-50 text-emerald-700 border-emerald-200', iconColor: 'text-emerald-500' };
         if (confidence >= 0.7) return { label: 'Good', color: 'bg-sky-50 text-sky-700 border-sky-200', iconColor: 'text-sky-500' };
@@ -299,6 +297,13 @@ export default function CoreMemorySuggestion({
     const loadingContent = getLoadingContent();
     const LoadingIcon = loadingContent.icon;
 
+    if (!isVisible) {
+        // Desktop: render a hidden placeholder to prevent layout shift
+        return (
+            <div className="hidden md:block md:w-0 md:overflow-hidden md:shrink-0 transition-all duration-300 ease-out" />
+        );
+    }
+
     return (
         <>
             <style dangerouslySetInnerHTML={{ __html: suggestionStyles }} />
@@ -316,7 +321,7 @@ export default function CoreMemorySuggestion({
                 "fixed inset-x-0 bottom-0 max-h-[85vh] rounded-t-3xl shadow-2xl bg-[#fafafa]",
                 "animate-in slide-in-from-bottom duration-300",
                 // Desktop: Integrated side panel style
-                "md:relative md:inset-auto md:w-[380px] md:max-w-[380px] md:h-full md:max-h-full",
+                "md:static md:w-[380px] md:max-w-[380px] md:h-full md:max-h-full",
                 "md:rounded-none md:shadow-none md:bg-[#fafafa]",
                 "md:border-l md:border-[#e5e5e5] md:shrink-0",
                 "md:suggestion-panel-enter"
