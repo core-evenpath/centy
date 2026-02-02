@@ -1478,10 +1478,16 @@ CUSTOMER PERSONA:
             finalSystemPrompt += businessKnowledge.join('\n\n');
             finalSystemPrompt += `\n========================================\n`;
             finalSystemPrompt += `\nIMPORTANT: Use the business knowledge above to answer customer questions accurately. Reference specific details like operating hours, products, prices, and policies when relevant.`;
+        } else if (businessSummary) {
+            // Fallback: use the pre-built summary when individual sections are unavailable
+            // (e.g. when coreVisibility.sections is partially set or missing)
+            finalSystemPrompt += `\n\nBUSINESS KNOWLEDGE:\n${businessSummary}`;
+            if (identity?.website) finalSystemPrompt += `\nWebsite: ${identity.website}`;
+            if (personality?.description) finalSystemPrompt += `\nAbout: ${personality.description}`;
         }
 
         // Add logging for debugging
-        console.log(`[InboxAI] Business knowledge sections: ${businessKnowledge.length}`);
+        console.log(`[InboxAI] Business knowledge sections: ${businessKnowledge.length}, fallback summary: ${businessSummary ? 'yes' : 'no'} (${businessSummary.length} chars)`);
         console.log(`[InboxAI] System prompt length: ${finalSystemPrompt.length} chars`);
 
         if (personaContext) {
