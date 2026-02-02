@@ -1,7 +1,7 @@
 "use server";
 
 import { GoogleGenAI } from "@google/genai";
-import { getCoreAccessibleDataAction } from "./business-persona-actions";
+import { getCoreDataForAIAction } from "./business-persona-actions";
 
 const genAI = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || "" });
 
@@ -74,62 +74,13 @@ export async function generateInboxSuggestionFastAction(
             ? `\nRecent chat:\n${conversationContext}\n`
             : "";
 
-        // Fetch business data
-        const accessibleDataResult = await getCoreAccessibleDataAction(partnerId);
+        // Fetch comprehensive business data for AI (no visibility gating, includes module items)
+        const coreDataResult = await getCoreDataForAIAction(partnerId);
         let businessKnowledgeText = '';
 
-        if (accessibleDataResult.success && accessibleDataResult.data) {
-            const accessibleData = accessibleDataResult.data;
-            const businessKnowledge: string[] = [];
-
-            // Extract key business data (similar logic to main inbox action but condensed)
-            const identity = accessibleData.identity;
-            const knowledge = accessibleData.knowledge;
-            const personality = accessibleData.personality;
-
-            if (identity) {
-                if (identity.name) businessKnowledge.push(`Business: ${identity.name}`);
-                if (identity.operatingHours?.schedule) {
-                    const days = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
-                    const schedule = identity.operatingHours.schedule as any;
-                    const openDays = days.filter(d => schedule[d]?.isOpen);
-
-                    if (identity.operatingHours.isOpen24x7) {
-                        businessKnowledge.push("Hours: Open 24/7");
-                    } else if (openDays.length > 0) {
-                        businessKnowledge.push(`Hours: Open ${openDays.length} days/week`);
-                    }
-                }
-
-                if (identity.address?.city) businessKnowledge.push(`Location: ${identity.address.city}`);
-            }
-
-            if (knowledge) {
-                if (knowledge.productsOrServices && knowledge.productsOrServices.length > 0) {
-                    const products = knowledge.productsOrServices
-                        .map((p: any) => `${p.name}${p.priceRange ? ` (${p.priceRange})` : ''}`)
-                        .join(', ');
-                    businessKnowledge.push(`Products: ${products}`);
-                }
-
-                if (knowledge.faqs && knowledge.faqs.length > 0) {
-                    const topFaqs = knowledge.faqs.slice(0, 3).map((f: any) => `Q:${f.question} A:${f.answer}`).join(' | ');
-                    businessKnowledge.push(`FAQs: ${topFaqs}`);
-                }
-
-                if (knowledge.policies) {
-                    const pols = Object.entries(knowledge.policies)
-                        .filter(([_, v]) => v && v !== '')
-                        .map(([k, v]) => `${k.replace(/([A-Z])/g, ' $1').trim()}: ${v}`);
-                    if (pols.length > 0) businessKnowledge.push(`Policies: ${pols.join(', ')}`);
-                }
-            }
-
-            if (personality?.tagline) businessKnowledge.push(`Tagline: ${personality.tagline}`);
-
-            if (businessKnowledge.length > 0) {
-                businessKnowledgeText = `\nBUSINESS INFO:\n${businessKnowledge.join('\n')}\n`;
-            }
+        if (coreDataResult.success && coreDataResult.data) {
+            // Use the pre-formatted context (truncate for fast action)
+            businessKnowledgeText = `\nBUSINESS INFO:\n${coreDataResult.data.businessContext.substring(0, 3000)}\n`;
         }
 
         const prompt = `You are a helpful assistant. Use the knowledge below to answer.

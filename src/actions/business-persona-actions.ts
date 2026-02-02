@@ -1124,7 +1124,7 @@ export async function getCoreAccessibleDataAction(
         const accessibleData: any = {};
         const summaryParts: string[] = [];
 
-        if (visibility.sections.identity && persona.identity) {
+        if (visibility.sections.identity !== false && persona.identity) {
             accessibleData.identity = persona.identity;
             if (persona.identity.name) summaryParts.push(`Business: ${persona.identity.name}`);
             if (persona.identity.phone) summaryParts.push(`Phone: ${persona.identity.phone}`);
@@ -1134,28 +1134,28 @@ export async function getCoreAccessibleDataAction(
             }
         }
 
-        if (visibility.sections.personality && persona.personality) {
+        if (visibility.sections.personality !== false && persona.personality) {
             accessibleData.personality = persona.personality;
             if (persona.personality.tagline) summaryParts.push(`Tagline: ${persona.personality.tagline}`);
             if (persona.personality.description) summaryParts.push(`About: ${persona.personality.description}`);
         }
 
-        if (visibility.sections.knowledge && persona.knowledge) {
+        if (visibility.sections.knowledge !== false && persona.knowledge) {
             accessibleData.knowledge = persona.knowledge;
             const products = persona.knowledge.productsOrServices?.slice(0, 5)?.map((p: any) => p.name).filter(Boolean);
             if (products?.length) summaryParts.push(`Offerings: ${products.join(', ')}`);
         }
 
-        if (visibility.sections.customerProfile && persona.customerProfile) {
+        if (visibility.sections.customerProfile !== false && persona.customerProfile) {
             accessibleData.customerProfile = persona.customerProfile;
         }
 
-        if (visibility.sections.industrySpecificData && persona.industrySpecificData) {
+        if (visibility.sections.industrySpecificData !== false && persona.industrySpecificData) {
             accessibleData.industrySpecificData = persona.industrySpecificData;
         }
 
         // Other useful data with individual visibility checks
-        if (visibility.sections.otherUsefulData) {
+        if (visibility.sections.otherUsefulData !== false) {
             const otherData = persona.otherUsefulData || persona.webIntelligence?.otherUsefulData || [];
             accessibleData.otherUsefulData = otherData.filter(
                 (item: OtherUsefulDataItem) => item.visibleToCore !== false
@@ -1178,6 +1178,294 @@ export async function getCoreAccessibleDataAction(
 
     } catch (error: any) {
         console.error('Error getting core accessible data:', error);
+        return { success: false, message: error.message };
+    }
+}
+
+/**
+ * Get ALL business data for AI/RAG systems - NO visibility gating
+ * This is what AI systems should call for comprehensive context
+ * Includes: Business Profile + Module Items + FAQs
+ */
+export async function getCoreDataForAIAction(
+    partnerId: string
+): Promise<{
+    success: boolean;
+    data?: {
+        businessContext: string;
+        identity: any;
+        personality: any;
+        knowledge: any;
+        moduleItems: Array<{
+            moduleName: string;
+            moduleSlug: string;
+            items: Array<{
+                name: string;
+                description?: string;
+                category: string;
+                price?: number;
+                currency?: string;
+                fields: Record<string, any>;
+            }>;
+        }>;
+        faqs: Array<{ question: string; answer: string }>;
+        rawData: any;
+    };
+    message?: string;
+}> {
+    if (!db) {
+        return { success: false, message: 'Database unavailable' };
+    }
+
+    try {
+        // 1. Fetch partner document
+        const partnerDoc = await db.collection('partners').doc(partnerId).get();
+
+        if (!partnerDoc.exists) {
+            return { success: false, message: 'Partner not found' };
+        }
+
+        const partnerData = partnerDoc.data();
+        const persona = partnerData?.businessPersona;
+
+        // 2. Extract business profile sections (NO visibility checks)
+        const identity = persona?.identity || {};
+        const personality = persona?.personality || {};
+        const knowledge = persona?.knowledge || {};
+        const faqs = knowledge?.faqs || [];
+
+        // 3. Fetch Module Items
+        const moduleItems: Array<{
+            moduleName: string;
+            moduleSlug: string;
+            items: Array<{
+                name: string;
+                description?: string;
+                category: string;
+                price?: number;
+                currency?: string;
+                fields: Record<string, any>;
+            }>;
+        }> = [];
+
+        try {
+            const modulesSnapshot = await db
+                .collection(`partners/${partnerId}/businessModules`)
+                .where('enabled', '==', true)
+                .get();
+
+            for (const moduleDoc of modulesSnapshot.docs) {
+                const moduleData = moduleDoc.data();
+                const itemsSnapshot = await db
+                    .collection(`partners/${partnerId}/businessModules/${moduleDoc.id}/items`)
+                    .where('isActive', '==', true)
+                    .orderBy('sortOrder', 'asc')
+                    .limit(50)
+                    .get();
+
+                if (!itemsSnapshot.empty) {
+                    const items = itemsSnapshot.docs.map(itemDoc => {
+                        const item = itemDoc.data();
+                        return {
+                            name: item.name || '',
+                            description: item.description || '',
+                            category: item.category || 'General',
+                            price: item.price,
+                            currency: item.currency || 'INR',
+                            fields: item.fields || {},
+                        };
+                    });
+
+                    moduleItems.push({
+                        moduleName: moduleData.name || moduleData.moduleSlug,
+                        moduleSlug: moduleData.moduleSlug,
+                        items,
+                    });
+                }
+            }
+        } catch (moduleError) {
+            console.warn('[getCoreDataForAI] Error fetching module items:', moduleError);
+        }
+
+        // 4. Build comprehensive context string for AI
+        const contextParts: string[] = [];
+
+        // Business Identity
+        if (identity.name) contextParts.push(`Business Name: ${identity.name}`);
+        if (identity.phone) contextParts.push(`Phone: ${identity.phone}`);
+        if (identity.email) contextParts.push(`Email: ${identity.email}`);
+        if (identity.website) contextParts.push(`Website: ${identity.website}`);
+        if (identity.whatsAppNumber) contextParts.push(`WhatsApp: ${identity.whatsAppNumber}`);
+
+        if (identity.address?.city) {
+            const addr = identity.address;
+            const addressParts = [addr.street, addr.area, addr.city, addr.state, addr.postalCode || addr.pincode, addr.country].filter(Boolean);
+            contextParts.push(`Address: ${addressParts.join(', ')}`);
+        }
+
+        // Operating Hours
+        if (identity.operatingHours) {
+            const hours = identity.operatingHours;
+            if (hours.isOpen24x7) {
+                contextParts.push('Operating Hours: Open 24/7');
+            } else if (hours.appointmentOnly) {
+                contextParts.push('Operating Hours: By Appointment Only');
+            } else if (hours.schedule) {
+                const dayOrder = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
+                const scheduleLines: string[] = [];
+                for (const day of dayOrder) {
+                    const sched = hours.schedule[day];
+                    if (sched) {
+                        const isOpen = sched.isOpen || (sched.openTime && sched.closeTime);
+                        const openTime = sched.openTime || sched.open;
+                        const closeTime = sched.closeTime || sched.close;
+                        const dayName = day.charAt(0).toUpperCase() + day.slice(1);
+                        if (isOpen && openTime && closeTime) {
+                            scheduleLines.push(`  ${dayName}: ${openTime} - ${closeTime}`);
+                        } else {
+                            scheduleLines.push(`  ${dayName}: Closed`);
+                        }
+                    }
+                }
+                if (scheduleLines.length > 0) {
+                    contextParts.push(`Operating Hours:\n${scheduleLines.join('\n')}`);
+                }
+            }
+            if (hours.specialNote) contextParts.push(`Hours Note: ${hours.specialNote}`);
+        }
+
+        // Social Media
+        if (identity.socialMedia) {
+            const platforms = Object.entries(identity.socialMedia)
+                .filter(([_, url]) => url && url !== '')
+                .map(([platform, url]) => `${platform}: ${url}`);
+            if (platforms.length > 0) contextParts.push(`Social Media:\n  ${platforms.join('\n  ')}`);
+        }
+
+        // Industry
+        if (identity.industry) {
+            const ind = identity.industry;
+            if (typeof ind === 'string') {
+                contextParts.push(`Industry: ${ind}`);
+            } else if (ind.name || ind.category) {
+                contextParts.push(`Industry: ${ind.category ? ind.category.replace(/_/g, ' ') : ''} ${ind.name ? '- ' + ind.name : ''}`);
+            }
+        }
+
+        if (identity.currency) contextParts.push(`Currency: ${identity.currency}`);
+        if (identity.timezone) contextParts.push(`Timezone: ${identity.timezone}`);
+
+        // Brand & Personality
+        if (personality.tagline) contextParts.push(`Tagline: ${personality.tagline}`);
+        if (personality.description) contextParts.push(`About: ${personality.description}`);
+        if (personality.uniqueSellingPoints?.length > 0) {
+            contextParts.push(`Unique Selling Points:\n  - ${personality.uniqueSellingPoints.join('\n  - ')}`);
+        }
+        if (personality.voiceTone?.length > 0) contextParts.push(`Communication Style: ${personality.voiceTone.join(', ')}`);
+        if (personality.brandValues?.length > 0) contextParts.push(`Brand Values: ${personality.brandValues.join(', ')}`);
+        if (personality.languagePreference?.length > 0) contextParts.push(`Languages: ${personality.languagePreference.join(', ')}`);
+
+        // Products & Services from knowledge section
+        if (knowledge.productsOrServices?.length > 0) {
+            const productLines = knowledge.productsOrServices.map((p: any) => {
+                let line = p.name;
+                if (p.priceRange) line += ` (${p.priceRange})`;
+                if (p.description) line += ` - ${p.description}`;
+                return `  - ${line}`;
+            });
+            contextParts.push(`Products/Services:\n${productLines.join('\n')}`);
+        }
+
+        // Module Items (Products, Menu Items, Services, etc.)
+        if (moduleItems.length > 0) {
+            for (const module of moduleItems) {
+                const itemLines = module.items.slice(0, 20).map(item => {
+                    let line = `  - ${item.name}`;
+                    if (item.price) line += ` (${item.currency} ${item.price})`;
+                    if (item.description) line += `: ${item.description}`;
+                    return line;
+                });
+                contextParts.push(`\n${module.moduleName}:\n${itemLines.join('\n')}`);
+            }
+        }
+
+        // FAQs
+        if (faqs.length > 0) {
+            const faqLines = faqs.slice(0, 10).map((faq: any) =>
+                `Q: ${faq.question || faq.q}\nA: ${faq.answer || faq.a}`
+            );
+            contextParts.push(`\nFrequently Asked Questions:\n${faqLines.join('\n\n')}`);
+        }
+
+        // Pricing
+        if (knowledge.pricingModel) contextParts.push(`Pricing Model: ${knowledge.pricingModel}`);
+        if (knowledge.pricingHighlights) contextParts.push(`Pricing Info: ${knowledge.pricingHighlights}`);
+        if (knowledge.acceptedPayments?.length > 0) {
+            contextParts.push(`Accepted Payments: ${knowledge.acceptedPayments.join(', ')}`);
+        }
+
+        // Policies
+        if (knowledge.policies) {
+            const policyLines: string[] = [];
+            Object.entries(knowledge.policies).forEach(([key, value]) => {
+                if (value !== undefined && value !== null && value !== '') {
+                    const label = key.replace(/([A-Z])/g, ' $1').trim();
+                    if (typeof value === 'boolean') {
+                        policyLines.push(`${label}: ${value ? 'Yes' : 'No'}`);
+                    } else {
+                        policyLines.push(`${label}: ${value}`);
+                    }
+                }
+            });
+            if (policyLines.length > 0) {
+                contextParts.push(`\nPolicies:\n  - ${policyLines.join('\n  - ')}`);
+            }
+        }
+
+        // Current Offers
+        if (knowledge.currentOffers?.length > 0) {
+            contextParts.push(`Current Offers:\n  - ${knowledge.currentOffers.join('\n  - ')}`);
+        }
+
+        // Customer Profile
+        const customerProfile = persona?.customerProfile;
+        if (customerProfile) {
+            if (customerProfile.targetAudience) contextParts.push(`Target Audience: ${customerProfile.targetAudience}`);
+            if (customerProfile.customerPainPoints?.length > 0) {
+                contextParts.push(`Common Customer Pain Points:\n  - ${customerProfile.customerPainPoints.join('\n  - ')}`);
+            }
+        }
+
+        // Other Useful Data
+        const otherData = persona?.otherUsefulData || [];
+        if (otherData.length > 0) {
+            const otherLines = otherData
+                .filter((item: any) => item.visibleToCore !== false)
+                .map((item: any) => `${item.key}: ${item.value}`);
+            if (otherLines.length > 0) {
+                contextParts.push(`Additional Information:\n  - ${otherLines.join('\n  - ')}`);
+            }
+        }
+
+        const businessContext = contextParts.join('\n');
+
+        console.log(`[getCoreDataForAI] Partner: ${partnerId}, Modules: ${moduleItems.length}, Total items: ${moduleItems.reduce((sum, m) => sum + m.items.length, 0)}, Context: ${businessContext.length} chars`);
+
+        return {
+            success: true,
+            data: {
+                businessContext,
+                identity,
+                personality,
+                knowledge,
+                moduleItems,
+                faqs,
+                rawData: persona,
+            },
+        };
+
+    } catch (error: any) {
+        console.error('[getCoreDataForAI] Error:', error);
         return { success: false, message: error.message };
     }
 }
