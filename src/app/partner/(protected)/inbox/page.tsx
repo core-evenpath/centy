@@ -308,6 +308,9 @@ export default function UnifiedInboxPage() {
     const suggestionDebounceTimer = useRef<NodeJS.Timeout | null>(null);
     const handleGenerateSuggestionRef = useRef<(incomingMessage?: string, refinementInstruction?: string) => void>();
     const isGeneratingRef = useRef(false);
+    // Track the conversation ID that the panel was opened for, to prevent
+    // Firestore-snapshot-driven re-renders from accidentally closing it.
+    const panelConversationIdRef = useRef<string | null>(null);
 
     useEffect(() => {
         async function checkConnections() {
@@ -383,6 +386,7 @@ export default function UnifiedInboxPage() {
         setAISuggestion(null);
         setPendingIncomingMessage('');
         processedMessageIds.current.clear();
+        panelConversationIdRef.current = null;
 
         if (conv.unreadCount > 0 && currentPartnerId) {
             markAsRead(conv.id, conv.platform);
@@ -424,12 +428,26 @@ export default function UnifiedInboxPage() {
     }, [messages, selectedConversation?.id]);
 
     useEffect(() => {
-        // Clear debounce timer from previous conversation
+        // Guard: if the suggestion panel is actively open or generating for
+        // THIS conversation, skip the reset. The panel ref is set when a
+        // suggestion starts generating and cleared when the panel is
+        // explicitly closed (dismiss / edit / send). Without this guard the
+        // panel closes immediately after opening because this effect can
+        // re-fire on the initial mount sequence or React Strict Mode replays.
+        if (
+            panelConversationIdRef.current != null &&
+            panelConversationIdRef.current === selectedConversation?.id
+        ) {
+            return;
+        }
+
+        // Genuinely new (or null) conversation — full reset.
         if (suggestionDebounceTimer.current) {
             clearTimeout(suggestionDebounceTimer.current);
             suggestionDebounceTimer.current = null;
         }
         isGeneratingRef.current = false;
+        panelConversationIdRef.current = null;
         processedMessageIds.current.clear();
         lastSuggestionContext.current = '';
         setShowAISuggestion(false);
@@ -479,6 +497,7 @@ export default function UnifiedInboxPage() {
             if (result?.success) {
                 setShowAISuggestion(false);
                 setAISuggestion(null);
+                panelConversationIdRef.current = null;
             } else {
                 toast.error(result?.message || 'Failed to send message');
                 if (!textOverride) setMessageInput(textToSend);
@@ -530,6 +549,7 @@ export default function UnifiedInboxPage() {
             if (result?.success) {
                 setShowAISuggestion(false);
                 setAISuggestion(null);
+                panelConversationIdRef.current = null;
                 toast.success(`${mediaType.charAt(0).toUpperCase() + mediaType.slice(1)} sent`);
             } else {
                 toast.error(result?.message || `Failed to send ${mediaType}`);
@@ -561,6 +581,8 @@ export default function UnifiedInboxPage() {
         setShowAISuggestion(true);
         setIsLoadingSuggestion(true);
         isGeneratingRef.current = true;
+        // Lock the panel to this conversation so the reset effect won't close it.
+        panelConversationIdRef.current = selectedConversation.id;
 
         try {
             let context = messages.slice(-5).map((m: any) => `${m.direction}: ${m.content}`).join('\n');
@@ -841,6 +863,7 @@ export default function UnifiedInboxPage() {
                                 setMessageInput(text);
                                 setShowAISuggestion(false);
                                 setAISuggestion(null);
+                                panelConversationIdRef.current = null;
                             }}
                             onSend={(text) => {
                                 handleSendMessage(text);
@@ -849,6 +872,7 @@ export default function UnifiedInboxPage() {
                                 setShowAISuggestion(false);
                                 setAISuggestion(null);
                                 setPendingIncomingMessage('');
+                                panelConversationIdRef.current = null;
                             }}
                             onRegenerate={() => handleGenerateSuggestion()}
                             onRefine={handleRefineSuggestion}
