@@ -22,6 +22,7 @@ import { isGeneralModeAssistant, getEssentialAssistantById } from '@/lib/types-a
 import { getAgentTemplatesForIndustry } from '@/lib/business-type-agents';
 import type { IndustryCategory } from '@/lib/business-persona-types';
 import { getCoreAccessibleDataAction } from './business-persona-actions';
+import { getCoreHubContextString, syncModulesToCoreHub, isCoreHubStale } from './core-hub-actions';
 
 const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -1061,6 +1062,37 @@ Respond in JSON format:
             businessSummary = accessibleDataResult.data.summary || '';
         }
 
+        // ══════════════════════════════════════════════════════════════
+        // CORE HUB: Fetch aggregated module items & business context
+        // ══════════════════════════════════════════════════════════════
+        let coreHubContext = '';
+        try {
+            // Check if Core Hub is stale (older than 1 hour) and trigger background sync
+            const isStale = await isCoreHubStale(partnerId, 3600000);
+            if (isStale) {
+                console.log('[InboxAI] Core Hub stale, triggering background sync...');
+                syncModulesToCoreHub(partnerId).catch(err =>
+                    console.error('[InboxAI] Background sync error:', err)
+                );
+            }
+
+            coreHubContext = await getCoreHubContextString(partnerId);
+
+            // If Core Hub was empty (first time), try once more after sync completes
+            if (!coreHubContext) {
+                console.log('[InboxAI] Core Hub empty, triggering sync...');
+                await syncModulesToCoreHub(partnerId);
+                coreHubContext = await getCoreHubContextString(partnerId);
+            }
+
+            if (coreHubContext) {
+                console.log(`[InboxAI] Core Hub context: ${coreHubContext.length} chars`);
+            }
+        } catch (coreHubError: any) {
+            console.warn('[InboxAI] Core Hub context fetch failed:', coreHubError.message);
+            // Continue without Core Hub - existing business knowledge will still be used
+        }
+
         // Fetch agents logic remains the same
         let assistants: any[] = [];
         if (assistantIds && assistantIds.length > 0) {
@@ -1190,7 +1222,7 @@ CUSTOMER PERSONA:
                 .limit(15)
                 .get();
 
-            if (docsSnapshot.empty) {
+            if (docsSnapshot.empty && !coreHubContext) {
                 return {
                     success: false,
                     message: 'No documents found. Please upload documents in Core Memory first.',
@@ -1230,7 +1262,7 @@ CUSTOMER PERSONA:
             });
         }
 
-        if (contextSnippets.length === 0 && !usedAssistant) {
+        if (contextSnippets.length === 0 && !usedAssistant && !coreHubContext) {
             return {
                 success: false,
                 message: 'No document content available for request.',
@@ -1480,8 +1512,17 @@ CUSTOMER PERSONA:
             finalSystemPrompt += `\nIMPORTANT: Use the business knowledge above to answer customer questions accurately. Reference specific details like operating hours, products, prices, and policies when relevant.`;
         }
 
+        // ========== ADD CORE HUB MODULE ITEMS ==========
+        if (coreHubContext) {
+            finalSystemPrompt += `\n\n========== PRODUCTS, SERVICES & MODULE ITEMS ==========\n`;
+            finalSystemPrompt += coreHubContext;
+            finalSystemPrompt += `\n======================================================\n`;
+            finalSystemPrompt += `\nIMPORTANT: Use the products, services, and pricing information above to answer customer questions about offerings. Be specific with prices, descriptions, and availability when asked.`;
+        }
+
         // Add logging for debugging
         console.log(`[InboxAI] Business knowledge sections: ${businessKnowledge.length}`);
+        console.log(`[InboxAI] Core Hub context: ${coreHubContext ? coreHubContext.length + ' chars' : 'none'}`);
         console.log(`[InboxAI] System prompt length: ${finalSystemPrompt.length} chars`);
 
         if (personaContext) {
@@ -1572,15 +1613,32 @@ Respond in JSON format:
             };
         });
 
+        // Add Core Hub as a source if it contributed context
+        if (coreHubContext && coreHubContext.length > 100) {
+            sources.unshift({
+                type: 'document' as const,
+                name: 'Business Profile & Module Items',
+                excerpt: 'Products, services, pricing, and business information from modules',
+                relevance: 0.95,
+                fromAssistant: undefined,
+            });
+        }
+
         const elapsed = Date.now() - startTime;
         console.log(`✅ Inbox AI Suggestion completed in ${elapsed}ms`);
+
+        // Boost confidence if Core Hub context was available
+        const baseConfidence = parsed.confidence || 0.85;
+        const adjustedConfidence = coreHubContext && coreHubContext.length > 100
+            ? Math.min(0.95, baseConfidence + 0.05)
+            : baseConfidence;
 
         return {
             success: true,
             message: 'Suggestion generated successfully',
             suggestedReply: parsed.suggestedReply,
-            confidence: parsed.confidence || 0.85,
-            reasoning: parsed.reasoning || 'Based on your business documents',
+            confidence: adjustedConfidence,
+            reasoning: parsed.reasoning || (coreHubContext ? 'Based on business profile, module items, and documents' : 'Based on your business documents'),
             sources,
             personaUsed,
             assistantUsed: usedAssistant ? {

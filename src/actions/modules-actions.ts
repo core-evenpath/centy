@@ -26,6 +26,24 @@ import {
     generateRAGText,
 } from '@/lib/modules/utils';
 import { DEFAULT_MODULE_SETTINGS } from '@/lib/modules/constants';
+import { syncModulesToCoreHub } from './core-hub-actions';
+
+/**
+ * Trigger Core Hub sync in background after module changes
+ */
+function triggerCoreHubSync(partnerId: string, reason: string): void {
+    syncModulesToCoreHub(partnerId)
+        .then(result => {
+            if (result.success) {
+                console.log(`[CoreHub] Background sync complete (${reason}): ${result.itemsSynced} items`);
+            } else {
+                console.error(`[CoreHub] Background sync failed (${reason}): ${result.message}`);
+            }
+        })
+        .catch(err => {
+            console.error(`[CoreHub] Background sync error (${reason}):`, err);
+        });
+}
 
 // ============================================================================
 // SYSTEM MODULES - ADMIN ACTIONS
@@ -809,6 +827,7 @@ export async function createModuleItemAction(
         }
 
         revalidatePath(`/partner/modules/${partnerModule.moduleSlug}`);
+        triggerCoreHubSync(partnerId, `item created in ${moduleId}`);
         return { success: true, data: { itemId } };
     } catch (error) {
         console.error('Error creating module item:', error);
@@ -899,6 +918,7 @@ export async function updateModuleItemAction(
         }
 
         revalidatePath(`/partner/modules`);
+        triggerCoreHubSync(partnerId, `item updated in ${moduleId}`);
         return { success: true };
     } catch (error) {
         console.error('Error updating module item:', error);
@@ -979,6 +999,7 @@ export async function deleteModuleItemAction(
         }
 
         revalidatePath(`/partner/modules`);
+        triggerCoreHubSync(partnerId, `item deleted from ${moduleId}`);
         return { success: true };
     } catch (error) {
         console.error('Error deleting module item:', error);
@@ -1018,6 +1039,7 @@ export async function bulkUpdateModuleItemsAction(
         await batch.commit();
 
         revalidatePath(`/partner/modules`);
+        triggerCoreHubSync(partnerId, `bulk update in ${moduleId}`);
         return { success: true, data: { updated, failed } };
     } catch (error) {
         console.error('Error bulk updating items:', error);
@@ -1376,6 +1398,7 @@ export async function bulkCreateModuleItemsAction(
             });
 
         revalidatePath(`/partner/modules/${partnerModule.moduleSlug}`);
+        triggerCoreHubSync(partnerId, `bulk create in ${moduleId}`);
         return { success: true, data: { created, failed } };
     } catch (error) {
         console.error('Error bulk creating module items:', error);
@@ -1431,6 +1454,7 @@ export async function deleteAllModuleItemsAction(
             revalidatePath(`/partner/modules/${moduleSlug}`);
         }
         revalidatePath(`/partner/modules`);
+        triggerCoreHubSync(partnerId, `all items deleted from ${moduleId}`);
 
         return { success: true, data: { deleted } };
     } catch (error) {
