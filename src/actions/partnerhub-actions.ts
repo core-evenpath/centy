@@ -22,7 +22,7 @@ import { isGeneralModeAssistant, getEssentialAssistantById } from '@/lib/types-a
 import { getAgentTemplatesForIndustry } from '@/lib/business-type-agents';
 import type { IndustryCategory } from '@/lib/business-persona-types';
 import { getCoreAccessibleDataAction } from './business-persona-actions';
-import { getCoreHubContextString, syncModulesToCoreHub, isCoreHubStale } from './core-hub-actions';
+import { getCoreHubContextString } from './core-hub-actions';
 
 const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -1063,34 +1063,16 @@ Respond in JSON format:
         }
 
         // ══════════════════════════════════════════════════════════════
-        // CORE HUB: Fetch aggregated module items & business context
-        // Non-blocking: if Core Hub isn't ready, skip it and trigger
-        // a background sync so it's available on the next request.
+        // CORE HUB: Read module items directly from businessModules
         // ══════════════════════════════════════════════════════════════
         let coreHubContext = '';
         try {
             coreHubContext = await getCoreHubContextString(partnerId);
-
             if (coreHubContext) {
-                console.log(`[InboxAI] Core Hub context: ${coreHubContext.length} chars`);
-
-                // If data exists but is stale, trigger background refresh for next time
-                const isStale = await isCoreHubStale(partnerId, 3600000);
-                if (isStale) {
-                    syncModulesToCoreHub(partnerId).catch(err =>
-                        console.error('[InboxAI] Background sync error:', err)
-                    );
-                }
-            } else {
-                // Core Hub not synced yet - trigger background sync for next time
-                console.log('[InboxAI] Core Hub not available, triggering background sync for next request...');
-                syncModulesToCoreHub(partnerId).catch(err =>
-                    console.error('[InboxAI] Background sync error:', err)
-                );
+                console.log(`[InboxAI] Module items context: ${coreHubContext.length} chars`);
             }
         } catch (coreHubError: any) {
-            console.warn('[InboxAI] Core Hub context fetch failed:', coreHubError.message);
-            // Continue without Core Hub - existing business knowledge will still be used
+            console.warn('[InboxAI] Module items fetch failed:', coreHubError.message);
         }
 
         // Fetch agents logic remains the same
