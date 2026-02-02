@@ -426,22 +426,14 @@ export async function getAvailableModulesForPartnerAction(
                 .filter(Boolean)
         )] as string[];
 
-        console.log('[getAvailableModulesForPartner] Partner industries:', partnerIndustryIds);
-        console.log('[getAvailableModulesForPartner] Total modules:', allModules.length);
-
         // Filter modules that match partner's industries
         const matchedModules = allModules.filter(module => {
             const moduleIndustries = module.applicableIndustries || [];
-            const matches = moduleIndustries.some((ind: string) => partnerIndustryIds.includes(ind));
-            console.log(`[getAvailableModulesForPartner] Module ${module.slug}: industries=${moduleIndustries.join(',')}, matches=${matches}`);
-            return matches;
+            return moduleIndustries.some((ind: string) => partnerIndustryIds.includes(ind));
         });
-
-        console.log('[getAvailableModulesForPartner] Matched modules:', matchedModules.length);
 
         // If no specific matches, return all modules as fallback
         if (matchedModules.length === 0) {
-            console.log('[getAvailableModulesForPartner] No matches, returning all modules');
             return {
                 success: true,
                 data: {

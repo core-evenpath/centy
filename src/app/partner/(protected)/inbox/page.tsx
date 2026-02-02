@@ -322,8 +322,6 @@ export default function UnifiedInboxPage() {
         checkConnections();
     }, [currentPartnerId]);
 
-
-
     const isInitialLoad = useRef(true);
     const prevMessagesLength = useRef(0);
 
@@ -399,7 +397,6 @@ export default function UnifiedInboxPage() {
         const currentContext = `${selectedConversation?.id}-${latestMessage.content}`;
         if (lastSuggestionContext.current === currentContext) return;
 
-        console.log('New inbound message detected, triggering AI suggestion');
         processedMessageIds.current.add(messageId);
         lastSuggestionContext.current = currentContext;
 
@@ -531,8 +528,6 @@ export default function UnifiedInboxPage() {
             setSending(false);
         }
     };
-
-
 
     const handleGenerateSuggestion = async (
         incomingMessage?: string,

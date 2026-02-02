@@ -91,12 +91,12 @@ export function useUnifiedConversations(partnerId?: string) {
                 return false;
             });
 
-            const displayName = contact?.name ||
-                conv.customerFirstName
-                    ? `${conv.customerFirstName || ''} ${conv.customerLastName || ''}`.trim()
+            const displayName = contact?.name
+                || (conv.customerFirstName
+                    ? `${conv.customerFirstName} ${conv.customerLastName || ''}`.trim()
                     : conv.customerUsername
                         ? `@${conv.customerUsername}`
-                        : `Telegram: ${conv.chatId}`;
+                        : `Telegram: ${conv.chatId}`);
 
             unified.push({
                 id: conv.id,

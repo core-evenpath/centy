@@ -203,11 +203,7 @@ export function useModuleItems(
         setIsLoading(true);
         setError(null);
 
-
-
         const result = await getModuleItemsAction(partnerId, moduleId, options);
-
-
 
         if (result.success && result.data) {
             setData(result.data);
