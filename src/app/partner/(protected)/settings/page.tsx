@@ -18,9 +18,7 @@ import type {
   BusinessPersona,
   IndustryCategory,
   OperatingHours,
-  ProductService,
   FrequentlyAskedQuestion,
-  ImportHistory
 } from '@/lib/business-persona-types';
 import ProfileDocuments from '@/components/partner/settings/ProfileDocuments';
 import ProfileSummary from '@/components/partner/settings/ProfileSummary';
@@ -1090,15 +1088,6 @@ const SettingsUltimate = () => {
           { key: 'hoursType', label: 'Working Hours', type: 'select', options: ['24/7', 'Business Hours', 'By Appointment', 'Custom'] },
           { key: 'schedule', label: 'Schedule', type: 'schedule' },
           { key: 'responseTime', label: 'Response Time', type: 'select', options: ['Instant', 'Within 1 hour', 'Within 2 hours', 'Same day', 'Next business day'] },
-        ]
-      },
-      offerings: {
-        title: 'Products / Services',
-        icon: '📦',
-        fields: [
-          { key: 'services', label: 'What You Offer', type: 'list' },
-          { key: 'priceRange', label: 'Price Range', type: 'text', placeholder: 'e.g., Starting from ₹500' },
-          { key: 'paymentMethods', label: 'Payment Methods', type: 'tags' },
         ]
       },
       knowledge: {
