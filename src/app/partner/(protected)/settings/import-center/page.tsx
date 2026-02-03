@@ -126,7 +126,7 @@ export default function ImportCenterPage() {
 
   // AI Suggestions state
   const [suggestions, setSuggestions] = useState<AISuggestion[]>([]);
-  const [suggestionFilter, setSuggestionFilter] = useState<'all' | 'core' | 'products' | 'testimonials'>('all');
+  const [suggestionFilter, setSuggestionFilter] = useState<'all' | 'core' | 'testimonials'>('all');
 
   // AI Tags state (Lifted from ApplyTab)
   const [suggestedTags, setSuggestedTags] = useState<SuggestedTag[]>([]);
@@ -820,7 +820,6 @@ export default function ImportCenterPage() {
             ...persona.importHistory,
             lastAppliedAt: new Date(),
             appliedFields: updatedPaths,
-            appliedProducts: 0,
             appliedTestimonials: testimonials.filter(t => t.selected).length,
             appliedSuggestions: suggestions.filter((s) => s.applied).map((s) => s.id),
             appliedTags: selectedTags?.length || 0,
@@ -841,7 +840,6 @@ export default function ImportCenterPage() {
             ...persona.importHistory,
             lastAppliedAt: new Date(),
             appliedFields: updatedPaths,
-            appliedProducts: 0,
             appliedTestimonials: testimonials.filter(t => t.selected).length,
             appliedSuggestions: suggestions.filter((s) => s.applied).map((s) => s.id),
             appliedTags: selectedTags?.length || 0,
@@ -868,7 +866,7 @@ export default function ImportCenterPage() {
   // ========================================
 
   const googleStats: ImportStats = useMemo(() => {
-    if (!googleRawData) return { fields: 0, products: 0, testimonials: 0 };
+    if (!googleRawData) return { fields: 0, testimonials: 0 };
 
     const countFields = (obj: any, prefix = ''): number => {
       if (!obj || typeof obj !== 'object') return obj ? 1 : 0;
@@ -893,11 +891,11 @@ export default function ImportCenterPage() {
     const testimonialCount = (googleRawData.reviews || []).length +
       (googleRawData.testimonials || []).length;
 
-    return { fields: fieldCount || 10, products: 0, testimonials: testimonialCount };
+    return { fields: fieldCount || 10, testimonials: testimonialCount };
   }, [googleRawData]);
 
   const websiteStats: ImportStats = useMemo(() => {
-    if (!websiteRawData) return { fields: 0, products: 0, testimonials: 0 };
+    if (!websiteRawData) return { fields: 0, testimonials: 0 };
 
     const countFields = (obj: any): number => {
       if (!obj || typeof obj !== 'object') return obj ? 1 : 0;
@@ -921,7 +919,7 @@ export default function ImportCenterPage() {
 
     const testimonialCount = (websiteRawData.testimonials || []).length;
 
-    return { fields: fieldCount || 18, products: 0, testimonials: testimonialCount };
+    return { fields: fieldCount || 18, testimonials: testimonialCount };
   }, [websiteRawData]);
 
   const conflictCount = mergeFields.filter((f) => f.hasConflict).length;
@@ -978,7 +976,6 @@ export default function ImportCenterPage() {
         <SuccessScreen
           stats={{
             fields: filledFields,
-            products: 0,
             testimonials: selectedTestimonials.length,
           }}
           onReset={() => setApplied(false)}

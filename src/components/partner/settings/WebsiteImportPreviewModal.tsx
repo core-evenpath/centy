@@ -5,11 +5,11 @@ import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import {
   Check, ChevronDown, ChevronRight, X, Download, Globe, MapPin,
-  Building2, Package, Users, HelpCircle, Utensils, Bed, Home,
-  Stethoscope, CheckSquare, Square, Phone, Mail, Clock, Link,
+  Building2, Package, Users, HelpCircle,
+  CheckSquare, Square, Phone, Mail, Clock, Link,
   MessageSquare, Tag, DollarSign, Star, FileText, ExternalLink,
   Instagram, Facebook, Linkedin, Twitter, Youtube, Award, Briefcase,
-  Heart, Target, BookOpen, Shield, Percent, GraduationCap, Sparkles,
+  Heart, Target, BookOpen, Shield, Percent,
   BadgeCheck, Handshake, Newspaper, Leaf, Accessibility, Truck
 } from 'lucide-react';
 
@@ -115,16 +115,6 @@ interface SelectionState {
       shippingPolicy: boolean;
       warrantyPolicy: boolean;
     };
-  };
-  inventory: {
-    selected: boolean;
-    rooms: boolean[];
-    menuItems: boolean[];
-    products: boolean[];
-    services: boolean[];
-    properties: boolean[];
-    courses: boolean[];
-    treatments: boolean[];
   };
   team: {
     selected: boolean;
@@ -274,24 +264,6 @@ function initializeSelectionState(data: any): SelectionState {
         shippingPolicy: !!data?.knowledge?.policies?.shippingPolicy,
         warrantyPolicy: !!data?.knowledge?.policies?.warrantyPolicy,
       },
-    },
-    inventory: {
-      selected: !!(data?.inventory && (
-        data.inventory.rooms?.length ||
-        data.inventory.menuItems?.length ||
-        data.inventory.products?.length ||
-        data.inventory.services?.length ||
-        data.inventory.properties?.length ||
-        data.inventory.courses?.length ||
-        data.inventory.treatments?.length
-      )),
-      rooms: (data?.inventory?.rooms || []).map(() => true),
-      menuItems: (data?.inventory?.menuItems || []).map(() => true),
-      products: (data?.inventory?.products || []).map(() => true),
-      services: (data?.inventory?.services || []).map(() => true),
-      properties: (data?.inventory?.properties || []).map(() => true),
-      courses: (data?.inventory?.courses || []).map(() => true),
-      treatments: (data?.inventory?.treatments || []).map(() => true),
     },
     team: {
       selected: (data?.team?.length || 0) > 0,
@@ -531,19 +503,6 @@ function buildSelectedData(data: any, selection: SelectionState): any {
     }
   }
 
-  // Inventory
-  if (selection.inventory.selected) {
-    result.inventory = {};
-    const inventoryTypes = ['rooms', 'menuItems', 'products', 'services', 'properties', 'courses', 'treatments'] as const;
-    for (const type of inventoryTypes) {
-      if (data.inventory?.[type]?.length) {
-        result.inventory[type] = data.inventory[type].filter(
-          (_: any, i: number) => selection.inventory[type][i]
-        );
-      }
-    }
-  }
-
   // Team
   if (selection.team.selected && data.team?.length) {
     result.team = data.team.filter(
@@ -668,15 +627,6 @@ function countSelectedItems(selection: SelectionState): { selected: number; tota
 
   // Policies
   countFields(selection.policies.fields, selection.policies.selected);
-
-  // Inventory
-  [...selection.inventory.rooms, ...selection.inventory.menuItems,
-   ...selection.inventory.products, ...selection.inventory.services,
-   ...selection.inventory.properties, ...selection.inventory.courses,
-   ...selection.inventory.treatments].forEach(v => {
-    total++;
-    if (v && selection.inventory.selected) selected++;
-  });
 
   // Team
   countItems(selection.team.items, selection.team.selected);
@@ -827,7 +777,6 @@ export default function WebsiteImportPreviewModal({
     currentOffers: false,
     faqs: false,
     policies: false,
-    inventory: true,
     team: false,
     testimonials: false,
     caseStudies: false,
@@ -890,15 +839,6 @@ export default function WebsiteImportPreviewModal({
   const hasCurrentOffers = data.knowledge?.currentOffers?.length > 0;
   const hasFaqs = data.knowledge?.faqs?.length > 0;
   const hasPolicies = data.knowledge?.policies && Object.values(data.knowledge.policies).some(v => v);
-  const hasInventory = data.inventory && (
-    data.inventory.rooms?.length ||
-    data.inventory.menuItems?.length ||
-    data.inventory.products?.length ||
-    data.inventory.services?.length ||
-    data.inventory.properties?.length ||
-    data.inventory.courses?.length ||
-    data.inventory.treatments?.length
-  );
   const hasTeam = data.team?.length > 0;
   const hasTestimonials = data.testimonials?.length > 0;
   const hasCaseStudies = data.caseStudies?.length > 0;
@@ -1760,218 +1700,6 @@ export default function WebsiteImportPreviewModal({
             </SectionHeader>
           )}
 
-          {/* Inventory */}
-          {hasInventory && (
-            <SectionHeader
-              title="Inventory"
-              icon={data.inventory?.menuItems?.length ? Utensils :
-                    data.inventory?.rooms?.length ? Bed :
-                    data.inventory?.courses?.length ? GraduationCap :
-                    data.inventory?.services?.length ? Stethoscope :
-                    data.inventory?.treatments?.length ? Sparkles :
-                    data.inventory?.properties?.length ? Home : Package}
-              selected={selection.inventory.selected}
-              onToggle={() => toggleSection('inventory')}
-              expanded={expandedSections.inventory}
-              onExpandToggle={() => toggleExpanded('inventory')}
-              count={(data.inventory?.rooms?.length || 0) + (data.inventory?.menuItems?.length || 0) +
-                     (data.inventory?.products?.length || 0) + (data.inventory?.services?.length || 0) +
-                     (data.inventory?.properties?.length || 0) + (data.inventory?.courses?.length || 0) +
-                     (data.inventory?.treatments?.length || 0)}
-            >
-              <div className="space-y-4 max-h-80 overflow-y-auto">
-                {/* Rooms */}
-                {data.inventory?.rooms?.length > 0 && (
-                  <div>
-                    <div className="text-sm font-medium text-slate-600 mb-2 flex items-center gap-2">
-                      <Bed className="w-4 h-4" /> Rooms ({data.inventory.rooms.length})
-                    </div>
-                    <div className="space-y-2">
-                      {data.inventory.rooms.map((room: any, i: number) => (
-                        <SelectableItem
-                          key={i}
-                          selected={selection.inventory.rooms[i] && selection.inventory.selected}
-                          onToggle={() => setSelection(prev => ({
-                            ...prev,
-                            inventory: {
-                              ...prev.inventory,
-                              rooms: prev.inventory.rooms.map((v, idx) => idx === i ? !v : v)
-                            }
-                          }))}
-                          label={room.name}
-                          value={room.price ? `${room.price} ${room.priceUnit || 'per night'}` : undefined}
-                          sublabel={room.description?.substring(0, 80)}
-                        />
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* Menu Items */}
-                {data.inventory?.menuItems?.length > 0 && (
-                  <div>
-                    <div className="text-sm font-medium text-slate-600 mb-2 flex items-center gap-2">
-                      <Utensils className="w-4 h-4" /> Menu Items ({data.inventory.menuItems.length})
-                    </div>
-                    <div className="space-y-2">
-                      {data.inventory.menuItems.map((item: any, i: number) => (
-                        <SelectableItem
-                          key={i}
-                          selected={selection.inventory.menuItems[i] && selection.inventory.selected}
-                          onToggle={() => setSelection(prev => ({
-                            ...prev,
-                            inventory: {
-                              ...prev.inventory,
-                              menuItems: prev.inventory.menuItems.map((v, idx) => idx === i ? !v : v)
-                            }
-                          }))}
-                          label={item.name}
-                          value={item.price ? `${item.price}` : undefined}
-                          sublabel={`${item.category || 'Menu Item'}${item.isVeg ? ' • Vegetarian' : ''}`}
-                        />
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* Products */}
-                {data.inventory?.products?.length > 0 && (
-                  <div>
-                    <div className="text-sm font-medium text-slate-600 mb-2 flex items-center gap-2">
-                      <Package className="w-4 h-4" /> Products ({data.inventory.products.length})
-                    </div>
-                    <div className="space-y-2">
-                      {data.inventory.products.map((product: any, i: number) => (
-                        <SelectableItem
-                          key={i}
-                          selected={selection.inventory.products[i] && selection.inventory.selected}
-                          onToggle={() => setSelection(prev => ({
-                            ...prev,
-                            inventory: {
-                              ...prev.inventory,
-                              products: prev.inventory.products.map((v, idx) => idx === i ? !v : v)
-                            }
-                          }))}
-                          label={product.name}
-                          value={product.price ? `${product.price}` : undefined}
-                          sublabel={product.category}
-                        />
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* Services */}
-                {data.inventory?.services?.length > 0 && (
-                  <div>
-                    <div className="text-sm font-medium text-slate-600 mb-2 flex items-center gap-2">
-                      <Stethoscope className="w-4 h-4" /> Services ({data.inventory.services.length})
-                    </div>
-                    <div className="space-y-2">
-                      {data.inventory.services.map((service: any, i: number) => (
-                        <SelectableItem
-                          key={i}
-                          selected={selection.inventory.services[i] && selection.inventory.selected}
-                          onToggle={() => setSelection(prev => ({
-                            ...prev,
-                            inventory: {
-                              ...prev.inventory,
-                              services: prev.inventory.services.map((v, idx) => idx === i ? !v : v)
-                            }
-                          }))}
-                          label={service.name}
-                          value={service.price ? `${service.price}${service.duration ? ` • ${service.duration}` : ''}` : service.duration}
-                          sublabel={service.category}
-                        />
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* Properties */}
-                {data.inventory?.properties?.length > 0 && (
-                  <div>
-                    <div className="text-sm font-medium text-slate-600 mb-2 flex items-center gap-2">
-                      <Home className="w-4 h-4" /> Properties ({data.inventory.properties.length})
-                    </div>
-                    <div className="space-y-2">
-                      {data.inventory.properties.map((property: any, i: number) => (
-                        <SelectableItem
-                          key={i}
-                          selected={selection.inventory.properties[i] && selection.inventory.selected}
-                          onToggle={() => setSelection(prev => ({
-                            ...prev,
-                            inventory: {
-                              ...prev.inventory,
-                              properties: prev.inventory.properties.map((v, idx) => idx === i ? !v : v)
-                            }
-                          }))}
-                          label={property.title || property.name}
-                          value={property.price ? `${property.price} ${property.priceUnit || ''}` : undefined}
-                          sublabel={`${property.type || ''}${property.location ? ` • ${property.location}` : ''}`}
-                        />
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* Courses */}
-                {data.inventory?.courses?.length > 0 && (
-                  <div>
-                    <div className="text-sm font-medium text-slate-600 mb-2 flex items-center gap-2">
-                      <GraduationCap className="w-4 h-4" /> Courses ({data.inventory.courses.length})
-                    </div>
-                    <div className="space-y-2">
-                      {data.inventory.courses.map((course: any, i: number) => (
-                        <SelectableItem
-                          key={i}
-                          selected={selection.inventory.courses[i] && selection.inventory.selected}
-                          onToggle={() => setSelection(prev => ({
-                            ...prev,
-                            inventory: {
-                              ...prev.inventory,
-                              courses: prev.inventory.courses.map((v, idx) => idx === i ? !v : v)
-                            }
-                          }))}
-                          label={course.name}
-                          value={course.price ? `${course.price}${course.duration ? ` • ${course.duration}` : ''}` : course.duration}
-                          sublabel={`${course.mode || ''}${course.instructor ? ` • ${course.instructor}` : ''}`}
-                        />
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* Treatments */}
-                {data.inventory?.treatments?.length > 0 && (
-                  <div>
-                    <div className="text-sm font-medium text-slate-600 mb-2 flex items-center gap-2">
-                      <Sparkles className="w-4 h-4" /> Treatments ({data.inventory.treatments.length})
-                    </div>
-                    <div className="space-y-2">
-                      {data.inventory.treatments.map((treatment: any, i: number) => (
-                        <SelectableItem
-                          key={i}
-                          selected={selection.inventory.treatments[i] && selection.inventory.selected}
-                          onToggle={() => setSelection(prev => ({
-                            ...prev,
-                            inventory: {
-                              ...prev.inventory,
-                              treatments: prev.inventory.treatments.map((v, idx) => idx === i ? !v : v)
-                            }
-                          }))}
-                          label={treatment.name}
-                          value={treatment.price ? `${treatment.price}${treatment.duration ? ` • ${treatment.duration}` : ''}` : treatment.duration}
-                          sublabel={treatment.category}
-                        />
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-            </SectionHeader>
-          )}
-
           {/* Team */}
           {hasTeam && (
             <SectionHeader
@@ -2222,7 +1950,7 @@ export default function WebsiteImportPreviewModal({
           {/* No Data Message */}
           {!hasBusinessInfo && !hasBrandStory && !hasContact && !hasLocations && !hasServiceAreas &&
            !hasSocial && !hasContent && !hasPackages && !hasPricingTiers &&
-           !hasCurrentOffers && !hasFaqs && !hasPolicies && !hasInventory && !hasTeam &&
+           !hasCurrentOffers && !hasFaqs && !hasPolicies && !hasTeam &&
            !hasTestimonials && !hasCaseStudies && !hasCredibility && !hasAdditional && (
             <div className="text-center py-12">
               <Globe className="w-12 h-12 text-slate-300 mx-auto mb-4" />

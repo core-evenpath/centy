@@ -2414,7 +2414,7 @@ export const OTHER_EXPERTISE: IndustryExpertiseConfig = {
             icon: '📋',
             fields: [
                 { key: 'businessNature', label: 'Nature of Business', type: 'textarea', placeholder: 'Describe what your business does...', schemaPath: 'industrySpecificData.businessNature', gridSpan: 2 },
-                { key: 'productsServices', label: 'Products/Services', type: 'tags', placeholder: 'Add your main offerings...', schemaPath: 'industrySpecificData.productsServices', gridSpan: 2 },
+                { key: 'productsServices', label: 'Offerings', type: 'tags', placeholder: 'Add your main offerings...', schemaPath: 'industrySpecificData.productsServices', gridSpan: 2 },
                 { key: 'targetMarket', label: 'Target Market', type: 'tags', placeholder: 'Who are your customers?', schemaPath: 'industrySpecificData.targetMarket', gridSpan: 2 },
             ],
         },

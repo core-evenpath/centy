@@ -317,7 +317,6 @@ export function ApplyTab({
       tagline: getFieldValue('personality.tagline') as string,
       missionStatement: getFieldValue('personality.missionStatement') as string,
       services: getFieldValue('knowledge.services') as string[],
-      products: [],
       targetAudience: getFieldValue('customerProfile.targetAudience') as string[],
       uniqueSellingPoints: getFieldValue('personality.uniqueSellingPoints') as string[],
       specializations: getFieldValue('industrySpecificData.specializations') as string[],

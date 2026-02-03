@@ -3,7 +3,7 @@
 import React, { useState, useMemo } from 'react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
-import { Check, ChevronDown, ChevronRight, X, Download, Globe, MapPin, Star, Building2, Package, Users, HelpCircle, Utensils, Bed, Home, Stethoscope, CheckSquare, Square, MinusSquare } from 'lucide-react';
+import { Check, ChevronDown, ChevronRight, X, Download, Globe, MapPin, Star, Building2, Users, HelpCircle, CheckSquare, Square, MinusSquare } from 'lucide-react';
 
 // Types for selection tracking
 interface SelectionState {
@@ -58,14 +58,6 @@ interface SelectionState {
   industrySpecificData: {
     selected: boolean;
     fields: Record<string, boolean>;
-  };
-  inventory: {
-    selected: boolean;
-    rooms: boolean[];
-    menuItems: boolean[];
-    products: boolean[];
-    services: boolean[];
-    properties: boolean[];
   };
   fromTheWeb: {
     selected: boolean;
@@ -141,20 +133,6 @@ function initializeSelectionState(data: any): SelectionState {
         acc[key] = true;
         return acc;
       }, {} as Record<string, boolean>),
-    },
-    inventory: {
-      selected: !!(data?.inventory && (
-        data.inventory.rooms?.length ||
-        data.inventory.menuItems?.length ||
-        data.inventory.products?.length ||
-        data.inventory.services?.length ||
-        data.inventory.properties?.length
-      )),
-      rooms: (data?.inventory?.rooms || []).map(() => true),
-      menuItems: (data?.inventory?.menuItems || []).map(() => true),
-      products: (data?.inventory?.products || []).map(() => true),
-      services: (data?.inventory?.services || []).map(() => true),
-      properties: (data?.inventory?.properties || []).map(() => true),
     },
     fromTheWeb: {
       selected: !!data?.fromTheWeb && Object.keys(data.fromTheWeb).length > 0,
@@ -257,26 +235,6 @@ function buildSelectedData(data: any, selection: SelectionState): any {
         result.industrySpecificData[key] = data.industrySpecificData[key];
       }
     });
-  }
-
-  // Inventory
-  if (selection.inventory.selected && data.inventory) {
-    result.inventory = {};
-    if (data.inventory.rooms?.length > 0) {
-      result.inventory.rooms = data.inventory.rooms.filter((_: any, i: number) => selection.inventory.rooms[i]);
-    }
-    if (data.inventory.menuItems?.length > 0) {
-      result.inventory.menuItems = data.inventory.menuItems.filter((_: any, i: number) => selection.inventory.menuItems[i]);
-    }
-    if (data.inventory.products?.length > 0) {
-      result.inventory.products = data.inventory.products.filter((_: any, i: number) => selection.inventory.products[i]);
-    }
-    if (data.inventory.services?.length > 0) {
-      result.inventory.services = data.inventory.services.filter((_: any, i: number) => selection.inventory.services[i]);
-    }
-    if (data.inventory.properties?.length > 0) {
-      result.inventory.properties = data.inventory.properties.filter((_: any, i: number) => selection.inventory.properties[i]);
-    }
   }
 
   // From the Web
@@ -451,7 +409,7 @@ export default function AutoFillPreviewModal({
   isApplying = false,
 }: AutoFillPreviewModalProps) {
   const [selection, setSelection] = useState<SelectionState>(() => initializeSelectionState(data));
-  const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set(['identity', 'inventory']));
+  const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set(['identity']));
 
   // Calculate selection counts
   const selectionCounts = useMemo(() => {
@@ -471,17 +429,6 @@ export default function AutoFillPreviewModal({
     // Reviews
     total += selection.reviews.items.length;
     if (selection.reviews.selected) selected += selection.reviews.items.filter(Boolean).length;
-
-    // Inventory items
-    const invItems = [
-      ...selection.inventory.rooms,
-      ...selection.inventory.menuItems,
-      ...selection.inventory.products,
-      ...selection.inventory.services,
-      ...selection.inventory.properties,
-    ];
-    total += invItems.length;
-    if (selection.inventory.selected) selected += invItems.filter(Boolean).length;
 
     // FAQs
     total += selection.knowledge.items.faqs.length;
@@ -570,14 +517,6 @@ export default function AutoFillPreviewModal({
         return !!data?.industrySpecificData && Object.keys(data.industrySpecificData).filter(k =>
           !['googleRating', 'googleReviewCount', 'priceLevel'].includes(k)
         ).length > 0;
-      case 'inventory':
-        return !!(data?.inventory && (
-          data.inventory.rooms?.length ||
-          data.inventory.menuItems?.length ||
-          data.inventory.products?.length ||
-          data.inventory.services?.length ||
-          data.inventory.properties?.length
-        ));
       case 'fromTheWeb':
         return !!data?.fromTheWeb && Object.keys(data.fromTheWeb).length > 0;
       default:
@@ -1027,262 +966,6 @@ export default function AutoFillPreviewModal({
                       >
                         <div className="text-xs font-medium text-slate-800">Q: {faq.question}</div>
                         <div className="text-xs text-slate-600 line-clamp-2">A: {faq.answer}</div>
-                      </SelectableItem>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </SectionHeader>
-          )}
-
-          {/* Inventory Section */}
-          {hasData('inventory') && (
-            <SectionHeader
-              icon={Package}
-              title="Inventory Data"
-              count={
-                (data.inventory?.rooms?.length || 0) +
-                (data.inventory?.menuItems?.length || 0) +
-                (data.inventory?.products?.length || 0) +
-                (data.inventory?.services?.length || 0) +
-                (data.inventory?.properties?.length || 0)
-              }
-              selected={selection.inventory.selected}
-              onToggle={() => toggleSection('inventory')}
-              expanded={expandedSections.has('inventory')}
-              onExpandToggle={() => toggleExpanded('inventory')}
-              badge="Ready for Import"
-            >
-              {/* Rooms */}
-              {data.inventory?.rooms?.length > 0 && (
-                <div className="mt-3">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-xs font-medium text-slate-600 flex items-center gap-1">
-                      <Bed className="w-3 h-3" /> Rooms ({data.inventory.rooms.length})
-                    </span>
-                    <SelectAllControls
-                      items={selection.inventory.rooms}
-                      onSelectAll={() => setSelection(prev => ({
-                        ...prev,
-                        inventory: { ...prev.inventory, rooms: prev.inventory.rooms.map(() => true) }
-                      }))}
-                      onDeselectAll={() => setSelection(prev => ({
-                        ...prev,
-                        inventory: { ...prev.inventory, rooms: prev.inventory.rooms.map(() => false) }
-                      }))}
-                    />
-                  </div>
-                  <div className="space-y-2 max-h-40 overflow-y-auto">
-                    {data.inventory.rooms.map((room: any, i: number) => (
-                      <SelectableItem
-                        key={i}
-                        selected={selection.inventory.rooms[i] && selection.inventory.selected}
-                        onToggle={() => setSelection(prev => {
-                          const rooms = [...prev.inventory.rooms];
-                          rooms[i] = !rooms[i];
-                          return { ...prev, inventory: { ...prev.inventory, rooms } };
-                        })}
-                      >
-                        <div className="flex justify-between items-start">
-                          <div>
-                            <span className="font-medium text-sm text-slate-800">{room.name}</span>
-                            {room.category && <span className="ml-2 text-xs text-slate-500">({room.category})</span>}
-                          </div>
-                          {room.price && (
-                            <span className="font-semibold text-sm text-orange-600">
-                              ₹{room.price?.toLocaleString()}{room.priceUnit ? `/${room.priceUnit}` : '/night'}
-                            </span>
-                          )}
-                        </div>
-                        <div className="text-xs text-slate-500 mt-0.5">
-                          {[room.bedType, room.maxOccupancy && `${room.maxOccupancy} guests`, room.size].filter(Boolean).join(' • ')}
-                        </div>
-                      </SelectableItem>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Menu Items */}
-              {data.inventory?.menuItems?.length > 0 && (
-                <div className="mt-4">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-xs font-medium text-slate-600 flex items-center gap-1">
-                      <Utensils className="w-3 h-3" /> Menu Items ({data.inventory.menuItems.length})
-                    </span>
-                    <SelectAllControls
-                      items={selection.inventory.menuItems}
-                      onSelectAll={() => setSelection(prev => ({
-                        ...prev,
-                        inventory: { ...prev.inventory, menuItems: prev.inventory.menuItems.map(() => true) }
-                      }))}
-                      onDeselectAll={() => setSelection(prev => ({
-                        ...prev,
-                        inventory: { ...prev.inventory, menuItems: prev.inventory.menuItems.map(() => false) }
-                      }))}
-                    />
-                  </div>
-                  <div className="grid grid-cols-2 gap-2 max-h-40 overflow-y-auto">
-                    {data.inventory.menuItems.map((item: any, i: number) => (
-                      <SelectableItem
-                        key={i}
-                        selected={selection.inventory.menuItems[i] && selection.inventory.selected}
-                        onToggle={() => setSelection(prev => {
-                          const menuItems = [...prev.inventory.menuItems];
-                          menuItems[i] = !menuItems[i];
-                          return { ...prev, inventory: { ...prev.inventory, menuItems } };
-                        })}
-                      >
-                        <div className="flex justify-between items-start">
-                          <div className="flex items-center gap-1">
-                            {item.isVeg !== undefined && (
-                              <span className={item.isVeg ? 'text-green-600' : 'text-red-600'}>
-                                {item.isVeg ? '🟢' : '🔴'}
-                              </span>
-                            )}
-                            <span className="font-medium text-xs text-slate-800">{item.name}</span>
-                          </div>
-                          {item.price && <span className="font-semibold text-xs text-orange-600">₹{item.price}</span>}
-                        </div>
-                        {item.category && <div className="text-[10px] text-slate-500">{item.category}</div>}
-                      </SelectableItem>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Products */}
-              {data.inventory?.products?.length > 0 && (
-                <div className="mt-4">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-xs font-medium text-slate-600 flex items-center gap-1">
-                      <Package className="w-3 h-3" /> Products ({data.inventory.products.length})
-                    </span>
-                    <SelectAllControls
-                      items={selection.inventory.products}
-                      onSelectAll={() => setSelection(prev => ({
-                        ...prev,
-                        inventory: { ...prev.inventory, products: prev.inventory.products.map(() => true) }
-                      }))}
-                      onDeselectAll={() => setSelection(prev => ({
-                        ...prev,
-                        inventory: { ...prev.inventory, products: prev.inventory.products.map(() => false) }
-                      }))}
-                    />
-                  </div>
-                  <div className="grid grid-cols-2 gap-2 max-h-40 overflow-y-auto">
-                    {data.inventory.products.map((product: any, i: number) => (
-                      <SelectableItem
-                        key={i}
-                        selected={selection.inventory.products[i] && selection.inventory.selected}
-                        onToggle={() => setSelection(prev => {
-                          const products = [...prev.inventory.products];
-                          products[i] = !products[i];
-                          return { ...prev, inventory: { ...prev.inventory, products } };
-                        })}
-                      >
-                        <div className="font-medium text-xs text-slate-800">{product.name}</div>
-                        <div className="flex items-center gap-2 mt-0.5">
-                          {product.price && <span className="font-semibold text-xs text-orange-600">₹{product.price}</span>}
-                          {product.mrp && product.mrp > product.price && (
-                            <span className="text-[10px] text-slate-400 line-through">₹{product.mrp}</span>
-                          )}
-                        </div>
-                        {product.brand && <div className="text-[10px] text-slate-500">{product.brand}</div>}
-                      </SelectableItem>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Services (Healthcare) */}
-              {data.inventory?.services?.length > 0 && (
-                <div className="mt-4">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-xs font-medium text-slate-600 flex items-center gap-1">
-                      <Stethoscope className="w-3 h-3" /> Services ({data.inventory.services.length})
-                    </span>
-                    <SelectAllControls
-                      items={selection.inventory.services}
-                      onSelectAll={() => setSelection(prev => ({
-                        ...prev,
-                        inventory: { ...prev.inventory, services: prev.inventory.services.map(() => true) }
-                      }))}
-                      onDeselectAll={() => setSelection(prev => ({
-                        ...prev,
-                        inventory: { ...prev.inventory, services: prev.inventory.services.map(() => false) }
-                      }))}
-                    />
-                  </div>
-                  <div className="space-y-2 max-h-40 overflow-y-auto">
-                    {data.inventory.services.map((service: any, i: number) => (
-                      <SelectableItem
-                        key={i}
-                        selected={selection.inventory.services[i] && selection.inventory.selected}
-                        onToggle={() => setSelection(prev => {
-                          const services = [...prev.inventory.services];
-                          services[i] = !services[i];
-                          return { ...prev, inventory: { ...prev.inventory, services } };
-                        })}
-                      >
-                        <div className="flex justify-between items-start">
-                          <div>
-                            <span className="font-medium text-xs text-slate-800">{service.name}</span>
-                            {service.category && <span className="ml-2 text-[10px] text-slate-500">({service.category})</span>}
-                          </div>
-                          {service.price && <span className="font-semibold text-xs text-orange-600">₹{service.price}</span>}
-                        </div>
-                        {service.doctor && <div className="text-[10px] text-slate-500">{service.doctor}</div>}
-                      </SelectableItem>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Properties (Real Estate) */}
-              {data.inventory?.properties?.length > 0 && (
-                <div className="mt-4">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-xs font-medium text-slate-600 flex items-center gap-1">
-                      <Home className="w-3 h-3" /> Properties ({data.inventory.properties.length})
-                    </span>
-                    <SelectAllControls
-                      items={selection.inventory.properties}
-                      onSelectAll={() => setSelection(prev => ({
-                        ...prev,
-                        inventory: { ...prev.inventory, properties: prev.inventory.properties.map(() => true) }
-                      }))}
-                      onDeselectAll={() => setSelection(prev => ({
-                        ...prev,
-                        inventory: { ...prev.inventory, properties: prev.inventory.properties.map(() => false) }
-                      }))}
-                    />
-                  </div>
-                  <div className="space-y-2 max-h-40 overflow-y-auto">
-                    {data.inventory.properties.map((property: any, i: number) => (
-                      <SelectableItem
-                        key={i}
-                        selected={selection.inventory.properties[i] && selection.inventory.selected}
-                        onToggle={() => setSelection(prev => {
-                          const properties = [...prev.inventory.properties];
-                          properties[i] = !properties[i];
-                          return { ...prev, inventory: { ...prev.inventory, properties } };
-                        })}
-                      >
-                        <div className="flex justify-between items-start">
-                          <div>
-                            <span className="font-medium text-xs text-slate-800">{property.title}</span>
-                            {property.type && <span className="ml-2 text-[10px] text-slate-500">({property.type})</span>}
-                          </div>
-                          {property.price && (
-                            <span className="font-semibold text-xs text-orange-600">
-                              ₹{property.price?.toLocaleString()}{property.priceUnit === 'per month' ? '/mo' : ''}
-                            </span>
-                          )}
-                        </div>
-                        <div className="text-[10px] text-slate-500 mt-0.5">
-                          {[property.bedrooms && `${property.bedrooms} BHK`, property.area, property.location].filter(Boolean).join(' • ')}
-                        </div>
                       </SelectableItem>
                     ))}
                   </div>

@@ -99,13 +99,6 @@ function countImportedFields(persona: any, source?: 'google' | 'website'): numbe
   if (persona.awards?.length) count++;
   if (persona.certifications?.length) count++;
 
-  // Count inventory
-  const inventory = persona.inventory || {};
-  if (inventory.rooms?.length) count += inventory.rooms.length;
-  if (inventory.menuItems?.length) count += inventory.menuItems.length;
-  if (inventory.products?.length) count += inventory.products.length;
-  if (inventory.services?.length) count += inventory.services.length;
-
   return count;
 }
 

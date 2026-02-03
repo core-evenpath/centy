@@ -6,7 +6,6 @@ import { CheckCircle2 } from 'lucide-react';
 interface SuccessScreenProps {
   stats: {
     fields: number;
-    products: number;
     testimonials: number;
   };
   onReset: () => void;
@@ -31,14 +30,10 @@ export function SuccessScreen({ stats, onReset }: SuccessScreenProps) {
         </p>
 
         {/* Stats */}
-        <div className="grid grid-cols-3 gap-4 mb-8">
+        <div className="grid grid-cols-2 gap-4 mb-8">
           <div className="p-4 bg-slate-50 rounded-xl">
             <p className="text-2xl font-bold text-indigo-600">{stats.fields}</p>
             <p className="text-xs text-slate-500">Fields</p>
-          </div>
-          <div className="p-4 bg-slate-50 rounded-xl">
-            <p className="text-2xl font-bold text-emerald-600">{stats.products}</p>
-            <p className="text-xs text-slate-500">Products</p>
           </div>
           <div className="p-4 bg-slate-50 rounded-xl">
             <p className="text-2xl font-bold text-purple-600">{stats.testimonials}</p>

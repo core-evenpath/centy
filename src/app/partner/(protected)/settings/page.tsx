@@ -434,7 +434,7 @@ const SettingsUltimate = () => {
       'bookingLink': 'identity.website',
       'supportHours': 'identity.operatingHours.specialNote',
 
-      // ============ SERVICES / PRODUCTS ============
+      // ============ PRICING & FEES ============
       'consultationFee': 'knowledge.pricingHighlights',
       'paymentMethods': 'knowledge.acceptedPayments',
       'pricingNote': 'knowledge.pricingHighlights',
@@ -550,11 +550,6 @@ const SettingsUltimate = () => {
       'eventsCapacity': 'industrySpecificData.eventsCapacity',
       'eventServices': 'industrySpecificData.eventServices',
 
-      // ============ INVENTORY FIELDS (STRUCTURED) ============
-      'propertyListings': 'propertyListings',
-      'productCatalog': 'productCatalog',
-      'menuItems': 'menuItems',
-      'roomTypes': 'roomTypes',
     };
 
     return mappings[fieldKey] || `industrySpecificData.${fieldKey}`;
@@ -678,15 +673,6 @@ const SettingsUltimate = () => {
           { key: 'deliveryTime', label: 'Delivery Time', type: 'text', placeholder: 'e.g., 3-5 business days' },
           { key: 'shippingCost', label: 'Shipping Cost', type: 'text' },
           { key: 'freeShippingMin', label: 'Free Shipping Above', type: 'text', placeholder: 'e.g., ₹499' },
-        ]
-      },
-      products: {
-        title: 'Products & Catalog',
-        icon: '📦',
-        fields: [
-          { key: 'categories', label: 'Product Categories', type: 'tags', required: true },
-          { key: 'priceRange', label: 'Price Range', type: 'text' },
-          { key: 'bestsellers', label: 'Bestsellers', type: 'tags' },
         ]
       },
       payments: {
@@ -965,11 +951,10 @@ const SettingsUltimate = () => {
         ]
       },
       services: {
-        title: 'Services & Products',
+        title: 'Services & Fees',
         icon: '📊',
         fields: [
           { key: 'services', label: 'Services', type: 'tags' },
-          { key: 'products', label: 'Products Offered', type: 'tags' },
           { key: 'minInvestment', label: 'Minimum Investment', type: 'text' },
           { key: 'feeStructure', label: 'Fee Structure', type: 'textarea' },
         ]

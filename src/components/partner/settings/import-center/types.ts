@@ -13,7 +13,7 @@ import type {
 export type { FieldDefinition, ImportSource, FieldCategory, ImportMetadata };
 
 // Tab types
-export type ImportCenterTab = 'import' | 'merge' | 'products' | 'testimonials' | 'ai' | 'final';
+export type ImportCenterTab = 'import' | 'merge' | 'testimonials' | 'ai' | 'final';
 
 // Legacy field source type (for backward compatibility during transition)
 export type FieldSource = ImportSource | 'custom' | 'none';
@@ -26,19 +26,6 @@ export interface MergeField {
   finalValue: any;
   customValue?: any;
   hasConflict: boolean;
-}
-
-// Product from imported data
-export interface ImportedProduct {
-  id: string;
-  name: string;
-  description: string;
-  category?: string;
-  pricing?: string;
-  features?: string[];
-  popular?: boolean;
-  selected: boolean;
-  source: FieldSource;
 }
 
 // Enriched testimonial
@@ -67,14 +54,13 @@ export interface AISuggestion {
   current?: string;
   suggested: string;
   reason: string;
-  category: 'core' | 'products' | 'testimonials';
+  category: 'core' | 'testimonials';
   applied: boolean;
 }
 
 // Import stats
 export interface ImportStats {
   fields: number;
-  products: number;
   testimonials: number;
 }
 
@@ -126,14 +112,13 @@ export interface ImportCenterState {
 
   // Data
   mergeFields: MergeField[];
-  products: ImportedProduct[];
   testimonials: EnrichedTestimonial[];
   suggestions: AISuggestion[];
 
   // UI state
   editingField: string | null;
   editValue: string;
-  suggestionFilter: 'all' | 'core' | 'products' | 'testimonials';
+  suggestionFilter: 'all' | 'core' | 'testimonials';
   expandedSections: Record<string, boolean>;
 
   // Apply state
