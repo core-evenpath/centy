@@ -559,6 +559,8 @@ export interface Contact {
   lifetimeValue?: string;
   company?: string;
   category?: string;
+  avatarUrl?: string;
+  customFields?: Record<string, any>;
   persona?: ContactPersona;
   personaGenerationStatus?: 'idle' | 'pending' | 'generating' | 'completed' | 'failed' | 'outdated';
   totalMessageCount?: number;

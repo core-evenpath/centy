@@ -158,9 +158,9 @@ export function UnifiedConversationSidebar({
                     <div className="flex items-center justify-center p-8">
                         <div className="flex flex-col items-center gap-4">
                             <div className="flex gap-1.5">
-                                <div className="w-2 h-2 rounded-full bg-[#000] animate-bounce" style={{ animationDelay: '0ms' }} />
-                                <div className="w-2 h-2 rounded-full bg-[#000] animate-bounce" style={{ animationDelay: '150ms' }} />
-                                <div className="w-2 h-2 rounded-full bg-[#000] animate-bounce" style={{ animationDelay: '300ms' }} />
+                                <div className="w-2 h-2 rounded-full bg-[#000]" style={{ animationName: 'bounce', animationDuration: '1s', animationIterationCount: 'infinite', animationDelay: '0ms' }} />
+                                <div className="w-2 h-2 rounded-full bg-[#000]" style={{ animationName: 'bounce', animationDuration: '1s', animationIterationCount: 'infinite', animationDelay: '150ms' }} />
+                                <div className="w-2 h-2 rounded-full bg-[#000]" style={{ animationName: 'bounce', animationDuration: '1s', animationIterationCount: 'infinite', animationDelay: '300ms' }} />
                             </div>
                             <p className="text-[13px] text-[#999]">Loading conversations...</p>
                         </div>
@@ -187,9 +187,12 @@ export function UnifiedConversationSidebar({
                                     key={conv.id}
                                     onClick={() => onSelect(conv)}
                                     style={{
+                                        animationName: 'fadeSlideIn',
+                                        animationDuration: '0.4s',
+                                        animationTimingFunction: 'cubic-bezier(0.16, 1, 0.3, 1)',
+                                        animationFillMode: 'forwards',
                                         animationDelay: `${index * 50}ms`,
                                         opacity: 0,
-                                        animation: `fadeSlideIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards`
                                     }}
                                     className={cn(
                                         "flex gap-3 py-3.5 px-5 cursor-pointer border-l-[3px] transition-all duration-200",
@@ -209,7 +212,12 @@ export function UnifiedConversationSidebar({
                                         {conv.unreadCount > 0 && (
                                             <span
                                                 className="absolute -top-1 -right-1 w-3.5 h-3.5 bg-[#ef4444] rounded-full border-2 border-white"
-                                                style={{ animation: 'scaleIn 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)' }}
+                                                style={{
+                                                    animationName: 'scaleIn',
+                                                    animationDuration: '0.3s',
+                                                    animationTimingFunction: 'cubic-bezier(0.34, 1.56, 0.64, 1)',
+                                                    animationFillMode: 'forwards'
+                                                }}
                                             />
                                         )}
                                     </div>
