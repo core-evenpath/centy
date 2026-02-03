@@ -37,7 +37,7 @@ export function PublishedStatusBanner({ partnerId, persona, className }: Publish
     const hasBasicData = !!(
         persona?.identity?.name ||
         persona?.personality?.tagline ||
-        persona?.knowledge?.productsOrServices?.length
+        persona?.knowledge?.faqs?.length
     );
 
     const profileScore = (() => {
@@ -45,10 +45,9 @@ export function PublishedStatusBanner({ partnerId, persona, className }: Publish
         if (persona?.identity?.name) score += 15;
         if (persona?.identity?.phone || persona?.identity?.email) score += 10;
         if (persona?.identity?.address?.city) score += 10;
-        if (persona?.personality?.tagline) score += 10;
-        if (persona?.personality?.description) score += 15;
-        if (persona?.knowledge?.productsOrServices?.length) score += 20;
-        if (persona?.knowledge?.faqs?.length) score += 10;
+        if (persona?.personality?.tagline) score += 15;
+        if (persona?.personality?.description) score += 20;
+        if (persona?.knowledge?.faqs?.length) score += 20;
         if (persona?.customerProfile?.targetAudience) score += 10;
         return Math.min(score, 100);
     })();

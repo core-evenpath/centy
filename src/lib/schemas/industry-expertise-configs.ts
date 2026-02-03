@@ -14,25 +14,6 @@ export const RETAIL_EXPERTISE: IndustryExpertiseConfig = {
     industryName: 'Retail',
     subSections: [
         {
-            id: 'product-catalog',
-            title: 'Product Catalog',
-            icon: '🛍️',
-            description: 'Manage your inventory and products',
-            fields: [
-                {
-                    key: 'productCatalog',
-                    label: 'Products',
-                    type: 'inventory',
-                    schemaPath: 'productCatalog',
-                    inventoryConfig: {
-                        itemLabel: 'Product',
-                        itemLabelPlural: 'Products',
-                        priceLabel: 'Price',
-                    },
-                },
-            ],
-        },
-        {
             id: 'store-info',
             title: 'Store Information',
             icon: '🏪',
@@ -91,25 +72,6 @@ export const HEALTHCARE_EXPERTISE: IndustryExpertiseConfig = {
     industryId: 'healthcare',
     industryName: 'Healthcare',
     subSections: [
-        {
-            id: 'service-catalog',
-            title: 'Services Catalog',
-            icon: 'stethoscope',
-            description: 'Manage medical services and treatments',
-            fields: [
-                {
-                    key: 'healthcareServices',
-                    label: 'Services',
-                    type: 'inventory',
-                    schemaPath: 'healthcareServices',
-                    inventoryConfig: {
-                        itemLabel: 'Service',
-                        itemLabelPlural: 'Services',
-                        priceLabel: 'Consultation Fee',
-                    },
-                },
-            ],
-        },
         {
             id: 'practice-info',
             title: 'Practice Information',
@@ -665,25 +627,6 @@ export const EDUCATION_EXPERTISE: IndustryExpertiseConfig = {
     industryId: 'education',
     industryName: 'Education',
     subSections: [
-        {
-            id: 'course-catalog',
-            title: 'Course Catalog',
-            icon: '📚',
-            description: 'Manage courses and programs',
-            fields: [
-                {
-                    key: 'courses',
-                    label: 'Courses',
-                    type: 'inventory',
-                    schemaPath: 'courses',
-                    inventoryConfig: {
-                        itemLabel: 'Course',
-                        itemLabelPlural: 'Courses',
-                        priceLabel: 'Fee',
-                    },
-                },
-            ],
-        },
         {
             id: 'courses-programs',
             title: 'Courses & Programs',
@@ -1252,25 +1195,6 @@ export const HOSPITALITY_EXPERTISE: IndustryExpertiseConfig = {
     industryName: 'Hospitality',
     subSections: [
         {
-            id: 'room-inventory',
-            title: 'Room Types & Inventory',
-            icon: '🛏️',
-            description: 'Manage room types and pricing',
-            fields: [
-                {
-                    key: 'roomTypesInventory',
-                    label: 'Room Types',
-                    type: 'inventory',
-                    schemaPath: 'roomTypes',
-                    inventoryConfig: {
-                        itemLabel: 'Room Type',
-                        itemLabelPlural: 'Room Types',
-                        priceLabel: 'Nightly Rate',
-                    },
-                },
-            ],
-        },
-        {
             id: 'property-info',
             title: 'Property Information',
             icon: '🏨',
@@ -1334,25 +1258,6 @@ export const REAL_ESTATE_EXPERTISE: IndustryExpertiseConfig = {
     industryId: 'real_estate',
     industryName: 'Real Estate',
     subSections: [
-        {
-            id: 'property-listings',
-            title: 'Property Listings',
-            icon: '🏠',
-            description: 'Manage property listings',
-            fields: [
-                {
-                    key: 'properties',
-                    label: 'Properties',
-                    type: 'inventory',
-                    schemaPath: 'properties',
-                    inventoryConfig: {
-                        itemLabel: 'Property',
-                        itemLabelPlural: 'Properties',
-                        priceLabel: 'Price/Rent',
-                    },
-                },
-            ],
-        },
         {
             id: 'property-scope',
             title: 'Property Scope',
@@ -2509,7 +2414,7 @@ export const OTHER_EXPERTISE: IndustryExpertiseConfig = {
             icon: '📋',
             fields: [
                 { key: 'businessNature', label: 'Nature of Business', type: 'textarea', placeholder: 'Describe what your business does...', schemaPath: 'industrySpecificData.businessNature', gridSpan: 2 },
-                { key: 'productsServices', label: 'Products/Services', type: 'tags', placeholder: 'Add your main offerings...', schemaPath: 'industrySpecificData.productsServices', gridSpan: 2 },
+                { key: 'productsServices', label: 'Offerings', type: 'tags', placeholder: 'Add your main offerings...', schemaPath: 'industrySpecificData.productsServices', gridSpan: 2 },
                 { key: 'targetMarket', label: 'Target Market', type: 'tags', placeholder: 'Who are your customers?', schemaPath: 'industrySpecificData.targetMarket', gridSpan: 2 },
             ],
         },
@@ -2539,25 +2444,6 @@ export const FOOD_BEVERAGE_EXPERTISE: IndustryExpertiseConfig = {
     industryId: 'food_beverage',
     industryName: 'Food & Beverage',
     subSections: [
-        {
-            id: 'menu-management',
-            title: 'Menu Management',
-            icon: '📋',
-            description: 'Manage your food and beverage offerings',
-            fields: [
-                {
-                    key: 'menuItems',
-                    label: 'Menu Items',
-                    type: 'inventory',
-                    schemaPath: 'menuItems', // Maps to root-level menuItems
-                    inventoryConfig: {
-                        itemLabel: 'Dish',
-                        itemLabelPlural: 'Dishes',
-                        priceLabel: 'Price',
-                    },
-                },
-            ],
-        },
         {
             id: 'cuisine-style',
             title: 'Cuisine & Style',

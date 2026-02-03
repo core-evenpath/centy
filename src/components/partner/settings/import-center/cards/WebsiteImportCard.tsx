@@ -114,14 +114,10 @@ export function WebsiteImportCard({
           </div>
         ) : (
           /* Imported Stats */
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-2 gap-3">
             <div className="p-3 bg-white rounded-xl border text-center">
               <p className="text-2xl font-bold text-slate-900">{stats.fields}</p>
               <p className="text-xs text-slate-500">Fields</p>
-            </div>
-            <div className="p-3 bg-white rounded-xl border text-center">
-              <p className="text-2xl font-bold text-slate-900">{stats.products}</p>
-              <p className="text-xs text-slate-500">Products</p>
             </div>
             <div className="p-3 bg-white rounded-xl border text-center">
               <p className="text-2xl font-bold text-slate-900">{stats.testimonials}</p>

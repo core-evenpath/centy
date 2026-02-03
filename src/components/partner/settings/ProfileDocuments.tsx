@@ -44,7 +44,7 @@ const PROFILE_CATEGORIES = {
         icon: Menu,
         color: 'text-emerald-600',
         bgColor: 'bg-emerald-50',
-        description: 'Product catalogs, service menus, price lists',
+        description: 'Service menus, price lists, catalogs',
         accepts: '.pdf,.doc,.docx,.xlsx,.xls,.png,.jpg',
     },
     credentials: {
@@ -62,7 +62,7 @@ const PROFILE_CATEGORIES = {
         icon: FileImage,
         color: 'text-rose-600',
         bgColor: 'bg-rose-50',
-        description: 'Office, storefront, team, product photos',
+        description: 'Office, storefront, team photos',
         accepts: '.png,.jpg,.jpeg,.webp',
     },
     other: {

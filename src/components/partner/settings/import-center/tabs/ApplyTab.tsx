@@ -86,7 +86,7 @@ import {
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { ReviewAccordionSection } from '../cards';
-import { ReviewFieldRow, ReviewProductRow, ReviewTestimonialRow } from '../rows';
+import { ReviewFieldRow, ReviewTestimonialRow } from '../rows';
 import {
   generateProfileTagsAction,
 } from '@/actions/profile-tags-actions';
@@ -97,7 +97,7 @@ import {
   type TagCategory,
   TAG_CATEGORY_META,
 } from '@/lib/profile-tags-types';
-import type { MergeField, ImportedProduct, EnrichedTestimonial, AISuggestion, ImportCenterTab } from '../types';
+import type { MergeField, EnrichedTestimonial, AISuggestion, ImportCenterTab } from '../types';
 
 // Icon mapping from string names to Lucide icons
 const ICON_MAP: Record<string, LucideIcon> = {
@@ -192,7 +192,6 @@ function getFieldCategory(field: MergeField): string {
 
 interface ApplyTabProps {
   mergeFields: MergeField[];
-  products: ImportedProduct[];
   testimonials: EnrichedTestimonial[];
   suggestions: AISuggestion[];
   expandedSections: Record<string, boolean>;
@@ -259,7 +258,6 @@ const importanceBadgeColors = {
 
 export function ApplyTab({
   mergeFields,
-  products,
   testimonials,
   suggestions,
   expandedSections,
@@ -295,7 +293,6 @@ export function ApplyTab({
   const contactFields = mergeFields.filter((f) => getFieldCategory(f) === 'contact');
   const industryFields = mergeFields.filter((f) => getFieldCategory(f) === 'industry');
 
-  const selectedProducts = products.filter((p) => p.selected);
   const selectedTestimonials = testimonials.filter((t) => t.selected);
   const highlightedTestimonials = testimonials.filter((t) => t.highlighted);
   const appliedSuggestions = suggestions.filter((s) => s.applied);
@@ -319,14 +316,7 @@ export function ApplyTab({
       shortDescription: getFieldValue('personality.description') as string,
       tagline: getFieldValue('personality.tagline') as string,
       missionStatement: getFieldValue('personality.missionStatement') as string,
-      services: (getFieldValue('knowledge.productsOrServices') || getFieldValue('knowledge.services')) as string[],
-      products: selectedProducts.map(p => ({
-        name: p.name,
-        category: p.category,
-        description: p.description,
-        price: p.pricing ? parseFloat(p.pricing.replace(/[^0-9.]/g, '')) : undefined,
-        features: p.features,
-      })),
+      services: getFieldValue('knowledge.services') as string[],
       targetAudience: getFieldValue('customerProfile.targetAudience') as string[],
       uniqueSellingPoints: getFieldValue('personality.uniqueSellingPoints') as string[],
       specializations: getFieldValue('industrySpecificData.specializations') as string[],
@@ -344,7 +334,7 @@ export function ApplyTab({
       })),
       yearEstablished: getFieldValue('identity.yearEstablished') as number,
     };
-  }, [mergeFields, selectedProducts, selectedTestimonials]);
+  }, [mergeFields, selectedTestimonials]);
 
   // Generate tags
   const handleGenerateTags = useCallback(async () => {
@@ -470,13 +460,6 @@ export function ApplyTab({
           </div>
           <p className="text-2xl font-bold text-slate-900">{filledFields}</p>
           <p className="text-xs text-slate-500">Fields</p>
-        </div>
-        <div className="bg-white rounded-xl border p-4 text-center">
-          <div className="w-10 h-10 bg-emerald-100 rounded-xl flex items-center justify-center mx-auto mb-2">
-            <Package className="w-5 h-5 text-emerald-600" />
-          </div>
-          <p className="text-2xl font-bold text-slate-900">{selectedProducts.length}</p>
-          <p className="text-xs text-slate-500">Products</p>
         </div>
         <div className="bg-white rounded-xl border p-4 text-center">
           <div className="w-10 h-10 bg-purple-100 rounded-xl flex items-center justify-center mx-auto mb-2">
@@ -1057,27 +1040,6 @@ export function ApplyTab({
             </div>
           </ReviewAccordionSection>
         )}
-
-        {/* Products */}
-        <ReviewAccordionSection
-          title="Products & Services"
-          icon={Package}
-          count={`${selectedProducts.length} selected`}
-          status={selectedProducts.length > 0 ? 'complete' : 'warning'}
-          isExpanded={expandedSections.products || false}
-          onToggle={() => onToggleSection('products')}
-          onEdit={() => onNavigateToTab('products')}
-          previewContent={selectedProducts
-            .slice(0, 2)
-            .map((p) => p.name)
-            .join(', ')}
-        >
-          <div className="pt-4">
-            {selectedProducts.map((p) => (
-              <ReviewProductRow key={p.id} product={p} />
-            ))}
-          </div>
-        </ReviewAccordionSection>
 
         {/* Testimonials */}
         <ReviewAccordionSection

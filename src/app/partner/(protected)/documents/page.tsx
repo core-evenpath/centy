@@ -84,7 +84,7 @@ const DOCUMENT_CATEGORIES: Record<string, DocumentCategory> = {
     },
     product: {
         id: 'product',
-        name: 'Products & Services',
+        name: 'Offerings',
         icon: Package,
         color: 'text-violet-600',
         bgColor: 'bg-violet-50',

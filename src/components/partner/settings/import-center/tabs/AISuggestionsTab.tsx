@@ -5,7 +5,7 @@ import { Wand2 } from 'lucide-react';
 import { AISuggestionCard } from '../cards';
 import type { AISuggestion } from '../types';
 
-type SuggestionFilter = 'all' | 'core' | 'products' | 'testimonials';
+type SuggestionFilter = 'all' | 'core' | 'testimonials';
 
 interface AISuggestionsTabProps {
   suggestions: AISuggestion[];

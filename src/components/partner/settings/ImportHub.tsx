@@ -82,7 +82,6 @@ function countImportedFields(persona: any, source?: 'google' | 'website'): numbe
 
   // Count knowledge fields
   const knowledge = persona.knowledge || {};
-  if (knowledge.productsOrServices?.length) count += knowledge.productsOrServices.length;
   if (knowledge.faqs?.length) count += knowledge.faqs.length;
   if (knowledge.packages?.length) count += knowledge.packages.length;
   if (knowledge.policies) count++;
@@ -99,13 +98,6 @@ function countImportedFields(persona: any, source?: 'google' | 'website'): numbe
   if (persona.team?.length) count += persona.team.length;
   if (persona.awards?.length) count++;
   if (persona.certifications?.length) count++;
-
-  // Count inventory
-  const inventory = persona.inventory || {};
-  if (inventory.rooms?.length) count += inventory.rooms.length;
-  if (inventory.menuItems?.length) count += inventory.menuItems.length;
-  if (inventory.products?.length) count += inventory.products.length;
-  if (inventory.services?.length) count += inventory.services.length;
 
   return count;
 }

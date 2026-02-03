@@ -16,7 +16,6 @@ import {
   ArrowLeft,
   Download,
   GitMerge,
-  Package,
   Quote,
   Wand2,
   Rocket,
@@ -31,7 +30,6 @@ import type { ImportSource } from '@/lib/field-registry';
 import {
   ImportTab,
   ReviewTab,
-  ProductsTab,
   TestimonialsTab,
   AISuggestionsTab,
   ApplyTab,
@@ -40,7 +38,6 @@ import { SuccessScreen } from '@/components/partner/settings/import-center/scree
 import type {
   ImportCenterTab,
   MergeField,
-  ImportedProduct,
   EnrichedTestimonial,
   AISuggestion,
   ImportStats,
@@ -124,15 +121,12 @@ export default function ImportCenterPage() {
   const [editingField, setEditingField] = useState<string | null>(null);
   const [editValue, setEditValue] = useState('');
 
-  // Products state
-  const [products, setProducts] = useState<ImportedProduct[]>([]);
-
   // Testimonials state
   const [testimonials, setTestimonials] = useState<EnrichedTestimonial[]>([]);
 
   // AI Suggestions state
   const [suggestions, setSuggestions] = useState<AISuggestion[]>([]);
-  const [suggestionFilter, setSuggestionFilter] = useState<'all' | 'core' | 'products' | 'testimonials'>('all');
+  const [suggestionFilter, setSuggestionFilter] = useState<'all' | 'core' | 'testimonials'>('all');
 
   // AI Tags state (Lifted from ApplyTab)
   const [suggestedTags, setSuggestedTags] = useState<SuggestedTag[]>([]);
@@ -153,7 +147,6 @@ export default function ImportCenterPage() {
     industry: false,
     success: false,
     knowledge: false,
-    products: false,
     testimonials: false,
     suggestions: false,
   });
@@ -241,7 +234,6 @@ export default function ImportCenterPage() {
   useEffect(() => {
     if (googleImported || websiteImported) {
       buildMergeFields();
-      extractProducts();
       extractTestimonials();
       generateSuggestions();
     }
@@ -262,64 +254,6 @@ export default function ImportCenterPage() {
     // Use field registry to build merge fields
     const fields = buildMergeFieldsFromRegistry(sources, taxonomy);
     setMergeFields(fields);
-  };
-
-  const extractProducts = () => {
-    const allProducts: ImportedProduct[] = [];
-    const seenNames = new Set<string>();
-
-    const addProduct = (p: any, index: number, source: FieldSource, categoryOverride?: string) => {
-      const name = p.name || p.title || p.roomType || p.serviceName || `Item ${index + 1}`;
-      const normalizedName = name.toLowerCase().trim();
-
-      if (seenNames.has(normalizedName)) return;
-      seenNames.add(normalizedName);
-
-      allProducts.push({
-        id: `${source}_product_${allProducts.length}`,
-        name,
-        description: p.description || p.shortDescription || p.details || '',
-        category: categoryOverride || p.category || 'General',
-        pricing: p.price
-          ? `${p.priceUnit || p.currency || '$'}${p.price}${p.priceType ? ` ${p.priceType}` : ''}`
-          : p.pricing || p.priceRange || '',
-        features: p.features || p.amenities || p.highlights || [],
-        popular: p.popular || p.featured || p.recommended || false,
-        selected: true,
-        source,
-      });
-    };
-
-    const processProducts = (data: any, source: FieldSource) => {
-      const productsData = data?.knowledge?.productsOrServices || data?.productsOrServices || data?.products || [];
-      productsData.forEach((p: any, index: number) => addProduct(p, index, source));
-
-      const services = data?.knowledge?.services || data?.services || data?.inventory?.services || [];
-      services.forEach((s: any, index: number) => addProduct(s, index, source, 'Service'));
-
-      const rooms = data?.inventory?.rooms || data?.industrySpecificData?.rooms || data?.fromTheWeb?.rawIndustryData?.rooms || [];
-      rooms.forEach((r: any, index: number) => addProduct(r, index, source, 'Room'));
-
-      const menuItems = data?.inventory?.menuItems || data?.industrySpecificData?.menuItems || data?.fromTheWeb?.rawIndustryData?.menuItems || [];
-      menuItems.forEach((m: any, index: number) => addProduct(m, index, source, 'Menu Item'));
-
-      const properties = data?.inventory?.properties || data?.industrySpecificData?.properties || data?.fromTheWeb?.rawIndustryData?.properties || [];
-      properties.forEach((p: any, index: number) => addProduct(p, index, source, 'Property'));
-
-      const treatments = data?.inventory?.treatments || data?.industrySpecificData?.treatments || data?.fromTheWeb?.rawIndustryData?.treatments || [];
-      treatments.forEach((t: any, index: number) => addProduct(t, index, source, 'Treatment'));
-
-      const courses = data?.inventory?.courses || data?.industrySpecificData?.coursesOffered || data?.fromTheWeb?.rawIndustryData?.courses || [];
-      courses.forEach((c: any, index: number) => addProduct(c, index, source, 'Course'));
-
-      const packages = data?.inventory?.packages || data?.packages || data?.plans || [];
-      packages.forEach((pkg: any, index: number) => addProduct(pkg, index, source, 'Package'));
-    };
-
-    if (googleRawData) processProducts(googleRawData, 'google');
-    if (websiteRawData) processProducts(websiteRawData, 'website');
-
-    setProducts(allProducts);
   };
 
   const extractTestimonials = () => {
@@ -723,20 +657,6 @@ export default function ImportCenterPage() {
   };
 
   // ========================================
-  // PRODUCT HANDLERS
-  // ========================================
-
-  const handleToggleProduct = (id: string) => {
-    setProducts((prev) =>
-      prev.map((p) => (p.id === id ? { ...p, selected: !p.selected } : p))
-    );
-  };
-
-  const handleSelectAllProducts = () => {
-    setProducts((prev) => prev.map((p) => ({ ...p, selected: true })));
-  };
-
-  // ========================================
   // TESTIMONIAL HANDLERS
   // ========================================
 
@@ -798,15 +718,7 @@ export default function ImportCenterPage() {
       // Use field registry to apply merge fields to persona
       const { persona: newPersona, updatedPaths, metadata } = applyMergeFieldsToPersona(
         mergeFields,
-        products.filter(p => p.selected).map(p => ({
-          id: p.id,
-          name: p.name,
-          description: p.description,
-          category: p.category,
-          pricing: p.pricing,
-          features: p.features,
-          selected: p.selected,
-        })),
+        [],
         testimonials.filter(t => t.selected).map(t => ({
           id: t.id,
           quote: t.quote,
@@ -908,7 +820,6 @@ export default function ImportCenterPage() {
             ...persona.importHistory,
             lastAppliedAt: new Date(),
             appliedFields: updatedPaths,
-            appliedProducts: products.filter(p => p.selected).length,
             appliedTestimonials: testimonials.filter(t => t.selected).length,
             appliedSuggestions: suggestions.filter((s) => s.applied).map((s) => s.id),
             appliedTags: selectedTags?.length || 0,
@@ -929,7 +840,6 @@ export default function ImportCenterPage() {
             ...persona.importHistory,
             lastAppliedAt: new Date(),
             appliedFields: updatedPaths,
-            appliedProducts: products.filter(p => p.selected).length,
             appliedTestimonials: testimonials.filter(t => t.selected).length,
             appliedSuggestions: suggestions.filter((s) => s.applied).map((s) => s.id),
             appliedTags: selectedTags?.length || 0,
@@ -956,7 +866,7 @@ export default function ImportCenterPage() {
   // ========================================
 
   const googleStats: ImportStats = useMemo(() => {
-    if (!googleRawData) return { fields: 0, products: 0, testimonials: 0 };
+    if (!googleRawData) return { fields: 0, testimonials: 0 };
 
     const countFields = (obj: any, prefix = ''): number => {
       if (!obj || typeof obj !== 'object') return obj ? 1 : 0;
@@ -978,21 +888,14 @@ export default function ImportCenterPage() {
       countFields(googleRawData.knowledge) +
       countFields(googleRawData.industrySpecificData);
 
-    const productCount = (googleRawData.knowledge?.productsOrServices || []).length +
-      (googleRawData.inventory?.rooms || []).length +
-      (googleRawData.inventory?.menuItems || []).length +
-      (googleRawData.inventory?.services || []).length +
-      (googleRawData.inventory?.properties || []).length +
-      (googleRawData.products || []).length;
-
     const testimonialCount = (googleRawData.reviews || []).length +
       (googleRawData.testimonials || []).length;
 
-    return { fields: fieldCount || 10, products: productCount, testimonials: testimonialCount };
+    return { fields: fieldCount || 10, testimonials: testimonialCount };
   }, [googleRawData]);
 
   const websiteStats: ImportStats = useMemo(() => {
-    if (!websiteRawData) return { fields: 0, products: 0, testimonials: 0 };
+    if (!websiteRawData) return { fields: 0, testimonials: 0 };
 
     const countFields = (obj: any): number => {
       if (!obj || typeof obj !== 'object') return obj ? 1 : 0;
@@ -1014,16 +917,9 @@ export default function ImportCenterPage() {
       countFields(websiteRawData.knowledge) +
       countFields(websiteRawData.industrySpecificData);
 
-    const productCount = (websiteRawData.knowledge?.productsOrServices || []).length +
-      (websiteRawData.inventory?.rooms || []).length +
-      (websiteRawData.inventory?.menuItems || []).length +
-      (websiteRawData.inventory?.services || []).length +
-      (websiteRawData.inventory?.properties || []).length +
-      (websiteRawData.products || []).length;
-
     const testimonialCount = (websiteRawData.testimonials || []).length;
 
-    return { fields: fieldCount || 18, products: productCount, testimonials: testimonialCount };
+    return { fields: fieldCount || 18, testimonials: testimonialCount };
   }, [websiteRawData]);
 
   const conflictCount = mergeFields.filter((f) => f.hasConflict).length;
@@ -1031,7 +927,6 @@ export default function ImportCenterPage() {
   const hasUnresolvedConflicts = conflictCount > resolvedCount;
   const filledFields = mergeFields.filter((f) => f.finalValue).length;
 
-  const selectedProducts = products.filter((p) => p.selected);
   const selectedTestimonials = testimonials.filter((t) => t.selected);
   const appliedSuggestions = suggestions.filter((s) => s.applied);
   const pendingSuggestions = suggestions.filter((s) => !s.applied);
@@ -1052,7 +947,6 @@ export default function ImportCenterPage() {
       badge: conflictCount > 0 ? conflictCount : null,
       badgeType: hasUnresolvedConflicts ? 'warning' : 'success',
     },
-    { id: 'products' as ImportCenterTab, label: 'Products', icon: Package, badge: selectedProducts.length },
     { id: 'testimonials' as ImportCenterTab, label: 'Testimonials', icon: Quote, badge: selectedTestimonials.length },
     {
       id: 'ai' as ImportCenterTab,
@@ -1082,7 +976,6 @@ export default function ImportCenterPage() {
         <SuccessScreen
           stats={{
             fields: filledFields,
-            products: selectedProducts.length,
             testimonials: selectedTestimonials.length,
           }}
           onReset={() => setApplied(false)}
@@ -1202,15 +1095,6 @@ export default function ImportCenterPage() {
           />
         )}
 
-        {activeTab === 'products' && (
-          <ProductsTab
-            products={products}
-            onToggleProduct={handleToggleProduct}
-            onSelectAll={handleSelectAllProducts}
-            onAddProducts={(newProducts) => setProducts(prev => [...prev, ...newProducts])}
-          />
-        )}
-
         {activeTab === 'testimonials' && (
           <TestimonialsTab
             testimonials={testimonials}
@@ -1235,7 +1119,6 @@ export default function ImportCenterPage() {
         {activeTab === 'final' && (
           <ApplyTab
             mergeFields={mergeFields}
-            products={products}
             testimonials={testimonials}
             suggestions={suggestions}
             expandedSections={expandedSections}

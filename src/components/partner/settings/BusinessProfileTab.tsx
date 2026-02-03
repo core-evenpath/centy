@@ -304,11 +304,8 @@ export default function BusinessProfileTab({
     const teamSize = get('industrySpecificData.teamSize') || get('companySize');
 
     // 2. Expertise
-    // Property Types (Real Estate specific but could map to Products/Services categories)
+    // Property Types (Real Estate specific)
     const propertyTypes = get('roomTypes') || get('propertyTypes') || get('industrySpecificData.propertyTypes') || [];
-    // Generic products/services if above is empty
-    const productsOrServices = get('knowledge.productsOrServices', []);
-
     const transactionTypes = get('industrySpecificData.transactionTypes', []);
     const targetAudience = get('customerProfile.targetAudience'); // string
     const clientTypes = get('customerProfile.customerDemographics', []); // array
@@ -472,10 +469,6 @@ export default function BusinessProfileTab({
                             {/* Highlight Stats (Dynamic if possible, else placeholder) */}
                             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mt-6">
                                 <div className="bg-white/10 rounded-xl p-3 backdrop-blur">
-                                    <div className="text-2xl font-bold">{productsOrServices?.length || 0}</div>
-                                    <div className="text-xs text-indigo-200">Services/Products</div>
-                                </div>
-                                <div className="bg-white/10 rounded-xl p-3 backdrop-blur">
                                     <div className="text-2xl font-bold">{faqs?.length || 0}</div>
                                     <div className="text-xs text-indigo-200">FAQs</div>
                                 </div>
@@ -626,14 +619,6 @@ export default function BusinessProfileTab({
                                                     )
                                                 })}
                                             </div>
-                                        </div>
-                                    ) : productsOrServices.length > 0 && (
-                                        <div>
-                                            <label className="text-xs font-medium text-slate-500 uppercase mb-3 block">Products & Services</label>
-                                            <Tags items={productsOrServices.map((p: any) => typeof p === 'string' ? p : p.name)}
-                                                onAdd={(val: string) => handleTagsAdd('knowledge.productsOrServices', productsOrServices.map((p: any) => typeof p === 'string' ? p : p.name))(val)}
-                                                onRemove={(i: number) => handleTagsRemove('knowledge.productsOrServices', productsOrServices.map((p: any) => typeof p === 'string' ? p : p.name))(i)}
-                                                color="emerald" />
                                         </div>
                                     )}
 

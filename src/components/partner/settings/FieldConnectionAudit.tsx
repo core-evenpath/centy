@@ -56,9 +56,7 @@ const FIELD_AUDIT: Record<string, {
         { label: 'Booking Link', uiKey: 'bookingLink', schemaPath: 'industrySpecificData.bookingLink', status: 'connected' },
         { label: 'Support Hours', uiKey: 'supportHours', schemaPath: 'identity.operatingHours.specialNote', status: 'connected' },
     ],
-    'Products & Services': [
-        { label: 'Services', uiKey: 'services', schemaPath: 'knowledge.productsOrServices', status: 'connected' },
-        { label: 'Products', uiKey: 'products', schemaPath: 'knowledge.productsOrServices', status: 'connected' },
+    'Pricing & Payments': [
         { label: 'Consultation Fee', uiKey: 'consultationFee', schemaPath: 'knowledge.pricingHighlights', status: 'connected' },
         { label: 'Payment Methods', uiKey: 'paymentMethods', schemaPath: 'knowledge.acceptedPayments', status: 'connected' },
         { label: 'Pricing Note', uiKey: 'pricingNote', schemaPath: 'knowledge.pricingHighlights', status: 'connected' },
@@ -124,7 +122,7 @@ const FIELD_AUDIT: Record<string, {
     'Education': [
         { label: 'Type (Coaching/Online/etc.)', uiKey: 'type', schemaPath: 'industrySpecificData.establishmentType', status: 'connected' },
         { label: 'Subjects/Skills', uiKey: 'subjects', schemaPath: 'industrySpecificData.subjects', status: 'connected' },
-        { label: 'Courses Offered', uiKey: 'courses', schemaPath: 'knowledge.productsOrServices', status: 'connected' },
+        { label: 'Courses Offered', uiKey: 'courses', schemaPath: 'industrySpecificData.courses', status: 'connected' },
         { label: 'Boards/Exams', uiKey: 'boards', schemaPath: 'industrySpecificData.boards', status: 'connected' },
         { label: 'Age Groups', uiKey: 'ageGroups', schemaPath: 'industrySpecificData.ageGroups', status: 'connected' },
         { label: 'Fee Range', uiKey: 'feeRange', schemaPath: 'knowledge.pricingHighlights', status: 'connected' },

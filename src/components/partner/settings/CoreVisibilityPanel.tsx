@@ -18,7 +18,7 @@ interface CoreVisibilityPanelProps {
 const SECTION_LABELS: Record<string, string> = {
     identity: 'Business Identity',
     personality: 'Brand & Voice',
-    knowledge: 'Products & Services',
+    knowledge: 'Knowledge Base',
     customerProfile: 'Customer Profile',
     webIntelligence: 'Web Data',
     industrySpecificData: 'Industry Data',
@@ -33,7 +33,7 @@ export function CoreVisibilityPanel({ partnerId, persona, className }: CoreVisib
     const hasData = !!(
         persona?.identity?.name ||
         persona?.personality?.tagline ||
-        persona?.knowledge?.productsOrServices?.length
+        persona?.knowledge?.faqs?.length
     );
 
     return (
