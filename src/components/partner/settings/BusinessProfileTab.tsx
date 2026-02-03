@@ -304,7 +304,7 @@ export default function BusinessProfileTab({
     const teamSize = get('industrySpecificData.teamSize') || get('companySize');
 
     // 2. Expertise
-    // Property Types (Real Estate specific but could map to Products/Services categories)
+    // Property Types (Real Estate specific)
     const propertyTypes = get('roomTypes') || get('propertyTypes') || get('industrySpecificData.propertyTypes') || [];
     const transactionTypes = get('industrySpecificData.transactionTypes', []);
     const targetAudience = get('customerProfile.targetAudience'); // string

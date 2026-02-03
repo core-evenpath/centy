@@ -82,7 +82,6 @@ function countImportedFields(persona: any, source?: 'google' | 'website'): numbe
 
   // Count knowledge fields
   const knowledge = persona.knowledge || {};
-  if (knowledge.productsOrServices?.length) count += knowledge.productsOrServices.length;
   if (knowledge.faqs?.length) count += knowledge.faqs.length;
   if (knowledge.packages?.length) count += knowledge.packages.length;
   if (knowledge.policies) count++;

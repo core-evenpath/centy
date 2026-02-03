@@ -442,8 +442,6 @@ const SettingsUltimate = () => {
       'supportHours': 'identity.operatingHours.specialNote',
 
       // ============ SERVICES / PRODUCTS ============
-      'services': 'knowledge.productsOrServices',
-      'products': 'knowledge.productsOrServices',
       'consultationFee': 'knowledge.pricingHighlights',
       'paymentMethods': 'knowledge.acceptedPayments',
       'pricingNote': 'knowledge.pricingHighlights',
@@ -525,7 +523,7 @@ const SettingsUltimate = () => {
 
       // ============ EDUCATION ============
       'subjects': 'industrySpecificData.subjects',
-      'courses': 'knowledge.productsOrServices',
+      'courses': 'industrySpecificData.courses',
       'boards': 'industrySpecificData.boards',
       'ageGroups': 'industrySpecificData.ageGroups',
       'feeRange': 'knowledge.pricingHighlights',

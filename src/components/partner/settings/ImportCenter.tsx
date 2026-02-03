@@ -177,20 +177,12 @@ function extractImportedData(persona: Partial<BusinessPersona>): ImportedCategor
     });
   }
 
-  // Products & Services
-  const productsFields: ImportedField[] = [];
+  // Packages & Pricing
+  const packagesFields: ImportedField[] = [];
   const knowledge = persona.knowledge || {};
 
-  if ((knowledge as any).productsOrServices?.length > 0) {
-    productsFields.push({
-      label: 'Products/Services',
-      value: `${(knowledge as any).productsOrServices.length} items`,
-      source: 'both',
-      path: 'knowledge.productsOrServices'
-    });
-  }
   if ((knowledge as any).packages?.length > 0) {
-    productsFields.push({
+    packagesFields.push({
       label: 'Packages',
       value: `${(knowledge as any).packages.length} packages`,
       source: 'website',
@@ -198,7 +190,7 @@ function extractImportedData(persona: Partial<BusinessPersona>): ImportedCategor
     });
   }
   if ((knowledge as any).pricingTiers?.length > 0) {
-    productsFields.push({
+    packagesFields.push({
       label: 'Pricing Tiers',
       value: `${(knowledge as any).pricingTiers.length} tiers`,
       source: 'website',
@@ -206,13 +198,13 @@ function extractImportedData(persona: Partial<BusinessPersona>): ImportedCategor
     });
   }
 
-  if (productsFields.length > 0) {
+  if (packagesFields.length > 0) {
     categories.push({
-      id: 'products',
-      label: 'Products & Services',
+      id: 'packages',
+      label: 'Packages & Pricing',
       icon: Package,
       color: 'bg-emerald-500',
-      fields: productsFields
+      fields: packagesFields
     });
   }
 

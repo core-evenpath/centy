@@ -6,7 +6,6 @@ import {
     Sparkles,
     Clock,
     Phone,
-    Tag,
     MessageSquare,
     Edit3,
     Check,
@@ -70,11 +69,6 @@ export default function ProfileSummary({ persona, onFieldUpdate, onOpenAIChat }:
             parts.push(`Known for: ${usps.join(', ')}.`);
         }
 
-        // Services count
-        if (knowledge?.productsOrServices?.length) {
-            parts.push(`Offering ${knowledge.productsOrServices.length} services/products.`);
-        }
-
         return parts.length > 0 ? parts.join(' ') : null;
     }, [identity, personality, knowledge]);
 
@@ -113,19 +107,6 @@ export default function ProfileSummary({ persona, onFieldUpdate, onOpenAIChat }:
             editable: true,
             isSelect: true,
             options: ['Within 5 minutes', 'Within 30 minutes', 'Within 1 hour', 'Within a few hours', 'Within 24 hours'],
-        },
-        {
-            id: 'services',
-            icon: Tag,
-            label: 'Services Count',
-            value: knowledge?.productsOrServices?.length
-                ? `${knowledge.productsOrServices.length} items`
-                : null,
-            path: 'knowledge.productsOrServices',
-            color: 'text-violet-600',
-            bgColor: 'bg-violet-50',
-            editable: false, // View only - edit in main form
-            linkToSection: 'Products & Services',
         },
         {
             id: 'faqs',

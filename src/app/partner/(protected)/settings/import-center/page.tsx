@@ -1122,7 +1122,6 @@ export default function ImportCenterPage() {
         {activeTab === 'final' && (
           <ApplyTab
             mergeFields={mergeFields}
-            products={[]}
             testimonials={testimonials}
             suggestions={suggestions}
             expandedSections={expandedSections}

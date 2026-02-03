@@ -41,7 +41,6 @@ import {
     Zap,
     ExternalLink,
     HelpCircle,
-    Package,
     FileText,
     Users,
     Target,
@@ -76,7 +75,6 @@ import {
     SetupProgress,
     INDUSTRY_PRESETS,
     IndustryCategory,
-    ProductService,
     FrequentlyAskedQuestion,
     DaySchedule,
     VoiceTone,
@@ -100,7 +98,6 @@ const BUILDER_STEPS = [
     { id: 'contact', title: 'Contact & Location', icon: Phone, required: true, description: 'How can customers reach you?' },
     { id: 'hours', title: 'Availability', icon: Clock, required: true, description: 'When are you open?' },
     { id: 'voice', title: 'Brand Personality', icon: Heart, required: false, description: 'Your unique voice' },
-    { id: 'products', title: 'Offerings', icon: Package, required: false, description: 'Products & services' },
     { id: 'faqs', title: 'FAQs & Policies', icon: HelpCircle, required: false, description: 'Common questions' },
 ];
 
@@ -627,8 +624,7 @@ export default function BusinessPersonaBuilder({
                             currentStep === 1 && 'bg-green-100 text-green-600',
                             currentStep === 2 && 'bg-amber-100 text-amber-600',
                             currentStep === 3 && 'bg-purple-100 text-purple-600',
-                            currentStep === 4 && 'bg-blue-100 text-blue-600',
-                            currentStep === 5 && 'bg-orange-100 text-orange-600',
+                            currentStep === 4 && 'bg-orange-100 text-orange-600',
                         )}>
                             {React.createElement(BUILDER_STEPS[currentStep].icon, { className: 'w-6 h-6' })}
                         </div>
@@ -1377,116 +1373,8 @@ export default function BusinessPersonaBuilder({
                         </div>
                     )}
 
-                    {/* Step 5: Products & Services */}
+                    {/* Step 5: FAQs & Policies */}
                     {currentStep === 4 && (
-                        <div className="space-y-6">
-                            <div className="space-y-4">
-                                {(persona.knowledge?.productsOrServices || []).map((product, index) => (
-                                    <div key={product.id} className="p-4 border-2 rounded-xl bg-gray-50">
-                                        <div className="flex items-start justify-between mb-3">
-                                            <div className="flex items-center gap-2">
-                                                <div className="w-8 h-8 rounded-lg bg-indigo-100 flex items-center justify-center text-indigo-600 text-sm font-bold">
-                                                    {index + 1}
-                                                </div>
-                                                <span className="text-sm font-medium text-gray-600">
-                                                    {product.name || 'New Item'}
-                                                </span>
-                                            </div>
-                                            <Button
-                                                variant="ghost"
-                                                size="sm"
-                                                onClick={() => {
-                                                    const updated = persona.knowledge?.productsOrServices?.filter(p => p.id !== product.id) || [];
-                                                    updateField('knowledge.productsOrServices', updated);
-                                                }}
-                                                className="text-red-500 hover:text-red-700 hover:bg-red-50"
-                                            >
-                                                <Trash2 className="w-4 h-4" />
-                                            </Button>
-                                        </div>
-                                        <div className="grid gap-3">
-                                            <Input
-                                                value={product.name}
-                                                onChange={(e) => {
-                                                    const updated = (persona.knowledge?.productsOrServices || []).map(p =>
-                                                        p.id === product.id ? { ...p, name: e.target.value } : p
-                                                    );
-                                                    updateField('knowledge.productsOrServices', updated);
-                                                }}
-                                                placeholder="Product/Service Name *"
-                                            />
-                                            <Textarea
-                                                value={product.description}
-                                                onChange={(e) => {
-                                                    const updated = (persona.knowledge?.productsOrServices || []).map(p =>
-                                                        p.id === product.id ? { ...p, description: e.target.value } : p
-                                                    );
-                                                    updateField('knowledge.productsOrServices', updated);
-                                                }}
-                                                placeholder="Brief description of this product/service..."
-                                                rows={2}
-                                            />
-                                            <div className="grid grid-cols-2 gap-3">
-                                                <Input
-                                                    value={product.priceRange || ''}
-                                                    onChange={(e) => {
-                                                        const updated = (persona.knowledge?.productsOrServices || []).map(p =>
-                                                            p.id === product.id ? { ...p, priceRange: e.target.value } : p
-                                                        );
-                                                        updateField('knowledge.productsOrServices', updated);
-                                                    }}
-                                                    placeholder={`Price (e.g., ${getCurrencySymbol(persona.identity?.currency || '')}999)`}
-                                                />
-                                                <Input
-                                                    value={product.duration || ''}
-                                                    onChange={(e) => {
-                                                        const updated = (persona.knowledge?.productsOrServices || []).map(p =>
-                                                            p.id === product.id ? { ...p, duration: e.target.value } : p
-                                                        );
-                                                        updateField('knowledge.productsOrServices', updated);
-                                                    }}
-                                                    placeholder="Duration (e.g., 1 hour)"
-                                                />
-                                            </div>
-                                        </div>
-                                    </div>
-                                ))}
-
-                                <Button
-                                    variant="outline"
-                                    className="w-full h-14 border-dashed border-2"
-                                    onClick={() => {
-                                        const newProduct: ProductService = {
-                                            id: Date.now().toString(),
-                                            name: '',
-                                            description: '',
-                                        };
-                                        updateField('knowledge.productsOrServices', [
-                                            ...(persona.knowledge?.productsOrServices || []),
-                                            newProduct,
-                                        ]);
-                                    }}
-                                >
-                                    <Plus className="w-5 h-5 mr-2" />
-                                    Add Product or Service
-                                </Button>
-                            </div>
-
-                            {/* Pricing Info */}
-                            <div className="pt-4 border-t">
-                                <Label className="text-base">Pricing Information</Label>
-                                <Input
-                                    value={persona.knowledge?.pricingHighlights || ''}
-                                    onChange={(e) => updateField('knowledge.pricingHighlights', e.target.value)}
-                                    placeholder={`e.g., Starting from ${getCurrencySymbol(persona.identity?.currency || '')}999, Free consultation, Custom quotes available`}
-                                    className="mt-2"
-                                />
-                            </div>
-                        </div>
-                    )}
-
-                    {/* Step 6: FAQs & Policies */}
-                    {currentStep === 5 && (
                         <div className="space-y-6">
                             {/* Suggested FAQs */}
                             {suggestedFAQs.length > 0 && (
