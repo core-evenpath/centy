@@ -26,8 +26,6 @@ import { BusinessCategoriesModal } from './BusinessCategoriesModal';
 import { findFunctionInfoAction } from '@/actions/taxonomy-actions';
 import { type SelectedBusinessCategory } from '@/hooks/use-taxonomy';
 import { generateModulesFromCategories, type ModulesConfig } from '@/actions/module-generator-actions';
-import InventoryManager from './InventoryManager';
-import { InventoryConfig, InventoryItem, InventoryCategoryDefinition, InventoryFieldDefinition, generateItemId } from '@/lib/inventory-types';
 import { CoreVisibilityPanel } from './CoreVisibilityPanel';
 import { OtherUsefulDataAccordion } from './OtherUsefulDataAccordion';
 
@@ -142,46 +140,6 @@ function ProgressRing({ value }: { value: number }) {
             </div>
         </div>
     );
-}
-
-// ===== INVENTORY HELPERS =====
-function getInventoryDefaults(label: string): { categories: InventoryCategoryDefinition[], fields: InventoryFieldDefinition[] } {
-    // Default categories based on label
-    let categories: InventoryCategoryDefinition[] = [
-        { id: 'general', name: 'General' }
-    ];
-
-    if (label.toLowerCase().includes('menu') || label.toLowerCase().includes('dish')) {
-        categories = [
-            { id: 'starters', name: 'Starters' },
-            { id: 'mains', name: 'Main Course' },
-            { id: 'desserts', name: 'Desserts' },
-            { id: 'beverages', name: 'Beverages' },
-        ];
-    } else if (label.toLowerCase().includes('room')) {
-        categories = [
-            { id: 'standard', name: 'Standard Rooms' },
-            { id: 'deluxe', name: 'Deluxe Rooms' },
-            { id: 'suites', name: 'Suites' },
-        ];
-    } else if (label.toLowerCase().includes('course')) {
-        categories = [
-            { id: 'beginner', name: 'Beginner' },
-            { id: 'intermediate', name: 'Intermediate' },
-            { id: 'advanced', name: 'Advanced' },
-        ];
-    }
-
-    // Default fields - valid for most items
-    const fields: InventoryFieldDefinition[] = [
-        { id: 'name', name: 'Name', type: 'text', isRequired: true, placeholder: 'Item name' },
-        { id: 'description', name: 'Description', type: 'textarea', isRequired: false, placeholder: 'Describe this item...' },
-        { id: 'price', name: 'Price', type: 'number', isRequired: true, placeholder: '0.00' },
-        // Additional common fields can be added here
-        { id: 'image', name: 'Image URL', type: 'text', isRequired: false, placeholder: 'https://...' },
-    ];
-
-    return { categories, fields };
 }
 
 // ===== COLLAPSIBLE SECTION (CARD STYLE) =====
@@ -1630,62 +1588,6 @@ function SchemaField({
                     helpText={field.helpText}
                     placeholder={field.placeholder}
                 />
-            );
-
-        case 'inventory':
-            if (!field.inventoryConfig) return null;
-
-            // Construct config for InventoryManager
-            const defaults = getInventoryDefaults(field.inventoryConfig.itemLabel);
-
-            // Normalize items to ensure they meet InventoryItem interface
-            // AND migrate legacy flat fields to 'fields' object if needed
-            const rawItems = Array.isArray(value) ? value : [];
-            const normalizedItems: InventoryItem[] = rawItems.map((item: any) => {
-                const existingFields = item.fields || {};
-
-                // Migrate legacy properties that match defined fields
-                const migratedFields = { ...existingFields };
-                defaults.fields.forEach(def => {
-                    // If field exists on root but not in fields object, move it
-                    if (item[def.id] !== undefined && existingFields[def.id] === undefined) {
-                        migratedFields[def.id] = item[def.id];
-                    }
-                });
-
-                return {
-                    ...item,
-                    id: item.id || generateItemId(),
-                    fields: migratedFields,
-                    isActive: item.isActive !== false,
-                };
-            });
-
-            const invConfig: InventoryConfig = {
-                itemLabel: field.inventoryConfig.itemLabel,
-                itemLabelPlural: field.inventoryConfig.itemLabelPlural,
-                priceLabel: field.inventoryConfig.priceLabel,
-                currency: 'INR', // Default currency
-                source: 'manual',
-                categories: defaults.categories,
-                fields: defaults.fields,
-                items: normalizedItems,
-                lastModifiedAt: new Date().toISOString(),
-            };
-
-            return (
-                <div className="mb-6 border border-slate-200 rounded-xl overflow-hidden">
-                    <div className="p-4 bg-slate-50 border-b border-slate-200">
-                        <h4 className="font-semibold text-slate-900">{field.inventoryConfig.itemLabelPlural} Management</h4>
-                        {field.helpText && <p className="text-sm text-slate-500 mt-1">{field.helpText}</p>}
-                    </div>
-                    <div className="p-4">
-                        <InventoryManager
-                            config={invConfig}
-                            onConfigChange={(newConfig) => onChange(newConfig.items)}
-                        />
-                    </div>
-                </div>
             );
 
         case 'multi-select':

@@ -77,7 +77,7 @@ const SettingsUltimate = () => {
     processed: boolean;
     lastProcessedAt?: Date;
     documentId?: string;
-    itemCounts?: { reviews: number; faqs: number; inventory: boolean };
+    itemCounts?: { reviews: number; faqs: number };
   } | null>(null);
 
   // Debounced search function
@@ -204,13 +204,6 @@ const SettingsUltimate = () => {
               itemCounts: {
                 reviews: personaResult.persona.industrySpecificData?.fetchedReviews?.length || 0,
                 faqs: personaResult.persona.knowledge?.faqs?.length || 0,
-                inventory: !!(
-                  personaResult.persona.roomTypes?.length ||
-                  personaResult.persona.menuItems?.length ||
-                  personaResult.persona.productCatalog?.length ||
-                  personaResult.persona.propertyListings?.length ||
-                  personaResult.persona.healthcareServices?.length
-                ),
               },
             });
           }
@@ -694,7 +687,6 @@ const SettingsUltimate = () => {
           { key: 'categories', label: 'Product Categories', type: 'tags', required: true },
           { key: 'priceRange', label: 'Price Range', type: 'text' },
           { key: 'bestsellers', label: 'Bestsellers', type: 'tags' },
-          { key: 'productCatalog', label: 'Product Inventory', type: 'inventory', inventoryType: 'products', hint: 'Add your products with pricing and variants' },
         ]
       },
       payments: {
@@ -755,7 +747,6 @@ const SettingsUltimate = () => {
           { key: 'types', label: 'Property Types', type: 'tags' },
           { key: 'segments', label: 'Segments', type: 'tags' },
           { key: 'priceRange', label: 'Price Range', type: 'text' },
-          { key: 'propertyListings', label: 'Your Listings', type: 'inventory', inventoryType: 'properties', hint: 'Add properties you are selling or renting' },
         ]
       },
       services: {
@@ -812,14 +803,12 @@ const SettingsUltimate = () => {
         fields: [
           { key: 'consultationFee', label: 'Consultation Fee', type: 'text', required: true },
           { key: 'followUpFee', label: 'Follow-up Fee', type: 'text' },
-          { key: 'healthcareServices', label: 'Services & Treatments', type: 'inventory', inventoryType: 'healthcare', hint: 'Add your consultations, treatments, and procedures with pricing' },
         ]
       },
       diagnostics: {
         title: 'Diagnostics & Tests',
         icon: '🔬',
         fields: [
-          { key: 'diagnosticTests', label: 'Tests & Packages', type: 'inventory', inventoryType: 'diagnostics', hint: 'Add lab tests and health packages you offer' },
           { key: 'homeCollection', label: 'Home Sample Collection', type: 'select', options: ['Available', 'Not Available'] },
           { key: 'reportTime', label: 'Report Delivery Time', type: 'text' },
         ]
@@ -876,7 +865,6 @@ const SettingsUltimate = () => {
           { key: 'specialties', label: 'Signature Dishes', type: 'tags' },
           { key: 'priceRange', label: 'Price Range (per person)', type: 'text' },
           { key: 'dietary', label: 'Dietary Options', type: 'tags' },
-          { key: 'menuItems', label: 'Menu Items', type: 'inventory', inventoryType: 'menu', hint: 'Add your dishes with pricing and dietary info' },
         ]
       },
       delivery: {
@@ -1033,7 +1021,6 @@ const SettingsUltimate = () => {
           { key: 'priceRange', label: 'Price Range', type: 'text' },
           { key: 'checkIn', label: 'Check-in Time', type: 'text' },
           { key: 'checkOut', label: 'Check-out Time', type: 'text' },
-          { key: 'roomTypes', label: 'Room Inventory', type: 'inventory', inventoryType: 'rooms', hint: 'Add your room categories with pricing' },
         ]
       },
       amenities: {
@@ -1335,13 +1322,6 @@ const SettingsUltimate = () => {
                           onlinePresence: persona.industrySpecificData?.onlinePresence || [],
                           pressMedia: [],
                           photos: persona.industrySpecificData?.fetchedPhotos || [],
-                          inventory: {
-                            rooms: persona.roomTypes?.map((r: any) => ({ name: r.name, description: r.description })),
-                            menuItems: persona.menuItems?.map((m: any) => ({ name: m.name, description: m.description })),
-                            products: persona.productCatalog?.map((p: any) => ({ name: p.name, description: p.description })),
-                            properties: persona.propertyListings?.map((p: any) => ({ title: p.title, description: p.description })),
-                            services: persona.healthcareServices?.map((s: any) => ({ name: s.name, description: s.description })),
-                          },
                           fromTheWeb: persona.industrySpecificData?.fromTheWeb,
                           industrySpecificData: persona.industrySpecificData,
                         };
@@ -1356,7 +1336,6 @@ const SettingsUltimate = () => {
                             itemCounts: {
                               reviews: ragData.reviews?.length || 0,
                               faqs: persona.knowledge?.faqs?.length || 0,
-                              inventory: !!Object.keys(ragData.inventory || {}).length
                             }
                           });
                         } else {
