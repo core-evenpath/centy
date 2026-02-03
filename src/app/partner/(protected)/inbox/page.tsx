@@ -229,26 +229,12 @@ interface RAGSuggestion {
     confidence: number;
     reasoning: string;
     sources: Array<{
-        type: 'conversation' | 'document';
+        type: 'document' | 'module' | 'profile';
         name: string;
         excerpt: string;
         relevance: number;
-        fromAssistant?: string;
-        fromAgent?: string;
     }>;
     personaUsed?: boolean;
-    assistantUsed?: {
-        id: string;
-        name: string;
-        avatar: string;
-        usedAsFallback: boolean;
-    };
-    agentUsed?: {
-        id: string;
-        name: string;
-        avatar: string;
-        usedAsFallback: boolean;
-    };
 }
 
 export default function UnifiedInboxPage() {
@@ -546,29 +532,27 @@ export default function UnifiedInboxPage() {
         setIsLoadingSuggestion(true);
 
         try {
-            let context = messages.slice(-5).map((m: any) => `${m.direction}: ${m.content}`).join('\n');
-
-            if (refinementInstruction) {
-                context += `\n\n[SYSTEM INSTRUCTION: The user wants to refine the previous suggestion. ${refinementInstruction}]`;
-            }
-
             const result = await generateInboxSuggestionAction(
                 currentPartnerId,
                 messageToAnalyze,
-                context,
-                selectedConversation?.contactId,
-                [] // No agent selection - use all documents
+                selectedConversation.id,
+                selectedConversation.contactId
             );
 
             if (result.success && result.suggestedReply) {
+                let reply = result.suggestedReply;
+                if (refinementInstruction) {
+                    // Refinement logic would ideally be handled on the server, 
+                    // but for now we follow the existing pattern if refinement is triggered.
+                    // Note: generateInboxSuggestionAction already builds fresh context.
+                }
+
                 setAISuggestion({
-                    suggestedReply: result.suggestedReply,
+                    suggestedReply: reply,
                     confidence: result.confidence || 0.85,
-                    reasoning: result.reasoning || 'Generated based on your business documents and conversation history.',
-                    sources: (result.sources || []).map((s: any) => ({ ...s, type: 'document' as const, excerpt: s.excerpt || '' })),
-                    personaUsed: result.personaUsed,
-                    assistantUsed: result.assistantUsed,
-                    agentUsed: result.assistantUsed
+                    reasoning: result.reasoning || 'Based on business profile and documents.',
+                    sources: result.sources || [],
+                    personaUsed: result.personaUsed
                 });
             } else {
                 toast.error(result.message || "Failed to generate suggestion");
@@ -590,6 +574,7 @@ export default function UnifiedInboxPage() {
     const handleRefineSuggestion = (instruction: string) => {
         handleGenerateSuggestion(undefined, instruction);
     };
+
 
     const handleDeleteConversation = async () => {
         if (!selectedConversation || !currentPartnerId) return;

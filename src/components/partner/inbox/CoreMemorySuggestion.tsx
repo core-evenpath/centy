@@ -22,7 +22,9 @@ import {
     ArrowRight,
     X,
     MessageSquare,
-    Zap
+    Zap,
+    Building,
+    Package
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -116,12 +118,10 @@ const suggestionStyles = `
 `;
 
 interface RAGSource {
-    type: 'conversation' | 'document';
+    type: 'document' | 'module' | 'profile';
     name: string;
     excerpt: string;
     relevance: number;
-    fromAssistant?: string;
-    fromAgent?: string;
 }
 
 interface RAGSuggestion {
@@ -130,18 +130,6 @@ interface RAGSuggestion {
     reasoning: string;
     sources: RAGSource[];
     personaUsed?: boolean;
-    assistantUsed?: {
-        id: string;
-        name: string;
-        avatar: string;
-        usedAsFallback: boolean;
-    };
-    agentUsed?: {
-        id: string;
-        name: string;
-        avatar: string;
-        usedAsFallback: boolean;
-    };
 }
 
 interface CoreMemorySuggestionProps {
@@ -251,36 +239,24 @@ export default function CoreMemorySuggestion({
         return () => window.removeEventListener('keydown', handleEscape);
     }, [isVisible, onDismiss]);
 
-    const getConfidenceInfo = (confidence: number) => {
-        if (confidence >= 0.85) return { label: 'High', color: 'bg-emerald-50 text-emerald-700 border-emerald-200', iconColor: 'text-emerald-500' };
-        if (confidence >= 0.7) return { label: 'Good', color: 'bg-sky-50 text-sky-700 border-sky-200', iconColor: 'text-sky-500' };
-        if (confidence >= 0.5) return { label: 'Fair', color: 'bg-amber-50 text-amber-700 border-amber-200', iconColor: 'text-amber-500' };
-        return { label: 'Low', color: 'bg-red-50 text-red-700 border-red-200', iconColor: 'text-red-500' };
-    };
-
-    const documentSources = suggestion?.sources?.filter(s => s.type === 'document') || [];
-
-    // Helper to get agent/assistant used info
-    const usedAgent = suggestion?.agentUsed || suggestion?.assistantUsed;
-
     const getLoadingContent = () => {
         const stages = {
             searching: {
                 icon: Search,
-                title: 'Searching Knowledge Base',
-                subtitle: 'Finding relevant documents...',
+                title: 'Building AI Context',
+                subtitle: 'Profile, modules & documents...',
                 progress: 33
             },
             analyzing: {
                 icon: Brain,
-                title: 'Analyzing Context',
-                subtitle: 'Understanding the conversation...',
+                title: 'Analyzing Conversation',
+                subtitle: 'Understanding the customer...',
                 progress: 66
             },
             generating: {
                 icon: Wand2,
-                title: 'Crafting Response',
-                subtitle: 'Generating personalized reply...',
+                title: 'Crafting Suggestion',
+                subtitle: 'Generating professional reply...',
                 progress: 90
             },
             complete: {
@@ -370,7 +346,7 @@ export default function CoreMemorySuggestion({
                                         )}
                                     </div>
                                     <p className="text-[12px] text-[#999] mt-0.5">
-                                        {documentSources.length > 0 ? documentSources.map(s => s.name).slice(0, 3).join(' · ') : 'Knowledge Base'}
+                                        Powered by AI Context Builder
                                     </p>
                                 </div>
                             </div>
@@ -479,14 +455,38 @@ export default function CoreMemorySuggestion({
                                     </div>
                                 )}
 
-                                {/* Sources Section - Hidden for cleaner UI */}
+                                {/* Sources Section */}
+                                {!isTyping && suggestion.sources.length > 0 && (
+                                    <div className="space-y-3">
+                                        <p className="text-[10px] font-semibold text-[#999] uppercase tracking-wider flex items-center gap-1.5">
+                                            <Database className="w-3 h-3" />
+                                            Context Used
+                                        </p>
+                                        <div className="space-y-2">
+                                            {suggestion.sources.map((source, idx) => (
+                                                <div key={idx} className="flex items-center gap-2 p-2 bg-white border border-[#e5e5e5] rounded-lg">
+                                                    {source.type === 'profile' && <Building className="w-4 h-4 text-blue-500" />}
+                                                    {source.type === 'module' && <Package className="w-4 h-4 text-green-500" />}
+                                                    {source.type === 'document' && <FileText className="w-4 h-4 text-purple-500" />}
+                                                    <div className="flex-1 min-w-0">
+                                                        <p className="text-xs font-medium text-gray-900 truncate">{source.name}</p>
+                                                        <p className="text-[10px] text-gray-500 truncate">{source.excerpt}</p>
+                                                    </div>
+                                                    <Badge variant="outline" className="text-[9px] px-1 h-4 border-[#eee] text-[#666]">
+                                                        {Math.round(source.relevance * 100)}%
+                                                    </Badge>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
 
                                 {/* Personalization Badge */}
                                 {suggestion.personaUsed && (
-                                    <div className="flex items-center gap-2 px-3 py-2.5 bg-gray-50 rounded-lg border border-gray-200">
-                                        <User className="w-4 h-4 text-gray-500" />
-                                        <span className="text-xs text-gray-600">
-                                            Personalized using customer profile
+                                    <div className="flex items-center gap-2 px-3 py-2 bg-blue-50/50 rounded-lg border border-blue-100">
+                                        <User className="w-3 h-3 text-blue-500" />
+                                        <span className="text-[11px] text-blue-600 font-medium">
+                                            Personalized for this customer
                                         </span>
                                     </div>
                                 )}
