@@ -319,7 +319,7 @@ export function ApplyTab({
       shortDescription: getFieldValue('personality.description') as string,
       tagline: getFieldValue('personality.tagline') as string,
       missionStatement: getFieldValue('personality.missionStatement') as string,
-      services: (getFieldValue('knowledge.productsOrServices') || getFieldValue('knowledge.services')) as string[],
+      services: getFieldValue('knowledge.services') as string[],
       products: selectedProducts.map(p => ({
         name: p.name,
         category: p.category,
