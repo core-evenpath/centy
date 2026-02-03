@@ -90,10 +90,6 @@ interface SelectionState {
       customerPainPoints: boolean;
     };
   };
-  productsServices: {
-    selected: boolean;
-    items: boolean[];
-  };
   packages: {
     selected: boolean;
     items: boolean[];
@@ -252,10 +248,6 @@ function initializeSelectionState(data: any): SelectionState {
         targetAudience: (data?.customerProfile?.targetAudience?.length || 0) > 0,
         customerPainPoints: (data?.customerProfile?.customerPainPoints?.length || 0) > 0,
       },
-    },
-    productsServices: {
-      selected: (data?.knowledge?.productsOrServices?.length || 0) > 0,
-      items: (data?.knowledge?.productsOrServices || []).map(() => true),
     },
     packages: {
       selected: (data?.knowledge?.packages?.length || 0) > 0,
@@ -495,14 +487,6 @@ function buildSelectedData(data: any, selection: SelectionState): any {
     }
   }
 
-  // Products/Services
-  if (selection.productsServices.selected && data.knowledge?.productsOrServices?.length) {
-    result.knowledge = result.knowledge || {};
-    result.knowledge.productsOrServices = data.knowledge.productsOrServices.filter(
-      (_: any, i: number) => selection.productsServices.items[i]
-    );
-  }
-
   // Packages
   if (selection.packages.selected && data.knowledge?.packages?.length) {
     result.knowledge = result.knowledge || {};
@@ -669,9 +653,6 @@ function countSelectedItems(selection: SelectionState): { selected: number; tota
 
   // Content
   countFields(selection.content.fields, selection.content.selected);
-
-  // Products/Services
-  countItems(selection.productsServices.items, selection.productsServices.selected);
 
   // Packages
   countItems(selection.packages.items, selection.packages.selected);
@@ -841,7 +822,6 @@ export default function WebsiteImportPreviewModal({
     serviceAreas: false,
     social: false,
     content: false,
-    productsServices: false,
     packages: false,
     pricingTiers: false,
     currentOffers: false,
@@ -905,7 +885,6 @@ export default function WebsiteImportPreviewModal({
   const hasSocial = data.identity?.socialMedia && Object.values(data.identity.socialMedia).some(v => v);
   const hasContent = data.personality?.uniqueSellingPoints?.length || data.customerProfile?.targetAudience?.length ||
                      data.customerProfile?.customerPainPoints?.length;
-  const hasProductsServices = data.knowledge?.productsOrServices?.length > 0;
   const hasPackages = data.knowledge?.packages?.length > 0;
   const hasPricingTiers = data.knowledge?.pricingTiers?.length > 0;
   const hasCurrentOffers = data.knowledge?.currentOffers?.length > 0;
@@ -1584,38 +1563,6 @@ export default function WebsiteImportPreviewModal({
             </SectionHeader>
           )}
 
-          {/* Products/Services */}
-          {hasProductsServices && (
-            <SectionHeader
-              title="Products & Services"
-              icon={Package}
-              selected={selection.productsServices.selected}
-              onToggle={() => toggleSection('productsServices')}
-              expanded={expandedSections.productsServices}
-              onExpandToggle={() => toggleExpanded('productsServices')}
-              count={data.knowledge.productsOrServices.length}
-            >
-              <div className="space-y-2 max-h-60 overflow-y-auto">
-                {data.knowledge.productsOrServices.map((item: any, i: number) => (
-                  <SelectableItem
-                    key={i}
-                    selected={selection.productsServices.items[i] && selection.productsServices.selected}
-                    onToggle={() => setSelection(prev => ({
-                      ...prev,
-                      productsServices: {
-                        ...prev.productsServices,
-                        items: prev.productsServices.items.map((v, idx) => idx === i ? !v : v)
-                      }
-                    }))}
-                    label={item.name}
-                    value={item.description}
-                    sublabel={item.isService ? 'Service' : 'Product'}
-                  />
-                ))}
-              </div>
-            </SectionHeader>
-          )}
-
           {/* FAQs */}
           {hasFaqs && (
             <SectionHeader
@@ -2274,7 +2221,7 @@ export default function WebsiteImportPreviewModal({
 
           {/* No Data Message */}
           {!hasBusinessInfo && !hasBrandStory && !hasContact && !hasLocations && !hasServiceAreas &&
-           !hasSocial && !hasContent && !hasProductsServices && !hasPackages && !hasPricingTiers &&
+           !hasSocial && !hasContent && !hasPackages && !hasPricingTiers &&
            !hasCurrentOffers && !hasFaqs && !hasPolicies && !hasInventory && !hasTeam &&
            !hasTestimonials && !hasCaseStudies && !hasCredibility && !hasAdditional && (
             <div className="text-center py-12">

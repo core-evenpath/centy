@@ -49,11 +49,9 @@ interface SelectionState {
   knowledge: {
     selected: boolean;
     fields: {
-      productsOrServices: boolean;
       faqs: boolean;
     };
     items: {
-      productsOrServices: boolean[];
       faqs: boolean[];
     };
   };
@@ -131,11 +129,9 @@ function initializeSelectionState(data: any): SelectionState {
     knowledge: {
       selected: true,
       fields: {
-        productsOrServices: (data?.knowledge?.productsOrServices?.length || 0) > 0,
         faqs: (data?.knowledge?.faqs?.length || 0) > 0,
       },
       items: {
-        productsOrServices: (data?.knowledge?.productsOrServices || []).map(() => true),
         faqs: (data?.knowledge?.faqs || []).map(() => true),
       },
     },
@@ -246,11 +242,6 @@ function buildSelectedData(data: any, selection: SelectionState): any {
   // Knowledge
   if (selection.knowledge.selected) {
     result.knowledge = {};
-    if (selection.knowledge.fields.productsOrServices && data.knowledge?.productsOrServices?.length > 0) {
-      result.knowledge.productsOrServices = data.knowledge.productsOrServices.filter(
-        (_: any, i: number) => selection.knowledge.items.productsOrServices[i]
-      );
-    }
     if (selection.knowledge.fields.faqs && data.knowledge?.faqs?.length > 0) {
       result.knowledge.faqs = data.knowledge.faqs.filter(
         (_: any, i: number) => selection.knowledge.items.faqs[i]
@@ -498,12 +489,6 @@ export default function AutoFillPreviewModal({
       selected += selection.knowledge.items.faqs.filter(Boolean).length;
     }
 
-    // Products/Services
-    total += selection.knowledge.items.productsOrServices.length;
-    if (selection.knowledge.selected && selection.knowledge.fields.productsOrServices) {
-      selected += selection.knowledge.items.productsOrServices.filter(Boolean).length;
-    }
-
     return { total, selected };
   }, [selection]);
 
@@ -580,7 +565,7 @@ export default function AutoFillPreviewModal({
       case 'customerProfile':
         return (data?.customerProfile?.targetAudience?.length || 0) > 0;
       case 'knowledge':
-        return !!(data?.knowledge?.productsOrServices?.length || data?.knowledge?.faqs?.length);
+        return !!(data?.knowledge?.faqs?.length);
       case 'industrySpecificData':
         return !!data?.industrySpecificData && Object.keys(data.industrySpecificData).filter(k =>
           !['googleRating', 'googleReviewCount', 'priceLevel'].includes(k)
@@ -993,65 +978,17 @@ export default function AutoFillPreviewModal({
             </div>
           )}
 
-          {/* Products/Services & FAQs */}
+          {/* FAQs */}
           {hasData('knowledge') && (
             <SectionHeader
-              icon={Package}
-              title="Products, Services & FAQs"
-              count={(data.knowledge?.productsOrServices?.length || 0) + (data.knowledge?.faqs?.length || 0)}
+              icon={HelpCircle}
+              title="FAQs"
+              count={data.knowledge?.faqs?.length || 0}
               selected={selection.knowledge.selected}
               onToggle={() => toggleSection('knowledge')}
               expanded={expandedSections.has('knowledge')}
               onExpandToggle={() => toggleExpanded('knowledge')}
             >
-              {data.knowledge?.productsOrServices?.length > 0 && (
-                <div className="mt-3">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-xs font-medium text-slate-600">Products & Services ({data.knowledge.productsOrServices.length})</span>
-                    <SelectAllControls
-                      items={selection.knowledge.items.productsOrServices}
-                      onSelectAll={() => setSelection(prev => ({
-                        ...prev,
-                        knowledge: {
-                          ...prev.knowledge,
-                          items: { ...prev.knowledge.items, productsOrServices: prev.knowledge.items.productsOrServices.map(() => true) }
-                        }
-                      }))}
-                      onDeselectAll={() => setSelection(prev => ({
-                        ...prev,
-                        knowledge: {
-                          ...prev.knowledge,
-                          items: { ...prev.knowledge.items, productsOrServices: prev.knowledge.items.productsOrServices.map(() => false) }
-                        }
-                      }))}
-                    />
-                  </div>
-                  <div className="flex flex-wrap gap-2 max-h-32 overflow-y-auto">
-                    {data.knowledge.productsOrServices.map((item: any, i: number) => (
-                      <span
-                        key={i}
-                        onClick={() => setSelection(prev => {
-                          const items = [...prev.knowledge.items.productsOrServices];
-                          items[i] = !items[i];
-                          return {
-                            ...prev,
-                            knowledge: { ...prev.knowledge, items: { ...prev.knowledge.items, productsOrServices: items } }
-                          };
-                        })}
-                        className={cn(
-                          "px-2 py-1 rounded-full text-xs cursor-pointer transition-all",
-                          selection.knowledge.items.productsOrServices[i] && selection.knowledge.selected
-                            ? "bg-purple-100 text-purple-700"
-                            : "bg-slate-100 text-slate-400 line-through"
-                        )}
-                      >
-                        {item.name}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              )}
-
               {data.knowledge?.faqs?.length > 0 && (
                 <div className="mt-4">
                   <div className="flex items-center justify-between mb-2">

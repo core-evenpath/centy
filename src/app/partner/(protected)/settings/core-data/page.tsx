@@ -25,7 +25,6 @@ import {
     Mail,
     MapPin,
     MessageSquare,
-    Package,
     Users,
     Globe,
     FileText,
@@ -103,12 +102,11 @@ const SECTIONS_CONFIG: SectionConfig[] = [
     },
     {
         key: 'knowledge',
-        label: 'Products & Services',
-        description: 'What you offer, pricing, and business policies',
-        icon: Package,
+        label: 'Knowledge Base',
+        description: 'FAQs, policies, and pricing information',
+        icon: HelpCircle,
         color: 'emerald',
         fields: [
-            { key: 'knowledge.productsOrServices', label: 'Products/Services List', icon: Package },
             { key: 'knowledge.serviceCategories', label: 'Service Categories', icon: Boxes },
             { key: 'knowledge.pricingModel', label: 'Pricing Model', icon: DollarSign },
             { key: 'knowledge.pricingHighlights', label: 'Pricing Highlights', icon: DollarSign },
@@ -281,32 +279,6 @@ function IndustryDisplay({ industry }: { industry: any }) {
     );
 }
 
-function ProductsDisplay({ products }: { products: any[] }) {
-    if (!products || !Array.isArray(products) || products.length === 0) {
-        return <span className="text-slate-400 italic">Not set</span>;
-    }
-
-    return (
-        <div className="space-y-2 w-full">
-            {products.map((product, idx) => {
-                const name = typeof product === 'string' ? product : product.name;
-                const price = typeof product === 'object' ? (product.priceRange || product.price) : null;
-                const desc = typeof product === 'object' ? product.description : null;
-
-                return (
-                    <div key={idx} className="flex items-start justify-between p-2 bg-slate-50 rounded border border-slate-100">
-                        <div className="flex-1">
-                            <span className="font-medium text-slate-700">{name || `Item ${idx + 1}`}</span>
-                            {desc && <p className="text-xs text-slate-500 mt-0.5">{desc}</p>}
-                        </div>
-                        {price && <Badge variant="outline" className="text-xs ml-2 shrink-0">{price}</Badge>}
-                    </div>
-                );
-            })}
-        </div>
-    );
-}
-
 function FAQsDisplay({ faqs }: { faqs: any[] }) {
     if (!faqs || !Array.isArray(faqs) || faqs.length === 0) {
         return <span className="text-slate-400 italic">Not set</span>;
@@ -438,10 +410,6 @@ function FieldValueDisplay({ path, value }: { path: string; value: any }) {
 
     if (path.includes('.industry')) {
         return <IndustryDisplay industry={value} />;
-    }
-
-    if (path.includes('productsOrServices')) {
-        return <ProductsDisplay products={value} />;
     }
 
     if (path.includes('faqs')) {

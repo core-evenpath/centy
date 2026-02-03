@@ -9,7 +9,6 @@ import {
   MapPin,
   Clock,
   MessageSquare,
-  Package,
   HelpCircle,
   FileText,
   Users,
@@ -39,7 +38,6 @@ import { getBusinessPersonaAction } from '@/actions/business-persona-actions';
 import type {
   BusinessPersona,
   SetupProgress,
-  ProductService,
 } from '@/lib/business-persona-types';
 
 import TestAIResponseModal from './TestAIResponseModal';
@@ -136,39 +134,6 @@ function FieldDisplay({ icon, label, value, className = '' }: FieldDisplayProps)
   );
 }
 
-// Product Card Component
-function ProductCard({ product }: { product: ProductService }) {
-  return (
-    <div className="p-3 bg-slate-50 rounded-lg border border-slate-100">
-      <div className="flex items-start justify-between gap-2">
-        <div className="flex-1 min-w-0">
-          <p className="font-medium text-slate-900 truncate">{product.name}</p>
-          {product.description && (
-            <p className="text-xs text-slate-500 mt-0.5 line-clamp-2">{product.description}</p>
-          )}
-        </div>
-        {product.priceRange && (
-          <Badge variant="secondary" className="flex-shrink-0 text-xs">
-            {product.priceRange}
-          </Badge>
-        )}
-      </div>
-      <div className="flex items-center gap-2 mt-2">
-        {product.category && (
-          <Badge variant="outline" className="text-xs">
-            {product.category}
-          </Badge>
-        )}
-        {product.isPopular && (
-          <Badge className="text-xs bg-amber-100 text-amber-700 hover:bg-amber-100">
-            Popular
-          </Badge>
-        )}
-      </div>
-    </div>
-  );
-}
-
 export default function BusinessProfileView({ partnerId }: BusinessProfileViewProps) {
   const [persona, setPersona] = useState<BusinessPersona | null>(null);
   const [setupProgress, setSetupProgress] = useState<SetupProgress | null>(null);
@@ -241,7 +206,6 @@ export default function BusinessProfileView({ partnerId }: BusinessProfileViewPr
   const { identity, personality, customerProfile, knowledge } = persona;
 
   // Calculate content availability for empty states
-  const hasProducts = (knowledge?.productsOrServices?.length ?? 0) > 0;
   const hasFaqs = (knowledge?.faqs?.length ?? 0) > 0;
   const hasPolicies = !!(
     knowledge?.policies?.returnPolicy ||
@@ -452,44 +416,7 @@ export default function BusinessProfileView({ partnerId }: BusinessProfileViewPr
             </div>
           </ProfileSection>
 
-          {/* Section 3: Products & Services */}
-          <ProfileSection
-            title="Products & Services"
-            icon={<Package className="w-5 h-5 text-purple-600" />}
-            iconBg="bg-purple-100"
-            editLink="/partner/settings?tab=profile"
-            isEmpty={!hasProducts}
-            emptyMessage="Add your products or services so AI can recommend them"
-            emptyAction="Add products"
-          >
-            <div className="space-y-3">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-sm text-slate-500">
-                  {knowledge?.productsOrServices?.length ?? 0} items
-                </span>
-                {knowledge?.pricingHighlights && (
-                  <Badge variant="secondary" className="text-xs">
-                    {knowledge.pricingHighlights}
-                  </Badge>
-                )}
-              </div>
-              <div className="grid gap-2">
-                {knowledge?.productsOrServices?.slice(0, 4).map((product) => (
-                  <ProductCard key={product.id} product={product} />
-                ))}
-                {(knowledge?.productsOrServices?.length ?? 0) > 4 && (
-                  <Link href="/partner/settings?tab=profile">
-                    <Button variant="ghost" size="sm" className="w-full text-slate-600">
-                      View all {knowledge?.productsOrServices?.length} products
-                      <ChevronRight className="w-4 h-4 ml-1" />
-                    </Button>
-                  </Link>
-                )}
-              </div>
-            </div>
-          </ProfileSection>
-
-          {/* Section 4: Knowledge Base Summary */}
+          {/* Section 3: Knowledge Base Summary */}
           <ProfileSection
             title="Knowledge Base"
             icon={<HelpCircle className="w-5 h-5 text-amber-600" />}
