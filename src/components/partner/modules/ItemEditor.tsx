@@ -117,7 +117,8 @@ export function ItemEditor({ initialItem, module, schema, onSave, onCancel }: It
                 prev.map(img => img.id === uploadId ? { ...img, progress: 30 } : img)
             );
 
-            await uploadBytes(storageRef, file);
+            // Upload with explicit content type for Firebase Storage rules validation
+            await uploadBytes(storageRef, file, { contentType: file.type });
 
             // Update progress to show upload complete, getting URL
             setUploadingImages(prev =>
