@@ -36,7 +36,6 @@ export function ModulesList() {
         );
     }
 
-    // Empty state - matches modules-demo
     if (modules.length === 0) {
         return (
             <>
@@ -51,7 +50,6 @@ export function ModulesList() {
                             Let AI generate modules for all industries, or create one manually.
                         </p>
 
-                        {/* Info Banner */}
                         <div className="mt-6 p-4 bg-gradient-to-r from-indigo-50 to-purple-50 border border-indigo-200 rounded-xl flex items-start gap-3 max-w-lg text-left">
                             <Brain className="w-5 h-5 text-indigo-600 mt-0.5 shrink-0" />
                             <div className="text-sm text-indigo-700">
@@ -64,7 +62,7 @@ export function ModulesList() {
                             <Button variant="outline" size="lg" asChild>
                                 <Link href="/admin/modules/new">
                                     <Plus className="h-4 w-4 mr-2" />
-                                    Create Manually
+                                    Create Single Module
                                 </Link>
                             </Button>
 
@@ -78,7 +76,6 @@ export function ModulesList() {
                             </Button>
                         </div>
 
-                        {/* Industry Icons */}
                         <div className="mt-8 flex flex-wrap justify-center gap-3 text-2xl">
                             {['🏨', '🍽️', '💼', '🏥', '💆', '🛒', '🎓', '🏠'].map((icon, i) => (
                                 <div key={i} className="w-10 h-10 bg-white border border-slate-200 rounded-lg flex items-center justify-center shadow-sm">
@@ -98,13 +95,17 @@ export function ModulesList() {
         );
     }
 
-    // Has modules
     return (
         <>
             <div className="flex items-center justify-between mb-6">
                 <span className="text-sm text-slate-500">{modules.length} modules</span>
                 <div className="flex gap-2">
-                    <Button variant="outline" size="sm" onClick={() => setBulkDeleteDialogOpen(true)} className="text-red-600 hover:text-red-700 hover:bg-red-50">
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setBulkDeleteDialogOpen(true)}
+                        className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                    >
                         <Trash2 className="h-4 w-4 mr-1" /> Clear All
                     </Button>
                     <Button variant="outline" size="sm" onClick={() => setBulkDialogOpen(true)}>
