@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { ModuleItem, ModuleSchema, PartnerModule } from '@/lib/modules/types';
 import { Button } from '@/components/ui/button';
@@ -13,9 +13,12 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, Plus, Trash2, X } from 'lucide-react';
+import { Loader2, Plus, Trash2, X, Upload, ImageIcon } from 'lucide-react';
 import { toast } from 'sonner';
 import { SUPPORTED_CURRENCIES } from '@/lib/modules/constants';
+import { storage } from '@/lib/firebase';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import Image from 'next/image';
 
 interface ItemEditorProps {
     initialItem?: Partial<ModuleItem>;
@@ -25,9 +28,23 @@ interface ItemEditorProps {
     onCancel: () => void;
 }
 
+const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
+const MAX_IMAGES = 5;
+const ACCEPTED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
+
+interface UploadingImage {
+    id: string;
+    file: File;
+    progress: number;
+    preview: string;
+}
+
 export function ItemEditor({ initialItem, module, schema, onSave, onCancel }: ItemEditorProps) {
     const [isSaving, setIsSaving] = useState(false);
     const [activeTab, setActiveTab] = useState('basic');
+    const [uploadedImages, setUploadedImages] = useState<string[]>(initialItem?.images || []);
+    const [uploadingImages, setUploadingImages] = useState<UploadingImage[]>([]);
+    const [isDragging, setIsDragging] = useState(false);
 
     // Combine all fields (schema fields + custom fields)
     // Note: PartnerModule in types has customFields array. 
@@ -52,6 +69,142 @@ export function ItemEditor({ initialItem, module, schema, onSave, onCancel }: It
     });
 
     const watchedFields = watch();
+
+    // Sync uploaded images to form
+    useEffect(() => {
+        setValue('images', uploadedImages);
+        if (uploadedImages.length > 0) {
+            setValue('thumbnail', uploadedImages[0]);
+        } else {
+            setValue('thumbnail', undefined);
+        }
+    }, [uploadedImages, setValue]);
+
+    const generateUUID = () => {
+        return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+            const r = (Math.random() * 16) | 0;
+            const v = c === 'x' ? r : (r & 0x3) | 0x8;
+            return v.toString(16);
+        });
+    };
+
+    const validateFile = (file: File): string | null => {
+        if (!ACCEPTED_IMAGE_TYPES.includes(file.type)) {
+            return `Invalid file type. Accepted: JPEG, PNG, WebP`;
+        }
+        if (file.size > MAX_FILE_SIZE) {
+            return `File too large. Max size: 5MB`;
+        }
+        return null;
+    };
+
+    const uploadImage = useCallback(async (file: File): Promise<string | null> => {
+        const uploadId = generateUUID();
+        const ext = file.name.split('.').pop() || 'jpg';
+        const storagePath = `partner-uploads/${module.partnerId}/modules/${module.moduleSlug}/${uploadId}.${ext}`;
+
+        // Create preview URL
+        const preview = URL.createObjectURL(file);
+
+        // Add to uploading state
+        setUploadingImages(prev => [...prev, { id: uploadId, file, progress: 0, preview }]);
+
+        try {
+            const storageRef = ref(storage, storagePath);
+
+            // Update progress to show upload started
+            setUploadingImages(prev =>
+                prev.map(img => img.id === uploadId ? { ...img, progress: 30 } : img)
+            );
+
+            await uploadBytes(storageRef, file);
+
+            // Update progress to show upload complete, getting URL
+            setUploadingImages(prev =>
+                prev.map(img => img.id === uploadId ? { ...img, progress: 80 } : img)
+            );
+
+            const downloadURL = await getDownloadURL(storageRef);
+
+            // Remove from uploading state
+            setUploadingImages(prev => prev.filter(img => img.id !== uploadId));
+
+            // Clean up preview URL
+            URL.revokeObjectURL(preview);
+
+            return downloadURL;
+        } catch (error) {
+            console.error('Error uploading image:', error);
+            // Remove from uploading state on error
+            setUploadingImages(prev => prev.filter(img => img.id !== uploadId));
+            URL.revokeObjectURL(preview);
+            return null;
+        }
+    }, [module.partnerId, module.moduleSlug]);
+
+    const handleFiles = useCallback(async (files: FileList | File[]) => {
+        const fileArray = Array.from(files);
+        const remainingSlots = MAX_IMAGES - uploadedImages.length - uploadingImages.length;
+
+        if (remainingSlots <= 0) {
+            toast.error(`Maximum ${MAX_IMAGES} images allowed`);
+            return;
+        }
+
+        const filesToUpload = fileArray.slice(0, remainingSlots);
+
+        for (const file of filesToUpload) {
+            const error = validateFile(file);
+            if (error) {
+                toast.error(`${file.name}: ${error}`);
+                continue;
+            }
+
+            const url = await uploadImage(file);
+            if (url) {
+                setUploadedImages(prev => [...prev, url]);
+                toast.success(`Uploaded ${file.name}`);
+            } else {
+                toast.error(`Failed to upload ${file.name}`);
+            }
+        }
+    }, [uploadedImages.length, uploadingImages.length, uploadImage]);
+
+    const handleDragOver = useCallback((e: React.DragEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setIsDragging(true);
+    }, []);
+
+    const handleDragLeave = useCallback((e: React.DragEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setIsDragging(false);
+    }, []);
+
+    const handleDrop = useCallback((e: React.DragEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setIsDragging(false);
+
+        const files = e.dataTransfer.files;
+        if (files.length > 0) {
+            handleFiles(files);
+        }
+    }, [handleFiles]);
+
+    const handleFileInputChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+        const files = e.target.files;
+        if (files && files.length > 0) {
+            handleFiles(files);
+        }
+        // Reset input to allow selecting same file again
+        e.target.value = '';
+    }, [handleFiles]);
+
+    const removeImage = useCallback((indexToRemove: number) => {
+        setUploadedImages(prev => prev.filter((_, index) => index !== indexToRemove));
+    }, []);
 
     const handleFormSubmit = async (data: any) => {
         setIsSaving(true);
@@ -226,11 +379,97 @@ export function ItemEditor({ initialItem, module, schema, onSave, onCancel }: It
 
                 <TabsContent value="images" className="space-y-4">
                     <Card>
-                        <CardContent className="pt-6">
-                            <div className="text-center py-12 border-2 border-dashed rounded-lg bg-muted/10">
-                                <p className="text-muted-foreground">Image upload component placeholder</p>
-                                <p className="text-xs text-muted-foreground mt-2">Drag and drop images here</p>
-                            </div>
+                        <CardContent className="pt-6 space-y-4">
+                            {/* Uploaded Images Grid */}
+                            {(uploadedImages.length > 0 || uploadingImages.length > 0) && (
+                                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 mb-4">
+                                    {uploadedImages.map((url, index) => (
+                                        <div key={url} className="relative group aspect-square rounded-lg overflow-hidden border bg-muted">
+                                            <Image
+                                                src={url}
+                                                alt={`Image ${index + 1}`}
+                                                fill
+                                                className="object-cover"
+                                                sizes="(max-width: 768px) 50vw, (max-width: 1024px) 33vw, 20vw"
+                                            />
+                                            {index === 0 && (
+                                                <Badge className="absolute top-2 left-2 text-xs" variant="secondary">
+                                                    Thumbnail
+                                                </Badge>
+                                            )}
+                                            <button
+                                                type="button"
+                                                onClick={() => removeImage(index)}
+                                                className="absolute top-2 right-2 p-1 rounded-full bg-destructive text-destructive-foreground opacity-0 group-hover:opacity-100 transition-opacity"
+                                            >
+                                                <X className="h-4 w-4" />
+                                            </button>
+                                        </div>
+                                    ))}
+                                    {uploadingImages.map((img) => (
+                                        <div key={img.id} className="relative aspect-square rounded-lg overflow-hidden border bg-muted">
+                                            <Image
+                                                src={img.preview}
+                                                alt="Uploading"
+                                                fill
+                                                className="object-cover opacity-50"
+                                                sizes="(max-width: 768px) 50vw, (max-width: 1024px) 33vw, 20vw"
+                                            />
+                                            <div className="absolute inset-0 flex items-center justify-center">
+                                                <div className="text-center">
+                                                    <Loader2 className="h-6 w-6 animate-spin mx-auto mb-1" />
+                                                    <span className="text-xs">{img.progress}%</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+
+                            {/* Upload Zone */}
+                            {uploadedImages.length + uploadingImages.length < MAX_IMAGES && (
+                                <div
+                                    onDragOver={handleDragOver}
+                                    onDragLeave={handleDragLeave}
+                                    onDrop={handleDrop}
+                                    className={`relative text-center py-12 border-2 border-dashed rounded-lg transition-colors ${
+                                        isDragging
+                                            ? 'border-primary bg-primary/5'
+                                            : 'border-muted-foreground/25 bg-muted/10 hover:border-muted-foreground/50'
+                                    }`}
+                                >
+                                    <input
+                                        type="file"
+                                        accept={ACCEPTED_IMAGE_TYPES.join(',')}
+                                        multiple
+                                        onChange={handleFileInputChange}
+                                        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                                    />
+                                    <div className="flex flex-col items-center gap-2">
+                                        {isDragging ? (
+                                            <Upload className="h-10 w-10 text-primary" />
+                                        ) : (
+                                            <ImageIcon className="h-10 w-10 text-muted-foreground" />
+                                        )}
+                                        <div>
+                                            <p className="text-sm font-medium">
+                                                {isDragging ? 'Drop images here' : 'Drag and drop images here'}
+                                            </p>
+                                            <p className="text-xs text-muted-foreground mt-1">
+                                                or click to browse
+                                            </p>
+                                        </div>
+                                        <p className="text-xs text-muted-foreground">
+                                            JPEG, PNG, WebP up to 5MB ({MAX_IMAGES - uploadedImages.length - uploadingImages.length} remaining)
+                                        </p>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Info text */}
+                            <p className="text-xs text-muted-foreground">
+                                The first image will be used as the thumbnail. Drag images to reorder (coming soon).
+                            </p>
                         </CardContent>
                     </Card>
                 </TabsContent>
