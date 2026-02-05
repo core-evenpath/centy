@@ -101,7 +101,7 @@ export function ItemEditor({ initialItem, module, schema, onSave, onCancel }: It
     const uploadImage = useCallback(async (file: File): Promise<string | null> => {
         const uploadId = generateUUID();
         const ext = file.name.split('.').pop() || 'jpg';
-        const storagePath = `partner-uploads/${module.partnerId}/modules/${module.moduleSlug}/${uploadId}.${ext}`;
+        const storagePath = `partners/${module.partnerId}/modules/${module.moduleSlug}/${uploadId}.${ext}`;
 
         // Create preview URL
         const preview = URL.createObjectURL(file);
