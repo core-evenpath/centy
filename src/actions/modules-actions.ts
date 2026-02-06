@@ -1463,6 +1463,150 @@ export async function deleteAllModuleItemsAction(
     }
 }
 
+// ============================================================================
+// CSV TEMPLATE GENERATION
+// ============================================================================
+
+export async function generateModuleCsvTemplateAction(
+    moduleSlug: string
+): Promise<ModulesActionResponse<{ csvContent: string; filename: string }>> {
+    try {
+        const systemModuleResult = await getSystemModuleAction(moduleSlug);
+
+        if (!systemModuleResult.success || !systemModuleResult.data) {
+            return { success: false, error: 'Module not found', code: 'NOT_FOUND' };
+        }
+
+        const systemModule = systemModuleResult.data;
+        const schema = systemModule.schema;
+
+        // Fixed columns
+        const fixedColumns = ['name', 'description', 'category', 'price', 'currency', 'isActive', 'isFeatured'];
+
+        // Dynamic columns from schema fields
+        const dynamicColumns = schema.fields.map(f => f.name);
+
+        // All headers
+        const headers = [...fixedColumns, ...dynamicColumns];
+
+        // Generate placeholder values for each field type
+        const getPlaceholderValue = (field: typeof schema.fields[0]): string => {
+            switch (field.type) {
+                case 'text':
+                case 'textarea':
+                    return 'Example text';
+                case 'number':
+                    return '0';
+                case 'currency':
+                    return '0.00';
+                case 'select':
+                    return field.options?.[0] || '';
+                case 'multi_select':
+                    return field.options?.slice(0, 2).join(', ') || '';
+                case 'toggle':
+                    return 'true';
+                case 'tags':
+                    return 'tag1, tag2';
+                case 'date':
+                    return '2025-01-01';
+                case 'time':
+                    return '09:00';
+                case 'duration':
+                    return '60';
+                case 'url':
+                    return 'https://example.com';
+                case 'email':
+                    return 'example@email.com';
+                case 'phone':
+                    return '+1234567890';
+                case 'image':
+                    return 'https://example.com/image.jpg';
+                default:
+                    return '';
+            }
+        };
+
+        // Generate hint/description for each field
+        const getFieldHint = (field: typeof schema.fields[0]): string => {
+            const parts: string[] = [];
+            if (field.isRequired) parts.push('Required');
+            if (field.description) parts.push(field.description);
+            else if (field.placeholder) parts.push(field.placeholder);
+
+            if (field.type === 'select' && field.options?.length) {
+                parts.push(`Options: ${field.options.join(' | ')}`);
+            }
+            if (field.type === 'multi_select' && field.options?.length) {
+                parts.push(`Options: ${field.options.join(' | ')} (comma-separated)`);
+            }
+            if (field.validation?.min !== undefined) parts.push(`Min: ${field.validation.min}`);
+            if (field.validation?.max !== undefined) parts.push(`Max: ${field.validation.max}`);
+
+            return parts.length > 0 ? `(${parts.join('; ')})` : '';
+        };
+
+        // Category options for hint row
+        const categoryOptions = schema.categories.map(c => c.name).join(' | ');
+
+        // Fixed column hints
+        const fixedHints = [
+            '(Required)',
+            '(Optional)',
+            categoryOptions ? `(Options: ${categoryOptions})` : '(Category name)',
+            '(Number, e.g., 99.99)',
+            '(e.g., USD, EUR, INR)',
+            '(true or false)',
+            '(true or false)',
+        ];
+
+        // Dynamic column hints
+        const dynamicHints = schema.fields.map(f => getFieldHint(f));
+
+        // Hint row (row 2)
+        const hintRow = [...fixedHints, ...dynamicHints];
+
+        // Example values for fixed columns
+        const fixedExampleValues = [
+            'Sample Item Name',
+            'Sample description for this item',
+            schema.categories[0]?.name || 'General',
+            '99.99',
+            systemModule.defaultCurrency || 'INR',
+            'true',
+            'false',
+        ];
+
+        // Example values for dynamic columns
+        const dynamicExampleValues = schema.fields.map(f => getPlaceholderValue(f));
+
+        // Example row (row 3)
+        const exampleRow = [...fixedExampleValues, ...dynamicExampleValues];
+
+        // Helper to escape CSV values
+        const escapeCSV = (value: string): string => {
+            if (value.includes(',') || value.includes('"') || value.includes('\n')) {
+                return `"${value.replace(/"/g, '""')}"`;
+            }
+            return value;
+        };
+
+        // Build CSV content
+        const csvLines = [
+            headers.map(escapeCSV).join(','),
+            hintRow.map(escapeCSV).join(','),
+            exampleRow.map(escapeCSV).join(','),
+        ];
+
+        const csvContent = csvLines.join('\n');
+        const filename = `${moduleSlug}_template.csv`;
+
+        return { success: true, data: { csvContent, filename } };
+    } catch (error) {
+        console.error('Error generating CSV template:', error);
+        return { success: false, error: 'Failed to generate CSV template' };
+    }
+}
+
 export async function resetPartnerModulesAction(
     partnerId: string
 ): Promise<ModulesActionResponse<{ deleted: number }>> {

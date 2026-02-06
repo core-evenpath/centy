@@ -11,9 +11,10 @@ import {
     updateModuleItemAction,
     reorderItemsAction,
     deleteAllModuleItemsAction,
+    generateModuleCsvTemplateAction,
 } from '@/actions/modules-actions';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Plus, Settings, Package, Trash2, Loader2, AlertTriangle } from 'lucide-react';
+import { ArrowLeft, Plus, Settings, Package, Trash2, Loader2, AlertTriangle, Download } from 'lucide-react';
 import Link from 'next/link';
 import { Skeleton } from '@/components/ui/skeleton';
 import { toast } from 'sonner';
@@ -247,6 +248,29 @@ export default function ModuleManagePage({ params }: PageProps) {
         }
     };
 
+    const handleDownloadCsvTemplate = async () => {
+        try {
+            const result = await generateModuleCsvTemplateAction(slug);
+
+            if (result.success && result.data) {
+                const { csvContent, filename } = result.data;
+                const blob = new Blob([csvContent], { type: 'text/csv' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = filename;
+                a.click();
+                URL.revokeObjectURL(url);
+                toast.success('CSV template downloaded');
+            } else {
+                toast.error(result.error || 'Failed to generate template');
+            }
+        } catch (e) {
+            toast.error('Failed to download template');
+            console.error(e);
+        }
+    };
+
     return (
         <div className="container mx-auto py-8">
             <div className="mb-8">
@@ -275,6 +299,10 @@ export default function ModuleManagePage({ params }: PageProps) {
                             <DropdownMenuContent align="end">
                                 <DropdownMenuItem onClick={() => refetch()}>
                                     Refresh Data
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onClick={handleDownloadCsvTemplate}>
+                                    <Download className="mr-2 h-4 w-4" />
+                                    Download CSV Template
                                 </DropdownMenuItem>
                                 <DropdownMenuSeparator />
                                 <DropdownMenuItem
