@@ -6,7 +6,7 @@ import type {
     ShopifyOrder,
 } from './types-shopify';
 
-const SHOPIFY_API_VERSION = '2025-01';
+const SHOPIFY_API_VERSION = '2026-01';
 const RATE_LIMIT_THRESHOLD = 35;
 const PAGINATION_DELAY_MS = 500;
 
