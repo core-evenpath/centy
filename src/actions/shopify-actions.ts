@@ -54,13 +54,13 @@ const WEBHOOK_TOPICS = [
 
 function getShopifyApiKey(): string {
     const key = process.env.SHOPIFY_API_KEY;
-    if (!key) throw new Error('SHOPIFY_API_KEY environment variable is not set');
+    if (!key) throw new Error('Shopify integration is not configured. Please contact your administrator.');
     return key;
 }
 
 function getShopifyApiSecret(): string {
     const secret = process.env.SHOPIFY_API_SECRET;
-    if (!secret) throw new Error('SHOPIFY_API_SECRET environment variable is not set');
+    if (!secret) throw new Error('Shopify integration is not configured. Please contact your administrator.');
     return secret;
 }
 

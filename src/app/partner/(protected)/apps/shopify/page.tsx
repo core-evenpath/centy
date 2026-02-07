@@ -51,7 +51,7 @@ import {
     RefreshCw,
     Shield,
 } from 'lucide-react';
-import { toast } from 'sonner';
+import { Toaster as SonnerToaster, toast } from 'sonner';
 
 function ShopifyToastHandler() {
     const searchParams = useSearchParams();
@@ -88,6 +88,7 @@ export default function ShopifyIntegrationPage() {
     const [countsLoading, setCountsLoading] = useState(false);
     const [selectedModuleId, setSelectedModuleId] = useState<string>('');
     const [linkingModule, setLinkingModule] = useState(false);
+    const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
     useEffect(() => {
         if (config && config.status === 'connected' && !config.linkedModuleId && partnerId) {
@@ -103,11 +104,16 @@ export default function ShopifyIntegrationPage() {
     }, [config, partnerId]);
 
     const handleConnect = async () => {
-        if (!partnerId) return;
+        setErrorMessage(null);
+
+        if (!partnerId) {
+            setErrorMessage('Workspace not loaded. Please refresh the page.');
+            return;
+        }
 
         const domain = shopDomain.trim().toLowerCase();
         if (!domain) {
-            toast.error('Please enter your Shopify store URL');
+            setErrorMessage('Please enter your Shopify store URL');
             return;
         }
 
@@ -121,10 +127,12 @@ export default function ShopifyIntegrationPage() {
             if (result.success && result.authUrl) {
                 window.location.href = result.authUrl;
             } else {
+                setErrorMessage(result.message);
                 toast.error(result.message);
                 setConnecting(false);
             }
         } catch (err: any) {
+            setErrorMessage(err.message || 'Failed to connect. Please try again.');
             toast.error(err.message);
             setConnecting(false);
         }
@@ -252,6 +260,7 @@ export default function ShopifyIntegrationPage() {
 
     return (
         <div className="container max-w-4xl py-8">
+            <SonnerToaster position="top-right" richColors />
             <Suspense fallback={null}>
                 <ShopifyToastHandler />
             </Suspense>
@@ -314,6 +323,14 @@ export default function ShopifyIntegrationPage() {
                                         )}
                                     </Button>
                                 </div>
+
+                                {errorMessage && (
+                                    <Alert variant="destructive">
+                                        <AlertCircle className="h-4 w-4" />
+                                        <AlertTitle>Connection Error</AlertTitle>
+                                        <AlertDescription>{errorMessage}</AlertDescription>
+                                    </Alert>
+                                )}
 
                                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                                     <div className="flex items-start gap-3 p-4 bg-gray-50 rounded-lg">
