@@ -10,6 +10,7 @@ import {
     initiateShopifyOAuth,
     getShopifyCounts,
     testShopifyConnection,
+    connectShopifyWithToken,
     linkShopifyModule,
     syncShopifyProducts,
     syncShopifyCustomers,
@@ -93,6 +94,8 @@ export default function ShopifyIntegrationPage() {
     const [errorMessage, setErrorMessage] = useState<string | null>(null);
     const [testResult, setTestResult] = useState<{ success: boolean; message: string; details: Record<string, any> } | null>(null);
     const [testing, setTesting] = useState(false);
+    const [connectMode, setConnectMode] = useState<'oauth' | 'token'>('token');
+    const [accessToken, setAccessToken] = useState('');
 
     useEffect(() => {
         if (config && config.status === 'connected' && !config.linkedModuleId && partnerId) {
@@ -326,30 +329,114 @@ export default function ShopifyIntegrationPage() {
                         </CardHeader>
                         <CardContent>
                             <div className="space-y-6">
-                                <div className="flex gap-3">
-                                    <Input
-                                        placeholder="mystore.myshopify.com"
-                                        value={shopDomain}
-                                        onChange={(e) => setShopDomain(e.target.value)}
-                                        onKeyDown={(e) => e.key === 'Enter' && handleConnect()}
-                                        disabled={connecting}
-                                        className="flex-1"
-                                    />
+                                <div className="flex gap-2 border-b pb-4">
                                     <Button
-                                        onClick={handleConnect}
-                                        disabled={connecting || !shopDomain.trim()}
-                                        className="bg-green-600 hover:bg-green-700"
+                                        variant={connectMode === 'token' ? 'default' : 'outline'}
+                                        size="sm"
+                                        onClick={() => setConnectMode('token')}
                                     >
-                                        {connecting ? (
-                                            <>
-                                                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                                                Connecting...
-                                            </>
-                                        ) : (
-                                            'Connect Shopify Store'
-                                        )}
+                                        Access Token (Recommended)
+                                    </Button>
+                                    <Button
+                                        variant={connectMode === 'oauth' ? 'default' : 'outline'}
+                                        size="sm"
+                                        onClick={() => setConnectMode('oauth')}
+                                    >
+                                        OAuth
                                     </Button>
                                 </div>
+
+                                {connectMode === 'token' ? (
+                                    <div className="space-y-4">
+                                        <div className="space-y-3">
+                                            <Input
+                                                placeholder="mystore.myshopify.com"
+                                                value={shopDomain}
+                                                onChange={(e) => setShopDomain(e.target.value)}
+                                                disabled={connecting}
+                                            />
+                                            <Input
+                                                placeholder="Admin API access token (shpat_...)"
+                                                value={accessToken}
+                                                onChange={(e) => setAccessToken(e.target.value)}
+                                                disabled={connecting}
+                                                type="password"
+                                            />
+                                            <Button
+                                                onClick={async () => {
+                                                    setErrorMessage(null);
+                                                    if (!partnerId) {
+                                                        setErrorMessage('Workspace not loaded. Please refresh.');
+                                                        return;
+                                                    }
+                                                    const domain = shopDomain.trim().toLowerCase();
+                                                    const normalizedDomain = domain.includes('.myshopify.com')
+                                                        ? domain : `${domain}.myshopify.com`;
+                                                    setConnecting(true);
+                                                    try {
+                                                        const result = await connectShopifyWithToken(
+                                                            partnerId,
+                                                            normalizedDomain,
+                                                            accessToken.trim()
+                                                        );
+                                                        if (result.success) {
+                                                            toast.success(result.message);
+                                                            refetchConfig();
+                                                        } else {
+                                                            setErrorMessage(result.message);
+                                                        }
+                                                    } catch (err: any) {
+                                                        setErrorMessage(err.message);
+                                                    } finally {
+                                                        setConnecting(false);
+                                                    }
+                                                }}
+                                                disabled={connecting || !shopDomain.trim() || !accessToken.trim()}
+                                                className="w-full bg-green-600 hover:bg-green-700"
+                                            >
+                                                {connecting ? (
+                                                    <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Connecting...</>
+                                                ) : (
+                                                    'Connect Shopify Store'
+                                                )}
+                                            </Button>
+                                        </div>
+
+                                        <div className="p-4 bg-gray-50 rounded-lg text-sm space-y-2">
+                                            <h4 className="font-medium">How to get your access token:</h4>
+                                            <ol className="list-decimal list-inside space-y-1 text-gray-600">
+                                                <li>Go to your <strong>Shopify Admin</strong> &rarr; Settings &rarr; Apps and sales channels</li>
+                                                <li>Click <strong>Develop apps</strong> &rarr; Create an app</li>
+                                                <li>Under <strong>API access scopes</strong>, enable: <code className="bg-gray-200 px-1 rounded">read_products</code>, <code className="bg-gray-200 px-1 rounded">read_customers</code>, <code className="bg-gray-200 px-1 rounded">read_orders</code>, <code className="bg-gray-200 px-1 rounded">read_inventory</code></li>
+                                                <li>Click <strong>Install app</strong>, then copy the <strong>Admin API access token</strong></li>
+                                            </ol>
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <div className="space-y-4">
+                                        <div className="flex gap-3">
+                                            <Input
+                                                placeholder="mystore.myshopify.com"
+                                                value={shopDomain}
+                                                onChange={(e) => setShopDomain(e.target.value)}
+                                                onKeyDown={(e) => e.key === 'Enter' && handleConnect()}
+                                                disabled={connecting}
+                                                className="flex-1"
+                                            />
+                                            <Button
+                                                onClick={handleConnect}
+                                                disabled={connecting || !shopDomain.trim()}
+                                                className="bg-green-600 hover:bg-green-700"
+                                            >
+                                                {connecting ? (
+                                                    <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Connecting...</>
+                                                ) : (
+                                                    'Connect via OAuth'
+                                                )}
+                                            </Button>
+                                        </div>
+                                    </div>
+                                )}
 
                                 {errorMessage && (
                                     <Alert variant="destructive">
@@ -358,36 +445,6 @@ export default function ShopifyIntegrationPage() {
                                         <AlertDescription>{errorMessage}</AlertDescription>
                                     </Alert>
                                 )}
-
-                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                    <div className="flex items-start gap-3 p-4 bg-gray-50 rounded-lg">
-                                        <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center flex-shrink-0">
-                                            <span className="text-green-600 font-semibold">1</span>
-                                        </div>
-                                        <div>
-                                            <h4 className="font-medium">Enter store URL</h4>
-                                            <p className="text-sm text-gray-600">Your myshopify.com domain</p>
-                                        </div>
-                                    </div>
-                                    <div className="flex items-start gap-3 p-4 bg-gray-50 rounded-lg">
-                                        <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center flex-shrink-0">
-                                            <span className="text-green-600 font-semibold">2</span>
-                                        </div>
-                                        <div>
-                                            <h4 className="font-medium">Authorize Pingbox</h4>
-                                            <p className="text-sm text-gray-600">Grant read access in Shopify</p>
-                                        </div>
-                                    </div>
-                                    <div className="flex items-start gap-3 p-4 bg-gray-50 rounded-lg">
-                                        <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center flex-shrink-0">
-                                            <span className="text-green-600 font-semibold">3</span>
-                                        </div>
-                                        <div>
-                                            <h4 className="font-medium">Data syncs automatically</h4>
-                                            <p className="text-sm text-gray-600">Products, customers & orders</p>
-                                        </div>
-                                    </div>
-                                </div>
                             </div>
                         </CardContent>
                     </Card>

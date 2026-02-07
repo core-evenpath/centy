@@ -496,6 +496,114 @@ export async function testShopifyConnection(
     }
 }
 
+export async function connectShopifyWithToken(
+    partnerId: string,
+    shopDomain: string,
+    accessToken: string
+): Promise<{ success: boolean; message: string }> {
+    if (!db) {
+        return { success: false, message: 'Database not available' };
+    }
+
+    try {
+        const normalizedDomain = shopDomain.trim().toLowerCase();
+        if (!validateShopDomain(normalizedDomain)) {
+            return {
+                success: false,
+                message: 'Invalid shop domain. Please enter a valid myshopify.com URL.',
+            };
+        }
+
+        if (!accessToken || accessToken.trim().length < 10) {
+            return { success: false, message: 'Please enter a valid access token.' };
+        }
+
+        const token = accessToken.trim();
+
+        // Verify the token works by calling the shop info endpoint
+        let shopInfo;
+        try {
+            shopInfo = await getShopInfo(normalizedDomain, token);
+        } catch (err: any) {
+            return { success: false, message: `Invalid token or shop domain. Shopify API returned: ${err.message}` };
+        }
+
+        // Test that we actually have product read access
+        const testUrl = `https://${normalizedDomain}/admin/api/2026-01/products/count.json`;
+        const testResponse = await fetch(testUrl, {
+            headers: {
+                'X-Shopify-Access-Token': token,
+                'Content-Type': 'application/json',
+            },
+        });
+
+        if (!testResponse.ok) {
+            const body = await testResponse.text().catch(() => '');
+            return {
+                success: false,
+                message: `Token works but lacks required scopes. API returned ${testResponse.status}: ${body.substring(0, 200)}. Make sure your Custom App has read_products, read_customers, and read_orders scopes enabled.`,
+            };
+        }
+
+        const encryptedAccessToken = encrypt(token);
+        const now = new Date().toISOString();
+
+        // Register webhooks
+        const webhookIds: Record<string, string> = {};
+        const webhookCallbackUrl = getWebhookCallbackUrl();
+
+        for (const topic of WEBHOOK_TOPICS) {
+            try {
+                const webhookId = await registerWebhook(normalizedDomain, token, topic, webhookCallbackUrl);
+                webhookIds[topic] = webhookId;
+            } catch (err: any) {
+                console.warn(`⚠️ Could not register webhook ${topic}:`, err.message);
+            }
+        }
+
+        const config: ShopifyIntegrationConfig = {
+            status: 'connected',
+            shopName: shopInfo.shop.name,
+            shopDomain: normalizedDomain,
+            encryptedAccessToken,
+            scopes: ['read_products', 'read_customers', 'read_orders', 'read_inventory'],
+            linkedModuleId: null,
+            linkedModuleSlug: null,
+            syncConfig: {
+                products: { enabled: true, lastSyncAt: null, itemsSynced: 0, status: 'idle' },
+                customers: { enabled: true, lastSyncAt: null, itemsSynced: 0, status: 'idle' },
+                orders: { enabled: true, lastSyncAt: null, itemsSynced: 0, status: 'idle' },
+            },
+            syncDirection: 'pull',
+            lastSyncAt: null,
+            lastSyncStatus: null,
+            webhookIds,
+            installedAt: now,
+            updatedAt: now,
+        };
+
+        await db
+            .collection(`partners/${partnerId}/integrations`)
+            .doc('shopify')
+            .set(config);
+
+        await db.collection('shopifyStoreMappings').doc(normalizedDomain).set({
+            partnerId,
+            shopDomain: normalizedDomain,
+            shopName: shopInfo.shop.name,
+            createdAt: now,
+        });
+
+        console.log(`🛍️ Shopify connected via token for partner: ${partnerId}, shop: ${shopInfo.shop.name}`);
+
+        revalidatePath('/partner/apps/shopify');
+        return { success: true, message: `Connected to ${shopInfo.shop.name} successfully!` };
+    } catch (error: any) {
+        console.error('❌ Error connecting Shopify with token:', error);
+        return { success: false, message: error.message };
+    }
+}
+
 export async function linkShopifyModule(
     partnerId: string,
     moduleId: string,
