@@ -24,7 +24,7 @@ export function useShopifyIntegration(partnerId: string | null) {
             if (result.success) {
                 setConfig(result.config);
             } else {
-                setError('Failed to load Shopify configuration');
+                setError(result.message || 'Failed to load Shopify configuration');
             }
         } catch (err: any) {
             console.error('Error fetching Shopify config:', err);

@@ -311,27 +311,37 @@ export async function completeShopifyOAuth(
 
 export async function getShopifyConfig(
     partnerId: string
-): Promise<{ success: boolean; config: ShopifyIntegrationConfig | null }> {
+): Promise<{ success: boolean; config: ShopifyIntegrationConfig | null; message?: string }> {
     if (!db) {
-        return { success: false, config: null };
+        console.error('❌ getShopifyConfig: db is not available');
+        return { success: false, config: null, message: 'Database not available' };
+    }
+
+    if (!partnerId) {
+        return { success: false, config: null, message: 'Partner ID is required' };
     }
 
     try {
-        const doc = await db
+        const docRef = db
             .collection(`partners/${partnerId}/integrations`)
-            .doc('shopify')
-            .get();
+            .doc('shopify');
+
+        console.log(`🛍️ getShopifyConfig: Reading from partners/${partnerId}/integrations/shopify`);
+
+        const doc = await docRef.get();
 
         if (!doc.exists) {
+            console.log(`🛍️ getShopifyConfig: No Shopify config found for partner ${partnerId}`);
             return { success: true, config: null };
         }
 
         const config = doc.data() as ShopifyIntegrationConfig;
+        console.log(`🛍️ getShopifyConfig: Found config with status=${config.status}, shop=${config.shopDomain}`);
         const safeConfig = { ...config, encryptedAccessToken: '[REDACTED]' };
         return { success: true, config: safeConfig };
     } catch (error: any) {
         console.error('❌ Error getting Shopify config:', error);
-        return { success: false, config: null };
+        return { success: false, config: null, message: error.message };
     }
 }
 

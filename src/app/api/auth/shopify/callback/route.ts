@@ -37,7 +37,7 @@ export async function GET(request: NextRequest) {
     const state = searchParams.get('state');
     const hmac = searchParams.get('hmac');
 
-    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://pingbox.io';
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://www.pingbox.io';
     const redirectBase = `${baseUrl}/partner/apps/shopify`;
 
     if (!code || !shop || !state || !hmac) {

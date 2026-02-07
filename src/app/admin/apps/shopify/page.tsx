@@ -345,7 +345,7 @@ export default function AdminShopifyPage() {
                         <div className="flex items-center justify-between p-2 bg-gray-50 rounded">
                             <span className="font-mono">Webhook callback</span>
                             <span className="font-mono text-xs text-gray-500">
-                                {process.env.NEXT_PUBLIC_APP_URL || 'https://pingbox.io'}/api/webhooks/shopify
+                                {process.env.NEXT_PUBLIC_APP_URL || 'https://www.pingbox.io'}/api/webhooks/shopify
                             </span>
                         </div>
                     </div>
