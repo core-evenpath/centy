@@ -9,6 +9,7 @@ import { usePartnerModules, useAvailableModules } from '@/hooks/use-modules';
 import {
     initiateShopifyOAuth,
     getShopifyCounts,
+    testShopifyConnection,
     linkShopifyModule,
     syncShopifyProducts,
     syncShopifyCustomers,
@@ -90,6 +91,8 @@ export default function ShopifyIntegrationPage() {
     const [selectedModuleId, setSelectedModuleId] = useState<string>('');
     const [linkingModule, setLinkingModule] = useState(false);
     const [errorMessage, setErrorMessage] = useState<string | null>(null);
+    const [testResult, setTestResult] = useState<{ success: boolean; message: string; details: Record<string, any> } | null>(null);
+    const [testing, setTesting] = useState(false);
 
     useEffect(() => {
         if (config && config.status === 'connected' && !config.linkedModuleId && partnerId) {
@@ -487,6 +490,53 @@ export default function ShopifyIntegrationPage() {
                                 </div>
                             </div>
                         ) : null}
+
+                        <div className="mb-4">
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={async () => {
+                                    if (!partnerId) return;
+                                    setTesting(true);
+                                    setTestResult(null);
+                                    try {
+                                        const result = await testShopifyConnection(partnerId);
+                                        setTestResult(result);
+                                    } catch (err: any) {
+                                        setTestResult({ success: false, message: err.message, details: {} });
+                                    } finally {
+                                        setTesting(false);
+                                    }
+                                }}
+                                disabled={testing}
+                                className="bg-white"
+                            >
+                                {testing ? (
+                                    <>
+                                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                        Testing...
+                                    </>
+                                ) : (
+                                    'Test Connection'
+                                )}
+                            </Button>
+                        </div>
+
+                        {testResult && (
+                            <Alert variant={testResult.success ? 'default' : 'destructive'} className="mb-4">
+                                <AlertCircle className="h-4 w-4" />
+                                <AlertTitle>{testResult.success ? 'Connection OK' : 'Connection Issue'}</AlertTitle>
+                                <AlertDescription>
+                                    <p className="mb-2">{testResult.message}</p>
+                                    <details className="text-xs">
+                                        <summary className="cursor-pointer font-medium">Debug Details</summary>
+                                        <pre className="mt-2 p-2 bg-gray-100 rounded overflow-auto max-h-60 text-gray-800">
+                                            {JSON.stringify(testResult.details, null, 2)}
+                                        </pre>
+                                    </details>
+                                </AlertDescription>
+                            </Alert>
+                        )}
 
                         <div className="space-y-4">
                             <div>

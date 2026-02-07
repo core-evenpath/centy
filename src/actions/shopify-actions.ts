@@ -389,6 +389,113 @@ export async function getShopifyCounts(
     }
 }
 
+export async function testShopifyConnection(
+    partnerId: string
+): Promise<{ success: boolean; message: string; details: Record<string, any> }> {
+    if (!db) {
+        return { success: false, message: 'Database not available', details: {} };
+    }
+
+    const details: Record<string, any> = {};
+
+    try {
+        const configDoc = await db
+            .collection(`partners/${partnerId}/integrations`)
+            .doc('shopify')
+            .get();
+
+        if (!configDoc.exists) {
+            return { success: false, message: 'Shopify config not found in Firestore', details: { partnerId } };
+        }
+
+        const config = configDoc.data() as ShopifyIntegrationConfig;
+        details.shopDomain = config.shopDomain;
+        details.shopName = config.shopName;
+        details.status = config.status;
+        details.hasToken = !!config.encryptedAccessToken && config.encryptedAccessToken !== '[REDACTED]';
+        details.scopes = config.scopes;
+
+        let accessToken: string;
+        try {
+            accessToken = decrypt(config.encryptedAccessToken);
+            details.tokenDecrypted = true;
+            details.tokenLength = accessToken.length;
+        } catch (err: any) {
+            details.tokenDecrypted = false;
+            details.decryptError = err.message;
+            return { success: false, message: 'Failed to decrypt access token', details };
+        }
+
+        // Test shop info endpoint
+        try {
+            const shopInfo = await getShopInfo(config.shopDomain, accessToken);
+            details.shopInfo = { name: shopInfo.shop.name, plan: shopInfo.shop.plan_name };
+        } catch (err: any) {
+            details.shopInfoError = err.message;
+            return { success: false, message: `Shop info API failed: ${err.message}`, details };
+        }
+
+        // Test product count endpoint directly with raw fetch
+        try {
+            const productCountUrl = `https://${config.shopDomain}/admin/api/2026-01/products/count.json`;
+            const response = await fetch(productCountUrl, {
+                headers: {
+                    'X-Shopify-Access-Token': accessToken,
+                    'Content-Type': 'application/json',
+                },
+            });
+            details.productCountStatus = response.status;
+            details.productCountStatusText = response.statusText;
+            if (response.ok) {
+                const data = await response.json();
+                details.productCountResponse = data;
+            } else {
+                const body = await response.text();
+                details.productCountErrorBody = body.substring(0, 500);
+            }
+        } catch (err: any) {
+            details.productCountFetchError = err.message;
+        }
+
+        // Also test fetching first page of products
+        try {
+            const productsUrl = `https://${config.shopDomain}/admin/api/2026-01/products.json?limit=5`;
+            const response = await fetch(productsUrl, {
+                headers: {
+                    'X-Shopify-Access-Token': accessToken,
+                    'Content-Type': 'application/json',
+                },
+            });
+            details.productsListStatus = response.status;
+            if (response.ok) {
+                const data = await response.json();
+                details.productsFound = data.products?.length || 0;
+                details.firstProductTitle = data.products?.[0]?.title || null;
+            } else {
+                const body = await response.text();
+                details.productsListErrorBody = body.substring(0, 500);
+            }
+        } catch (err: any) {
+            details.productsListFetchError = err.message;
+        }
+
+        const countOk = details.productCountStatus === 200;
+        const listOk = details.productsListStatus === 200;
+
+        return {
+            success: countOk || listOk,
+            message: countOk
+                ? `Connection OK. Product count: ${details.productCountResponse?.count}`
+                : listOk
+                    ? `Count endpoint failed (${details.productCountStatus}) but products list works. Found ${details.productsFound} products.`
+                    : `Both API calls failed. Count: ${details.productCountStatus}, List: ${details.productsListStatus}`,
+            details,
+        };
+    } catch (error: any) {
+        return { success: false, message: error.message, details };
+    }
+}
+
 export async function linkShopifyModule(
     partnerId: string,
     moduleId: string,
