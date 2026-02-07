@@ -104,7 +104,11 @@ export async function fetchProductCount(
     accessToken: string
 ): Promise<number> {
     const response = await shopifyFetch(shopDomain, accessToken, '/products/count.json');
-    if (!response.ok) return 0;
+    if (!response.ok) {
+        console.error(`❌ fetchProductCount failed: ${response.status} ${response.statusText}`);
+        try { console.error(await response.text()); } catch {}
+        return 0;
+    }
     const data = await response.json();
     return data.count || 0;
 }
@@ -155,7 +159,11 @@ export async function fetchCustomerCount(
     accessToken: string
 ): Promise<number> {
     const response = await shopifyFetch(shopDomain, accessToken, '/customers/count.json');
-    if (!response.ok) return 0;
+    if (!response.ok) {
+        console.error(`❌ fetchCustomerCount failed: ${response.status} ${response.statusText}`);
+        try { console.error(await response.text()); } catch {}
+        return 0;
+    }
     const data = await response.json();
     return data.count || 0;
 }
@@ -206,7 +214,11 @@ export async function fetchOrderCount(
     accessToken: string
 ): Promise<number> {
     const response = await shopifyFetch(shopDomain, accessToken, '/orders/count.json?status=any');
-    if (!response.ok) return 0;
+    if (!response.ok) {
+        console.error(`❌ fetchOrderCount failed: ${response.status} ${response.statusText}`);
+        try { console.error(await response.text()); } catch {}
+        return 0;
+    }
     const data = await response.json();
     return data.count || 0;
 }

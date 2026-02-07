@@ -86,6 +86,7 @@ export default function ShopifyIntegrationPage() {
     const [disconnecting, setDisconnecting] = useState(false);
     const [counts, setCounts] = useState<{ products: number; customers: number; orders: number } | null>(null);
     const [countsLoading, setCountsLoading] = useState(false);
+    const [countsError, setCountsError] = useState<string | null>(null);
     const [selectedModuleId, setSelectedModuleId] = useState<string>('');
     const [linkingModule, setLinkingModule] = useState(false);
     const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -93,11 +94,17 @@ export default function ShopifyIntegrationPage() {
     useEffect(() => {
         if (config && config.status === 'connected' && !config.linkedModuleId && partnerId) {
             setCountsLoading(true);
+            setCountsError(null);
             getShopifyCounts(partnerId)
                 .then(result => {
                     if (result.success) {
                         setCounts({ products: result.products, customers: result.customers, orders: result.orders });
+                    } else {
+                        setCountsError(result.error || 'Failed to fetch store data');
                     }
+                })
+                .catch(err => {
+                    setCountsError(err.message || 'Failed to fetch store data');
                 })
                 .finally(() => setCountsLoading(false));
         }
@@ -430,12 +437,24 @@ export default function ShopifyIntegrationPage() {
             {needsModuleLink && (
                 <Card className="mb-6 border-green-200 bg-green-50">
                     <CardHeader>
-                        <CardTitle className="text-green-900">
-                            Connected to {config.shopName}
-                        </CardTitle>
-                        <CardDescription className="text-green-700">
-                            {config.shopDomain}
-                        </CardDescription>
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <CardTitle className="text-green-900">
+                                    Connected to {config.shopName}
+                                </CardTitle>
+                                <CardDescription className="text-green-700">
+                                    {config.shopDomain}
+                                </CardDescription>
+                            </div>
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                className="text-red-600 border-red-200 hover:bg-red-50"
+                                onClick={() => setShowDisconnectDialog(true)}
+                            >
+                                Disconnect
+                            </Button>
+                        </div>
                     </CardHeader>
                     <CardContent>
                         {countsLoading ? (
@@ -443,6 +462,12 @@ export default function ShopifyIntegrationPage() {
                                 <Loader2 className="w-4 h-4 animate-spin" />
                                 Fetching store data...
                             </div>
+                        ) : countsError ? (
+                            <Alert variant="destructive" className="mb-6">
+                                <AlertCircle className="h-4 w-4" />
+                                <AlertTitle>Could not fetch store data</AlertTitle>
+                                <AlertDescription>{countsError}</AlertDescription>
+                            </Alert>
                         ) : counts ? (
                             <div className="grid grid-cols-3 gap-4 mb-6">
                                 <div className="p-4 bg-white rounded-lg border border-green-200 text-center">

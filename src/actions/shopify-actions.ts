@@ -347,9 +347,9 @@ export async function getShopifyConfig(
 
 export async function getShopifyCounts(
     partnerId: string
-): Promise<{ success: boolean; products: number; customers: number; orders: number }> {
+): Promise<{ success: boolean; products: number; customers: number; orders: number; error?: string }> {
     if (!db) {
-        return { success: false, products: 0, customers: 0, orders: 0 };
+        return { success: false, products: 0, customers: 0, orders: 0, error: 'Database not available' };
     }
 
     try {
@@ -359,11 +359,20 @@ export async function getShopifyCounts(
             .get();
 
         if (!doc.exists) {
-            return { success: false, products: 0, customers: 0, orders: 0 };
+            return { success: false, products: 0, customers: 0, orders: 0, error: 'Shopify not connected' };
         }
 
         const config = doc.data() as ShopifyIntegrationConfig;
-        const accessToken = decrypt(config.encryptedAccessToken);
+
+        let accessToken: string;
+        try {
+            accessToken = decrypt(config.encryptedAccessToken);
+        } catch (decryptErr: any) {
+            console.error('❌ Failed to decrypt Shopify access token:', decryptErr);
+            return { success: false, products: 0, customers: 0, orders: 0, error: 'Failed to decrypt access token. Please reconnect your store.' };
+        }
+
+        console.log(`🛍️ Fetching counts from ${config.shopDomain}...`);
 
         const [products, customers, orders] = await Promise.all([
             fetchProductCount(config.shopDomain, accessToken),
@@ -371,10 +380,12 @@ export async function getShopifyCounts(
             fetchOrderCount(config.shopDomain, accessToken),
         ]);
 
+        console.log(`🛍️ Counts for ${config.shopDomain}: products=${products}, customers=${customers}, orders=${orders}`);
+
         return { success: true, products, customers, orders };
     } catch (error: any) {
         console.error('❌ Error getting Shopify counts:', error);
-        return { success: false, products: 0, customers: 0, orders: 0 };
+        return { success: false, products: 0, customers: 0, orders: 0, error: error.message };
     }
 }
 
