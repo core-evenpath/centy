@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { useMultiWorkspaceAuth } from '@/hooks/use-multi-workspace-auth';
@@ -49,30 +49,12 @@ import {
     Users,
     FileText,
     RefreshCw,
-    ExternalLink,
     Shield,
 } from 'lucide-react';
 import { toast } from 'sonner';
 
-export default function ShopifyIntegrationPage() {
-    const { currentWorkspace, loading: authLoading } = useMultiWorkspaceAuth();
-    const partnerId = currentWorkspace?.partnerId || null;
-
-    const { config, loading: configLoading } = useShopifyIntegration(partnerId);
-    const { modules: partnerModules, isLoading: modulesLoading } = usePartnerModules(partnerId || '');
-    const { modules: availableModules } = useAvailableModules(partnerId || '');
-
+function ShopifyToastHandler() {
     const searchParams = useSearchParams();
-
-    const [shopDomain, setShopDomain] = useState('');
-    const [connecting, setConnecting] = useState(false);
-    const [syncing, setSyncing] = useState(false);
-    const [showDisconnectDialog, setShowDisconnectDialog] = useState(false);
-    const [disconnecting, setDisconnecting] = useState(false);
-    const [counts, setCounts] = useState<{ products: number; customers: number; orders: number } | null>(null);
-    const [countsLoading, setCountsLoading] = useState(false);
-    const [selectedModuleId, setSelectedModuleId] = useState<string>('');
-    const [linkingModule, setLinkingModule] = useState(false);
 
     useEffect(() => {
         const connected = searchParams.get('connected');
@@ -85,6 +67,27 @@ export default function ShopifyIntegrationPage() {
             toast.error(error);
         }
     }, [searchParams]);
+
+    return null;
+}
+
+export default function ShopifyIntegrationPage() {
+    const { currentWorkspace, loading: authLoading } = useMultiWorkspaceAuth();
+    const partnerId = currentWorkspace?.partnerId || null;
+
+    const { config, loading: configLoading } = useShopifyIntegration(partnerId);
+    const { modules: partnerModules } = usePartnerModules(partnerId || '');
+    const { modules: availableModules } = useAvailableModules(partnerId || '');
+
+    const [shopDomain, setShopDomain] = useState('');
+    const [connecting, setConnecting] = useState(false);
+    const [syncing, setSyncing] = useState(false);
+    const [showDisconnectDialog, setShowDisconnectDialog] = useState(false);
+    const [disconnecting, setDisconnecting] = useState(false);
+    const [counts, setCounts] = useState<{ products: number; customers: number; orders: number } | null>(null);
+    const [countsLoading, setCountsLoading] = useState(false);
+    const [selectedModuleId, setSelectedModuleId] = useState<string>('');
+    const [linkingModule, setLinkingModule] = useState(false);
 
     useEffect(() => {
         if (config && config.status === 'connected' && !config.linkedModuleId && partnerId) {
@@ -249,6 +252,10 @@ export default function ShopifyIntegrationPage() {
 
     return (
         <div className="container max-w-4xl py-8">
+            <Suspense fallback={null}>
+                <ShopifyToastHandler />
+            </Suspense>
+
             <div className="mb-8">
                 <Link
                     href="/partner/apps"
@@ -392,80 +399,78 @@ export default function ShopifyIntegrationPage() {
             )}
 
             {needsModuleLink && (
-                <>
-                    <Card className="mb-6 border-green-200 bg-green-50">
-                        <CardHeader>
-                            <CardTitle className="text-green-900">
-                                Connected to {config.shopName}
-                            </CardTitle>
-                            <CardDescription className="text-green-700">
-                                {config.shopDomain}
-                            </CardDescription>
-                        </CardHeader>
-                        <CardContent>
-                            {countsLoading ? (
-                                <div className="flex items-center gap-2 text-green-700">
-                                    <Loader2 className="w-4 h-4 animate-spin" />
-                                    Fetching store data...
+                <Card className="mb-6 border-green-200 bg-green-50">
+                    <CardHeader>
+                        <CardTitle className="text-green-900">
+                            Connected to {config.shopName}
+                        </CardTitle>
+                        <CardDescription className="text-green-700">
+                            {config.shopDomain}
+                        </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                        {countsLoading ? (
+                            <div className="flex items-center gap-2 text-green-700">
+                                <Loader2 className="w-4 h-4 animate-spin" />
+                                Fetching store data...
+                            </div>
+                        ) : counts ? (
+                            <div className="grid grid-cols-3 gap-4 mb-6">
+                                <div className="p-4 bg-white rounded-lg border border-green-200 text-center">
+                                    <Package className="w-6 h-6 text-green-600 mx-auto mb-1" />
+                                    <div className="text-2xl font-bold">{counts.products}</div>
+                                    <div className="text-sm text-gray-600">Products</div>
                                 </div>
-                            ) : counts ? (
-                                <div className="grid grid-cols-3 gap-4 mb-6">
-                                    <div className="p-4 bg-white rounded-lg border border-green-200 text-center">
-                                        <Package className="w-6 h-6 text-green-600 mx-auto mb-1" />
-                                        <div className="text-2xl font-bold">{counts.products}</div>
-                                        <div className="text-sm text-gray-600">Products</div>
-                                    </div>
-                                    <div className="p-4 bg-white rounded-lg border border-green-200 text-center">
-                                        <Users className="w-6 h-6 text-green-600 mx-auto mb-1" />
-                                        <div className="text-2xl font-bold">{counts.customers}</div>
-                                        <div className="text-sm text-gray-600">Customers</div>
-                                    </div>
-                                    <div className="p-4 bg-white rounded-lg border border-green-200 text-center">
-                                        <FileText className="w-6 h-6 text-green-600 mx-auto mb-1" />
-                                        <div className="text-2xl font-bold">{counts.orders}</div>
-                                        <div className="text-sm text-gray-600">Orders (60 days)</div>
-                                    </div>
+                                <div className="p-4 bg-white rounded-lg border border-green-200 text-center">
+                                    <Users className="w-6 h-6 text-green-600 mx-auto mb-1" />
+                                    <div className="text-2xl font-bold">{counts.customers}</div>
+                                    <div className="text-sm text-gray-600">Customers</div>
                                 </div>
-                            ) : null}
-
-                            <div className="space-y-4">
-                                <div>
-                                    <h4 className="font-medium mb-2 text-green-900">
-                                        Where should we import your products?
-                                    </h4>
-                                    <div className="flex gap-3">
-                                        <Select value={selectedModuleId} onValueChange={setSelectedModuleId}>
-                                            <SelectTrigger className="flex-1 bg-white">
-                                                <SelectValue placeholder="Select Module" />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                                {partnerModules.map(mod => (
-                                                    <SelectItem key={mod.id} value={mod.id}>
-                                                        {mod.name}
-                                                    </SelectItem>
-                                                ))}
-                                                <SelectItem value="__create_new__">
-                                                    + Create New Module
-                                                </SelectItem>
-                                            </SelectContent>
-                                        </Select>
-                                        <Button
-                                            onClick={handleLinkModule}
-                                            disabled={!selectedModuleId || linkingModule}
-                                            className="bg-green-600 hover:bg-green-700"
-                                        >
-                                            {linkingModule ? (
-                                                <Loader2 className="w-4 h-4 animate-spin" />
-                                            ) : (
-                                                'Link Module'
-                                            )}
-                                        </Button>
-                                    </div>
+                                <div className="p-4 bg-white rounded-lg border border-green-200 text-center">
+                                    <FileText className="w-6 h-6 text-green-600 mx-auto mb-1" />
+                                    <div className="text-2xl font-bold">{counts.orders}</div>
+                                    <div className="text-sm text-gray-600">Orders (60 days)</div>
                                 </div>
                             </div>
-                        </CardContent>
-                    </Card>
-                </>
+                        ) : null}
+
+                        <div className="space-y-4">
+                            <div>
+                                <h4 className="font-medium mb-2 text-green-900">
+                                    Where should we import your products?
+                                </h4>
+                                <div className="flex gap-3">
+                                    <Select value={selectedModuleId} onValueChange={setSelectedModuleId}>
+                                        <SelectTrigger className="flex-1 bg-white">
+                                            <SelectValue placeholder="Select Module" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            {partnerModules.map(mod => (
+                                                <SelectItem key={mod.id} value={mod.id}>
+                                                    {mod.name}
+                                                </SelectItem>
+                                            ))}
+                                            <SelectItem value="__create_new__">
+                                                + Create New Module
+                                            </SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                    <Button
+                                        onClick={handleLinkModule}
+                                        disabled={!selectedModuleId || linkingModule}
+                                        className="bg-green-600 hover:bg-green-700"
+                                    >
+                                        {linkingModule ? (
+                                            <Loader2 className="w-4 h-4 animate-spin" />
+                                        ) : (
+                                            'Link Module'
+                                        )}
+                                    </Button>
+                                </div>
+                            </div>
+                        </div>
+                    </CardContent>
+                </Card>
             )}
 
             {isReady && (
