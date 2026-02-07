@@ -65,12 +65,12 @@ function getShopifyApiSecret(): string {
 }
 
 function getCallbackUrl(): string {
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://pingbox.io';
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://www.pingbox.io';
     return `${appUrl}/api/auth/shopify/callback`;
 }
 
 function getWebhookCallbackUrl(): string {
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://pingbox.io';
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://www.pingbox.io';
     return `${appUrl}/api/webhooks/shopify`;
 }
 
