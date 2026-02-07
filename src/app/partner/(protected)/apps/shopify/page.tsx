@@ -75,7 +75,7 @@ export default function ShopifyIntegrationPage() {
     const { currentWorkspace, loading: authLoading } = useMultiWorkspaceAuth();
     const partnerId = currentWorkspace?.partnerId || null;
 
-    const { config, loading: configLoading } = useShopifyIntegration(partnerId);
+    const { config, loading: configLoading, error: configError, refetch: refetchConfig } = useShopifyIntegration(partnerId);
     const { modules: partnerModules } = usePartnerModules(partnerId || '');
     const { modules: availableModules } = useAvailableModules(partnerId || '');
 
@@ -174,6 +174,7 @@ export default function ShopifyIntegrationPage() {
             const result = await linkShopifyModule(partnerId, moduleId, moduleSlug);
             if (result.success) {
                 toast.success('Module linked successfully');
+                refetchConfig();
             } else {
                 toast.error(result.message);
             }
@@ -212,6 +213,8 @@ export default function ShopifyIntegrationPage() {
             if (errors.length > 0) {
                 toast.error(errors.join('. '));
             }
+
+            refetchConfig();
         } catch (err: any) {
             toast.error(err.message);
         } finally {
@@ -228,6 +231,7 @@ export default function ShopifyIntegrationPage() {
             if (result.success) {
                 toast.success(result.message);
                 setShowDisconnectDialog(false);
+                refetchConfig();
             } else {
                 toast.error(result.message);
             }
@@ -264,6 +268,14 @@ export default function ShopifyIntegrationPage() {
             <Suspense fallback={null}>
                 <ShopifyToastHandler />
             </Suspense>
+
+            {configError && (
+                <Alert variant="destructive" className="mb-6">
+                    <AlertCircle className="h-4 w-4" />
+                    <AlertTitle>Error</AlertTitle>
+                    <AlertDescription>{configError}</AlertDescription>
+                </Alert>
+            )}
 
             <div className="mb-8">
                 <Link

@@ -311,6 +311,24 @@ service cloud.firestore {
         // This prevents client-side tampering with aggregated data
         allow write: if false;
       }
+
+      // ============================================================================
+      // PARTNER SUBCOLLECTIONS - INTEGRATIONS (Shopify, etc.)
+      // ============================================================================
+      match /integrations/{integrationId} {
+        // Read: Partner members can read integration config
+        allow read: if canAccessPartner(partnerId);
+        allow list: if canAccessPartner(partnerId);
+        // Write: Only server-side (admin SDK) — all mutations go through server actions
+        allow write: if false;
+
+        // Webhook logs subcollection
+        match /webhookLogs/{logId} {
+          allow read: if canAccessPartner(partnerId);
+          allow list: if canAccessPartner(partnerId);
+          allow write: if false;
+        }
+      }
     }
 
     // ============================================================================
