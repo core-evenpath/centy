@@ -271,6 +271,11 @@ export default function ShopifyIntegrationPage() {
     const isConnected = config?.status === 'connected' || config?.status === 'syncing';
     const needsModuleLink = isConnected && !config?.linkedModuleId;
     const isReady = isConnected && config?.linkedModuleId;
+    const missingScopes = isConnected && config?.scopes && (
+        config.scopes.length === 0 ||
+        (config.scopes.length === 1 && config.scopes[0] === '') ||
+        !config.scopes.includes('read_products')
+    );
 
     return (
         <div className="container max-w-4xl py-8">
@@ -460,6 +465,17 @@ export default function ShopifyIntegrationPage() {
                         </div>
                     </CardHeader>
                     <CardContent>
+                        {missingScopes && (
+                            <Alert variant="destructive" className="mb-4">
+                                <AlertCircle className="h-4 w-4" />
+                                <AlertTitle>Missing API Permissions</AlertTitle>
+                                <AlertDescription>
+                                    Your Shopify app is missing required access scopes (read_products, read_customers, read_orders).
+                                    Please update the scopes in your Shopify Partner Dashboard, then click <strong>Disconnect</strong> and reconnect your store.
+                                </AlertDescription>
+                            </Alert>
+                        )}
+
                         {countsLoading ? (
                             <div className="flex items-center gap-2 text-green-700">
                                 <Loader2 className="w-4 h-4 animate-spin" />
