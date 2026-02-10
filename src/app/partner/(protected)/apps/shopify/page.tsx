@@ -74,6 +74,25 @@ export default function ShopifyIntegrationPage() {
     const [selectedModuleId, setSelectedModuleId] = useState<string>('');
     const [linkingModule, setLinkingModule] = useState(false);
 
+    const normalizeShopDomain = (input: string): string | null => {
+        const trimmed = input.trim().toLowerCase();
+        if (!trimmed) return null;
+
+        const withoutProtocol = trimmed.replace(/^https?:\/\//, '');
+        const hostname = withoutProtocol.split('/')[0];
+        if (!hostname) return null;
+
+        if (hostname.endsWith('.myshopify.com')) {
+            return hostname;
+        }
+
+        if (/^[a-z0-9][a-z0-9-]*$/.test(hostname)) {
+            return `${hostname}.myshopify.com`;
+        }
+
+        return null;
+    };
+
     useEffect(() => {
         const connected = searchParams.get('connected');
         const error = searchParams.get('error');
@@ -102,15 +121,11 @@ export default function ShopifyIntegrationPage() {
     const handleConnect = async () => {
         if (!partnerId) return;
 
-        const domain = shopDomain.trim().toLowerCase();
-        if (!domain) {
+        const normalizedDomain = normalizeShopDomain(shopDomain);
+        if (!normalizedDomain) {
             toast.error('Please enter your Shopify store URL');
             return;
         }
-
-        const normalizedDomain = domain.includes('.myshopify.com')
-            ? domain
-            : `${domain}.myshopify.com`;
 
         setConnecting(true);
         try {
