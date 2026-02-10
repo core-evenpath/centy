@@ -11,6 +11,11 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: 'Missing required headers' }, { status: 401 });
     }
 
+    const contentType = request.headers.get('content-type') || '';
+    if (!contentType.toLowerCase().includes('application/json')) {
+        return NextResponse.json({ error: 'Invalid content type' }, { status: 400 });
+    }
+
     const rawBody = await request.text();
 
     const apiSecret = process.env.SHOPIFY_API_SECRET;

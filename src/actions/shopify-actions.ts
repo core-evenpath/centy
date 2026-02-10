@@ -50,6 +50,10 @@ const WEBHOOK_TOPICS = [
     'orders/updated',
     'orders/cancelled',
     'app/uninstalled',
+    // Shopify App Store mandatory compliance webhooks
+    'customers/data_request',
+    'customers/redact',
+    'shop/redact',
 ];
 
 function getShopifyApiKey(): string {
@@ -164,6 +168,35 @@ function mapShopifyOrderToActivity(order: ShopifyOrder): ShopifyOrderActivity {
         cancelledAt: order.cancelled_at || undefined,
     };
 }
+
+function getPartnerIdFromPath(path: string): string | null {
+    const parts = path.split('/');
+    if (parts.length >= 2 && parts[0] === 'partners') {
+        return parts[1];
+    }
+    return null;
+}
+
+async function resolvePartnerIdByShopDomain(shopDomain: string): Promise<string | null> {
+    const mappingDoc = await db!.collection('shopifyStoreMappings').doc(shopDomain).get();
+    if (mappingDoc.exists) {
+        return mappingDoc.data()?.partnerId || null;
+    }
+
+    const integrationSnapshot = await db!
+        .collectionGroup('integrations')
+        .where('shopDomain', '==', shopDomain)
+        .limit(1)
+        .get();
+
+    if (integrationSnapshot.empty) {
+        return null;
+    }
+
+    const path = integrationSnapshot.docs[0].ref.path;
+    return getPartnerIdFromPath(path);
+}
+
 
 export async function initiateShopifyOAuth(
     partnerId: string,
@@ -960,12 +993,14 @@ export async function handleShopifyWebhook(
     const startTime = Date.now();
 
     try {
-        const mappingDoc = await db.collection('shopifyStoreMappings').doc(shopDomain).get();
-        if (!mappingDoc.exists) {
-            return { success: false, message: `No partner found for shop: ${shopDomain}` };
+        if (topic === 'customers/data_request' || topic === 'customers/redact' || topic === 'shop/redact') {
+            return await handleComplianceWebhook(topic, shopDomain, payload);
         }
 
-        const partnerId = mappingDoc.data()!.partnerId;
+        const partnerId = await resolvePartnerIdByShopDomain(shopDomain);
+        if (!partnerId) {
+            return { success: false, message: `No partner found for shop: ${shopDomain}` };
+        }
 
         const configDoc = await db
             .collection(`partners/${partnerId}/integrations`)
@@ -1022,6 +1057,123 @@ export async function handleShopifyWebhook(
         console.error(`❌ Error handling webhook ${topic}:`, error);
         return { success: false, message: error.message };
     }
+}
+
+
+async function handleComplianceWebhook(
+    topic: string,
+    shopDomain: string,
+    payload: ShopifyWebhookPayload
+): Promise<{ success: boolean; message: string }> {
+    const partnerId = await resolvePartnerIdByShopDomain(shopDomain);
+    const now = new Date().toISOString();
+
+    if (!partnerId) {
+        console.warn(`⚠️ Compliance webhook received for unknown shop ${shopDomain}: ${topic}`);
+        await db!.collection('shopifyComplianceRequests').doc().set({
+            topic,
+            shopDomain,
+            payload,
+            status: 'received_unknown_shop',
+            receivedAt: now,
+            updatedAt: now,
+        });
+        return { success: true, message: 'Compliance webhook acknowledged for unknown shop' };
+    }
+
+    if (topic === 'customers/data_request') {
+        await db!.collection('shopifyComplianceRequests').doc().set({
+            topic,
+            shopDomain,
+            partnerId,
+            customer: payload.customer || null,
+            ordersRequested: payload.orders_requested || [],
+            dataRequest: payload.data_request || null,
+            status: 'pending_export',
+            receivedAt: now,
+            updatedAt: now,
+        });
+
+        return { success: true, message: 'Customer data request logged' };
+    }
+
+    if (topic === 'customers/redact') {
+        const customer = payload.customer as { id?: number; email?: string; phone?: string } | undefined;
+        const customerId = customer?.id ? String(customer.id) : null;
+
+        if (customerId) {
+            const byExternalId = await db!
+                .collection(`partners/${partnerId}/contacts`)
+                .where('externalId', '==', customerId)
+                .where('source', '==', 'shopify')
+                .get();
+
+            for (const doc of byExternalId.docs) {
+                await doc.ref.delete();
+            }
+        }
+
+        await db!.collection('shopifyComplianceRequests').doc().set({
+            topic,
+            shopDomain,
+            partnerId,
+            customer: customer || null,
+            ordersToRedact: payload.orders_to_redact || [],
+            status: 'completed',
+            receivedAt: now,
+            updatedAt: now,
+        });
+
+        return { success: true, message: 'Customer redaction completed' };
+    }
+
+    if (topic === 'shop/redact') {
+        const modulesSnapshot = await db!
+            .collection(`partners/${partnerId}/businessModules`)
+            .get();
+
+        for (const moduleDoc of modulesSnapshot.docs) {
+            const itemsSnapshot = await db!
+                .collection(`partners/${partnerId}/businessModules/${moduleDoc.id}/items`)
+                .where('_source', '==', 'shopify')
+                .get();
+
+            for (const itemDoc of itemsSnapshot.docs) {
+                await itemDoc.ref.delete();
+            }
+        }
+
+        const contactsSnapshot = await db!
+            .collection(`partners/${partnerId}/contacts`)
+            .where('source', '==', 'shopify')
+            .get();
+
+        for (const contactDoc of contactsSnapshot.docs) {
+            await contactDoc.ref.delete();
+        }
+
+        await db!
+            .collection(`partners/${partnerId}/integrations`)
+            .doc('shopify')
+            .delete()
+            .catch(() => undefined);
+
+        await db!.collection('shopifyStoreMappings').doc(shopDomain).delete().catch(() => undefined);
+
+        await db!.collection('shopifyComplianceRequests').doc().set({
+            topic,
+            shopDomain,
+            partnerId,
+            shopId: payload.shop_id || null,
+            status: 'completed',
+            receivedAt: now,
+            updatedAt: now,
+        });
+
+        return { success: true, message: 'Shop redaction completed' };
+    }
+
+    return { success: true, message: 'Compliance webhook acknowledged' };
 }
 
 async function handleProductWebhook(
