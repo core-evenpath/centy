@@ -1963,7 +1963,6 @@ export async function chatWithVaultForConversation(
         .doc(partnerId)
         .collection('hubDocuments')
         .where('status', '==', 'COMPLETED')
-        .orderBy('updatedAt', 'desc')
         .limit(3)
         .get()
         .catch((error) => {
