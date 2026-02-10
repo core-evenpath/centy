@@ -1998,9 +1998,11 @@ export async function chatWithVaultForConversation(
         const data = doc.data();
         const text = data?.extractedText || '';
         if (!text) return null;
+        const isCsv = (data?.name || data?.originalName || '').toLowerCase().endsWith('.csv');
+        const excerptLimit = isCsv ? 3000 : 800;
         return {
           name: data?.name || data?.originalName || doc.id,
-          excerpt: text.substring(0, 800),
+          excerpt: text.substring(0, excerptLimit),
         };
       })
       .filter((doc): doc is { name: string; excerpt: string } => !!doc && doc.excerpt.length > 0);
@@ -2009,12 +2011,17 @@ export async function chatWithVaultForConversation(
       ? `\nCore files (partner/core):\n${coreDocs.map(doc => `- ${doc.name}: ${doc.excerpt}`).join('\n')}\n`
       : '';
 
+    const wantsPricing = /\b(price|pricing|rate|rates|cost|quote|quotation)\b/i.test(message);
+    const pricingInstruction = wantsPricing
+      ? '\nIf pricing is requested, use exact prices from the core files (especially any inventory CSV) and include the relevant rate clearly.'
+      : '';
+
     const enhancedQuestion = `${contextSection}
 ${coreDataSection}${coreDocsSection}
 
 Customer question: "${message}"
 
-Generate a helpful, professional response (1-3 sentences) using the knowledge base, core files, and core business profile above. The information you need is in those sources - find it and use it. If the sources do not contain relevant information, say so clearly. Be confident and direct in your answer.`;
+Generate a helpful, professional response (1-3 sentences) using the knowledge base, core files, and core business profile above. The information you need is in those sources - find it and use it. If the sources do not contain relevant information, say so clearly. Be confident and direct in your answer.${pricingInstruction}`;
 
     console.log('📤 Querying with Gemini RAG...');
     const queryStart = Date.now();
