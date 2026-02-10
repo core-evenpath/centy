@@ -44,3 +44,15 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ success: true }, { status: 200 });
 }
+
+
+export async function GET() {
+    return NextResponse.json(
+        {
+            ok: true,
+            endpoint: '/api/webhooks/shopify',
+            message: 'Shopify webhook endpoint is live. Send signed POST requests from Shopify webhooks.',
+        },
+        { status: 200 }
+    );
+}
