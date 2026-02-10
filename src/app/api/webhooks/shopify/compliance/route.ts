@@ -3,6 +3,7 @@ import { verifyWebhookHmac } from '@/lib/shopify-service';
 import { handleComplianceWebhook } from '@/actions/shopify-actions';
 
 export async function POST(request: NextRequest) {
+    const topic = request.headers.get('X-Shopify-Topic');
     const hmacHeader = request.headers.get('X-Shopify-Hmac-Sha256');
     const shopDomain = request.headers.get('X-Shopify-Shop-Domain');
 
@@ -19,7 +20,7 @@ export async function POST(request: NextRequest) {
     }
 
     if (!verifyWebhookHmac(rawBody, hmacHeader, apiSecret)) {
-        console.error('Invalid HMAC for customers/redact webhook');
+        console.error(`Invalid HMAC for compliance webhook: ${topic}`);
         return NextResponse.json({ error: 'Invalid signature' }, { status: 401 });
     }
 
@@ -30,10 +31,11 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 });
     }
 
-    console.log(`Compliance webhook: customers/redact from ${shopDomain}`);
+    const webhookTopic = topic || 'unknown';
+    console.log(`Compliance webhook: ${webhookTopic} from ${shopDomain}`);
 
-    handleComplianceWebhook('customers/redact', shopDomain, payload).catch((err) => {
-        console.error('Error processing customers/redact:', err);
+    handleComplianceWebhook(webhookTopic, shopDomain, payload).catch((err) => {
+        console.error(`Error processing compliance webhook ${webhookTopic}:`, err);
     });
 
     return NextResponse.json({ success: true }, { status: 200 });

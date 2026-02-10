@@ -1,0 +1,47 @@
+# Shopify App Configuration
+# Learn more: https://shopify.dev/docs/apps/build/cli-for-apps/app-configuration
+#
+# After cloning, run `shopify app config link` to connect this file
+# to your app in the Shopify Partner Dashboard.
+
+client_id = "SHOPIFY_API_KEY_PLACEHOLDER"
+name = "Pingbox"
+application_url = "https://pingbox.io"
+embedded = false
+
+[auth]
+redirect_urls = [
+  "https://pingbox.io/api/auth/shopify/callback",
+]
+
+[webhooks]
+api_version = "2025-01"
+
+  [[webhooks.subscriptions]]
+  topics = [
+    "products/create",
+    "products/update",
+    "products/delete",
+    "customers/create",
+    "customers/update",
+    "customers/delete",
+    "orders/create",
+    "orders/updated",
+    "orders/cancelled",
+    "app/uninstalled",
+  ]
+  uri = "https://pingbox.io/api/webhooks/shopify"
+
+  [[webhooks.subscriptions]]
+  compliance_topics = [
+    "customers/data_request",
+    "customers/redact",
+    "shop/redact",
+  ]
+  uri = "https://pingbox.io/api/webhooks/shopify/compliance"
+
+[app_preferences]
+url = "https://pingbox.io/partner/apps/shopify"
+
+[access_scopes]
+scopes = "read_products,read_product_listings,read_inventory,read_customers,read_orders,read_locales,read_shipping"
