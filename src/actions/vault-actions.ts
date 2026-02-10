@@ -7,6 +7,7 @@ import { FieldValue } from 'firebase-admin/firestore';
 import type { VaultFile, FileSearchStore, VaultQuery, GroundingChunk } from '@/lib/types';
 import { queryVaultWithClaude, estimateDocumentTokens } from '@/lib/claude-rag';
 import { queryWithGeminiRAG } from '@/lib/gemini-rag';
+import { getCoreAccessibleDataAction } from './business-persona-actions';
 import { getPartnerAIConfig } from '@/actions/partner-settings-actions';
 
 const genAI = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || '' });
@@ -1953,9 +1954,22 @@ export async function chatWithVaultForConversation(
   try {
     const conversationCollection = platform === 'sms' ? 'smsConversations' : 'whatsappConversations';
 
-    const [conversationDoc, conversationContext] = await Promise.all([
+    const [conversationDoc, conversationContext, coreDataResult, coreDocsSnapshot] = await Promise.all([
       db.collection(conversationCollection).doc(conversationId).get(),
       getConversationContext(conversationId, platform, 5),
+      getCoreAccessibleDataAction(partnerId),
+      db
+        .collection('partners')
+        .doc(partnerId)
+        .collection('hubDocuments')
+        .where('status', '==', 'COMPLETED')
+        .orderBy('updatedAt', 'desc')
+        .limit(3)
+        .get()
+        .catch((error) => {
+          console.warn('⚠️ Failed to load core files:', error);
+          return null;
+        }),
     ]);
 
     console.log(`⏱️ Data loaded: ${Date.now() - startTime}ms`);
@@ -1971,11 +1985,36 @@ export async function chatWithVaultForConversation(
       ? `\nRecent conversation:\n${conversationContext}\n`
       : '';
 
+    const coreDataSummary = coreDataResult.success && coreDataResult.data
+      ? coreDataResult.data.summary?.trim()
+      : '';
+
+    const coreDataSection = coreDataSummary
+      ? `\nCore business profile (settings/core-data):\n${coreDataSummary}\n`
+      : '';
+
+    const coreDocs = (coreDocsSnapshot?.docs || [])
+      .map(doc => {
+        const data = doc.data();
+        const text = data?.extractedText || '';
+        if (!text) return null;
+        return {
+          name: data?.name || data?.originalName || doc.id,
+          excerpt: text.substring(0, 800),
+        };
+      })
+      .filter((doc): doc is { name: string; excerpt: string } => !!doc && doc.excerpt.length > 0);
+
+    const coreDocsSection = coreDocs.length > 0
+      ? `\nCore files (partner/core):\n${coreDocs.map(doc => `- ${doc.name}: ${doc.excerpt}`).join('\n')}\n`
+      : '';
+
     const enhancedQuestion = `${contextSection}
+${coreDataSection}${coreDocsSection}
 
 Customer question: "${message}"
 
-Generate a helpful, professional response (1-3 sentences) using the knowledge base. The information you need is in the documents - find it and use it. Be confident and direct in your answer.`;
+Generate a helpful, professional response (1-3 sentences) using the knowledge base, core files, and core business profile above. The information you need is in those sources - find it and use it. If the sources do not contain relevant information, say so clearly. Be confident and direct in your answer.`;
 
     console.log('📤 Querying with Gemini RAG...');
     const queryStart = Date.now();
@@ -1999,18 +2038,40 @@ Generate a helpful, professional response (1-3 sentences) using the knowledge ba
 
     const responseText = result.response.trim();
     const chunksUsed = result.geminiChunks?.length || 0;
+    const coreDocsUsed = coreDocs.length;
+    const coreDataUsed = coreDataSummary ? 1 : 0;
+    const totalSourcesUsed = chunksUsed + coreDocsUsed + coreDataUsed;
 
-    const confidence = chunksUsed > 0 ? 0.90 : 0.65;
-    const reasoning = chunksUsed > 0
-      ? `Based on ${chunksUsed} source${chunksUsed > 1 ? 's' : ''} from knowledge base`
+    const confidence = totalSourcesUsed > 0 ? 0.90 : 0.65;
+    const reasoning = totalSourcesUsed > 0
+      ? `Based on ${totalSourcesUsed} source${totalSourcesUsed > 1 ? 's' : ''} from knowledge base, core files, and core data`
       : `General response`;
 
-    const sources = result.geminiChunks?.slice(0, 3).map(chunk => ({
+    const ragSources = result.geminiChunks?.slice(0, 3).map(chunk => ({
       type: 'document' as const,
       name: chunk.source || 'Knowledge Base',
       excerpt: chunk.content.substring(0, 150),
       relevance: chunk.score || 0.85,
     })) || [];
+
+    const coreSources = [
+      ...(coreDataSummary
+        ? [{
+          type: 'document' as const,
+          name: 'Core business profile',
+          excerpt: coreDataSummary.substring(0, 150),
+          relevance: 0.85,
+        }]
+        : []),
+      ...coreDocs.slice(0, 2).map(doc => ({
+        type: 'document' as const,
+        name: `Core file: ${doc.name}`,
+        excerpt: doc.excerpt.substring(0, 150),
+        relevance: 0.85,
+      })),
+    ];
+
+    const sources = [...ragSources, ...coreSources].slice(0, 5);
 
     console.log(`✅ Total time: ${Date.now() - startTime}ms`);
     console.log(`📚 Sources used: ${chunksUsed}`);
