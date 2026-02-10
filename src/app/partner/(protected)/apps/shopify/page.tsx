@@ -258,12 +258,25 @@ export default function ShopifyIntegrationPage() {
                     <ArrowLeft className="w-4 h-4 mr-1" />
                     Back to Integrations
                 </Link>
-                <div className="flex items-center gap-3 mb-2">
-                    <h1 className="text-3xl font-bold">Shopify Integration</h1>
-                    <Badge variant="secondary" className="bg-green-100 text-green-800">
-                        <ShoppingBag className="w-3 h-3 mr-1" />
-                        E-Commerce
-                    </Badge>
+                <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-3">
+                        <h1 className="text-3xl font-bold">Shopify Integration</h1>
+                        <Badge variant="secondary" className="bg-green-100 text-green-800">
+                            <ShoppingBag className="w-3 h-3 mr-1" />
+                            E-Commerce
+                        </Badge>
+                    </div>
+                    {config && (
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            className="text-red-600 border-red-200 hover:bg-red-50"
+                            onClick={() => setShowDisconnectDialog(true)}
+                        >
+                            <XCircle className="w-4 h-4 mr-2" />
+                            Disconnect
+                        </Button>
+                    )}
                 </div>
                 <p className="text-gray-600">
                     Sync products, customers, and orders from your Shopify store to Pingbox
