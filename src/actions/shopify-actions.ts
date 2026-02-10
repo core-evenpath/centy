@@ -46,10 +46,13 @@ const WEBHOOK_TOPICS = [
     'customers/create',
     'customers/update',
     'customers/delete',
+    'customers/data_request',
+    'customers/redact',
     'orders/create',
     'orders/updated',
     'orders/cancelled',
     'app/uninstalled',
+    'shop/redact',
 ];
 
 function getShopifyApiKey(): string {
@@ -996,6 +999,8 @@ export async function handleShopifyWebhook(
             result = { success: true, message: 'App uninstalled, integration disconnected' };
         } else if (topic.startsWith('products/')) {
             result = await handleProductWebhook(topic, partnerId, config, payload);
+        } else if (topic === 'customers/data_request' || topic === 'customers/redact' || topic === 'shop/redact') {
+            result = await handleComplianceWebhook(topic, partnerId, payload);
         } else if (topic.startsWith('customers/')) {
             result = await handleCustomerWebhook(topic, partnerId, payload);
         } else if (topic.startsWith('orders/')) {
@@ -1022,6 +1027,61 @@ export async function handleShopifyWebhook(
         console.error(`❌ Error handling webhook ${topic}:`, error);
         return { success: false, message: error.message };
     }
+}
+
+async function handleComplianceWebhook(
+    topic: string,
+    partnerId: string,
+    payload: ShopifyWebhookPayload
+): Promise<{ success: boolean; message: string }> {
+    const now = new Date().toISOString();
+
+    if (topic === 'customers/redact') {
+        const customerPayload = payload as unknown as { customer?: { id?: string | number } };
+        const customerId = customerPayload.customer?.id;
+
+        if (customerId) {
+            const existingQuery = await db!
+                .collection(`partners/${partnerId}/contacts`)
+                .where('externalId', '==', String(customerId))
+                .where('source', '==', 'shopify')
+                .limit(1)
+                .get();
+
+            if (!existingQuery.empty) {
+                await existingQuery.docs[0].ref.update({
+                    name: 'Redacted Customer',
+                    firstName: 'Redacted',
+                    lastName: 'Customer',
+                    email: null,
+                    phone: null,
+                    addresses: [],
+                    notes: '',
+                    tags: [],
+                    isActive: false,
+                    updatedAt: now,
+                });
+            }
+        }
+
+        return { success: true, message: 'Customer redact request processed' };
+    }
+
+    if (topic === 'shop/redact') {
+        await db!
+            .collection(`partners/${partnerId}/integrations`)
+            .doc('shopify')
+            .update({
+                status: 'disconnected',
+                error: 'Shop redact request received from Shopify',
+                updatedAt: now,
+            });
+
+        return { success: true, message: 'Shop redact request processed' };
+    }
+
+    // customers/data_request: acknowledge receipt. Data export workflow can be layered on top.
+    return { success: true, message: 'Customer data request received' };
 }
 
 async function handleProductWebhook(
