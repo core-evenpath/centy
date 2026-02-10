@@ -2,6 +2,7 @@
 
 import { GoogleGenAI } from "@google/genai";
 import { getCoreAccessibleDataAction } from "./business-persona-actions";
+import { getCoreHubContextString } from "./core-hub-actions";
 
 const genAI = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || "" });
 
@@ -41,13 +42,6 @@ export async function generateInboxSuggestionFastAction(
             .limit(5)
             .get();
 
-        if (docsSnapshot.empty) {
-            return {
-                success: false,
-                message: "No documents found. Upload documents in Core Memory first.",
-            };
-        }
-
         const contextSnippets: { source: string; text: string }[] = [];
         docsSnapshot.docs.forEach((doc) => {
             const data = doc.data();
@@ -59,13 +53,6 @@ export async function generateInboxSuggestionFastAction(
             }
         });
 
-        if (contextSnippets.length === 0) {
-            return {
-                success: false,
-                message: "No text extracted from documents.",
-            };
-        }
-
         const contextString = contextSnippets
             .map((c) => `[${c.source}]: ${c.text}`)
             .join("\n\n");
@@ -74,8 +61,11 @@ export async function generateInboxSuggestionFastAction(
             ? `\nRecent chat:\n${conversationContext}\n`
             : "";
 
-        // Fetch business data
-        const accessibleDataResult = await getCoreAccessibleDataAction(partnerId);
+        // Fetch business data and Core Hub product data in parallel
+        const [accessibleDataResult, coreHubContextString] = await Promise.all([
+            getCoreAccessibleDataAction(partnerId),
+            getCoreHubContextString(partnerId),
+        ]);
         let businessKnowledgeText = '';
 
         if (accessibleDataResult.success && accessibleDataResult.data) {
@@ -132,15 +122,28 @@ export async function generateInboxSuggestionFastAction(
             }
         }
 
-        const prompt = `You are a helpful assistant. Use the knowledge below to answer.
-${businessKnowledgeText}
-KNOWLEDGE FROM DOCUMENTS:
-${contextString}
+        const coreHubSection = coreHubContextString
+            ? `\nPRODUCTS & INVENTORY FROM CORE:\n${coreHubContextString}\n`
+            : '';
 
+        const hasSomeContext = contextSnippets.length > 0 || coreHubContextString || businessKnowledgeText;
+        if (!hasSomeContext) {
+            return {
+                success: false,
+                message: "No business data or documents found. Configure your business in Core Memory first.",
+            };
+        }
+
+        const docsSection = contextSnippets.length > 0
+            ? `\nKNOWLEDGE FROM DOCUMENTS:\n${contextString}\n`
+            : '';
+
+        const prompt = `You are a helpful assistant. Use the knowledge below to answer.
+${businessKnowledgeText}${coreHubSection}${docsSection}
 ${conversationPart}
 Customer: "${customerMessage}"
 
-Reply in 2-3 sentences. Be helpful and direct. If unsure, say so.`;
+Reply in 2-3 sentences. Be helpful and direct. Use product/inventory details when relevant. If unsure, say so.`;
 
         const response = await genAI.models.generateContent({
             model: FAST_MODEL,
@@ -167,12 +170,18 @@ Reply in 2-3 sentences. Be helpful and direct. If unsure, say so.`;
             relevance: 0.85,
         }));
 
+        const dataSources: string[] = [];
+        if (contextSnippets.length > 0) dataSources.push(`${contextSnippets.length} document${contextSnippets.length > 1 ? "s" : ""}`);
+        if (coreHubContextString) dataSources.push('Core Hub products');
+        if (businessKnowledgeText) dataSources.push('business profile');
+        const hasStrongContext = contextSnippets.length > 0 || !!coreHubContextString;
+
         return {
             success: true,
             message: "Success",
             suggestedReply: responseText,
-            confidence: contextSnippets.length > 0 ? 0.85 : 0.5,
-            reasoning: `Based on ${contextSnippets.length} document${contextSnippets.length > 1 ? "s" : ""} (${totalTime}ms)`,
+            confidence: hasStrongContext ? 0.85 : 0.5,
+            reasoning: `Based on ${dataSources.join(', ')} (${totalTime}ms)`,
             sources,
         };
     } catch (error: any) {

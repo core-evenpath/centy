@@ -21,10 +21,13 @@ export interface AIContext {
         name: string;
         description?: string;
         price?: number | null;
+        priceUnit?: string | null;
         currency?: string;
         category?: string;
         sourceModule: string;
         isActive: boolean;
+        metadata?: Record<string, any>;
+        keywords?: string[];
     }>;
     ragResults: Array<{
         content: string;
@@ -122,10 +125,13 @@ export async function buildAIContext(options: BuildContextOptions): Promise<AICo
             name: item.name,
             description: item.description,
             price: item.price,
+            priceUnit: item.priceUnit,
             currency: item.currency,
             category: item.category,
             sourceModule: item.sourceModule,
-            isActive: item.isActive
+            isActive: item.isActive,
+            metadata: item.metadata,
+            keywords: item.keywords,
         }))
         : [];
 

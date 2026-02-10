@@ -53,9 +53,23 @@ export function buildSystemPrompt(context: AIContext): string {
                 if (item.price) {
                     const symbol = item.currency === 'INR' ? '₹' : item.currency === 'USD' ? '$' : item.currency || '';
                     prompt += ` - ${symbol}${item.price}`;
+                    if (item.priceUnit) {
+                        prompt += ` ${item.priceUnit}`;
+                    }
                 }
                 if (item.description) {
                     prompt += `\n  ${item.description}`;
+                }
+                // Include detailed metadata from Core Hub (inventory fields, specs, etc.)
+                if (item.metadata && Object.keys(item.metadata).length > 0) {
+                    for (const [key, value] of Object.entries(item.metadata)) {
+                        if (value === null || value === undefined || value === '') continue;
+                        const displayKey = key.charAt(0).toUpperCase() + key.slice(1).replace(/([A-Z])/g, ' $1');
+                        const displayValue = Array.isArray(value) ? value.join(', ') : String(value);
+                        if (displayValue.length > 0 && displayValue.length <= 500) {
+                            prompt += `\n  ${displayKey}: ${displayValue}`;
+                        }
+                    }
                 }
                 prompt += '\n';
             }
