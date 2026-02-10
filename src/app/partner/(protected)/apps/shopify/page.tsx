@@ -244,6 +244,7 @@ export default function ShopifyIntegrationPage() {
     }
 
     const isConnected = config?.status === 'connected' || config?.status === 'syncing';
+    const isDisconnected = config && !isConnected;
     const needsModuleLink = isConnected && !config?.linkedModuleId;
     const isReady = isConnected && config?.linkedModuleId;
 
@@ -391,16 +392,83 @@ export default function ShopifyIntegrationPage() {
                 </>
             )}
 
+            {isDisconnected && (
+                <Card className="mb-6 border-red-200 bg-red-50">
+                    <CardHeader>
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <CardTitle className="flex items-center gap-2 text-red-900">
+                                    <AlertCircle className="w-5 h-5" />
+                                    Shopify Disconnected
+                                </CardTitle>
+                                <CardDescription className="text-red-700">
+                                    {config.shopDomain} — {config.error || 'The connection is no longer active.'}
+                                </CardDescription>
+                            </div>
+                        </div>
+                    </CardHeader>
+                    <CardContent>
+                        <div className="flex gap-3">
+                            <Button
+                                variant="destructive"
+                                size="sm"
+                                onClick={async () => {
+                                    if (!partnerId) return;
+                                    setDisconnecting(true);
+                                    try {
+                                        const result = await disconnectShopify(partnerId);
+                                        if (result.success) {
+                                            toast.success('Shopify data cleared. You can reconnect now.');
+                                        } else {
+                                            toast.error(result.message);
+                                        }
+                                    } catch (err: any) {
+                                        toast.error(err.message);
+                                    } finally {
+                                        setDisconnecting(false);
+                                    }
+                                }}
+                                disabled={disconnecting}
+                            >
+                                {disconnecting ? (
+                                    <>
+                                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                        Clearing...
+                                    </>
+                                ) : (
+                                    <>
+                                        <XCircle className="w-4 h-4 mr-2" />
+                                        Clear &amp; Reconnect
+                                    </>
+                                )}
+                            </Button>
+                        </div>
+                    </CardContent>
+                </Card>
+            )}
+
             {needsModuleLink && (
                 <>
                     <Card className="mb-6 border-green-200 bg-green-50">
                         <CardHeader>
-                            <CardTitle className="text-green-900">
-                                Connected to {config.shopName}
-                            </CardTitle>
-                            <CardDescription className="text-green-700">
-                                {config.shopDomain}
-                            </CardDescription>
+                            <div className="flex items-center justify-between">
+                                <div>
+                                    <CardTitle className="text-green-900">
+                                        Connected to {config.shopName}
+                                    </CardTitle>
+                                    <CardDescription className="text-green-700">
+                                        {config.shopDomain}
+                                    </CardDescription>
+                                </div>
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    className="text-red-600 border-red-200 hover:bg-red-50"
+                                    onClick={() => setShowDisconnectDialog(true)}
+                                >
+                                    Disconnect
+                                </Button>
+                            </div>
                         </CardHeader>
                         <CardContent>
                             {countsLoading ? (
