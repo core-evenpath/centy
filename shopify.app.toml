@@ -1,19 +1,17 @@
 # Shopify App Configuration
-
 client_id = "9b7ba5ff839a378d8b61c7354d96e226"
 name = "PingBoxShop"
-application_url = "https://pingbox.io"
+application_url = "https://www.pingbox.io"
 embedded = true
 
 [auth]
 redirect_urls = [
-  "https://pingbox.io/api/auth/shopify/callback",
+  "https://www.pingbox.io/api/auth/shopify/callback",
 ]
 
 [webhooks]
 api_version = "2026-01"
 
-# Standard webhooks for data sync
 [[webhooks.subscriptions]]
 topics = [
   "products/create",
@@ -27,19 +25,18 @@ topics = [
   "orders/cancelled",
   "app/uninstalled",
 ]
-uri = "https://pingbox.io/api/webhooks/shopify"
+uri = "https://www.pingbox.io/api/webhooks/shopify"
 
-# GDPR Compliance webhooks (MANDATORY)
 [[webhooks.subscriptions]]
 compliance_topics = [
   "customers/data_request",
   "customers/redact",
   "shop/redact",
 ]
-uri = "https://pingbox.io/api/webhooks/shopify/compliance"
+uri = "https://www.pingbox.io/api/webhooks/shopify/compliance"
 
 [app_preferences]
-url = "https://pingbox.io/partner/apps/shopify"
+url = "https://www.pingbox.io/partner/apps/shopify"
 
 [access_scopes]
 scopes = "read_products,read_product_listings,read_inventory,read_customers,read_orders,read_locales,read_shipping"
