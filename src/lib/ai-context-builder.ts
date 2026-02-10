@@ -34,6 +34,10 @@ export interface AIContext {
         source: string;
         relevance?: number;
     }>;
+    documentContext: Array<{
+        source: string;
+        text: string;
+    }>;
     conversationHistory: Array<{
         role: 'customer' | 'business';
         content: string;
@@ -135,7 +139,7 @@ export async function buildAIContext(options: BuildContextOptions): Promise<AICo
         }))
         : [];
 
-    // 3. Query RAG Documents
+    // 3. Query RAG Documents (vector search for semantic relevance)
     const ragResult = await queryVaultRAG(partnerId, customerMessage, { maxChunks: maxRagResults });
     const ragResults = (ragResult.success && ragResult.groundingChunks)
         ? ragResult.groundingChunks.map(chunk => ({
@@ -144,6 +148,35 @@ export async function buildAIContext(options: BuildContextOptions): Promise<AICo
             relevance: chunk.score
         }))
         : [];
+
+    // 3b. Fetch direct document text from hubDocuments (full extracted content)
+    // This supplements RAG snippets with complete document context, matching
+    // the same approach used by /partner/core's "Chat with document" feature.
+    let documentContext: AIContext['documentContext'] = [];
+    try {
+        const docsSnapshot = await db
+            .collection('partners')
+            .doc(partnerId)
+            .collection('hubDocuments')
+            .where('status', '==', 'COMPLETED')
+            .limit(5)
+            .get();
+
+        documentContext = docsSnapshot.docs
+            .map(doc => {
+                const data = doc.data();
+                if (data?.extractedText) {
+                    return {
+                        source: data.name || data.originalName || doc.id,
+                        text: data.extractedText.substring(0, 8000),
+                    };
+                }
+                return null;
+            })
+            .filter((item): item is { source: string; text: string } => item !== null);
+    } catch (err) {
+        console.warn('[AIContext] Failed to fetch hubDocuments:', err);
+    }
 
     // 4. Fetch Conversation History
     let conversationHistory: AIContext['conversationHistory'] = [];
@@ -207,6 +240,7 @@ export async function buildAIContext(options: BuildContextOptions): Promise<AICo
         businessProfile,
         moduleItems,
         ragResults,
+        documentContext,
         conversationHistory,
         customerProfile,
         industrySkills,

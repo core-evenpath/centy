@@ -783,7 +783,7 @@ export async function generateInboxSuggestionAction(
             model: 'gemini-3-pro-preview',
             contents: prompt,
             config: {
-                temperature: 0.7,
+                temperature: 0.3,
                 responseMimeType: "application/json"
             }
         });
@@ -821,13 +821,26 @@ export async function generateInboxSuggestionAction(
             });
         }
 
-        for (const ragResult of context.ragResults.slice(0, 3)) {
+        for (const doc of context.documentContext.slice(0, 3)) {
             sources.push({
                 type: 'document' as const,
-                name: ragResult.source,
-                excerpt: ragResult.content.substring(0, 200),
-                relevance: ragResult.relevance || 0.8,
+                name: doc.source,
+                excerpt: doc.text.substring(0, 200),
+                relevance: 0.9,
             });
+        }
+
+        for (const ragResult of context.ragResults.slice(0, 3)) {
+            // Avoid duplicate sources already added from documentContext
+            const alreadyAdded = sources.some(s => s.name === ragResult.source);
+            if (!alreadyAdded) {
+                sources.push({
+                    type: 'document' as const,
+                    name: ragResult.source,
+                    excerpt: ragResult.content.substring(0, 200),
+                    relevance: ragResult.relevance || 0.8,
+                });
+            }
         }
 
         return {

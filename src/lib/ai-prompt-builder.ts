@@ -81,9 +81,17 @@ export function buildSystemPrompt(context: AIContext): string {
         prompt += `\n## RESPONSE GUIDELINES\n${context.industrySkills}\n`;
     }
 
-    // RAG documents section
+    // Document context section (full extracted text from uploaded documents)
+    if (context.documentContext && context.documentContext.length > 0) {
+        prompt += `\n## UPLOADED DOCUMENTS (USE THIS DATA FOR SPECIFIC PRODUCT DETAILS)\n`;
+        for (const doc of context.documentContext) {
+            prompt += `\n### ${doc.source}\n${doc.text}\n`;
+        }
+    }
+
+    // RAG documents section (semantic search results)
     if (context.ragResults.length > 0) {
-        prompt += `\n## RELEVANT DOCUMENTS\n`;
+        prompt += `\n## RELEVANT DOCUMENT EXCERPTS\n`;
         for (const doc of context.ragResults) {
             prompt += `\n### From: ${doc.source}\n${doc.content}\n`;
         }
@@ -125,7 +133,7 @@ export function buildUserPrompt(
     }
 
     prompt += `## CURRENT MESSAGE\nCustomer: "${customerMessage}"\n\n`;
-    prompt += `Generate a helpful, professional reply (2-3 sentences). Be specific and use information from the business profile, products/services, and documents when relevant.`;
+    prompt += `Generate a helpful, professional reply. IMPORTANT: When the customer asks about specific products, pricing, availability, or inventory, provide exact details (model names, prices, stock status, specifications) from the documents and product data above. Do NOT give vague "contact us" replies when specific data is available. Keep the response concise but data-rich.`;
 
     return prompt;
 }
