@@ -948,6 +948,133 @@ export async function updateShopifySyncSettings(
     }
 }
 
+export async function handleComplianceWebhook(
+    topic: string,
+    shopDomain: string,
+    payload: Record<string, any>
+): Promise<{ success: boolean; message: string }> {
+    if (!db) {
+        return { success: false, message: 'Database not available' };
+    }
+
+    try {
+        const mappingDoc = await db.collection('shopifyStoreMappings').doc(shopDomain).get();
+        const partnerId = mappingDoc.exists ? mappingDoc.data()!.partnerId : null;
+
+        const now = new Date().toISOString();
+
+        if (topic === 'customers/data_request') {
+            // Shopify sends this when a customer requests their data under GDPR.
+            // Log the request for the store owner to fulfill.
+            console.log(`GDPR data request for shop ${shopDomain}, customer: ${payload.customer?.id}, data_request id: ${payload.data_request?.id}`);
+
+            if (partnerId) {
+                const logRef = db
+                    .collection(`partners/${partnerId}/integrations/shopify/webhookLogs`)
+                    .doc();
+                await logRef.set({
+                    topic,
+                    receivedAt: now,
+                    status: 'success',
+                    payload: {
+                        shopDomain,
+                        customerId: payload.customer?.id,
+                        dataRequestId: payload.data_request?.id,
+                        ordersRequested: payload.orders_requested || [],
+                    },
+                    processingTimeMs: 0,
+                });
+            }
+
+            return { success: true, message: 'Customer data request acknowledged' };
+        }
+
+        if (topic === 'customers/redact') {
+            // Shopify sends this when a store owner requests deletion of customer data
+            // on behalf of a customer (GDPR erasure request).
+            const customerId = payload.customer?.id ? String(payload.customer.id) : null;
+            console.log(`GDPR customer redact for shop ${shopDomain}, customer: ${customerId}`);
+
+            if (partnerId && customerId) {
+                // Find and redact the customer's personal data
+                const contactQuery = await db
+                    .collection(`partners/${partnerId}/contacts`)
+                    .where('externalId', '==', customerId)
+                    .where('source', '==', 'shopify')
+                    .limit(1)
+                    .get();
+
+                if (!contactQuery.empty) {
+                    await contactQuery.docs[0].ref.update({
+                        name: '[REDACTED]',
+                        firstName: '[REDACTED]',
+                        lastName: '[REDACTED]',
+                        email: null,
+                        phone: null,
+                        addresses: [],
+                        notes: '',
+                        isActive: false,
+                        redactedAt: now,
+                        updatedAt: now,
+                    });
+                }
+
+                const logRef = db
+                    .collection(`partners/${partnerId}/integrations/shopify/webhookLogs`)
+                    .doc();
+                await logRef.set({
+                    topic,
+                    receivedAt: now,
+                    status: 'success',
+                    payload: { shopDomain, customerId, redacted: true },
+                    processingTimeMs: 0,
+                });
+            }
+
+            return { success: true, message: 'Customer data redacted' };
+        }
+
+        if (topic === 'shop/redact') {
+            // Shopify sends this 48 hours after an app is uninstalled.
+            // Remove all shop-specific data for this store.
+            console.log(`GDPR shop redact for shop ${shopDomain}`);
+
+            if (partnerId) {
+                // Delete integration config
+                try {
+                    await db
+                        .collection(`partners/${partnerId}/integrations`)
+                        .doc('shopify')
+                        .delete();
+                } catch {}
+
+                // Delete store mapping
+                try {
+                    await db.collection('shopifyStoreMappings').doc(shopDomain).delete();
+                } catch {}
+
+                const logRef = db
+                    .collection(`partners/${partnerId}/integrations/shopify/webhookLogs`)
+                    .doc();
+                await logRef.set({
+                    topic,
+                    receivedAt: now,
+                    status: 'success',
+                    payload: { shopDomain, redacted: true },
+                    processingTimeMs: 0,
+                });
+            }
+
+            return { success: true, message: 'Shop data redacted' };
+        }
+
+        return { success: true, message: `Unknown compliance topic: ${topic}` };
+    } catch (error: any) {
+        console.error(`Error handling compliance webhook ${topic}:`, error);
+        return { success: false, message: error.message };
+    }
+}
+
 export async function handleShopifyWebhook(
     topic: string,
     shopDomain: string,
