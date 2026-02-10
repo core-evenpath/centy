@@ -167,7 +167,7 @@ export default function CoreMemorySuggestion({
     const [loadingStage, setLoadingStage] = useState<LoadingStage>('searching');
     const [displayedText, setDisplayedText] = useState('');
     const [isTyping, setIsTyping] = useState(false);
-    const [showSources, setShowSources] = useState(false);
+    const [showSources, setShowSources] = useState(true);
     const [customRefineInput, setCustomRefineInput] = useState('');
     const [copied, setCopied] = useState(false);
     const textRef = useRef<HTMLDivElement>(null);
@@ -458,26 +458,90 @@ export default function CoreMemorySuggestion({
                                 {/* Sources Section */}
                                 {!isTyping && suggestion.sources.length > 0 && (
                                     <div className="space-y-3">
-                                        <p className="text-[10px] font-semibold text-[#999] uppercase tracking-wider flex items-center gap-1.5">
-                                            <Database className="w-3 h-3" />
-                                            Context Used
-                                        </p>
-                                        <div className="space-y-2">
-                                            {suggestion.sources.map((source, idx) => (
-                                                <div key={idx} className="flex items-center gap-2 p-2 bg-white border border-[#e5e5e5] rounded-lg">
-                                                    {source.type === 'profile' && <Building className="w-4 h-4 text-blue-500" />}
-                                                    {source.type === 'module' && <Package className="w-4 h-4 text-green-500" />}
-                                                    {source.type === 'document' && <FileText className="w-4 h-4 text-purple-500" />}
-                                                    <div className="flex-1 min-w-0">
-                                                        <p className="text-xs font-medium text-gray-900 truncate">{source.name}</p>
-                                                        <p className="text-[10px] text-gray-500 truncate">{source.excerpt}</p>
-                                                    </div>
-                                                    <Badge variant="outline" className="text-[9px] px-1 h-4 border-[#eee] text-[#666]">
-                                                        {Math.round(source.relevance * 100)}%
-                                                    </Badge>
-                                                </div>
-                                            ))}
-                                        </div>
+                                        <button
+                                            onClick={() => setShowSources(!showSources)}
+                                            className="w-full flex items-center justify-between group"
+                                        >
+                                            <p className="text-[10px] font-semibold text-[#999] uppercase tracking-wider flex items-center gap-1.5">
+                                                <Database className="w-3 h-3" />
+                                                Context Used
+                                                <span className="ml-1 px-1.5 py-0.5 text-[9px] font-semibold bg-[#f0f0f0] text-[#666] rounded-full">
+                                                    {suggestion.sources.length}
+                                                </span>
+                                            </p>
+                                            <ChevronDown className={cn(
+                                                "w-3.5 h-3.5 text-[#999] transition-transform duration-200",
+                                                showSources && "rotate-180"
+                                            )} />
+                                        </button>
+
+                                        {showSources && (
+                                            <div className="grid grid-cols-2 gap-2">
+                                                {suggestion.sources.map((source, idx) => {
+                                                    const isProfile = source.type === 'profile';
+                                                    const isModule = source.type === 'module';
+
+                                                    const iconBg = isProfile
+                                                        ? 'bg-blue-50'
+                                                        : isModule
+                                                            ? 'bg-emerald-50'
+                                                            : 'bg-violet-50';
+                                                    const iconColor = isProfile
+                                                        ? 'text-blue-500'
+                                                        : isModule
+                                                            ? 'text-emerald-500'
+                                                            : 'text-violet-500';
+                                                    const typeLabel = isProfile
+                                                        ? 'Profile'
+                                                        : isModule
+                                                            ? 'Products'
+                                                            : 'Document';
+
+                                                    // Truncate display name for long filenames
+                                                    const displayName = (() => {
+                                                        const name = source.name;
+                                                        if (name.length <= 24) return name;
+                                                        const ext = name.lastIndexOf('.') > 0 ? name.slice(name.lastIndexOf('.')) : '';
+                                                        const base = ext ? name.slice(0, name.lastIndexOf('.')) : name;
+                                                        const maxBase = 20 - ext.length;
+                                                        return base.slice(0, maxBase) + '...' + ext;
+                                                    })();
+
+                                                    return (
+                                                        <TooltipProvider key={idx} delayDuration={300}>
+                                                            <Tooltip>
+                                                                <TooltipTrigger asChild>
+                                                                    <div className="flex flex-col items-center gap-2 p-3 bg-white border border-[#ebebeb] rounded-xl hover:border-[#ddd] hover:shadow-sm transition-all duration-150 cursor-default">
+                                                                        <div className={cn("w-9 h-9 rounded-lg flex items-center justify-center", iconBg)}>
+                                                                            {isProfile && <Building className={cn("w-4 h-4", iconColor)} />}
+                                                                            {isModule && <Package className={cn("w-4 h-4", iconColor)} />}
+                                                                            {!isProfile && !isModule && <FileText className={cn("w-4 h-4", iconColor)} />}
+                                                                        </div>
+                                                                        <div className="w-full text-center min-w-0">
+                                                                            <p className="text-[11px] font-medium text-[#333] truncate leading-tight">
+                                                                                {displayName}
+                                                                            </p>
+                                                                            <p className="text-[9px] text-[#aaa] mt-0.5 uppercase tracking-wide font-medium">
+                                                                                {typeLabel}
+                                                                            </p>
+                                                                        </div>
+                                                                    </div>
+                                                                </TooltipTrigger>
+                                                                <TooltipContent
+                                                                    side="bottom"
+                                                                    className="max-w-[260px] text-xs"
+                                                                >
+                                                                    <p className="font-medium">{source.name}</p>
+                                                                    {source.excerpt && (
+                                                                        <p className="text-muted-foreground mt-1 line-clamp-2">{source.excerpt}</p>
+                                                                    )}
+                                                                </TooltipContent>
+                                                            </Tooltip>
+                                                        </TooltipProvider>
+                                                    );
+                                                })}
+                                            </div>
+                                        )}
                                     </div>
                                 )}
 
