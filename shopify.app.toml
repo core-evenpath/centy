@@ -4,7 +4,7 @@
 # After cloning, run `shopify app config link` to connect this file
 # to your app in the Shopify Partner Dashboard.
 
-client_id = "SHOPIFY_API_KEY_PLACEHOLDER"
+client_id = "16ef418755933dd2f4ba4dadf10793aa"
 name = "Pingbox"
 application_url = "https://pingbox.io"
 embedded = false
