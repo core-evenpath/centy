@@ -25,6 +25,7 @@ export interface AIContext {
         category?: string;
         sourceModule: string;
         isActive: boolean;
+        metadata?: Record<string, any>;
     }>;
     ragResults: Array<{
         content: string;
@@ -125,7 +126,8 @@ export async function buildAIContext(options: BuildContextOptions): Promise<AICo
             currency: item.currency,
             category: item.category,
             sourceModule: item.sourceModule,
-            isActive: item.isActive
+            isActive: item.isActive,
+            metadata: item.metadata,
         }))
         : [];
 
