@@ -33,7 +33,8 @@ export function buildSystemPrompt(context: AIContext): string {
 
     // Module items section (CRITICAL - always include)
     if (context.moduleItems.length > 0) {
-        prompt += `\n## PRODUCTS & SERVICES\n`;
+        prompt += `\n## PRODUCTS & SERVICES (IMPORTANT)\n`;
+        prompt += `You have the following products/services available. When a customer asks about products, pricing, availability, or anything related, you MUST reference specific products by their EXACT name as listed below. Always mention product names, prices, and relevant details in your reply.\n`;
 
         // Group by source module
         const byModule: Record<string, typeof context.moduleItems> = {};
@@ -54,12 +55,17 @@ export function buildSystemPrompt(context: AIContext): string {
                     const symbol = item.currency === 'INR' ? '₹' : item.currency === 'USD' ? '$' : item.currency || '';
                     prompt += ` - ${symbol}${item.price}`;
                 }
+                if (item.category) {
+                    prompt += ` [${item.category}]`;
+                }
                 if (item.description) {
                     prompt += `\n  ${item.description}`;
                 }
                 prompt += '\n';
             }
         }
+    } else {
+        prompt += `\n## PRODUCTS & SERVICES\n_No products or services configured yet._\n`;
     }
 
     // Industry skills section
@@ -111,7 +117,11 @@ export function buildUserPrompt(
     }
 
     prompt += `## CURRENT MESSAGE\nCustomer: "${customerMessage}"\n\n`;
-    prompt += `Generate a helpful, professional reply (2-3 sentences). Be specific and use information from the business profile, products/services, and documents when relevant.`;
+    prompt += `Generate a helpful, professional reply (2-3 sentences). Be specific and use information from the business profile, products/services, and documents when relevant.\n\n`;
+    prompt += `IMPORTANT RULES:\n`;
+    prompt += `- If the customer is asking about products, services, pricing, availability, colors, variants, or anything related to what the business offers, you MUST mention specific product names EXACTLY as they appear in the PRODUCTS & SERVICES section above.\n`;
+    prompt += `- Always recommend specific products when relevant - never give generic responses when product data is available.\n`;
+    prompt += `- In the "referencedProductNames" field of your JSON response, list the EXACT names of every product you mention in your reply.\n`;
 
     return prompt;
 }

@@ -820,6 +820,7 @@ export default function UnifiedInboxPage() {
                             onSend={(text) => {
                                 handleSendMessage(text);
                             }}
+                            onSendMedia={handleSendMedia}
                             onDismiss={() => {
                                 setShowAISuggestion(false);
                                 setAISuggestion(null);

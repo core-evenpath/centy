@@ -878,21 +878,28 @@ export async function generateInboxSuggestionAction(
 
         if (context.moduleItems.length > 0) {
             // Convert all module items to product data for the picker
+            // ModuleItem fields stored in CoreHub metadata: images, thumbnail, compareAtPrice,
+            // stock, trackInventory, fields, variants, isFeatured, currency, etc.
             for (const item of context.moduleItems) {
                 const meta = (item as any).metadata || {};
+                const fields = meta.fields || {};
+                const images: string[] = meta.images || [];
                 const productData = {
                     id: item.id,
                     name: item.name,
                     description: item.description,
                     price: item.price,
-                    comparePrice: meta.comparePrice || meta.compare_price || meta.originalPrice || null,
-                    currency: item.currency || 'INR',
-                    imageUrl: meta.imageUrl || meta.image || meta.photo || meta.thumbnail || undefined,
-                    rating: meta.rating || meta.averageRating || undefined,
-                    reviewCount: meta.reviewCount || meta.reviews || undefined,
-                    stockStatus: meta.stockStatus || meta.availability || undefined,
-                    stockCount: meta.stockCount || meta.quantity || meta.stock || undefined,
-                    colors: meta.colors || meta.variants?.colors || meta.colorOptions || undefined,
+                    comparePrice: meta.compareAtPrice || meta.comparePrice || meta.compare_price || fields.compareAtPrice || null,
+                    currency: item.currency || meta.currency || 'INR',
+                    imageUrl: meta.thumbnail || images[0] || meta.imageUrl || meta.image || fields.image || undefined,
+                    images: images.length > 0 ? images : undefined,
+                    rating: meta.rating || fields.rating || meta.averageRating || fields.averageRating || undefined,
+                    reviewCount: meta.reviewCount || fields.reviewCount || fields.reviews || undefined,
+                    stockStatus: meta.stock !== undefined
+                        ? (meta.stock === 0 ? 'out_of_stock' : meta.stock <= 5 ? 'low_stock' : 'in_stock')
+                        : (meta.stockStatus || fields.stockStatus || undefined),
+                    stockCount: meta.stock ?? meta.stockCount ?? fields.stock ?? undefined,
+                    colors: meta.colors || fields.colors || meta.variants?.map?.((v: any) => v.color).filter?.(Boolean) || fields.colorOptions || undefined,
                     category: item.category,
                     sourceModule: item.sourceModule,
                 };
@@ -902,24 +909,57 @@ export async function generateInboxSuggestionAction(
             // Match referenced products from AI response to module items
             const referencedNames: string[] = parsed.referencedProductNames || [];
             const suggestedReplyLower = (parsed.suggestedReply || '').toLowerCase();
+            const customerMessageLower = customerMessage.toLowerCase();
 
             // Find products that are referenced in the reply (by name match or AI-specified)
             const matchedProducts: typeof availableProducts = [];
 
             for (const product of availableProducts) {
-                const nameMatch = suggestedReplyLower.includes(product.name.toLowerCase());
+                const productNameLower = product.name.toLowerCase();
+                // Check if product name appears in the AI reply
+                const nameMatch = suggestedReplyLower.includes(productNameLower);
+                // Check if AI explicitly referenced the product
                 const aiReferenced = referencedNames.some(
-                    (ref: string) => ref.toLowerCase() === product.name.toLowerCase() ||
-                        product.name.toLowerCase().includes(ref.toLowerCase())
+                    (ref: string) => ref.toLowerCase() === productNameLower ||
+                        productNameLower.includes(ref.toLowerCase()) ||
+                        ref.toLowerCase().includes(productNameLower)
+                );
+                // Check partial word matches (e.g. "Kanjivaram" matches "Kanjivaram Silk Saree")
+                const productWords = productNameLower.split(/\s+/);
+                const partialMatch = productWords.some(word =>
+                    word.length > 3 && (suggestedReplyLower.includes(word) || customerMessageLower.includes(word))
                 );
 
-                if (nameMatch || aiReferenced) {
+                if (nameMatch || aiReferenced || partialMatch) {
                     matchedProducts.push(product);
                 }
             }
 
-            // If we found matching products, add them as inline content
-            // Limit to first 3 product cards
+            // Fallback: If no products matched but the customer is asking about products,
+            // check if the customer message mentions any product-related keywords
+            if (matchedProducts.length === 0 && availableProducts.length > 0) {
+                const productKeywords = ['product', 'price', 'cost', 'buy', 'order', 'available', 'stock', 'color', 'variant', 'size', 'option', 'show', 'have', 'offer', 'catalog', 'collection'];
+                const isProductQuery = productKeywords.some(kw => customerMessageLower.includes(kw));
+
+                if (isProductQuery) {
+                    // Find the most relevant products by category or keyword match
+                    for (const product of availableProducts) {
+                        const categoryMatch = product.category && customerMessageLower.includes(product.category.toLowerCase());
+                        const descMatch = product.description && customerMessageLower.split(/\s+/).some(
+                            word => word.length > 3 && product.description!.toLowerCase().includes(word)
+                        );
+                        if (categoryMatch || descMatch) {
+                            matchedProducts.push(product);
+                        }
+                    }
+                    // If still no matches, include the first few active products as fallback
+                    if (matchedProducts.length === 0) {
+                        matchedProducts.push(...availableProducts.slice(0, 2));
+                    }
+                }
+            }
+
+            // Add matched products as inline content (limit to 3)
             for (const product of matchedProducts.slice(0, 3)) {
                 inlineContent.push({
                     type: 'product',

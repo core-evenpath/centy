@@ -148,6 +148,7 @@ interface CoreMemorySuggestionProps {
     isVisible: boolean;
     onEdit: (text: string) => void;
     onSend: (text: string) => void;
+    onSendMedia?: (mediaUrl: string, mediaType: 'image' | 'video' | 'audio' | 'document', caption?: string, filename?: string) => void;
     onDismiss: () => void;
     onRegenerate: () => void;
     onRefine: (instruction: string) => void;
@@ -170,6 +171,7 @@ export default function CoreMemorySuggestion({
     isVisible,
     onEdit,
     onSend,
+    onSendMedia,
     onDismiss,
     onRegenerate,
     onRefine,
@@ -187,10 +189,12 @@ export default function CoreMemorySuggestion({
     // Inline product card state
     const [swappedProducts, setSwappedProducts] = useState<Record<number, InlineProductData>>({});
     const [pickerOpenIndex, setPickerOpenIndex] = useState<number | null>(null);
+    const [embedImages, setEmbedImages] = useState<Record<number, boolean>>({});
 
-    // Reset swapped products when suggestion changes
+    // Reset swapped products and embed state when suggestion changes
     useEffect(() => {
         setSwappedProducts({});
+        setEmbedImages({});
     }, [suggestion?.suggestedReply]);
 
     useEffect(() => {
@@ -286,6 +290,21 @@ export default function CoreMemorySuggestion({
         const text = buildFinalText();
         if (text) {
             onSend(text);
+        }
+        // Send embedded product images after the text message
+        if (onSendMedia) {
+            for (const [indexStr, shouldEmbed] of Object.entries(embedImages)) {
+                if (!shouldEmbed) continue;
+                const idx = Number(indexStr);
+                const block = resolvedInlineContent[idx];
+                if (block?.type === 'product') {
+                    const product = block.data as InlineProductData;
+                    const imageUrl = product.imageUrl || product.images?.[0];
+                    if (imageUrl) {
+                        onSendMedia(imageUrl, 'image', product.name);
+                    }
+                }
+            }
         }
     };
 
@@ -396,6 +415,8 @@ export default function CoreMemorySuggestion({
                 key={`product-${idx}`}
                 product={block.data as InlineProductData}
                 onChangeProduct={() => setPickerOpenIndex(idx)}
+                embedImage={!!embedImages[idx]}
+                onToggleEmbed={onSendMedia ? (embed) => setEmbedImages(prev => ({ ...prev, [idx]: embed })) : undefined}
             />
         );
 
@@ -454,6 +475,8 @@ export default function CoreMemorySuggestion({
                         key={`inline-product-${index}`}
                         product={block.data as InlineProductData}
                         onChangeProduct={() => setPickerOpenIndex(index)}
+                        embedImage={!!embedImages[index]}
+                        onToggleEmbed={onSendMedia ? (embed) => setEmbedImages(prev => ({ ...prev, [index]: embed })) : undefined}
                     />
                 );
                 blockIdx++;
@@ -468,6 +491,8 @@ export default function CoreMemorySuggestion({
                     key={`inline-product-tail-${index}`}
                     product={block.data as InlineProductData}
                     onChangeProduct={() => setPickerOpenIndex(index)}
+                    embedImage={!!embedImages[index]}
+                    onToggleEmbed={onSendMedia ? (embed) => setEmbedImages(prev => ({ ...prev, [index]: embed })) : undefined}
                 />
             );
             blockIdx++;

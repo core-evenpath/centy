@@ -1,6 +1,6 @@
 import React from 'react';
 import { Button } from '@/components/ui/button';
-import { Star, RefreshCw, Package, AlertCircle } from 'lucide-react';
+import { Star, RefreshCw, Package, AlertCircle, ImageIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 export interface InlineProductData {
@@ -11,6 +11,7 @@ export interface InlineProductData {
     comparePrice?: number | null;
     currency?: string;
     imageUrl?: string;
+    images?: string[];
     rating?: number;
     reviewCount?: number;
     stockStatus?: 'in_stock' | 'low_stock' | 'out_of_stock';
@@ -24,6 +25,8 @@ export interface InlineProductData {
 interface InlineProductCardProps {
     product: InlineProductData;
     onChangeProduct: () => void;
+    embedImage?: boolean;
+    onToggleEmbed?: (embed: boolean) => void;
 }
 
 function formatPrice(price: number | null, currency: string = 'INR'): string {
@@ -46,7 +49,7 @@ function getStockLabel(status?: string, count?: number): { label: string; color:
     }
 }
 
-export default function InlineProductCard({ product, onChangeProduct }: InlineProductCardProps) {
+export default function InlineProductCard({ product, onChangeProduct, embedImage, onToggleEmbed }: InlineProductCardProps) {
     const currency = product.currency || 'INR';
     const hasDiscount = product.comparePrice && product.price && product.comparePrice > product.price;
     const discountPercent = hasDiscount
@@ -155,8 +158,26 @@ export default function InlineProductCard({ product, onChangeProduct }: InlinePr
                 </div>
             </div>
 
-            {/* Change Button */}
-            <div className="mt-2 flex justify-end">
+            {/* Actions */}
+            <div className="mt-2 flex items-center justify-between">
+                {/* Embed Image Toggle */}
+                {product.imageUrl && onToggleEmbed ? (
+                    <button
+                        type="button"
+                        onClick={() => onToggleEmbed(!embedImage)}
+                        className={cn(
+                            "flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-medium transition-all duration-150",
+                            embedImage
+                                ? "bg-[#111] text-white"
+                                : "bg-white border border-[#e5e5e5] text-[#666] hover:text-[#111] hover:border-[#ccc]"
+                        )}
+                    >
+                        <ImageIcon className="w-3 h-3" />
+                        {embedImage ? 'Image attached' : 'Attach image'}
+                    </button>
+                ) : (
+                    <div />
+                )}
                 <Button
                     variant="ghost"
                     size="sm"
