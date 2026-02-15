@@ -115,21 +115,59 @@ export async function buildAIContext(options: BuildContextOptions): Promise<AICo
         country: identity.address?.country || partnerData.country || '',
     };
 
-    // 2. Fetch Module Items
-    const coreHubResult = await getCoreHubContext(partnerId);
-    const moduleItems = (coreHubResult.success && coreHubResult.moduleItems)
-        ? coreHubResult.moduleItems.map(item => ({
-            id: item.id,
-            name: item.name,
-            description: item.description,
-            price: item.price,
-            currency: item.currency,
-            category: item.category,
-            sourceModule: item.sourceModule,
-            isActive: item.isActive,
-            metadata: item.metadata,
-        }))
-        : [];
+    // 2. Fetch Module Items (try Core Hub first, fallback to direct module read)
+    let moduleItems: AIContext['moduleItems'] = [];
+    try {
+        const coreHubResult = await getCoreHubContext(partnerId);
+        if (coreHubResult.success && coreHubResult.moduleItems && coreHubResult.moduleItems.length > 0) {
+            moduleItems = coreHubResult.moduleItems.map(item => ({
+                id: item.id,
+                name: item.name,
+                description: item.description,
+                price: item.price,
+                currency: item.currency,
+                category: item.category,
+                sourceModule: item.sourceModule,
+                isActive: item.isActive,
+                metadata: item.metadata,
+            }));
+        }
+    } catch (hubError) {
+        console.warn('[AIContext] Core Hub fetch failed, will try direct module read:', hubError);
+    }
+
+    // Fallback: read directly from business modules if Core Hub returned nothing
+    if (moduleItems.length === 0 && db) {
+        try {
+            console.log('[AIContext] Falling back to direct module read...');
+            const modulesSnap = await db.collection(`partners/${partnerId}/businessModules`).get();
+            for (const moduleDoc of modulesSnap.docs) {
+                const moduleData = moduleDoc.data();
+                if (moduleData.enabled === false) continue;
+                const itemsSnap = await db
+                    .collection(`partners/${partnerId}/businessModules/${moduleDoc.id}/items`)
+                    .get();
+                for (const itemDoc of itemsSnap.docs) {
+                    const d = itemDoc.data();
+                    if (d.isActive === false) continue;
+                    moduleItems.push({
+                        id: `${moduleDoc.id}_${itemDoc.id}`,
+                        name: d.name || d.title || '',
+                        description: d.description || d.details || '',
+                        price: typeof d.price === 'number' ? d.price : null,
+                        currency: d.currency || partnerData.currency || 'INR',
+                        category: d.category || d.type || moduleData.moduleSlug || moduleDoc.id,
+                        sourceModule: moduleData.moduleSlug || moduleDoc.id,
+                        isActive: true,
+                        metadata: d,
+                    });
+                }
+            }
+            console.log(`[AIContext] Direct read found ${moduleItems.length} items`);
+        } catch (directError) {
+            console.error('[AIContext] Direct module read also failed:', directError);
+        }
+    }
 
     // 3. Query RAG Documents
     const ragResult = await queryVaultRAG(partnerId, customerMessage, { maxChunks: maxRagResults });
