@@ -257,7 +257,6 @@ export async function syncModulesToCoreHub(partnerId: string): Promise<CoreHubSy
 
 /**
  * Get Core Hub context for AI suggestions
- * Automatically re-syncs if data is stale or item count has changed
  */
 export async function getCoreHubContext(partnerId: string): Promise<CoreHubContext> {
   if (!db) {
@@ -296,64 +295,7 @@ export async function getCoreHubContext(partnerId: string): Promise<CoreHubConte
       };
     }
 
-    let config = configDoc.data() as CoreHubConfig;
-
-    // Check if Core Hub needs a re-sync (non-fatal: errors here won't break data retrieval)
-    let didSync = false;
-    try {
-      const lastSync = config.lastSyncedAt?.toDate?.() || new Date(0);
-      const ageMs = Date.now() - lastSync.getTime();
-      const STALE_THRESHOLD_MS = 2 * 60 * 1000; // 2 minutes
-
-      if (ageMs > STALE_THRESHOLD_MS) {
-        console.log(`[CoreHub] Data is stale (${Math.round(ageMs / 1000)}s old), re-syncing...`);
-        const syncResult = await syncModulesToCoreHub(partnerId);
-        if (syncResult.success) {
-          didSync = true;
-          console.log(`[CoreHub] Re-sync complete: ${syncResult.itemsSynced} items`);
-        } else {
-          console.warn('[CoreHub] Re-sync failed, using existing data:', syncResult.message);
-        }
-      } else {
-        // Quick check: count items in one active module to see if something changed
-        // Use a simple get() instead of count() for compatibility
-        const modulesSnapshot = await db
-          .collection(`partners/${partnerId}/businessModules`)
-          .get();
-
-        let totalModuleItems = 0;
-        for (const moduleDoc of modulesSnapshot.docs) {
-          const moduleData = moduleDoc.data();
-          if (moduleData.enabled === false) continue;
-          const itemsSnapshot = await db
-            .collection(`partners/${partnerId}/businessModules/${moduleDoc.id}/items`)
-            .get();
-          // Count items where isActive is not explicitly false
-          totalModuleItems += itemsSnapshot.docs.filter(d => d.data().isActive !== false).length;
-        }
-
-        if (totalModuleItems !== config.totalItemCount) {
-          console.log(`[CoreHub] Item count mismatch (modules: ${totalModuleItems}, hub: ${config.totalItemCount}), re-syncing...`);
-          const syncResult = await syncModulesToCoreHub(partnerId);
-          if (syncResult.success) {
-            didSync = true;
-          } else {
-            console.warn('[CoreHub] Re-sync failed, using existing data:', syncResult.message);
-          }
-        }
-      }
-    } catch (staleCheckError: any) {
-      // Staleness check failed - not critical, just use existing data
-      console.warn('[CoreHub] Staleness check failed (non-fatal):', staleCheckError.message);
-    }
-
-    // If we synced, re-read config to get updated businessContext
-    if (didSync) {
-      const freshConfig = await db.doc(`partners/${partnerId}/coreHub/config`).get();
-      if (freshConfig.exists) {
-        config = freshConfig.data() as CoreHubConfig;
-      }
-    }
+    const config = configDoc.data() as CoreHubConfig;
 
     const itemsSnapshot = await db
       .collection(`partners/${partnerId}/coreHub/data/items`)
