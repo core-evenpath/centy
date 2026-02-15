@@ -16,8 +16,6 @@ import { Badge } from '@/components/ui/badge';
 import { Loader2, Plus, Trash2, X, Upload, ImageIcon } from 'lucide-react';
 import { toast } from 'sonner';
 import { SUPPORTED_CURRENCIES } from '@/lib/modules/constants';
-import { storage } from '@/lib/firebase';
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import Image from 'next/image';
 
 interface ItemEditorProps {
@@ -100,8 +98,6 @@ export function ItemEditor({ initialItem, module, schema, onSave, onCancel }: It
 
     const uploadImage = useCallback(async (file: File): Promise<string | null> => {
         const uploadId = generateUUID();
-        const ext = file.name.split('.').pop() || 'jpg';
-        const storagePath = `partner-uploads/${module.partnerId}/modules/${module.moduleSlug}/${uploadId}.${ext}`;
 
         // Create preview URL
         const preview = URL.createObjectURL(file);
@@ -110,21 +106,34 @@ export function ItemEditor({ initialItem, module, schema, onSave, onCancel }: It
         setUploadingImages(prev => [...prev, { id: uploadId, file, progress: 0, preview }]);
 
         try {
-            const storageRef = ref(storage, storagePath);
-
             // Update progress to show upload started
             setUploadingImages(prev =>
                 prev.map(img => img.id === uploadId ? { ...img, progress: 30 } : img)
             );
 
-            await uploadBytes(storageRef, file);
+            // Upload via server API route (same pattern as inbox media uploads)
+            const formData = new FormData();
+            formData.append('file', file);
+            formData.append('partnerId', module.partnerId);
+            formData.append('filename', file.name);
 
-            // Update progress to show upload complete, getting URL
+            const response = await fetch('/api/upload-media', {
+                method: 'POST',
+                body: formData,
+            });
+
+            // Update progress
             setUploadingImages(prev =>
                 prev.map(img => img.id === uploadId ? { ...img, progress: 80 } : img)
             );
 
-            const downloadURL = await getDownloadURL(storageRef);
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error || 'Upload failed');
+            }
+
+            const result = await response.json();
+            const downloadURL = result.url;
 
             // Remove from uploading state
             setUploadingImages(prev => prev.filter(img => img.id !== uploadId));
@@ -133,14 +142,15 @@ export function ItemEditor({ initialItem, module, schema, onSave, onCancel }: It
             URL.revokeObjectURL(preview);
 
             return downloadURL;
-        } catch (error) {
+        } catch (error: any) {
             console.error('Error uploading image:', error);
+            toast.error(error.message || 'Upload failed');
             // Remove from uploading state on error
             setUploadingImages(prev => prev.filter(img => img.id !== uploadId));
             URL.revokeObjectURL(preview);
             return null;
         }
-    }, [module.partnerId, module.moduleSlug]);
+    }, [module.partnerId]);
 
     const handleFiles = useCallback(async (files: FileList | File[]) => {
         const fileArray = Array.from(files);
