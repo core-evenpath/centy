@@ -247,29 +247,88 @@ export default function CoreMemorySuggestion({
         return () => clearInterval(typingInterval);
     }, [suggestion?.suggestedReply, isLoading]);
 
-    // Build the final text for send/edit, incorporating product names
+    // Build WhatsApp-formatted caption for a product (mirrors the card layout)
+    const buildProductCaption = useCallback((product: InlineProductData): string => {
+        const currencySymbol = product.currency === 'USD' ? '$'
+            : product.currency === 'EUR' ? '\u20AC'
+            : product.currency === 'GBP' ? '\u00A3'
+            : '\u20B9';
+        const lines: string[] = [];
+
+        // Category
+        if (product.category) {
+            lines.push(product.category.toUpperCase());
+        }
+
+        // Product name (bold in WhatsApp)
+        lines.push(`*${product.name}*`);
+
+        // Price line
+        if (product.price !== null) {
+            let priceLine = `*${currencySymbol}${product.price.toLocaleString()}*`;
+            if (product.comparePrice && product.comparePrice > product.price) {
+                const discount = Math.round(((product.comparePrice - product.price) / product.comparePrice) * 100);
+                priceLine += `  ~${currencySymbol}${product.comparePrice.toLocaleString()}~  (${discount}% off)`;
+            }
+            lines.push(priceLine);
+        }
+
+        // Rating
+        if (product.rating && product.rating > 0) {
+            let ratingLine = `\u2B50 ${product.rating.toFixed(1)}`;
+            if (product.reviewCount !== undefined) {
+                ratingLine += ` (${product.reviewCount} reviews)`;
+            }
+            lines.push(ratingLine);
+        }
+
+        // Stock status
+        if (product.stockStatus === 'in_stock') {
+            const stockText = product.stockCount ? `${product.stockCount} in stock` : 'In Stock';
+            lines.push(`\u2705 ${stockText}`);
+        } else if (product.stockStatus === 'low_stock') {
+            const stockText = product.stockCount ? `Only ${product.stockCount} left` : 'Low Stock';
+            lines.push(`\u26A0\uFE0F ${stockText}`);
+        } else if (product.stockStatus === 'out_of_stock') {
+            lines.push(`\u274C Out of Stock`);
+        }
+
+        // Description
+        if (product.description) {
+            const desc = product.description.length > 300
+                ? product.description.substring(0, 300) + '...'
+                : product.description;
+            lines.push('');
+            lines.push(desc);
+        }
+
+        // Colors
+        if (product.colors && product.colors.length > 0) {
+            lines.push('');
+            lines.push(`\uD83C\uDFA8 Colors: ${product.colors.join(', ')}`);
+        }
+
+        return lines.join('\n');
+    }, []);
+
+    // Build the text-only message (no product details - those go in image captions)
     const buildFinalText = useCallback(() => {
         if (!suggestion) return '';
-        const reply = suggestion.suggestedReply;
-        if (attachedProducts.length === 0) return reply;
-
-        let finalText = reply;
-        for (const product of attachedProducts) {
-            const priceStr = product.price !== null
-                ? ` - ${product.currency || 'INR'} ${product.price?.toLocaleString()}`
-                : '';
-            finalText += `\n\n${product.name}${priceStr}`;
-        }
-        return finalText;
-    }, [suggestion, attachedProducts]);
+        return suggestion.suggestedReply;
+    }, [suggestion]);
 
     const handleCopy = () => {
-        const text = buildFinalText();
-        if (text) {
-            navigator.clipboard.writeText(text);
-            setCopied(true);
-            setTimeout(() => setCopied(false), 2000);
+        // For copy, include product details in the text since there's no image
+        if (!suggestion) return;
+        let text = suggestion.suggestedReply;
+        if (attachedProducts.length > 0) {
+            for (const product of attachedProducts) {
+                text += '\n\n---\n' + buildProductCaption(product);
+            }
         }
+        navigator.clipboard.writeText(text);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
     };
 
     const handleSend = () => {
@@ -277,21 +336,19 @@ export default function CoreMemorySuggestion({
         if (text) {
             onSend(text);
         }
-        // Send each product image as a separate media message
+        // Send each product as a separate image message with rich caption
         if (onSendMedia) {
             for (const product of attachedProducts) {
                 const imageUrl = product.imageUrl || product.images?.[0];
                 if (imageUrl) {
-                    const priceStr = product.price !== null
-                        ? ` - ${product.currency === 'USD' ? '$' : product.currency === 'EUR' ? '\u20AC' : '\u20B9'}${product.price?.toLocaleString()}`
-                        : '';
-                    onSendMedia(imageUrl, 'image', `${product.name}${priceStr}`);
+                    onSendMedia(imageUrl, 'image', buildProductCaption(product));
                 }
             }
         }
     };
 
     const handleEdit = () => {
+        // For edit, put the suggestion text in the input (products sent separately)
         const text = buildFinalText();
         if (text) {
             onEdit(text);
