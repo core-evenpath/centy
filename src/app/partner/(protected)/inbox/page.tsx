@@ -234,7 +234,13 @@ interface RAGSuggestion {
         excerpt: string;
         relevance: number;
     }>;
+    inlineContent?: Array<{
+        type: 'product' | 'document' | 'image';
+        position: 'before' | 'after' | 'inline';
+        data: any;
+    }>;
     personaUsed?: boolean;
+    assistantUsed?: any;
 }
 
 export default function UnifiedInboxPage() {
@@ -281,6 +287,7 @@ export default function UnifiedInboxPage() {
     const [aiSuggestion, setAISuggestion] = useState<RAGSuggestion | null>(null);
     const [isLoadingSuggestion, setIsLoadingSuggestion] = useState(false);
     const [pendingIncomingMessage, setPendingIncomingMessage] = useState('');
+    const [suggestionAvailableProducts, setSuggestionAvailableProducts] = useState<any[]>([]);
 
     const processedMessageIds = useRef<Set<string>>(new Set());
     const lastSuggestionContext = useRef<string>('');
@@ -552,8 +559,10 @@ export default function UnifiedInboxPage() {
                     confidence: result.confidence || 0.85,
                     reasoning: result.reasoning || 'Based on business profile and documents.',
                     sources: result.sources || [],
+                    inlineContent: result.inlineContent,
                     personaUsed: result.personaUsed
                 });
+                setSuggestionAvailableProducts(result.availableProducts || []);
             } else {
                 toast.error(result.message || "Failed to generate suggestion");
                 if (!refinementInstruction) setShowAISuggestion(false);
@@ -819,6 +828,7 @@ export default function UnifiedInboxPage() {
                             onRegenerate={() => handleGenerateSuggestion()}
                             onRefine={handleRefineSuggestion}
                             incomingMessage={pendingIncomingMessage}
+                            availableProducts={suggestionAvailableProducts}
                         />
                     </div>
                 )}

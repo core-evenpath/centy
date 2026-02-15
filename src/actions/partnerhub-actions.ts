@@ -753,6 +753,27 @@ export async function generateInboxSuggestionAction(
         excerpt: string;
         relevance: number;
     }>;
+    inlineContent?: Array<{
+        type: 'product' | 'document' | 'image';
+        position: 'before' | 'after' | 'inline';
+        data: any;
+    }>;
+    availableProducts?: Array<{
+        id: string;
+        name: string;
+        description?: string;
+        price: number | null;
+        comparePrice?: number | null;
+        currency?: string;
+        imageUrl?: string;
+        rating?: number;
+        reviewCount?: number;
+        stockStatus?: 'in_stock' | 'low_stock' | 'out_of_stock';
+        stockCount?: number;
+        colors?: string[];
+        category?: string;
+        sourceModule?: string;
+    }>;
     personaUsed?: boolean;
 }> {
     const startTime = Date.now();
@@ -776,7 +797,8 @@ export async function generateInboxSuggestionAction(
   "suggestedReply": "Your suggested reply here",
   "confidence": 0.85,
   "reasoning": "Brief explanation",
-  "sourcesUsed": ["Source 1", "Source 2"]
+  "sourcesUsed": ["Source 1", "Source 2"],
+  "referencedProductNames": ["Product name if any product is mentioned in the reply"]
 }`;
 
         const result = await ai.models.generateContent({
@@ -830,6 +852,83 @@ export async function generateInboxSuggestionAction(
             });
         }
 
+        // Extract inline product content from module items
+        const inlineContent: Array<{
+            type: 'product' | 'document' | 'image';
+            position: 'before' | 'after' | 'inline';
+            data: any;
+        }> = [];
+
+        const availableProducts: Array<{
+            id: string;
+            name: string;
+            description?: string;
+            price: number | null;
+            comparePrice?: number | null;
+            currency?: string;
+            imageUrl?: string;
+            rating?: number;
+            reviewCount?: number;
+            stockStatus?: 'in_stock' | 'low_stock' | 'out_of_stock';
+            stockCount?: number;
+            colors?: string[];
+            category?: string;
+            sourceModule?: string;
+        }> = [];
+
+        if (context.moduleItems.length > 0) {
+            // Convert all module items to product data for the picker
+            for (const item of context.moduleItems) {
+                const meta = (item as any).metadata || {};
+                const productData = {
+                    id: item.id,
+                    name: item.name,
+                    description: item.description,
+                    price: item.price,
+                    comparePrice: meta.comparePrice || meta.compare_price || meta.originalPrice || null,
+                    currency: item.currency || 'INR',
+                    imageUrl: meta.imageUrl || meta.image || meta.photo || meta.thumbnail || undefined,
+                    rating: meta.rating || meta.averageRating || undefined,
+                    reviewCount: meta.reviewCount || meta.reviews || undefined,
+                    stockStatus: meta.stockStatus || meta.availability || undefined,
+                    stockCount: meta.stockCount || meta.quantity || meta.stock || undefined,
+                    colors: meta.colors || meta.variants?.colors || meta.colorOptions || undefined,
+                    category: item.category,
+                    sourceModule: item.sourceModule,
+                };
+                availableProducts.push(productData);
+            }
+
+            // Match referenced products from AI response to module items
+            const referencedNames: string[] = parsed.referencedProductNames || [];
+            const suggestedReplyLower = (parsed.suggestedReply || '').toLowerCase();
+
+            // Find products that are referenced in the reply (by name match or AI-specified)
+            const matchedProducts: typeof availableProducts = [];
+
+            for (const product of availableProducts) {
+                const nameMatch = suggestedReplyLower.includes(product.name.toLowerCase());
+                const aiReferenced = referencedNames.some(
+                    (ref: string) => ref.toLowerCase() === product.name.toLowerCase() ||
+                        product.name.toLowerCase().includes(ref.toLowerCase())
+                );
+
+                if (nameMatch || aiReferenced) {
+                    matchedProducts.push(product);
+                }
+            }
+
+            // If we found matching products, add them as inline content
+            // Limit to first 3 product cards
+            for (const product of matchedProducts.slice(0, 3)) {
+                inlineContent.push({
+                    type: 'product',
+                    position: matchedProducts.length === 1 ? 'after' : 'inline',
+                    data: product,
+                });
+            }
+        }
+
         return {
             success: true,
             message: 'Suggestion generated successfully',
@@ -837,6 +936,8 @@ export async function generateInboxSuggestionAction(
             confidence: parsed.confidence || 0.85,
             reasoning: parsed.reasoning || 'Based on business profile, products/services, and documents',
             sources,
+            inlineContent: inlineContent.length > 0 ? inlineContent : undefined,
+            availableProducts: availableProducts.length > 0 ? availableProducts : undefined,
             personaUsed: !!context.customerProfile,
         };
     } catch (error: any) {

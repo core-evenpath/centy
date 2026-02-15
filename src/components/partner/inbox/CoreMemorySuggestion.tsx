@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
@@ -29,6 +29,8 @@ import {
 import { cn } from '@/lib/utils';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import InlineProductCard, { type InlineProductData } from './InlineProductCard';
+import ProductPickerModal from './ProductPickerModal';
 
 // Animation styles for the suggestion panel
 const suggestionStyles = `
@@ -124,12 +126,20 @@ interface RAGSource {
     relevance: number;
 }
 
-interface RAGSuggestion {
+export interface InlineContentBlock {
+    type: 'product' | 'document' | 'image';
+    position: 'before' | 'after' | 'inline';
+    data: any;
+}
+
+export interface RAGSuggestion {
     suggestedReply: string;
     confidence: number;
     reasoning: string;
     sources: RAGSource[];
+    inlineContent?: InlineContentBlock[];
     personaUsed?: boolean;
+    assistantUsed?: any;
 }
 
 interface CoreMemorySuggestionProps {
@@ -142,6 +152,7 @@ interface CoreMemorySuggestionProps {
     onRegenerate: () => void;
     onRefine: (instruction: string) => void;
     incomingMessage: string;
+    availableProducts?: InlineProductData[];
 }
 
 type LoadingStage = 'searching' | 'analyzing' | 'generating' | 'complete';
@@ -162,7 +173,8 @@ export default function CoreMemorySuggestion({
     onDismiss,
     onRegenerate,
     onRefine,
-    incomingMessage
+    incomingMessage,
+    availableProducts = [],
 }: CoreMemorySuggestionProps) {
     const [loadingStage, setLoadingStage] = useState<LoadingStage>('searching');
     const [displayedText, setDisplayedText] = useState('');
@@ -171,6 +183,15 @@ export default function CoreMemorySuggestion({
     const [customRefineInput, setCustomRefineInput] = useState('');
     const [copied, setCopied] = useState(false);
     const textRef = useRef<HTMLDivElement>(null);
+
+    // Inline product card state
+    const [swappedProducts, setSwappedProducts] = useState<Record<number, InlineProductData>>({});
+    const [pickerOpenIndex, setPickerOpenIndex] = useState<number | null>(null);
+
+    // Reset swapped products when suggestion changes
+    useEffect(() => {
+        setSwappedProducts({});
+    }, [suggestion?.suggestedReply]);
 
     useEffect(() => {
         if (!isLoading) {
@@ -213,11 +234,65 @@ export default function CoreMemorySuggestion({
         return () => clearInterval(typingInterval);
     }, [suggestion?.suggestedReply, isLoading]);
 
+    // Get resolved inline content (with swapped products applied)
+    const resolvedInlineContent = useMemo(() => {
+        if (!suggestion?.inlineContent) return [];
+        return suggestion.inlineContent.map((block, idx) => {
+            if (block.type === 'product' && swappedProducts[idx]) {
+                return { ...block, data: swappedProducts[idx] };
+            }
+            return block;
+        });
+    }, [suggestion?.inlineContent, swappedProducts]);
+
+    // Build the final text for send/edit, incorporating swapped product names
+    const buildFinalText = useCallback(() => {
+        if (!suggestion) return '';
+        const reply = suggestion.suggestedReply;
+        if (!resolvedInlineContent.length) return reply;
+
+        // The text is sent as-is; product details are conveyed via the inline cards visually.
+        // For the actual message, we append product details as text.
+        const productBlocks = resolvedInlineContent.filter(b => b.type === 'product');
+        if (productBlocks.length === 0) return reply;
+
+        let finalText = reply;
+        for (const block of productBlocks) {
+            const product = block.data as InlineProductData;
+            if (!product) continue;
+            const priceStr = product.price !== null
+                ? ` - ${product.currency || 'INR'} ${product.price?.toLocaleString()}`
+                : '';
+            const productLine = `\n\n${product.name}${priceStr}`;
+            if (block.position === 'before') {
+                finalText = productLine + '\n\n' + finalText;
+            } else {
+                finalText = finalText + productLine;
+            }
+        }
+        return finalText;
+    }, [suggestion, resolvedInlineContent]);
+
     const handleCopy = () => {
-        if (suggestion?.suggestedReply) {
-            navigator.clipboard.writeText(suggestion.suggestedReply);
+        const text = buildFinalText();
+        if (text) {
+            navigator.clipboard.writeText(text);
             setCopied(true);
             setTimeout(() => setCopied(false), 2000);
+        }
+    };
+
+    const handleSend = () => {
+        const text = buildFinalText();
+        if (text) {
+            onSend(text);
+        }
+    };
+
+    const handleEdit = () => {
+        const text = buildFinalText();
+        if (text) {
+            onEdit(text);
         }
     };
 
@@ -227,6 +302,36 @@ export default function CoreMemorySuggestion({
             setCustomRefineInput('');
         }
     };
+
+    const handleProductSwap = (index: number, product: InlineProductData) => {
+        setSwappedProducts(prev => ({ ...prev, [index]: product }));
+    };
+
+    // Build product list for picker: available products + products from other inline blocks
+    const getPickerProducts = useCallback((currentIndex: number): InlineProductData[] => {
+        const fromInline: InlineProductData[] = [];
+        if (suggestion?.inlineContent) {
+            for (const block of suggestion.inlineContent) {
+                if (block.type === 'product' && block.data) {
+                    fromInline.push(block.data as InlineProductData);
+                }
+            }
+        }
+        // Merge availableProducts and fromInline, deduplicating by id
+        const allProducts = [...availableProducts];
+        for (const p of fromInline) {
+            if (!allProducts.find(ap => ap.id === p.id)) {
+                allProducts.push(p);
+            }
+        }
+        // Also include any swapped products
+        for (const p of Object.values(swappedProducts)) {
+            if (!allProducts.find(ap => ap.id === p.id)) {
+                allProducts.push(p);
+            }
+        }
+        return allProducts;
+    }, [suggestion?.inlineContent, availableProducts, swappedProducts]);
 
     // Close on escape key
     useEffect(() => {
@@ -268,6 +373,107 @@ export default function CoreMemorySuggestion({
         };
 
         return stages[loadingStage];
+    };
+
+    // Render suggestion text with inline product cards interspersed
+    const renderSuggestionContent = () => {
+        if (!suggestion) return null;
+
+        const productBlocks = resolvedInlineContent.filter(b => b.type === 'product');
+        const beforeBlocks: Array<{ block: InlineContentBlock; index: number }> = [];
+        const afterBlocks: Array<{ block: InlineContentBlock; index: number }> = [];
+        const inlineBlocks: Array<{ block: InlineContentBlock; index: number }> = [];
+
+        resolvedInlineContent.forEach((block, idx) => {
+            if (block.type !== 'product') return;
+            if (block.position === 'before') beforeBlocks.push({ block, index: idx });
+            else if (block.position === 'after') afterBlocks.push({ block, index: idx });
+            else inlineBlocks.push({ block, index: idx });
+        });
+
+        const renderProductCard = (block: InlineContentBlock, idx: number) => (
+            <InlineProductCard
+                key={`product-${idx}`}
+                product={block.data as InlineProductData}
+                onChangeProduct={() => setPickerOpenIndex(idx)}
+            />
+        );
+
+        return (
+            <div className="bg-white rounded-xl border border-[#e5e5e5] p-5" ref={textRef}>
+                {/* Before-position product cards */}
+                {!isTyping && beforeBlocks.map(({ block, index }) => renderProductCard(block, index))}
+
+                {/* Suggestion text */}
+                {inlineBlocks.length > 0 && !isTyping ? (
+                    // Split text around inline markers: use "---" or double newline as split points
+                    renderTextWithInlineCards(displayedText, inlineBlocks)
+                ) : (
+                    <p className="text-[14px] text-[#111] leading-[1.7] whitespace-pre-wrap">
+                        {displayedText}
+                        {isTyping && <span className="inline-block w-0.5 h-4 bg-[#000] ml-0.5 animate-pulse" />}
+                    </p>
+                )}
+
+                {/* After-position product cards */}
+                {!isTyping && afterBlocks.map(({ block, index }) => renderProductCard(block, index))}
+            </div>
+        );
+    };
+
+    // Render text split by paragraph breaks with inline product cards inserted between segments
+    const renderTextWithInlineCards = (
+        text: string,
+        inlineBlocks: Array<{ block: InlineContentBlock; index: number }>
+    ) => {
+        // Split text into paragraphs (by double newline or single newline)
+        const paragraphs = text.split(/\n\n+/);
+
+        // If we have fewer paragraphs than inline blocks + 1, just split evenly
+        const splitPoint = Math.max(1, Math.ceil(paragraphs.length / (inlineBlocks.length + 1)));
+
+        const segments: React.ReactNode[] = [];
+        let blockIdx = 0;
+
+        for (let i = 0; i < paragraphs.length; i++) {
+            segments.push(
+                <p key={`text-${i}`} className="text-[14px] text-[#111] leading-[1.7] whitespace-pre-wrap">
+                    {paragraphs[i]}
+                </p>
+            );
+
+            // Insert an inline product card after every splitPoint paragraphs
+            if (
+                blockIdx < inlineBlocks.length &&
+                (i + 1) % splitPoint === 0 &&
+                i < paragraphs.length - 1
+            ) {
+                const { block, index } = inlineBlocks[blockIdx];
+                segments.push(
+                    <InlineProductCard
+                        key={`inline-product-${index}`}
+                        product={block.data as InlineProductData}
+                        onChangeProduct={() => setPickerOpenIndex(index)}
+                    />
+                );
+                blockIdx++;
+            }
+        }
+
+        // If any remaining inline blocks not yet inserted, append them
+        while (blockIdx < inlineBlocks.length) {
+            const { block, index } = inlineBlocks[blockIdx];
+            segments.push(
+                <InlineProductCard
+                    key={`inline-product-tail-${index}`}
+                    product={block.data as InlineProductData}
+                    onChangeProduct={() => setPickerOpenIndex(index)}
+                />
+            );
+            blockIdx++;
+        }
+
+        return <div className="space-y-1">{segments}</div>;
     };
 
     const loadingContent = getLoadingContent();
@@ -384,19 +590,14 @@ export default function CoreMemorySuggestion({
                             </div>
                         ) : suggestion ? (
                             <>
-                                {/* Suggestion Text */}
-                                <div className="bg-white rounded-xl border border-[#e5e5e5] p-5" ref={textRef}>
-                                    <p className="text-[14px] text-[#111] leading-[1.7] whitespace-pre-wrap">
-                                        {displayedText}
-                                        {isTyping && <span className="inline-block w-0.5 h-4 bg-[#000] ml-0.5 animate-pulse" />}
-                                    </p>
-                                </div>
+                                {/* Suggestion Text with Inline Product Cards */}
+                                {renderSuggestionContent()}
 
                                 {/* Action Buttons */}
                                 {!isTyping && (
                                     <div className="flex gap-2.5">
                                         <Button
-                                            onClick={() => onSend(suggestion.suggestedReply)}
+                                            onClick={handleSend}
                                             className="flex-1 h-12 bg-[#111] hover:bg-[#000] text-white text-[14px] font-semibold rounded-lg transition-all duration-200 hover:scale-[1.01] active:scale-[0.99]"
                                         >
                                             <span className="mr-2">↑</span>
@@ -404,7 +605,7 @@ export default function CoreMemorySuggestion({
                                         </Button>
                                         <Button
                                             variant="outline"
-                                            onClick={() => onEdit(suggestion.suggestedReply)}
+                                            onClick={handleEdit}
                                             className="h-12 px-6 border-[#e5e5e5] hover:bg-[#f5f5f5] hover:border-[#ddd] text-[14px] font-medium rounded-lg transition-all duration-200"
                                         >
                                             <Edit3 className="h-4 w-4 mr-2" />
@@ -495,6 +696,23 @@ export default function CoreMemorySuggestion({
                     </div>
                 </ScrollArea>
             </div>
+
+            {/* Product Picker Modal */}
+            {pickerOpenIndex !== null && (
+                <ProductPickerModal
+                    open={true}
+                    onOpenChange={(open) => {
+                        if (!open) setPickerOpenIndex(null);
+                    }}
+                    products={getPickerProducts(pickerOpenIndex)}
+                    currentProductId={
+                        resolvedInlineContent[pickerOpenIndex]?.type === 'product'
+                            ? (resolvedInlineContent[pickerOpenIndex].data as InlineProductData)?.id
+                            : undefined
+                    }
+                    onSelect={(product) => handleProductSwap(pickerOpenIndex, product)}
+                />
+            )}
         </>
     );
 }
