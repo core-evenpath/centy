@@ -24,7 +24,10 @@ import {
     MessageSquare,
     Zap,
     Building,
-    Package
+    Package,
+    Plus,
+    ShoppingBag,
+    Image as ImageIcon
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -186,15 +189,21 @@ export default function CoreMemorySuggestion({
     const [copied, setCopied] = useState(false);
     const textRef = useRef<HTMLDivElement>(null);
 
-    // Inline product card state
-    const [swappedProducts, setSwappedProducts] = useState<Record<number, InlineProductData>>({});
-    const [pickerOpenIndex, setPickerOpenIndex] = useState<number | null>(null);
-    const [embedImages, setEmbedImages] = useState<Record<number, boolean>>({});
+    // Product management state
+    const [attachedProducts, setAttachedProducts] = useState<InlineProductData[]>([]);
+    const [showProductPicker, setShowProductPicker] = useState(false);
+    const [swapPickerIndex, setSwapPickerIndex] = useState<number | null>(null);
 
-    // Reset swapped products and embed state when suggestion changes
+    // Initialize attached products from suggestion's inline content
     useEffect(() => {
-        setSwappedProducts({});
-        setEmbedImages({});
+        if (suggestion?.inlineContent) {
+            const products = suggestion.inlineContent
+                .filter(b => b.type === 'product' && b.data)
+                .map(b => b.data as InlineProductData);
+            setAttachedProducts(products);
+        } else {
+            setAttachedProducts([]);
+        }
     }, [suggestion?.suggestedReply]);
 
     useEffect(() => {
@@ -238,44 +247,21 @@ export default function CoreMemorySuggestion({
         return () => clearInterval(typingInterval);
     }, [suggestion?.suggestedReply, isLoading]);
 
-    // Get resolved inline content (with swapped products applied)
-    const resolvedInlineContent = useMemo(() => {
-        if (!suggestion?.inlineContent) return [];
-        return suggestion.inlineContent.map((block, idx) => {
-            if (block.type === 'product' && swappedProducts[idx]) {
-                return { ...block, data: swappedProducts[idx] };
-            }
-            return block;
-        });
-    }, [suggestion?.inlineContent, swappedProducts]);
-
-    // Build the final text for send/edit, incorporating swapped product names
+    // Build the final text for send/edit, incorporating product names
     const buildFinalText = useCallback(() => {
         if (!suggestion) return '';
         const reply = suggestion.suggestedReply;
-        if (!resolvedInlineContent.length) return reply;
-
-        // The text is sent as-is; product details are conveyed via the inline cards visually.
-        // For the actual message, we append product details as text.
-        const productBlocks = resolvedInlineContent.filter(b => b.type === 'product');
-        if (productBlocks.length === 0) return reply;
+        if (attachedProducts.length === 0) return reply;
 
         let finalText = reply;
-        for (const block of productBlocks) {
-            const product = block.data as InlineProductData;
-            if (!product) continue;
+        for (const product of attachedProducts) {
             const priceStr = product.price !== null
                 ? ` - ${product.currency || 'INR'} ${product.price?.toLocaleString()}`
                 : '';
-            const productLine = `\n\n${product.name}${priceStr}`;
-            if (block.position === 'before') {
-                finalText = productLine + '\n\n' + finalText;
-            } else {
-                finalText = finalText + productLine;
-            }
+            finalText += `\n\n${product.name}${priceStr}`;
         }
         return finalText;
-    }, [suggestion, resolvedInlineContent]);
+    }, [suggestion, attachedProducts]);
 
     const handleCopy = () => {
         const text = buildFinalText();
@@ -291,18 +277,15 @@ export default function CoreMemorySuggestion({
         if (text) {
             onSend(text);
         }
-        // Send embedded product images after the text message
+        // Send each product image as a separate media message
         if (onSendMedia) {
-            for (const [indexStr, shouldEmbed] of Object.entries(embedImages)) {
-                if (!shouldEmbed) continue;
-                const idx = Number(indexStr);
-                const block = resolvedInlineContent[idx];
-                if (block?.type === 'product') {
-                    const product = block.data as InlineProductData;
-                    const imageUrl = product.imageUrl || product.images?.[0];
-                    if (imageUrl) {
-                        onSendMedia(imageUrl, 'image', product.name);
-                    }
+            for (const product of attachedProducts) {
+                const imageUrl = product.imageUrl || product.images?.[0];
+                if (imageUrl) {
+                    const priceStr = product.price !== null
+                        ? ` - ${product.currency === 'USD' ? '$' : product.currency === 'EUR' ? '\u20AC' : '\u20B9'}${product.price?.toLocaleString()}`
+                        : '';
+                    onSendMedia(imageUrl, 'image', `${product.name}${priceStr}`);
                 }
             }
         }
@@ -322,35 +305,39 @@ export default function CoreMemorySuggestion({
         }
     };
 
-    const handleProductSwap = (index: number, product: InlineProductData) => {
-        setSwappedProducts(prev => ({ ...prev, [index]: product }));
+    // Product management
+    const handleRemoveProduct = (index: number) => {
+        setAttachedProducts(prev => prev.filter((_, i) => i !== index));
     };
 
-    // Build product list for picker: available products + products from other inline blocks
-    const getPickerProducts = useCallback((currentIndex: number): InlineProductData[] => {
-        const fromInline: InlineProductData[] = [];
+    const handleSwapProduct = (index: number, product: InlineProductData) => {
+        setAttachedProducts(prev => prev.map((p, i) => i === index ? product : p));
+    };
+
+    const handleAddProducts = (products: InlineProductData[]) => {
+        setAttachedProducts(prev => {
+            const existing = new Set(prev.map(p => p.id));
+            const newProducts = products.filter(p => !existing.has(p.id));
+            return [...prev, ...newProducts];
+        });
+    };
+
+    // Get all available products for picker (deduped)
+    const allPickerProducts = useMemo(() => {
+        const allProducts = [...availableProducts];
+        // Include inline content products that aren't in availableProducts
         if (suggestion?.inlineContent) {
             for (const block of suggestion.inlineContent) {
                 if (block.type === 'product' && block.data) {
-                    fromInline.push(block.data as InlineProductData);
+                    const p = block.data as InlineProductData;
+                    if (!allProducts.find(ap => ap.id === p.id)) {
+                        allProducts.push(p);
+                    }
                 }
             }
         }
-        // Merge availableProducts and fromInline, deduplicating by id
-        const allProducts = [...availableProducts];
-        for (const p of fromInline) {
-            if (!allProducts.find(ap => ap.id === p.id)) {
-                allProducts.push(p);
-            }
-        }
-        // Also include any swapped products
-        for (const p of Object.values(swappedProducts)) {
-            if (!allProducts.find(ap => ap.id === p.id)) {
-                allProducts.push(p);
-            }
-        }
         return allProducts;
-    }, [suggestion?.inlineContent, availableProducts, swappedProducts]);
+    }, [availableProducts, suggestion?.inlineContent]);
 
     // Close on escape key
     useEffect(() => {
@@ -394,122 +381,17 @@ export default function CoreMemorySuggestion({
         return stages[loadingStage];
     };
 
-    // Render suggestion text with inline product cards interspersed
-    const renderSuggestionContent = () => {
-        if (!suggestion) return null;
-
-        const productBlocks = resolvedInlineContent.filter(b => b.type === 'product');
-        const beforeBlocks: Array<{ block: InlineContentBlock; index: number }> = [];
-        const afterBlocks: Array<{ block: InlineContentBlock; index: number }> = [];
-        const inlineBlocks: Array<{ block: InlineContentBlock; index: number }> = [];
-
-        resolvedInlineContent.forEach((block, idx) => {
-            if (block.type !== 'product') return;
-            if (block.position === 'before') beforeBlocks.push({ block, index: idx });
-            else if (block.position === 'after') afterBlocks.push({ block, index: idx });
-            else inlineBlocks.push({ block, index: idx });
-        });
-
-        const renderProductCard = (block: InlineContentBlock, idx: number) => (
-            <InlineProductCard
-                key={`product-${idx}`}
-                product={block.data as InlineProductData}
-                onChangeProduct={() => setPickerOpenIndex(idx)}
-                embedImage={!!embedImages[idx]}
-                onToggleEmbed={onSendMedia ? (embed) => setEmbedImages(prev => ({ ...prev, [idx]: embed })) : undefined}
-            />
-        );
-
-        return (
-            <div className="bg-white rounded-xl border border-[#e5e5e5] p-5" ref={textRef}>
-                {/* Before-position product cards */}
-                {!isTyping && beforeBlocks.map(({ block, index }) => renderProductCard(block, index))}
-
-                {/* Suggestion text */}
-                {inlineBlocks.length > 0 && !isTyping ? (
-                    // Split text around inline markers: use "---" or double newline as split points
-                    renderTextWithInlineCards(displayedText, inlineBlocks)
-                ) : (
-                    <p className="text-[14px] text-[#111] leading-[1.7] whitespace-pre-wrap">
-                        {displayedText}
-                        {isTyping && <span className="inline-block w-0.5 h-4 bg-[#000] ml-0.5 animate-pulse" />}
-                    </p>
-                )}
-
-                {/* After-position product cards */}
-                {!isTyping && afterBlocks.map(({ block, index }) => renderProductCard(block, index))}
-            </div>
-        );
-    };
-
-    // Render text split by paragraph breaks with inline product cards inserted between segments
-    const renderTextWithInlineCards = (
-        text: string,
-        inlineBlocks: Array<{ block: InlineContentBlock; index: number }>
-    ) => {
-        // Split text into paragraphs (by double newline or single newline)
-        const paragraphs = text.split(/\n\n+/);
-
-        // If we have fewer paragraphs than inline blocks + 1, just split evenly
-        const splitPoint = Math.max(1, Math.ceil(paragraphs.length / (inlineBlocks.length + 1)));
-
-        const segments: React.ReactNode[] = [];
-        let blockIdx = 0;
-
-        for (let i = 0; i < paragraphs.length; i++) {
-            segments.push(
-                <p key={`text-${i}`} className="text-[14px] text-[#111] leading-[1.7] whitespace-pre-wrap">
-                    {paragraphs[i]}
-                </p>
-            );
-
-            // Insert an inline product card after every splitPoint paragraphs
-            if (
-                blockIdx < inlineBlocks.length &&
-                (i + 1) % splitPoint === 0 &&
-                i < paragraphs.length - 1
-            ) {
-                const { block, index } = inlineBlocks[blockIdx];
-                segments.push(
-                    <InlineProductCard
-                        key={`inline-product-${index}`}
-                        product={block.data as InlineProductData}
-                        onChangeProduct={() => setPickerOpenIndex(index)}
-                        embedImage={!!embedImages[index]}
-                        onToggleEmbed={onSendMedia ? (embed) => setEmbedImages(prev => ({ ...prev, [index]: embed })) : undefined}
-                    />
-                );
-                blockIdx++;
-            }
-        }
-
-        // If any remaining inline blocks not yet inserted, append them
-        while (blockIdx < inlineBlocks.length) {
-            const { block, index } = inlineBlocks[blockIdx];
-            segments.push(
-                <InlineProductCard
-                    key={`inline-product-tail-${index}`}
-                    product={block.data as InlineProductData}
-                    onChangeProduct={() => setPickerOpenIndex(index)}
-                    embedImage={!!embedImages[index]}
-                    onToggleEmbed={onSendMedia ? (embed) => setEmbedImages(prev => ({ ...prev, [index]: embed })) : undefined}
-                />
-            );
-            blockIdx++;
-        }
-
-        return <div className="space-y-1">{segments}</div>;
-    };
-
     const loadingContent = getLoadingContent();
     const LoadingIcon = loadingContent.icon;
 
     if (!isVisible) {
-        // Desktop: render a hidden placeholder to prevent layout shift
         return (
             <div className="hidden md:block md:w-0 md:overflow-hidden md:shrink-0 transition-all duration-300 ease-out" />
         );
     }
+
+    const productCount = attachedProducts.length;
+    const hasProductImages = attachedProducts.some(p => p.imageUrl || p.images?.[0]);
 
     return (
         <>
@@ -528,7 +410,7 @@ export default function CoreMemorySuggestion({
                 "fixed inset-x-0 bottom-0 max-h-[85vh] rounded-t-3xl shadow-2xl bg-[#fafafa]",
                 "animate-in slide-in-from-bottom duration-300",
                 // Desktop: Integrated side panel style
-                "md:static md:w-[380px] md:max-w-[380px] md:h-full md:max-h-full",
+                "md:static md:w-[400px] md:max-w-[400px] md:h-full md:max-h-full",
                 "md:rounded-none md:shadow-none md:bg-[#fafafa]",
                 "md:border-l md:border-[#e5e5e5] md:shrink-0",
                 "md:suggestion-panel-enter"
@@ -615,8 +497,84 @@ export default function CoreMemorySuggestion({
                             </div>
                         ) : suggestion ? (
                             <>
-                                {/* Suggestion Text with Inline Product Cards */}
-                                {renderSuggestionContent()}
+                                {/* Suggestion Text */}
+                                <div className="bg-white rounded-xl border border-[#e5e5e5] p-5" ref={textRef}>
+                                    <p className="text-[14px] text-[#111] leading-[1.7] whitespace-pre-wrap">
+                                        {displayedText}
+                                        {isTyping && <span className="inline-block w-0.5 h-4 bg-[#000] ml-0.5 animate-pulse" />}
+                                    </p>
+                                </div>
+
+                                {/* Products Section */}
+                                {!isTyping && (
+                                    <div className="space-y-3">
+                                        {/* Section header with count and add button */}
+                                        <div className="flex items-center justify-between">
+                                            <div className="flex items-center gap-2">
+                                                <div className="w-6 h-6 rounded-md bg-[#111] flex items-center justify-center">
+                                                    <ShoppingBag className="w-3 h-3 text-white" />
+                                                </div>
+                                                <span className="text-[12px] font-semibold text-[#333]">
+                                                    Products
+                                                </span>
+                                                {productCount > 0 && (
+                                                    <span className="text-[11px] text-[#888] bg-[#f0f0f0] px-1.5 py-0.5 rounded-full font-medium">
+                                                        {productCount}
+                                                    </span>
+                                                )}
+                                            </div>
+                                            {allPickerProducts.length > 0 && (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setShowProductPicker(true)}
+                                                    className="flex items-center gap-1 px-3 py-1.5 text-[12px] font-medium text-[#111] bg-white border border-[#e0e0e0] hover:border-[#bbb] hover:bg-[#f8f8f8] rounded-lg transition-all duration-150"
+                                                >
+                                                    <Plus className="w-3.5 h-3.5" />
+                                                    Add Products
+                                                </button>
+                                            )}
+                                        </div>
+
+                                        {/* Product cards */}
+                                        {productCount > 0 ? (
+                                            <div className="space-y-3">
+                                                {attachedProducts.map((product, idx) => (
+                                                    <InlineProductCard
+                                                        key={`product-${product.id}-${idx}`}
+                                                        product={product}
+                                                        onChangeProduct={() => setSwapPickerIndex(idx)}
+                                                        onRemove={() => handleRemoveProduct(idx)}
+                                                    />
+                                                ))}
+                                            </div>
+                                        ) : allPickerProducts.length > 0 ? (
+                                            /* Empty state - invite to add */
+                                            <button
+                                                type="button"
+                                                onClick={() => setShowProductPicker(true)}
+                                                className="w-full flex flex-col items-center gap-2 py-6 px-4 rounded-xl border-2 border-dashed border-[#e0e0e0] hover:border-[#bbb] bg-white hover:bg-[#fcfcfc] transition-all duration-150 group cursor-pointer"
+                                            >
+                                                <div className="w-10 h-10 rounded-full bg-[#f5f5f5] group-hover:bg-[#eee] flex items-center justify-center transition-colors duration-150">
+                                                    <Plus className="w-5 h-5 text-[#888] group-hover:text-[#555]" />
+                                                </div>
+                                                <div className="text-center">
+                                                    <p className="text-[13px] font-medium text-[#555]">Add products to send</p>
+                                                    <p className="text-[11px] text-[#aaa] mt-0.5">Products will be sent as image messages</p>
+                                                </div>
+                                            </button>
+                                        ) : null}
+
+                                        {/* Send preview hint */}
+                                        {productCount > 0 && hasProductImages && (
+                                            <div className="flex items-center gap-2 px-3 py-2 bg-[#f8f8ff] border border-[#e8e8f0] rounded-lg">
+                                                <ImageIcon className="w-3.5 h-3.5 text-[#6366f1]" />
+                                                <span className="text-[11px] text-[#666]">
+                                                    {productCount} product image{productCount !== 1 ? 's' : ''} will be sent after the text message
+                                                </span>
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
 
                                 {/* Action Buttons */}
                                 {!isTyping && (
@@ -625,8 +583,8 @@ export default function CoreMemorySuggestion({
                                             onClick={handleSend}
                                             className="flex-1 h-12 bg-[#111] hover:bg-[#000] text-white text-[14px] font-semibold rounded-lg transition-all duration-200 hover:scale-[1.01] active:scale-[0.99]"
                                         >
-                                            <span className="mr-2">↑</span>
-                                            Send
+                                            <span className="mr-2">&uarr;</span>
+                                            Send{productCount > 0 ? ` + ${productCount} Product${productCount !== 1 ? 's' : ''}` : ''}
                                         </Button>
                                         <Button
                                             variant="outline"
@@ -722,20 +680,29 @@ export default function CoreMemorySuggestion({
                 </ScrollArea>
             </div>
 
-            {/* Product Picker Modal */}
-            {pickerOpenIndex !== null && (
+            {/* Add Products Modal */}
+            {showProductPicker && (
                 <ProductPickerModal
                     open={true}
                     onOpenChange={(open) => {
-                        if (!open) setPickerOpenIndex(null);
+                        if (!open) setShowProductPicker(false);
                     }}
-                    products={getPickerProducts(pickerOpenIndex)}
-                    currentProductId={
-                        resolvedInlineContent[pickerOpenIndex]?.type === 'product'
-                            ? (resolvedInlineContent[pickerOpenIndex].data as InlineProductData)?.id
-                            : undefined
-                    }
-                    onSelect={(product) => handleProductSwap(pickerOpenIndex, product)}
+                    products={allPickerProducts}
+                    alreadySelectedIds={attachedProducts.map(p => p.id)}
+                    onAddProducts={handleAddProducts}
+                />
+            )}
+
+            {/* Swap Product Modal */}
+            {swapPickerIndex !== null && (
+                <ProductPickerModal
+                    open={true}
+                    onOpenChange={(open) => {
+                        if (!open) setSwapPickerIndex(null);
+                    }}
+                    products={allPickerProducts}
+                    currentProductId={attachedProducts[swapPickerIndex]?.id}
+                    onSelect={(product) => handleSwapProduct(swapPickerIndex, product)}
                 />
             )}
         </>
