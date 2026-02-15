@@ -257,6 +257,7 @@ export async function syncModulesToCoreHub(partnerId: string): Promise<CoreHubSy
 
 /**
  * Get Core Hub context for AI suggestions
+ * Automatically re-syncs if data is stale or item count has changed
  */
 export async function getCoreHubContext(partnerId: string): Promise<CoreHubContext> {
   if (!db) {
@@ -297,6 +298,45 @@ export async function getCoreHubContext(partnerId: string): Promise<CoreHubConte
 
     const config = configDoc.data() as CoreHubConfig;
 
+    // Check if Core Hub is stale (older than 5 minutes) or if module item count has changed
+    let needsSync = false;
+    const lastSync = config.lastSyncedAt?.toDate?.() || new Date(0);
+    const ageMs = Date.now() - lastSync.getTime();
+    const STALE_THRESHOLD_MS = 5 * 60 * 1000; // 5 minutes
+
+    if (ageMs > STALE_THRESHOLD_MS) {
+      console.log(`[CoreHub] Data is stale (${Math.round(ageMs / 1000)}s old), re-syncing...`);
+      needsSync = true;
+    } else {
+      // Quick count check: compare actual module items vs Core Hub count
+      const modulesSnapshot = await db
+        .collection(`partners/${partnerId}/businessModules`)
+        .get();
+
+      const activeModules = modulesSnapshot.docs.filter(doc => doc.data().enabled !== false);
+      let totalModuleItems = 0;
+      for (const moduleDoc of activeModules) {
+        const itemsCount = await db
+          .collection(`partners/${partnerId}/businessModules/${moduleDoc.id}/items`)
+          .where('isActive', '!=', false)
+          .count()
+          .get();
+        totalModuleItems += itemsCount.data().count;
+      }
+
+      if (totalModuleItems !== config.totalItemCount) {
+        console.log(`[CoreHub] Item count mismatch (modules: ${totalModuleItems}, hub: ${config.totalItemCount}), re-syncing...`);
+        needsSync = true;
+      }
+    }
+
+    if (needsSync) {
+      const syncResult = await syncModulesToCoreHub(partnerId);
+      if (!syncResult.success) {
+        console.warn('[CoreHub] Re-sync failed, using existing data:', syncResult.message);
+      }
+    }
+
     const itemsSnapshot = await db
       .collection(`partners/${partnerId}/coreHub/data/items`)
       .where('isActive', '==', true)
@@ -304,12 +344,17 @@ export async function getCoreHubContext(partnerId: string): Promise<CoreHubConte
 
     const moduleItems = itemsSnapshot.docs.map(doc => doc.data() as CoreHubItem);
 
+    // Re-read config if we synced (to get updated businessContext)
+    const finalConfig = needsSync
+      ? (await db.doc(`partners/${partnerId}/coreHub/config`).get()).data() as CoreHubConfig
+      : config;
+
     return {
       success: true,
-      businessContext: config.businessContext,
+      businessContext: finalConfig.businessContext,
       moduleItems,
       itemCount: moduleItems.length,
-      lastSyncedAt: config.lastSyncedAt?.toDate?.() || undefined,
+      lastSyncedAt: finalConfig.lastSyncedAt?.toDate?.() || undefined,
     };
   } catch (error: any) {
     console.error('[CoreHub] Failed to get context:', error);
