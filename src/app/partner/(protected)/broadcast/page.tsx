@@ -142,25 +142,27 @@ export default function PingboxBroadcast() {
     useEffect(() => {
         if (!partnerId) return;
 
-        // Load contacts
-        const contactsQuery = query(collection(db, `partners/${partnerId}/contacts`), orderBy('createdAt', 'desc'));
+        // Load contacts — no orderBy to avoid excluding contacts without createdAt
+        const contactsQuery = query(collection(db, `partners/${partnerId}/contacts`));
         const unsubscribe = onSnapshot(contactsQuery, (snapshot) => {
-            const contactsData = snapshot.docs.map(doc => {
-                const data = doc.data();
-                return {
-                    id: doc.id,
-                    name: data.name || 'Unknown',
-                    phone: data.phone || '',
-                    email: data.email,
-                    avatar: data.avatarUrl || getInitials(data.name || '?'),
-                    selected: false,
-                    tag: (data.tags && data.tags[0]) || 'Client',
-                    budget: data.customFields?.budget || '-',
-                    area: data.customFields?.area || '-',
-                    groups: data.groups || [],
-                    ...data
-                } as Contact;
-            });
+            const contactsData = snapshot.docs
+                .map(doc => {
+                    const data = doc.data();
+                    return {
+                        id: doc.id,
+                        name: data.name || 'Unknown',
+                        phone: data.phone || '',
+                        email: data.email,
+                        avatar: data.avatarUrl || getInitials(data.name || '?'),
+                        selected: false,
+                        tag: (data.tags && data.tags[0]) || 'Client',
+                        budget: data.customFields?.budget || '-',
+                        area: data.customFields?.area || '-',
+                        groups: data.groups || [],
+                        ...data
+                    } as Contact;
+                })
+                .filter(c => c.phone && c.phone.trim() !== ''); // Only include contacts with a phone number
             setRecipients(contactsData);
 
             // Update "All Contacts" count

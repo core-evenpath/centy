@@ -1,12 +1,9 @@
-// src/actions/broadcast-send-actions.ts
 'use server';
 
 import { sendMetaWhatsAppMessageAction } from './meta-whatsapp-actions';
 import { sendTelegramMessageAction } from './telegram-actions';
 import { updateCampaignAction } from './broadcast-actions';
 import { db } from '@/lib/firebase-admin';
-import { Timestamp } from 'firebase-admin/firestore';
-import { VariableMapping, replaceVariablesForContact } from '@/lib/template-variable-engine';
 
 interface BroadcastSendResult {
     success: boolean;
@@ -36,11 +33,16 @@ export async function sendBroadcastCampaignAction(
     recipientType?: 'group' | 'individual' | 'all',
     contactIds?: string[],
     groupIds?: string[],
-    variableMappings?: VariableMapping[]
+    variableMappings?: Array<{
+        token: string;
+        source: 'contact' | 'custom';
+        contactField?: string;
+        customValue: string;
+    }>
 ): Promise<BroadcastSendResult> {
     try {
         // 1. Get contacts based on selection type
-        let recipients: Array<{ id: string; phone: string; name?: string; telegramChatId?: string; email?: string; company?: string; customFields?: Record<string, any>; [key: string]: any }> = [];
+        let recipients: Array<{ id: string; phone: string; name?: string; telegramChatId?: string; email?: string; company?: string; customFields?: Record<string, any>;[key: string]: any }> = [];
 
         const mapContactDoc = (doc: FirebaseFirestore.DocumentSnapshot) => {
             const data = doc.data()!;
@@ -58,13 +60,14 @@ export async function sendBroadcastCampaignAction(
         };
 
         if (recipientType === 'all') {
-            // Get all active contacts
+            // Get all contacts (removing status check as requested)
             const contactsSnapshot = await db
                 .collection(`partners/${partnerId}/contacts`)
-                .where('status', '==', 'active')
                 .get();
 
-            recipients = contactsSnapshot.docs.map(mapContactDoc).filter(c => c.phone);
+            recipients = contactsSnapshot.docs
+                .map(mapContactDoc)
+                .filter(c => c.phone && c.phone.trim() !== '');
 
         } else if (recipientType === 'individual' && contactIds && contactIds.length > 0) {
             // Get specific contacts
@@ -74,8 +77,9 @@ export async function sendBroadcastCampaignAction(
             const contactsDocs = await Promise.all(contactsPromises);
 
             recipients = contactsDocs
-                .filter(doc => doc.exists && doc.data()?.phone)
-                .map(mapContactDoc);
+                .filter(doc => doc.exists)
+                .map(mapContactDoc)
+                .filter(c => c.phone && c.phone.trim() !== '');
 
         } else if (recipientType === 'group' && groupIds && groupIds.length > 0) {
             // Get contacts from broadcast groups
@@ -98,8 +102,9 @@ export async function sendBroadcastCampaignAction(
             const contactsDocs = await Promise.all(contactsPromises);
 
             recipients = contactsDocs
-                .filter(doc => doc.exists && doc.data()?.phone)
-                .map(mapContactDoc);
+                .filter(doc => doc.exists)
+                .map(mapContactDoc)
+                .filter(c => c.phone && c.phone.trim() !== '');
         }
 
         if (recipients.length === 0) {
@@ -109,38 +114,75 @@ export async function sendBroadcastCampaignAction(
             };
         }
 
-        // 2. Send messages to all recipients (using same logic as inbox)
+        // 2. Send messages to all recipients
         let delivered = 0;
         let failed = 0;
         const results: BroadcastSendResult['results'] = [];
 
-        // Helper to convert markdown to WhatsApp format (from Inbox)
+        // Helper to convert markdown to WhatsApp format
         function markdownToWhatsApp(text: string): string {
-            // Convert **bold** to *bold*
             let formatted = text.replace(/\*\*(.*?)\*\*/g, '*$1*');
-            // Convert __italic__ to _italic_
             formatted = formatted.replace(/__(.*?)__/g, '_$1_');
             return formatted;
         }
+
+        // Helper to personalize message
+        const personalizeMessage = (template: string, contact: any): string => {
+            if (!variableMappings || variableMappings.length === 0) return template;
+
+            return variableMappings.reduce((msg, mapping) => {
+                let value = '';
+                if (mapping.source === 'contact' && mapping.contactField) {
+                    value = contact[mapping.contactField]
+                        || contact.customFields?.[mapping.contactField]
+                        || getFallback(mapping.contactField);
+                } else {
+                    value = mapping.customValue || '';
+                }
+                return msg.replace(
+                    new RegExp(mapping.token.replace(/\{/g, '\\{').replace(/\}/g, '\\}'), 'g'),
+                    value
+                );
+            }, template);
+        };
+
+        const getFallback = (field: string): string => {
+            const fallbacks: Record<string, string> = {
+                name: 'Friend',
+                area: 'your area',
+                email: '',
+                phone: '',
+                company: 'your company',
+            };
+            return fallbacks[field] || '';
+        };
 
         for (const contact of recipients) {
             try {
                 let result;
 
-                // Personalize message for this contact if variable mappings are present
-                const personalizedMessage = variableMappings && variableMappings.length > 0
-                    ? replaceVariablesForContact(message, variableMappings, contact)
-                    : message;
+                // Personalize message for this contact
+                const personalizedMessage = personalizeMessage(message, { ...contact, ...contact.customFields });
 
                 if (channel === 'whatsapp') {
-                    // EXACT INBOX LOGIC: Look up existing conversation first
-                    const safePhone = String(contact.phone || '');
-                    // Normalize phone for lookup (remove non-digits)
+                    if (!contact.phone) {
+                        failed++;
+                        results.push({
+                            contactId: contact.id,
+                            contactName: contact.name,
+                            phone: 'N/A',
+                            status: 'failed',
+                            error: 'No phone number'
+                        });
+                        continue;
+                    }
+
+                    const safePhone = String(contact.phone);
                     const normalizedPhone = safePhone.replace(/\D/g, '');
                     let conversationId: string | undefined;
-                    let phoneToUse = safePhone; // Default to contact's phone
+                    let phoneToUse = safePhone;
 
-                    // Try to find existing conversation by customerWaId (like inbox does)
+                    // Try to find existing conversation
                     try {
                         const existingConvSnapshot = await db
                             .collection('metaWhatsAppConversations')
@@ -152,10 +194,8 @@ export async function sendBroadcastCampaignAction(
                         if (!existingConvSnapshot.empty) {
                             const convData = existingConvSnapshot.docs[0].data();
                             conversationId = existingConvSnapshot.docs[0].id;
-                            // Use the conversation's customerPhone (exact inbox behavior)
                             phoneToUse = convData.customerPhone || safePhone;
                         } else {
-                            // Also try with full phone format
                             const phoneWithPlus = safePhone.startsWith('+') ? safePhone : `+${normalizedPhone}`;
                             const altConvSnapshot = await db
                                 .collection('metaWhatsAppConversations')
@@ -167,19 +207,15 @@ export async function sendBroadcastCampaignAction(
                             if (!altConvSnapshot.empty) {
                                 const convData = altConvSnapshot.docs[0].data();
                                 conversationId = altConvSnapshot.docs[0].id;
-                                // Use the conversation's customerPhone (exact inbox behavior)
                                 phoneToUse = convData.customerPhone || safePhone;
                             }
                         }
                     } catch (err) {
                         console.error('Error looking up conversation:', err);
-                        // Continue effectively without conversation ID
                     }
 
-                    // Use the same WhatsApp sending action as inbox, with formatting
                     const formattedMessage = markdownToWhatsApp(String(personalizedMessage || ''));
 
-                    // EXACT INBOX LOGIC: Pass phone from conversation when available
                     result = await sendMetaWhatsAppMessageAction({
                         partnerId,
                         to: phoneToUse,
@@ -190,7 +226,6 @@ export async function sendBroadcastCampaignAction(
                     });
 
                 } else if (channel === 'telegram') {
-                    // For Telegram, we need chatId
                     if (!contact.telegramChatId) {
                         failed++;
                         results.push({
@@ -203,7 +238,6 @@ export async function sendBroadcastCampaignAction(
                         continue;
                     }
 
-                    // EXACT INBOX LOGIC: Look up existing Telegram conversation by chatId
                     let conversationId: string | undefined;
                     let chatIdToUse = contact.telegramChatId;
 
@@ -218,14 +252,12 @@ export async function sendBroadcastCampaignAction(
                         if (!existingConvSnapshot.empty) {
                             const convData = existingConvSnapshot.docs[0].data();
                             conversationId = existingConvSnapshot.docs[0].id;
-                            // Use the conversation's chatId (exact inbox behavior)
                             chatIdToUse = convData.chatId || contact.telegramChatId;
                         }
                     } catch (err) {
                         console.error('Error looking up Telegram conversation:', err);
                     }
 
-                    // EXACT INBOX LOGIC: Use the same Telegram sending action as inbox
                     result = await sendTelegramMessageAction({
                         partnerId,
                         chatId: chatIdToUse as any,
@@ -270,7 +302,7 @@ export async function sendBroadcastCampaignAction(
             }
         }
 
-        // 3. Update campaign with metrics (same as inbox updates conversation)
+        // 3. Update campaign with metrics
         try {
             await updateCampaignAction(partnerId, campaignId, {
                 status: 'sent',
@@ -283,7 +315,6 @@ export async function sendBroadcastCampaignAction(
             } as any);
         } catch (error) {
             console.error('Error updating campaign:', error);
-            // Don't fail the whole operation if update fails
         }
 
         return {
@@ -319,18 +350,23 @@ export async function getBroadcastRecipientsPreviewAction(
     try {
         let recipients: Array<{ id: string; phone: string; name?: string }> = [];
 
+        const mapContactDoc = (doc: FirebaseFirestore.DocumentSnapshot) => ({
+            id: doc.id,
+            phone: doc.data()?.phone,
+            name: doc.data()?.name,
+        });
+
         if (recipientType === 'all') {
             const contactsSnapshot = await db
                 .collection(`partners/${partnerId}/contacts`)
-                .where('status', '==', 'active')
-                .limit(10) // Just preview first 10
+                // .where('status', '==', 'active') // REMOVED filter as per requirement
+                .limit(50) // Increased limit slightly to have better pool, though preview is usually small
                 .get();
 
-            recipients = contactsSnapshot.docs.map(doc => ({
-                id: doc.id,
-                phone: doc.data().phone,
-                name: doc.data().name,
-            })).filter(c => c.phone);
+            recipients = contactsSnapshot.docs
+                .map(mapContactDoc)
+                .filter(c => c.phone && c.phone.trim() !== '')
+                .slice(0, 10);
 
         } else if (recipientType === 'individual' && contactIds) {
             const contactsPromises = contactIds.slice(0, 10).map(id =>
@@ -339,12 +375,9 @@ export async function getBroadcastRecipientsPreviewAction(
             const contactsDocs = await Promise.all(contactsPromises);
 
             recipients = contactsDocs
-                .filter(doc => doc.exists && doc.data()?.phone)
-                .map(doc => ({
-                    id: doc.id,
-                    phone: doc.data()!.phone,
-                    name: doc.data()!.name,
-                }));
+                .filter(doc => doc.exists)
+                .map(mapContactDoc)
+                .filter(c => c.phone && c.phone.trim() !== '');
 
         } else if (recipientType === 'group' && groupIds) {
             const groupsPromises = groupIds.map(id =>
@@ -364,24 +397,22 @@ export async function getBroadcastRecipientsPreviewAction(
             const contactsDocs = await Promise.all(contactsPromises);
 
             recipients = contactsDocs
-                .filter(doc => doc.exists && doc.data()?.phone)
-                .map(doc => ({
-                    id: doc.id,
-                    phone: doc.data()!.phone,
-                    name: doc.data()!.name,
-                }));
+                .filter(doc => doc.exists)
+                .map(mapContactDoc)
+                .filter(c => c.phone && c.phone.trim() !== '');
         }
 
         // Get total count
         let totalCount = recipients.length;
 
         if (recipientType === 'all') {
-            const countSnapshot = await db
+            const allContactsSnapshot = await db
                 .collection(`partners/${partnerId}/contacts`)
-                .where('status', '==', 'active')
-                .count()
                 .get();
-            totalCount = countSnapshot.data().count;
+
+            totalCount = allContactsSnapshot.docs
+                .filter(doc => doc.data().phone && doc.data().phone.trim() !== '')
+                .length;
         }
 
         return {
