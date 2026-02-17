@@ -16,6 +16,19 @@ import { PartnerTemplateLibrary } from '@/components/partner/broadcast/PartnerTe
 import { Dialog, DialogContent, DialogTrigger } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { doc, getDoc } from 'firebase/firestore';
+import {
+    VariableMapping,
+    extractTemplateVariables,
+    autoMapVariables,
+    replaceVariablesInPreview,
+} from '@/lib/template-variable-engine';
+import {
+    getIndustryGreeting,
+    getDefaultGreeting,
+    getIndustrySuggestions,
+    getIndustryAiResponses,
+} from '@/lib/industry-messaging';
 
 interface Contact {
     id: string;
@@ -39,10 +52,8 @@ interface Group {
     contactIds?: string[];
 }
 
-// REMOVED HARDCODED TEMPLATES
-
-// REMOVED HARDCODED VARIABLES - Will be derived from template components if needed, or we can keep generic ones
-const variableOptions = [
+// Default variable options used when no template is loaded (manual compose)
+const defaultVariableOptions = [
     { token: '{{name}}', label: 'First Name', preview: 'John', icon: '👤' },
     { token: '{{company}}', label: 'Company Name', preview: 'Centy', icon: '🏢' },
 ];
@@ -101,6 +112,10 @@ export default function PingboxBroadcast() {
     const [availableTemplates, setAvailableTemplates] = useState<SystemTemplate[]>([]);
     const [partnerTemplates, setPartnerTemplates] = useState<SystemTemplate[]>([]);
     const [partnerIndustries, setPartnerIndustries] = useState<string[]>([]);
+
+    // Industry & variable mapping
+    const [partnerIndustry, setPartnerIndustry] = useState<string>('default');
+    const [variableMappings, setVariableMappings] = useState<VariableMapping[]>([]);
 
 
     const [tempLinkText, setTempLinkText] = useState('');
@@ -202,52 +217,58 @@ export default function PingboxBroadcast() {
         fetchTemplates();
     }, [partnerId]);
 
+    // Fetch Partner Industry
+    useEffect(() => {
+        if (!partnerId) return;
 
-    const sampleImages = [
-        { url: 'https://images.unsplash.com/photo-1564013799919-ab600027ffc6?w=400&h=300&fit=crop', label: 'Modern Home Exterior' },
-        { url: 'https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?w=400&h=300&fit=crop', label: 'Luxury Kitchen' },
-        { url: 'https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?w=400&h=300&fit=crop', label: 'Living Room' },
-        { url: 'https://images.unsplash.com/photo-1512917774080-9991f1c4c750?w=400&h=300&fit=crop', label: 'Pool & Backyard' },
-    ];
+        async function fetchPartnerIndustry() {
+            try {
+                const partnerDoc = await getDoc(doc(db, 'partners', partnerId!));
+                if (partnerDoc.exists()) {
+                    const industry = partnerDoc.data()?.industry?.id || 'default';
+                    setPartnerIndustry(industry);
+                }
+            } catch (err) {
+                console.error('Error fetching partner industry:', err);
+            }
+        }
 
-    // Generic AI Responses (Restored & Generalized)
-    const aiResponses = [
-        {
-            trigger: ['listing', 'property', 'announce', 'home', 'house'],
-            response: "Here is a draft for a property announcement:\n\n🏡 *New Property Alert*\n\nHi {{name}},\n\nI'm excited to share a new property that fits your criteria:\n\n📍 *{{property_address}}*\n💰 {{price}}\n\n✨ Features:\n• Spacious layout\n• Great location\n• Newly renovated\n\n📅 Viewing available this weekend!\n\nReply to book a slot.\n\n— {{company}}",
-            suggestions: ['Make it shorter', 'Add urgency', 'Perfect! →'],
-        },
-        {
-            trigger: ['shorter', 'concise', 'brief'],
-            response: "🏡 *New Property: {{property_address}}*\n\nHi {{name}}!\n\n📍 {{property_address}}\n💰 {{price}}\n\n✨ Great location & layout!\n\n📅 Viewings this weekend.\n\n🔥 Reply to book!\n\n— {{company}}",
-            suggestions: ['Add urgency', 'Perfect! →'],
-        },
-        {
-            trigger: ['sale', 'promo', 'offer', 'discount'],
-            response: "🎉 *Special Offer Just for You*\n\nHi {{name}},\n\nWe have a special promotion available for a limited time.\n\n🌟 Get exclusive benefits when you book with us this week.\n\nReply 'YES' to hear more!",
-            suggestions: ['Make it urgent', 'Perfect! →'],
-        },
-        {
-            trigger: ['urgency', 'urgent', 'fast', 'now'],
-            response: "🔥 *Last Chance!* \n\nHi {{name}},\n\nDon't miss out! Our special offer ends soon.\n\n⚡ *Only a few spots left!*\n\nReply NOW to secure yours.",
-            suggestions: ['Perfect! →'],
-        },
-        {
-            trigger: ['update', 'news', 'info'],
-            response: "📰 *Latest Update*\n\nHi {{name}},\n\nHere is the latest news from {{company}}:\n\n• Market is moving fast\n• New opportunities available\n\nStay tuned for more updates!",
-            suggestions: ['Perfect! →'],
-        },
-        {
-            trigger: ['hi', 'hello', 'start', 'help'],
-            response: "Hi there! 👋 I can help you draft a broadcast message.\n\nTry saying:\n• 'New property listing'\n• 'Special sale'\n• 'Weekly update'",
-            suggestions: ['New listing', 'Sale', 'Update'],
-        },
-        {
-            trigger: ['perfect', 'good', 'continue', 'done', 'next', 'ready', '→'],
-            response: null,
-            action: 'next',
-        },
-    ];
+        fetchPartnerIndustry();
+    }, [partnerId]);
+
+
+    const sampleImages = (() => {
+        const imagesByIndustry: Record<string, Array<{ url: string; label: string }>> = {
+            'real-estate': [
+                { url: 'https://images.unsplash.com/photo-1564013799919-ab600027ffc6?w=400&h=300&fit=crop', label: 'Modern Home Exterior' },
+                { url: 'https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?w=400&h=300&fit=crop', label: 'Luxury Kitchen' },
+                { url: 'https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?w=400&h=300&fit=crop', label: 'Living Room' },
+                { url: 'https://images.unsplash.com/photo-1512917774080-9991f1c4c750?w=400&h=300&fit=crop', label: 'Pool & Backyard' },
+            ],
+            'food-beverage': [
+                { url: 'https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=400&h=300&fit=crop', label: 'Gourmet Dish' },
+                { url: 'https://images.unsplash.com/photo-1555396273-367ea4eb4db5?w=400&h=300&fit=crop', label: 'Restaurant Interior' },
+                { url: 'https://images.unsplash.com/photo-1414235077428-338989a2e8c0?w=400&h=300&fit=crop', label: 'Fine Dining' },
+                { url: 'https://images.unsplash.com/photo-1567620905732-2d1ec7ab7445?w=400&h=300&fit=crop', label: 'Fresh Ingredients' },
+            ],
+            'beauty-wellness': [
+                { url: 'https://images.unsplash.com/photo-1560066984-138dadb4c035?w=400&h=300&fit=crop', label: 'Salon Interior' },
+                { url: 'https://images.unsplash.com/photo-1522337360788-8b13dee7a37e?w=400&h=300&fit=crop', label: 'Beauty Treatment' },
+                { url: 'https://images.unsplash.com/photo-1519823551278-64ac92734fb1?w=400&h=300&fit=crop', label: 'Spa Setting' },
+                { url: 'https://images.unsplash.com/photo-1487412720507-e7ab37603c6f?w=400&h=300&fit=crop', label: 'Wellness Vibes' },
+            ],
+        };
+        const defaults = [
+            { url: 'https://images.unsplash.com/photo-1557804506-669a67965ba0?w=400&h=300&fit=crop', label: 'Professional' },
+            { url: 'https://images.unsplash.com/photo-1542744173-8e7e53415bb0?w=400&h=300&fit=crop', label: 'Team Meeting' },
+            { url: 'https://images.unsplash.com/photo-1522071820081-009f0129c71c?w=400&h=300&fit=crop', label: 'Collaboration' },
+            { url: 'https://images.unsplash.com/photo-1460925895917-afdab827c52f?w=400&h=300&fit=crop', label: 'Business Growth' },
+        ];
+        return imagesByIndustry[partnerIndustry] || defaults;
+    })();
+
+    // Industry-aware AI Responses (derived from partner's industry)
+    const aiResponses = getIndustryAiResponses(partnerIndustry);
 
     useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages, typedResponse]);
 
@@ -333,12 +354,16 @@ export default function PingboxBroadcast() {
 
         // If it's a SystemTemplate
         if (template && 'components' in template) {
-            // Map SystemTemplate to Studio State
             const sysTemplate = template as SystemTemplate;
             const body = sysTemplate.components.find(c => c.type === 'BODY')?.text || '';
-            const header = sysTemplate.components.find(c => c.type === 'HEADER');
             const footer = sysTemplate.components.find(c => c.type === 'FOOTER')?.text || '';
             const buttons = sysTemplate.components.find(c => c.type === 'BUTTONS')?.buttons || [];
+
+            // Extract and auto-map template variables
+            const variables = extractTemplateVariables(body);
+            const sampleContact = recipients[0] || { name: 'Sample User', area: 'Sample Area' };
+            const mappings = autoMapVariables(body, variables, partnerIndustry, sampleContact);
+            setVariableMappings(mappings);
 
             setCampaignMessage(body);
             setFooterText(footer);
@@ -354,18 +379,20 @@ export default function PingboxBroadcast() {
             setQuickReplyButtons(quick);
             setCtaButtons(cta);
 
-            // Greeting
+            // Industry-aware greeting
             setTimeout(() => {
-                setMessages([{ id: '1', type: 'ai', content: `loaded template: *${sysTemplate.name}*`, suggestions: ['Customize message', 'Select recipients'] }]);
+                const greeting = getIndustryGreeting(partnerIndustry, sysTemplate.name, mappings.length);
+                setMessages([{ id: '1', type: 'ai', content: greeting, suggestions: ['Customize message', 'Select recipients'] }]);
             }, 200);
             return;
         }
 
-        const greeting = template
-            ? `Hi ${user?.displayName?.split(' ')[0] || 'Partner'}! 👋 Let's create a *${template.title}* campaign.\n\nDescribe the property or I'll help you craft a message that converts!`
-            : `Hi ${user?.displayName?.split(' ')[0] || 'Partner'}! 👋 I'm your AI broadcast assistant.\n\nWhat would you like to send? Describe your listing or pick a quick action!`;
+        // Default greeting (no template) — industry-aware
+        const greeting = getDefaultGreeting(partnerIndustry, user?.displayName);
+        const suggestions = getIndustrySuggestions(partnerIndustry);
+        setVariableMappings([]); // Reset mappings for manual compose
         setTimeout(() => {
-            setMessages([{ id: '1', type: 'ai', content: greeting, suggestions: ['New listing alert', 'Open house invite', 'Market update'] }]);
+            setMessages([{ id: '1', type: 'ai', content: greeting, suggestions }]);
         }, 200);
     };
 
@@ -413,13 +440,22 @@ export default function PingboxBroadcast() {
     const canProceed = selectedGroup !== null || selectedContacts.length > 0;
     const filteredContacts = recipients.filter(r => r.name?.toLowerCase().includes(contactSearch.toLowerCase()) || r.area?.toLowerCase().includes(contactSearch.toLowerCase()));
 
-    const formatPreview = (msg: string) => msg.replace(/\{\{name\}\}/g, 'John').replace(/\{\{company\}\}/g, 'Centy').replace(/\*([^*]+)\*/g, '$1');
+    const formatPreview = (msg: string) => {
+        // First, replace numbered template variables using mappings
+        let preview = variableMappings.length > 0 ? replaceVariablesInPreview(msg, variableMappings) : msg;
+        // Then replace text-based variables (from manual compose)
+        preview = preview.replace(/\{\{name\}\}/g, 'John').replace(/\{\{company\}\}/g, 'Centy');
+        // Strip markdown bold for display
+        preview = preview.replace(/\*([^*]+)\*/g, '$1');
+        return preview;
+    };
 
     const resetDemo = () => {
         setView('home'); setMessages([]); setCampaignMessage(''); setSelectedContacts([]);
         setSelectedGroup(null); setSendingState('idle'); setSentCount(0);
         setMetrics({ delivered: 0, read: 0, replied: 0 }); setInput(''); setContactSearch('');
         setHeaderImage(null); setQuickReplyButtons([]); setCtaButtons([]); setFooterText('');
+        setVariableMappings([]);
     };
 
     const handleFinalSend = async () => {
@@ -435,19 +471,19 @@ export default function PingboxBroadcast() {
             const contactIds = getRecipientIds();
             const groupIds = selectedGroup && selectedGroup !== 'all' ? [selectedGroup] : undefined;
 
-            // 1. Create campaign
+            // 1. Create campaign (include variable mappings for audit trail)
             const campaignResult = await createCampaignAction(partnerId, userId || 'unknown', {
                 title: campaignMessage.slice(0, 50) + '...',
                 channel,
                 status: 'draft',
                 message: campaignMessage,
                 hasImage: !!headerImage,
-                buttons: [...quickReplyButtons, ...ctaButtons.map(b => b.text)], // simplified button storage
+                buttons: [...quickReplyButtons, ...ctaButtons.map(b => b.text)],
                 recipientType,
                 groupIds,
                 contactIds: recipientType === 'individual' ? contactIds : undefined,
                 recipientCount: getRecipientCount(),
-            });
+            } as any);
 
             if (!campaignResult.success) {
                 throw new Error('Failed to create campaign');
@@ -455,9 +491,7 @@ export default function PingboxBroadcast() {
 
             const campaignId = (campaignResult as any).campaign?.id;
 
-            // 2. Send campaign
-            // toast({ title: 'Sending...', description: `Scheduling send to ${getRecipientCount()} recipients...` });
-
+            // 2. Send campaign with variable mappings for per-contact personalization
             const sendResult = await sendBroadcastCampaignAction(
                 partnerId,
                 campaignId,
@@ -466,7 +500,8 @@ export default function PingboxBroadcast() {
                 headerImage || undefined,
                 recipientType,
                 recipientType === 'individual' ? contactIds : undefined,
-                groupIds
+                groupIds,
+                variableMappings.length > 0 ? variableMappings : undefined
             );
 
             if (sendResult.success) {
@@ -715,6 +750,23 @@ export default function PingboxBroadcast() {
                                     </div>
                                 </div>
 
+                                {/* Variable Mapping Display */}
+                                {campaignMessage && variableMappings.length > 0 && (
+                                    <div style={{ background: '#fff', borderRadius: 14, border: '1px solid #e5e5e5', padding: 16, boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
+                                        <div style={{ fontSize: 11, fontWeight: 600, color: '#888', textTransform: 'uppercase', marginBottom: 10 }}>Message Personalization</div>
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                                            {variableMappings.map(m => (
+                                                <div key={m.variable} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px', background: '#f9f9f9', borderRadius: 8 }}>
+                                                    <span style={{ fontSize: 11, fontWeight: 700, color: '#667eea', background: '#eff0ff', padding: '2px 6px', borderRadius: 4, fontFamily: 'monospace' }}>{m.variable}</span>
+                                                    <span style={{ fontSize: 12, color: '#bbb' }}>&rarr;</span>
+                                                    <span style={{ fontSize: 12, fontWeight: 600, color: '#333' }}>{m.label}</span>
+                                                    <span style={{ fontSize: 11, color: '#999', marginLeft: 'auto' }}>&ldquo;{m.previewValue}&rdquo;</span>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+
                                 {/* Add to Campaign Panel */}
                                 {campaignMessage && (
                                     <div style={{ background: '#fff', borderRadius: 14, border: '1px solid #e5e5e5', padding: 16, boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
@@ -913,8 +965,13 @@ export default function PingboxBroadcast() {
                                 <div style={{ padding: 24, borderBottom: '1px solid #eee' }}>
                                     <div style={{ fontSize: 11, fontWeight: 600, color: '#999', textTransform: 'uppercase', marginBottom: 8 }}>Message Preview</div>
                                     <div style={{ background: '#f8f8f8', padding: 16, borderRadius: 12, fontSize: 14, color: '#111', lineHeight: 1.6, whiteSpace: 'pre-wrap', border: '1px solid #eee' }}>
-                                        {campaignMessage}
+                                        {formatPreview(campaignMessage)}
                                     </div>
+                                    {variableMappings.length > 0 && (
+                                        <div style={{ marginTop: 8, fontSize: 11, color: '#888', fontStyle: 'italic' }}>
+                                            Variables will be replaced with each recipient&apos;s data when sent.
+                                        </div>
+                                    )}
                                     {(headerImage || ctaButtons.length > 0) && (
                                         <div style={{ marginTop: 12, display: 'flex', gap: 10 }}>
                                             {headerImage && <div style={{ fontSize: 12, padding: '4px 10px', background: '#f0fdf4', color: '#16a34a', borderRadius: 6, display: 'inline-flex', alignItems: 'center', gap: 4 }}>🖼️ Image attached</div>}
@@ -1003,20 +1060,44 @@ export default function PingboxBroadcast() {
             </Modal>
 
             <Modal show={showVariableModal} onClose={() => setShowVariableModal(false)} title="Insert Variable">
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-                    {variableOptions.map(v => (
-                        <button key={v.token} onClick={() => insertVariable(v)} style={{
-                            display: 'flex', alignItems: 'center', gap: 10, padding: 12, borderRadius: 10,
-                            border: '1px solid #eee', background: '#fff', cursor: 'pointer', textAlign: 'left',
-                        }}>
-                            <span style={{ fontSize: 20 }}>{v.icon}</span>
-                            <div>
-                                <div style={{ fontSize: 13, fontWeight: 600, color: '#111' }}>{v.label}</div>
-                                <div style={{ fontSize: 11, color: '#888' }}>Example: {v.preview}</div>
-                            </div>
-                        </button>
-                    ))}
-                </div>
+                {variableMappings.length > 0 ? (
+                    <div>
+                        <div style={{ fontSize: 12, fontWeight: 600, color: '#888', marginBottom: 12 }}>TEMPLATE VARIABLES</div>
+                        <div style={{ display: 'grid', gap: 8 }}>
+                            {variableMappings.map(m => (
+                                <div key={m.variable} style={{
+                                    display: 'flex', alignItems: 'center', gap: 10, padding: 12, borderRadius: 10,
+                                    border: '1px solid #eee', background: '#f9f9f9',
+                                }}>
+                                    <span style={{ fontSize: 12, fontWeight: 700, color: '#667eea', background: '#eff0ff', padding: '4px 8px', borderRadius: 6 }}>{m.variable}</span>
+                                    <span style={{ fontSize: 13, color: '#888' }}>&rarr;</span>
+                                    <div style={{ flex: 1 }}>
+                                        <div style={{ fontSize: 13, fontWeight: 600, color: '#111' }}>{m.label}</div>
+                                        <div style={{ fontSize: 11, color: '#888' }}>Preview: &ldquo;{m.previewValue}&rdquo;</div>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                        <div style={{ fontSize: 11, color: '#999', marginTop: 12, fontStyle: 'italic' }}>
+                            These variables are auto-mapped from the template and will be replaced with each recipient&apos;s data at send time.
+                        </div>
+                    </div>
+                ) : (
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                        {defaultVariableOptions.map(v => (
+                            <button key={v.token} onClick={() => insertVariable(v)} style={{
+                                display: 'flex', alignItems: 'center', gap: 10, padding: 12, borderRadius: 10,
+                                border: '1px solid #eee', background: '#fff', cursor: 'pointer', textAlign: 'left',
+                            }}>
+                                <span style={{ fontSize: 20 }}>{v.icon}</span>
+                                <div>
+                                    <div style={{ fontSize: 13, fontWeight: 600, color: '#111' }}>{v.label}</div>
+                                    <div style={{ fontSize: 11, color: '#888' }}>Example: {v.preview}</div>
+                                </div>
+                            </button>
+                        ))}
+                    </div>
+                )}
             </Modal>
 
             <Modal show={showButtonModal} onClose={() => setShowButtonModal(false)} title="Add Quick Replies">

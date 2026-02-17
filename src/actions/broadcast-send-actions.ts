@@ -6,6 +6,7 @@ import { sendTelegramMessageAction } from './telegram-actions';
 import { updateCampaignAction } from './broadcast-actions';
 import { db } from '@/lib/firebase-admin';
 import { Timestamp } from 'firebase-admin/firestore';
+import { VariableMapping, replaceVariablesForContact } from '@/lib/template-variable-engine';
 
 interface BroadcastSendResult {
     success: boolean;
@@ -34,11 +35,27 @@ export async function sendBroadcastCampaignAction(
     mediaUrl?: string,
     recipientType?: 'group' | 'individual' | 'all',
     contactIds?: string[],
-    groupIds?: string[]
+    groupIds?: string[],
+    variableMappings?: VariableMapping[]
 ): Promise<BroadcastSendResult> {
     try {
         // 1. Get contacts based on selection type
-        let recipients: Array<{ id: string; phone: string; name?: string; telegramChatId?: string }> = [];
+        let recipients: Array<{ id: string; phone: string; name?: string; telegramChatId?: string; email?: string; company?: string; customFields?: Record<string, any>; [key: string]: any }> = [];
+
+        const mapContactDoc = (doc: FirebaseFirestore.DocumentSnapshot) => {
+            const data = doc.data()!;
+            return {
+                id: doc.id,
+                phone: data.phone,
+                name: data.name,
+                email: data.email,
+                company: data.company,
+                area: data.customFields?.area,
+                budget: data.customFields?.budget,
+                telegramChatId: data.telegramChatId,
+                customFields: data.customFields || {},
+            };
+        };
 
         if (recipientType === 'all') {
             // Get all active contacts
@@ -47,12 +64,7 @@ export async function sendBroadcastCampaignAction(
                 .where('status', '==', 'active')
                 .get();
 
-            recipients = contactsSnapshot.docs.map(doc => ({
-                id: doc.id,
-                phone: doc.data().phone,
-                name: doc.data().name,
-                telegramChatId: doc.data().telegramChatId,
-            })).filter(c => c.phone); // Only include contacts with phone numbers
+            recipients = contactsSnapshot.docs.map(mapContactDoc).filter(c => c.phone);
 
         } else if (recipientType === 'individual' && contactIds && contactIds.length > 0) {
             // Get specific contacts
@@ -63,12 +75,7 @@ export async function sendBroadcastCampaignAction(
 
             recipients = contactsDocs
                 .filter(doc => doc.exists && doc.data()?.phone)
-                .map(doc => ({
-                    id: doc.id,
-                    phone: doc.data()!.phone,
-                    name: doc.data()!.name,
-                    telegramChatId: doc.data()!.telegramChatId,
-                }));
+                .map(mapContactDoc);
 
         } else if (recipientType === 'group' && groupIds && groupIds.length > 0) {
             // Get contacts from broadcast groups
@@ -92,12 +99,7 @@ export async function sendBroadcastCampaignAction(
 
             recipients = contactsDocs
                 .filter(doc => doc.exists && doc.data()?.phone)
-                .map(doc => ({
-                    id: doc.id,
-                    phone: doc.data()!.phone,
-                    name: doc.data()!.name,
-                    telegramChatId: doc.data()!.telegramChatId,
-                }));
+                .map(mapContactDoc);
         }
 
         if (recipients.length === 0) {
@@ -124,6 +126,11 @@ export async function sendBroadcastCampaignAction(
         for (const contact of recipients) {
             try {
                 let result;
+
+                // Personalize message for this contact if variable mappings are present
+                const personalizedMessage = variableMappings && variableMappings.length > 0
+                    ? replaceVariablesForContact(message, variableMappings, contact)
+                    : message;
 
                 if (channel === 'whatsapp') {
                     // EXACT INBOX LOGIC: Look up existing conversation first
@@ -170,7 +177,7 @@ export async function sendBroadcastCampaignAction(
                     }
 
                     // Use the same WhatsApp sending action as inbox, with formatting
-                    const formattedMessage = markdownToWhatsApp(String(message || ''));
+                    const formattedMessage = markdownToWhatsApp(String(personalizedMessage || ''));
 
                     // EXACT INBOX LOGIC: Pass phone from conversation when available
                     result = await sendMetaWhatsAppMessageAction({
@@ -222,7 +229,7 @@ export async function sendBroadcastCampaignAction(
                     result = await sendTelegramMessageAction({
                         partnerId,
                         chatId: chatIdToUse as any,
-                        message,
+                        message: personalizedMessage,
                         mediaUrl,
                         conversationId,
                     });
