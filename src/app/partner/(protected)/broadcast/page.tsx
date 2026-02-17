@@ -9,7 +9,8 @@ import { createCampaignAction } from '@/actions/broadcast-actions';
 import { sendBroadcastCampaignAction } from '@/actions/broadcast-send-actions';
 import { useToast } from '@/hooks/use-toast';
 import { useRouter } from 'next/navigation';
-import { getAvailableTemplatesForPartnerAction, getPartnerTemplatesAction } from '@/actions/template-actions';
+import { getPartnerTemplatesAction } from '@/actions/template-actions';
+import { getTemplatesForPartnerIndustry } from '@/actions/template-filtering-actions';
 import { SystemTemplate } from '@/lib/types';
 import { PartnerTemplateLibrary } from '@/components/partner/broadcast/PartnerTemplateLibrary';
 import { Dialog, DialogContent, DialogTrigger } from '@/components/ui/dialog';
@@ -38,20 +39,12 @@ interface Group {
     contactIds?: string[];
 }
 
-const templates = [
-    { id: 'listing', icon: '🏠', title: 'New Listing', desc: 'Announce new properties', color: '#e8f5e9' },
-    { id: 'openhouse', icon: '🚪', title: 'Open House', desc: 'Invite to showings', color: '#e3f2fd' },
-    { id: 'price', icon: '💰', title: 'Price Update', desc: 'Share price changes', color: '#fff3e0' },
-    { id: 'market', icon: '📊', title: 'Market Report', desc: 'Monthly insights', color: '#f3e5f5' },
-];
+// REMOVED HARDCODED TEMPLATES
 
+// REMOVED HARDCODED VARIABLES - Will be derived from template components if needed, or we can keep generic ones
 const variableOptions = [
-    { token: '{{name}}', label: 'First Name', preview: 'Michael', icon: '👤' },
-    { token: '{{full_name}}', label: 'Full Name', preview: 'Michael Chen', icon: '📇' },
-    { token: '{{property_address}}', label: 'Property Address', preview: '1847 Cherry Blossom Lane', icon: '📍' },
-    { token: '{{price}}', label: 'Property Price', preview: '$1,495,000', icon: '💰' },
-    { token: '{{agent_name}}', label: 'Your Name', preview: 'Jessica', icon: '🏷️' },
-    { token: '{{company}}', label: 'Company Name', preview: 'Bay Area Home Group', icon: '🏢' },
+    { token: '{{name}}', label: 'First Name', preview: 'John', icon: '👤' },
+    { token: '{{company}}', label: 'Company Name', preview: 'Centy', icon: '🏢' },
 ];
 
 const quickReplyPresets = [
@@ -107,6 +100,7 @@ export default function PingboxBroadcast() {
     // Templates
     const [availableTemplates, setAvailableTemplates] = useState<SystemTemplate[]>([]);
     const [partnerTemplates, setPartnerTemplates] = useState<SystemTemplate[]>([]);
+    const [partnerIndustries, setPartnerIndustries] = useState<string[]>([]);
 
 
     const [tempLinkText, setTempLinkText] = useState('');
@@ -191,12 +185,15 @@ export default function PingboxBroadcast() {
         if (!partnerId) return;
         async function fetchTemplates() {
             const [sysRes, partnerRes] = await Promise.all([
-                getAvailableTemplatesForPartnerAction(partnerId!),
+                getTemplatesForPartnerIndustry(partnerId!),
                 getPartnerTemplatesAction(partnerId!)
             ]);
 
-            if (sysRes.success && sysRes.data) {
-                setAvailableTemplates(sysRes.data);
+            if (sysRes.success && sysRes.templates) {
+                setAvailableTemplates(sysRes.templates);
+                if (sysRes.partnerIndustries) {
+                    setPartnerIndustries(sysRes.partnerIndustries);
+                }
             }
             if (partnerRes.success && partnerRes.data) {
                 setPartnerTemplates(partnerRes.data);
@@ -213,21 +210,37 @@ export default function PingboxBroadcast() {
         { url: 'https://images.unsplash.com/photo-1512917774080-9991f1c4c750?w=400&h=300&fit=crop', label: 'Pool & Backyard' },
     ];
 
+    // Generic AI Responses (Restored & Generalized)
     const aiResponses = [
         {
-            trigger: ['new listing', 'property', 'announce', 'listing', '🏠', 'just listed', 'home'],
-            response: "Perfect! Here's a compelling listing announcement:\n\n🏡 *Just Listed in Willow Glen!*\n\nHi {{name}},\n\nI'm excited to share this stunning home that just hit the market:\n\n📍 *1847 Cherry Blossom Lane*\n💰 $1,495,000\n🏠 4 bed | 3 bath | 2,340 sqft\n\n✨ Highlights:\n• Chef's kitchen with quartz counters\n• Primary suite with walk-in closet\n• Landscaped backyard with deck\n• Top-rated schools nearby\n\n📅 Open House: Saturday 1-4pm\n\nWant a private showing?\n\n— {{agent_name}}, Bay Area Home Group",
+            trigger: ['listing', 'property', 'announce', 'home', 'house'],
+            response: "Here is a draft for a property announcement:\n\n🏡 *New Property Alert*\n\nHi {{name}},\n\nI'm excited to share a new property that fits your criteria:\n\n📍 *{{property_address}}*\n💰 {{price}}\n\n✨ Features:\n• Spacious layout\n• Great location\n• Newly renovated\n\n📅 Viewing available this weekend!\n\nReply to book a slot.\n\n— {{company}}",
             suggestions: ['Make it shorter', 'Add urgency', 'Perfect! →'],
         },
         {
             trigger: ['shorter', 'concise', 'brief'],
-            response: "🏡 *Just Listed: Willow Glen*\n\nHi {{name}}!\n\n📍 1847 Cherry Blossom Lane\n💰 $1,495,000 | 4 BD/3 BA\n\n✨ Chef's kitchen, huge backyard, top schools!\n\n📅 Open House: Sat 1-4pm\n\n🔥 Reply YES for early access!\n\n— {{agent_name}}",
+            response: "🏡 *New Property: {{property_address}}*\n\nHi {{name}}!\n\n📍 {{property_address}}\n💰 {{price}}\n\n✨ Great location & layout!\n\n📅 Viewings this weekend.\n\n🔥 Reply to book!\n\n— {{company}}",
             suggestions: ['Add urgency', 'Perfect! →'],
         },
         {
-            trigger: ['urgency', 'urgent', 'fast', 'fomo', 'market'],
-            response: "🏡 *HOT: Willow Glen Home*\n\nHi {{name}}!\n\n⚡ *Just listed — expect multiple offers!*\n\n📍 1847 Cherry Blossom Lane\n💰 $1,495,000 | 4 BD/3 BA | 2,340 sqft\n\n✨ Move-in ready, top schools, huge yard\n\n📊 Willow Glen homes avg just 8 days on market!\n\n📅 Open House Sat 1-4pm\n⏰ Private showings filling up\n\n— {{agent_name}}",
+            trigger: ['sale', 'promo', 'offer', 'discount'],
+            response: "🎉 *Special Offer Just for You*\n\nHi {{name}},\n\nWe have a special promotion available for a limited time.\n\n🌟 Get exclusive benefits when you book with us this week.\n\nReply 'YES' to hear more!",
+            suggestions: ['Make it urgent', 'Perfect! →'],
+        },
+        {
+            trigger: ['urgency', 'urgent', 'fast', 'now'],
+            response: "🔥 *Last Chance!* \n\nHi {{name}},\n\nDon't miss out! Our special offer ends soon.\n\n⚡ *Only a few spots left!*\n\nReply NOW to secure yours.",
             suggestions: ['Perfect! →'],
+        },
+        {
+            trigger: ['update', 'news', 'info'],
+            response: "📰 *Latest Update*\n\nHi {{name}},\n\nHere is the latest news from {{company}}:\n\n• Market is moving fast\n• New opportunities available\n\nStay tuned for more updates!",
+            suggestions: ['Perfect! →'],
+        },
+        {
+            trigger: ['hi', 'hello', 'start', 'help'],
+            response: "Hi there! 👋 I can help you draft a broadcast message.\n\nTry saying:\n• 'New property listing'\n• 'Special sale'\n• 'Weekly update'",
+            suggestions: ['New listing', 'Sale', 'Update'],
         },
         {
             trigger: ['perfect', 'good', 'continue', 'done', 'next', 'ready', '→'],
@@ -400,7 +413,7 @@ export default function PingboxBroadcast() {
     const canProceed = selectedGroup !== null || selectedContacts.length > 0;
     const filteredContacts = recipients.filter(r => r.name?.toLowerCase().includes(contactSearch.toLowerCase()) || r.area?.toLowerCase().includes(contactSearch.toLowerCase()));
 
-    const formatPreview = (msg: string) => msg.replace(/\{\{name\}\}/g, 'Michael').replace(/\{\{full_name\}\}/g, 'Michael Chen').replace(/\{\{property_address\}\}/g, '1847 Cherry Blossom Lane').replace(/\{\{price\}\}/g, '$1,495,000').replace(/\{\{agent_name\}\}/g, 'Jessica').replace(/\{\{company\}\}/g, 'Bay Area Home Group').replace(/\*([^*]+)\*/g, '$1');
+    const formatPreview = (msg: string) => msg.replace(/\{\{name\}\}/g, 'John').replace(/\{\{company\}\}/g, 'Centy').replace(/\*([^*]+)\*/g, '$1');
 
     const resetDemo = () => {
         setView('home'); setMessages([]); setCampaignMessage(''); setSelectedContacts([]);
@@ -616,7 +629,7 @@ export default function PingboxBroadcast() {
                                     </DialogTrigger>
                                     <DialogContent className="max-w-6xl h-[80vh] flex flex-col p-0">
                                         <ScrollArea className="flex-1 p-6">
-                                            {partnerId && <PartnerTemplateLibrary templates={availableTemplates} partnerId={partnerId} />}
+                                            {partnerId && <PartnerTemplateLibrary templates={availableTemplates} partnerId={partnerId} partnerIndustries={partnerIndustries} />}
                                         </ScrollArea>
                                     </DialogContent>
                                 </Dialog>
@@ -794,6 +807,18 @@ export default function PingboxBroadcast() {
                                                     <div key={item.label} style={{ fontSize: 11, color: item.done ? '#22c55e' : '#bbb' }}>{item.done ? '✓' : '○'} {item.label}</div>
                                                 ))}
                                             </div>
+                                        </div>
+
+                                        {/* Select Recipient CTA in Right Panel */}
+                                        <div style={{ marginTop: 14 }}>
+                                            <button onClick={() => setView('recipients')} style={{
+                                                width: '100%', padding: '14px', background: '#111', color: '#fff',
+                                                borderRadius: 12, fontSize: 14, fontWeight: 600, border: 'none',
+                                                cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                                                boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
+                                            }}>
+                                                Select Recipients <span>→</span>
+                                            </button>
                                         </div>
                                     </div>
                                 )}

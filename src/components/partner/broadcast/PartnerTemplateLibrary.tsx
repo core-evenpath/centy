@@ -17,9 +17,10 @@ import { useRouter } from 'next/navigation';
 interface PartnerTemplateLibraryProps {
     templates: SystemTemplate[];
     partnerId: string;
+    partnerIndustries?: string[];
 }
 
-export function PartnerTemplateLibrary({ templates, partnerId }: PartnerTemplateLibraryProps) {
+export function PartnerTemplateLibrary({ templates, partnerId, partnerIndustries = [] }: PartnerTemplateLibraryProps) {
     const router = useRouter();
     const [selectedTemplate, setSelectedTemplate] = useState<SystemTemplate | null>(null);
     const [isInstantiating, setIsInstantiating] = useState(false);
@@ -73,7 +74,14 @@ export function PartnerTemplateLibrary({ templates, partnerId }: PartnerTemplate
                         <CardHeader>
                             <div className="flex justify-between items-start">
                                 <CardTitle className="text-lg">{template.name}</CardTitle>
-                                <Badge variant="outline">{template.category}</Badge>
+                                <div className="flex gap-2">
+                                    {partnerIndustries.some(id => template.applicableIndustries?.includes(id)) && (
+                                        <Badge variant="secondary" className="bg-emerald-100 text-emerald-800 hover:bg-emerald-200 border-0">
+                                            Recommended
+                                        </Badge>
+                                    )}
+                                    <Badge variant="outline">{template.category}</Badge>
+                                </div>
                             </div>
                             <CardDescription className="line-clamp-2">
                                 {template.components.find(c => c.type === 'BODY')?.text || "No preview text"}
