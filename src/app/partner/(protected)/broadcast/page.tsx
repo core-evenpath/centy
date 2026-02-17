@@ -1,1112 +1,1051 @@
 "use client";
 
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useMultiWorkspaceAuth } from '@/hooks/use-multi-workspace-auth';
+import { db } from '@/lib/firebase';
+import { collection, query, onSnapshot, orderBy } from 'firebase/firestore';
+import { getBroadcastGroupsAction } from '@/actions/broadcast-actions';
 import { createCampaignAction } from '@/actions/broadcast-actions';
 import { sendBroadcastCampaignAction } from '@/actions/broadcast-send-actions';
 import { useToast } from '@/hooks/use-toast';
+import { useRouter } from 'next/navigation';
+import { getAvailableTemplatesForPartnerAction, getPartnerTemplatesAction } from '@/actions/template-actions';
+import { SystemTemplate } from '@/lib/types';
+import { PartnerTemplateLibrary } from '@/components/partner/broadcast/PartnerTemplateLibrary';
+import { Dialog, DialogContent, DialogTrigger } from '@/components/ui/dialog';
+import { Button } from '@/components/ui/button';
+import { ScrollArea } from '@/components/ui/scroll-area';
 
-import RecipientSelector from '@/components/partner/broadcast/RecipientSelector';
-
-// ============================================
-// CENTY BROADCAST - AI Marketing Co-pilot
-// Chat-based campaign creation with smart AI
-// Clean, modern YC-style design
-// Firebase-integrated for real data
-// ============================================
-
-const TEMPLATES = [
-  {
-    id: 'intro', icon: '👋', title: 'Introduce Yourself', desc: 'First message to new clients', category: 'engagement', popular: true,
-    message: `Hi {{name}}! 👋\n\nI'm {{agent_name}} from *{{business_name}}*.\n\nI specialize in helping clients find their perfect property. Whether you're looking to buy, sell, or invest — I'm here to help.\n\nFeel free to reach out anytime!\n\nBest regards,\n{{agent_name}}`,
-    tips: ['Great for new leads', 'Sets professional tone', 'Builds trust early']
-  },
-  {
-    id: 'listing', icon: '🏠', title: 'Property Alert', desc: 'Announce new listings', category: 'property', popular: true,
-    message: `Hi {{name}}! 🏠\n\nNew listing matching your criteria:\n\n📍 *{{property_name}}*\n💰 {{price}}\n\n✓ Prime location\n✓ Ready to move\n✓ Loan approved\n\nInterested in a visit this week?`,
-    tips: ['Include key specs upfront', 'Add image for 3x engagement', 'End with clear CTA']
-  },
-  {
-    id: 'event', icon: '📅', title: 'Event Invitation', desc: 'Open house & launches', category: 'event', popular: true,
-    message: `Hi {{name}}!\n\nYou're invited to an exclusive property showcase:\n\n📅 *{{date}}*\n🕐 10 AM - 4 PM\n📍 {{venue}}\n\n50+ buyers already confirmed.\n\nReply YES to reserve your spot.`,
-    tips: ['Social proof increases signups 45%', 'Clear date/time/venue', 'Simple RSVP mechanism']
-  },
-  {
-    id: 'festive', icon: '🎉', title: 'Festive Greetings', desc: 'Seasonal wishes', category: 'engagement', popular: false,
-    message: `Happy {{festival}}, {{name}}! 🎉\n\nWishing you and your family joy, prosperity, and new beginnings.\n\nMay this year bring you closer to your dream home!\n\nWarm regards,\n{{agent_name}}\n*{{business_name}}*`,
-    tips: ['Send in morning for best engagement', 'Personal touch matters', 'Great for re-engagement']
-  },
-  {
-    id: 'offer', icon: '🏷️', title: 'Special Offer', desc: 'Deals with urgency', category: 'promotional', popular: true,
-    message: `Hi {{name}}! 🎯\n\n*Limited Time Offer*\n\nBook before *{{deadline}}* and get:\n\n✓ Zero brokerage (Save ₹2L+)\n✓ Free registration\n✓ Priority support\n\n⏰ Only 5 slots left!\n\nInterested?`,
-    tips: ['Deadlines boost conversions 32%', 'Clear value proposition', 'Scarcity drives action']
-  },
-  {
-    id: 'followup', icon: '🔄', title: 'Follow-up', desc: 'Re-engage leads', category: 'engagement', popular: false,
-    message: `Hi {{name}}!\n\nJust checking in — still exploring property options?\n\nI have some new listings that might interest you:\n\n🏠 New projects in your preferred areas\n💰 Better financing options available\n\nWhen's a good time for a quick chat?\n\n{{agent_name}}`,
-    tips: ['Non-pushy tone works best', 'Provide value/updates', 'Easy response path']
-  },
-  {
-    id: 'pricedrop', icon: '📉', title: 'Price Drop', desc: 'Price reduction alerts', category: 'property', popular: false,
-    message: `Hi {{name}}! 📉\n\nGreat news! A property you viewed has a *price drop*:\n\n🏠 *{{property_name}}*\n~~₹2.2 Cr~~ → *{{price}}*\n\nThat's ₹40 Lakhs savings!\n\nInterested in revisiting?`,
-    tips: ['Reference past interest', 'Show clear savings', 'Create urgency']
-  },
-  {
-    id: 'review', icon: '⭐', title: 'Request Review', desc: 'Get testimonials', category: 'engagement', popular: false,
-    message: `Hi {{name}}! 🙏\n\nThank you for choosing *{{business_name}}*!\n\nYour feedback helps us improve. Would you mind sharing your experience?\n\n⭐ Takes just 2 minutes\n⭐ Helps other buyers decide\n\nThank you!\n{{agent_name}}`,
-    tips: ['Best sent post-transaction', 'Make it easy', 'Express gratitude']
-  },
-];
-
-const TEMPLATE_CATEGORIES = [
-  { id: 'all', label: 'All' },
-  { id: 'engagement', label: 'Engagement' },
-  { id: 'property', label: 'Property' },
-  { id: 'promotional', label: 'Promotional' },
-  { id: 'event', label: 'Events' },
-];
-
-const VARIABLES = [
-  { token: '{{name}}', label: 'Client Name', preview: 'Rajesh' },
-  { token: '{{agent_name}}', label: 'Your Name', preview: 'Priya' },
-  { token: '{{business_name}}', label: 'Business', preview: 'Prime Properties' },
-  { token: '{{property_name}}', label: 'Property', preview: '3BHK Sea View, Powai' },
-  { token: '{{price}}', label: 'Price', preview: '₹1.8 Cr' },
-  { token: '{{date}}', label: 'Date', preview: 'Sunday, Jan 12' },
-  { token: '{{venue}}', label: 'Venue', preview: 'Powai, Mumbai' },
-  { token: '{{deadline}}', label: 'Deadline', preview: 'Jan 31' },
-  { token: '{{festival}}', label: 'Festival', preview: 'New Year' },
-];
-
-// GROUPS and CLIENTS are now loaded from Firebase Firestore
-// See RecipientSelector component for the implementation
-
-// Substitute variables for preview
-const sub = (t: string | undefined) => t?.replace(/\{\{name\}\}/g, 'Rajesh').replace(/\{\{agent_name\}\}/g, 'Priya').replace(/\{\{business_name\}\}/g, 'Prime Properties').replace(/\{\{property_name\}\}/g, '3BHK Sea View, Powai').replace(/\{\{price\}\}/g, '₹1.8 Cr').replace(/\{\{date\}\}/g, 'Sunday, Jan 12').replace(/\{\{venue\}\}/g, 'Powai, Mumbai').replace(/\{\{deadline\}\}/g, 'Jan 31').replace(/\{\{festival\}\}/g, 'New Year') || '';
-
-// Calculate campaign score with detailed breakdown
-const calcScore = (msg: string, hasImage: boolean, buttons: string[]) => {
-  if (!msg) return { score: 0, breakdown: [] as { label: string; points: number; positive: boolean }[] };
-  let score = 30;
-  const breakdown: { label: string; points: number; positive: boolean }[] = [];
-
-  if (msg.length > 20 && msg.length < 300) { score += 15; breakdown.push({ label: 'Good length', points: 15, positive: true }); }
-  else if (msg.length >= 300) { breakdown.push({ label: 'Message too long', points: 0, positive: false }); }
-
-  if (msg.includes('{{name}}')) { score += 20; breakdown.push({ label: 'Personalized', points: 20, positive: true }); }
-  else { breakdown.push({ label: 'Add personalization', points: 0, positive: false }); }
-
-  if (/[🎉🎯🏠💰📍✅⭐👋✨📅🔥]/.test(msg)) { score += 10; breakdown.push({ label: 'Has emojis', points: 10, positive: true }); }
-
-  if (msg.includes('?')) { score += 10; breakdown.push({ label: 'Ends with question', points: 10, positive: true }); }
-  else { breakdown.push({ label: 'Add a question', points: 0, positive: false }); }
-
-  if (hasImage) { score += 10; breakdown.push({ label: 'Image attached', points: 10, positive: true }); }
-  if (buttons?.length) { score += 5; breakdown.push({ label: 'Has buttons', points: 5, positive: true }); }
-
-  return { score: Math.min(score, 100), breakdown };
-};
-
-// Smart AI insights based on message content and context
-const getSmartInsights = (msg: string, hasImage: boolean) => {
-  const insights: { type: string; icon: string; text: string }[] = [];
-  const hour = new Date().getHours();
-
-  if (!msg) return insights;
-
-  // Length insights
-  if (msg.length > 300) {
-    insights.push({ type: 'warning', icon: '📏', text: 'Long messages have 25% lower read rates. Consider trimming to under 200 characters.' });
-  }
-
-  // Personalization
-  if (!msg.includes('{{name}}') && msg.length > 30) {
-    insights.push({ type: 'tip', icon: '👤', text: 'Add {{name}} — personalized messages get 26% higher open rates.' });
-  }
-
-  // Image suggestion for property messages
-  if ((msg.toLowerCase().includes('property') || msg.toLowerCase().includes('bhk') || msg.toLowerCase().includes('listing')) && !hasImage) {
-    insights.push({ type: 'tip', icon: '🖼️', text: 'Property messages with images get 3x more responses.' });
-  }
-
-  // Question CTA
-  if (!msg.includes('?') && msg.length > 100) {
-    insights.push({ type: 'tip', icon: '❓', text: 'End with a question to encourage replies (+35% response rate).' });
-  }
-
-  // Timing insights
-  if (hour >= 10 && hour <= 12) {
-    insights.push({ type: 'success', icon: '⏰', text: 'Great timing! 10 AM - 12 PM has the highest engagement rates.' });
-  } else if (hour >= 21 || hour <= 7) {
-    insights.push({ type: 'warning', icon: '🌙', text: 'Late messages get fewer reads. Consider scheduling for 10 AM tomorrow.' });
-  }
-
-  // Success indicators
-  if (hasImage && msg.includes('{{name}}') && msg.includes('?')) {
-    insights.push({ type: 'success', icon: '🎯', text: 'This message has all key engagement elements. Great job!' });
-  }
-
-  return insights.slice(0, 2);
-};
-
-// Detect message type/intent
-const detectIntent = (text: string) => {
-  const lower = text.toLowerCase();
-  if (lower.includes('year') || lower.includes('wish') || lower.includes('festive') || lower.includes('diwali') || lower.includes('christmas')) return 'festive';
-  if (lower.includes('property') || lower.includes('listing') || lower.includes('bhk') || lower.includes('flat') || lower.includes('apartment')) return 'listing';
-  if (lower.includes('offer') || lower.includes('deal') || lower.includes('discount') || lower.includes('save')) return 'offer';
-  if (lower.includes('event') || lower.includes('invite') || lower.includes('open house') || lower.includes('launch')) return 'event';
-  if (lower.includes('follow') || lower.includes('check in') || lower.includes('touch base')) return 'followup';
-  if (lower.includes('intro') || lower.includes('hello') || lower.includes('first message')) return 'intro';
-  if (lower.includes('price drop') || lower.includes('reduced')) return 'pricedrop';
-  if (lower.includes('review') || lower.includes('feedback') || lower.includes('testimonial')) return 'review';
-  return 'intro';
-};
-
-interface Template {
-  id: string;
-  icon: string;
-  title: string;
-  desc: string;
-  category: string;
-  popular: boolean;
-  message: string;
-  tips: string[];
+interface Contact {
+    id: string;
+    name: string;
+    phone: string;
+    email?: string;
+    avatar?: string;
+    selected?: boolean;
+    tag?: string;
+    budget?: string;
+    area?: string;
+    groups?: string[];
+    [key: string]: any;
 }
 
-interface Campaign {
-  message: string;
-  hasImage: boolean;
-  buttons: string[];
-  fromTemplate?: Template;
-  recipientType?: 'group' | 'individual' | 'all';
-  groupIds?: string[];
-  contactIds?: string[];
-  recipientCount?: number;
-}
-
-interface Message {
-  id: string;
-  type: 'ai' | 'user';
-  content: string;
-  tip?: string;
-  suggestions?: string[];
-}
-
-// ============================================
-// MAIN EXPORT
-// ============================================
-export default function BroadcastPage() {
-  const { currentWorkspace, user } = useMultiWorkspaceAuth();
-  const { toast } = useToast();
-  const [view, setView] = useState<'home' | 'studio' | 'recipients' | 'review' | 'success'>('home');
-  const [channel, setChannel] = useState<'whatsapp' | 'telegram'>('whatsapp');
-  const [campaign, setCampaign] = useState<Campaign | null>(null);
-  const [initialPrompt, setInitialPrompt] = useState('');
-
-  const partnerId = currentWorkspace?.partnerId;
-  const userId = user?.uid;
-
-  const startWithPrompt = (prompt: string) => {
-    setInitialPrompt(prompt);
-    setView('studio');
-  };
-
-  const startWithTemplate = (template: Template) => {
-    setCampaign({ message: template.message, hasImage: false, buttons: [], fromTemplate: template });
-    setView('studio');
-  };
-
-  // Handle recipient selection
-  const handleRecipientsSelected = (recipientData: {
-    recipientType: 'group' | 'individual' | 'all';
-    groupIds?: string[];
+interface Group {
+    id: string;
+    name: string;
+    count: number;
+    icon: string;
     contactIds?: string[];
-    recipientCount: number;
-  }) => {
-    setCampaign(prev => ({ ...prev!, ...recipientData }));
-    setView('review');
-  };
+}
 
-  if (view === 'studio') {
-    return <CampaignStudio channel={channel} initialPrompt={initialPrompt} existingCampaign={campaign} onBack={() => { setView('home'); setInitialPrompt(''); setCampaign(null); }} onComplete={(data) => { setCampaign(data); setView('recipients'); }} />;
-  }
-  if (view === 'recipients' && partnerId) {
-    return (
-      <RecipientSelector
-        channel={channel}
-        partnerId={partnerId}
-        onBack={() => setView('studio')}
-        onContinue={handleRecipientsSelected}
-      />
-    );
-  }
-  if (view === 'review') {
-    return <ReviewStep channel={channel} campaign={campaign!} onBack={() => setView('recipients')} onSend={async () => {
-      // Save and send campaign
-      if (!partnerId || !currentWorkspace) {
-        toast({ variant: 'destructive', title: 'Error', description: 'Partner information not available' });
-        return;
-      }
+const templates = [
+    { id: 'listing', icon: '🏠', title: 'New Listing', desc: 'Announce new properties', color: '#e8f5e9' },
+    { id: 'openhouse', icon: '🚪', title: 'Open House', desc: 'Invite to showings', color: '#e3f2fd' },
+    { id: 'price', icon: '💰', title: 'Price Update', desc: 'Share price changes', color: '#fff3e0' },
+    { id: 'market', icon: '📊', title: 'Market Report', desc: 'Monthly insights', color: '#f3e5f5' },
+];
 
-      try {
-        // 1. Create campaign in Firestore
-        const campaignResult = await createCampaignAction(partnerId, userId || 'unknown', {
-          title: campaign!.message.slice(0, 50) + '...',
-          channel,
-          status: 'draft',
-          message: campaign!.message,
-          hasImage: campaign!.hasImage || false,
-          buttons: campaign!.buttons || [],
-          recipientType: campaign!.recipientType || 'individual',
-          groupIds: campaign!.groupIds,
-          contactIds: campaign!.contactIds,
-          recipientCount: campaign!.recipientCount || 0,
+const variableOptions = [
+    { token: '{{name}}', label: 'First Name', preview: 'Michael', icon: '👤' },
+    { token: '{{full_name}}', label: 'Full Name', preview: 'Michael Chen', icon: '📇' },
+    { token: '{{property_address}}', label: 'Property Address', preview: '1847 Cherry Blossom Lane', icon: '📍' },
+    { token: '{{price}}', label: 'Property Price', preview: '$1,495,000', icon: '💰' },
+    { token: '{{agent_name}}', label: 'Your Name', preview: 'Jessica', icon: '🏷️' },
+    { token: '{{company}}', label: 'Company Name', preview: 'Bay Area Home Group', icon: '🏢' },
+];
+
+const quickReplyPresets = [
+    { buttons: ['Yes, interested!', 'Schedule viewing', 'More details'], label: 'Interest + Viewing' },
+    { buttons: ['Book now', 'Call me', 'Not now'], label: 'Booking Flow' },
+    { buttons: ['👍 Yes', '👎 No'], label: 'Simple Yes/No' },
+];
+
+const TypingIndicator = () => (
+    <div style={{ display: 'flex', justifyContent: 'flex-start', marginBottom: 16 }}>
+        <div style={{ padding: '14px 18px', borderRadius: '18px 18px 18px 4px', background: '#f8f8f8' }}>
+            <div style={{ display: 'flex', gap: 5, alignItems: 'center' }}>
+                {[0, 1, 2].map(i => (
+                    <div key={i} style={{ width: 8, height: 8, borderRadius: '50%', background: '#bbb', animation: `typingBounce 1.4s ease-in-out infinite`, animationDelay: `${i * 0.15}s` }} />
+                ))}
+            </div>
+        </div>
+    </div>
+);
+
+export default function PingboxBroadcast() {
+    const { currentWorkspace, user } = useMultiWorkspaceAuth();
+    const { toast } = useToast();
+    const router = useRouter();
+
+    const [view, setView] = useState('home');
+    const [channel, setChannel] = useState<'whatsapp' | 'telegram'>('whatsapp');
+    const [messages, setMessages] = useState<any[]>([]);
+    const [input, setInput] = useState('');
+    const [isTyping, setIsTyping] = useState(false);
+    const [typedResponse, setTypedResponse] = useState('');
+    const [currentAiMessage, setCurrentAiMessage] = useState('');
+    const [currentSuggestions, setCurrentSuggestions] = useState<string[]>([]);
+    const [campaignMessage, setCampaignMessage] = useState('');
+    const [selectedContacts, setSelectedContacts] = useState<string[]>([]);
+    const [selectedGroup, setSelectedGroup] = useState<string | null>(null);
+    const [sendingState, setSendingState] = useState('idle');
+    const [sentCount, setSentCount] = useState(0);
+    const [metrics, setMetrics] = useState({ delivered: 0, read: 0, replied: 0 });
+    const [contactSearch, setContactSearch] = useState('');
+    const [hoveredContact, setHoveredContact] = useState<string | null>(null);
+
+    const [headerImage, setHeaderImage] = useState<string | null>(null);
+    const [quickReplyButtons, setQuickReplyButtons] = useState<string[]>([]);
+    const [ctaButtons, setCtaButtons] = useState<any[]>([]);
+    const [footerText, setFooterText] = useState('');
+
+    const [showImageModal, setShowImageModal] = useState(false);
+    const [showButtonModal, setShowButtonModal] = useState(false);
+    const [showLinkModal, setShowLinkModal] = useState(false);
+    const [showVariableModal, setShowVariableModal] = useState(false);
+
+    // Templates
+    const [availableTemplates, setAvailableTemplates] = useState<SystemTemplate[]>([]);
+    const [partnerTemplates, setPartnerTemplates] = useState<SystemTemplate[]>([]);
+
+
+    const [tempLinkText, setTempLinkText] = useState('');
+    const [tempLinkUrl, setTempLinkUrl] = useState('');
+    const [tempPhoneText, setTempPhoneText] = useState('');
+    const [tempPhoneNumber, setTempPhoneNumber] = useState('');
+    const [tempQuickReplies, setTempQuickReplies] = useState(['', '', '']);
+    const [buttonType, setButtonType] = useState('quick');
+
+    const [recipients, setRecipients] = useState<Contact[]>([]);
+    const [groups, setGroups] = useState<Group[]>([
+        { id: 'all', name: 'All Contacts', count: 0, icon: '👥' },
+    ]);
+    const [isLoadingRecipients, setIsLoadingRecipients] = useState(true);
+
+    const messagesEndRef = useRef<HTMLDivElement>(null);
+    const inputRef = useRef<HTMLInputElement>(null);
+
+    const isWA = channel === 'whatsapp';
+    const partnerId = currentWorkspace?.partnerId;
+    const userId = user?.uid;
+
+    // Load Contacts and Groups
+    useEffect(() => {
+        if (!partnerId) return;
+
+        // Load contacts
+        const contactsQuery = query(collection(db, `partners/${partnerId}/contacts`), orderBy('createdAt', 'desc'));
+        const unsubscribe = onSnapshot(contactsQuery, (snapshot) => {
+            const contactsData = snapshot.docs.map(doc => {
+                const data = doc.data();
+                return {
+                    id: doc.id,
+                    name: data.name || 'Unknown',
+                    phone: data.phone || '',
+                    email: data.email,
+                    avatar: data.avatarUrl || getInitials(data.name || '?'),
+                    selected: false,
+                    tag: (data.tags && data.tags[0]) || 'Client',
+                    budget: data.customFields?.budget || '-',
+                    area: data.customFields?.area || '-',
+                    groups: data.groups || [],
+                    ...data
+                } as Contact;
+            });
+            setRecipients(contactsData);
+
+            // Update "All Contacts" count
+            setGroups(prevGroups => prevGroups.map(g => g.id === 'all' ? { ...g, count: contactsData.length } : g));
+            setIsLoadingRecipients(false);
+        }, (err) => {
+            console.error("Error loading contacts", err);
+            setIsLoadingRecipients(false);
         });
 
-        if (!campaignResult.success) {
-          toast({ variant: 'destructive', title: 'Error', description: 'Failed to create campaign' });
-          return;
+        // Load groups
+        const fetchGroups = async () => {
+            try {
+                const result = await getBroadcastGroupsAction(partnerId);
+                if (result.success && result.groups) {
+                    const mappedGroups = result.groups.map((g: any) => ({
+                        id: g.id,
+                        name: g.name,
+                        count: g.contactIds?.length || 0,
+                        icon: '👥', // Default icon
+                        contactIds: g.contactIds
+                    }));
+                    // Add default groups if needed, or merge
+                    setGroups(prev => [prev[0], ...mappedGroups]);
+                }
+            } catch (err) {
+                console.error("Error loading groups", err);
+            }
+        };
+        fetchGroups();
+
+        return () => unsubscribe();
+    }, [partnerId]);
+
+    // Fetch Templates
+    useEffect(() => {
+        if (!partnerId) return;
+        async function fetchTemplates() {
+            const [sysRes, partnerRes] = await Promise.all([
+                getAvailableTemplatesForPartnerAction(partnerId!),
+                getPartnerTemplatesAction(partnerId!)
+            ]);
+
+            if (sysRes.success && sysRes.data) {
+                setAvailableTemplates(sysRes.data);
+            }
+            if (partnerRes.success && partnerRes.data) {
+                setPartnerTemplates(partnerRes.data);
+            }
+        }
+        fetchTemplates();
+    }, [partnerId]);
+
+
+    const sampleImages = [
+        { url: 'https://images.unsplash.com/photo-1564013799919-ab600027ffc6?w=400&h=300&fit=crop', label: 'Modern Home Exterior' },
+        { url: 'https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?w=400&h=300&fit=crop', label: 'Luxury Kitchen' },
+        { url: 'https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?w=400&h=300&fit=crop', label: 'Living Room' },
+        { url: 'https://images.unsplash.com/photo-1512917774080-9991f1c4c750?w=400&h=300&fit=crop', label: 'Pool & Backyard' },
+    ];
+
+    const aiResponses = [
+        {
+            trigger: ['new listing', 'property', 'announce', 'listing', '🏠', 'just listed', 'home'],
+            response: "Perfect! Here's a compelling listing announcement:\n\n🏡 *Just Listed in Willow Glen!*\n\nHi {{name}},\n\nI'm excited to share this stunning home that just hit the market:\n\n📍 *1847 Cherry Blossom Lane*\n💰 $1,495,000\n🏠 4 bed | 3 bath | 2,340 sqft\n\n✨ Highlights:\n• Chef's kitchen with quartz counters\n• Primary suite with walk-in closet\n• Landscaped backyard with deck\n• Top-rated schools nearby\n\n📅 Open House: Saturday 1-4pm\n\nWant a private showing?\n\n— {{agent_name}}, Bay Area Home Group",
+            suggestions: ['Make it shorter', 'Add urgency', 'Perfect! →'],
+        },
+        {
+            trigger: ['shorter', 'concise', 'brief'],
+            response: "🏡 *Just Listed: Willow Glen*\n\nHi {{name}}!\n\n📍 1847 Cherry Blossom Lane\n💰 $1,495,000 | 4 BD/3 BA\n\n✨ Chef's kitchen, huge backyard, top schools!\n\n📅 Open House: Sat 1-4pm\n\n🔥 Reply YES for early access!\n\n— {{agent_name}}",
+            suggestions: ['Add urgency', 'Perfect! →'],
+        },
+        {
+            trigger: ['urgency', 'urgent', 'fast', 'fomo', 'market'],
+            response: "🏡 *HOT: Willow Glen Home*\n\nHi {{name}}!\n\n⚡ *Just listed — expect multiple offers!*\n\n📍 1847 Cherry Blossom Lane\n💰 $1,495,000 | 4 BD/3 BA | 2,340 sqft\n\n✨ Move-in ready, top schools, huge yard\n\n📊 Willow Glen homes avg just 8 days on market!\n\n📅 Open House Sat 1-4pm\n⏰ Private showings filling up\n\n— {{agent_name}}",
+            suggestions: ['Perfect! →'],
+        },
+        {
+            trigger: ['perfect', 'good', 'continue', 'done', 'next', 'ready', '→'],
+            response: null,
+            action: 'next',
+        },
+    ];
+
+    useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages, typedResponse]);
+
+    useEffect(() => {
+        if (currentAiMessage && typedResponse.length < currentAiMessage.length) {
+            const timer = setTimeout(() => setTypedResponse(currentAiMessage.slice(0, typedResponse.length + 3)), 8);
+            return () => clearTimeout(timer);
+        } else if (currentAiMessage && typedResponse.length >= currentAiMessage.length) {
+            setMessages(prev => [...prev, { id: Date.now().toString(), type: 'ai', content: currentAiMessage, suggestions: currentSuggestions }]);
+            setCampaignMessage(currentAiMessage);
+            setCurrentAiMessage('');
+            setTypedResponse('');
+            setCurrentSuggestions([]);
+            setIsTyping(false);
+        }
+    }, [currentAiMessage, typedResponse, currentSuggestions]);
+
+    useEffect(() => {
+        if (view === 'success') {
+            const total = getRecipientCount();
+            // Mock metrics for demo/success view
+            // In a real app, these would come from live stats or we'd just show 0 or pending
+            setTimeout(() => setMetrics({ delivered: total, read: 0, replied: 0 }), 600);
+            setTimeout(() => setMetrics({ delivered: total, read: Math.floor(total * 0.82), replied: 0 }), 1800);
+            setTimeout(() => setMetrics({ delivered: total, read: Math.floor(total * 0.82), replied: Math.floor(total * 0.28) }), 3200);
+        }
+    }, [view]);
+
+    const getRecipientCount = () => {
+        if (selectedGroup === 'all') return recipients.length;
+        if (selectedGroup) {
+            const group = groups.find(g => g.id === selectedGroup);
+            return group?.contactIds?.length || group?.count || 0;
+        }
+        return selectedContacts.length;
+    };
+
+    const getRecipientIds = () => {
+        if (selectedGroup === 'all') return recipients.map(r => r.id);
+        if (selectedGroup) {
+            const group = groups.find(g => g.id === selectedGroup);
+            if (group && group.contactIds) return group.contactIds;
+            // Fallback for mock group logic if contactIds missing
+            return recipients.map(r => r.id);
+        }
+        return selectedContacts;
+    };
+
+    const processUserInput = (text: string) => {
+        const lower = text.toLowerCase();
+        for (const response of aiResponses) {
+            if (response.trigger.some(t => lower.includes(t))) {
+                if (response.action === 'next') { setView('recipients'); return; }
+                setIsTyping(true);
+                setTimeout(() => {
+                    setCurrentSuggestions(response.suggestions || []);
+                    setCurrentAiMessage(response.response || '');
+                }, 800 + Math.random() * 400);
+                return;
+            }
+        }
+        setIsTyping(true);
+        setTimeout(() => {
+            setCurrentSuggestions(aiResponses[0].suggestions || []);
+            setCurrentAiMessage(aiResponses[0].response || '');
+        }, 800);
+    };
+
+    const handleSend = () => {
+        if (!input.trim()) return;
+        setMessages(prev => [...prev, { id: Date.now().toString(), type: 'user', content: input }]);
+        processUserInput(input);
+        setInput('');
+    };
+
+    const handleSuggestionClick = (s: string) => {
+        setMessages(prev => [...prev, { id: Date.now().toString(), type: 'user', content: s }]);
+        processUserInput(s);
+    };
+
+    const startStudio = (template: any = null) => {
+        setView('studio');
+
+        // If it's a SystemTemplate
+        if (template && 'components' in template) {
+            // Map SystemTemplate to Studio State
+            const sysTemplate = template as SystemTemplate;
+            const body = sysTemplate.components.find(c => c.type === 'BODY')?.text || '';
+            const header = sysTemplate.components.find(c => c.type === 'HEADER');
+            const footer = sysTemplate.components.find(c => c.type === 'FOOTER')?.text || '';
+            const buttons = sysTemplate.components.find(c => c.type === 'BUTTONS')?.buttons || [];
+
+            setCampaignMessage(body);
+            setFooterText(footer);
+
+            // Map Buttons
+            const quick: string[] = [];
+            const cta: any[] = [];
+            buttons.forEach((b: any) => {
+                if (b.type === 'QUICK_REPLY') quick.push(b.text);
+                else if (b.type === 'URL') cta.push({ type: 'url', text: b.text, value: b.url });
+                else if (b.type === 'PHONE_NUMBER') cta.push({ type: 'phone', text: b.text, value: b.phoneNumber });
+            });
+            setQuickReplyButtons(quick);
+            setCtaButtons(cta);
+
+            // Greeting
+            setTimeout(() => {
+                setMessages([{ id: '1', type: 'ai', content: `loaded template: *${sysTemplate.name}*`, suggestions: ['Customize message', 'Select recipients'] }]);
+            }, 200);
+            return;
         }
 
-        const campaignId = (campaignResult as any).campaign?.id;
+        const greeting = template
+            ? `Hi ${user?.displayName?.split(' ')[0] || 'Partner'}! 👋 Let's create a *${template.title}* campaign.\n\nDescribe the property or I'll help you craft a message that converts!`
+            : `Hi ${user?.displayName?.split(' ')[0] || 'Partner'}! 👋 I'm your AI broadcast assistant.\n\nWhat would you like to send? Describe your listing or pick a quick action!`;
+        setTimeout(() => {
+            setMessages([{ id: '1', type: 'ai', content: greeting, suggestions: ['New listing alert', 'Open house invite', 'Market update'] }]);
+        }, 200);
+    };
 
-        // 2. Send messages to all recipients (like inbox does)
-        toast({ title: 'Sending...', description: `Sending to ${campaign!.recipientCount} recipients...` });
+    const insertVariable = (variable: any) => {
+        const newMsg = campaignMessage ? campaignMessage + ' ' + variable.token : `Hi ${variable.token}! 👋\n\n`;
+        setCampaignMessage(newMsg);
+        setShowVariableModal(false);
+        setMessages(prev => [...prev, { id: Date.now().toString(), type: 'ai', content: `✅ Added "${variable.label}" — will show as "${variable.preview}" for each contact.`, suggestions: ['Add another', 'Perfect! →'] }]);
+    };
 
-        const sendResult = await sendBroadcastCampaignAction(
-          partnerId,
-          campaignId,
-          channel,
-          campaign!.message,
-          undefined, // mediaUrl - can be added later
-          campaign!.recipientType,
-          campaign!.contactIds,
-          campaign!.groupIds
+    const saveQuickReplies = () => {
+        const validButtons = tempQuickReplies.filter(b => b.trim());
+        setQuickReplyButtons(validButtons);
+        setCtaButtons([]);
+        setShowButtonModal(false);
+        if (validButtons.length > 0) {
+            setMessages(prev => [...prev, { id: Date.now().toString(), type: 'ai', content: `✅ Added ${validButtons.length} quick reply button${validButtons.length > 1 ? 's' : ''}: "${validButtons.join('", "')}"`, suggestions: ['Perfect! →'] }]);
+        }
+    };
+
+    const saveCtaButtons = () => {
+        const buttons: { type: string; text: string; value: string }[] = [];
+        if (tempLinkText && tempLinkUrl) buttons.push({ type: 'url', text: tempLinkText, value: tempLinkUrl });
+        if (tempPhoneText && tempPhoneNumber) buttons.push({ type: 'phone', text: tempPhoneText, value: tempPhoneNumber });
+        setCtaButtons(buttons);
+        setQuickReplyButtons([]);
+        setShowLinkModal(false);
+        if (buttons.length > 0) {
+            setMessages(prev => [...prev, { id: Date.now().toString(), type: 'ai', content: `✅ Added CTA button${buttons.length > 1 ? 's' : ''}: ${buttons.map(b => `"${b.text}"`).join(', ')}`, suggestions: ['Perfect! →'] }]);
+        }
+    };
+
+    // Helper for initials
+    const getInitials = (name: string) => {
+        return name
+            .split(' ')
+            .map(n => n[0])
+            .join('')
+            .toUpperCase()
+            .slice(0, 2);
+    };
+
+    const toggleContact = (id: string) => { setSelectedGroup(null); setSelectedContacts(prev => prev.includes(id) ? prev.filter(c => c !== id) : [...prev, id]); };
+    const selectGroup = (id: string) => { setSelectedContacts([]); setSelectedGroup(selectedGroup === id ? null : id); };
+    const canProceed = selectedGroup !== null || selectedContacts.length > 0;
+    const filteredContacts = recipients.filter(r => r.name?.toLowerCase().includes(contactSearch.toLowerCase()) || r.area?.toLowerCase().includes(contactSearch.toLowerCase()));
+
+    const formatPreview = (msg: string) => msg.replace(/\{\{name\}\}/g, 'Michael').replace(/\{\{full_name\}\}/g, 'Michael Chen').replace(/\{\{property_address\}\}/g, '1847 Cherry Blossom Lane').replace(/\{\{price\}\}/g, '$1,495,000').replace(/\{\{agent_name\}\}/g, 'Jessica').replace(/\{\{company\}\}/g, 'Bay Area Home Group').replace(/\*([^*]+)\*/g, '$1');
+
+    const resetDemo = () => {
+        setView('home'); setMessages([]); setCampaignMessage(''); setSelectedContacts([]);
+        setSelectedGroup(null); setSendingState('idle'); setSentCount(0);
+        setMetrics({ delivered: 0, read: 0, replied: 0 }); setInput(''); setContactSearch('');
+        setHeaderImage(null); setQuickReplyButtons([]); setCtaButtons([]); setFooterText('');
+    };
+
+    const handleFinalSend = async () => {
+        if (!partnerId) {
+            toast({ variant: 'destructive', title: 'Error', description: 'Partner information not available' });
+            return;
+        }
+
+        setSendingState('sending');
+
+        try {
+            const recipientType = selectedGroup === 'all' ? 'all' : (selectedGroup ? 'group' : 'individual');
+            const contactIds = getRecipientIds();
+            const groupIds = selectedGroup && selectedGroup !== 'all' ? [selectedGroup] : undefined;
+
+            // 1. Create campaign
+            const campaignResult = await createCampaignAction(partnerId, userId || 'unknown', {
+                title: campaignMessage.slice(0, 50) + '...',
+                channel,
+                status: 'draft',
+                message: campaignMessage,
+                hasImage: !!headerImage,
+                buttons: [...quickReplyButtons, ...ctaButtons.map(b => b.text)], // simplified button storage
+                recipientType,
+                groupIds,
+                contactIds: recipientType === 'individual' ? contactIds : undefined,
+                recipientCount: getRecipientCount(),
+            });
+
+            if (!campaignResult.success) {
+                throw new Error('Failed to create campaign');
+            }
+
+            const campaignId = (campaignResult as any).campaign?.id;
+
+            // 2. Send campaign
+            // toast({ title: 'Sending...', description: `Scheduling send to ${getRecipientCount()} recipients...` });
+
+            const sendResult = await sendBroadcastCampaignAction(
+                partnerId,
+                campaignId,
+                channel,
+                campaignMessage,
+                headerImage || undefined,
+                recipientType,
+                recipientType === 'individual' ? contactIds : undefined,
+                groupIds
+            );
+
+            if (sendResult.success) {
+                // Wait for animation to finish
+                setTimeout(() => { setSendingState('complete'); setView('success'); }, 2000);
+            } else {
+                setSendingState('idle');
+                toast({ variant: 'destructive', title: 'Send Failed', description: sendResult.message });
+            }
+
+        } catch (error: any) {
+            console.error('Error sending campaign:', error);
+            setSendingState('idle');
+            toast({ variant: 'destructive', title: 'Error', description: error.message || 'Failed to send campaign' });
+        }
+    };
+
+    const getEnhancementStatus = () => ({
+        image: !!headerImage,
+        buttons: quickReplyButtons.length > 0 || ctaButtons.length > 0,
+        link: ctaButtons.some(b => b.type === 'url'),
+        personalize: campaignMessage.includes('{{'),
+    });
+
+    const enhancements = getEnhancementStatus();
+    const stepIndex = ['home', 'studio', 'recipients', 'review', 'success'].indexOf(view);
+
+    const Modal = ({ show, onClose, title, children }: any) => {
+        if (!show) return null;
+        return (
+            <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }} onClick={onClose}>
+                <div style={{ background: '#fff', borderRadius: 16, width: 420, maxHeight: '80vh', overflow: 'hidden', boxShadow: '0 20px 60px rgba(0,0,0,0.3)' }} onClick={e => e.stopPropagation()}>
+                    <div style={{ padding: '18px 20px', borderBottom: '1px solid #eee', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span style={{ fontSize: 16, fontWeight: 600, color: '#111' }}>{title}</span>
+                        <button onClick={onClose} style={{ width: 28, height: 28, borderRadius: 8, border: 'none', background: '#f5f5f5', cursor: 'pointer', fontSize: 14 }}>✕</button>
+                    </div>
+                    <div style={{ padding: 20, maxHeight: '60vh', overflow: 'auto' }}>{children}</div>
+                </div>
+            </div>
         );
+    };
 
-        if (sendResult.success) {
-          // Store results in campaign state for success view
-          setCampaign(prev => ({
-            ...prev!,
-            ...sendResult,
-          }));
-
-          toast({
-            title: 'Campaign Sent',
-            description: `${sendResult.delivered} delivered, ${sendResult.failed} failed`
-          });
-          setView('success');
-        } else {
-          toast({
-            variant: 'destructive',
-            title: 'Send Failed',
-            description: sendResult.message || 'Failed to send campaign'
-          });
-        }
-      } catch (error: any) {
-        console.error('Error sending campaign:', error);
-        toast({ variant: 'destructive', title: 'Error', description: error.message || 'Failed to send campaign' });
-      }
-    }} />;
-  }
-  if (view === 'success') {
-    return <SuccessView channel={channel} campaign={campaign!} onDone={() => { setCampaign(null); setInitialPrompt(''); setView('home'); }} />;
-  }
-
-  const isWA = channel === 'whatsapp';
-
-  // ============================================
-  // HOME VIEW
-  // ============================================
-  return (
-    <div className="h-full overflow-y-auto bg-gray-50">
-      <div className="max-w-3xl mx-auto px-4 py-8">
-        {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-2xl font-semibold text-gray-900">Broadcast</h1>
-          <p className="text-gray-500 mt-1">Create and send campaigns to your clients</p>
-        </div>
-
-        {/* Main Card */}
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
-          {/* Channel Tabs */}
-          <div className="flex border-b border-gray-100">
-            {[
-              { id: 'whatsapp' as const, label: 'WhatsApp', icon: '💬' },
-              { id: 'telegram' as const, label: 'Telegram', icon: '✈️' },
-            ].map(ch => (
-              <button
-                key={ch.id}
-                onClick={() => setChannel(ch.id)}
-                className={`flex-1 py-4 text-sm font-medium transition-colors relative ${channel === ch.id ? 'text-gray-900' : 'text-gray-400 hover:text-gray-600'}`}
-              >
-                <span className="mr-2">{ch.icon}</span>
-                {ch.label}
-                {channel === ch.id && (
-                  <div className={`absolute bottom-0 left-1/4 right-1/4 h-0.5 ${ch.id === 'whatsapp' ? 'bg-emerald-500' : 'bg-sky-500'}`} />
-                )}
-              </button>
-            ))}
-            <button disabled className="flex-1 py-4 text-sm font-medium text-gray-300 cursor-not-allowed">
-              ✉️ Email <span className="text-xs ml-1 opacity-60">Soon</span>
-            </button>
-          </div>
-
-          {/* AI Input */}
-          <div className="p-6">
-            <div className="flex items-start gap-4 mb-5">
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center text-white text-lg flex-shrink-0">
-                ✨
-              </div>
-              <div>
-                <h2 className="font-medium text-gray-900">What would you like to tell your clients?</h2>
-                <p className="text-sm text-gray-500 mt-0.5">Describe your message and AI will help you craft the perfect campaign</p>
-              </div>
-            </div>
-
-            <div className="relative">
-              <textarea
-                id="mainPrompt"
-                placeholder="e.g., Send new year wishes to all my clients..."
-                className="w-full px-4 py-4 bg-gray-50 border border-gray-200 rounded-xl text-sm resize-none focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-300 focus:bg-white transition-all h-28"
-                onKeyDown={(e) => {
-                  const target = e.target as HTMLTextAreaElement;
-                  if (e.key === 'Enter' && !e.shiftKey && target.value.trim()) {
-                    e.preventDefault();
-                    startWithPrompt(target.value);
-                  }
-                }}
-              />
-              <button
-                onClick={() => {
-                  const input = document.getElementById('mainPrompt') as HTMLTextAreaElement;
-                  if (input.value.trim()) startWithPrompt(input.value);
-                }}
-                className={`absolute right-3 bottom-3 px-5 py-2.5 rounded-lg text-sm font-medium text-white transition-all ${isWA ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-sky-600 hover:bg-sky-700'}`}
-              >
-                Create with AI →
-              </button>
-            </div>
-
-            {/* Quick Prompts */}
-            <div className="flex flex-wrap gap-2 mt-4">
-              {['New year wishes', 'Property announcement', 'Event invitation', 'Special offer', 'Follow-up message'].map(prompt => (
-                <button
-                  key={prompt}
-                  onClick={() => startWithPrompt(prompt)}
-                  className="px-3 py-1.5 bg-gray-100 hover:bg-gray-200 rounded-full text-sm text-gray-600 transition-colors"
-                >
-                  {prompt}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Divider */}
-          <div className="flex items-center px-6">
-            <div className="flex-1 h-px bg-gray-100" />
-            <span className="px-4 text-xs text-gray-400 font-medium">OR USE A TEMPLATE</span>
-            <div className="flex-1 h-px bg-gray-100" />
-          </div>
-
-          {/* Templates */}
-          <div className="p-6 pt-4">
-            <div className="space-y-2">
-              {TEMPLATES.filter(t => t.popular).map(template => (
-                <button
-                  key={template.id}
-                  onClick={() => startWithTemplate(template)}
-                  className="w-full flex items-center gap-4 p-4 bg-gray-50 hover:bg-gray-100 rounded-xl text-left transition-colors group"
-                >
-                  <div className="w-10 h-10 rounded-lg bg-white border border-gray-200 flex items-center justify-center text-xl group-hover:scale-105 transition-transform">
-                    {template.icon}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="font-medium text-gray-900">{template.title}</div>
-                    <div className="text-sm text-gray-500">{template.desc}</div>
-                  </div>
-                  <span className="text-gray-300 group-hover:text-gray-500 group-hover:translate-x-1 transition-all">→</span>
-                </button>
-              ))}
-            </div>
-            <button
-              onClick={() => setView('studio')}
-              className="w-full mt-3 py-2.5 text-sm text-gray-500 hover:text-violet-600 font-medium transition-colors"
-            >
-              View all {TEMPLATES.length} templates →
-            </button>
-          </div>
-        </div>
-
-        {/* Stats */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-6">
-          {[
-            { label: 'Campaigns', value: '12', color: 'text-gray-900' },
-            { label: 'Delivered', value: '98%', color: 'text-emerald-600' },
-            { label: 'Read Rate', value: '85%', color: 'text-sky-600' },
-            { label: 'Replies', value: '23%', color: 'text-violet-600' },
-          ].map((stat, i) => (
-            <div key={i} className="bg-white rounded-xl border border-gray-200 p-4 text-center">
-              <div className={`text-xl font-semibold ${stat.color}`}>{stat.value}</div>
-              <div className="text-xs text-gray-500 mt-0.5">{stat.label}</div>
-            </div>
-          ))}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ============================================
-// CAMPAIGN STUDIO - Chat-based AI Interface
-// ============================================
-interface CampaignStudioProps {
-  channel: 'whatsapp' | 'telegram';
-  initialPrompt: string;
-  existingCampaign: Campaign | null;
-  onBack: () => void;
-  onComplete: (data: Campaign) => void;
-}
-
-function CampaignStudio({ channel, initialPrompt, existingCampaign, onBack, onComplete }: CampaignStudioProps) {
-  const [messages, setMessages] = useState<Message[]>([]);
-  const [input, setInput] = useState('');
-  const [isTyping, setIsTyping] = useState(false);
-  const [campaignMsg, setCampaignMsg] = useState(existingCampaign?.message || '');
-  const [hasImage, setHasImage] = useState(existingCampaign?.hasImage || false);
-  const [buttons, setButtons] = useState<string[]>(existingCampaign?.buttons || []);
-  const [showTemplates, setShowTemplates] = useState(false);
-  const [showVariables, setShowVariables] = useState(false);
-  const [templateCategory, setTemplateCategory] = useState('all');
-  const messagesEndRef = useRef<HTMLDivElement>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
-
-  const isWA = channel === 'whatsapp';
-  const { score, breakdown } = calcScore(campaignMsg, hasImage, buttons);
-  const insights = getSmartInsights(campaignMsg, hasImage);
-
-  // Initialize conversation
-  useEffect(() => {
-    if (existingCampaign?.fromTemplate) {
-      setMessages([{
-        id: '1',
-        type: 'ai',
-        content: `I've loaded the "${existingCampaign.fromTemplate.title}" template for you.\n\nThis template works well because it ${existingCampaign.fromTemplate.tips[0].toLowerCase()}.\n\nFeel free to customize it, or tell me what changes you'd like!`,
-        suggestions: ['Make it shorter', 'More professional', 'Add urgency', 'Looks perfect!'],
-      }]);
-    } else if (initialPrompt) {
-      setMessages([{ id: '0', type: 'user', content: initialPrompt }]);
-      processInput(initialPrompt);
-    } else {
-      setMessages([{
-        id: '1',
-        type: 'ai',
-        content: `Hi! I'm your AI marketing co-pilot. ✨\n\nTell me what you want to communicate to your clients, and I'll help you craft the perfect ${isWA ? 'WhatsApp' : 'Telegram'} message.\n\nYou can also browse templates or just start typing your message directly.`,
-        suggestions: ['New year wishes', 'Announce a property', 'Send an offer', 'Browse templates'],
-      }]);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
-
-  // Process user input and generate AI response
-  const processInput = async (text: string, template: Template | null = null) => {
-    setIsTyping(true);
-    await new Promise(r => setTimeout(r, 600 + Math.random() * 400));
-
-    const lower = text.toLowerCase();
-    let newMsg = campaignMsg;
-    let response = '';
-    let tip = '';
-    let suggestions: string[] = [];
-
-    // Template selection
-    if (template) {
-      newMsg = template.message;
-      response = `Great choice! "${template.title}" is one of our best performers.\n\n**Why this works:**\n${template.tips.map(t => `• ${t}`).join('\n')}\n\nCustomize it as needed, or let me know what changes you'd like.`;
-      suggestions = ['Make shorter', 'More professional', 'Add image', 'Looks perfect!'];
-      setShowTemplates(false);
-    }
-    // Browse templates
-    else if (lower.includes('template') || lower.includes('browse')) {
-      setShowTemplates(true);
-      setIsTyping(false);
-      setMessages(prev => [...prev, {
-        id: Date.now().toString(),
-        type: 'ai',
-        content: 'Here are proven templates organized by category. Pick one to get started!',
-        suggestions: [],
-      }]);
-      return;
-    }
-    // Generate new message
-    else if (!campaignMsg || lower.includes('start over') || lower.includes('new message')) {
-      const intent = detectIntent(text);
-      const matchedTemplate = TEMPLATES.find(t => t.id === intent) || TEMPLATES.find(t => t.id === 'intro');
-
-      newMsg = matchedTemplate!.message;
-      const intentLabel = intent === 'festive' ? 'festive greeting' : intent === 'listing' ? 'property announcement' : intent === 'offer' ? 'promotional offer' : intent === 'event' ? 'event invitation' : intent === 'followup' ? 'follow-up message' : 'professional message';
-
-      response = `I've drafted a ${intentLabel} for you.\n\n**Key elements included:**\n• Personalized with client's name\n• Clear value proposition\n• Professional sign-off\n\nEdit the preview on the right, or ask me for changes!`;
-      tip = matchedTemplate!.tips[0];
-      suggestions = ['Make shorter', 'More formal', 'Add urgency', 'Looks good!'];
-    }
-    // Modifications
-    else {
-      if (lower.includes('shorter') || lower.includes('concise') || lower.includes('brief')) {
-        const lines = campaignMsg.split('\n').filter(l => l.trim());
-        newMsg = lines.slice(0, Math.max(4, Math.floor(lines.length * 0.6))).join('\n');
-        response = 'Trimmed it down. Shorter messages typically have 20% higher completion rates.';
-        suggestions = ['Even shorter', 'Add urgency', 'Perfect!'];
-      } else if (lower.includes('longer') || lower.includes('more detail') || lower.includes('expand')) {
-        newMsg = campaignMsg + '\n\n*Why choose us?*\n✓ 10+ years experience\n✓ 500+ happy clients\n✓ Best price guarantee';
-        response = 'Added more details with social proof elements. Credibility markers help build trust.';
-        suggestions = ['Make shorter', 'Different details', 'Good!'];
-      } else if (lower.includes('formal') || lower.includes('professional')) {
-        newMsg = campaignMsg.replace(/!/g, '.').replace(/Hi /g, 'Dear ').replace(/Hey /g, 'Dear ').replace(/👋|😊|🎉|✨|🎯/g, '');
-        response = 'Made it more formal and professional. This tone works better for corporate clients.';
-        suggestions = ['More friendly', 'Add urgency', 'Perfect!'];
-      } else if (lower.includes('casual') || lower.includes('friendly') || lower.includes('warm')) {
-        newMsg = campaignMsg.replace(/Dear /g, 'Hey ').replace(/\./g, '!');
-        response = 'Now it\'s warmer and more conversational. Great for building rapport!';
-        suggestions = ['More formal', 'Add emojis', 'Looks good!'];
-      } else if (lower.includes('urgent') || lower.includes('urgency') || lower.includes('fomo')) {
-        newMsg = campaignMsg + '\n\n⏰ *This offer expires soon!*';
-        response = 'Added urgency. Deadlines increase conversion rates by 32%.';
-        tip = 'Be honest with urgency — false scarcity hurts trust long-term.';
-        suggestions = ['Remove urgency', 'Stronger CTA', 'Perfect!'];
-      } else if (lower.includes('emoji')) {
-        newMsg = campaignMsg.replace(/\n\n/g, ' ✨\n\n');
-        response = 'Added emojis as visual anchors. 1-2 emojis can boost engagement by 25%.';
-        suggestions = ['Remove emojis', 'Different emojis', 'Great!'];
-      } else if (lower.includes('image') || lower.includes('photo') || lower.includes('picture')) {
-        setHasImage(true);
-        response = 'Image placeholder added! You can upload the actual image when sending.\n\nProperty images typically get 3x more responses.';
-        suggestions = ['Add buttons too', 'Remove image', 'Looks good!'];
-        setIsTyping(false);
-        setMessages(prev => [...prev, { id: Date.now().toString(), type: 'ai', content: response, suggestions }]);
-        return;
-      } else if (lower.includes('button') || lower.includes('cta') || lower.includes('quick reply')) {
-        setButtons(['Yes, interested!', 'Tell me more', 'Not now']);
-        response = 'Added quick reply buttons. These make it easy for clients to respond with one tap.';
-        suggestions = ['Change buttons', 'Remove buttons', 'Perfect!'];
-        setIsTyping(false);
-        setMessages(prev => [...prev, { id: Date.now().toString(), type: 'ai', content: response, suggestions }]);
-        return;
-      } else if (lower.includes('remove image')) {
-        setHasImage(false);
-        response = 'Image removed.';
-        suggestions = ['Add it back', 'Continue'];
-      } else if (lower.includes('remove button')) {
-        setButtons([]);
-        response = 'Buttons removed.';
-        suggestions = ['Add them back', 'Continue'];
-      } else if (lower.includes('perfect') || lower.includes('looks good') || lower.includes('great') || lower.includes('done') || lower.includes('ready')) {
-        response = 'Excellent! Your campaign looks ready to go. 🚀\n\nClick "Select Recipients" to choose who should receive this message.';
-        suggestions = ['Select recipients', 'More changes'];
-      } else if (lower.includes('select recipients') || lower.includes('continue') || lower.includes('next')) {
-        setIsTyping(false);
-        onComplete({ message: campaignMsg, hasImage, buttons });
-        return;
-      } else {
-        // Try to understand the request
-        response = 'I\'ve noted your feedback. What specific changes would you like me to make?';
-        suggestions = ['Make shorter', 'More formal', 'Add image', 'It\'s good!'];
-      }
-    }
-
-    setCampaignMsg(newMsg);
-    setMessages(prev => [...prev, {
-      id: Date.now().toString(),
-      type: 'ai',
-      content: response,
-      tip,
-      suggestions,
-    }]);
-    setIsTyping(false);
-  };
-
-  const handleSend = (text: string, template: Template | null = null) => {
-    if (!text?.trim() && !template) return;
-
-    if (!template) {
-      setMessages(prev => [...prev, { id: Date.now().toString(), type: 'user', content: text.trim() }]);
-    }
-    setInput('');
-    processInput(text || '', template);
-  };
-
-  const handleVariableInsert = (v: { token: string; label: string; preview: string }) => {
-    const newMsg = campaignMsg ? campaignMsg + ' ' + v.token : `Hi ${v.token}! 👋\n\n`;
-    setCampaignMsg(newMsg);
-    setShowVariables(false);
-    setMessages(prev => [...prev, {
-      id: Date.now().toString(),
-      type: 'ai',
-      content: `Added ${v.label}. This will show as "${v.preview}" for each recipient.`,
-      suggestions: ['Add another variable', 'Continue editing'],
-    }]);
-  };
-
-  const filteredTemplates = templateCategory === 'all' ? TEMPLATES : TEMPLATES.filter(t => t.category === templateCategory);
-
-  return (
-    <div className="h-full overflow-y-auto bg-gray-50">
-      {/* Header */}
-      <div className="bg-white border-b border-gray-200 sticky top-0 z-20">
-        <div className="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <button onClick={onBack} className="w-9 h-9 flex items-center justify-center hover:bg-gray-100 rounded-lg text-gray-500 transition-colors">
-              ←
-            </button>
-            <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center text-white text-sm">✨</div>
-              <div>
-                <h1 className="font-semibold text-gray-900 text-sm">Campaign Studio</h1>
-                <p className="text-xs text-gray-500">AI-powered editor</p>
-              </div>
-            </div>
-          </div>
-          <div className="flex items-center gap-3">
-            <div className={`px-3 py-1.5 rounded-lg text-xs font-medium ${isWA ? 'bg-emerald-50 text-emerald-700' : 'bg-sky-50 text-sky-700'}`}>
-              {isWA ? '💬' : '✈️'} {isWA ? 'WhatsApp' : 'Telegram'}
-            </div>
-            {campaignMsg && (
-              <button
-                onClick={() => onComplete({ message: campaignMsg, hasImage, buttons })}
-                className={`px-4 py-2 rounded-lg text-sm font-medium text-white transition-colors ${isWA ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-sky-600 hover:bg-sky-700'}`}
-              >
-                Select Recipients →
-              </button>
-            )}
-          </div>
-        </div>
-      </div>
-
-      <div className="max-w-6xl mx-auto p-4">
-        <div className="grid lg:grid-cols-5 gap-5">
-          {/* Left: Chat Interface */}
-          <div className="lg:col-span-3 space-y-4">
-            {/* Chat Messages */}
-            <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-              <div className="p-4 space-y-4 min-h-[320px] max-h-[420px] overflow-y-auto">
-                {messages.map(msg => (
-                  <div key={msg.id}>
-                    {msg.type === 'ai' ? (
-                      <div className="flex gap-3">
-                        <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center text-white text-sm flex-shrink-0">✨</div>
-                        <div className="flex-1 space-y-2">
-                          <div className="bg-gray-50 rounded-xl rounded-tl-sm px-4 py-3">
-                            <p className="text-sm text-gray-700 whitespace-pre-wrap">{msg.content}</p>
-                          </div>
-                          {msg.tip && (
-                            <div className="flex items-start gap-2 px-3 py-2 bg-amber-50 border border-amber-100 rounded-lg">
-                              <span className="text-amber-500 text-sm">💡</span>
-                              <p className="text-xs text-amber-800">{msg.tip}</p>
-                            </div>
-                          )}
-                          {msg.suggestions && msg.suggestions.length > 0 && (
-                            <div className="flex flex-wrap gap-1.5">
-                              {msg.suggestions.map((s, i) => (
-                                <button key={i} onClick={() => handleSend(s)} className="px-3 py-1.5 bg-white border border-gray-200 hover:bg-gray-50 hover:border-gray-300 rounded-lg text-xs font-medium text-gray-600 transition-colors">
-                                  {s}
-                                </button>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="flex justify-end">
-                        <div className="bg-gray-900 text-white rounded-xl rounded-tr-sm px-4 py-3 max-w-[85%]">
-                          <p className="text-sm">{msg.content}</p>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                ))}
-                {isTyping && (
-                  <div className="flex gap-3">
-                    <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center text-white text-sm">✨</div>
-                    <div className="bg-gray-50 rounded-xl rounded-tl-sm px-4 py-3">
-                      <div className="flex gap-1">
-                        <div className="w-2 h-2 bg-gray-300 rounded-full animate-bounce" />
-                        <div className="w-2 h-2 bg-gray-300 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-                        <div className="w-2 h-2 bg-gray-300 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
-                      </div>
-                    </div>
-                  </div>
-                )}
-                <div ref={messagesEndRef} />
-              </div>
-
-              {/* Input */}
-              <div className="p-4 border-t border-gray-100 bg-gray-50">
-                <div className="flex gap-2">
-                  <input
-                    ref={inputRef}
-                    type="text"
-                    value={input}
-                    onChange={(e) => setInput(e.target.value)}
-                    onKeyDown={(e) => e.key === 'Enter' && handleSend(input)}
-                    placeholder="Ask for changes or describe what you need..."
-                    className="flex-1 px-4 py-2.5 bg-white border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-300"
-                    disabled={isTyping}
-                  />
-                  <button
-                    onClick={() => handleSend(input)}
-                    disabled={!input.trim() || isTyping}
-                    className="px-4 py-2.5 bg-gray-900 text-white rounded-lg text-sm font-medium disabled:opacity-40 hover:bg-gray-800 transition-colors"
-                  >
-                    ↑
-                  </button>
-                </div>
-                <div className="flex gap-4 mt-3">
-                  <button onClick={() => { setShowTemplates(!showTemplates); setShowVariables(false); }} className={`text-xs flex items-center gap-1.5 transition-colors ${showTemplates ? 'text-violet-600 font-medium' : 'text-gray-500 hover:text-gray-700'}`}>
-                    📝 Templates
-                  </button>
-                  <button onClick={() => { setShowVariables(!showVariables); setShowTemplates(false); }} className={`text-xs flex items-center gap-1.5 transition-colors ${showVariables ? 'text-violet-600 font-medium' : 'text-gray-500 hover:text-gray-700'}`}>
-                    @ Variables
-                  </button>
-                  {campaignMsg && <span className="text-xs text-gray-400 ml-auto">{campaignMsg.length} characters</span>}
-                </div>
-              </div>
-            </div>
-
-            {/* Templates Panel */}
-            {showTemplates && (
-              <div className="bg-white rounded-xl border border-gray-200 p-4">
-                <div className="flex items-center justify-between mb-3">
-                  <span className="font-medium text-gray-900 text-sm">Templates</span>
-                  <button onClick={() => setShowTemplates(false)} className="text-gray-400 hover:text-gray-600 text-sm">✕</button>
-                </div>
-                <div className="flex gap-2 mb-3 overflow-x-auto pb-1">
-                  {TEMPLATE_CATEGORIES.map(cat => (
-                    <button key={cat.id} onClick={() => setTemplateCategory(cat.id)} className={`px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-colors ${templateCategory === cat.id ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
-                      {cat.label}
-                    </button>
-                  ))}
-                </div>
-                <div className="space-y-2 max-h-56 overflow-y-auto">
-                  {filteredTemplates.map(t => (
-                    <button key={t.id} onClick={() => handleSend(t.title, t)} className="w-full flex items-center gap-3 p-3 bg-gray-50 hover:bg-gray-100 rounded-lg text-left transition-colors">
-                      <span className="text-lg">{t.icon}</span>
-                      <div className="flex-1 min-w-0">
-                        <div className="font-medium text-gray-900 text-sm">{t.title}</div>
-                        <div className="text-xs text-gray-500 truncate">{t.desc}</div>
-                      </div>
-                      <span className="text-gray-300">→</span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Variables Panel */}
-            {showVariables && (
-              <div className="bg-white rounded-xl border border-gray-200 p-4">
-                <div className="flex items-center justify-between mb-3">
-                  <span className="font-medium text-gray-900 text-sm">Personalization Variables</span>
-                  <button onClick={() => setShowVariables(false)} className="text-gray-400 hover:text-gray-600 text-sm">✕</button>
-                </div>
-                <div className="grid grid-cols-2 gap-2">
-                  {VARIABLES.map(v => (
-                    <button key={v.token} onClick={() => handleVariableInsert(v)} className="flex items-center justify-between p-3 bg-gray-50 hover:bg-gray-100 rounded-lg text-left transition-colors">
-                      <div>
-                        <div className="font-medium text-gray-900 text-xs">{v.label}</div>
-                        <div className="text-[10px] text-gray-400 font-mono">{v.token}</div>
-                      </div>
-                      <span className="text-[10px] text-gray-400">→ {v.preview}</span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Quick Refinements */}
-            {campaignMsg && !showTemplates && !showVariables && (
-              <div className="bg-white rounded-xl border border-gray-200 p-4">
-                <div className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-3">Quick Refinements</div>
-                <div className="flex flex-wrap gap-2">
-                  {['Make shorter', 'More professional', 'More friendly', 'Add urgency', 'Add emojis', 'Add image', 'Add buttons'].map(action => (
-                    <button key={action} onClick={() => handleSend(action)} className="px-3 py-1.5 bg-gray-100 hover:bg-gray-200 rounded-lg text-xs text-gray-600 transition-colors">
-                      {action}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* Right: Preview & Tools */}
-          <div className="lg:col-span-2 space-y-4">
-            {/* Live Preview */}
-            <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-              <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
-                <span className="font-medium text-gray-900 text-sm">Preview</span>
-                {campaignMsg && <button onClick={() => inputRef.current?.focus()} className="text-xs text-gray-500 hover:text-violet-600 transition-colors">✏️ Edit</button>}
-              </div>
-              <div className="p-4">
-                <div className={`rounded-xl overflow-hidden ${isWA ? 'bg-emerald-50/50' : 'bg-sky-50/50'}`}>
-                  <div className={`px-4 py-2.5 ${isWA ? 'bg-emerald-700' : 'bg-sky-600'}`}>
-                    <div className="flex items-center gap-2">
-                      <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center text-white text-xs font-bold">PP</div>
-                      <span className="text-white font-medium text-sm">Prime Properties</span>
-                    </div>
-                  </div>
-                  <div className="p-4 min-h-[180px]">
-                    {campaignMsg ? (
-                      <div className="max-w-[92%] ml-auto">
-                        {hasImage && (
-                          <div className="rounded-lg rounded-tr-sm mb-2 h-24 bg-white flex items-center justify-center text-gray-300 border border-gray-200">
-                            🖼️ Property image
-                          </div>
-                        )}
-                        <div className="bg-white rounded-xl rounded-tr-sm p-3 shadow-sm">
-                          <p className="text-sm text-gray-800 whitespace-pre-wrap leading-relaxed">{sub(campaignMsg)}</p>
-                          <div className="text-[10px] text-gray-400 text-right mt-2">10:30 AM ✓✓</div>
-                        </div>
-                        {buttons.map((btn, i) => (
-                          <div key={i} className={`mt-1.5 rounded-lg py-2 text-center text-sm font-medium bg-white shadow-sm ${isWA ? 'text-emerald-600' : 'text-sky-600'}`}>
-                            {btn}
-                          </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <div className="h-full flex items-center justify-center text-gray-400 text-sm py-8">
-                        <div className="text-center">
-                          <span className="text-2xl block mb-2">💬</span>
-                          Your message will appear here
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-              {/* Score */}
-              {campaignMsg && (
-                <div className="px-4 py-3 bg-gray-50 border-t border-gray-100">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-xs font-medium text-gray-500">Campaign Score</span>
-                    <span className={`text-sm font-bold ${score >= 80 ? 'text-emerald-600' : score >= 60 ? 'text-amber-600' : 'text-gray-400'}`}>
-                      {score}/100
-                    </span>
-                  </div>
-                  <div className="w-full h-1.5 bg-gray-200 rounded-full overflow-hidden">
-                    <div className={`h-full rounded-full transition-all ${score >= 80 ? 'bg-emerald-500' : score >= 60 ? 'bg-amber-500' : 'bg-gray-400'}`} style={{ width: `${score}%` }} />
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* AI Insights */}
-            {insights.length > 0 && (
-              <div className="space-y-2">
-                {insights.map((insight, i) => (
-                  <div key={i} className={`flex items-start gap-2 px-4 py-3 rounded-xl text-sm ${insight.type === 'success' ? 'bg-emerald-50 text-emerald-800' :
-                    insight.type === 'warning' ? 'bg-amber-50 text-amber-800' :
-                      'bg-gray-100 text-gray-700'
-                    }`}>
-                    <span>{insight.icon}</span>
-                    <span>{insight.text}</span>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {/* Enhancements */}
-            {campaignMsg && (
-              <div className="bg-white rounded-xl border border-gray-200 p-4">
-                <div className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-3">Add to Campaign</div>
-                <div className="grid grid-cols-2 gap-2">
-                  {[
-                    { id: 'image', icon: '🖼️', label: 'Image', done: hasImage },
-                    { id: 'button', icon: '▶️', label: 'Buttons', done: buttons.length > 0 },
-                    { id: 'link', icon: '🔗', label: 'Link', done: false },
-                    { id: 'variable', icon: '@', label: 'Personalize', done: campaignMsg.includes('{{') },
-                  ].map(item => (
-                    <button
-                      key={item.id}
-                      onClick={() => item.id === 'variable' ? setShowVariables(true) : handleSend(`Add ${item.id}`)}
-                      disabled={item.done}
-                      className="flex items-center gap-2 p-3 bg-gray-50 hover:bg-gray-100 rounded-lg text-left transition-colors disabled:opacity-50"
-                    >
-                      <span>{item.icon}</span>
-                      <span className="text-sm text-gray-700">{item.label}</span>
-                      {item.done && <span className="ml-auto text-emerald-500 text-xs">✓</span>}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Score Breakdown */}
-            {campaignMsg && breakdown.length > 0 && (
-              <div className="bg-white rounded-xl border border-gray-200 p-4">
-                <div className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-3">Score Breakdown</div>
-                <div className="space-y-2">
-                  {breakdown.slice(0, 4).map((item, i) => (
-                    <div key={i} className="flex items-center justify-between text-sm">
-                      <span className={item.positive ? 'text-gray-700' : 'text-gray-400'}>{item.label}</span>
-                      <span className={item.positive ? 'text-emerald-600 font-medium' : 'text-gray-300'}>
-                        {item.positive ? `+${item.points}` : '—'}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ============================================
-// Recipients selection is now handled by RecipientSelector component
-// See: /src/components/partner/broadcast/RecipientSelector.tsx
-// ============================================
-
-// ============================================
-// REVIEW STEP
-// ============================================
-interface ReviewStepProps {
-  channel: 'whatsapp' | 'telegram';
-  campaign: Campaign;
-  onBack: () => void;
-  onSend: () => void;
-}
-
-function ReviewStep({ channel, campaign, onBack, onSend }: ReviewStepProps) {
-  const [sending, setSending] = useState(false);
-  const isWA = channel === 'whatsapp';
-
-  if (sending) {
     return (
-      <div className="h-full flex items-center justify-center bg-gray-50">
-        <div className="text-center">
-          <div className={`w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4 animate-pulse text-white text-2xl ${isWA ? 'bg-emerald-600' : 'bg-sky-600'}`}>📤</div>
-          <h2 className="text-lg font-semibold text-gray-900">Sending campaign...</h2>
-          <p className="text-sm text-gray-500 mt-1">{campaign.recipientCount} messages</p>
-        </div>
-      </div>
-    );
-  }
+        <div style={{ display: 'flex', height: '100vh', fontFamily: '-apple-system, BlinkMacSystemFont, "Inter", sans-serif', background: '#fff' }}>
 
-  return (
-    <div className="h-full flex flex-col bg-gray-50 overflow-hidden">
-      <div className="flex-1 overflow-y-auto">
-        <div className="bg-white border-b border-gray-200 sticky top-0 z-20">
-          <div className="max-w-3xl mx-auto px-4 py-3 flex items-center gap-3">
-            <button onClick={onBack} className="w-9 h-9 flex items-center justify-center hover:bg-gray-100 rounded-lg text-gray-500">←</button>
-            <h1 className="font-semibold text-gray-900 text-sm">Review & Send</h1>
-          </div>
-        </div>
-
-        <div className="max-w-3xl mx-auto p-4">
-          <div className="grid lg:grid-cols-5 gap-4">
-            <div className="lg:col-span-3 bg-white rounded-xl border border-gray-200 p-4">
-              <div className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-3">Preview</div>
-              <div className={`rounded-xl overflow-hidden ${isWA ? 'bg-emerald-50/50' : 'bg-sky-50/50'}`}>
-                <div className={`px-4 py-2.5 ${isWA ? 'bg-emerald-700' : 'bg-sky-600'}`}>
-                  <div className="flex items-center gap-2">
-                    <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center text-white text-xs font-bold">PP</div>
-                    <span className="text-white font-medium text-sm">Prime Properties</span>
-                  </div>
-                </div>
-                <div className="p-4">
-                  <div className="max-w-[90%] ml-auto">
-                    {campaign.hasImage && <div className="rounded-lg rounded-tr-sm mb-2 h-20 bg-white flex items-center justify-center text-gray-300 border">🖼️</div>}
-                    <div className="bg-white rounded-xl rounded-tr-sm p-3 shadow-sm">
-                      <p className="text-sm text-gray-800 whitespace-pre-wrap">{sub(campaign.message)}</p>
-                      <div className="text-[10px] text-gray-400 text-right mt-2">10:30 AM ✓✓</div>
+            {/* Sidebar */}
+            <div style={{ width: 260, borderRight: '1px solid #eee', display: 'flex', flexDirection: 'column', background: '#fafafa' }}>
+                <div style={{ padding: 20, borderBottom: '1px solid #eee', background: '#fff' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 20 }}>
+                        <div style={{ width: 36, height: 36, borderRadius: 10, background: 'linear-gradient(135deg, #111 0%, #333 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: 16 }}>⚡</div>
+                        <div>
+                            <div style={{ fontSize: 17, fontWeight: 700, color: '#111', letterSpacing: '-0.3px' }}>Pingbox</div>
+                            <div style={{ fontSize: 11, color: '#888', marginTop: 1 }}>Broadcast Studio</div>
+                        </div>
                     </div>
-                    {campaign.buttons?.map((btn, i) => (
-                      <div key={i} className={`mt-1.5 rounded-lg py-2 text-center text-sm font-medium bg-white shadow-sm ${isWA ? 'text-emerald-600' : 'text-sky-600'}`}>{btn}</div>
+
+                    <div style={{ display: 'flex', gap: 6, padding: 4, background: '#f0f0f0', borderRadius: 10 }}>
+                        {['whatsapp', 'telegram'].map(ch => (
+                            <button key={ch} onClick={() => setChannel(ch as any)} style={{
+                                flex: 1, padding: '8px 0', borderRadius: 8, border: 'none',
+                                background: channel === ch ? '#fff' : 'transparent',
+                                boxShadow: channel === ch ? '0 1px 3px rgba(0,0,0,0.1)' : 'none', cursor: 'pointer',
+                            }}>
+                                <span style={{ fontSize: 14 }}>{ch === 'whatsapp' ? '💬' : '✈️'}</span>
+                                <span style={{ fontSize: 11, fontWeight: 600, color: channel === ch ? '#111' : '#888', marginLeft: 4 }}>{ch === 'whatsapp' ? 'WhatsApp' : 'Telegram'}</span>
+                            </button>
+                        ))}
+                    </div>
+                </div>
+
+                <div style={{ padding: 16, flex: 1, overflowY: 'auto' }}>
+                    <div style={{ fontSize: 10, fontWeight: 600, color: '#999', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 10 }}>Templates</div>
+                    {availableTemplates.length > 0 ? availableTemplates.map(t => (
+                        <button key={t.id} onClick={() => startStudio(t)} style={{
+                            display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', marginBottom: 6,
+                            borderRadius: 10, border: '1px solid #eee', background: '#fff', width: '100%',
+                            cursor: 'pointer', textAlign: 'left', transition: 'all 0.15s ease',
+                        }} onMouseOver={e => { e.currentTarget.style.borderColor = '#ccc'; e.currentTarget.style.transform = 'translateX(2px)'; }}
+                            onMouseOut={e => { e.currentTarget.style.borderColor = '#eee'; e.currentTarget.style.transform = 'translateX(0)'; }}>
+                            <div style={{ width: 32, height: 32, borderRadius: 8, background: '#e3f2fd', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15 }}>
+                                {t.category === 'MARKETING' ? '📢' : t.category === 'UTILITY' ? '🔔' : '🔑'}
+                            </div>
+                            <div style={{ flex: 1 }}>
+                                <div style={{ fontSize: 13, fontWeight: 600, color: '#111' }}>{t.name}</div>
+                                <div style={{ fontSize: 11, color: '#888' }}>{t.category.toLowerCase()}</div>
+                            </div>
+                        </button>
+                    )) : (
+                        <div style={{ fontSize: 12, color: '#999', fontStyle: 'italic', padding: 10 }}>No templates available</div>
+                    )}
+                </div>
+
+                <div style={{ padding: 16, borderTop: '1px solid #eee', background: '#fff' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                        <div style={{ width: 40, height: 40, borderRadius: 12, background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: 14, fontWeight: 600 }}>
+                            {getInitials(user?.displayName || 'Unknown User')}
+                        </div>
+                        <div>
+                            <div style={{ fontSize: 13, fontWeight: 600, color: '#111' }}>{user?.displayName || 'User'}</div>
+                            <div style={{ fontSize: 11, color: '#888' }}>{currentWorkspace?.role || 'Partner'}</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            {/* Main */}
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: '#f5f5f7' }}>
+
+                {/* Header */}
+                <div style={{ height: 64, background: '#fff', borderBottom: '1px solid #eee', padding: '0 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        {['Start', 'Create', 'Audience', 'Review', 'Done'].map((label, idx) => (
+                            <React.Fragment key={label}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 10px', borderRadius: 8, background: idx === stepIndex ? '#f0f0f0' : 'transparent' }}>
+                                    <div style={{
+                                        width: 22, height: 22, borderRadius: 6, fontSize: 11, fontWeight: 600,
+                                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                        background: idx < stepIndex ? '#111' : idx === stepIndex ? '#fff' : '#f5f5f5',
+                                        color: idx < stepIndex ? '#fff' : idx === stepIndex ? '#111' : '#bbb',
+                                        border: idx === stepIndex ? '2px solid #111' : idx < stepIndex ? 'none' : '1px solid #ddd',
+                                    }}>
+                                        {idx < stepIndex ? '✓' : idx + 1}
+                                    </div>
+                                    <span style={{ fontSize: 12, fontWeight: idx === stepIndex ? 600 : 500, color: idx <= stepIndex ? '#111' : '#999' }}>{label}</span>
+                                </div>
+                                {idx < 4 && <div style={{ width: 16, height: 2, borderRadius: 1, background: idx < stepIndex ? '#111' : '#e0e0e0' }} />}
+                            </React.Fragment>
+                        ))}
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '5px 10px', borderRadius: 6, background: isWA ? '#dcf8c6' : '#e3f2fd' }}>
+                        <span style={{ fontSize: 12 }}>{isWA ? '💬' : '✈️'}</span>
+                        <span style={{ fontSize: 11, fontWeight: 600, color: isWA ? '#25D366' : '#0088cc' }}>{isWA ? 'WhatsApp' : 'Telegram'}</span>
+                    </div>
+                </div>
+
+                {/* Content */}
+                <div style={{ flex: 1, overflow: 'auto', padding: 24 }}>
+
+                    {/* HOME */}
+                    {view === 'home' && (
+                        <div style={{ maxWidth: 480, margin: '60px auto 0', textAlign: 'center' }}>
+                            <div style={{ width: 80, height: 80, borderRadius: 24, background: 'linear-gradient(135deg, #111 0%, #333 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 28px', fontSize: 36 }}>📢</div>
+                            <h1 style={{ fontSize: 28, fontWeight: 700, color: '#111', marginBottom: 12 }}>Create a Broadcast</h1>
+                            <p style={{ fontSize: 15, color: '#666', marginBottom: 36, lineHeight: 1.7, maxWidth: 360, margin: '0 auto 36px' }}>
+                                Reach your clients with rich media messages — images, buttons, and personalized content.
+                            </p>
+                            <div className="flex justify-center gap-4 mb-8">
+                                <button onClick={() => startStudio()} style={{
+                                    padding: '16px 32px', background: '#111', color: '#fff', borderRadius: 14, fontSize: 15, fontWeight: 600,
+                                    border: 'none', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 10,
+                                    boxShadow: '0 4px 14px rgba(0,0,0,0.15)',
+                                }}>
+                                    <span>✨</span> Start with AI
+                                </button>
+                                <Dialog>
+                                    <DialogTrigger asChild>
+                                        <Button variant="outline" className="h-[56px] rounded-[14px] px-8 text-[15px] font-semibold">
+                                            📚 Browse Library
+                                        </Button>
+                                    </DialogTrigger>
+                                    <DialogContent className="max-w-6xl h-[80vh] flex flex-col p-0">
+                                        <ScrollArea className="flex-1 p-6">
+                                            {partnerId && <PartnerTemplateLibrary templates={availableTemplates} partnerId={partnerId} />}
+                                        </ScrollArea>
+                                    </DialogContent>
+                                </Dialog>
+                            </div>
+
+                            <div className="text-left">
+                                <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3">My Templates</h3>
+                                <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                                    {partnerTemplates.length > 0 ? (
+                                        partnerTemplates.slice(0, 4).map(t => (
+                                            <button key={t.id} onClick={() => startStudio(t)} style={{
+                                                padding: '10px 16px', background: '#fff', border: '1px solid #e5e5e5', borderRadius: 10, fontSize: 13, color: '#555', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6,
+                                            }}>
+                                                {t.category === 'MARKETING' ? '📢' : t.category === 'UTILITY' ? '🔔' : '🔑'} {t.name}
+                                            </button>
+                                        ))
+                                    ) : (
+                                        <div className="text-sm text-gray-400 italic">No templates saved yet. Browse Library to add some.</div>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* STUDIO */}
+                    {view === 'studio' && (
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 340px', gap: 20, height: 'calc(100vh - 160px)', maxWidth: 1050, margin: '0 auto' }}>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                                {/* Chat */}
+                                <div style={{ background: '#fff', borderRadius: 16, border: '1px solid #e5e5e5', display: 'flex', flexDirection: 'column', overflow: 'hidden', flex: 1, boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
+                                    <div style={{ padding: '16px 20px', borderBottom: '1px solid #eee', display: 'flex', alignItems: 'center', gap: 12 }}>
+                                        <div style={{ width: 38, height: 38, borderRadius: 12, background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: 16 }}>✨</div>
+                                        <div>
+                                            <div style={{ fontSize: 14, fontWeight: 600, color: '#111' }}>AI Assistant</div>
+                                            <div style={{ fontSize: 11, color: '#888' }}>Describe your campaign</div>
+                                        </div>
+                                    </div>
+
+                                    <div style={{ flex: 1, overflow: 'auto', padding: 20 }}>
+                                        {messages.map((msg) => (
+                                            <div key={msg.id} style={{ marginBottom: 16, display: 'flex', justifyContent: msg.type === 'user' ? 'flex-end' : 'flex-start' }}>
+                                                <div style={{
+                                                    maxWidth: '85%', padding: '14px 18px', borderRadius: msg.type === 'user' ? '18px 18px 4px 18px' : '18px 18px 18px 4px',
+                                                    background: msg.type === 'user' ? '#111' : '#f8f8f8', color: msg.type === 'user' ? '#fff' : '#111',
+                                                }}>
+                                                    <div style={{ fontSize: 14, lineHeight: 1.65, whiteSpace: 'pre-wrap' }}>{msg.content}</div>
+                                                    {msg.suggestions && msg.suggestions.length > 0 && (
+                                                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 14 }}>
+                                                            {msg.suggestions.map((s: string, i: number) => (
+                                                                <button key={i} onClick={() => handleSuggestionClick(s)} style={{
+                                                                    padding: '9px 14px', borderRadius: 10, border: 'none', background: '#fff',
+                                                                    color: '#111', fontSize: 12, fontWeight: 500, cursor: 'pointer', boxShadow: '0 1px 3px rgba(0,0,0,0.08)',
+                                                                }}>
+                                                                    {s}
+                                                                </button>
+                                                            ))}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        ))}
+                                        {isTyping && !currentAiMessage && <TypingIndicator />}
+                                        {currentAiMessage && (
+                                            <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'flex-start' }}>
+                                                <div style={{ maxWidth: '85%', padding: '14px 18px', borderRadius: '18px 18px 18px 4px', background: '#f8f8f8' }}>
+                                                    <div style={{ fontSize: 14, lineHeight: 1.65, whiteSpace: 'pre-wrap', color: '#111' }}>
+                                                        {typedResponse}<span style={{ animation: 'blink 0.7s infinite', opacity: 0.7 }}>|</span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        )}
+                                        <div ref={messagesEndRef} />
+                                    </div>
+
+                                    <div style={{ padding: 16, borderTop: '1px solid #eee', background: '#fafafa' }}>
+                                        <div style={{ display: 'flex', gap: 10 }}>
+                                            <input ref={inputRef} type="text" placeholder="Describe your campaign..." value={input}
+                                                onChange={e => setInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleSend()}
+                                                style={{ flex: 1, height: 48, padding: '0 18px', border: '1px solid #e0e0e0', borderRadius: 12, fontSize: 14, outline: 'none', background: '#fff' }}
+                                                onFocus={e => e.target.style.borderColor = '#111'} onBlur={e => e.target.style.borderColor = '#e0e0e0'} />
+                                            <button onClick={handleSend} style={{ width: 48, height: 48, borderRadius: 12, border: 'none', background: '#111', color: '#fff', cursor: 'pointer', fontSize: 18, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>↑</button>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Add to Campaign Panel */}
+                                {campaignMessage && (
+                                    <div style={{ background: '#fff', borderRadius: 14, border: '1px solid #e5e5e5', padding: 16, boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
+                                        <div style={{ fontSize: 11, fontWeight: 600, color: '#888', textTransform: 'uppercase', marginBottom: 12 }}>Add to Campaign</div>
+                                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10 }}>
+                                            {[
+                                                { id: 'image', icon: '🖼️', label: 'Image', done: enhancements.image, onClick: () => setShowImageModal(true) },
+                                                { id: 'buttons', icon: '▶️', label: 'Buttons', done: enhancements.buttons, onClick: () => setShowButtonModal(true) },
+                                                { id: 'link', icon: '🔗', label: 'Link', done: enhancements.link, onClick: () => setShowLinkModal(true) },
+                                                { id: 'personalize', icon: '@', label: 'Personalize', done: enhancements.personalize, onClick: () => setShowVariableModal(true) },
+                                            ].map(item => (
+                                                <button key={item.id} onClick={item.onClick} style={{
+                                                    display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, padding: '14px 10px',
+                                                    borderRadius: 12, border: item.done ? '2px solid #22c55e' : '1px solid #e5e5e5',
+                                                    background: item.done ? '#f0fdf4' : '#fff', cursor: 'pointer', transition: 'all 0.15s ease',
+                                                }}>
+                                                    <span style={{ fontSize: 20 }}>{item.icon}</span>
+                                                    <span style={{ fontSize: 11, fontWeight: 600, color: item.done ? '#22c55e' : '#666' }}>{item.label}</span>
+                                                    {item.done && <span style={{ fontSize: 10, color: '#22c55e' }}>✓</span>}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Preview */}
+                            <div style={{ background: '#fff', borderRadius: 16, border: '1px solid #e5e5e5', overflow: 'hidden', boxShadow: '0 2px 8px rgba(0,0,0,0.04)', display: 'flex', flexDirection: 'column' }}>
+                                <div style={{ padding: '14px 18px', borderBottom: '1px solid #eee', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                                    <span style={{ fontSize: 13, fontWeight: 600, color: '#111' }}>Live Preview</span>
+                                    <span style={{ fontSize: 11, color: '#888' }}>{isWA ? 'WhatsApp' : 'Telegram'}</span>
+                                </div>
+                                <div style={{ padding: 14, flex: 1, overflow: 'auto' }}>
+                                    <div style={{ borderRadius: 14, overflow: 'hidden', background: '#efeae2', border: '1px solid #e0dcd4' }}>
+                                        <div style={{ padding: '10px 14px', background: isWA ? '#075e54' : '#0088cc', display: 'flex', alignItems: 'center', gap: 10 }}>
+                                            <div style={{ width: 30, height: 30, borderRadius: '50%', background: 'rgba(255,255,255,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: 11, fontWeight: 600 }}>C</div>
+                                            <span style={{ color: '#fff', fontSize: 13, fontWeight: 600 }}>{currentWorkspace?.partnerName || 'Centy'}</span>
+                                        </div>
+                                        <div style={{ padding: 12, minHeight: 280, backgroundImage: 'url("data:image/svg+xml,%3Csvg width=\'60\' height=\'60\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cpath d=\'M0 0h60v60H0z\' fill=\'%23efeae2\'/%3E%3Ccircle cx=\'30\' cy=\'30\' r=\'1\' fill=\'%23d4cfc7\'/%3E%3C/svg%3E")' }}>
+                                            {campaignMessage ? (
+                                                <div style={{ maxWidth: '95%', marginLeft: 'auto' }}>
+                                                    {headerImage && (
+                                                        <div style={{ borderRadius: '12px 12px 0 0', overflow: 'hidden', marginBottom: -4 }}>
+                                                            <img src={headerImage} alt="Header" style={{ width: '100%', height: 140, objectFit: 'cover' }} />
+                                                        </div>
+                                                    )}
+                                                    <div style={{ background: '#dcf8c6', borderRadius: headerImage ? '0 0 12px 12px' : '12px 12px 4px 12px', padding: 12, boxShadow: '0 1px 2px rgba(0,0,0,0.08)' }}>
+                                                        <div style={{ fontSize: 13, color: '#111', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>{formatPreview(campaignMessage)}</div>
+                                                        {footerText && <div style={{ fontSize: 11, color: '#667', marginTop: 8, fontStyle: 'italic' }}>{footerText}</div>}
+                                                        <div style={{ fontSize: 10, color: '#667', textAlign: 'right', marginTop: 8 }}>10:42 AM ✓✓</div>
+                                                    </div>
+                                                    {quickReplyButtons.length > 0 && (
+                                                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 8 }}>
+                                                            {quickReplyButtons.map((btn, i) => (
+                                                                <div key={i} style={{ flex: '1 1 auto', minWidth: '45%', padding: '10px 12px', background: '#fff', borderRadius: 8, textAlign: 'center', fontSize: 12, fontWeight: 500, color: '#0088cc', border: '1px solid #e0dcd4' }}>{btn}</div>
+                                                            ))}
+                                                        </div>
+                                                    )}
+                                                    {ctaButtons.length > 0 && (
+                                                        <div style={{ marginTop: 8 }}>
+                                                            {ctaButtons.map((btn, i) => (
+                                                                <div key={i} style={{ padding: '12px', background: '#fff', borderRadius: 8, textAlign: 'center', fontSize: 13, fontWeight: 500, color: '#0088cc', border: '1px solid #e0dcd4', marginTop: i > 0 ? 6 : 0, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+                                                                    {btn.type === 'url' ? '🔗' : '📞'} {btn.text}
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            ) : (
+                                                <div style={{ textAlign: 'center', paddingTop: 80, color: '#999' }}>
+                                                    <div style={{ fontSize: 32, marginBottom: 10, opacity: 0.5 }}>💬</div>
+                                                    <div style={{ fontSize: 12 }}>Your message will appear here</div>
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
+                                {campaignMessage && (
+                                    <div style={{ padding: '0 14px 14px' }}>
+                                        <div style={{ padding: 14, background: '#f8f8f8', borderRadius: 10 }}>
+                                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+                                                <span style={{ fontSize: 11, fontWeight: 600, color: '#888', textTransform: 'uppercase' }}>Message Score</span>
+                                                <span style={{ fontSize: 14, fontWeight: 700, color: '#22c55e' }}>{50 + (enhancements.image ? 15 : 0) + (enhancements.buttons ? 15 : 0) + (enhancements.personalize ? 14 : 0) + (enhancements.link ? 6 : 0)}/100</span>
+                                            </div>
+                                            <div style={{ height: 6, background: '#e5e5e5', borderRadius: 3, overflow: 'hidden' }}>
+                                                <div style={{ width: `${50 + (enhancements.image ? 15 : 0) + (enhancements.buttons ? 15 : 0) + (enhancements.personalize ? 14 : 0) + (enhancements.link ? 6 : 0)}%`, height: '100%', background: 'linear-gradient(90deg, #22c55e, #16a34a)', borderRadius: 3, transition: 'width 0.5s ease' }} />
+                                            </div>
+                                            <div style={{ display: 'flex', gap: 12, marginTop: 10, flexWrap: 'wrap' }}>
+                                                {[{ label: 'Image', done: enhancements.image }, { label: 'Buttons', done: enhancements.buttons }, { label: 'Personalized', done: enhancements.personalize }, { label: 'CTA', done: enhancements.link }].map(item => (
+                                                    <div key={item.label} style={{ fontSize: 11, color: item.done ? '#22c55e' : '#bbb' }}>{item.done ? '✓' : '○'} {item.label}</div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    )}
+
+                    {/* RECIPIENTS */}
+                    {view === 'recipients' && (
+                        <div style={{ maxWidth: 800, margin: '0 auto' }}>
+                            <div style={{ textAlign: 'center', marginBottom: 32 }}>
+                                <h2 style={{ fontSize: 22, fontWeight: 700, color: '#111', marginBottom: 8 }}>Choose Your Audience</h2>
+                                <p style={{ fontSize: 14, color: '#888' }}>Select a group or pick individual contacts</p>
+                            </div>
+
+                            <div style={{ display: 'grid', gridTemplateColumns: '280px 1fr', gap: 20 }}>
+                                <div style={{ background: '#fff', borderRadius: 14, border: '1px solid #e5e5e5', padding: 16, boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
+                                    <div style={{ fontSize: 11, fontWeight: 600, color: '#888', textTransform: 'uppercase', marginBottom: 12 }}>Quick Select</div>
+                                    {groups.map(g => (
+                                        <button key={g.id} onClick={() => selectGroup(g.id)} style={{
+                                            display: 'flex', alignItems: 'center', gap: 12, width: '100%', padding: '14px 16px', marginBottom: 8,
+                                            borderRadius: 12, border: selectedGroup === g.id ? '2px solid #111' : '1px solid #eee',
+                                            background: selectedGroup === g.id ? '#f5f5f5' : '#fff', cursor: 'pointer', textAlign: 'left',
+                                        }}>
+                                            <span style={{ fontSize: 18 }}>{g.icon}</span>
+                                            <div style={{ flex: 1 }}>
+                                                <div style={{ fontSize: 14, fontWeight: 600, color: '#111' }}>{g.name}</div>
+                                                <div style={{ fontSize: 12, color: '#888' }}>{g.count} contacts</div>
+                                            </div>
+                                            {selectedGroup === g.id && <span style={{ fontSize: 16, color: '#111' }}>✓</span>}
+                                        </button>
+                                    ))}
+                                </div>
+
+                                <div style={{ background: '#fff', borderRadius: 14, border: '1px solid #e5e5e5', padding: 16, boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+                                        <span style={{ fontSize: 11, fontWeight: 600, color: '#888', textTransform: 'uppercase' }}>Or Select Individually</span>
+                                        <button onClick={() => { setSelectedGroup(null); setSelectedContacts(recipients.map(r => r.id)); }} style={{ fontSize: 12, color: '#666', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline' }}>Select all</button>
+                                    </div>
+                                    <input type="text" placeholder="Search by name or area..." value={contactSearch} onChange={e => setContactSearch(e.target.value)}
+                                        style={{ width: '100%', padding: '12px 14px', border: '1px solid #e5e5e5', borderRadius: 10, fontSize: 13, marginBottom: 12, outline: 'none', boxSizing: 'border-box' }} />
+                                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, maxHeight: 320, overflow: 'auto' }}>
+                                        {isLoadingRecipients ? (
+                                            <div className="col-span-2 text-center py-8 text-gray-400">Loading contacts...</div>
+                                        ) : filteredContacts.length === 0 ? (
+                                            <div className="col-span-2 text-center py-8 text-gray-400">No contacts found</div>
+                                        ) : (
+                                            filteredContacts.map(r => (
+                                                <button key={r.id} onClick={() => toggleContact(r.id)} onMouseEnter={() => setHoveredContact(r.id)} onMouseLeave={() => setHoveredContact(null)}
+                                                    style={{
+                                                        display: 'flex', alignItems: 'center', gap: 10, padding: '12px', borderRadius: 12, textAlign: 'left',
+                                                        border: selectedContacts.includes(r.id) ? '2px solid #111' : hoveredContact === r.id ? '1px solid #ccc' : '1px solid #eee',
+                                                        background: selectedContacts.includes(r.id) ? '#f8f8f8' : '#fff', cursor: 'pointer',
+                                                    }}>
+                                                    <div style={{ width: 40, height: 40, borderRadius: 10, background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 600, flexShrink: 0 }}>{r.avatar}</div>
+                                                    <div style={{ flex: 1, minWidth: 0 }}>
+                                                        <div style={{ fontSize: 13, fontWeight: 600, color: '#111', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{r.name}</div>
+                                                        <div style={{ fontSize: 11, color: '#888' }}>{r.area} • {r.tag}</div>
+                                                    </div>
+                                                    {selectedContacts.includes(r.id) && <span style={{ fontSize: 14, color: '#22c55e' }}>✓</span>}
+                                                </button>
+                                            )))}
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div style={{ marginTop: 24, padding: '18px 24px', background: '#fff', borderRadius: 14, border: '1px solid #e5e5e5', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                                <div>
+                                    <div style={{ fontSize: 15, fontWeight: 600, color: '#111' }}>{getRecipientCount()} recipients selected</div>
+                                    <div style={{ fontSize: 12, color: '#888', marginTop: 2 }}>{selectedGroup === 'all' ? 'All Contacts' : (selectedGroup ? groups.find(g => g.id === selectedGroup)?.name : `${selectedContacts.length} individual contacts`)}</div>
+                                </div>
+                                <div style={{ display: 'flex', gap: 10 }}>
+                                    <button onClick={() => setView('studio')} style={{ padding: '12px 20px', background: '#fff', border: '1px solid #ddd', borderRadius: 10, fontSize: 14, fontWeight: 500, color: '#666', cursor: 'pointer' }}>← Back</button>
+                                    <button onClick={() => canProceed && setView('review')} disabled={!canProceed}
+                                        style={{ padding: '12px 28px', background: canProceed ? '#111' : '#ccc', color: '#fff', borderRadius: 10, fontSize: 14, fontWeight: 600, border: 'none', cursor: canProceed ? 'pointer' : 'not-allowed' }}>
+                                        Continue →
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* REVIEW */}
+                    {view === 'review' && (
+                        <div style={{ maxWidth: 640, margin: '0 auto' }}>
+                            <div style={{ textAlign: 'center', marginBottom: 32 }}>
+                                <h2 style={{ fontSize: 24, fontWeight: 700, color: '#111', marginBottom: 8 }}>Ready to send?</h2>
+                                <p style={{ fontSize: 15, color: '#666' }}>Review your campaign details before sending</p>
+                            </div>
+
+                            <div style={{ background: '#fff', borderRadius: 16, border: '1px solid #e5e5e5', overflow: 'hidden', boxShadow: '0 4px 12px rgba(0,0,0,0.05)' }}>
+                                <div style={{ padding: 24, borderBottom: '1px solid #eee' }}>
+                                    <div style={{ fontSize: 11, fontWeight: 600, color: '#999', textTransform: 'uppercase', marginBottom: 8 }}>Message Preview</div>
+                                    <div style={{ background: '#f8f8f8', padding: 16, borderRadius: 12, fontSize: 14, color: '#111', lineHeight: 1.6, whiteSpace: 'pre-wrap', border: '1px solid #eee' }}>
+                                        {campaignMessage}
+                                    </div>
+                                    {(headerImage || ctaButtons.length > 0) && (
+                                        <div style={{ marginTop: 12, display: 'flex', gap: 10 }}>
+                                            {headerImage && <div style={{ fontSize: 12, padding: '4px 10px', background: '#f0fdf4', color: '#16a34a', borderRadius: 6, display: 'inline-flex', alignItems: 'center', gap: 4 }}>🖼️ Image attached</div>}
+                                            {ctaButtons.length > 0 && <div style={{ fontSize: 12, padding: '4px 10px', background: '#eff6ff', color: '#2563eb', borderRadius: 6, display: 'inline-flex', alignItems: 'center', gap: 4 }}>🔗 Links/Buttons included</div>}
+                                        </div>
+                                    )}
+                                </div>
+                                <div style={{ padding: 24, background: '#fafafa' }}>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16 }}>
+                                        <span style={{ fontSize: 14, color: '#666' }}>Recipients</span>
+                                        <span style={{ fontSize: 14, fontWeight: 600, color: '#111' }}>{getRecipientCount()}</span>
+                                    </div>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16 }}>
+                                        <span style={{ fontSize: 14, color: '#666' }}>Channel</span>
+                                        <span style={{ fontSize: 14, fontWeight: 600, color: '#111', display: 'flex', alignItems: 'center', gap: 6 }}>
+                                            {isWA ? <span style={{ color: '#25D366' }}>💬 WhatsApp</span> : <span style={{ color: '#0088cc' }}>✈️ Telegram</span>}
+                                        </span>
+                                    </div>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 24 }}>
+                                        <span style={{ fontSize: 14, color: '#666' }}>Cost Estimate</span>
+                                        <span style={{ fontSize: 14, fontWeight: 600, color: '#111' }}>Free</span>
+                                    </div>
+
+                                    <div style={{ display: 'flex', gap: 12 }}>
+                                        <button onClick={() => setView('recipients')} style={{ flex: 1, padding: '14px', background: '#fff', border: '1px solid #ddd', borderRadius: 12, fontSize: 14, fontWeight: 600, color: '#666', cursor: 'pointer' }}>Edit</button>
+                                        <button onClick={handleFinalSend} disabled={sendingState === 'sending'} style={{
+                                            flex: 2, padding: '14px', background: sendingState === 'sending' ? '#333' : '#111', color: '#fff', borderRadius: 12, fontSize: 14, fontWeight: 600,
+                                            border: 'none', cursor: sendingState === 'sending' ? 'wait' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10,
+                                        }}>
+                                            {sendingState === 'sending' ? (
+                                                <><span>⏳</span> Sending...</>
+                                            ) : (
+                                                <><span>🚀</span> Send Campaign</>
+                                            )}
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* SUCCESS */}
+                    {view === 'success' && (
+                        <div style={{ maxWidth: 540, margin: '60px auto 0', textAlign: 'center' }}>
+                            <div style={{ width: 80, height: 80, borderRadius: '50%', background: '#dcfce7', color: '#16a34a', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 40, margin: '0 auto 24px', boxShadow: '0 0 0 10px #f0fdf4' }}>✓</div>
+                            <h2 style={{ fontSize: 26, fontWeight: 700, color: '#111', marginBottom: 12 }}>Campaign Sent!</h2>
+                            <p style={{ fontSize: 16, color: '#666', marginBottom: 40 }}>Your message is being delivered to {getRecipientCount()} recipients.</p>
+
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16, marginBottom: 40 }}>
+                                {[
+                                    { label: 'Delivered', value: metrics.delivered, color: '#22c55e' },
+                                    { label: 'Read', value: metrics.read, color: '#0ea5e9' },
+                                    { label: 'Replies', value: metrics.replied, color: '#8b5cf6' },
+                                ].map((stat, i) => (
+                                    <div key={i} style={{ background: '#fff', borderRadius: 14, padding: 20, border: '1px solid #eee', boxShadow: '0 2px 8px rgba(0,0,0,0.03)' }}>
+                                        <div style={{ fontSize: 24, fontWeight: 700, color: stat.color, marginBottom: 4 }}>{stat.value}</div>
+                                        <div style={{ fontSize: 12, fontWeight: 600, color: '#888', textTransform: 'uppercase' }}>{stat.label}</div>
+                                    </div>
+                                ))}
+                            </div>
+
+                            <button onClick={resetDemo} style={{ padding: '14px 28px', background: '#111', color: '#fff', borderRadius: 12, fontSize: 14, fontWeight: 600, border: 'none', cursor: 'pointer' }}>
+                                Start New Campaign
+                            </button>
+                        </div>
+                    )}
+
+                </div>
+            </div>
+
+            {/* MODALS */}
+            <Modal show={showImageModal} onClose={() => setShowImageModal(false)} title="Select Image">
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                    {sampleImages.map((img, i) => (
+                        <div key={i} onClick={() => { setHeaderImage(img.url); setShowImageModal(false); setMessages(prev => [...prev, { id: Date.now().toString(), type: 'ai', content: `Added image: ${img.label}`, suggestions: ['Great! →'] }]); }}
+                            style={{ borderRadius: 10, overflow: 'hidden', cursor: 'pointer', position: 'relative', border: headerImage === img.url ? '3px solid #111' : '1px solid #eee' }}>
+                            <img src={img.url} alt={img.label} style={{ width: '100%', height: 120, objectFit: 'cover', display: 'block' }} />
+                            <div style={{ padding: 8, fontSize: 12, fontWeight: 500, color: '#333', background: '#fff' }}>{img.label}</div>
+                        </div>
                     ))}
-                  </div>
+                    <div style={{ border: '2px dashed #ddd', borderRadius: 10, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: 155, cursor: 'pointer', background: '#fafafa' }}>
+                        <span style={{ fontSize: 24, marginBottom: 8, color: '#ccc' }}>+</span>
+                        <span style={{ fontSize: 13, color: '#888' }}>Upload New</span>
+                    </div>
                 </div>
-              </div>
-            </div>
+            </Modal>
 
-            <div className="lg:col-span-2 space-y-4">
-              <div className="bg-white rounded-xl border border-gray-200 p-4">
-                <div className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-3">Summary</div>
-                <div className="space-y-3 text-sm">
-                  <div className="flex justify-between py-2 border-b border-gray-100">
-                    <span className="text-gray-500">Channel</span>
-                    <span className={`font-medium ${isWA ? 'text-emerald-600' : 'text-sky-600'}`}>{isWA ? 'WhatsApp' : 'Telegram'}</span>
-                  </div>
-                  <div className="flex justify-between py-2 border-b border-gray-100">
-                    <span className="text-gray-500">Recipients</span>
-                    <span className="font-semibold text-gray-900">{campaign.recipientCount}</span>
-                  </div>
-                  <div className="flex justify-between py-2">
-                    <span className="text-gray-500">Est. time</span>
-                    <span className="text-gray-700">~{Math.ceil((campaign.recipientCount || 1) / 60)} min</span>
-                  </div>
+            <Modal show={showVariableModal} onClose={() => setShowVariableModal(false)} title="Insert Variable">
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                    {variableOptions.map(v => (
+                        <button key={v.token} onClick={() => insertVariable(v)} style={{
+                            display: 'flex', alignItems: 'center', gap: 10, padding: 12, borderRadius: 10,
+                            border: '1px solid #eee', background: '#fff', cursor: 'pointer', textAlign: 'left',
+                        }}>
+                            <span style={{ fontSize: 20 }}>{v.icon}</span>
+                            <div>
+                                <div style={{ fontSize: 13, fontWeight: 600, color: '#111' }}>{v.label}</div>
+                                <div style={{ fontSize: 11, color: '#888' }}>Example: {v.preview}</div>
+                            </div>
+                        </button>
+                    ))}
                 </div>
-              </div>
+            </Modal>
 
-              <div className="bg-violet-50 rounded-xl p-4">
-                <div className="flex items-start gap-2">
-                  <span className="text-violet-600">✨</span>
-                  <p className="text-sm text-violet-900">Based on similar campaigns, expect ~25% reply rate within 24 hours.</p>
+            <Modal show={showButtonModal} onClose={() => setShowButtonModal(false)} title="Add Quick Replies">
+                <div>
+                    <div style={{ marginBottom: 20 }}>
+                        <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 8 }}>Presets</div>
+                        <div style={{ display: 'flex', gap: 8, overflowX: 'auto', paddingBottom: 4 }}>
+                            {quickReplyPresets.map((p, i) => (
+                                <button key={i} onClick={() => setTempQuickReplies([...p.buttons])} style={{
+                                    padding: '6px 12px', borderRadius: 8, border: '1px solid #eee', background: '#f9f9f9', fontSize: 12, cursor: 'pointer', whiteSpace: 'nowrap'
+                                }}>{p.label}</button>
+                            ))}
+                        </div>
+                    </div>
+
+                    <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 12 }}>Button Text (Max 20 chars)</div>
+                    {[0, 1, 2].map(i => (
+                        <input key={i} type="text" placeholder={`Button ${i + 1}`} value={tempQuickReplies[i]} maxLength={20}
+                            onChange={e => { const newReplies = [...tempQuickReplies]; newReplies[i] = e.target.value; setTempQuickReplies(newReplies); }}
+                            style={{ width: '100%', padding: '10px 12px', border: '1px solid #e0e0e0', borderRadius: 8, fontSize: 14, marginBottom: 10, outline: 'none', boxSizing: 'border-box' }} />
+                    ))}
+                    <button onClick={saveQuickReplies} style={{ width: '100%', padding: 12, background: '#111', color: '#fff', borderRadius: 10, fontSize: 14, fontWeight: 600, border: 'none', cursor: 'pointer', marginTop: 10 }}>
+                        Save Buttons
+                    </button>
                 </div>
-              </div>
+            </Modal>
 
-              <button onClick={() => { setSending(true); setTimeout(onSend, 2000); }} className={`w-full py-3.5 rounded-xl text-white font-semibold transition-all ${isWA ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-sky-600 hover:bg-sky-700'}`}>
-                Send to {campaign.recipientCount} contacts
-              </button>
+            <Modal show={showLinkModal} onClose={() => setShowLinkModal(false)} title="Add Footer Button">
+                <div style={{ display: 'flex', background: '#f0f0f0', padding: 4, borderRadius: 8, marginBottom: 20 }}>
+                    <button onClick={() => setButtonType('quick')} style={{ flex: 1, padding: 8, borderRadius: 6, border: 'none', background: buttonType === 'quick' ? '#fff' : 'transparent', fontSize: 13, fontWeight: 500, cursor: 'pointer' }}>Call Action</button>
+                    <button onClick={() => setButtonType('url')} style={{ flex: 1, padding: 8, borderRadius: 6, border: 'none', background: buttonType === 'url' ? '#fff' : 'transparent', fontSize: 13, fontWeight: 500, cursor: 'pointer' }}>Visit Website</button>
+                </div>
 
-              <div className="grid grid-cols-2 gap-2">
-                <button className="py-2.5 bg-white border border-gray-200 rounded-xl text-sm font-medium text-gray-600 hover:bg-gray-50">Schedule</button>
-                <button className="py-2.5 bg-white border border-gray-200 rounded-xl text-sm font-medium text-gray-600 hover:bg-gray-50">Save draft</button>
-              </div>
-            </div>
-          </div>
+                {buttonType === 'url' ? (
+                    <>
+                        <input type="text" placeholder="Button Label (e.g. Visit Website)" value={tempLinkText} onChange={e => setTempLinkText(e.target.value)}
+                            style={{ width: '100%', padding: '10px 12px', border: '1px solid #e0e0e0', borderRadius: 8, fontSize: 14, marginBottom: 12, outline: 'none', boxSizing: 'border-box' }} />
+                        <input type="text" placeholder="URL (https://...)" value={tempLinkUrl} onChange={e => setTempLinkUrl(e.target.value)}
+                            style={{ width: '100%', padding: '10px 12px', border: '1px solid #e0e0e0', borderRadius: 8, fontSize: 14, marginBottom: 12, outline: 'none', boxSizing: 'border-box' }} />
+                    </>
+                ) : (
+                    <>
+                        <input type="text" placeholder="Button Label (e.g. Call Now)" value={tempPhoneText} onChange={e => setTempPhoneText(e.target.value)}
+                            style={{ width: '100%', padding: '10px 12px', border: '1px solid #e0e0e0', borderRadius: 8, fontSize: 14, marginBottom: 12, outline: 'none', boxSizing: 'border-box' }} />
+                        <input type="text" placeholder="Phone Number" value={tempPhoneNumber} onChange={e => setTempPhoneNumber(e.target.value)}
+                            style={{ width: '100%', padding: '10px 12px', border: '1px solid #e0e0e0', borderRadius: 8, fontSize: 14, marginBottom: 12, outline: 'none', boxSizing: 'border-box' }} />
+                    </>
+                )}
+
+                <button onClick={saveCtaButtons} style={{ width: '100%', padding: 12, background: '#111', color: '#fff', borderRadius: 10, fontSize: 14, fontWeight: 600, border: 'none', cursor: 'pointer', marginTop: 10 }}>
+                    Add Button
+                </button>
+            </Modal>
+
         </div>
-      </div>
-    </div>
-  );
-}
-
-// ============================================
-// SUCCESS VIEW
-// ============================================
-interface SuccessViewProps {
-  channel: 'whatsapp' | 'telegram';
-  campaign: Campaign;
-  onDone: () => void;
-}
-
-function SuccessView({ channel, campaign, onDone }: SuccessViewProps) {
-  const isWA = channel === 'whatsapp';
-  return (
-    <div className="h-full flex items-center justify-center bg-gray-50 p-4">
-      <div className="text-center max-w-sm">
-        <div className={`w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4 text-white text-2xl ${isWA ? 'bg-emerald-600' : 'bg-sky-600'}`}>✓</div>
-        <h1 className="text-xl font-semibold text-gray-900 mb-1">Campaign sent!</h1>
-        <p className="text-gray-500 mb-6">{campaign.recipientCount} messages via {isWA ? 'WhatsApp' : 'Telegram'}</p>
-
-        <div className="bg-white rounded-xl border border-gray-200 p-4 mb-6 text-left">
-          <div className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-3">What&apos;s next</div>
-          <ul className="space-y-2 text-sm text-gray-600">
-            <li className="flex items-center gap-2"><span className="text-emerald-500">→</span>Track delivery in Campaigns</li>
-            <li className="flex items-center gap-2"><span className="text-emerald-500">→</span>Respond to replies in Inbox</li>
-            <li className="flex items-center gap-2"><span className="text-emerald-500">→</span>Follow up non-responders in 3 days</li>
-          </ul>
-        </div>
-
-        <button onClick={onDone} className="w-full py-3 bg-gray-900 text-white rounded-xl font-medium hover:bg-gray-800 transition-colors">
-          Done
-        </button>
-      </div>
-    </div>
-  );
+    );
 }

@@ -1447,3 +1447,55 @@ export const SuggestWorkflowStepsOutputSchema = z.object({
 });
 
 export type SuggestWorkflowStepsOutput = z.infer<typeof SuggestWorkflowStepsOutputSchema>;
+
+// ============================================================================
+// SYSTEM TEMPLATES (BROADCAST)
+// ============================================================================
+
+export type TemplateCategory = 'MARKETING' | 'UTILITY' | 'AUTHENTICATION';
+
+export type TemplateComponentType = 'HEADER' | 'BODY' | 'FOOTER' | 'BUTTONS';
+export type TemplateHeaderFormat = 'TEXT' | 'IMAGE' | 'VIDEO' | 'DOCUMENT';
+export type TemplateButtonType = 'QUICK_REPLY' | 'URL' | 'PHONE_NUMBER' | 'COPY_CODE';
+
+export interface TemplateButton {
+  type: TemplateButtonType;
+  text: string;
+  url?: string;
+  phoneNumber?: string;
+  copyCode?: string;
+}
+
+export interface TemplateComponent {
+  type: TemplateComponentType;
+  format?: TemplateHeaderFormat;
+  text?: string;
+  buttons?: TemplateButton[];
+  example?: {
+    header_handle?: string[];
+    body_text?: string[][];
+  };
+}
+
+export interface SystemTemplate {
+  id: string;
+  slug: string; // unique identifier for URL/API
+  name: string;
+  language: string; // e.g. 'en_US'
+  category: TemplateCategory;
+  components: TemplateComponent[];
+  rawContent?: string; // For future-proofing (Telegram/Instagram/etc)
+
+  // Computed/Extracted metadata
+  variableCount: number; // Number of {{1}} variables
+  variables: string[]; // e.g. ['{{1}}', '{{2}}'] extracted from body
+  applicableIndustries: string[]; // IDs from taxonomy
+  applicableFunctions: string[]; // IDs from taxonomy
+  tags?: string[]; // e.g. ['promotion', 'urgent', 'seasonal']
+  description?: string; // Short summary for AI selection
+  status: 'draft' | 'published' | 'archived' | 'verified';
+  isSystem?: boolean;
+  createdAt: string; // ISO string
+  updatedAt: string;
+  createdBy?: string;
+}
