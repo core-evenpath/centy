@@ -3,14 +3,29 @@
  *
  * Handles extraction, mapping, preview replacement, and send-time replacement
  * of template variables ({{1}}, {{2}}, etc.) in broadcast templates.
+ *
+ * Supports 4 variable sources:
+ *  - contact: auto-filled from recipient contact data (name, phone, email, area)
+ *  - business: auto-filled from partner's business profile (businessName, phone, address)
+ *  - module: AI-assisted fill from partner's module inventory (rooms, products, etc.)
+ *  - static: manually entered by the partner in the studio
  */
+
+import type { VariableDefinition } from '@/lib/types';
 
 export interface VariableMapping {
     variable: string;        // '{{1}}'
-    field: string;           // 'name', 'area', 'budget', 'email', etc.
-    label: string;           // 'Recipient Name', 'Location', etc.
-    source: 'contact' | 'static';
+    field: string;           // 'name', 'area', 'budget', 'email', 'businessName', etc.
+    label: string;           // 'Recipient Name', 'Hotel Name', etc.
+    source: 'contact' | 'business' | 'module' | 'static';
     previewValue: string;    // 'Michael Chen', 'Downtown', etc.
+    fallback?: string;       // fallback if data missing
+    businessField?: string;  // for source:'business' — 'businessName', 'businessPhone', etc.
+    moduleRef?: {            // for source:'module' — slug + field + AI hint
+        moduleSlug: string;
+        field: string;
+        aiSuggestionPrompt?: string;
+    };
 }
 
 /**
@@ -47,8 +62,36 @@ export function getFallbackValue(field: string): string {
         email: '',
         company: 'your company',
         phone: '',
+        businessName: 'our business',
+        businessPhone: '',
+        address: 'our location',
     };
     return fallbacks[field] || '';
+}
+
+/**
+ * Convert a VariableDefinition (from template's variableMap) to a VariableMapping.
+ * This bridges the new architecture types with the existing mapping system.
+ */
+export function variableDefinitionToMapping(def: VariableDefinition): VariableMapping {
+    return {
+        variable: def.token,
+        field: def.contactField || def.businessField || def.moduleRef?.field || 'custom',
+        label: def.label,
+        source: def.source,
+        previewValue: def.preview,
+        fallback: def.fallback,
+        businessField: def.businessField,
+        moduleRef: def.moduleRef,
+    };
+}
+
+/**
+ * Convert a template's variableMap (VariableDefinition[]) to VariableMapping[].
+ * Used when the template has pre-defined variable intelligence.
+ */
+export function variableMapToMappings(variableMap: VariableDefinition[]): VariableMapping[] {
+    return variableMap.map(variableDefinitionToMapping);
 }
 
 /**
@@ -57,6 +100,9 @@ export function getFallbackValue(field: string): string {
  * - First variable ({{1}}) always maps to contact name.
  * - Subsequent variables are inferred from surrounding text (location, price, etc.)
  * - Industry context is used for friendlier labels.
+ *
+ * IMPORTANT: If the template has a variableMap, prefer variableMapToMappings() instead.
+ * This function is the fallback for templates without variableMap.
  */
 export function autoMapVariables(
     templateBody: string,
@@ -75,6 +121,7 @@ export function autoMapVariables(
                 label: 'Recipient Name',
                 source: 'contact',
                 previewValue: sampleContact.name || 'Friend',
+                fallback: 'Friend',
             });
             return;
         }
@@ -90,6 +137,7 @@ export function autoMapVariables(
                 label: industryLabel,
                 source: 'contact',
                 previewValue: sampleContact.area || sampleContact.customFields?.area || 'Downtown',
+                fallback: 'your area',
             });
             return;
         }
@@ -103,18 +151,34 @@ export function autoMapVariables(
                 label: industryLabel,
                 source: 'contact',
                 previewValue: sampleContact.budget || sampleContact.customFields?.budget || '$450,000',
+                fallback: 'competitive pricing',
+            });
+            return;
+        }
+
+        // Business name inference
+        if (context.includes('business') || context.includes('hotel') || context.includes('restaurant') || context.includes('store') || context.includes('shop') || context.includes('clinic')) {
+            mappings.push({
+                variable,
+                field: 'businessName',
+                label: 'Business Name',
+                source: 'business',
+                previewValue: 'Your Business',
+                fallback: 'our business',
+                businessField: 'businessName',
             });
             return;
         }
 
         // Company inference
-        if (context.includes('company') || context.includes('business') || context.includes('firm')) {
+        if (context.includes('company') || context.includes('firm')) {
             mappings.push({
                 variable,
                 field: 'company',
                 label: 'Company',
                 source: 'contact',
                 previewValue: sampleContact.company || sampleContact.customFields?.company || 'Acme Inc',
+                fallback: 'your company',
             });
             return;
         }
@@ -127,6 +191,7 @@ export function autoMapVariables(
                 label: 'Email',
                 source: 'contact',
                 previewValue: sampleContact.email || 'info@example.com',
+                fallback: '',
             });
             return;
         }
@@ -138,6 +203,7 @@ export function autoMapVariables(
             label: `Field ${index + 1}`,
             source: 'static',
             previewValue: `[Field ${index + 1}]`,
+            fallback: `[Field ${index + 1}]`,
         });
     });
 
@@ -164,25 +230,47 @@ export function replaceVariablesInPreview(
 
 /**
  * Replace template variables for a specific contact at send time.
- * Falls back to default values if contact data is missing.
+ * Supports all 4 sources: contact, business, module, static.
+ * Falls back to default values if data is missing.
  */
 export function replaceVariablesForContact(
     messageTemplate: string,
     mappings: VariableMapping[],
-    contact: Record<string, any>
+    contact: Record<string, any>,
+    businessData?: Record<string, any>
 ): string {
     let finalMessage = messageTemplate;
 
     for (const mapping of mappings) {
         let value = '';
 
-        if (mapping.source === 'contact') {
-            value = contact[mapping.field]
-                || contact.customFields?.[mapping.field]
-                || getFallbackValue(mapping.field);
-        } else {
-            // Static source: use preview value as-is
-            value = mapping.previewValue;
+        switch (mapping.source) {
+            case 'contact':
+                value = contact[mapping.field]
+                    || contact.customFields?.[mapping.field]
+                    || mapping.fallback
+                    || getFallbackValue(mapping.field);
+                break;
+
+            case 'business':
+                value = businessData?.[mapping.businessField || mapping.field]
+                    || mapping.fallback
+                    || getFallbackValue(mapping.field);
+                break;
+
+            case 'module':
+                // Module values are resolved in the studio (pre-set by partner or AI suggestion)
+                // At send time, they should already be set as preview values
+                value = mapping.previewValue || mapping.fallback || '';
+                break;
+
+            case 'static':
+                // Static values are typed by the partner in the studio
+                value = mapping.previewValue || mapping.fallback || '';
+                break;
+
+            default:
+                value = mapping.previewValue || '';
         }
 
         const escapedVar = mapping.variable.replace(/[{}]/g, '\\$&');
