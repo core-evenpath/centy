@@ -316,6 +316,16 @@ export async function sendMetaWhatsAppMessageAction(
                 input.templateLanguage || 'en_US',
                 input.templateComponents || []
             );
+        } else if (input.interactiveButtons && input.interactiveButtons.length > 0) {
+            // Send as WhatsApp interactive CTA_URL message
+            const { sendMetaInteractiveMessage } = await import('@/lib/meta-whatsapp-service');
+            metaResponse = await sendMetaInteractiveMessage(
+                input.partnerId,
+                normalizedPhone,
+                input.message || '',
+                input.interactiveButtons.map(b => ({ text: b.text, url: b.url })),
+                input.mediaUrl, // header image
+            );
         } else if (input.mediaUrl && input.mediaType) {
             metaResponse = await sendMetaMediaMessage(
                 input.partnerId,

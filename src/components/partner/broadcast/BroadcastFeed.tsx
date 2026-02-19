@@ -52,7 +52,9 @@ export function BroadcastFeed({
 
     const filteredTemplates = useMemo(() => {
         if (activeFilter === 'all') return sortedTemplates;
-        return sortedTemplates.filter(t => t.feedMeta?.campaignType === activeFilter);
+        return sortedTemplates.filter(t =>
+            t.feedMeta?.campaignType === activeFilter || !t.feedMeta
+        );
     }, [sortedTemplates, activeFilter]);
 
     const stats = [
@@ -92,8 +94,8 @@ export function BroadcastFeed({
                         key={tab.id}
                         onClick={() => setActiveFilter(tab.id)}
                         className={`px-4 py-2 rounded-lg text-sm font-medium transition-all whitespace-nowrap ${activeFilter === tab.id
-                                ? 'bg-gray-900 text-white'
-                                : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'
+                            ? 'bg-gray-900 text-white'
+                            : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'
                             }`}
                     >
                         {tab.label}

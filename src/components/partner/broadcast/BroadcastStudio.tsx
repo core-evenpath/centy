@@ -125,7 +125,7 @@ export function BroadcastStudio({
 
     const [enhancements, setEnhancements] = useState({
         image: !!headerImage,
-        buttons: quickReplies.length > 0,
+        buttons: quickReplies.length > 0 || ctaButtons.length > 0,
         link: ctaButtons.length > 0,
         personalize: variableMappings.length > 0,
     });
@@ -194,6 +194,11 @@ export function BroadcastStudio({
                 }))
                 : undefined;
 
+            // Build valid CTA buttons for interactive messages
+            const validCtaButtons = ctaButtons
+                .filter(b => b.text && b.value)
+                .map(b => ({ type: 'url', text: b.text, url: b.value }));
+
             const sendResult = await sendBroadcastCampaignAction(
                 partnerId,
                 campaignId,
@@ -203,7 +208,8 @@ export function BroadcastStudio({
                 recipientType,
                 selectedRecipientIds,
                 groupIdsArray,
-                serverMappings
+                serverMappings,
+                validCtaButtons.length > 0 ? validCtaButtons : undefined
             );
 
             if (sendResult.success) {

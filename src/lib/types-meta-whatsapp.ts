@@ -237,6 +237,7 @@ export interface SendMetaWhatsAppInput {
     templateLanguage?: string;
     templateParams?: string[];
     templateComponents?: MetaTemplateComponent[];
+    interactiveButtons?: Array<{ type: 'url'; text: string; url: string }>;
 }
 
 export interface SendMetaWhatsAppResult {

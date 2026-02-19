@@ -50,7 +50,7 @@ export async function getTemplatesForPartnerIndustry(partnerId: string): Promise
         // Since template count is likely < 1000, fetching all active ones and filtering in memory is acceptable and safer for Universal templates.
         const snapshot = await adminDb
             .collection('systemTemplates')
-            .where('status', 'in', ['published', 'verified'])
+            .where('status', 'in', ['published', 'verified', 'active'])
             .get();
 
         const allTemplates = snapshot.docs.map(doc => ({

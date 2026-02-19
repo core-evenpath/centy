@@ -550,3 +550,110 @@ export async function sendMetaTemplateMessage(
 
     return response.json();
 }
+
+/**
+ * Send a WhatsApp interactive message with CTA URL buttons.
+ * Uses the WhatsApp Business API "interactive" message type with "cta_url" action.
+ */
+export async function sendMetaInteractiveMessage(
+    partnerId: string,
+    to: string,
+    bodyText: string,
+    ctaButtons: Array<{ text: string; url: string }>,
+    headerImageUrl?: string,
+    footerText?: string
+): Promise<any> {
+    const config = await getPartnerMetaConfig(partnerId);
+
+    if (!config || config.status !== 'active') {
+        throw new Error('Meta WhatsApp not configured or inactive');
+    }
+
+    const accessToken = await getDecryptedAccessToken(partnerId);
+    const normalizedTo = to.replace(/\D/g, '');
+
+    // WhatsApp interactive "cta_url" supports a single CTA button per message.
+    // For multiple CTA buttons, we send separate interactive messages.
+    // However, for the best UX, we use "button" type for reply-style quick actions
+    // and append extra CTA URLs to the body text if there are more than 1.
+
+    // Build the interactive payload for the first CTA button
+    const firstCta = ctaButtons[0];
+    const interactive: any = {
+        type: 'cta_url',
+        body: { text: bodyText },
+        action: {
+            name: 'cta_url',
+            parameters: {
+                display_text: firstCta.text,
+                url: firstCta.url,
+            }
+        }
+    };
+
+    if (headerImageUrl) {
+        interactive.header = { type: 'image', image: { link: headerImageUrl } };
+    }
+
+    if (footerText) {
+        interactive.footer = { text: footerText };
+    }
+
+    // If there are additional CTA buttons, append them as links in the body
+    if (ctaButtons.length > 1) {
+        const extraLinks = ctaButtons.slice(1).map(btn => `🔗 *${btn.text}*: ${btn.url}`).join('\n');
+        interactive.body.text = bodyText + '\n\n' + extraLinks;
+    }
+
+    const body = {
+        messaging_product: 'whatsapp',
+        recipient_type: 'individual',
+        to: normalizedTo,
+        type: 'interactive',
+        interactive,
+    };
+
+    const response = await fetch(
+        `${META_API_BASE}/${config.phoneNumberId}/messages`,
+        {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${accessToken}`,
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(body),
+        }
+    );
+
+    if (!response.ok) {
+        const errorData = await response.json();
+        const errorMsg = errorData.error?.message || `Meta API error: ${response.status}`;
+
+        if (errorMsg.toLowerCase().includes('session has expired')) {
+            try {
+                const newToken = await refreshMetaAccessToken(partnerId);
+                const retryResp = await fetch(
+                    `${META_API_BASE}/${config.phoneNumberId}/messages`,
+                    {
+                        method: 'POST',
+                        headers: {
+                            'Authorization': `Bearer ${newToken}`,
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify(body),
+                    }
+                );
+                if (!retryResp.ok) {
+                    const retryError = await retryResp.json();
+                    throw new Error(retryError.error?.message || `Meta API error after refresh: ${retryResp.status}`);
+                }
+                return retryResp.json();
+            } catch (refreshErr: any) {
+                throw new Error(`Failed to refresh Meta token: ${refreshErr.message}`);
+            }
+        }
+        throw new Error(errorMsg);
+    }
+
+    return response.json();
+}

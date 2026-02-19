@@ -16,14 +16,13 @@ interface EnhancementTogglesProps {
 
 const cards = [
     { key: 'image', icon: '🖼️', label: 'Image', desc: 'Add a header image' },
-    { key: 'buttons', icon: '▶️', label: 'Buttons', desc: 'Quick reply buttons' },
-    { key: 'link', icon: '🔗', label: 'Link', desc: 'Add a CTA link' },
+    { key: 'buttons', icon: '▶️', label: 'Buttons & CTAs', desc: 'Quick replies & URL links' },
     { key: 'personalize', icon: '@', label: 'Personalize', desc: 'Variable tokens' },
 ];
 
 export function EnhancementToggles({ enhancements, onOpen }: EnhancementTogglesProps) {
     return (
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <div className="grid grid-cols-3 gap-3">
             {cards.map(card => {
                 const active = enhancements[card.key as keyof Enhancements];
                 return (

@@ -8,6 +8,7 @@ import { EnhancementToggles } from './EnhancementToggles';
 import { AIFieldAssist } from './AIFieldAssist';
 import { CSVVariableUpload } from './CSVVariableUpload';
 import { SlidePanel } from './SlidePanel';
+import { ImagePicker } from './ImagePicker';
 
 interface Enhancements {
     image: boolean;
@@ -80,7 +81,7 @@ export function ComposeStep({
         } else if (key === 'buttons') {
             setActivePanel('buttons');
         } else if (key === 'link') {
-            setActivePanel('link');
+            setActivePanel('buttons');
         }
     };
 
@@ -208,89 +209,117 @@ export function ComposeStep({
                 onClose={() => setActivePanel(null)}
                 title="Header Image"
             >
-                <div className="space-y-4">
-                    <div>
-                        <label className="text-xs font-medium text-gray-600 mb-1.5 block">Image URL</label>
-                        <input
-                            type="url"
-                            value={headerImage || ''}
-                            onChange={e => {
-                                setHeaderImage(e.target.value || null);
-                                setEnhancements({ ...enhancements, image: !!e.target.value });
-                            }}
-                            placeholder="https://example.com/image.jpg"
-                            className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-300"
-                        />
-                    </div>
-                    {headerImage && (
-                        <div className="rounded-lg border overflow-hidden">
-                            <img src={headerImage} alt="Preview" className="w-full h-32 object-cover" />
-                        </div>
-                    )}
-                    <button
-                        onClick={() => { setHeaderImage(null); setEnhancements({ ...enhancements, image: false }); setActivePanel(null); }}
-                        className="w-full py-2 bg-red-50 text-red-600 rounded-lg text-sm font-medium hover:bg-red-100 transition-colors"
-                    >
-                        Remove Image
-                    </button>
-                </div>
+                <ImagePicker
+                    partnerId={partnerId}
+                    value={headerImage}
+                    onChange={(url) => {
+                        setHeaderImage(url);
+                        setEnhancements({ ...enhancements, image: !!url });
+                    }}
+                />
             </SlidePanel>
 
             <SlidePanel
                 show={activePanel === 'buttons'}
                 onClose={() => setActivePanel(null)}
-                title="Quick Reply Buttons"
+                title="Buttons & Links"
             >
-                <div className="space-y-3">
-                    <p className="text-xs text-gray-500">Add up to 3 quick reply buttons.</p>
-                    {[0, 1, 2].map(i => (
-                        <input
-                            key={i}
-                            value={quickReplies[i] || ''}
-                            onChange={e => {
-                                const updated = [...quickReplies];
-                                updated[i] = e.target.value;
-                                setQuickReplies(updated.filter(Boolean));
-                                setEnhancements({ ...enhancements, buttons: updated.filter(Boolean).length > 0 });
-                            }}
-                            placeholder={`Button ${i + 1}`}
-                            className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-300"
-                        />
-                    ))}
-                </div>
-            </SlidePanel>
-
-            <SlidePanel
-                show={activePanel === 'link'}
-                onClose={() => setActivePanel(null)}
-                title="CTA Link"
-            >
-                <div className="space-y-3">
+                <div className="space-y-5">
+                    {/* Quick Reply Section */}
                     <div>
-                        <label className="text-xs font-medium text-gray-600 mb-1.5 block">Button Text</label>
-                        <input
-                            value={ctaButtons[0]?.text || ''}
-                            onChange={e => {
-                                const btn = { type: 'url', text: e.target.value, value: ctaButtons[0]?.value || '' };
-                                setCtaButtons(e.target.value ? [btn] : []);
-                                setEnhancements({ ...enhancements, link: !!e.target.value });
-                            }}
-                            placeholder="Book Now"
-                            className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-300"
-                        />
+                        <div className="flex items-center gap-2 mb-2">
+                            <span className="text-xs font-semibold text-gray-700">💬 Quick Replies</span>
+                            <span className="text-[10px] text-gray-400">up to 3</span>
+                        </div>
+                        <div className="space-y-2">
+                            {[0, 1, 2].map(i => (
+                                <input
+                                    key={i}
+                                    value={quickReplies[i] || ''}
+                                    onChange={e => {
+                                        const updated = [...quickReplies];
+                                        updated[i] = e.target.value;
+                                        setQuickReplies(updated.filter(Boolean));
+                                        setEnhancements({ ...enhancements, buttons: updated.filter(Boolean).length > 0 || ctaButtons.length > 0 });
+                                    }}
+                                    placeholder={`Reply button ${i + 1}`}
+                                    className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-300"
+                                />
+                            ))}
+                        </div>
                     </div>
+
+                    <div className="border-t border-gray-200" />
+
+                    {/* CTA URL Buttons */}
                     <div>
-                        <label className="text-xs font-medium text-gray-600 mb-1.5 block">URL</label>
-                        <input
-                            value={ctaButtons[0]?.value || ''}
-                            onChange={e => {
-                                if (ctaButtons[0]) {
-                                    setCtaButtons([{ ...ctaButtons[0], value: e.target.value }]);
-                                }
-                            }}
-                            placeholder="https://example.com"
-                            className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-300"
-                        />
+                        <div className="flex items-center justify-between mb-2">
+                            <div className="flex items-center gap-2">
+                                <span className="text-xs font-semibold text-gray-700">🔗 URL Buttons</span>
+                                <span className="text-[10px] text-gray-400">up to 2</span>
+                            </div>
+                            {ctaButtons.length < 2 && (
+                                <button
+                                    onClick={() => {
+                                        setCtaButtons([...ctaButtons, { type: 'url', text: '', value: '' }]);
+                                        setEnhancements({ ...enhancements, link: true });
+                                    }}
+                                    className="text-[11px] font-medium text-indigo-600 hover:text-indigo-700"
+                                >
+                                    + Add URL
+                                </button>
+                            )}
+                        </div>
+                        {ctaButtons.length === 0 && (
+                            <button
+                                onClick={() => {
+                                    setCtaButtons([{ type: 'url', text: '', value: '' }]);
+                                    setEnhancements({ ...enhancements, link: true });
+                                }}
+                                className="w-full py-3 border-2 border-dashed border-gray-300 rounded-lg text-sm text-gray-400 hover:text-gray-600 hover:border-gray-400 transition-colors"
+                            >
+                                + Add a URL button
+                            </button>
+                        )}
+                        <div className="space-y-3">
+                            {ctaButtons.map((btn, i) => (
+                                <div key={i} className="bg-gray-50 border border-gray-200 rounded-lg p-3 space-y-2">
+                                    <div className="flex items-center justify-between">
+                                        <span className="text-[10px] text-gray-500 font-medium uppercase tracking-wider">Button {i + 1}</span>
+                                        <button
+                                            onClick={() => {
+                                                const updated = ctaButtons.filter((_, idx) => idx !== i);
+                                                setCtaButtons(updated);
+                                                setEnhancements({ ...enhancements, link: updated.length > 0 });
+                                            }}
+                                            className="text-[10px] text-red-400 hover:text-red-600"
+                                        >
+                                            Remove
+                                        </button>
+                                    </div>
+                                    <input
+                                        value={btn.text}
+                                        onChange={e => {
+                                            const updated = [...ctaButtons];
+                                            updated[i] = { ...updated[i], text: e.target.value };
+                                            setCtaButtons(updated);
+                                        }}
+                                        placeholder="Button text, e.g. Book Now"
+                                        className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-300 bg-white"
+                                    />
+                                    <input
+                                        value={btn.value}
+                                        onChange={e => {
+                                            const updated = [...ctaButtons];
+                                            updated[i] = { ...updated[i], value: e.target.value };
+                                            setCtaButtons(updated);
+                                        }}
+                                        placeholder="https://example.com"
+                                        className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-300 bg-white"
+                                    />
+                                </div>
+                            ))}
+                        </div>
                     </div>
                 </div>
             </SlidePanel>

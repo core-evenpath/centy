@@ -38,7 +38,8 @@ export async function sendBroadcastCampaignAction(
         source: 'contact' | 'custom';
         contactField?: string;
         customValue: string;
-    }>
+    }>,
+    ctaButtons?: Array<{ type: string; text: string; url: string }>
 ): Promise<BroadcastSendResult> {
     try {
         // 1. Get contacts based on selection type
@@ -223,6 +224,11 @@ export async function sendBroadcastCampaignAction(
                         mediaUrl,
                         mediaType: mediaUrl ? 'image' : undefined,
                         conversationId,
+                        interactiveButtons: ctaButtons?.filter(b => b.text && b.url).map(b => ({
+                            type: 'url' as const,
+                            text: b.text,
+                            url: b.url,
+                        })),
                     });
 
                 } else if (channel === 'telegram') {
