@@ -234,6 +234,34 @@ export function TemplateList({ initialTemplates }: TemplateListProps) {
                 )}
             </div>
 
+            {/* Coverage Summary */}
+            {(() => {
+                const COVERAGE_TYPES = [
+                    { type: 'promotion', label: 'Promotions' },
+                    { type: 'seasonal', label: 'Seasonal' },
+                    { type: 'retention', label: 'Retention' },
+                    { type: 'transactional', label: 'Reminders' },
+                    { type: 'lead-gen', label: 'Lead Gen' },
+                    { type: 'announcement', label: 'Announcements' },
+                ];
+                return (
+                    <div className="flex flex-wrap gap-2 mb-1">
+                        {COVERAGE_TYPES.map(({ type, label }) => {
+                            const count = templates.filter(t => t.feedMeta?.campaignType === type).length;
+                            const sufficient = count >= 3;
+                            return (
+                                <Badge
+                                    key={type}
+                                    className={sufficient ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}
+                                >
+                                    {label}: {count} {sufficient ? '✓' : '⚠️'}
+                                </Badge>
+                            );
+                        })}
+                    </div>
+                );
+            })()}
+
             {/* Summary */}
             <div className="flex gap-3 text-xs text-muted-foreground">
                 <span>{filteredTemplates.length} of {templates.length} templates</span>

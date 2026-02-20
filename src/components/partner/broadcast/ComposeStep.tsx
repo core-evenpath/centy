@@ -40,6 +40,37 @@ interface ComposeStepProps {
     contacts: Contact[];
     enhancements: Enhancements;
     setEnhancements: (e: Enhancements) => void;
+    // Variable toggle props
+    disabledVariables: Set<string>;
+    onToggleVariable: (variable: string) => void;
+    activeMessage: string;
+    activeMappings: VariableMapping[];
+    // For AI image generation
+    partnerIndustry?: string;
+}
+
+// Color variables in message body with syntax highlighting
+function highlightVariables(text: string, disabledVariables: Set<string>): React.ReactNode[] {
+    const parts = text.split(/(\{\{\d+\}\})/g);
+    return parts.map((part, i) => {
+        const isVar = /^\{\{\d+\}\}$/.test(part);
+        if (isVar) {
+            const isDisabled = disabledVariables.has(part);
+            return (
+                <span
+                    key={i}
+                    className={`font-mono font-bold rounded px-0.5 ${
+                        isDisabled
+                            ? 'text-gray-400 bg-gray-100 line-through'
+                            : 'text-indigo-600 bg-indigo-50'
+                    }`}
+                >
+                    {part}
+                </span>
+            );
+        }
+        return <span key={i}>{part}</span>;
+    });
 }
 
 export function ComposeStep({
@@ -65,6 +96,11 @@ export function ComposeStep({
     contacts,
     enhancements,
     setEnhancements,
+    disabledVariables,
+    onToggleVariable,
+    activeMessage,
+    activeMappings,
+    partnerIndustry,
 }: ComposeStepProps) {
     const [activePanel, setActivePanel] = useState<string | null>(null);
     const [showCsvUpload, setShowCsvUpload] = useState(false);
@@ -103,10 +139,19 @@ export function ComposeStep({
                         <span className="text-[11px] text-gray-400">{message.length} characters</span>
                         {mappings.length > 0 && (
                             <span className="text-[11px] text-indigo-500 font-medium">
-                                {mappings.length} variable{mappings.length > 1 ? 's' : ''}
+                                {activeMappings.length}/{mappings.length} variable{mappings.length > 1 ? 's' : ''} active
                             </span>
                         )}
                     </div>
+                    {/* Variable color legend below textarea */}
+                    {mappings.length > 0 && (
+                        <div className="mt-2 p-2.5 bg-gray-50 rounded-lg border border-gray-100">
+                            <div className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1.5">Variables in message</div>
+                            <div className="text-sm leading-relaxed whitespace-pre-wrap">
+                                {highlightVariables(message, disabledVariables)}
+                            </div>
+                        </div>
+                    )}
                 </div>
 
                 {/* Auto-mapped variables */}
@@ -115,14 +160,44 @@ export function ComposeStep({
                         <div className="text-xs font-semibold text-emerald-700 mb-2 flex items-center gap-1.5">
                             ✅ Auto-filled Variables
                         </div>
-                        <div className="flex flex-wrap gap-2">
-                            {autoMappings.map(m => (
-                                <div key={m.variable} className="flex items-center gap-1.5 px-2.5 py-1.5 bg-white border border-emerald-200 rounded-lg text-xs">
-                                    <span className="font-mono text-[10px] text-emerald-600 font-bold">{m.variable}</span>
-                                    <span className="text-gray-500">{m.label}</span>
-                                    <span className="text-[10px] text-emerald-500">→ {m.previewValue}</span>
-                                </div>
-                            ))}
+                        <div className="flex flex-col gap-2">
+                            {autoMappings.map(m => {
+                                const isDisabled = disabledVariables.has(m.variable);
+                                return (
+                                    <div
+                                        key={m.variable}
+                                        className={`flex items-center gap-2 px-2.5 py-1.5 bg-white border rounded-lg text-xs transition-all duration-200 ${
+                                            isDisabled
+                                                ? 'border-gray-200 opacity-50'
+                                                : 'border-emerald-200'
+                                        }`}
+                                    >
+                                        <button
+                                            onClick={() => onToggleVariable(m.variable)}
+                                            className={`w-4 h-4 rounded border flex items-center justify-center flex-shrink-0 transition-colors ${
+                                                isDisabled
+                                                    ? 'border-gray-300 bg-gray-100 text-gray-400'
+                                                    : 'border-emerald-400 bg-emerald-500 text-white'
+                                            }`}
+                                        >
+                                            {!isDisabled && (
+                                                <svg className="w-3 h-3" viewBox="0 0 12 12" fill="none">
+                                                    <path d="M2 6L5 9L10 3" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                                                </svg>
+                                            )}
+                                        </button>
+                                        <span className={`font-mono text-[10px] font-bold ${isDisabled ? 'text-gray-400' : 'text-emerald-600'}`}>
+                                            {m.variable}
+                                        </span>
+                                        <span className={`${isDisabled ? 'text-gray-400 line-through' : 'text-gray-500'}`}>
+                                            {m.label}
+                                        </span>
+                                        <span className={`text-[10px] ${isDisabled ? 'text-gray-300' : 'text-emerald-500'}`}>
+                                            → {m.previewValue}
+                                        </span>
+                                    </div>
+                                );
+                            })}
                         </div>
                     </div>
                 )}
@@ -148,18 +223,43 @@ export function ComposeStep({
                         )}
                         {staticMappings.map(m => {
                             const varDef = variableMap?.find(v => v.token === m.variable);
+                            const isDisabled = disabledVariables.has(m.variable);
                             return (
-                                <AIFieldAssist
-                                    key={m.variable}
-                                    partnerId={partnerId}
-                                    moduleSlug={m.moduleRef?.moduleSlug || varDef?.moduleRef?.moduleSlug}
-                                    field={m.moduleRef?.field || varDef?.moduleRef?.field}
-                                    aiPrompt={m.moduleRef?.aiSuggestionPrompt || varDef?.moduleRef?.aiSuggestionPrompt}
-                                    value={staticValues[m.variable] || ''}
-                                    onChange={val => onStaticValueChange(m.variable, val)}
-                                    label={`${m.variable} — ${m.label}`}
-                                    placeholder={m.fallback || `Enter ${m.label.toLowerCase()}`}
-                                />
+                                <div key={m.variable} className={`transition-all duration-200 ${isDisabled ? 'opacity-50' : ''}`}>
+                                    <div className="flex items-center gap-2 mb-1.5">
+                                        <button
+                                            onClick={() => onToggleVariable(m.variable)}
+                                            className={`w-4 h-4 rounded border flex items-center justify-center flex-shrink-0 transition-colors ${
+                                                isDisabled
+                                                    ? 'border-gray-300 bg-gray-100 text-gray-400'
+                                                    : 'border-amber-400 bg-amber-500 text-white'
+                                            }`}
+                                        >
+                                            {!isDisabled && (
+                                                <svg className="w-3 h-3" viewBox="0 0 12 12" fill="none">
+                                                    <path d="M2 6L5 9L10 3" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                                                </svg>
+                                            )}
+                                        </button>
+                                        {isDisabled && (
+                                            <span className="text-[10px] text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded font-medium">
+                                                Disabled
+                                            </span>
+                                        )}
+                                    </div>
+                                    <div className={isDisabled ? 'pointer-events-none' : ''}>
+                                        <AIFieldAssist
+                                            partnerId={partnerId}
+                                            moduleSlug={m.moduleRef?.moduleSlug || varDef?.moduleRef?.moduleSlug}
+                                            field={m.moduleRef?.field || varDef?.moduleRef?.field}
+                                            aiPrompt={m.moduleRef?.aiSuggestionPrompt || varDef?.moduleRef?.aiSuggestionPrompt}
+                                            value={staticValues[m.variable] || ''}
+                                            onChange={val => onStaticValueChange(m.variable, val)}
+                                            label={`${m.variable} — ${m.label}`}
+                                            placeholder={m.fallback || `Enter ${m.label.toLowerCase()}`}
+                                        />
+                                    </div>
+                                </div>
                             );
                         })}
                     </div>
@@ -187,11 +287,11 @@ export function ComposeStep({
                 )}
             </div>
 
-            {/* Right: Phone Preview */}
+            {/* Right: Phone Preview — uses activeMessage + activeMappings */}
             <div className="w-full max-w-[320px] flex-shrink-0 bg-gray-50 rounded-xl border border-gray-200 overflow-hidden">
                 <PhonePreview
-                    message={message}
-                    mappings={mappings}
+                    message={activeMessage}
+                    mappings={activeMappings}
                     staticValues={staticValues}
                     csvVariableData={csvVariableData}
                     channel={channel}
@@ -216,6 +316,9 @@ export function ComposeStep({
                         setHeaderImage(url);
                         setEnhancements({ ...enhancements, image: !!url });
                     }}
+                    broadcastMessage={activeMessage}
+                    businessName={businessName}
+                    industry={partnerIndustry}
                 />
             </SlidePanel>
 
@@ -333,22 +436,32 @@ export function ComposeStep({
                     <p className="text-xs text-gray-500 mb-3">
                         Click a variable to insert it into your message at the cursor position.
                     </p>
-                    {mappings.map(m => (
-                        <button
-                            key={m.variable}
-                            onClick={() => {
-                                setMessage(message + ` ${m.variable}`);
-                                setActivePanel(null);
-                            }}
-                            className="w-full flex items-center justify-between p-3 bg-gray-50 hover:bg-indigo-50 border border-gray-200 hover:border-indigo-200 rounded-lg transition-colors text-left"
-                        >
-                            <div>
-                                <span className="font-mono text-sm text-indigo-600 font-bold">{m.variable}</span>
-                                <span className="text-xs text-gray-500 ml-2">{m.label}</span>
-                            </div>
-                            <span className="text-xs text-gray-400">{m.previewValue}</span>
-                        </button>
-                    ))}
+                    {mappings.map(m => {
+                        const isDisabled = disabledVariables.has(m.variable);
+                        return (
+                            <button
+                                key={m.variable}
+                                onClick={() => {
+                                    if (!isDisabled) {
+                                        setMessage(message + ` ${m.variable}`);
+                                        setActivePanel(null);
+                                    }
+                                }}
+                                disabled={isDisabled}
+                                className={`w-full flex items-center justify-between p-3 border rounded-lg transition-colors text-left ${
+                                    isDisabled
+                                        ? 'bg-gray-50 border-gray-200 opacity-50 cursor-not-allowed'
+                                        : 'bg-gray-50 hover:bg-indigo-50 border-gray-200 hover:border-indigo-200'
+                                }`}
+                            >
+                                <div>
+                                    <span className={`font-mono text-sm font-bold ${isDisabled ? 'text-gray-400' : 'text-indigo-600'}`}>{m.variable}</span>
+                                    <span className={`text-xs ml-2 ${isDisabled ? 'text-gray-400 line-through' : 'text-gray-500'}`}>{m.label}</span>
+                                </div>
+                                <span className="text-xs text-gray-400">{m.previewValue}</span>
+                            </button>
+                        );
+                    })}
                 </div>
             </SlidePanel>
         </div>

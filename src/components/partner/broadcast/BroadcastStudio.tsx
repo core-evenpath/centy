@@ -93,6 +93,39 @@ export function BroadcastStudio({
 
     const [csvVariableData, setCsvVariableData] = useState<Map<string, Record<string, string>> | null>(null);
 
+    // Variable toggle state — tracks which variables the user has disabled
+    const [disabledVariables, setDisabledVariables] = useState<Set<string>>(new Set());
+
+    // Active mappings = all mappings minus disabled ones
+    const activeMappings = useMemo(() =>
+        variableMappings.filter(m => !disabledVariables.has(m.variable)),
+        [variableMappings, disabledVariables]
+    );
+
+    // Message with disabled variables replaced by their fallback text
+    const activeMessage = useMemo(() => {
+        let msg = message;
+        for (const m of variableMappings) {
+            if (disabledVariables.has(m.variable)) {
+                const escapedVar = m.variable.replace(/[{}]/g, '\\$&');
+                msg = msg.replace(new RegExp(escapedVar, 'g'), m.fallback || '');
+            }
+        }
+        return msg;
+    }, [message, variableMappings, disabledVariables]);
+
+    const handleToggleVariable = useCallback((variable: string) => {
+        setDisabledVariables(prev => {
+            const next = new Set(prev);
+            if (next.has(variable)) {
+                next.delete(variable);
+            } else {
+                next.add(variable);
+            }
+            return next;
+        });
+    }, []);
+
     // Enhancement state
     const [headerImage, setHeaderImage] = useState<string | null>(() => {
         if (template?.enhancementDefaults?.image) {
@@ -150,7 +183,8 @@ export function BroadcastStudio({
         setError(null);
 
         try {
-            const finalMappings = variableMappings.map(m => {
+            // Use activeMappings (excludes disabled variables)
+            const finalMappings = activeMappings.map(m => {
                 if ((m.source === 'static' || m.source === 'module') && staticValues[m.variable]) {
                     return { ...m, previewValue: staticValues[m.variable] };
                 }
@@ -162,7 +196,7 @@ export function BroadcastStudio({
             const campaignResult = await createCampaignAction(partnerId, userId, {
                 title: campaignTitle,
                 channel,
-                message,
+                message: activeMessage,
                 recipientType,
                 recipientCount,
                 hasImage: !!headerImage,
@@ -203,7 +237,7 @@ export function BroadcastStudio({
                 partnerId,
                 campaignId,
                 channel,
-                message,
+                activeMessage,
                 headerImage || undefined,
                 recipientType,
                 selectedRecipientIds,
@@ -223,9 +257,9 @@ export function BroadcastStudio({
             setIsSending(false);
         }
     }, [
-        variableMappings, staticValues, template, partnerId, userId,
-        channel, message, recipientType, recipientCount, headerImage,
-        quickReplies, selectedGroupId, selectedContactIds, contacts, onSuccess,
+        activeMappings, activeMessage, staticValues, template, partnerId, userId,
+        channel, recipientType, recipientCount, headerImage,
+        quickReplies, selectedGroupId, selectedContactIds, ctaButtons, onSuccess,
     ]);
 
     const steps: { id: StudioStep; label: string; num: number }[] = [
@@ -331,6 +365,11 @@ export function BroadcastStudio({
                             contacts={contacts}
                             enhancements={enhancements}
                             setEnhancements={setEnhancements}
+                            disabledVariables={disabledVariables}
+                            onToggleVariable={handleToggleVariable}
+                            activeMessage={activeMessage}
+                            activeMappings={activeMappings}
+                            partnerIndustry={partnerIndustry}
                         />
                     )}
 
@@ -349,9 +388,9 @@ export function BroadcastStudio({
 
                     {step === 'review' && (
                         <ReviewStep
-                            message={message}
+                            message={activeMessage}
                             channel={channel}
-                            mappings={variableMappings}
+                            mappings={activeMappings}
                             staticValues={staticValues}
                             csvVariableData={csvVariableData}
                             recipientType={recipientType}

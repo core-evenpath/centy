@@ -16,9 +16,12 @@ export function CategoryGrid() {
     const handleGenerate = async (industryId: string, industryName: string) => {
         setGeneratingId(industryId);
         try {
-            const result = await generateSystemTemplatesBatchAction(industryId, 10);
+            const result = await generateSystemTemplatesBatchAction(industryId, 20);
             if (result.success) {
-                toast.success(`Generated ${result.count} templates for ${industryName}`);
+                const coverageInfo = result.coverage
+                    ? ` (${Object.entries(result.coverage).map(([k, v]) => `${k}: ${v}`).join(', ')})`
+                    : '';
+                toast.success(`Generated ${result.count} templates for ${industryName}${coverageInfo}`);
             } else {
                 toast.error(result.error || "Failed to generate templates");
             }
@@ -44,11 +47,14 @@ export function CategoryGrid() {
                     </CardHeader>
                     <CardContent className="flex-grow">
                         <div className="text-sm text-muted-foreground">
-                            <p>Includes:</p>
+                            <p>Generates per campaign type:</p>
                             <ul className="list-disc list-inside mt-1">
-                                <li>3 Marketing (Offers)</li>
-                                <li>5 Utility (Updates)</li>
-                                <li>2 Auth (OTP)</li>
+                                <li>3+ Promotions</li>
+                                <li>3+ Seasonal</li>
+                                <li>3+ Retention</li>
+                                <li>3+ Reminders</li>
+                                <li>3+ Lead Gen</li>
+                                <li>3+ Announcements</li>
                             </ul>
                         </div>
                     </CardContent>
@@ -67,7 +73,7 @@ export function CategoryGrid() {
                             ) : (
                                 <>
                                     <Wand2 className="mr-2 h-4 w-4" />
-                                    Generate Batch (10)
+                                    Generate Full Set (20)
                                 </>
                             )}
                         </Button>
