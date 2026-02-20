@@ -1,13 +1,14 @@
 "use client";
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useMultiWorkspaceAuth } from '@/hooks/use-multi-workspace-auth';
 import { db } from '@/lib/firebase';
 import { collection, query, onSnapshot, doc, getDoc } from 'firebase/firestore';
 import { getBroadcastGroupsAction, getCampaignsAction, type BroadcastCampaign } from '@/actions/broadcast-actions';
 import { getTemplatesForPartnerIndustry } from '@/actions/template-filtering-actions';
 import { getPartnerTemplatesAction } from '@/actions/template-actions';
-import { SystemTemplate, Contact } from '@/lib/types';
+import { generateBroadcastIdeasAction } from '@/actions/broadcast-idea-actions';
+import { SystemTemplate, Contact, BroadcastIdea, TemplateCampaignType } from '@/lib/types';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2 } from 'lucide-react';
 
@@ -22,6 +23,55 @@ interface Group {
 }
 
 type View = 'feed' | 'studio' | 'success';
+
+/**
+ * Convert a BroadcastIdea (AI-generated) to a SystemTemplate shape
+ * so BroadcastStudio and all downstream steps work unchanged.
+ */
+function ideaToTemplate(idea: BroadcastIdea): SystemTemplate {
+    return {
+        id: idea.id,
+        slug: `ai-idea-${idea.id}`,
+        name: idea.title,
+        language: 'en_US',
+        category: idea.category as 'MARKETING' | 'UTILITY' | 'AUTHENTICATION',
+        components: [
+            {
+                type: 'BODY',
+                text: idea.message,
+            },
+        ],
+        variableCount: idea.variableMap.length,
+        variables: idea.variableMap.map(v => v.token),
+        applicableIndustries: [],
+        applicableFunctions: [],
+        status: 'draft',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        feedMeta: {
+            title: idea.title,
+            subtitle: idea.description,
+            campaignType: idea.campaignType as TemplateCampaignType,
+            signal: {
+                icon: '\u2728',
+                label: idea.signal?.label || 'AI Suggested',
+                color: idea.signal?.color || '#6366f1',
+            },
+            timing: {
+                best: 'Anytime',
+                icon: '\uD83D\uDD59',
+            },
+            sortPriority: idea.sortPriority,
+            isTimeSensitive: false,
+        },
+        variableMap: idea.variableMap,
+        enhancementDefaults: {
+            image: false,
+            buttons: false,
+            link: false,
+        },
+    };
+}
 
 export default function PingboxBroadcast() {
     const { currentWorkspace, user } = useMultiWorkspaceAuth();
@@ -38,6 +88,11 @@ export default function PingboxBroadcast() {
     const [partnerIndustries, setPartnerIndustries] = useState<string[]>([]);
     const [businessName, setBusinessName] = useState('');
     const [isLoading, setIsLoading] = useState(true);
+
+    // AI ideas state
+    const [aiIdeas, setAiIdeas] = useState<BroadcastIdea[]>([]);
+    const [isLoadingIdeas, setIsLoadingIdeas] = useState(false);
+    const [hasModuleData, setHasModuleData] = useState(false);
 
     // View state
     const [view, setView] = useState<View>('feed');
@@ -71,12 +126,12 @@ export default function PingboxBroadcast() {
             const res = await getBroadcastGroupsAction(partnerId);
             if (res.success && res.groups) {
                 setGroups([
-                    { id: 'all', name: 'All Contacts', count: contacts.length, icon: '📋' },
+                    { id: 'all', name: 'All Contacts', count: contacts.length, icon: '\uD83D\uDCCB' },
                     ...res.groups.map((g: any) => ({
                         id: g.id,
                         name: g.name,
                         count: g.count || 0,
-                        icon: '👥',
+                        icon: '\uD83D\uDC65',
                     })),
                 ]);
             }
@@ -129,10 +184,37 @@ export default function PingboxBroadcast() {
         fetchAll();
     }, [partnerId]);
 
+    // AI Ideas (fetched after initial load)
+    useEffect(() => {
+        if (!partnerId || isLoading) return;
+
+        const fetchIdeas = async () => {
+            setIsLoadingIdeas(true);
+            try {
+                const res = await generateBroadcastIdeasAction(partnerId);
+                if (res.success && res.ideas) {
+                    setAiIdeas(res.ideas);
+                    setHasModuleData(res.hasModuleData);
+                }
+            } catch (err) {
+                console.error('Error fetching AI ideas:', err);
+            }
+            setIsLoadingIdeas(false);
+        };
+
+        fetchIdeas();
+    }, [partnerId, isLoading]);
+
     // ===== View Handlers =====
 
     const handleSelectTemplate = (t: SystemTemplate) => {
         setSelectedTemplate(t);
+        setView('studio');
+    };
+
+    const handleSelectIdea = (idea: BroadcastIdea) => {
+        const template = ideaToTemplate(idea);
+        setSelectedTemplate(template);
         setView('studio');
     };
 
@@ -149,10 +231,30 @@ export default function PingboxBroadcast() {
     const handleSuccess = () => {
         setView('success');
         toast({
-            title: '🎉 Campaign Sent!',
+            title: '\uD83C\uDF89 Campaign Sent!',
             description: 'Your broadcast is being delivered to recipients.',
         });
     };
+
+    const handleRefreshIdeas = useCallback(async () => {
+        if (!partnerId) return;
+        setIsLoadingIdeas(true);
+        try {
+            const res = await generateBroadcastIdeasAction(partnerId, { forceRefresh: true });
+            if (res.success && res.ideas) {
+                setAiIdeas(res.ideas);
+                setHasModuleData(res.hasModuleData);
+            }
+        } catch (err) {
+            console.error('Error refreshing AI ideas:', err);
+            toast({
+                title: 'Refresh failed',
+                description: 'Could not generate new ideas. Please try again.',
+                variant: 'destructive',
+            });
+        }
+        setIsLoadingIdeas(false);
+    }, [partnerId, toast]);
 
     // ===== Render =====
 
@@ -177,7 +279,7 @@ export default function PingboxBroadcast() {
     if (view === 'success') {
         return (
             <div className="h-full flex flex-col items-center justify-center gap-6">
-                <div className="text-6xl animate-bounce">🎉</div>
+                <div className="text-6xl animate-bounce">{'\uD83C\uDF89'}</div>
                 <div className="text-center">
                     <h2 className="text-2xl font-bold text-gray-900 mb-2">Campaign Sent!</h2>
                     <p className="text-gray-500">Your broadcast is being delivered to recipients.</p>
@@ -193,7 +295,7 @@ export default function PingboxBroadcast() {
                         href="/partner/campaigns"
                         className="px-6 py-3 bg-gray-100 text-gray-700 rounded-xl text-sm font-medium hover:bg-gray-200 transition-colors"
                     >
-                        View Campaigns →
+                        View Campaigns &rarr;
                     </a>
                 </div>
             </div>
@@ -224,11 +326,16 @@ export default function PingboxBroadcast() {
             <div className="px-4 py-8">
                 <BroadcastFeed
                     templates={templates}
+                    aiIdeas={aiIdeas}
+                    isLoadingIdeas={isLoadingIdeas}
                     campaigns={campaigns}
                     contactCount={contacts.length}
                     partnerIndustries={partnerIndustries}
+                    hasModuleData={hasModuleData}
                     onSelectTemplate={handleSelectTemplate}
+                    onSelectIdea={handleSelectIdea}
                     onCustomBroadcast={handleCustomBroadcast}
+                    onRefreshIdeas={handleRefreshIdeas}
                 />
             </div>
         </div>

@@ -1552,3 +1552,25 @@ export interface SystemTemplate {
   variableMap?: VariableDefinition[];
   enhancementDefaults?: TemplateEnhancementDefaults;
 }
+
+// --- AI-Generated Broadcast Idea ---
+export interface BroadcastIdea {
+  id: string;
+  title: string;
+  description: string;
+  campaignType: TemplateCampaignType;
+  message: string;
+  variableMap: VariableDefinition[];
+  signal?: {
+    label: string;
+    color: string;
+  };
+  sourceItems?: {
+    moduleSlug: string;
+    itemId: string;
+    itemName: string;
+  }[];
+  category: 'MARKETING' | 'UTILITY';
+  suggestedChannel: 'whatsapp' | 'sms' | 'telegram';
+  sortPriority: number;
+}

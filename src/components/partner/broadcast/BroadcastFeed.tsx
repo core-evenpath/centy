@@ -1,17 +1,23 @@
 "use client";
 
 import React, { useState, useMemo } from 'react';
-import { SystemTemplate, TemplateCampaignType } from '@/lib/types';
+import { SystemTemplate, TemplateCampaignType, BroadcastIdea } from '@/lib/types';
 import { type BroadcastCampaign } from '@/actions/broadcast-actions';
 import { FeedCard } from './FeedCard';
+import { AIIdeaCard } from './AIIdeaCard';
 
 interface BroadcastFeedProps {
     templates: SystemTemplate[];
+    aiIdeas: BroadcastIdea[];
+    isLoadingIdeas: boolean;
     campaigns: BroadcastCampaign[];
     contactCount: number;
     partnerIndustries: string[];
+    hasModuleData: boolean;
     onSelectTemplate: (t: SystemTemplate) => void;
+    onSelectIdea: (idea: BroadcastIdea) => void;
     onCustomBroadcast: () => void;
+    onRefreshIdeas: () => void;
 }
 
 type FilterTab = 'all' | TemplateCampaignType;
@@ -28,10 +34,15 @@ const filterTabs: { id: FilterTab; label: string }[] = [
 
 export function BroadcastFeed({
     templates,
+    aiIdeas,
+    isLoadingIdeas,
     campaigns,
     contactCount,
+    hasModuleData,
     onSelectTemplate,
+    onSelectIdea,
     onCustomBroadcast,
+    onRefreshIdeas,
 }: BroadcastFeedProps) {
     const [activeFilter, setActiveFilter] = useState<FilterTab>('all');
 
@@ -44,6 +55,17 @@ export function BroadcastFeed({
     const openRate = totalDelivered > 0 ? Math.round((totalRead / totalDelivered) * 100) : null;
     const replyRate = totalSent > 0 ? Math.round((totalReplied / totalSent) * 100) : null;
 
+    // Sort and filter AI ideas
+    const sortedIdeas = useMemo(() => {
+        return [...aiIdeas].sort((a, b) => (b.sortPriority || 0) - (a.sortPriority || 0));
+    }, [aiIdeas]);
+
+    const filteredIdeas = useMemo(() => {
+        if (activeFilter === 'all') return sortedIdeas;
+        return sortedIdeas.filter(idea => idea.campaignType === activeFilter);
+    }, [sortedIdeas, activeFilter]);
+
+    // Sort and filter templates
     const sortedTemplates = useMemo(() => {
         const withMeta = templates.filter(t => t.feedMeta).sort((a, b) => (b.feedMeta!.sortPriority || 0) - (a.feedMeta!.sortPriority || 0));
         const withoutMeta = templates.filter(t => !t.feedMeta);
@@ -60,8 +82,8 @@ export function BroadcastFeed({
     const stats = [
         { label: 'Your Contacts', value: contactCount.toString(), color: '#111' },
         { label: 'Campaigns Sent', value: sentCampaigns.length.toString(), color: '#7c3aed' },
-        { label: 'Open Rate', value: openRate !== null ? `${openRate}%` : '—', color: '#0ea5e9' },
-        { label: 'Reply Rate', value: replyRate !== null ? `${replyRate}%` : '—', color: '#16a34a' },
+        { label: 'Open Rate', value: openRate !== null ? `${openRate}%` : '\u2014', color: '#0ea5e9' },
+        { label: 'Reply Rate', value: replyRate !== null ? `${replyRate}%` : '\u2014', color: '#16a34a' },
     ];
 
     return (
@@ -75,7 +97,7 @@ export function BroadcastFeed({
                     onClick={onCustomBroadcast}
                     className="px-5 py-2.5 bg-gray-900 text-white rounded-xl text-sm font-semibold hover:bg-gray-800 transition-colors flex items-center gap-2 shadow-sm"
                 >
-                    Custom Broadcast <span>✨</span>
+                    Custom Broadcast <span>&#10024;</span>
                 </button>
             </div>
 
@@ -103,31 +125,96 @@ export function BroadcastFeed({
                 ))}
             </div>
 
-            {filteredTemplates.length === 0 ? (
+            {/* AI-Suggested Campaigns Section */}
+            <div className="mb-8">
+                <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-2">
+                        <span className="text-sm text-indigo-500">&#10024;</span>
+                        <h2 className="text-sm font-semibold text-gray-900">AI-Suggested Campaigns</h2>
+                    </div>
+                    <button
+                        onClick={onRefreshIdeas}
+                        disabled={isLoadingIdeas}
+                        className="px-3 py-1.5 text-xs font-medium text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                        {isLoadingIdeas ? 'Generating...' : 'Refresh Ideas &#10024;'}
+                    </button>
+                </div>
+
+                {isLoadingIdeas ? (
+                    <div className="space-y-3">
+                        {[1, 2, 3].map(i => (
+                            <div key={i} className="bg-white rounded-xl border border-gray-200 p-4 animate-pulse">
+                                <div className="flex items-start justify-between gap-3">
+                                    <div className="flex-1">
+                                        <div className="h-4 bg-gray-200 rounded w-3/4 mb-2" />
+                                        <div className="h-3 bg-gray-100 rounded w-1/2 mb-3" />
+                                        <div className="flex gap-2">
+                                            <div className="h-5 bg-gray-100 rounded-full w-28" />
+                                            <div className="h-5 bg-gray-100 rounded-full w-20" />
+                                        </div>
+                                    </div>
+                                    <div className="h-5 bg-gray-100 rounded w-16" />
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                ) : filteredIdeas.length > 0 ? (
+                    <div className="space-y-3">
+                        {filteredIdeas.map(idea => (
+                            <AIIdeaCard
+                                key={idea.id}
+                                idea={idea}
+                                onSelect={() => onSelectIdea(idea)}
+                            />
+                        ))}
+                    </div>
+                ) : aiIdeas.length > 0 && activeFilter !== 'all' ? (
+                    <div className="bg-white rounded-xl border border-gray-200 p-6 text-center">
+                        <p className="text-sm text-gray-500">No AI suggestions for this category. Try &quot;All&quot; to see all ideas.</p>
+                    </div>
+                ) : !isLoadingIdeas && !hasModuleData ? (
+                    <div className="bg-gradient-to-br from-indigo-50 to-violet-50 rounded-xl border border-indigo-100 p-6 text-center">
+                        <span className="text-2xl block mb-2">&#128230;</span>
+                        <h3 className="font-semibold text-gray-900 mb-1 text-sm">Add your products to unlock AI campaigns</h3>
+                        <p className="text-xs text-gray-500 mb-3">
+                            Go to Settings &rarr; Modules to add your products, services, or menu items. AI will create personalized campaign ideas using your actual data.
+                        </p>
+                    </div>
+                ) : null}
+            </div>
+
+            {/* Admin Templates Section */}
+            {filteredTemplates.length > 0 && (
+                <div className="mb-6">
+                    <h2 className="text-sm font-semibold text-gray-900 mb-3">Templates</h2>
+                    <div className="space-y-3">
+                        {filteredTemplates.map(t => (
+                            <FeedCard
+                                key={t.id}
+                                template={t}
+                                onSelect={() => onSelectTemplate(t)}
+                            />
+                        ))}
+                    </div>
+                </div>
+            )}
+
+            {filteredIdeas.length === 0 && filteredTemplates.length === 0 && !isLoadingIdeas && (
                 <div className="bg-white rounded-xl border border-gray-200 p-12 text-center">
-                    <span className="text-4xl block mb-3 opacity-60">📭</span>
-                    <h3 className="font-semibold text-gray-900 mb-1">No templates found</h3>
+                    <span className="text-4xl block mb-3 opacity-60">&#128237;</span>
+                    <h3 className="font-semibold text-gray-900 mb-1">No campaigns found</h3>
                     <p className="text-sm text-gray-500 mb-4">
                         {activeFilter !== 'all'
-                            ? 'Try a different category or browse all templates'
-                            : 'No templates are available for your industry yet'}
+                            ? 'Try a different category or browse all campaigns'
+                            : 'No campaigns are available yet'}
                     </p>
                     <button
                         onClick={onCustomBroadcast}
                         className="px-5 py-2.5 bg-gray-900 text-white rounded-xl text-sm font-semibold hover:bg-gray-800 transition-colors"
                     >
-                        Start from Scratch ✨
+                        Start from Scratch &#10024;
                     </button>
-                </div>
-            ) : (
-                <div className="space-y-3">
-                    {filteredTemplates.map(t => (
-                        <FeedCard
-                            key={t.id}
-                            template={t}
-                            onSelect={() => onSelectTemplate(t)}
-                        />
-                    ))}
                 </div>
             )}
 
@@ -139,7 +226,7 @@ export function BroadcastFeed({
                     onClick={onCustomBroadcast}
                     className="px-5 py-2.5 bg-violet-600 text-white rounded-xl text-sm font-semibold hover:bg-violet-700 transition-colors"
                 >
-                    Start from scratch ✨
+                    Start from scratch &#10024;
                 </button>
             </div>
         </div>
