@@ -13,7 +13,8 @@ import {
     deleteAllModuleItemsAction,
 } from '@/actions/modules-actions';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Plus, Settings, Package, Trash2, Loader2, AlertTriangle } from 'lucide-react';
+import { ArrowLeft, Plus, Settings, Package, Trash2, Loader2, AlertTriangle, Upload } from 'lucide-react';
+import { ImportDialog } from '@/components/partner/modules/ImportDialog';
 import Link from 'next/link';
 import { Skeleton } from '@/components/ui/skeleton';
 import { toast } from 'sonner';
@@ -65,6 +66,7 @@ export default function ModuleManagePage({ params }: PageProps) {
     const [editingItem, setEditingItem] = useState<Partial<ModuleItem> | undefined>(undefined);
     const [isDeleteAllOpen, setIsDeleteAllOpen] = useState(false);
     const [isDeleting, setIsDeleting] = useState(false);
+    const [isImportOpen, setIsImportOpen] = useState(false);
 
     // Combined loading state
     const isLoading = authLoading || pLoading || (partnerModule && iLoading);
@@ -287,6 +289,11 @@ export default function ModuleManagePage({ params }: PageProps) {
                             </DropdownMenuContent>
                         </DropdownMenu>
 
+                        <Button variant="outline" onClick={() => setIsImportOpen(true)}>
+                            <Upload className="mr-2 h-4 w-4" />
+                            Import
+                        </Button>
+
                         <Dialog open={isEditorOpen} onOpenChange={setIsEditorOpen}>
                             <DialogTrigger asChild>
                                 <Button onClick={handleCreate}>
@@ -344,6 +351,20 @@ export default function ModuleManagePage({ params }: PageProps) {
                     onReorder={handleReorder}
                 />
             )}
+
+            <ImportDialog
+                open={isImportOpen}
+                onOpenChange={setIsImportOpen}
+                partnerId={partnerId}
+                userId={user?.uid || 'unknown'}
+                module={partnerModule}
+                schema={schema}
+                moduleSlug={slug}
+                onImportComplete={() => {
+                    refetch();
+                    refetchModule();
+                }}
+            />
 
             {/* Delete All Dialog */}
             <Dialog open={isDeleteAllOpen} onOpenChange={setIsDeleteAllOpen}>
