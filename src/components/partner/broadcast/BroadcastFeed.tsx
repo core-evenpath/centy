@@ -5,11 +5,15 @@ import { SystemTemplate, TemplateCampaignType } from '@/lib/types';
 import { type BroadcastCampaign } from '@/actions/broadcast-actions';
 import { FeedCard } from './FeedCard';
 
+export type TemplateStatus = 'ready' | 'module-needed' | 'standard';
+
 interface BroadcastFeedProps {
     templates: SystemTemplate[];
     campaigns: BroadcastCampaign[];
     contactCount: number;
     partnerIndustries: string[];
+    enabledModuleSlugs: string[];
+    partnerFunctionIds: string[];
     onSelectTemplate: (t: SystemTemplate) => void;
     onCustomBroadcast: () => void;
 }
@@ -26,10 +30,38 @@ const filterTabs: { id: FilterTab; label: string }[] = [
     { id: 'announcement', label: 'Announcements' },
 ];
 
+function getTemplateStatus(
+    template: SystemTemplate,
+    enabledModuleSlugs: string[],
+    _partnerFunctionIds: string[]
+): TemplateStatus {
+    const moduleRefs = (template.variableMap || []).filter(
+        v => v.source === 'module' && v.moduleRef?.moduleSlug
+    );
+
+    if (moduleRefs.length === 0) {
+        return 'standard';
+    }
+
+    const allSatisfied = moduleRefs.every(
+        v => enabledModuleSlugs.includes(v.moduleRef!.moduleSlug)
+    );
+
+    return allSatisfied ? 'ready' : 'module-needed';
+}
+
+const STATUS_PRIORITY: Record<TemplateStatus, number> = {
+    'ready': 0,
+    'standard': 1,
+    'module-needed': 2,
+};
+
 export function BroadcastFeed({
     templates,
     campaigns,
     contactCount,
+    enabledModuleSlugs,
+    partnerFunctionIds,
     onSelectTemplate,
     onCustomBroadcast,
 }: BroadcastFeedProps) {
@@ -45,14 +77,26 @@ export function BroadcastFeed({
     const replyRate = totalSent > 0 ? Math.round((totalReplied / totalSent) * 100) : null;
 
     const sortedTemplates = useMemo(() => {
-        const withMeta = templates.filter(t => t.feedMeta).sort((a, b) => (b.feedMeta!.sortPriority || 0) - (a.feedMeta!.sortPriority || 0));
-        const withoutMeta = templates.filter(t => !t.feedMeta);
-        return [...withMeta, ...withoutMeta];
-    }, [templates]);
+        const withStatus = templates.map(t => ({
+            template: t,
+            status: getTemplateStatus(t, enabledModuleSlugs, partnerFunctionIds),
+        }));
+
+        withStatus.sort((a, b) => {
+            const statusDiff = STATUS_PRIORITY[a.status] - STATUS_PRIORITY[b.status];
+            if (statusDiff !== 0) return statusDiff;
+
+            const aPriority = a.template.feedMeta?.sortPriority || 0;
+            const bPriority = b.template.feedMeta?.sortPriority || 0;
+            return bPriority - aPriority;
+        });
+
+        return withStatus;
+    }, [templates, enabledModuleSlugs, partnerFunctionIds]);
 
     const filteredTemplates = useMemo(() => {
         if (activeFilter === 'all') return sortedTemplates;
-        return sortedTemplates.filter(t =>
+        return sortedTemplates.filter(({ template: t }) =>
             t.feedMeta?.campaignType === activeFilter || !t.feedMeta
         );
     }, [sortedTemplates, activeFilter]);
@@ -121,10 +165,11 @@ export function BroadcastFeed({
                 </div>
             ) : (
                 <div className="space-y-3">
-                    {filteredTemplates.map(t => (
+                    {filteredTemplates.map(({ template: t, status }) => (
                         <FeedCard
                             key={t.id}
                             template={t}
+                            status={status}
                             onSelect={() => onSelectTemplate(t)}
                         />
                     ))}

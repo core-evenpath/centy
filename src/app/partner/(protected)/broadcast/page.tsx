@@ -30,23 +30,20 @@ export default function PingboxBroadcast() {
     const partnerId = currentWorkspace?.partnerId;
     const userId = user?.uid;
 
-    // Data state
     const [contacts, setContacts] = useState<Contact[]>([]);
     const [groups, setGroups] = useState<Group[]>([]);
     const [templates, setTemplates] = useState<SystemTemplate[]>([]);
     const [campaigns, setCampaigns] = useState<BroadcastCampaign[]>([]);
     const [partnerIndustries, setPartnerIndustries] = useState<string[]>([]);
+    const [partnerFunctionIds, setPartnerFunctionIds] = useState<string[]>([]);
+    const [enabledModuleSlugs, setEnabledModuleSlugs] = useState<string[]>([]);
     const [businessName, setBusinessName] = useState('');
     const [isLoading, setIsLoading] = useState(true);
 
-    // View state
     const [view, setView] = useState<View>('feed');
     const [selectedTemplate, setSelectedTemplate] = useState<SystemTemplate | null>(null);
     const [channel] = useState<'whatsapp' | 'telegram'>('whatsapp');
 
-    // ===== Data Fetching =====
-
-    // Contacts (realtime)
     useEffect(() => {
         if (!partnerId) return;
 
@@ -63,7 +60,6 @@ export default function PingboxBroadcast() {
         return () => unsubscribe();
     }, [partnerId]);
 
-    // Groups
     useEffect(() => {
         if (!partnerId) return;
 
@@ -84,7 +80,6 @@ export default function PingboxBroadcast() {
         fetchGroups();
     }, [partnerId, contacts.length]);
 
-    // Templates, Campaigns, Partner Profile
     useEffect(() => {
         if (!partnerId) return;
 
@@ -98,7 +93,6 @@ export default function PingboxBroadcast() {
                 getDoc(doc(db, 'partners', partnerId)),
             ]);
 
-            // Templates
             const allTemplates: SystemTemplate[] = [];
             if (sysRes.success && sysRes.templates) {
                 allTemplates.push(...(sysRes.templates as SystemTemplate[]));
@@ -111,13 +105,13 @@ export default function PingboxBroadcast() {
             if (sysRes.partnerIndustries) {
                 setPartnerIndustries(sysRes.partnerIndustries as string[]);
             }
+            setPartnerFunctionIds(sysRes.partnerFunctionIds || []);
+            setEnabledModuleSlugs(sysRes.enabledModuleSlugs || []);
 
-            // Campaigns
             if (campaignsRes.success && campaignsRes.campaigns) {
                 setCampaigns(campaignsRes.campaigns);
             }
 
-            // Partner Profile
             if (partnerDoc.exists()) {
                 const data = partnerDoc.data();
                 setBusinessName(data?.businessName || data?.name || 'Business');
@@ -128,8 +122,6 @@ export default function PingboxBroadcast() {
 
         fetchAll();
     }, [partnerId]);
-
-    // ===== View Handlers =====
 
     const handleSelectTemplate = (t: SystemTemplate) => {
         setSelectedTemplate(t);
@@ -154,8 +146,6 @@ export default function PingboxBroadcast() {
         });
     };
 
-    // ===== Render =====
-
     if (!partnerId) {
         return (
             <div className="h-full flex items-center justify-center">
@@ -173,7 +163,6 @@ export default function PingboxBroadcast() {
         );
     }
 
-    // Success view
     if (view === 'success') {
         return (
             <div className="h-full flex flex-col items-center justify-center gap-6">
@@ -200,7 +189,6 @@ export default function PingboxBroadcast() {
         );
     }
 
-    // Studio view
     if (view === 'studio') {
         return (
             <BroadcastStudio
@@ -218,7 +206,6 @@ export default function PingboxBroadcast() {
         );
     }
 
-    // Feed view (default)
     return (
         <div className="h-full overflow-y-auto">
             <div className="px-4 py-8">
@@ -227,6 +214,8 @@ export default function PingboxBroadcast() {
                     campaigns={campaigns}
                     contactCount={contacts.length}
                     partnerIndustries={partnerIndustries}
+                    enabledModuleSlugs={enabledModuleSlugs}
+                    partnerFunctionIds={partnerFunctionIds}
                     onSelectTemplate={handleSelectTemplate}
                     onCustomBroadcast={handleCustomBroadcast}
                 />
