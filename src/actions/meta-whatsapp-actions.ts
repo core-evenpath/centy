@@ -492,6 +492,30 @@ export async function sendMetaWhatsAppMessageAction(
 
     } catch (error: any) {
         console.error('❌ Error sending Meta WhatsApp message:', error);
+        const errMsg = (error as Error).message || '';
+
+        // Detect payment/billing related errors
+        if (
+            errMsg.toLowerCase().includes('payment') ||
+            errMsg.toLowerCase().includes('billing') ||
+            errMsg.toLowerCase().includes('missing valid payment') ||
+            errMsg.toLowerCase().includes('free tier') ||
+            errMsg.toLowerCase().includes('business eligibility')
+        ) {
+            return {
+                success: false,
+                message: 'Payment method required: Your WhatsApp Business Account needs a valid payment method and GST/Tax ID configured in Meta Business Manager. Go to Apps → WhatsApp API for setup instructions.',
+            };
+        }
+
+        // Detect token expiration errors
+        if (errMsg.includes('access token') || errMsg.includes('OAuthException') || errMsg.includes('Session has expired')) {
+            return {
+                success: false,
+                message: 'Your Meta access token has expired. Go to Apps → WhatsApp API and click "Fix Connection" to refresh it.',
+            };
+        }
+
         return { success: false, message: error.message };
     }
 }

@@ -71,6 +71,18 @@ export async function sendMetaTextMessage(
     if (!response.ok) {
         const errorData = await response.json();
         const errorMsg = errorData.error?.message || `Meta API error: ${response.status}`;
+        // Check for payment/billing errors before session-expired
+        if (
+            errorData.error?.code === 131042 ||
+            errorMsg.toLowerCase().includes('payment') ||
+            errorMsg.toLowerCase().includes('free tier') ||
+            errorMsg.toLowerCase().includes('business eligibility') ||
+            errorMsg.toLowerCase().includes('missing valid payment')
+        ) {
+            throw new Error(
+                'Missing payment method: Add a valid payment method and GST/Tax ID to your WhatsApp Business Account in Meta Business Manager (business.facebook.com → Billing Hub).'
+            );
+        }
         // If token expired, attempt a refresh and retry once
         if (errorMsg.toLowerCase().includes('session has expired')) {
             try {
@@ -187,6 +199,19 @@ export async function sendMetaMediaMessage(
     if (!response.ok) {
         const errorData = await response.json();
         const errorMsg = errorData.error?.message || `Meta API error: ${response.status}`;
+
+        // Check for payment/billing errors before session-expired
+        if (
+            errorData.error?.code === 131042 ||
+            errorMsg.toLowerCase().includes('payment') ||
+            errorMsg.toLowerCase().includes('free tier') ||
+            errorMsg.toLowerCase().includes('business eligibility') ||
+            errorMsg.toLowerCase().includes('missing valid payment')
+        ) {
+            throw new Error(
+                'Missing payment method: Add a valid payment method and GST/Tax ID to your WhatsApp Business Account in Meta Business Manager (business.facebook.com → Billing Hub).'
+            );
+        }
 
         if (errorMsg.toLowerCase().includes('session has expired')) {
             try {
@@ -522,6 +547,19 @@ export async function sendMetaTemplateMessage(
         const errorData = await response.json();
         const errorMsg = errorData.error?.message || `Meta API error: ${response.status}`;
 
+        // Check for payment/billing errors before session-expired
+        if (
+            errorData.error?.code === 131042 ||
+            errorMsg.toLowerCase().includes('payment') ||
+            errorMsg.toLowerCase().includes('free tier') ||
+            errorMsg.toLowerCase().includes('business eligibility') ||
+            errorMsg.toLowerCase().includes('missing valid payment')
+        ) {
+            throw new Error(
+                'Missing payment method: Add a valid payment method and GST/Tax ID to your WhatsApp Business Account in Meta Business Manager (business.facebook.com → Billing Hub).'
+            );
+        }
+
         if (errorMsg.toLowerCase().includes('session has expired')) {
             try {
                 const newToken = await refreshMetaAccessToken(partnerId);
@@ -628,6 +666,19 @@ export async function sendMetaInteractiveMessage(
     if (!response.ok) {
         const errorData = await response.json();
         const errorMsg = errorData.error?.message || `Meta API error: ${response.status}`;
+
+        // Check for payment/billing errors before session-expired
+        if (
+            errorData.error?.code === 131042 ||
+            errorMsg.toLowerCase().includes('payment') ||
+            errorMsg.toLowerCase().includes('free tier') ||
+            errorMsg.toLowerCase().includes('business eligibility') ||
+            errorMsg.toLowerCase().includes('missing valid payment')
+        ) {
+            throw new Error(
+                'Missing payment method: Add a valid payment method and GST/Tax ID to your WhatsApp Business Account in Meta Business Manager (business.facebook.com → Billing Hub).'
+            );
+        }
 
         if (errorMsg.toLowerCase().includes('session has expired')) {
             try {
