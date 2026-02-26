@@ -439,21 +439,45 @@ export default function UnifiedInboxPage() {
         try {
             let result;
 
-            if (selectedConversation.platform === 'meta_whatsapp' && selectedConversation.whatsAppData) {
+            if (selectedConversation.platform === 'meta_whatsapp') {
                 const formattedText = markdownToWhatsApp(textToSend);
+                const customerPhone = selectedConversation.whatsAppData?.customerPhone
+                    || selectedConversation.customerIdentifier;
+
+                if (!customerPhone) {
+                    toast.error('No phone number available for this conversation');
+                    if (!textOverride) setMessageInput(textToSend);
+                    setSending(false);
+                    return;
+                }
+
                 result = await sendMetaWhatsAppMessageAction({
                     partnerId: currentPartnerId,
-                    to: selectedConversation.whatsAppData.customerPhone,
+                    to: customerPhone,
                     message: formattedText,
                     conversationId: selectedConversation.id,
                 });
-            } else if (selectedConversation.platform === 'telegram' && selectedConversation.telegramData) {
+            } else if (selectedConversation.platform === 'telegram') {
+                const chatId = selectedConversation.telegramData?.chatId;
+
+                if (!chatId) {
+                    toast.error('No Telegram chat ID available for this conversation');
+                    if (!textOverride) setMessageInput(textToSend);
+                    setSending(false);
+                    return;
+                }
+
                 result = await sendTelegramMessageAction({
                     partnerId: currentPartnerId,
-                    chatId: selectedConversation.telegramData.chatId,
+                    chatId,
                     message: textToSend,
                     conversationId: selectedConversation.id,
                 });
+            } else {
+                toast.error('Unsupported messaging platform');
+                if (!textOverride) setMessageInput(textToSend);
+                setSending(false);
+                return;
             }
 
             if (result?.success) {
@@ -485,26 +509,47 @@ export default function UnifiedInboxPage() {
         try {
             let result;
 
-            if (selectedConversation.platform === 'meta_whatsapp' && selectedConversation.whatsAppData) {
+            if (selectedConversation.platform === 'meta_whatsapp') {
+                const customerPhone = selectedConversation.whatsAppData?.customerPhone
+                    || selectedConversation.customerIdentifier;
+
+                if (!customerPhone) {
+                    toast.error('No phone number available for this conversation');
+                    setSending(false);
+                    return;
+                }
+
                 result = await sendMetaWhatsAppMessageAction({
                     partnerId: currentPartnerId,
-                    to: selectedConversation.whatsAppData.customerPhone,
+                    to: customerPhone,
                     message: caption,
                     mediaUrl,
                     mediaType,
                     filename,
                     conversationId: selectedConversation.id,
                 });
-            } else if (selectedConversation.platform === 'telegram' && selectedConversation.telegramData) {
+            } else if (selectedConversation.platform === 'telegram') {
+                const chatId = selectedConversation.telegramData?.chatId;
+
+                if (!chatId) {
+                    toast.error('No Telegram chat ID available');
+                    setSending(false);
+                    return;
+                }
+
                 result = await sendTelegramMessageAction({
                     partnerId: currentPartnerId,
-                    chatId: selectedConversation.telegramData.chatId,
+                    chatId,
                     message: caption,
                     mediaUrl,
                     mediaType: mediaType === 'image' ? 'photo' : mediaType,
                     filename,
                     conversationId: selectedConversation.id,
                 });
+            } else {
+                toast.error('Unsupported messaging platform');
+                setSending(false);
+                return;
             }
 
             if (result?.success) {
