@@ -283,12 +283,25 @@ export async function sendMetaWhatsAppMessageAction(
     }
 
     try {
-        console.log('sendMetaWhatsAppMessageAction started', { partnerId: input.partnerId, to: input.to });
+        console.log('📤 [OUTBOUND] Step 1 - Input received:', JSON.stringify({
+            partnerId: input.partnerId,
+            to: input.to,
+            hasMessage: !!input.message,
+            hasMedia: !!input.mediaUrl,
+            hasTemplate: !!input.templateName,
+            conversationId: input.conversationId,
+        }));
+
         const config = await getPartnerMetaConfig(input.partnerId);
-        console.log('Partner Meta Config:', config ? { status: config.status, phoneNumberId: config.phoneNumberId } : 'null');
+        console.log('📤 [OUTBOUND] Step 2 - Config:', JSON.stringify({
+            hasConfig: !!config,
+            status: config?.status,
+            phoneNumberId: config?.phoneNumberId,
+            hasEncryptedToken: !!config?.encryptedAccessToken,
+        }));
 
         if (!config || config.status !== 'active') {
-            console.error('Meta WhatsApp not configured or inactive');
+            console.error('📤 [OUTBOUND] BLOCKED - Meta WhatsApp not configured or inactive');
             return {
                 success: false,
                 message: 'Meta WhatsApp not configured or inactive'
@@ -296,16 +309,18 @@ export async function sendMetaWhatsAppMessageAction(
         }
 
         if (!input.to) {
-            console.error('No recipient phone number provided');
+            console.error('📤 [OUTBOUND] BLOCKED - No recipient phone number provided');
             return { success: false, message: 'No recipient phone number provided' };
         }
 
         const normalizedPhone = input.to.replace(/\D/g, '');
+        console.log('📤 [OUTBOUND] Step 3 - Normalized phone:', normalizedPhone);
 
         if (!input.message && !input.mediaUrl) {
             return { success: false, message: 'No message content or media provided' };
         }
 
+        console.log('📤 [OUTBOUND] Step 4 - Calling Meta API:', input.templateName ? 'template' : input.interactiveButtons?.length ? 'interactive' : input.mediaUrl ? 'media' : 'text');
         let metaResponse;
         if (input.templateName) {
             const { sendMetaTemplateMessage } = await import('@/lib/meta-whatsapp-service');
@@ -343,6 +358,7 @@ export async function sendMetaWhatsAppMessageAction(
             );
         }
 
+        console.log('📤 [OUTBOUND] Step 5 - Meta API response:', JSON.stringify(metaResponse));
         const metaMessageId = metaResponse.messages[0]?.id;
         const waId = metaResponse.contacts[0]?.wa_id;
 
@@ -491,10 +507,9 @@ export async function sendMetaWhatsAppMessageAction(
         };
 
     } catch (error: any) {
-        console.error('❌ Error sending Meta WhatsApp message:', error);
+        console.error('❌ [OUTBOUND] Error sending Meta WhatsApp message:', error);
         const errMsg = (error as Error).message || '';
 
-        // Detect payment/billing related errors
         if (
             errMsg.toLowerCase().includes('payment') ||
             errMsg.toLowerCase().includes('billing') ||
@@ -508,7 +523,20 @@ export async function sendMetaWhatsAppMessageAction(
             };
         }
 
-        // Detect token expiration errors
+        if (errMsg.includes('24-hour messaging window') || errMsg.includes('131047')) {
+            return {
+                success: false,
+                message: 'The 24-hour messaging window has expired for this customer. Send a template message to re-engage them. Go to Inbox → Templates to create and send one.',
+            };
+        }
+
+        if (errMsg.includes('Rate limited') || errMsg.includes('130429')) {
+            return {
+                success: false,
+                message: 'Rate limited by WhatsApp. Please wait a moment and try again.',
+            };
+        }
+
         if (errMsg.includes('access token') || errMsg.includes('OAuthException') || errMsg.includes('Session has expired')) {
             return {
                 success: false,

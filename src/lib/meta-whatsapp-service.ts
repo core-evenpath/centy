@@ -47,8 +47,7 @@ export async function sendMetaTextMessage(
     const accessToken = await getDecryptedAccessToken(partnerId);
     const normalizedTo = to.replace(/\D/g, '');
 
-    console.log(`url = ${META_API_BASE}/${config.phoneNumberId}/message`);
-    console.log(`accessToken = ${accessToken}`);
+    console.log(`📤 [META-API] Sending text message to ${normalizedTo} via phoneNumberId=${config.phoneNumberId}`);
 
     const response = await fetch(
         `${META_API_BASE}/${config.phoneNumberId}/messages`,
@@ -70,10 +69,11 @@ export async function sendMetaTextMessage(
 
     if (!response.ok) {
         const errorData = await response.json();
+        console.error('📤 [META-API] Send text error:', JSON.stringify(errorData));
         const errorMsg = errorData.error?.message || `Meta API error: ${response.status}`;
-        // Check for payment/billing errors before session-expired
+        const errorCode = errorData.error?.code;
         if (
-            errorData.error?.code === 131042 ||
+            errorCode === 131042 ||
             errorMsg.toLowerCase().includes('payment') ||
             errorMsg.toLowerCase().includes('free tier') ||
             errorMsg.toLowerCase().includes('business eligibility') ||
@@ -83,7 +83,16 @@ export async function sendMetaTextMessage(
                 'Missing payment method: Add a valid payment method and GST/Tax ID to your WhatsApp Business Account in Meta Business Manager (business.facebook.com → Billing Hub).'
             );
         }
-        // If token expired, attempt a refresh and retry once
+        if (errorCode === 131047) {
+            throw new Error(
+                'The 24-hour messaging window has expired for this customer. Send a template message to re-engage them. Go to Inbox → Templates to create and send one.'
+            );
+        }
+        if (errorCode === 130429) {
+            throw new Error(
+                'Rate limited by WhatsApp. Please wait a moment and try again.'
+            );
+        }
         if (errorMsg.toLowerCase().includes('session has expired')) {
             try {
                 const newToken = await refreshMetaAccessToken(partnerId);
@@ -198,11 +207,12 @@ export async function sendMetaMediaMessage(
 
     if (!response.ok) {
         const errorData = await response.json();
+        console.error('📤 [META-API] Send media error:', JSON.stringify(errorData));
         const errorMsg = errorData.error?.message || `Meta API error: ${response.status}`;
+        const errorCode = errorData.error?.code;
 
-        // Check for payment/billing errors before session-expired
         if (
-            errorData.error?.code === 131042 ||
+            errorCode === 131042 ||
             errorMsg.toLowerCase().includes('payment') ||
             errorMsg.toLowerCase().includes('free tier') ||
             errorMsg.toLowerCase().includes('business eligibility') ||
@@ -213,10 +223,21 @@ export async function sendMetaMediaMessage(
             );
         }
 
+        if (errorCode === 131047) {
+            throw new Error(
+                'The 24-hour messaging window has expired for this customer. Send a template message to re-engage them. Go to Inbox → Templates to create and send one.'
+            );
+        }
+
+        if (errorCode === 130429) {
+            throw new Error(
+                'Rate limited by WhatsApp. Please wait a moment and try again.'
+            );
+        }
+
         if (errorMsg.toLowerCase().includes('session has expired')) {
             try {
                 const newToken = await refreshMetaAccessToken(partnerId);
-                // Retry with new token
                 const retryResp = await fetch(
                     `${META_API_BASE}/${config.phoneNumberId}/messages`,
                     {
