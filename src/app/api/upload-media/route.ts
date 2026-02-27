@@ -1,14 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import * as admin from 'firebase-admin';
+import { adminStorage } from '@/lib/firebase-admin';
 import { v4 as uuidv4 } from 'uuid';
-
-// Ensure storage is initialized with the app
-let storage: admin.storage.Storage;
-try {
-    storage = admin.storage();
-} catch (e: any) {
-    console.error("Failed to initialize Firebase Storage:", e.message);
-}
 
 // WhatsApp API supported media types and limits
 const MEDIA_CONFIG = {
@@ -88,7 +80,7 @@ function getExtensionFromMimeType(mimeType: string): string {
 }
 
 export async function POST(request: NextRequest) {
-    if (!storage) {
+    if (!adminStorage) {
         return NextResponse.json({ error: 'Firebase Storage is not configured on the server.' }, { status: 500 });
     }
 
@@ -110,7 +102,7 @@ export async function POST(request: NextRequest) {
 
         if (!mediaType) {
             return NextResponse.json({
-                error: `Unsupported file type: ${mimeType}. WhatsApp supports: images (JPEG, PNG), videos (MP4), audio (MP3, AAC, OGG), and documents (PDF, DOC, XLS, etc.)`
+                error: `Unsupported file type: ${mimeType}. Supported: images (JPEG, PNG), videos (MP4), audio (MP3, AAC, OGG), and documents (PDF, DOC, XLS, etc.)`
             }, { status: 400 });
         }
 
@@ -134,7 +126,7 @@ export async function POST(request: NextRequest) {
         const sanitizedName = originalName.replace(/[^a-zA-Z0-9._-]/g, '_');
         const fileName = `${partnerId}/whatsapp-media/${mediaType}/${uuidv4()}_${sanitizedName}`;
 
-        const bucket = storage.bucket(process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET);
+        const bucket = adminStorage.bucket(process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET);
         const storageFile = bucket.file(fileName);
 
         await storageFile.save(buffer, {

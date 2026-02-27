@@ -40,15 +40,14 @@ export async function sendMetaTextMessage(
 ): Promise<any> {
     const config = await getPartnerMetaConfig(partnerId);
 
-    if (!config || config.status !== 'active') {
+    if (!config || (config.status !== 'active' && config.status !== 'pending_billing')) {
         throw new Error('Meta WhatsApp not configured or inactive');
     }
 
     const accessToken = await getDecryptedAccessToken(partnerId);
     const normalizedTo = to.replace(/\D/g, '');
 
-    console.log(`url = ${META_API_BASE}/${config.phoneNumberId}/message`);
-    console.log(`accessToken = ${accessToken}`);
+    console.log(`📤 [META-API] Sending text message to ${normalizedTo} via phoneNumberId=${config.phoneNumberId}`);
 
     const response = await fetch(
         `${META_API_BASE}/${config.phoneNumberId}/messages`,
@@ -70,8 +69,30 @@ export async function sendMetaTextMessage(
 
     if (!response.ok) {
         const errorData = await response.json();
+        console.error('📤 [META-API] Send text error:', JSON.stringify(errorData));
         const errorMsg = errorData.error?.message || `Meta API error: ${response.status}`;
-        // If token expired, attempt a refresh and retry once
+        const errorCode = errorData.error?.code;
+        if (
+            errorCode === 131042 ||
+            errorMsg.toLowerCase().includes('payment') ||
+            errorMsg.toLowerCase().includes('free tier') ||
+            errorMsg.toLowerCase().includes('business eligibility') ||
+            errorMsg.toLowerCase().includes('missing valid payment')
+        ) {
+            throw new Error(
+                'Missing payment method: Add a valid payment method and GST/Tax ID to your WhatsApp Business Account in Meta Business Manager (business.facebook.com → Billing Hub).'
+            );
+        }
+        if (errorCode === 131047) {
+            throw new Error(
+                'The 24-hour messaging window has expired for this customer. Send a template message to re-engage them. Go to Inbox → Templates to create and send one.'
+            );
+        }
+        if (errorCode === 130429) {
+            throw new Error(
+                'Rate limited by WhatsApp. Please wait a moment and try again.'
+            );
+        }
         if (errorMsg.toLowerCase().includes('session has expired')) {
             try {
                 const newToken = await refreshMetaAccessToken(partnerId);
@@ -148,7 +169,7 @@ export async function sendMetaMediaMessage(
 ): Promise<any> {
     const config = await getPartnerMetaConfig(partnerId);
 
-    if (!config || config.status !== 'active') {
+    if (!config || (config.status !== 'active' && config.status !== 'pending_billing')) {
         throw new Error('Meta WhatsApp not configured or inactive');
     }
 
@@ -186,12 +207,37 @@ export async function sendMetaMediaMessage(
 
     if (!response.ok) {
         const errorData = await response.json();
+        console.error('📤 [META-API] Send media error:', JSON.stringify(errorData));
         const errorMsg = errorData.error?.message || `Meta API error: ${response.status}`;
+        const errorCode = errorData.error?.code;
+
+        if (
+            errorCode === 131042 ||
+            errorMsg.toLowerCase().includes('payment') ||
+            errorMsg.toLowerCase().includes('free tier') ||
+            errorMsg.toLowerCase().includes('business eligibility') ||
+            errorMsg.toLowerCase().includes('missing valid payment')
+        ) {
+            throw new Error(
+                'Missing payment method: Add a valid payment method and GST/Tax ID to your WhatsApp Business Account in Meta Business Manager (business.facebook.com → Billing Hub).'
+            );
+        }
+
+        if (errorCode === 131047) {
+            throw new Error(
+                'The 24-hour messaging window has expired for this customer. Send a template message to re-engage them. Go to Inbox → Templates to create and send one.'
+            );
+        }
+
+        if (errorCode === 130429) {
+            throw new Error(
+                'Rate limited by WhatsApp. Please wait a moment and try again.'
+            );
+        }
 
         if (errorMsg.toLowerCase().includes('session has expired')) {
             try {
                 const newToken = await refreshMetaAccessToken(partnerId);
-                // Retry with new token
                 const retryResp = await fetch(
                     `${META_API_BASE}/${config.phoneNumberId}/messages`,
                     {
@@ -357,7 +403,7 @@ export async function getWhatsAppProfilePicture(
 
 export async function getMetaTemplates(partnerId: string): Promise<any> {
     const config = await getPartnerMetaConfig(partnerId);
-    if (!config || config.status !== 'active') throw new Error('Meta WhatsApp not configured');
+    if (!config || (config.status !== 'active' && config.status !== 'pending_billing')) throw new Error('Meta WhatsApp not configured');
 
     const accessToken = await getDecryptedAccessToken(partnerId);
 
@@ -392,7 +438,7 @@ export async function getMetaTemplates(partnerId: string): Promise<any> {
 
 export async function createMetaTemplate(partnerId: string, templateData: any): Promise<any> {
     const config = await getPartnerMetaConfig(partnerId);
-    if (!config || config.status !== 'active') throw new Error('Meta WhatsApp not configured');
+    if (!config || (config.status !== 'active' && config.status !== 'pending_billing')) throw new Error('Meta WhatsApp not configured');
 
     const accessToken = await getDecryptedAccessToken(partnerId);
 
@@ -437,7 +483,7 @@ export async function createMetaTemplate(partnerId: string, templateData: any): 
 
 export async function deleteMetaTemplate(partnerId: string, templateName: string): Promise<any> {
     const config = await getPartnerMetaConfig(partnerId);
-    if (!config || config.status !== 'active') throw new Error('Meta WhatsApp not configured');
+    if (!config || (config.status !== 'active' && config.status !== 'pending_billing')) throw new Error('Meta WhatsApp not configured');
 
     const accessToken = await getDecryptedAccessToken(partnerId);
 
@@ -485,7 +531,7 @@ export async function sendMetaTemplateMessage(
 ): Promise<any> {
     const config = await getPartnerMetaConfig(partnerId);
 
-    if (!config || config.status !== 'active') {
+    if (!config || (config.status !== 'active' && config.status !== 'pending_billing')) {
         throw new Error('Meta WhatsApp not configured or inactive');
     }
 
@@ -521,6 +567,139 @@ export async function sendMetaTemplateMessage(
     if (!response.ok) {
         const errorData = await response.json();
         const errorMsg = errorData.error?.message || `Meta API error: ${response.status}`;
+
+        // Check for payment/billing errors before session-expired
+        if (
+            errorData.error?.code === 131042 ||
+            errorMsg.toLowerCase().includes('payment') ||
+            errorMsg.toLowerCase().includes('free tier') ||
+            errorMsg.toLowerCase().includes('business eligibility') ||
+            errorMsg.toLowerCase().includes('missing valid payment')
+        ) {
+            throw new Error(
+                'Missing payment method: Add a valid payment method and GST/Tax ID to your WhatsApp Business Account in Meta Business Manager (business.facebook.com → Billing Hub).'
+            );
+        }
+
+        if (errorMsg.toLowerCase().includes('session has expired')) {
+            try {
+                const newToken = await refreshMetaAccessToken(partnerId);
+                const retryResp = await fetch(
+                    `${META_API_BASE}/${config.phoneNumberId}/messages`,
+                    {
+                        method: 'POST',
+                        headers: {
+                            'Authorization': `Bearer ${newToken}`,
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify(body),
+                    }
+                );
+                if (!retryResp.ok) {
+                    const retryError = await retryResp.json();
+                    throw new Error(retryError.error?.message || `Meta API error after refresh: ${retryResp.status}`);
+                }
+                return retryResp.json();
+            } catch (refreshErr: any) {
+                throw new Error(`Failed to refresh Meta token: ${refreshErr.message}`);
+            }
+        }
+        throw new Error(errorMsg);
+    }
+
+    return response.json();
+}
+
+/**
+ * Send a WhatsApp interactive message with CTA URL buttons.
+ * Uses the WhatsApp Business API "interactive" message type with "cta_url" action.
+ */
+export async function sendMetaInteractiveMessage(
+    partnerId: string,
+    to: string,
+    bodyText: string,
+    ctaButtons: Array<{ text: string; url: string }>,
+    headerImageUrl?: string,
+    footerText?: string
+): Promise<any> {
+    const config = await getPartnerMetaConfig(partnerId);
+
+    if (!config || (config.status !== 'active' && config.status !== 'pending_billing')) {
+        throw new Error('Meta WhatsApp not configured or inactive');
+    }
+
+    const accessToken = await getDecryptedAccessToken(partnerId);
+    const normalizedTo = to.replace(/\D/g, '');
+
+    // WhatsApp interactive "cta_url" supports a single CTA button per message.
+    // For multiple CTA buttons, we send separate interactive messages.
+    // However, for the best UX, we use "button" type for reply-style quick actions
+    // and append extra CTA URLs to the body text if there are more than 1.
+
+    // Build the interactive payload for the first CTA button
+    const firstCta = ctaButtons[0];
+    const interactive: any = {
+        type: 'cta_url',
+        body: { text: bodyText },
+        action: {
+            name: 'cta_url',
+            parameters: {
+                display_text: firstCta.text,
+                url: firstCta.url,
+            }
+        }
+    };
+
+    if (headerImageUrl) {
+        interactive.header = { type: 'image', image: { link: headerImageUrl } };
+    }
+
+    if (footerText) {
+        interactive.footer = { text: footerText };
+    }
+
+    // If there are additional CTA buttons, append them as links in the body
+    if (ctaButtons.length > 1) {
+        const extraLinks = ctaButtons.slice(1).map(btn => `🔗 *${btn.text}*: ${btn.url}`).join('\n');
+        interactive.body.text = bodyText + '\n\n' + extraLinks;
+    }
+
+    const body = {
+        messaging_product: 'whatsapp',
+        recipient_type: 'individual',
+        to: normalizedTo,
+        type: 'interactive',
+        interactive,
+    };
+
+    const response = await fetch(
+        `${META_API_BASE}/${config.phoneNumberId}/messages`,
+        {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${accessToken}`,
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(body),
+        }
+    );
+
+    if (!response.ok) {
+        const errorData = await response.json();
+        const errorMsg = errorData.error?.message || `Meta API error: ${response.status}`;
+
+        // Check for payment/billing errors before session-expired
+        if (
+            errorData.error?.code === 131042 ||
+            errorMsg.toLowerCase().includes('payment') ||
+            errorMsg.toLowerCase().includes('free tier') ||
+            errorMsg.toLowerCase().includes('business eligibility') ||
+            errorMsg.toLowerCase().includes('missing valid payment')
+        ) {
+            throw new Error(
+                'Missing payment method: Add a valid payment method and GST/Tax ID to your WhatsApp Business Account in Meta Business Manager (business.facebook.com → Billing Hub).'
+            );
+        }
 
         if (errorMsg.toLowerCase().includes('session has expired')) {
             try {

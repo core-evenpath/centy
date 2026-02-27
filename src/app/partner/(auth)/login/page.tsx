@@ -20,7 +20,6 @@ import {
   ArrowRight,
   CheckCircle2,
   Shield,
-  Star
 } from 'lucide-react';
 
 const auth = getAuth(app);
@@ -70,30 +69,11 @@ const features = [
   },
 ];
 
-const testimonials = [
-  {
-    quote: "Closed 23 deals last month while I was asleep",
-    author: "Priya M.",
-    role: "Consultant, Mumbai"
-  },
-  {
-    quote: "Response time went from 2 hours to 30 seconds",
-    author: "Vikram K.",
-    role: "Distributor, Gujarat"
-  },
-  {
-    quote: "Best investment for my real estate business",
-    author: "Sarah J.",
-    role: "Real Estate, Bangalore"
-  },
-];
-
 export default function PartnerLoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [activeCard, setActiveCard] = useState(0);
-  const [activeTestimonial, setActiveTestimonial] = useState(0);
   const router = useRouter();
   const { toast } = useToast();
 
@@ -102,13 +82,8 @@ export default function PartnerLoginPage() {
       setActiveCard((prev) => (prev + 1) % features.length);
     }, 2500);
 
-    const testimonialInterval = setInterval(() => {
-      setActiveTestimonial((prev) => (prev + 1) % testimonials.length);
-    }, 4000);
-
     return () => {
       clearInterval(cardInterval);
-      clearInterval(testimonialInterval);
     };
   }, []);
 
@@ -219,38 +194,6 @@ export default function PartnerLoginPage() {
                 </div>
               );
             })}
-          </div>
-        </div>
-
-        {/* Testimonial */}
-        <div className="relative z-10 mt-8">
-          <div className="rounded-xl p-5 border border-stone-200 bg-white">
-            <div className="flex items-center gap-1 mb-3">
-              {[...Array(5)].map((_, i) => (
-                <Star key={i} className="w-4 h-4 text-amber-400 fill-amber-400" />
-              ))}
-            </div>
-            <p className="text-stone-700 text-sm mb-3 italic font-serif">&ldquo;{testimonials[activeTestimonial].quote}&rdquo;</p>
-            <div className="flex items-center gap-2">
-              <div className="w-8 h-8 bg-stone-900 rounded-full flex items-center justify-center text-white text-xs font-bold">
-                {testimonials[activeTestimonial].author.charAt(0)}
-              </div>
-              <div>
-                <p className="text-stone-900 text-sm font-medium">{testimonials[activeTestimonial].author}</p>
-                <p className="text-stone-400 text-xs">{testimonials[activeTestimonial].role}</p>
-              </div>
-            </div>
-            {/* Testimonial dots */}
-            <div className="flex justify-center gap-1.5 mt-4">
-              {testimonials.map((_, i) => (
-                <div
-                  key={i}
-                  className={`h-1.5 rounded-full transition-all duration-300 ${
-                    i === activeTestimonial ? 'w-6 bg-rose-500' : 'w-1.5 bg-stone-300'
-                  }`}
-                />
-              ))}
-            </div>
           </div>
         </div>
       </div>

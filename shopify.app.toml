@@ -1,0 +1,43 @@
+# Shopify App Configuration
+client_id = "9b7ba5ff839a378d8b61c7354d96e226"
+name = "PingBoxShop"
+application_url = "https://www.pingbox.io"
+embedded = true
+
+[auth]
+redirect_urls = [
+  "https://www.pingbox.io/api/auth/shopify/callback",
+]
+
+[webhooks]
+api_version = "2026-01"
+
+[[webhooks.subscriptions]]
+topics = [
+  "products/create",
+  "products/update",
+  "products/delete",
+  "customers/create",
+  "customers/update",
+  "customers/delete",
+  "orders/create",
+  "orders/updated",
+  "orders/cancelled",
+  "app/uninstalled",
+]
+uri = "https://www.pingbox.io/api/webhooks/shopify"
+
+[[webhooks.subscriptions]]
+compliance_topics = [
+  "customers/data_request",
+  "customers/redact",
+  "shop/redact",
+]
+uri = "https://www.pingbox.io/api/webhooks/shopify/compliance"
+
+[app_preferences]
+url = "https://www.pingbox.io/partner/apps/shopify"
+
+[access_scopes]
+scopes = "read_products,read_product_listings,read_inventory,read_customers,read_orders,read_locales,read_shipping"
+use_legacy_install_flow = false

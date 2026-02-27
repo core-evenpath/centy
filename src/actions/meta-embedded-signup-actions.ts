@@ -347,8 +347,29 @@ export async function completeEmbeddedSignup(
         const verifyToken = generateVerifyToken();
         const encryptedAccessToken = encrypt(accessToken);
 
+        // Check billing status before deciding final status
+        let hasBilling = false;
+        try {
+            const billingResponse = await fetch(
+                `${META_API_BASE}/${wabaId}?fields=primary_funding_id,currency`,
+                {
+                    headers: {
+                        Authorization: `Bearer ${accessToken}`,
+                    },
+                }
+            );
+            if (billingResponse.ok) {
+                const billingData = await billingResponse.json();
+                hasBilling = !!billingData.primary_funding_id;
+                console.log('💳 Billing check:', hasBilling ? 'Payment method found' : 'No payment method');
+            }
+        } catch (billingErr) {
+            console.warn('⚠️ Could not check billing status:', billingErr);
+        }
+
         // With embedded signup, the app subscription handles webhooks at the app level.
-        // The webhook is configured platform-wide in Admin settings, so we can auto-activate.
+        // The webhook is configured platform-wide in Admin settings.
+        // If billing is missing, set status to pending_billing so the UI can guide the partner.
         const configData = {
             phoneNumberId,
             wabaId,
@@ -358,7 +379,7 @@ export async function completeEmbeddedSignup(
             verifiedName: phoneDetails.data.verified_name,
             qualityRating: phoneDetails.data.quality_rating,
             webhookConfigured: true,  // App-level webhook handles all partners
-            status: 'active' as const, // Auto-activate for embedded signup
+            status: hasBilling ? 'active' as const : 'pending_billing' as const,
             integrationType: 'embedded_signup' as const,
             lastVerifiedAt: new Date().toISOString(),
             tokenExpiresAt: tokenResult.expiresIn
@@ -382,13 +403,21 @@ export async function completeEmbeddedSignup(
 
         await db.collection('metaPhoneMappings').doc(phoneNumberId).set(phoneMapping);
 
-        console.log('✅ Embedded Signup completed and activated for partner:', partnerId);
-
-        return {
-            success: true,
-            message: 'WhatsApp Business API connected and activated! You can now send and receive messages.',
-            verifyToken,
-        };
+        if (hasBilling) {
+            console.log('✅ Embedded Signup completed and activated for partner:', partnerId);
+            return {
+                success: true,
+                message: 'WhatsApp Business API connected and activated! You can now send and receive messages.',
+                verifyToken,
+            };
+        } else {
+            console.log('✅ Embedded Signup completed (pending billing) for partner:', partnerId);
+            return {
+                success: true,
+                message: 'WhatsApp Business API connected! Please add a payment method to your WhatsApp Business Account to start sending messages.',
+                verifyToken,
+            };
+        }
     } catch (error: any) {
         console.error('❌ Embedded Signup error:', error);
         return { success: false, message: error.message };
@@ -423,7 +452,7 @@ export async function getEmbeddedSignupStatus(
         const { encryptedAccessToken, ...safeConfig } = config;
 
         return {
-            connected: config.status === 'active',
+            connected: config.status === 'active' || config.status === 'pending_billing',
             config: safeConfig,
             integrationType: config.integrationType,
         };
@@ -441,6 +470,36 @@ export async function activateEmbeddedSignup(
     }
 
     try {
+        // Re-check billing before activating
+        const partnerDoc = await db.collection('partners').doc(partnerId).get();
+        const config = partnerDoc.data()?.metaWhatsAppConfig;
+
+        if (config?.encryptedAccessToken && config?.wabaId) {
+            try {
+                const accessToken = decrypt(config.encryptedAccessToken);
+                const billingResponse = await fetch(
+                    `${META_API_BASE}/${config.wabaId}?fields=primary_funding_id,currency`,
+                    {
+                        headers: {
+                            Authorization: `Bearer ${accessToken}`,
+                        },
+                    }
+                );
+                if (billingResponse.ok) {
+                    const billingData = await billingResponse.json();
+                    if (!billingData.primary_funding_id) {
+                        return {
+                            success: false,
+                            message: 'Please add a payment method to your WhatsApp Business Account before activating. Go to Meta Business Manager → Billing Hub to add a card.',
+                        };
+                    }
+                }
+            } catch (billingErr) {
+                console.warn('⚠️ Could not verify billing during activation:', billingErr);
+                // Continue with activation if billing check itself fails
+            }
+        }
+
         await db.collection('partners').doc(partnerId).update({
             'metaWhatsAppConfig.status': 'active',
             'metaWhatsAppConfig.webhookConfigured': true,
@@ -567,5 +626,60 @@ export async function disconnectEmbeddedSignup(
     } catch (error: any) {
         console.error('❌ Error disconnecting Embedded Signup:', error);
         return { success: false, message: error.message };
+    }
+}
+
+export async function checkWABABillingStatus(partnerId: string): Promise<{
+    success: boolean;
+    hasBilling: boolean;
+    currency?: string;
+    billingError?: string;
+}> {
+    if (!db) {
+        return { success: false, hasBilling: false, billingError: 'Database not available' };
+    }
+
+    try {
+        const partnerDoc = await db.collection('partners').doc(partnerId).get();
+        const config = partnerDoc.data()?.metaWhatsAppConfig;
+
+        if (!config || !config.wabaId) {
+            return { success: false, hasBilling: false, billingError: 'No WABA connected' };
+        }
+
+        if (!config.encryptedAccessToken) {
+            return { success: false, hasBilling: false, billingError: 'No access token available' };
+        }
+
+        const accessToken = decrypt(config.encryptedAccessToken);
+
+        const response = await fetch(
+            `${META_API_BASE}/${config.wabaId}?fields=primary_funding_id,currency`,
+            {
+                headers: {
+                    Authorization: `Bearer ${accessToken}`,
+                },
+            }
+        );
+
+        if (!response.ok) {
+            const errorData = await response.json();
+            return {
+                success: false,
+                hasBilling: false,
+                billingError: errorData.error?.message || `Meta API error: ${response.status}`,
+            };
+        }
+
+        const data = await response.json();
+
+        if (data.primary_funding_id) {
+            return { success: true, hasBilling: true, currency: data.currency };
+        }
+
+        return { success: true, hasBilling: false };
+    } catch (error: any) {
+        console.error('❌ Error checking WABA billing status:', error);
+        return { success: false, hasBilling: false, billingError: error.message };
     }
 }

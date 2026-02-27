@@ -2,7 +2,6 @@ import { z } from "zod";
 import fs from "fs/promises";
 import { v4 as uuidv4 } from "uuid";
 import { headers } from "next/headers";
-import * as admin from "firebase-admin";
 import { NextRequest, NextResponse } from "next/server";
 
 import { googleAI } from "@genkit-ai/google-genai";
@@ -14,14 +13,7 @@ import {
 } from "@/ai/fireRagSetup";
 import { getPartnerId } from "@/utils/auth";
 import { addThesisDoc, getFirstRagIndex } from "@/services/thesis-docs";
-
-// Ensure storage is initialized with the app
-let storage: admin.storage.Storage;
-try {
-  storage = admin.storage();
-} catch (e: any) {
-  console.error("Failed to initialize Firebase Storage:", e.message);
-}
+import { adminStorage } from "@/lib/firebase-admin";
 
 // function to extract data from pdf content
 async function getThesisInfo(pdfText: string) {
@@ -142,7 +134,7 @@ export async function POST(request: NextRequest) {
 
   console.log("[SAVE] Authenticated partner:", userData.partnerId);
 
-  if (!storage) {
+  if (!adminStorage) {
     console.error("[SAVE] Firebase Storage is not configured");
     return NextResponse.json(
       { error: "Firebase Storage is not configured on the server." },
@@ -188,7 +180,7 @@ export async function POST(request: NextRequest) {
     if (!bucketName) {
       throw new Error("Firebase Storage bucket name is not configured.");
     }
-    const bucket = storage.bucket(bucketName);
+    const bucket = adminStorage.bucket(bucketName);
 
     const fileName = `partner-uploads/thesis-pdf/${uuidv4()}.${fileExtension}`;
     const file = bucket.file(fileName);

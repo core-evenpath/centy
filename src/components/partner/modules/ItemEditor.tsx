@@ -101,7 +101,7 @@ export function ItemEditor({ initialItem, module, schema, onSave, onCancel }: It
     const uploadImage = useCallback(async (file: File): Promise<string | null> => {
         const uploadId = generateUUID();
         const ext = file.name.split('.').pop() || 'jpg';
-        const storagePath = `partner-uploads/${module.partnerId}/modules/${module.moduleSlug}/${uploadId}.${ext}`;
+        const storagePath = `partners/${module.partnerId}/modules/${module.moduleSlug}/${uploadId}.${ext}`;
 
         // Create preview URL
         const preview = URL.createObjectURL(file);
@@ -117,7 +117,8 @@ export function ItemEditor({ initialItem, module, schema, onSave, onCancel }: It
                 prev.map(img => img.id === uploadId ? { ...img, progress: 30 } : img)
             );
 
-            await uploadBytes(storageRef, file);
+            // Upload with explicit content type for Firebase Storage rules validation
+            await uploadBytes(storageRef, file, { contentType: file.type });
 
             // Update progress to show upload complete, getting URL
             setUploadingImages(prev =>
