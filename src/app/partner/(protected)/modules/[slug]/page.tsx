@@ -11,10 +11,10 @@ import {
     updateModuleItemAction,
     reorderItemsAction,
     deleteAllModuleItemsAction,
-    generateModuleCsvTemplateAction,
 } from '@/actions/modules-actions';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Plus, Settings, Package, Trash2, Loader2, AlertTriangle, Download } from 'lucide-react';
+import { ArrowLeft, Plus, Settings, Package, Trash2, Loader2, AlertTriangle, Upload } from 'lucide-react';
+import { ImportDialog } from '@/components/partner/modules/ImportDialog';
 import Link from 'next/link';
 import { Skeleton } from '@/components/ui/skeleton';
 import { toast } from 'sonner';
@@ -66,6 +66,7 @@ export default function ModuleManagePage({ params }: PageProps) {
     const [editingItem, setEditingItem] = useState<Partial<ModuleItem> | undefined>(undefined);
     const [isDeleteAllOpen, setIsDeleteAllOpen] = useState(false);
     const [isDeleting, setIsDeleting] = useState(false);
+    const [isImportOpen, setIsImportOpen] = useState(false);
 
     // Combined loading state
     const isLoading = authLoading || pLoading || (partnerModule && iLoading);
@@ -248,29 +249,6 @@ export default function ModuleManagePage({ params }: PageProps) {
         }
     };
 
-    const handleDownloadCsvTemplate = async () => {
-        try {
-            const result = await generateModuleCsvTemplateAction(slug);
-
-            if (result.success && result.data) {
-                const { csvContent, filename } = result.data;
-                const blob = new Blob([csvContent], { type: 'text/csv' });
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = filename;
-                a.click();
-                URL.revokeObjectURL(url);
-                toast.success('CSV template downloaded');
-            } else {
-                toast.error(result.error || 'Failed to generate template');
-            }
-        } catch (e) {
-            toast.error('Failed to download template');
-            console.error(e);
-        }
-    };
-
     return (
         <div className="container mx-auto py-8">
             <div className="mb-8">
@@ -300,10 +278,6 @@ export default function ModuleManagePage({ params }: PageProps) {
                                 <DropdownMenuItem onClick={() => refetch()}>
                                     Refresh Data
                                 </DropdownMenuItem>
-                                <DropdownMenuItem onClick={handleDownloadCsvTemplate}>
-                                    <Download className="mr-2 h-4 w-4" />
-                                    Download CSV Template
-                                </DropdownMenuItem>
                                 <DropdownMenuSeparator />
                                 <DropdownMenuItem
                                     onClick={() => setIsDeleteAllOpen(true)}
@@ -314,6 +288,11 @@ export default function ModuleManagePage({ params }: PageProps) {
                                 </DropdownMenuItem>
                             </DropdownMenuContent>
                         </DropdownMenu>
+
+                        <Button variant="outline" onClick={() => setIsImportOpen(true)}>
+                            <Upload className="mr-2 h-4 w-4" />
+                            Import
+                        </Button>
 
                         <Dialog open={isEditorOpen} onOpenChange={setIsEditorOpen}>
                             <DialogTrigger asChild>
@@ -372,6 +351,20 @@ export default function ModuleManagePage({ params }: PageProps) {
                     onReorder={handleReorder}
                 />
             )}
+
+            <ImportDialog
+                open={isImportOpen}
+                onOpenChange={setIsImportOpen}
+                partnerId={partnerId}
+                userId={user?.uid || 'unknown'}
+                module={partnerModule}
+                schema={schema}
+                moduleSlug={slug}
+                onImportComplete={() => {
+                    refetch();
+                    refetchModule();
+                }}
+            />
 
             {/* Delete All Dialog */}
             <Dialog open={isDeleteAllOpen} onOpenChange={setIsDeleteAllOpen}>

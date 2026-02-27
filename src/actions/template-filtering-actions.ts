@@ -7,23 +7,19 @@ import {
     matchTemplateToIndustry,
     sortTemplatesByRelevance
 } from '@/lib/industry-template-matcher';
+import type { PartnerModule } from '@/lib/modules/types';
 
 interface GetTemplatesResult {
     success: boolean;
     templates: SystemTemplate[];
     partnerIndustries: string[];
+    partnerFunctionIds: string[];
+    enabledModuleSlugs: string[];
     error?: string;
 }
 
-/**
- * Fetches system templates filtered by the partner's industry and business categories.
- * 
- * @param partnerId The ID of the partner to fetch templates for
- * @returns Filtered and sorted templates
- */
 export async function getTemplatesForPartnerIndustry(partnerId: string): Promise<GetTemplatesResult> {
     try {
-        // 1. Fetch partner profile
         const partnerDoc = await adminDb.collection('partners').doc(partnerId).get();
 
         if (!partnerDoc.exists) {
@@ -32,38 +28,54 @@ export async function getTemplatesForPartnerIndustry(partnerId: string): Promise
                 success: false,
                 error: 'Partner not found',
                 templates: [],
-                partnerIndustries: []
+                partnerIndustries: [],
+                partnerFunctionIds: [],
+                enabledModuleSlugs: [],
             };
         }
 
         const partnerData = partnerDoc.data() as Partner;
 
-        // 2. Extract industry IDs using our centralized logic
         const partnerIndustryIds = getPartnerIndustryIds(partnerData);
         const partnerIndustryIdsArray = Array.from(partnerIndustryIds);
 
+        const partnerFunctionIds: string[] = [];
+        const persona = (partnerData as any).businessPersona;
+        if (persona?.identity?.businessCategories && Array.isArray(persona.identity.businessCategories)) {
+            persona.identity.businessCategories.forEach((cat: any) => {
+                if (cat && typeof cat === 'object' && cat.functionId) {
+                    partnerFunctionIds.push(cat.functionId);
+                }
+            });
+        }
+
         console.log(`[TemplateFilter] Partner ${partnerId} industries:`, partnerIndustryIdsArray);
 
-        // 3. Fetch all active system templates
-        // Optimization: We could potentially filter by applicableIndustries using array-contains-any 
-        // BUT that would exclude Universal templates (empty array). 
-        // Since template count is likely < 1000, fetching all active ones and filtering in memory is acceptable and safer for Universal templates.
-        const snapshot = await adminDb
-            .collection('systemTemplates')
-            .where('status', 'in', ['published', 'verified', 'active'])
-            .get();
+        const [templatesSnapshot, modulesSnapshot] = await Promise.all([
+            adminDb
+                .collection('systemTemplates')
+                .where('status', 'in', ['published', 'verified', 'active'])
+                .get(),
+            adminDb
+                .collection(`partners/${partnerId}/businessModules`)
+                .where('enabled', '==', true)
+                .get(),
+        ]);
 
-        const allTemplates = snapshot.docs.map(doc => ({
+        const enabledModuleSlugs = modulesSnapshot.docs.map(doc => {
+            const data = doc.data() as PartnerModule;
+            return data.moduleSlug;
+        }).filter(Boolean);
+
+        const allTemplates = templatesSnapshot.docs.map(doc => ({
             id: doc.id,
             ...doc.data()
         } as SystemTemplate));
 
-        // 4. Filter templates
         const matchedTemplates = allTemplates.filter(template =>
             matchTemplateToIndustry(template, partnerIndustryIds)
         );
 
-        // 5. Sort by relevance (Specific matches first, then Universal)
         const sortedTemplates = sortTemplatesByRelevance(matchedTemplates, partnerIndustryIds);
 
         console.log(`[TemplateFilter] Returning ${sortedTemplates.length} templates for partner ${partnerId}`);
@@ -71,7 +83,9 @@ export async function getTemplatesForPartnerIndustry(partnerId: string): Promise
         return {
             success: true,
             templates: sortedTemplates,
-            partnerIndustries: partnerIndustryIdsArray
+            partnerIndustries: partnerIndustryIdsArray,
+            partnerFunctionIds,
+            enabledModuleSlugs,
         };
 
     } catch (error) {
@@ -80,14 +94,13 @@ export async function getTemplatesForPartnerIndustry(partnerId: string): Promise
             success: false,
             error: 'Failed to fetch templates',
             templates: [],
-            partnerIndustries: []
+            partnerIndustries: [],
+            partnerFunctionIds: [],
+            enabledModuleSlugs: [],
         };
     }
 }
 
-/**
- * Checks if a specific template is relevant for a partner
- */
 export async function checkTemplateRelevance(
     templateId: string,
     partnerId: string
@@ -111,9 +124,6 @@ export async function checkTemplateRelevance(
     }
 }
 
-/**
- * Fetches only universal templates (useful for fallbacks)
- */
 export async function getUniversalTemplates(): Promise<SystemTemplate[]> {
     try {
         const snapshot = await adminDb

@@ -3,9 +3,11 @@
 import React, { useState } from 'react';
 import { SystemTemplate } from '@/lib/types';
 import { replaceVariablesInPreview, variableMapToMappings } from '@/lib/template-variable-engine';
+import type { TemplateStatus } from './BroadcastFeed';
 
 interface FeedCardProps {
     template: SystemTemplate;
+    status: TemplateStatus;
     onSelect: () => void;
 }
 
@@ -42,7 +44,31 @@ const campaignTypeColor = (type: string): string => {
     return colors[type] || '#64748b';
 };
 
-export function FeedCard({ template, onSelect }: FeedCardProps) {
+function StatusBadge({ status }: { status: TemplateStatus }) {
+    if (status === 'ready') {
+        return (
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-green-50 text-green-700 rounded-full text-[11px] font-semibold">
+                ✓ Ready to use
+            </span>
+        );
+    }
+
+    if (status === 'module-needed') {
+        return (
+            <a
+                href="/partner/modules"
+                onClick={(e) => e.stopPropagation()}
+                className="inline-flex items-center gap-1 px-2 py-0.5 bg-amber-50 text-amber-700 rounded-full text-[11px] font-semibold hover:bg-amber-100 transition-colors"
+            >
+                ⚠ Needs module setup
+            </a>
+        );
+    }
+
+    return null;
+}
+
+export function FeedCard({ template, status, onSelect }: FeedCardProps) {
     const [expanded, setExpanded] = useState(false);
     const meta = template.feedMeta;
 
@@ -73,6 +99,9 @@ export function FeedCard({ template, onSelect }: FeedCardProps) {
                                         Time-sensitive
                                     </span>
                                 )}
+                            </div>
+                            <div className="mb-2.5">
+                                <StatusBadge status={status} />
                             </div>
                             <p className="text-xs text-gray-500 mb-2.5">{meta.subtitle}</p>
                             <div className="flex flex-wrap items-center gap-2">
@@ -137,12 +166,21 @@ export function FeedCard({ template, onSelect }: FeedCardProps) {
                             </div>
                         )}
 
-                        <button
-                            onClick={(e) => { e.stopPropagation(); onSelect(); }}
-                            className="w-full mt-1 py-2.5 bg-gray-900 text-white rounded-lg text-sm font-semibold hover:bg-gray-800 transition-colors flex items-center justify-center gap-2"
-                        >
-                            Use This Broadcast <span>→</span>
-                        </button>
+                        {status === 'module-needed' ? (
+                            <a
+                                href="/partner/modules"
+                                className="w-full mt-1 py-2.5 bg-amber-600 text-white rounded-lg text-sm font-semibold hover:bg-amber-700 transition-colors flex items-center justify-center gap-2"
+                            >
+                                Set up module first <span>→</span>
+                            </a>
+                        ) : (
+                            <button
+                                onClick={(e) => { e.stopPropagation(); onSelect(); }}
+                                className="w-full mt-1 py-2.5 bg-gray-900 text-white rounded-lg text-sm font-semibold hover:bg-gray-800 transition-colors flex items-center justify-center gap-2"
+                            >
+                                Use This Broadcast <span>→</span>
+                            </button>
+                        )}
                     </div>
                 )}
             </div>
@@ -159,8 +197,9 @@ export function FeedCard({ template, onSelect }: FeedCardProps) {
                         </span>
                         <h3 className="font-semibold text-gray-900 text-sm">{template.name}</h3>
                     </div>
+                    <StatusBadge status={status} />
                     {template.description && (
-                        <p className="text-xs text-gray-500 mb-2 line-clamp-2">{template.description}</p>
+                        <p className="text-xs text-gray-500 mb-2 mt-1 line-clamp-2">{template.description}</p>
                     )}
                     <div className="flex items-center gap-2">
                         <span className="px-2 py-0.5 bg-gray-100 text-gray-600 rounded text-[10px] font-semibold uppercase">
