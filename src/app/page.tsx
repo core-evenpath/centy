@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { AlertCircle, ArrowRight, Check, X, FileText, TrendingUp, MessageSquare, User, Sparkles, Database, CheckCircle2, DollarSign, History, Tag, Package, Phone, Bot, Loader2, Star } from 'lucide-react';
+import { AlertCircle, ArrowRight, Check, X, FileText, TrendingUp, MessageSquare, User, Sparkles, Database, CheckCircle2, DollarSign, History, Tag, Package, Phone, Bot, Loader2 } from 'lucide-react';
 
 const howItWorks = [
   { step: '1', title: 'Upload your docs', desc: 'Product catalogs, price lists, FAQs — any documents your business runs on.' },
@@ -128,29 +128,29 @@ export default function HomePage() {
 
   return (
     <div className="min-h-screen overflow-x-hidden" style={{ backgroundColor: '#faf8f5' }}>
-      {/* JSON-LD Structured Data */}
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{
           __html: JSON.stringify({
-            "@context": "https://schema.org",
-            "@type": "SoftwareApplication",
-            "name": "PingBox",
-            "applicationCategory": "BusinessApplication",
-            "description": "AI-powered customer messaging platform that unifies WhatsApp, Telegram & SMS into one inbox with intelligent automated responses.",
-            "operatingSystem": "Web",
-            "offers": {
-              "@type": "Offer",
-              "price": "7999",
-              "priceCurrency": "INR",
-              "priceValidUntil": "2025-12-31"
+            '@context': 'https://schema.org',
+            '@type': 'SoftwareApplication',
+            name: 'Pingbox',
+            url: 'https://pingbox.io',
+            applicationCategory: 'BusinessApplication',
+            operatingSystem: 'Web',
+            description: 'AI-powered WhatsApp inbox for service businesses. Responds to customer messages in 30 seconds using your business documents.',
+            offers: {
+              '@type': 'Offer',
+              price: '7999',
+              priceCurrency: 'INR',
+              availability: 'https://schema.org/InStock',
             },
-            "aggregateRating": {
-              "@type": "AggregateRating",
-              "ratingValue": "4.8",
-              "ratingCount": "156"
-            }
-          })
+            aggregateRating: {
+              '@type': 'AggregateRating',
+              ratingValue: '4.8',
+              ratingCount: '50',
+            },
+          }),
         }}
       />
 
@@ -192,7 +192,7 @@ export default function HomePage() {
       {/* Navigation */}
       <nav className="fixed top-0 left-0 right-0 z-50 backdrop-blur-xl border-b border-stone-200/60" style={{ backgroundColor: 'rgba(250, 248, 245, 0.9)' }}>
         <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
-          <Link href="/" className="flex items-center gap-2.5">
+          <Link href="/" className="flex items-center gap-2.5" aria-label="Pingbox home">
             <div className="w-9 h-9 bg-stone-900 rounded-xl flex items-center justify-center">
               <span className="text-white font-bold text-sm">P</span>
             </div>
@@ -211,6 +211,7 @@ export default function HomePage() {
         </div>
       </nav>
 
+      <main>
       {/* Hero */}
       <section className="relative min-h-screen flex items-center justify-center pt-20 pb-16 overflow-hidden" style={{ backgroundColor: '#faf8f5' }}>
         <div className="relative z-10 max-w-5xl mx-auto px-6 text-center">
@@ -248,20 +249,36 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* Social Proof Banner */}
-      <section className="py-14 px-6 border-y border-stone-200">
-        <div className="max-w-4xl mx-auto text-center">
-          <div className="flex items-center justify-center gap-1 mb-5">
-            {[...Array(5)].map((_, i) => (
-              <Star key={i} className="w-5 h-5 text-amber-400 fill-amber-400" />
-            ))}
+      {/* WhatsApp Business Facts */}
+      <section className="py-16 px-6 border-y border-stone-200" style={{ backgroundColor: '#faf8f5' }}>
+        <div className="max-w-5xl mx-auto">
+          <p className="text-rose-500 text-sm font-medium tracking-widest uppercase text-center mb-3">Why WhatsApp for Business?</p>
+          <h2 className="font-serif text-2xl sm:text-3xl tracking-tight text-stone-900 text-center mb-12">
+            Your customers are already there. <em>Are you?</em>
+          </h2>
+
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-6 md:gap-8">
+            <div className="text-center">
+              <div className="font-serif text-4xl sm:text-5xl font-bold text-stone-900 mb-2">98%</div>
+              <p className="text-sm text-stone-500 leading-snug">Message open rate — vs just 20% for email</p>
+            </div>
+            <div className="text-center">
+              <div className="font-serif text-4xl sm:text-5xl font-bold text-stone-900 mb-2">80%</div>
+              <p className="text-sm text-stone-500 leading-snug">Of messages read within 5 minutes of delivery</p>
+            </div>
+            <div className="text-center">
+              <div className="font-serif text-4xl sm:text-5xl font-bold text-stone-900 mb-2">175M</div>
+              <p className="text-sm text-stone-500 leading-snug">People message a business on WhatsApp every day</p>
+            </div>
+            <div className="text-center">
+              <div className="font-serif text-4xl sm:text-5xl font-bold text-stone-900 mb-2">65%</div>
+              <p className="text-sm text-stone-500 leading-snug">Of buyers prefer messaging a business over email</p>
+            </div>
           </div>
-          <blockquote className="font-serif text-2xl sm:text-3xl text-stone-900 mb-5 leading-snug italic">
-            &ldquo;I used to lose 5-6 inquiries a month. Last month I closed 23 — responding at 11pm while I was asleep.&rdquo;
-          </blockquote>
-          <cite className="text-stone-500 not-italic text-sm">
-            — Priya M., Consultant, Mumbai
-          </cite>
+
+          <p className="text-center text-stone-400 text-xs mt-10">
+            Sources: Meta &middot; WhatsApp Business &middot; Zendesk, 2025
+          </p>
         </div>
       </section>
 
@@ -284,7 +301,7 @@ export default function HomePage() {
           <div className="relative hidden lg:grid grid-cols-12 gap-3 max-w-6xl mx-auto" style={{ minHeight: '600px' }}>
 
             {/* Row 1 */}
-            <div className={`flow-card col-span-4 rounded-2xl p-4 ${isActive('incoming') ? 'active' : 'inactive'}`}>
+            <div role="presentation" className={`flow-card col-span-4 rounded-2xl p-4 ${isActive('incoming') ? 'active' : 'inactive'}`}>
               <div className="flex items-center gap-2 mb-3">
                 <div className="w-8 h-8 bg-green-50 rounded-lg flex items-center justify-center">
                   <MessageSquare className="w-4 h-4 text-green-600" />
@@ -301,7 +318,7 @@ export default function HomePage() {
               </div>
             </div>
 
-            <div className={`flow-card col-span-4 rounded-2xl p-4 ${isActive('customer') ? 'active' : 'inactive'}`}>
+            <div role="presentation" className={`flow-card col-span-4 rounded-2xl p-4 ${isActive('customer') ? 'active' : 'inactive'}`}>
               <div className="flex items-center gap-2 mb-3">
                 <div className="w-8 h-8 bg-blue-50 rounded-lg flex items-center justify-center">
                   <User className="w-4 h-4 text-blue-600" />
@@ -327,7 +344,7 @@ export default function HomePage() {
               </div>
             </div>
 
-            <div className={`flow-card col-span-4 rounded-2xl p-4 ${isActive('history') ? 'active' : 'inactive'}`}>
+            <div role="presentation" className={`flow-card col-span-4 rounded-2xl p-4 ${isActive('history') ? 'active' : 'inactive'}`}>
               <div className="flex items-center gap-2 mb-3">
                 <div className="w-8 h-8 bg-purple-50 rounded-lg flex items-center justify-center">
                   <History className="w-4 h-4 text-purple-600" />
@@ -345,7 +362,7 @@ export default function HomePage() {
             </div>
 
             {/* Row 2 */}
-            <div className={`flow-card col-span-3 rounded-2xl p-4 ${isActive('documents') ? 'active' : 'inactive'}`}>
+            <div role="presentation" className={`flow-card col-span-3 rounded-2xl p-4 ${isActive('documents') ? 'active' : 'inactive'}`}>
               <div className="flex items-center gap-2 mb-3">
                 <div className="w-8 h-8 bg-orange-50 rounded-lg flex items-center justify-center">
                   <Database className="w-4 h-4 text-orange-600" />
@@ -464,7 +481,7 @@ export default function HomePage() {
               </div>
             </div>
 
-            <div className={`flow-card col-span-3 rounded-2xl p-4 ${isActive('catalog') ? 'active' : 'inactive'}`}>
+            <div role="presentation" className={`flow-card col-span-3 rounded-2xl p-4 ${isActive('catalog') ? 'active' : 'inactive'}`}>
               <div className="flex items-center gap-2 mb-3">
                 <div className="w-8 h-8 bg-cyan-50 rounded-lg flex items-center justify-center">
                   <Package className="w-4 h-4 text-cyan-600" />
@@ -482,7 +499,7 @@ export default function HomePage() {
             </div>
 
             {/* Row 3 */}
-            <div className={`flow-card col-span-3 rounded-2xl p-4 ${isActive('pricing') ? 'active' : 'inactive'}`}>
+            <div role="presentation" className={`flow-card col-span-3 rounded-2xl p-4 ${isActive('pricing') ? 'active' : 'inactive'}`}>
               <div className="flex items-center gap-2 mb-3">
                 <div className="w-8 h-8 bg-amber-50 rounded-lg flex items-center justify-center">
                   <DollarSign className="w-4 h-4 text-amber-600" />
@@ -497,7 +514,7 @@ export default function HomePage() {
               </div>
             </div>
 
-            <div className={`flow-card col-span-3 rounded-2xl p-4 ${isActive('discounts') ? 'active' : 'inactive'}`}>
+            <div role="presentation" className={`flow-card col-span-3 rounded-2xl p-4 ${isActive('discounts') ? 'active' : 'inactive'}`}>
               <div className="flex items-center gap-2 mb-3">
                 <div className="w-8 h-8 bg-pink-50 rounded-lg flex items-center justify-center">
                   <Tag className="w-4 h-4 text-pink-600" />
@@ -515,7 +532,7 @@ export default function HomePage() {
             </div>
 
             {/* Row 4 */}
-            <div className={`flow-card col-span-8 rounded-2xl p-4 ${isActive('response') ? 'active' : 'inactive'}`}>
+            <div role="presentation" className={`flow-card col-span-8 rounded-2xl p-4 ${isActive('response') ? 'active' : 'inactive'}`}>
               <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-2">
                   <div className="w-8 h-8 bg-rose-50 rounded-lg flex items-center justify-center">
@@ -537,7 +554,7 @@ export default function HomePage() {
               </div>
             </div>
 
-            <div className={`flow-card col-span-4 rounded-2xl p-4 ${isActive('revenue') ? 'active' : 'inactive'}`}>
+            <div role="presentation" className={`flow-card col-span-4 rounded-2xl p-4 ${isActive('revenue') ? 'active' : 'inactive'}`}>
               <div className="flex items-center gap-2 mb-3">
                 <div className="w-8 h-8 bg-rose-50 rounded-lg flex items-center justify-center">
                   <TrendingUp className="w-4 h-4 text-rose-500" />
@@ -857,6 +874,8 @@ export default function HomePage() {
           </p>
         </div>
       </section>
+
+      </main>
 
       {/* Footer */}
       <footer className="py-12 px-6 border-t border-stone-200" style={{ backgroundColor: '#faf8f5' }}>
