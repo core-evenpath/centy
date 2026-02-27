@@ -40,7 +40,7 @@ export async function sendMetaTextMessage(
 ): Promise<any> {
     const config = await getPartnerMetaConfig(partnerId);
 
-    if (!config || config.status !== 'active') {
+    if (!config || (config.status !== 'active' && config.status !== 'pending_billing')) {
         throw new Error('Meta WhatsApp not configured or inactive');
     }
 
@@ -169,7 +169,7 @@ export async function sendMetaMediaMessage(
 ): Promise<any> {
     const config = await getPartnerMetaConfig(partnerId);
 
-    if (!config || config.status !== 'active') {
+    if (!config || (config.status !== 'active' && config.status !== 'pending_billing')) {
         throw new Error('Meta WhatsApp not configured or inactive');
     }
 
@@ -403,7 +403,7 @@ export async function getWhatsAppProfilePicture(
 
 export async function getMetaTemplates(partnerId: string): Promise<any> {
     const config = await getPartnerMetaConfig(partnerId);
-    if (!config || config.status !== 'active') throw new Error('Meta WhatsApp not configured');
+    if (!config || (config.status !== 'active' && config.status !== 'pending_billing')) throw new Error('Meta WhatsApp not configured');
 
     const accessToken = await getDecryptedAccessToken(partnerId);
 
@@ -438,7 +438,7 @@ export async function getMetaTemplates(partnerId: string): Promise<any> {
 
 export async function createMetaTemplate(partnerId: string, templateData: any): Promise<any> {
     const config = await getPartnerMetaConfig(partnerId);
-    if (!config || config.status !== 'active') throw new Error('Meta WhatsApp not configured');
+    if (!config || (config.status !== 'active' && config.status !== 'pending_billing')) throw new Error('Meta WhatsApp not configured');
 
     const accessToken = await getDecryptedAccessToken(partnerId);
 
@@ -483,7 +483,7 @@ export async function createMetaTemplate(partnerId: string, templateData: any): 
 
 export async function deleteMetaTemplate(partnerId: string, templateName: string): Promise<any> {
     const config = await getPartnerMetaConfig(partnerId);
-    if (!config || config.status !== 'active') throw new Error('Meta WhatsApp not configured');
+    if (!config || (config.status !== 'active' && config.status !== 'pending_billing')) throw new Error('Meta WhatsApp not configured');
 
     const accessToken = await getDecryptedAccessToken(partnerId);
 
@@ -531,7 +531,7 @@ export async function sendMetaTemplateMessage(
 ): Promise<any> {
     const config = await getPartnerMetaConfig(partnerId);
 
-    if (!config || config.status !== 'active') {
+    if (!config || (config.status !== 'active' && config.status !== 'pending_billing')) {
         throw new Error('Meta WhatsApp not configured or inactive');
     }
 
@@ -624,7 +624,7 @@ export async function sendMetaInteractiveMessage(
 ): Promise<any> {
     const config = await getPartnerMetaConfig(partnerId);
 
-    if (!config || config.status !== 'active') {
+    if (!config || (config.status !== 'active' && config.status !== 'pending_billing')) {
         throw new Error('Meta WhatsApp not configured or inactive');
     }
 

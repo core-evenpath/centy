@@ -7,7 +7,7 @@ export interface MetaWhatsAppConfig {
     businessName?: string;
     appId?: string;
     webhookConfigured: boolean;
-    status: 'pending' | 'active' | 'disconnected' | 'error';
+    status: 'pending' | 'active' | 'pending_billing' | 'disconnected' | 'error';
     lastVerifiedAt?: string;
     createdAt: string;
     updatedAt: string;

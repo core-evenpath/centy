@@ -267,7 +267,7 @@ export async function getMetaWhatsAppStatus(
         const { encryptedAccessToken, ...safeConfig } = config;
 
         return {
-            connected: config.status === 'active',
+            connected: config.status === 'active' || config.status === 'pending_billing',
             config: safeConfig as Omit<MetaWhatsAppConfig, 'encryptedAccessToken'>,
         };
     } catch {
@@ -300,8 +300,8 @@ export async function sendMetaWhatsAppMessageAction(
             hasEncryptedToken: !!config?.encryptedAccessToken,
         }));
 
-        if (!config || config.status !== 'active') {
-            console.error('📤 [OUTBOUND] BLOCKED - Meta WhatsApp not configured or inactive');
+        if (!config || (config.status !== 'active' && config.status !== 'pending_billing')) {
+            console.error('📤 [OUTBOUND] BLOCKED - Meta WhatsApp not configured or inactive, status:', config?.status);
             return {
                 success: false,
                 message: 'Meta WhatsApp not configured or inactive'
