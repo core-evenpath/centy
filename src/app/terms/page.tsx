@@ -11,17 +11,17 @@ export const metadata: Metadata = {
 
 export default function TermsPage() {
   return (
-    <div className="min-h-screen bg-stone-50">
+    <div className="min-h-screen bg-white">
       {/* Nav */}
-      <nav className="fixed top-0 left-0 right-0 z-50 bg-stone-50/95 backdrop-blur-md border-b border-stone-200">
-        <div className="max-w-4xl mx-auto px-4 py-4 flex items-center justify-between">
-          <Link href="/" className="flex items-center gap-2 hover:opacity-80 transition-opacity">
-            <div className="w-8 h-8 bg-emerald-600 rounded-lg flex items-center justify-center">
+      <nav className="fixed top-0 left-0 right-0 z-50 backdrop-blur-xl border-b border-stone-200/60" style={{ backgroundColor: 'rgba(250, 248, 245, 0.9)' }}>
+        <div className="max-w-4xl mx-auto px-6 py-4 flex items-center justify-between">
+          <Link href="/" className="flex items-center gap-2.5">
+            <div className="w-9 h-9 bg-stone-900 rounded-xl flex items-center justify-center">
               <span className="text-white font-bold text-sm">P</span>
             </div>
-            <span className="font-semibold text-stone-900 text-lg">PingBox</span>
+            <span className="font-semibold text-stone-900 text-lg tracking-tight">PingBox</span>
           </Link>
-          <Link href="/" className="text-sm text-stone-600 hover:text-stone-900 transition-colors">
+          <Link href="/" className="text-sm text-stone-500 hover:text-stone-900 transition-colors">
             Back to Home
           </Link>
         </div>
@@ -39,7 +39,7 @@ export default function TermsPage() {
             <section className="mb-10">
               <h2 className="text-2xl font-semibold text-stone-900 mb-4">1. Agreement to Terms</h2>
               <p className="text-stone-600 leading-relaxed mb-4">
-                By accessing or using PingBox ("the Service"), you agree to be bound by these Terms of Service ("Terms"). If you disagree with any part of the terms, you may not access the Service.
+                By accessing or using PingBox (&ldquo;the Service&rdquo;), you agree to be bound by these Terms of Service (&ldquo;Terms&rdquo;). If you disagree with any part of the terms, you may not access the Service.
               </p>
               <p className="text-stone-600 leading-relaxed">
                 These Terms apply to all visitors, users, and others who access or use the Service. By using our Service, you agree that you have read, understood, and agree to be bound by these Terms.
@@ -97,7 +97,7 @@ export default function TermsPage() {
             <section className="mb-10">
               <h2 className="text-2xl font-semibold text-stone-900 mb-4">5. User Content</h2>
               <p className="text-stone-600 leading-relaxed mb-4">
-                You retain all rights to the content you upload to the Service ("User Content"), including documents, price lists, catalogs, and other materials. By uploading User Content, you grant PingBox a limited license to:
+                You retain all rights to the content you upload to the Service (&ldquo;User Content&rdquo;), including documents, price lists, catalogs, and other materials. By uploading User Content, you grant PingBox a limited license to:
               </p>
               <ul className="list-disc pl-6 text-stone-600 space-y-2 mb-4">
                 <li>Process and analyze your documents to power AI responses</li>
@@ -130,7 +130,7 @@ export default function TermsPage() {
               <ul className="list-disc pl-6 text-stone-600 space-y-2 mb-4">
                 <li>Subscription fees are billed in advance on a monthly or annual basis</li>
                 <li>All fees are non-refundable except as required by law</li>
-                <li>We may change our fees with 30 days' notice</li>
+                <li>We may change our fees with 30 days&apos; notice</li>
                 <li>You authorize us to charge your payment method for recurring fees</li>
                 <li>Failure to pay may result in suspension or termination of your account</li>
               </ul>
@@ -169,7 +169,7 @@ export default function TermsPage() {
             <section className="mb-10">
               <h2 className="text-2xl font-semibold text-stone-900 mb-4">11. Indemnification</h2>
               <p className="text-stone-600 leading-relaxed">
-                You agree to indemnify and hold harmless PingBox, its officers, directors, employees, and agents from any claims, damages, losses, or expenses (including reasonable attorneys' fees) arising from your use of the Service, your User Content, or your violation of these Terms.
+                You agree to indemnify and hold harmless PingBox, its officers, directors, employees, and agents from any claims, damages, losses, or expenses (including reasonable attorneys&apos; fees) arising from your use of the Service, your User Content, or your violation of these Terms.
               </p>
             </section>
 
@@ -188,7 +188,7 @@ export default function TermsPage() {
             <section className="mb-10">
               <h2 className="text-2xl font-semibold text-stone-900 mb-4">13. Changes to Terms</h2>
               <p className="text-stone-600 leading-relaxed">
-                We reserve the right to modify these Terms at any time. We will notify you of material changes by posting the new Terms on this page and updating the "Last updated" date. Your continued use of the Service after such changes constitutes acceptance of the new Terms.
+                We reserve the right to modify these Terms at any time. We will notify you of material changes by posting the new Terms on this page and updating the &ldquo;Last updated&rdquo; date. Your continued use of the Service after such changes constitutes acceptance of the new Terms.
               </p>
             </section>
 
@@ -206,7 +206,7 @@ export default function TermsPage() {
               </p>
               <ul className="list-none text-stone-600 space-y-2">
                 <li><strong>Email:</strong> legal@pingbox.io</li>
-                <li><strong>Website:</strong> <Link href="/" className="text-emerald-600 hover:underline">pingbox.io</Link></li>
+                <li><strong>Website:</strong> <Link href="/" className="text-rose-500 hover:underline">pingbox.io</Link></li>
               </ul>
             </section>
           </div>
@@ -214,20 +214,20 @@ export default function TermsPage() {
       </main>
 
       {/* Footer */}
-      <footer className="py-8 px-4 border-t border-stone-200">
-        <div className="max-w-4xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
-          <Link href="/" className="flex items-center gap-2 hover:opacity-80 transition-opacity">
-            <div className="w-7 h-7 bg-emerald-600 rounded-lg flex items-center justify-center">
+      <footer className="py-12 px-6 border-t border-stone-200" style={{ backgroundColor: '#faf8f5' }}>
+        <div className="max-w-6xl mx-auto flex flex-col md:flex-row items-center justify-between gap-6">
+          <Link href="/" className="flex items-center gap-2.5">
+            <div className="w-8 h-8 bg-stone-900 rounded-lg flex items-center justify-center">
               <span className="text-white font-bold text-xs">P</span>
             </div>
             <span className="font-semibold text-stone-900">PingBox</span>
           </Link>
-          <div className="flex items-center gap-6 text-sm text-stone-500">
+          <div className="flex items-center gap-8 text-sm text-stone-400">
             <Link href="/privacy" className="hover:text-stone-900 transition-colors">Privacy</Link>
             <Link href="/terms" className="hover:text-stone-900 transition-colors font-medium text-stone-900">Terms</Link>
             <a href="mailto:hello@pingbox.io" className="hover:text-stone-900 transition-colors">Contact</a>
           </div>
-          <div className="text-sm text-stone-400">© 2025 PingBox. All rights reserved.</div>
+          <div className="text-sm text-stone-400">&copy; 2025 PingBox. All rights reserved.</div>
         </div>
       </footer>
     </div>

@@ -1,4 +1,3 @@
-// src/components/partner/broadcast/RecipientSelector.tsx
 "use client";
 
 import React, { useState, useEffect } from 'react';
@@ -48,10 +47,12 @@ export default function RecipientSelector({
         const contactsQuery = query(collection(db, `partners/${partnerId}/contacts`));
 
         const unsubscribe = onSnapshot(contactsQuery, (snapshot) => {
-            const contactsData = snapshot.docs.map(doc => ({
-                id: doc.id,
-                ...doc.data(),
-            } as Contact));
+            const contactsData = snapshot.docs
+                .map(doc => ({
+                    id: doc.id,
+                    ...doc.data(),
+                } as Contact))
+                .filter(c => c.phone && c.phone.trim() !== ''); // Must have phone to receive message
 
             setContacts(contactsData);
             setIsLoading(false);

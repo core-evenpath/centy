@@ -1,5 +1,4 @@
 import { headers } from "next/headers";
-import * as admin from "firebase-admin";
 import { googleAI } from "@genkit-ai/google-genai";
 
 import { ai } from "@/ai/genkit";
@@ -9,14 +8,7 @@ import {
 } from "@/ai/fireRagSetup";
 import { type NextRequest, NextResponse } from "next/server";
 import { getPartnerId } from "@/utils/auth";
-
-// Ensure storage is initialized with the app
-let storage: admin.storage.Storage;
-try {
-  storage = admin.storage();
-} catch (e: any) {
-  console.error("Failed to initialize Firebase Storage:", e.message);
-}
+import { adminStorage } from "@/lib/firebase-admin";
 
 export async function GET(request: NextRequest) {
   const headersList = await headers();
@@ -25,7 +17,7 @@ export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;
   const userQuery = searchParams.get("query");
   const fileId = searchParams.get("fileId");
-  if (!storage) {
+  if (!adminStorage) {
     console.error(
       "Firebase Storage is not configured on the server. Check firebase-admin.ts initialization."
     );

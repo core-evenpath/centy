@@ -1,5 +1,4 @@
 import { z } from "genkit";
-import * as admin from "firebase-admin";
 import { googleAI } from "@genkit-ai/google-genai";
 import { NextRequest, NextResponse } from "next/server";
 
@@ -8,19 +7,12 @@ import {
   RAGINDEX_COLLECTION_NAME,
   firestoreRetriever,
 } from "@/ai/fireRagSetup";
-
-// Ensure storage is initialized with the app
-let storage: admin.storage.Storage;
-try {
-  storage = admin.storage();
-} catch (e: any) {
-  console.error("Failed to initialize Firebase Storage:", e.message);
-}
+import { adminStorage } from "@/lib/firebase-admin";
 
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;
   const userQuery = searchParams.get("query");
-  if (!storage) {
+  if (!adminStorage) {
     console.error(
       "Firebase Storage is not configured on the server. Check firebase-admin.ts initialization."
     );

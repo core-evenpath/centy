@@ -1,20 +1,11 @@
 
 import { NextResponse } from 'next/server';
-import { adminAuth, db } from '@/lib/firebase-admin';
-import * as admin from 'firebase-admin';
+import { adminStorage } from '@/lib/firebase-admin';
 import { v4 as uuidv4 } from 'uuid';
 import { generateStockPickImage } from '@/ai/flows/generate-stock-pick-image-flow';
 
-// Ensure storage is initialized with the app
-let storage: admin.storage.Storage;
-try {
-    storage = admin.storage();
-} catch (e: any) {
-    console.error("Failed to initialize Firebase Storage:", e.message);
-}
-
 export async function POST(request: Request) {
-  if (!storage) {
+  if (!adminStorage) {
       console.error("Firebase Storage is not configured on the server. Check firebase-admin.ts initialization.");
       return NextResponse.json({ error: 'Firebase Storage is not configured on the server.' }, { status: 500 });
   }
@@ -43,7 +34,7 @@ export async function POST(request: Request) {
         throw new Error("Firebase Storage bucket name is not configured.");
       }
       
-      const bucket = storage.bucket(bucketName);
+      const bucket = adminStorage.bucket(bucketName);
       const file = bucket.file(fileName);
 
       await file.save(buffer, {

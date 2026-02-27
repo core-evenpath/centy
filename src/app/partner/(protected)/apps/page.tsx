@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { MessageSquare, Send, ArrowRight, Zap } from 'lucide-react';
+import { MessageSquare, Send, ArrowRight, Zap, ShoppingBag } from 'lucide-react';
 
 export default function AppsPage() {
     return (
@@ -11,7 +11,7 @@ export default function AppsPage() {
             <div className="mb-8">
                 <h1 className="text-3xl font-bold">App Integrations</h1>
                 <p className="text-gray-600 mt-2">
-                    Connect external tools and services to your Centy workspace.
+                    Connect external tools and services to your Pingbox workspace.
                 </p>
             </div>
 
@@ -33,7 +33,7 @@ export default function AppsPage() {
                                     WhatsApp Business
                                 </CardTitle>
                                 <CardDescription>
-                                    Connect your WhatsApp Business account to send and receive messages directly in Centy.
+                                    Connect your WhatsApp Business account to send and receive messages directly in Pingbox.
                                 </CardDescription>
                             </CardHeader>
                             <CardContent>
@@ -83,6 +83,37 @@ export default function AppsPage() {
             </div>
 
             <div className="mb-6">
+                <h2 className="text-lg font-semibold text-gray-900 mb-4">E-Commerce</h2>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    <Link href="/partner/apps/shopify" className="group">
+                        <Card className="h-full transition-all hover:shadow-lg hover:border-green-500 cursor-pointer">
+                            <CardHeader>
+                                <div className="flex items-start justify-between">
+                                    <div className="p-3 bg-green-100 rounded-xl">
+                                        <ShoppingBag className="w-8 h-8 text-green-600" />
+                                    </div>
+                                    <Badge variant="secondary" className="bg-green-50 text-green-700 hover:bg-green-100">
+                                        E-Commerce
+                                    </Badge>
+                                </div>
+                                <CardTitle className="mt-4 group-hover:text-green-700 transition-colors">
+                                    Shopify
+                                </CardTitle>
+                                <CardDescription>
+                                    Connect your Shopify store to sync products, customers, and orders automatically.
+                                </CardDescription>
+                            </CardHeader>
+                            <CardContent>
+                                <div className="flex items-center text-sm text-green-600 font-medium mt-2">
+                                    Configure Integration <ArrowRight className="w-4 h-4 ml-1 group-hover:translate-x-1 transition-transform" />
+                                </div>
+                            </CardContent>
+                        </Card>
+                    </Link>
+                </div>
+            </div>
+
+            <div className="mb-6">
                 <h2 className="text-lg font-semibold text-gray-900 mb-4">Productivity Tools</h2>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                     <Card className="h-full border-dashed bg-gray-50/50">
@@ -97,7 +128,7 @@ export default function AppsPage() {
                             </div>
                             <CardTitle className="mt-4 text-gray-400">Zapier</CardTitle>
                             <CardDescription>
-                                Automate workflows by connecting Centy to thousands of other apps.
+                                Automate workflows by connecting Pingbox to thousands of other apps.
                             </CardDescription>
                         </CardHeader>
                     </Card>

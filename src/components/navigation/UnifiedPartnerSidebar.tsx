@@ -9,14 +9,9 @@ import {
   Users,
   Inbox,
   Brain,
-  Link as LinkIcon,
   PanelLeftClose,
   PanelLeftOpen,
   Database,
-  Bot,
-  Radio,
-  BarChart3,
-  Package
 } from 'lucide-react';
 import { Button } from '../ui/button';
 import { cn } from '@/lib/utils';
@@ -73,39 +68,14 @@ export default function UnifiedPartnerSidebar() {
       isInbox: true
     },
     {
-      icon: Radio,
-      label: 'Broadcast',
-      href: '/partner/broadcast'
-    },
-    {
-      icon: BarChart3,
-      label: 'Campaigns',
-      href: '/partner/campaigns'
-    },
-    {
-      icon: Database,
-      label: 'Core Memory',
+      icon: Brain,
+      label: 'Knowledge',
       href: '/partner/core'
-    },
-    {
-      icon: Bot,
-      label: 'Agents',
-      href: '/partner/agents'
     },
     {
       icon: Users,
       label: 'Contacts',
       href: '/partner/contacts'
-    },
-    {
-      icon: LinkIcon,
-      label: 'Integrations',
-      href: '/partner/apps'
-    },
-    {
-      icon: Package,
-      label: 'Modules',
-      href: '/partner/modules'
     },
     {
       icon: Settings,

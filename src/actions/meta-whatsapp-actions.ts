@@ -267,7 +267,7 @@ export async function getMetaWhatsAppStatus(
         const { encryptedAccessToken, ...safeConfig } = config;
 
         return {
-            connected: config.status === 'active',
+            connected: config.status === 'active' || config.status === 'pending_billing',
             config: safeConfig as Omit<MetaWhatsAppConfig, 'encryptedAccessToken'>,
         };
     } catch {
@@ -283,12 +283,25 @@ export async function sendMetaWhatsAppMessageAction(
     }
 
     try {
-        console.log('sendMetaWhatsAppMessageAction started', { partnerId: input.partnerId, to: input.to });
-        const config = await getPartnerMetaConfig(input.partnerId);
-        console.log('Partner Meta Config:', config ? { status: config.status, phoneNumberId: config.phoneNumberId } : 'null');
+        console.log('📤 [OUTBOUND] Step 1 - Input received:', JSON.stringify({
+            partnerId: input.partnerId,
+            to: input.to,
+            hasMessage: !!input.message,
+            hasMedia: !!input.mediaUrl,
+            hasTemplate: !!input.templateName,
+            conversationId: input.conversationId,
+        }));
 
-        if (!config || config.status !== 'active') {
-            console.error('Meta WhatsApp not configured or inactive');
+        const config = await getPartnerMetaConfig(input.partnerId);
+        console.log('📤 [OUTBOUND] Step 2 - Config:', JSON.stringify({
+            hasConfig: !!config,
+            status: config?.status,
+            phoneNumberId: config?.phoneNumberId,
+            hasEncryptedToken: !!config?.encryptedAccessToken,
+        }));
+
+        if (!config || (config.status !== 'active' && config.status !== 'pending_billing')) {
+            console.error('📤 [OUTBOUND] BLOCKED - Meta WhatsApp not configured or inactive, status:', config?.status);
             return {
                 success: false,
                 message: 'Meta WhatsApp not configured or inactive'
@@ -296,16 +309,18 @@ export async function sendMetaWhatsAppMessageAction(
         }
 
         if (!input.to) {
-            console.error('No recipient phone number provided');
+            console.error('📤 [OUTBOUND] BLOCKED - No recipient phone number provided');
             return { success: false, message: 'No recipient phone number provided' };
         }
 
         const normalizedPhone = input.to.replace(/\D/g, '');
+        console.log('📤 [OUTBOUND] Step 3 - Normalized phone:', normalizedPhone);
 
         if (!input.message && !input.mediaUrl) {
             return { success: false, message: 'No message content or media provided' };
         }
 
+        console.log('📤 [OUTBOUND] Step 4 - Calling Meta API:', input.templateName ? 'template' : input.interactiveButtons?.length ? 'interactive' : input.mediaUrl ? 'media' : 'text');
         let metaResponse;
         if (input.templateName) {
             const { sendMetaTemplateMessage } = await import('@/lib/meta-whatsapp-service');
@@ -315,6 +330,16 @@ export async function sendMetaWhatsAppMessageAction(
                 input.templateName,
                 input.templateLanguage || 'en_US',
                 input.templateComponents || []
+            );
+        } else if (input.interactiveButtons && input.interactiveButtons.length > 0) {
+            // Send as WhatsApp interactive CTA_URL message
+            const { sendMetaInteractiveMessage } = await import('@/lib/meta-whatsapp-service');
+            metaResponse = await sendMetaInteractiveMessage(
+                input.partnerId,
+                normalizedPhone,
+                input.message || '',
+                input.interactiveButtons.map(b => ({ text: b.text, url: b.url })),
+                input.mediaUrl, // header image
             );
         } else if (input.mediaUrl && input.mediaType) {
             metaResponse = await sendMetaMediaMessage(
@@ -333,6 +358,7 @@ export async function sendMetaWhatsAppMessageAction(
             );
         }
 
+        console.log('📤 [OUTBOUND] Step 5 - Meta API response:', JSON.stringify(metaResponse));
         const metaMessageId = metaResponse.messages[0]?.id;
         const waId = metaResponse.contacts[0]?.wa_id;
 
@@ -481,7 +507,43 @@ export async function sendMetaWhatsAppMessageAction(
         };
 
     } catch (error: any) {
-        console.error('❌ Error sending Meta WhatsApp message:', error);
+        console.error('❌ [OUTBOUND] Error sending Meta WhatsApp message:', error);
+        const errMsg = (error as Error).message || '';
+
+        if (
+            errMsg.toLowerCase().includes('payment') ||
+            errMsg.toLowerCase().includes('billing') ||
+            errMsg.toLowerCase().includes('missing valid payment') ||
+            errMsg.toLowerCase().includes('free tier') ||
+            errMsg.toLowerCase().includes('business eligibility')
+        ) {
+            return {
+                success: false,
+                message: 'Payment method required: Your WhatsApp Business Account needs a valid payment method and GST/Tax ID configured in Meta Business Manager. Go to Apps → WhatsApp API for setup instructions.',
+            };
+        }
+
+        if (errMsg.includes('24-hour messaging window') || errMsg.includes('131047')) {
+            return {
+                success: false,
+                message: 'The 24-hour messaging window has expired for this customer. Send a template message to re-engage them. Go to Inbox → Templates to create and send one.',
+            };
+        }
+
+        if (errMsg.includes('Rate limited') || errMsg.includes('130429')) {
+            return {
+                success: false,
+                message: 'Rate limited by WhatsApp. Please wait a moment and try again.',
+            };
+        }
+
+        if (errMsg.includes('access token') || errMsg.includes('OAuthException') || errMsg.includes('Session has expired')) {
+            return {
+                success: false,
+                message: 'Your Meta access token has expired. Go to Apps → WhatsApp API and click "Fix Connection" to refresh it.',
+            };
+        }
+
         return { success: false, message: error.message };
     }
 }

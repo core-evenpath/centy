@@ -412,7 +412,7 @@ export default function WhatsAppBusinessAPIPage() {
                 }}
             />
 
-            <div className="container max-w-4xl py-8">
+            <div className="container max-w-4xl py-8 overflow-y-auto h-full">
                 <div className="mb-8">
                     <div className="flex items-center gap-3 mb-2">
                         <h1 className="text-3xl font-bold">WhatsApp Business API</h1>

@@ -234,7 +234,13 @@ interface RAGSuggestion {
         excerpt: string;
         relevance: number;
     }>;
+    inlineContent?: Array<{
+        type: 'product' | 'document' | 'image';
+        position: 'before' | 'after' | 'inline';
+        data: any;
+    }>;
     personaUsed?: boolean;
+    assistantUsed?: any;
 }
 
 export default function UnifiedInboxPage() {
@@ -281,6 +287,7 @@ export default function UnifiedInboxPage() {
     const [aiSuggestion, setAISuggestion] = useState<RAGSuggestion | null>(null);
     const [isLoadingSuggestion, setIsLoadingSuggestion] = useState(false);
     const [pendingIncomingMessage, setPendingIncomingMessage] = useState('');
+    const [suggestionAvailableProducts, setSuggestionAvailableProducts] = useState<any[]>([]);
 
     const processedMessageIds = useRef<Set<string>>(new Set());
     const lastSuggestionContext = useRef<string>('');
@@ -432,21 +439,45 @@ export default function UnifiedInboxPage() {
         try {
             let result;
 
-            if (selectedConversation.platform === 'meta_whatsapp' && selectedConversation.whatsAppData) {
+            if (selectedConversation.platform === 'meta_whatsapp') {
                 const formattedText = markdownToWhatsApp(textToSend);
+                const customerPhone = selectedConversation.whatsAppData?.customerPhone
+                    || selectedConversation.customerIdentifier;
+
+                if (!customerPhone) {
+                    toast.error('No phone number available for this conversation');
+                    if (!textOverride) setMessageInput(textToSend);
+                    setSending(false);
+                    return;
+                }
+
                 result = await sendMetaWhatsAppMessageAction({
                     partnerId: currentPartnerId,
-                    to: selectedConversation.whatsAppData.customerPhone,
+                    to: customerPhone,
                     message: formattedText,
                     conversationId: selectedConversation.id,
                 });
-            } else if (selectedConversation.platform === 'telegram' && selectedConversation.telegramData) {
+            } else if (selectedConversation.platform === 'telegram') {
+                const chatId = selectedConversation.telegramData?.chatId;
+
+                if (!chatId) {
+                    toast.error('No Telegram chat ID available for this conversation');
+                    if (!textOverride) setMessageInput(textToSend);
+                    setSending(false);
+                    return;
+                }
+
                 result = await sendTelegramMessageAction({
                     partnerId: currentPartnerId,
-                    chatId: selectedConversation.telegramData.chatId,
+                    chatId,
                     message: textToSend,
                     conversationId: selectedConversation.id,
                 });
+            } else {
+                toast.error('Unsupported messaging platform');
+                if (!textOverride) setMessageInput(textToSend);
+                setSending(false);
+                return;
             }
 
             if (result?.success) {
@@ -478,26 +509,47 @@ export default function UnifiedInboxPage() {
         try {
             let result;
 
-            if (selectedConversation.platform === 'meta_whatsapp' && selectedConversation.whatsAppData) {
+            if (selectedConversation.platform === 'meta_whatsapp') {
+                const customerPhone = selectedConversation.whatsAppData?.customerPhone
+                    || selectedConversation.customerIdentifier;
+
+                if (!customerPhone) {
+                    toast.error('No phone number available for this conversation');
+                    setSending(false);
+                    return;
+                }
+
                 result = await sendMetaWhatsAppMessageAction({
                     partnerId: currentPartnerId,
-                    to: selectedConversation.whatsAppData.customerPhone,
+                    to: customerPhone,
                     message: caption,
                     mediaUrl,
                     mediaType,
                     filename,
                     conversationId: selectedConversation.id,
                 });
-            } else if (selectedConversation.platform === 'telegram' && selectedConversation.telegramData) {
+            } else if (selectedConversation.platform === 'telegram') {
+                const chatId = selectedConversation.telegramData?.chatId;
+
+                if (!chatId) {
+                    toast.error('No Telegram chat ID available');
+                    setSending(false);
+                    return;
+                }
+
                 result = await sendTelegramMessageAction({
                     partnerId: currentPartnerId,
-                    chatId: selectedConversation.telegramData.chatId,
+                    chatId,
                     message: caption,
                     mediaUrl,
                     mediaType: mediaType === 'image' ? 'photo' : mediaType,
                     filename,
                     conversationId: selectedConversation.id,
                 });
+            } else {
+                toast.error('Unsupported messaging platform');
+                setSending(false);
+                return;
             }
 
             if (result?.success) {
@@ -552,8 +604,10 @@ export default function UnifiedInboxPage() {
                     confidence: result.confidence || 0.85,
                     reasoning: result.reasoning || 'Based on business profile and documents.',
                     sources: result.sources || [],
+                    inlineContent: result.inlineContent,
                     personaUsed: result.personaUsed
                 });
+                setSuggestionAvailableProducts(result.availableProducts || []);
             } else {
                 toast.error(result.message || "Failed to generate suggestion");
                 if (!refinementInstruction) setShowAISuggestion(false);
@@ -657,14 +711,14 @@ export default function UnifiedInboxPage() {
                 customerWaId: phoneNumber.replace(/\D/g, ''),
                 phoneNumberId: '',
                 type: 'direct',
-                title: `WhatsApp: ${phoneNumber}`,
+                title: contactName || `WhatsApp: ${phoneNumber}`,
                 customerName: contactName,
                 isActive: true,
                 messageCount: 0,
                 unreadCount: 0,
                 lastMessageAt: new Date(),
                 createdAt: new Date(),
-            },
+            } as any,
         };
 
         setSelectedConversation(tempConversation);
@@ -811,6 +865,7 @@ export default function UnifiedInboxPage() {
                             onSend={(text) => {
                                 handleSendMessage(text);
                             }}
+                            onSendMedia={handleSendMedia}
                             onDismiss={() => {
                                 setShowAISuggestion(false);
                                 setAISuggestion(null);
@@ -819,6 +874,7 @@ export default function UnifiedInboxPage() {
                             onRegenerate={() => handleGenerateSuggestion()}
                             onRefine={handleRefineSuggestion}
                             incomingMessage={pendingIncomingMessage}
+                            availableProducts={suggestionAvailableProducts}
                         />
                     </div>
                 )}

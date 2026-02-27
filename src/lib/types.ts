@@ -1447,3 +1447,130 @@ export const SuggestWorkflowStepsOutputSchema = z.object({
 });
 
 export type SuggestWorkflowStepsOutput = z.infer<typeof SuggestWorkflowStepsOutputSchema>;
+
+// ============================================================================
+// SYSTEM TEMPLATES (BROADCAST)
+// ============================================================================
+
+export type TemplateCategory = 'MARKETING' | 'UTILITY' | 'AUTHENTICATION';
+
+export type TemplateComponentType = 'HEADER' | 'BODY' | 'FOOTER' | 'BUTTONS';
+export type TemplateHeaderFormat = 'TEXT' | 'IMAGE' | 'VIDEO' | 'DOCUMENT';
+export type TemplateButtonType = 'QUICK_REPLY' | 'URL' | 'PHONE_NUMBER' | 'COPY_CODE';
+
+export interface TemplateButton {
+  type: TemplateButtonType;
+  text: string;
+  url?: string;
+  phoneNumber?: string;
+  copyCode?: string;
+}
+
+export interface TemplateComponent {
+  type: TemplateComponentType;
+  format?: TemplateHeaderFormat;
+  text?: string;
+  buttons?: TemplateButton[];
+  example?: {
+    header_handle?: string[];
+    body_text?: string[][];
+  };
+}
+
+// --- Feed Metadata (editorial layer for broadcast feed presentation) ---
+export type TemplateCampaignType = 'promotion' | 'seasonal' | 'retention' | 'transactional' | 'lead-gen' | 'announcement' | 'daily';
+
+export interface TemplateFeedMeta {
+  title: string;              // "Weekend Getaway Deal"
+  subtitle: string;           // "Best sent Thursday–Friday"
+  campaignType: TemplateCampaignType;
+  signal: {
+    icon: string;             // "🔥"
+    label: string;            // "High engagement"
+    color: string;            // "#ea580c"
+  };
+  timing: {
+    best: string;             // "Thu 10am"
+    icon: string;             // "🕙"
+  };
+  sortPriority: number;       // 1-100, higher = shown first
+  isTimeSensitive: boolean;
+  seasonalMonths?: number[];  // [1,2,3] = Jan-Mar only
+}
+
+// --- Variable Intelligence (what each {{N}} maps to) ---
+export interface VariableDefinition {
+  token: string;              // '{{1}}'
+  label: string;              // 'Guest Name'
+  source: 'contact' | 'business' | 'module' | 'static';
+  contactField?: string;      // 'name', 'email', 'phone', 'area'
+  businessField?: string;     // 'businessName', 'businessPhone', 'address'
+  moduleRef?: {
+    moduleSlug: string;       // 'rooms', 'menu_items', 'products'
+    field: string;            // 'name', 'price', 'category'
+    aiSuggestionPrompt?: string;
+  };
+  preview: string;            // 'Priya' — for phone preview rendering
+  fallback: string;           // 'Guest' — if contact data missing
+}
+
+// --- Enhancement Defaults (pre-configured toggles for studio) ---
+export interface TemplateEnhancementDefaults {
+  image: boolean;
+  imageSource?: 'upload' | 'module';
+  moduleImageField?: string;  // e.g. 'rooms.thumbnail'
+  buttons: boolean;
+  buttonPreset?: string[];    // e.g. ["Book now", "More details"]
+  link: boolean;
+  linkText?: string;          // e.g. "Book Now"
+}
+
+export interface SystemTemplate {
+  id: string;
+  slug: string; // unique identifier for URL/API
+  name: string;
+  language: string; // e.g. 'en_US'
+  category: TemplateCategory;
+  components: TemplateComponent[];
+  rawContent?: string; // For future-proofing (Telegram/Instagram/etc)
+
+  // Computed/Extracted metadata
+  variableCount: number; // Number of {{1}} variables
+  variables: string[]; // e.g. ['{{1}}', '{{2}}'] extracted from body
+  applicableIndustries: string[]; // IDs from taxonomy
+  applicableFunctions: string[]; // IDs from taxonomy
+  tags?: string[]; // e.g. ['promotion', 'urgent', 'seasonal']
+  description?: string; // Short summary for AI selection
+  status: 'draft' | 'published' | 'archived' | 'verified';
+  isSystem?: boolean;
+  createdAt: string; // ISO string
+  updatedAt: string;
+  createdBy?: string;
+
+  // Enhanced template architecture fields
+  feedMeta?: TemplateFeedMeta;
+  variableMap?: VariableDefinition[];
+  enhancementDefaults?: TemplateEnhancementDefaults;
+}
+
+// --- AI-Generated Broadcast Idea ---
+export interface BroadcastIdea {
+  id: string;
+  title: string;
+  description: string;
+  campaignType: TemplateCampaignType;
+  message: string;
+  variableMap: VariableDefinition[];
+  signal?: {
+    label: string;
+    color: string;
+  };
+  sourceItems?: {
+    moduleSlug: string;
+    itemId: string;
+    itemName: string;
+  }[];
+  category: 'MARKETING' | 'UTILITY';
+  suggestedChannel: 'whatsapp' | 'sms' | 'telegram';
+  sortPriority: number;
+}

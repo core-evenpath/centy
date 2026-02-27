@@ -8,17 +8,9 @@ import {
   deleteAllRagIndexDocs,
   indexPdfFile,
 } from "@/ai/fireRagSetup";
-import * as admin from "firebase-admin";
 import { getPartnerId } from "@/utils/auth";
 import { getPartnerRagIndexDocs } from "@/services/thesis-docs";
-
-// Ensure storage is initialized with the app
-let storage: admin.storage.Storage;
-try {
-  storage = admin.storage();
-} catch (e: any) {
-  console.error("Failed to initialize Firebase Storage:", e.message);
-}
+import { adminStorage } from "@/lib/firebase-admin";
 
 const downloadFile = async (url: string, path: string) => {
   const response = await fetch(url);
@@ -27,7 +19,7 @@ const downloadFile = async (url: string, path: string) => {
 };
 
 export async function POST(request: NextRequest) {
-  if (!storage) {
+  if (!adminStorage) {
     console.error(
       "Firebase Storage is not configured on the server. Check firebase-admin.ts initialization."
     );

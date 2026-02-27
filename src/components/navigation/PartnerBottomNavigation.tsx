@@ -7,9 +7,7 @@ import {
   MessageSquare,
   FolderOpen,
   Users,
-  LayoutGrid,
   Settings,
-  Package
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -20,7 +18,7 @@ const navigationItems = [
     icon: MessageSquare
   },
   {
-    name: 'Files',
+    name: 'Knowledge',
     href: '/partner/core',
     icon: FolderOpen
   },
@@ -28,16 +26,6 @@ const navigationItems = [
     name: 'Contacts',
     href: '/partner/contacts',
     icon: Users
-  },
-  {
-    name: 'Apps',
-    href: '/partner/apps',
-    icon: LayoutGrid
-  },
-  {
-    name: 'Modules',
-    href: '/partner/modules',
-    icon: Package
   },
   {
     name: 'Settings',
@@ -60,7 +48,7 @@ export default function PartnerBottomNavigation() {
 
   return (
     <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 md:hidden z-50">
-      <nav className="grid grid-cols-5 h-16 safe-area-bottom">
+      <nav className="grid grid-cols-4 h-16 safe-area-bottom">
         {navigationItems.map((item) => {
           const isActive = isActiveRoute(item.href);
           const Icon = item.icon;

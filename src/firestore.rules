@@ -300,6 +300,14 @@ service cloud.firestore {
                          resource.data.partnerId == partnerId;
         allow delete: if isSignedIn() && canModifyPartner(partnerId);
       }
+
+      // ============================================================================
+      // PARTNER SUBCOLLECTIONS - AI BROADCAST IDEAS (cached AI-generated campaigns)
+      // ============================================================================
+      match /broadcastIdeas/{ideaId} {
+        allow read: if canAccessPartner(partnerId);
+        allow list: if canAccessPartner(partnerId);
+      }
     }
 
     // ============================================================================

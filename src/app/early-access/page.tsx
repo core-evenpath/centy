@@ -143,39 +143,6 @@ export default function EarlyAccessPage() {
         </div>
       </section>
 
-      {/* Use Cases Grid */}
-      <section className="py-16 px-6">
-        <div className="max-w-6xl mx-auto">
-          <div className="text-center mb-12">
-            <p className="text-rose-500 text-sm font-medium tracking-widest uppercase mb-4">What you get</p>
-            <h2 className="font-serif text-3xl sm:text-4xl tracking-tight text-stone-900">
-              Everything you need to <em>close more deals</em>
-            </h2>
-          </div>
-
-          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
-            {useCases.map((useCase, i) => {
-              const Icon = useCase.icon;
-              const isActive = i === activeIndex;
-              return (
-                <div
-                  key={i}
-                  className={`rounded-2xl p-6 border bg-white transition-all duration-500 ${
-                    isActive ? 'border-rose-300 shadow-lg shadow-rose-100' : 'border-stone-200'
-                  }`}
-                >
-                  <div className="w-12 h-12 rounded-xl flex items-center justify-center mb-4 bg-stone-50">
-                    <Icon className="w-6 h-6 text-stone-700" />
-                  </div>
-                  <h3 className="text-lg font-semibold text-stone-900 mb-2">{useCase.title}</h3>
-                  <p className="text-sm text-stone-500 leading-relaxed">{useCase.description}</p>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      </section>
-
       {/* Signup Form Section */}
       <section className="py-20 px-6 bg-white">
         <div className="max-w-lg mx-auto">
@@ -273,6 +240,39 @@ export default function EarlyAccessPage() {
               <Clock className="w-4 h-4" />
               <span>Takes 30 seconds</span>
             </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Use Cases Grid */}
+      <section className="py-16 px-6">
+        <div className="max-w-6xl mx-auto">
+          <div className="text-center mb-12">
+            <p className="text-rose-500 text-sm font-medium tracking-widest uppercase mb-4">What you get</p>
+            <h2 className="font-serif text-3xl sm:text-4xl tracking-tight text-stone-900">
+              Everything you need to <em>close more deals</em>
+            </h2>
+          </div>
+
+          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
+            {useCases.map((useCase, i) => {
+              const Icon = useCase.icon;
+              const isActive = i === activeIndex;
+              return (
+                <div
+                  key={i}
+                  className={`rounded-2xl p-6 border bg-white transition-all duration-500 ${
+                    isActive ? 'border-rose-300 shadow-lg shadow-rose-100' : 'border-stone-200'
+                  }`}
+                >
+                  <div className="w-12 h-12 rounded-xl flex items-center justify-center mb-4 bg-stone-50">
+                    <Icon className="w-6 h-6 text-stone-700" />
+                  </div>
+                  <h3 className="text-lg font-semibold text-stone-900 mb-2">{useCase.title}</h3>
+                  <p className="text-sm text-stone-500 leading-relaxed">{useCase.description}</p>
+                </div>
+              );
+            })}
           </div>
         </div>
       </section>

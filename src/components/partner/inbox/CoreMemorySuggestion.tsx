@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
@@ -24,11 +24,16 @@ import {
     MessageSquare,
     Zap,
     Building,
-    Package
+    Package,
+    Plus,
+    ShoppingBag,
+    Image as ImageIcon
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import InlineProductCard, { type InlineProductData } from './InlineProductCard';
+import ProductPickerModal from './ProductPickerModal';
 
 // Animation styles for the suggestion panel
 const suggestionStyles = `
@@ -124,12 +129,20 @@ interface RAGSource {
     relevance: number;
 }
 
-interface RAGSuggestion {
+export interface InlineContentBlock {
+    type: 'product' | 'document' | 'image';
+    position: 'before' | 'after' | 'inline';
+    data: any;
+}
+
+export interface RAGSuggestion {
     suggestedReply: string;
     confidence: number;
     reasoning: string;
     sources: RAGSource[];
+    inlineContent?: InlineContentBlock[];
     personaUsed?: boolean;
+    assistantUsed?: any;
 }
 
 interface CoreMemorySuggestionProps {
@@ -138,10 +151,12 @@ interface CoreMemorySuggestionProps {
     isVisible: boolean;
     onEdit: (text: string) => void;
     onSend: (text: string) => void;
+    onSendMedia?: (mediaUrl: string, mediaType: 'image' | 'video' | 'audio' | 'document', caption?: string, filename?: string) => void;
     onDismiss: () => void;
     onRegenerate: () => void;
     onRefine: (instruction: string) => void;
     incomingMessage: string;
+    availableProducts?: InlineProductData[];
 }
 
 type LoadingStage = 'searching' | 'analyzing' | 'generating' | 'complete';
@@ -159,10 +174,12 @@ export default function CoreMemorySuggestion({
     isVisible,
     onEdit,
     onSend,
+    onSendMedia,
     onDismiss,
     onRegenerate,
     onRefine,
-    incomingMessage
+    incomingMessage,
+    availableProducts = [],
 }: CoreMemorySuggestionProps) {
     const [loadingStage, setLoadingStage] = useState<LoadingStage>('searching');
     const [displayedText, setDisplayedText] = useState('');
@@ -171,6 +188,23 @@ export default function CoreMemorySuggestion({
     const [customRefineInput, setCustomRefineInput] = useState('');
     const [copied, setCopied] = useState(false);
     const textRef = useRef<HTMLDivElement>(null);
+
+    // Product management state
+    const [attachedProducts, setAttachedProducts] = useState<InlineProductData[]>([]);
+    const [showProductPicker, setShowProductPicker] = useState(false);
+    const [swapPickerIndex, setSwapPickerIndex] = useState<number | null>(null);
+
+    // Initialize attached products from suggestion's inline content
+    useEffect(() => {
+        if (suggestion?.inlineContent) {
+            const products = suggestion.inlineContent
+                .filter(b => b.type === 'product' && b.data)
+                .map(b => b.data as InlineProductData);
+            setAttachedProducts(products);
+        } else {
+            setAttachedProducts([]);
+        }
+    }, [suggestion?.suggestedReply]);
 
     useEffect(() => {
         if (!isLoading) {
@@ -213,11 +247,111 @@ export default function CoreMemorySuggestion({
         return () => clearInterval(typingInterval);
     }, [suggestion?.suggestedReply, isLoading]);
 
+    // Build WhatsApp-formatted caption for a product (mirrors the card layout)
+    const buildProductCaption = useCallback((product: InlineProductData): string => {
+        const currencySymbol = product.currency === 'USD' ? '$'
+            : product.currency === 'EUR' ? '\u20AC'
+            : product.currency === 'GBP' ? '\u00A3'
+            : '\u20B9';
+        const lines: string[] = [];
+
+        // Category
+        if (product.category) {
+            lines.push(product.category.toUpperCase());
+        }
+
+        // Product name (bold in WhatsApp)
+        lines.push(`*${product.name}*`);
+
+        // Price line
+        if (product.price !== null) {
+            let priceLine = `*${currencySymbol}${product.price.toLocaleString()}*`;
+            if (product.comparePrice && product.comparePrice > product.price) {
+                const discount = Math.round(((product.comparePrice - product.price) / product.comparePrice) * 100);
+                priceLine += `  ~${currencySymbol}${product.comparePrice.toLocaleString()}~  (${discount}% off)`;
+            }
+            lines.push(priceLine);
+        }
+
+        // Rating
+        if (product.rating && product.rating > 0) {
+            let ratingLine = `\u2B50 ${product.rating.toFixed(1)}`;
+            if (product.reviewCount !== undefined) {
+                ratingLine += ` (${product.reviewCount} reviews)`;
+            }
+            lines.push(ratingLine);
+        }
+
+        // Stock status
+        if (product.stockStatus === 'in_stock') {
+            const stockText = product.stockCount ? `${product.stockCount} in stock` : 'In Stock';
+            lines.push(`\u2705 ${stockText}`);
+        } else if (product.stockStatus === 'low_stock') {
+            const stockText = product.stockCount ? `Only ${product.stockCount} left` : 'Low Stock';
+            lines.push(`\u26A0\uFE0F ${stockText}`);
+        } else if (product.stockStatus === 'out_of_stock') {
+            lines.push(`\u274C Out of Stock`);
+        }
+
+        // Description
+        if (product.description) {
+            const desc = product.description.length > 300
+                ? product.description.substring(0, 300) + '...'
+                : product.description;
+            lines.push('');
+            lines.push(desc);
+        }
+
+        // Colors
+        if (product.colors && product.colors.length > 0) {
+            lines.push('');
+            lines.push(`\uD83C\uDFA8 Colors: ${product.colors.join(', ')}`);
+        }
+
+        return lines.join('\n');
+    }, []);
+
+    // Build the text-only message (no product details - those go in image captions)
+    const buildFinalText = useCallback(() => {
+        if (!suggestion) return '';
+        return suggestion.suggestedReply;
+    }, [suggestion]);
+
     const handleCopy = () => {
-        if (suggestion?.suggestedReply) {
-            navigator.clipboard.writeText(suggestion.suggestedReply);
-            setCopied(true);
-            setTimeout(() => setCopied(false), 2000);
+        // For copy, include product details in the text since there's no image
+        if (!suggestion) return;
+        let text = suggestion.suggestedReply;
+        if (attachedProducts.length > 0) {
+            for (const product of attachedProducts) {
+                text += '\n\n---\n' + buildProductCaption(product);
+            }
+        }
+        navigator.clipboard.writeText(text);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+    };
+
+    const handleSend = () => {
+        const text = buildFinalText();
+        if (text) {
+            onSend(text);
+        }
+        // Send each product as a separate image message with rich caption
+        if (onSendMedia) {
+            for (const product of attachedProducts) {
+                const imageUrl = product.imageUrl || product.images?.[0];
+                if (imageUrl) {
+                    onSendMedia(imageUrl, 'image', buildProductCaption(product));
+                }
+            }
+        }
+    };
+
+    const handleEdit = () => {
+        // For edit, put the suggestion text in the input (products sent separately)
+        const text = buildFinalText();
+        if (text) {
+            onEdit(text);
         }
     };
 
@@ -227,6 +361,40 @@ export default function CoreMemorySuggestion({
             setCustomRefineInput('');
         }
     };
+
+    // Product management
+    const handleRemoveProduct = (index: number) => {
+        setAttachedProducts(prev => prev.filter((_, i) => i !== index));
+    };
+
+    const handleSwapProduct = (index: number, product: InlineProductData) => {
+        setAttachedProducts(prev => prev.map((p, i) => i === index ? product : p));
+    };
+
+    const handleAddProducts = (products: InlineProductData[]) => {
+        setAttachedProducts(prev => {
+            const existing = new Set(prev.map(p => p.id));
+            const newProducts = products.filter(p => !existing.has(p.id));
+            return [...prev, ...newProducts];
+        });
+    };
+
+    // Get all available products for picker (deduped)
+    const allPickerProducts = useMemo(() => {
+        const allProducts = [...availableProducts];
+        // Include inline content products that aren't in availableProducts
+        if (suggestion?.inlineContent) {
+            for (const block of suggestion.inlineContent) {
+                if (block.type === 'product' && block.data) {
+                    const p = block.data as InlineProductData;
+                    if (!allProducts.find(ap => ap.id === p.id)) {
+                        allProducts.push(p);
+                    }
+                }
+            }
+        }
+        return allProducts;
+    }, [availableProducts, suggestion?.inlineContent]);
 
     // Close on escape key
     useEffect(() => {
@@ -274,11 +442,13 @@ export default function CoreMemorySuggestion({
     const LoadingIcon = loadingContent.icon;
 
     if (!isVisible) {
-        // Desktop: render a hidden placeholder to prevent layout shift
         return (
             <div className="hidden md:block md:w-0 md:overflow-hidden md:shrink-0 transition-all duration-300 ease-out" />
         );
     }
+
+    const productCount = attachedProducts.length;
+    const hasProductImages = attachedProducts.some(p => p.imageUrl || p.images?.[0]);
 
     return (
         <>
@@ -297,7 +467,7 @@ export default function CoreMemorySuggestion({
                 "fixed inset-x-0 bottom-0 max-h-[85vh] rounded-t-3xl shadow-2xl bg-[#fafafa]",
                 "animate-in slide-in-from-bottom duration-300",
                 // Desktop: Integrated side panel style
-                "md:static md:w-[380px] md:max-w-[380px] md:h-full md:max-h-full",
+                "md:static md:w-[400px] md:max-w-[400px] md:h-full md:max-h-full",
                 "md:rounded-none md:shadow-none md:bg-[#fafafa]",
                 "md:border-l md:border-[#e5e5e5] md:shrink-0",
                 "md:suggestion-panel-enter"
@@ -392,19 +562,90 @@ export default function CoreMemorySuggestion({
                                     </p>
                                 </div>
 
+                                {/* Products Section */}
+                                {!isTyping && (
+                                    <div className="space-y-3">
+                                        {/* Section header with count and add button */}
+                                        <div className="flex items-center justify-between">
+                                            <div className="flex items-center gap-2">
+                                                <div className="w-6 h-6 rounded-md bg-[#111] flex items-center justify-center">
+                                                    <ShoppingBag className="w-3 h-3 text-white" />
+                                                </div>
+                                                <span className="text-[12px] font-semibold text-[#333]">
+                                                    Products
+                                                </span>
+                                                {productCount > 0 && (
+                                                    <span className="text-[11px] text-[#888] bg-[#f0f0f0] px-1.5 py-0.5 rounded-full font-medium">
+                                                        {productCount}
+                                                    </span>
+                                                )}
+                                            </div>
+                                            {allPickerProducts.length > 0 && (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setShowProductPicker(true)}
+                                                    className="flex items-center gap-1 px-3 py-1.5 text-[12px] font-medium text-[#111] bg-white border border-[#e0e0e0] hover:border-[#bbb] hover:bg-[#f8f8f8] rounded-lg transition-all duration-150"
+                                                >
+                                                    <Plus className="w-3.5 h-3.5" />
+                                                    Add Products
+                                                </button>
+                                            )}
+                                        </div>
+
+                                        {/* Product cards */}
+                                        {productCount > 0 ? (
+                                            <div className="space-y-3">
+                                                {attachedProducts.map((product, idx) => (
+                                                    <InlineProductCard
+                                                        key={`product-${product.id}-${idx}`}
+                                                        product={product}
+                                                        onChangeProduct={() => setSwapPickerIndex(idx)}
+                                                        onRemove={() => handleRemoveProduct(idx)}
+                                                    />
+                                                ))}
+                                            </div>
+                                        ) : allPickerProducts.length > 0 ? (
+                                            /* Empty state - invite to add */
+                                            <button
+                                                type="button"
+                                                onClick={() => setShowProductPicker(true)}
+                                                className="w-full flex flex-col items-center gap-2 py-6 px-4 rounded-xl border-2 border-dashed border-[#e0e0e0] hover:border-[#bbb] bg-white hover:bg-[#fcfcfc] transition-all duration-150 group cursor-pointer"
+                                            >
+                                                <div className="w-10 h-10 rounded-full bg-[#f5f5f5] group-hover:bg-[#eee] flex items-center justify-center transition-colors duration-150">
+                                                    <Plus className="w-5 h-5 text-[#888] group-hover:text-[#555]" />
+                                                </div>
+                                                <div className="text-center">
+                                                    <p className="text-[13px] font-medium text-[#555]">Add products to send</p>
+                                                    <p className="text-[11px] text-[#aaa] mt-0.5">Products will be sent as image messages</p>
+                                                </div>
+                                            </button>
+                                        ) : null}
+
+                                        {/* Send preview hint */}
+                                        {productCount > 0 && hasProductImages && (
+                                            <div className="flex items-center gap-2 px-3 py-2 bg-[#f8f8ff] border border-[#e8e8f0] rounded-lg">
+                                                <ImageIcon className="w-3.5 h-3.5 text-[#6366f1]" />
+                                                <span className="text-[11px] text-[#666]">
+                                                    {productCount} product image{productCount !== 1 ? 's' : ''} will be sent after the text message
+                                                </span>
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+
                                 {/* Action Buttons */}
                                 {!isTyping && (
                                     <div className="flex gap-2.5">
                                         <Button
-                                            onClick={() => onSend(suggestion.suggestedReply)}
+                                            onClick={handleSend}
                                             className="flex-1 h-12 bg-[#111] hover:bg-[#000] text-white text-[14px] font-semibold rounded-lg transition-all duration-200 hover:scale-[1.01] active:scale-[0.99]"
                                         >
-                                            <span className="mr-2">↑</span>
-                                            Send
+                                            <span className="mr-2">&uarr;</span>
+                                            Send{productCount > 0 ? ` + ${productCount} Product${productCount !== 1 ? 's' : ''}` : ''}
                                         </Button>
                                         <Button
                                             variant="outline"
-                                            onClick={() => onEdit(suggestion.suggestedReply)}
+                                            onClick={handleEdit}
                                             className="h-12 px-6 border-[#e5e5e5] hover:bg-[#f5f5f5] hover:border-[#ddd] text-[14px] font-medium rounded-lg transition-all duration-200"
                                         >
                                             <Edit3 className="h-4 w-4 mr-2" />
@@ -495,6 +736,32 @@ export default function CoreMemorySuggestion({
                     </div>
                 </ScrollArea>
             </div>
+
+            {/* Add Products Modal */}
+            {showProductPicker && (
+                <ProductPickerModal
+                    open={true}
+                    onOpenChange={(open) => {
+                        if (!open) setShowProductPicker(false);
+                    }}
+                    products={allPickerProducts}
+                    alreadySelectedIds={attachedProducts.map(p => p.id)}
+                    onAddProducts={handleAddProducts}
+                />
+            )}
+
+            {/* Swap Product Modal */}
+            {swapPickerIndex !== null && (
+                <ProductPickerModal
+                    open={true}
+                    onOpenChange={(open) => {
+                        if (!open) setSwapPickerIndex(null);
+                    }}
+                    products={allPickerProducts}
+                    currentProductId={attachedProducts[swapPickerIndex]?.id}
+                    onSelect={(product) => handleSwapProduct(swapPickerIndex, product)}
+                />
+            )}
         </>
     );
 }

@@ -1,21 +1,12 @@
 import { headers } from "next/headers";
 import { NextRequest, NextResponse } from "next/server";
-import * as admin from "firebase-admin";
 
 import {
   RAGINDEX_COLLECTION_NAME,
   deleteRagIndexDocs,
 } from "@/ai/fireRagSetup";
-import { db } from "@/lib/firebase-admin";
+import { db, adminStorage } from "@/lib/firebase-admin";
 import { getPartnerId } from "@/utils/auth";
-
-// Ensure storage is initialized with the app
-let storage: admin.storage.Storage;
-try {
-  storage = admin.storage();
-} catch (e: any) {
-  console.error("Failed to initialize Firebase Storage:", e.message);
-}
 
 export async function DELETE(request: NextRequest) {
   const headersList = await headers();
@@ -34,7 +25,7 @@ export async function DELETE(request: NextRequest) {
     );
   }
   console.log("in /api/thesis-docs/delete POST");
-  if (!storage) {
+  if (!adminStorage) {
     console.error(
       "Firebase Storage is not configured on the server. Check firebase-admin.ts initialization."
     );
