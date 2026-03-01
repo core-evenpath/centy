@@ -1643,44 +1643,6 @@ const SettingsUltimate = () => {
                     <p className="text-slate-500">Integrations, templates, and advanced controls</p>
                   </div>
 
-                  {/* Messaging Integrations */}
-                  <div className="bg-white rounded-2xl border border-slate-200 p-6">
-                    <div className="flex items-center justify-between mb-5">
-                      <h3 className="font-semibold text-slate-900">Messaging Integrations</h3>
-                    </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      {integrations.map(integration => (
-                        <div
-                          key={integration.id}
-                          className={cn(
-                            "p-4 rounded-xl border-2",
-                            integration.status === 'connected' ? 'border-emerald-200 bg-emerald-50' : 'border-slate-200 bg-slate-50'
-                          )}
-                        >
-                          <div className="flex items-center justify-between mb-2">
-                            <div className="flex items-center gap-2">
-                              <span className="text-xl">{integration.icon}</span>
-                              <span className="font-medium text-slate-900">{integration.name}</span>
-                            </div>
-                            {integration.status === 'connected' ? (
-                              <span className="text-xs px-2 py-0.5 bg-emerald-100 text-emerald-700 rounded-full">Connected</span>
-                            ) : (
-                              <button
-                                onClick={() => router.push(`/partner/apps/${integration.id === 'whatsapp' ? 'whatsapp-api' : integration.id}`)}
-                                className="text-xs px-2 py-1 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700"
-                              >
-                                Connect
-                              </button>
-                            )}
-                          </div>
-                          {integration.account && (
-                            <p className="text-sm text-slate-500 truncate">{integration.account}</p>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-
                   {/* AI Agent Settings */}
                   <div className="bg-white rounded-2xl border border-slate-200 p-6">
                     <h3 className="font-semibold text-slate-900 mb-4">AI Agent Behavior</h3>

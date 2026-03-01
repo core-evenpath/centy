@@ -8,6 +8,7 @@ import {
   FolderOpen,
   Users,
   Settings,
+  Megaphone,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -21,6 +22,11 @@ const navigationItems = [
     name: 'Knowledge',
     href: '/partner/core',
     icon: FolderOpen
+  },
+  {
+    name: 'Broadcast',
+    href: '/partner/broadcast',
+    icon: Megaphone
   },
   {
     name: 'Contacts',
@@ -40,15 +46,17 @@ export default function PartnerBottomNavigation() {
   const isActiveRoute = (href: string) => {
     if (href === '/partner/core') {
       return pathname === '/partner/core' ||
-        pathname.startsWith('/partner/documents') ||
-        pathname.startsWith('/partner/agents');
+        pathname.startsWith('/partner/documents');
+    }
+    if (href === '/partner/broadcast') {
+      return pathname === '/partner/broadcast' || pathname.startsWith('/partner/broadcast/') || pathname.startsWith('/partner/campaigns');
     }
     return pathname === href || pathname.startsWith(href + '/');
   };
 
   return (
     <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 md:hidden z-50">
-      <nav className="grid grid-cols-4 h-16 safe-area-bottom">
+      <nav aria-label="Mobile navigation" className="grid grid-cols-5 h-16 safe-area-bottom">
         {navigationItems.map((item) => {
           const isActive = isActiveRoute(item.href);
           const Icon = item.icon;
@@ -57,6 +65,7 @@ export default function PartnerBottomNavigation() {
             <Link
               key={item.name}
               href={item.href}
+              aria-current={isActive ? "page" : undefined}
               className={cn(
                 "flex flex-col items-center justify-center py-2 transition-colors relative",
                 isActive
