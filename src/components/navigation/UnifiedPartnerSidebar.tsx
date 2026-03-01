@@ -8,10 +8,12 @@ import {
   LogOut,
   Users,
   Inbox,
-  Brain,
   PanelLeftClose,
   PanelLeftOpen,
   Database,
+  Bot,
+  Megaphone,
+  Link as LinkIcon,
 } from 'lucide-react';
 import { Button } from '../ui/button';
 import { cn } from '@/lib/utils';
@@ -52,10 +54,12 @@ export default function UnifiedPartnerSidebar() {
   };
 
   const isActiveRoute = (href: string) => {
-    // Special handling for Core Memory - only includes documents, NOT agents
     if (href === '/partner/core') {
       return pathname === '/partner/core' ||
         pathname.startsWith('/partner/documents');
+    }
+    if (href === '/partner/broadcast') {
+      return pathname === '/partner/broadcast' || pathname.startsWith('/partner/broadcast/') || pathname.startsWith('/partner/campaigns');
     }
     return pathname === href || pathname.startsWith(href + '/');
   };
@@ -68,14 +72,29 @@ export default function UnifiedPartnerSidebar() {
       isInbox: true
     },
     {
-      icon: Brain,
-      label: 'Knowledge',
+      icon: Database,
+      label: 'Core Memory',
       href: '/partner/core'
+    },
+    {
+      icon: Bot,
+      label: 'Agents',
+      href: '/partner/agents'
     },
     {
       icon: Users,
       label: 'Contacts',
       href: '/partner/contacts'
+    },
+    {
+      icon: Megaphone,
+      label: 'Broadcast',
+      href: '/partner/broadcast'
+    },
+    {
+      icon: LinkIcon,
+      label: 'Apps',
+      href: '/partner/apps'
     },
     {
       icon: Settings,
@@ -103,13 +122,14 @@ export default function UnifiedPartnerSidebar() {
       </div>
 
       {/* Navigation */}
-      <div className="flex-1 px-3 space-y-1 overflow-hidden">
+      <nav role="navigation" aria-label="Main navigation" className="flex-1 px-3 space-y-1 overflow-hidden">
         {menuItems.map((item) => {
           const isActive = isActiveRoute(item.href);
           return (
             <Link
               key={item.href}
               href={item.href}
+              aria-current={isActive ? "page" : undefined}
               className={cn(
                 "flex items-center gap-3 px-3 py-3 rounded-xl transition-all duration-200 group relative",
                 isActive
@@ -138,12 +158,13 @@ export default function UnifiedPartnerSidebar() {
             </Link>
           );
         })}
-      </div>
+      </nav>
 
       {/* Collapse Toggle */}
       <div className="p-4 mt-auto border-t border-gray-200/50">
         <button
           onClick={() => setIsCollapsed(!isCollapsed)}
+          aria-label={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
           className={cn(
             "flex items-center gap-3 w-full px-3 py-2 text-gray-500 hover:text-gray-900 transition-colors rounded-lg hover:bg-gray-100",
             isCollapsed && "justify-center"
