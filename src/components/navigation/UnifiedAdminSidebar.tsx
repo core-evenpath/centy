@@ -13,7 +13,9 @@ import {
   LogOut,
   ChevronLeft,
   ChevronRight,
-  Zap
+  Boxes,
+  FileText,
+  Sparkles
 } from "lucide-react";
 import {
   Sidebar,
@@ -32,7 +34,9 @@ import { getAuth, signOut } from "firebase/auth";
 const menuItems = [
   { id: "overview", label: "Overview", icon: BarChart3, href: "/admin" },
   { id: "partners", label: "Partners", icon: Building, href: "/admin/partners" },
-  { id: "workflows", label: "Workflows", icon: Zap, href: "/admin/workflows" },
+  { id: "modules", label: "Modules", icon: Boxes, href: "/admin/modules" },
+  { id: "templates", label: "Templates", icon: FileText, href: "/admin/templates" },
+  { id: "prompts", label: "Prompts", icon: Sparkles, href: "/admin/prompts" },
   { id: "users", label: "Admins", icon: Users, href: "/admin/users", requiredRole: 'Super Admin' },
   { id: "settings", label: "Settings", icon: Settings, href: "/admin/settings" },
 ];
@@ -74,18 +78,21 @@ export default function UnifiedAdminSidebar() {
       </SidebarHeader>
 
       <SidebarContent className="flex-1">
+        <nav aria-label="Admin navigation">
         <SidebarMenu>
           {menuItems.map((item) => {
             if (item.requiredRole && userRole !== 'Super Admin' && user?.email !== 'core@suupe.com') {
               return null;
             }
 
-            const isActive = pathname === item.href;
+            const isActive = item.href === '/admin'
+              ? pathname === '/admin'
+              : pathname === item.href || pathname.startsWith(item.href + '/');
             const IconComponent = item.icon;
 
             return (
               <SidebarMenuItem key={item.id}>
-                <Link href={item.href} passHref>
+                <Link href={item.href} passHref aria-current={isActive ? "page" : undefined}>
                   <SidebarMenuButton tooltip={item.label} isActive={isActive}>
                     <IconComponent />
                     {isExpanded && <span>{item.label}</span>}
@@ -95,18 +102,19 @@ export default function UnifiedAdminSidebar() {
             );
           })}
         </SidebarMenu>
+        </nav>
       </SidebarContent>
 
       <SidebarFooter>
         <SidebarMenu>
           <SidebarMenuItem>
-            <SidebarMenuButton onClick={handleLogout} tooltip="Sign Out">
+            <SidebarMenuButton onClick={handleLogout} tooltip="Sign Out" aria-label="Sign out">
               <LogOut />
               {isExpanded && <span>Sign Out</span>}
             </SidebarMenuButton>
           </SidebarMenuItem>
           <SidebarMenuItem>
-             <SidebarMenuButton onClick={() => setOpen(!isExpanded)} tooltip={isExpanded ? 'Collapse' : 'Expand'}>
+             <SidebarMenuButton onClick={() => setOpen(!isExpanded)} tooltip={isExpanded ? 'Collapse' : 'Expand'} aria-label={isExpanded ? "Collapse sidebar" : "Expand sidebar"}>
               {isExpanded ? <ChevronLeft /> : <ChevronRight />}
               {isExpanded && <span>Collapse</span>}
             </SidebarMenuButton>
