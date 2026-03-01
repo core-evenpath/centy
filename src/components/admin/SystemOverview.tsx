@@ -7,7 +7,6 @@ import { Mail, Calendar, User, RefreshCw, AlertCircle } from "lucide-react";
 import { Skeleton } from '../ui/skeleton';
 import { Button } from '../ui/button';
 import { useAuth } from '../../hooks/use-auth';
-import type { FirebaseAuthUser } from '../../lib/types';
 
 interface EarlyAccessSignup {
   id: string;
@@ -19,20 +18,13 @@ interface EarlyAccessSignup {
   } | null;
 }
 
-// Helper to get the token from our custom user type
-async function getToken(user: FirebaseAuthUser): Promise<string> {
+// Helper to get a fresh token from Firebase Auth (handles automatic refresh)
+async function getToken(forceRefresh = false): Promise<string> {
   try {
-    if (user.customClaims?.token) {
-      return user.customClaims.token;
-    }
-
-    // Fallback - get fresh token
     const { getAuth, getIdToken } = await import('firebase/auth');
     const auth = getAuth();
     if (auth.currentUser) {
-      const token = await getIdToken(auth.currentUser);
-      console.log('Got fresh token from Firebase Auth');
-      return token;
+      return await getIdToken(auth.currentUser, forceRefresh);
     }
 
     console.error('No current user in Firebase Auth');
@@ -62,19 +54,14 @@ export default function SystemOverview() {
       return;
     }
 
-    console.log('User role:', user.customClaims?.role);
-    console.log('User email:', user.email);
-
     try {
-      const token = await getToken(user);
+      const token = await getToken();
 
       if (!token) {
         throw new Error("Authentication token not available. Please try logging out and back in.");
       }
 
-      console.log('Fetching signups from API...');
-
-      const response = await fetch('/api/admin/early-access', {
+      let response = await fetch('/api/admin/early-access', {
         method: 'GET',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -83,13 +70,24 @@ export default function SystemOverview() {
         cache: 'no-store'
       });
 
-      console.log('Response status:', response.status);
+      // If token expired, force-refresh and retry once
+      if (response.status === 401) {
+        const freshToken = await getToken(true);
+        if (freshToken && freshToken !== token) {
+          response = await fetch('/api/admin/early-access', {
+            method: 'GET',
+            headers: {
+              'Authorization': `Bearer ${freshToken}`,
+              'Content-Type': 'application/json'
+            },
+            cache: 'no-store'
+          });
+        }
+      }
 
       const data = await response.json();
-      console.log('Response data:', data);
 
       if (!response.ok) {
-        // Store debug info for display
         setDebugInfo({
           status: response.status,
           statusText: response.statusText,
@@ -103,7 +101,6 @@ export default function SystemOverview() {
       }
 
       setEarlyAccessSignups(data.signups || []);
-      console.log(`Successfully loaded ${data.signups?.length || 0} signups`);
 
     } catch (err: any) {
       console.error('Fetch error:', err);
