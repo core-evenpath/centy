@@ -13,6 +13,7 @@ import {
   Database,
   Bot,
   Megaphone,
+  Package,
   Link as LinkIcon,
 } from 'lucide-react';
 import { Button } from '../ui/button';
@@ -85,6 +86,11 @@ export default function UnifiedPartnerSidebar() {
       icon: Users,
       label: 'Contacts',
       href: '/partner/contacts'
+    },
+    {
+      icon: Package,
+      label: 'Modules',
+      href: '/partner/modules'
     },
     {
       icon: Megaphone,
