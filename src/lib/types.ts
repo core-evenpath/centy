@@ -161,6 +161,37 @@ export interface Partner {
   };
 }
 
+export interface AdminPartnerStats {
+  channels: {
+    whatsapp: {
+      connected: boolean;
+      status: 'active' | 'pending' | 'pending_billing' | 'disconnected' | 'error' | 'not_connected';
+      phoneNumber?: string;
+      wabaId?: string;
+      qualityRating?: string;
+      lastVerifiedAt?: string;
+    };
+    telegram: {
+      connected: boolean;
+      botUsername?: string;
+    };
+  };
+  messaging: {
+    totalConversations: number;
+    totalMessages: number;
+    activeContactsCount: number;
+  };
+  ai: {
+    totalDocuments: number;
+    activeAgents: number;
+    personaCompleteness: number;
+  };
+  team: {
+    totalMembers: number;
+    adminCount: number;
+  };
+}
+
 export interface PartnerSettings {
   allowEmployeeCustomization: boolean;
   requireApprovalForTasks: boolean;
