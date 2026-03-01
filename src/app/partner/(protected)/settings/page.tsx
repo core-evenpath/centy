@@ -1214,6 +1214,21 @@ const SettingsUltimate = () => {
           ))}
         </nav>
 
+        {/* Import Center Link */}
+        <div className="px-3 pt-2">
+          <button
+            onClick={() => router.push('/partner/settings/import-center')}
+            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left bg-indigo-50 hover:bg-indigo-100 transition-colors group"
+          >
+            <span className="text-lg">📥</span>
+            <div className="flex-1 min-w-0">
+              <span className="font-medium text-sm text-indigo-700">Import Center</span>
+              <span className="block text-xs text-indigo-500">Google, website & more</span>
+            </div>
+            <span className="text-indigo-400 group-hover:translate-x-0.5 transition-transform">→</span>
+          </button>
+        </div>
+
         {/* Profile Score Widget */}
         {activeTab === 'profile' && (
           <div className="p-3 border-t border-slate-100">
