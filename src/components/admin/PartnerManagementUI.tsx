@@ -2,8 +2,8 @@
 "use client";
 
 import React, { useState, useEffect, useMemo } from 'react';
-import type { Partner } from '../../lib/types';
-import { UserPlus, Search, ListFilter, AlertTriangle, Edit } from "lucide-react";
+import type { Partner, AdminPartnerStats } from '../../lib/types';
+import { UserPlus, Search, ListFilter, AlertTriangle, Edit, MessageCircle, Send, MoreVertical, Copy, ExternalLink } from "lucide-react";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import AddPartnerModal from "./AddPartnerModal";
@@ -11,6 +11,7 @@ import EditPartnerModal from "./EditPartnerModal";
 import PartnerDetailView from "./PartnerDetailView";
 import { Card, CardContent } from '../ui/card';
 import { Badge } from '../ui/badge';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from '../ui/dropdown-menu';
 import { createTenant } from '../../ai/flows/create-tenant-flow';
 import { createUserInTenant } from '../../ai/flows/user-management-flow';
 import { useToast } from "../../hooks/use-toast";
@@ -19,6 +20,7 @@ import { deletePartner } from '../../ai/flows/delete-partner-flow';
 import { db } from '../../lib/firebase';
 import { collection, onSnapshot, query } from "firebase/firestore";
 import { getTenantForEmailAction } from '../../actions/auth-actions';
+import { getAdminPartnerStatsAction } from '../../actions/admin-partner-actions';
 
 interface PartnerManagementUIProps {
     initialPartners: Partner[];
@@ -26,6 +28,10 @@ interface PartnerManagementUIProps {
 }
 
 const PartnerCard = ({ partner, isSelected, onSelect }: { partner: Partner, isSelected: boolean, onSelect: () => void }) => {
+    const whatsappConnected = (partner as any).metaWhatsAppConfig?.status === 'active';
+    const telegramConnected = partner.telegramConfig?.isConnected === true;
+    const showBusinessName = partner.businessName && partner.businessName !== partner.name;
+
     return (
         <div
             onClick={onSelect}
@@ -34,9 +40,23 @@ const PartnerCard = ({ partner, isSelected, onSelect }: { partner: Partner, isSe
             <div className="flex items-center justify-between">
                 <div className="flex-1 min-w-0">
                     <p className="font-semibold truncate">{partner.name}</p>
+                    {showBusinessName && (
+                        <p className="text-xs text-muted-foreground truncate">{partner.businessName}</p>
+                    )}
                     <p className="text-sm text-muted-foreground truncate">{partner.email}</p>
                 </div>
                 <Badge variant={partner.status === 'active' ? 'success' : 'warning'}>{partner.status}</Badge>
+            </div>
+            <div className="flex items-center justify-between mt-2">
+                <div>
+                    {partner.industry?.name && (
+                        <Badge variant="secondary" className="text-xs">{partner.industry.name}</Badge>
+                    )}
+                </div>
+                <div className="flex items-center gap-1.5">
+                    <MessageCircle className={`w-3.5 h-3.5 ${whatsappConnected ? 'text-green-500' : 'text-muted-foreground/30'}`} />
+                    <Send className={`w-3.5 h-3.5 ${telegramConnected ? 'text-blue-500' : 'text-muted-foreground/30'}`} />
+                </div>
             </div>
         </div>
     );
@@ -53,6 +73,27 @@ export default function PartnerManagementUI({ initialPartners = [], error = null
     const { toast } = useToast();
     const [isLoading, setIsLoading] = useState(true);
     const [dbError, setDbError] = useState<string | null>(error);
+    const [partnerStats, setPartnerStats] = useState<AdminPartnerStats | null>(null);
+    const [statsLoading, setStatsLoading] = useState(false);
+
+    useEffect(() => {
+        if (!selectedPartner?.id) {
+            setPartnerStats(null);
+            return;
+        }
+
+        setStatsLoading(true);
+        getAdminPartnerStatsAction(selectedPartner.id)
+            .then(result => {
+                if (result.success && result.data) {
+                    setPartnerStats(result.data);
+                } else {
+                    setPartnerStats(null);
+                }
+            })
+            .catch(() => setPartnerStats(null))
+            .finally(() => setStatsLoading(false));
+    }, [selectedPartner?.id]);
 
     // Set up a real-time listener for the partners collection
     useEffect(() => {
@@ -76,10 +117,10 @@ export default function PartnerManagementUI({ initialPartners = [], error = null
                     joinedDate: data.joinedDate?.toDate ? data.joinedDate.toDate().toISOString() : data.joinedDate,
                 } as Partner;
             });
-            
+
             // Sort partners client-side
             partnersData.sort((a, b) => a.name.localeCompare(b.name));
-            
+
             setPartners(partnersData);
             setDbError(null);
 
@@ -90,7 +131,7 @@ export default function PartnerManagementUI({ initialPartners = [], error = null
                 const updatedSelected = partnersData.find(p => p.id === selectedPartner.id);
                 setSelectedPartner(updatedSelected || null);
             }
-            
+
             setIsLoading(false);
         }, (err) => {
             console.error("Error fetching partners:", err);
@@ -119,9 +160,9 @@ export default function PartnerManagementUI({ initialPartners = [], error = null
         const matchesSearch = partner.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
                             (partner.businessName && partner.businessName.toLowerCase().includes(searchQuery.toLowerCase())) ||
                             partner.email.toLowerCase().includes(searchQuery.toLowerCase());
-        
+
         const matchesStatus = filterStatus === 'all' || partner.status === filterStatus;
-        
+
         return matchesSearch && matchesStatus;
     }), [partners, searchQuery, filterStatus]);
 
@@ -162,7 +203,7 @@ export default function PartnerManagementUI({ initialPartners = [], error = null
 
             const userResult = await createUserInTenant({
                 email: newPartnerData.email,
-                password: Math.random().toString(36).slice(-8), 
+                password: Math.random().toString(36).slice(-8),
                 tenantId: tenantResult.tenantId,
                 displayName: newPartnerData.name,
                 partnerId: tenantResult.partnerId,
@@ -193,28 +234,28 @@ export default function PartnerManagementUI({ initialPartners = [], error = null
         try {
             const result = await updatePartner(JSON.stringify(updatedPartner));
             if (result.success) {
-                toast({ 
-                    title: "Partner Updated", 
-                    description: result.message 
+                toast({
+                    title: "Partner Updated",
+                    description: result.message
                 });
                 setIsEditModalOpen(false);
             } else {
-                toast({ 
-                    variant: "destructive", 
-                    title: "Update Failed", 
-                    description: result.message 
+                toast({
+                    variant: "destructive",
+                    title: "Update Failed",
+                    description: result.message
                 });
             }
         } catch (error) {
             const errorMessage = error instanceof Error ? error.message : "An unknown error occurred.";
-            toast({ 
-                variant: "destructive", 
-                title: "Update Error", 
-                description: errorMessage 
+            toast({
+                variant: "destructive",
+                title: "Update Error",
+                description: errorMessage
             });
         }
     };
-    
+
     const handleDeletePartner = async (partnerId: string, tenantId: string) => {
         try {
             const result = await deletePartner({ partnerId, tenantId });
@@ -269,14 +310,14 @@ export default function PartnerManagementUI({ initialPartners = [], error = null
                                     Create
                                 </Button>
                             </div>
-                            
+
                             {/* Search Input */}
                             <div className="flex items-center gap-2 mb-4">
                                 <div className="relative flex-1">
                                     <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                                    <Input 
-                                        placeholder="Search partners..." 
-                                        className="pl-8" 
+                                    <Input
+                                        placeholder="Search partners..."
+                                        className="pl-8"
                                         value={searchQuery}
                                         onChange={(e) => setSearchQuery(e.target.value)}
                                     />
@@ -319,7 +360,7 @@ export default function PartnerManagementUI({ initialPartners = [], error = null
                                 </div>
                             ) : (
                                 filteredPartners.map(partner => (
-                                    <PartnerCard 
+                                    <PartnerCard
                                         key={partner.id}
                                         partner={partner}
                                         isSelected={selectedPartner?.id === partner.id}
@@ -336,13 +377,49 @@ export default function PartnerManagementUI({ initialPartners = [], error = null
                             <>
                                 <div className="flex items-center justify-between mb-4">
                                      <h2 className="text-xl font-semibold">Partner Details</h2>
-                                     <Button variant="outline" onClick={() => setIsEditModalOpen(true)}>
-                                         <Edit className="w-4 h-4 mr-2" />
-                                         Edit Partner
-                                     </Button>
+                                     <div className="flex items-center gap-2">
+                                         <Button variant="outline" onClick={() => setIsEditModalOpen(true)}>
+                                             <Edit className="w-4 h-4 mr-2" />
+                                             Edit Partner
+                                         </Button>
+                                         <DropdownMenu>
+                                             <DropdownMenuTrigger asChild>
+                                                 <Button variant="outline" size="icon">
+                                                     <MoreVertical className="w-4 h-4" />
+                                                 </Button>
+                                             </DropdownMenuTrigger>
+                                             <DropdownMenuContent align="end">
+                                                 <DropdownMenuItem onClick={() => {
+                                                     navigator.clipboard.writeText(selectedPartner.id);
+                                                     toast({ title: "Partner ID copied" });
+                                                 }}>
+                                                     <Copy className="w-4 h-4 mr-2" />
+                                                     Copy Partner ID
+                                                 </DropdownMenuItem>
+                                                 {selectedPartner.tenantId && (
+                                                     <DropdownMenuItem onClick={() => {
+                                                         navigator.clipboard.writeText(selectedPartner.tenantId!);
+                                                         toast({ title: "Tenant ID copied" });
+                                                     }}>
+                                                         <Copy className="w-4 h-4 mr-2" />
+                                                         Copy Tenant ID
+                                                     </DropdownMenuItem>
+                                                 )}
+                                                 <DropdownMenuSeparator />
+                                                 <DropdownMenuItem onClick={() => {
+                                                     window.open(`https://console.firebase.google.com/project/_/firestore/data/partners/${selectedPartner.id}`, '_blank');
+                                                 }}>
+                                                     <ExternalLink className="w-4 h-4 mr-2" />
+                                                     Open in Firebase
+                                                 </DropdownMenuItem>
+                                             </DropdownMenuContent>
+                                         </DropdownMenu>
+                                     </div>
                                 </div>
-                                <PartnerDetailView 
-                                    partner={selectedPartner} 
+                                <PartnerDetailView
+                                    partner={selectedPartner}
+                                    stats={partnerStats}
+                                    statsLoading={statsLoading}
                                 />
                             </>
                         ) : (
@@ -364,7 +441,7 @@ export default function PartnerManagementUI({ initialPartners = [], error = null
                 onClose={() => setIsAddModalOpen(false)}
                 onAdd={handleAddPartner}
             />
-            
+
             {selectedPartner && (
                  <EditPartnerModal
                     isOpen={isEditModalOpen}

@@ -1,8 +1,8 @@
 // src/components/admin/PartnerDetailView.tsx
 import React from 'react';
-import type { Partner } from '../../lib/types';
+import type { Partner, AdminPartnerStats } from '../../lib/types';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
-import { Building2, Users, Mail, Phone, MapPin, Calendar, TrendingUp, Workflow, Target, Clock, DollarSign, Activity } from 'lucide-react';
+import { Building2, Users, Activity, Brain, FileText, Bot } from 'lucide-react';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '../ui/tabs';
 import PartnerOverview from './PartnerOverview';
 import PartnerBusinessProfile from './PartnerBusinessProfile';
@@ -10,9 +10,11 @@ import PartnerAIMemory from './PartnerAIMemory';
 
 interface PartnerDetailViewProps {
   partner: Partner;
+  stats: AdminPartnerStats | null;
+  statsLoading: boolean;
 }
 
-export default function PartnerDetailView({ partner }: PartnerDetailViewProps) {
+export default function PartnerDetailView({ partner, stats, statsLoading }: PartnerDetailViewProps) {
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -60,28 +62,75 @@ export default function PartnerDetailView({ partner }: PartnerDetailViewProps) {
           </div>
         </CardHeader>
       </Card>
-      
+
       <Tabs defaultValue="overview">
         <TabsList className="grid w-full grid-cols-4">
           <TabsTrigger value="overview"><Activity className="w-4 h-4 mr-2"/>Overview</TabsTrigger>
-          <TabsTrigger value="profile"><Users className="w-4 h-4 mr-2"/>Profile</TabsTrigger>
-          <TabsTrigger value="ai_memory"><Workflow className="w-4 h-4 mr-2"/>AI Memory</TabsTrigger>
-          <TabsTrigger value="workflows"><Target className="w-4 h-4 mr-2"/>Workflows</TabsTrigger>
+          <TabsTrigger value="business_profile"><Building2 className="w-4 h-4 mr-2"/>Business Profile</TabsTrigger>
+          <TabsTrigger value="ai_knowledge"><Brain className="w-4 h-4 mr-2"/>AI & Knowledge</TabsTrigger>
+          <TabsTrigger value="team"><Users className="w-4 h-4 mr-2"/>Team</TabsTrigger>
         </TabsList>
         <TabsContent value="overview" className="mt-6">
-            <PartnerOverview partner={partner} />
+            <PartnerOverview partner={partner} stats={stats} statsLoading={statsLoading} />
         </TabsContent>
-        <TabsContent value="profile" className="mt-6">
+        <TabsContent value="business_profile" className="mt-6">
             <PartnerBusinessProfile partner={partner} />
         </TabsContent>
-        <TabsContent value="ai_memory" className="mt-6">
-            <PartnerAIMemory partner={partner} />
+        <TabsContent value="ai_knowledge" className="mt-6">
+            <div className="space-y-6">
+                <PartnerAIMemory partner={partner} />
+                {stats && (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <Card>
+                            <CardHeader className="flex flex-row items-center justify-between pb-2">
+                                <CardTitle className="text-sm font-medium text-muted-foreground">Documents</CardTitle>
+                                <FileText className="w-4 h-4 text-muted-foreground" />
+                            </CardHeader>
+                            <CardContent>
+                                <div className="text-2xl font-bold">{stats.ai.totalDocuments}</div>
+                                <p className="text-xs text-muted-foreground">uploaded to knowledge base</p>
+                            </CardContent>
+                        </Card>
+                        <Card>
+                            <CardHeader className="flex flex-row items-center justify-between pb-2">
+                                <CardTitle className="text-sm font-medium text-muted-foreground">Active Agents</CardTitle>
+                                <Bot className="w-4 h-4 text-muted-foreground" />
+                            </CardHeader>
+                            <CardContent>
+                                <div className="text-2xl font-bold">{stats.ai.activeAgents}</div>
+                                <p className="text-xs text-muted-foreground">AI agents configured</p>
+                            </CardContent>
+                        </Card>
+                    </div>
+                )}
+            </div>
         </TabsContent>
-         <TabsContent value="workflows" className="mt-6">
+        <TabsContent value="team" className="mt-6">
             <Card>
-                <CardHeader><CardTitle>Workflows</CardTitle></CardHeader>
+                <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                        <Users className="w-5 h-5" />
+                        Team Overview
+                    </CardTitle>
+                </CardHeader>
                 <CardContent>
-                    <p className="text-muted-foreground">Workflow details will be shown here.</p>
+                    {stats ? (
+                        <div className="space-y-4">
+                            <div className="grid grid-cols-2 gap-4">
+                                <div className="p-4 bg-secondary/50 rounded-lg">
+                                    <p className="text-2xl font-bold">{stats.team.totalMembers}</p>
+                                    <p className="text-sm text-muted-foreground">Total Members</p>
+                                </div>
+                                <div className="p-4 bg-secondary/50 rounded-lg">
+                                    <p className="text-2xl font-bold">{stats.team.adminCount}</p>
+                                    <p className="text-sm text-muted-foreground">Admins</p>
+                                </div>
+                            </div>
+                            <p className="text-sm text-muted-foreground">View full team management in partner workspace</p>
+                        </div>
+                    ) : (
+                        <p className="text-muted-foreground">Team data is not available.</p>
+                    )}
                 </CardContent>
             </Card>
         </TabsContent>
