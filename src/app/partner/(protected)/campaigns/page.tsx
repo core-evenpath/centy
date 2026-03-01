@@ -250,9 +250,9 @@ export default function CampaignsPage() {
     }
 
     return (
-      <div className="min-h-screen bg-gray-50 flex flex-col">
+      <div className="h-full bg-gray-50 flex flex-col overflow-y-auto">
         {/* Header */}
-        <div className="bg-white border-b border-gray-200 sticky top-0 z-20">
+        <div className="bg-white border-b border-gray-200 sticky top-0 z-20 flex-shrink-0">
           <div className="max-w-4xl mx-auto px-4 py-3 flex items-center justify-between">
             <div className="flex items-center gap-3">
               <button onClick={() => setSelectedCampaign(null)} className="w-9 h-9 flex items-center justify-center hover:bg-gray-100 rounded-lg text-gray-500 transition-colors">

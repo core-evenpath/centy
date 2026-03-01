@@ -10,7 +10,8 @@ import { getPartnerTemplatesAction } from '@/actions/template-actions';
 import { generateBroadcastIdeasAction } from '@/actions/broadcast-idea-actions';
 import { SystemTemplate, Contact, BroadcastIdea, TemplateCampaignType } from '@/lib/types';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2 } from 'lucide-react';
+import { Loader2, ArrowRight } from 'lucide-react';
+import Link from 'next/link';
 
 import { BroadcastFeed } from '@/components/partner/broadcast/BroadcastFeed';
 import { BroadcastStudio } from '@/components/partner/broadcast/BroadcastStudio';
@@ -291,12 +292,12 @@ export default function PingboxBroadcast() {
                     >
                         Back to Broadcasts
                     </button>
-                    <a
+                    <Link
                         href="/partner/campaigns"
                         className="px-6 py-3 bg-gray-100 text-gray-700 rounded-xl text-sm font-medium hover:bg-gray-200 transition-colors"
                     >
                         View Campaigns &rarr;
-                    </a>
+                    </Link>
                 </div>
             </div>
         );
@@ -337,6 +338,23 @@ export default function PingboxBroadcast() {
                     onCustomBroadcast={handleCustomBroadcast}
                     onRefreshIdeas={handleRefreshIdeas}
                 />
+                {campaigns.length > 0 && (
+                    <div className="max-w-3xl mx-auto mt-6">
+                        <Link
+                            href="/partner/campaigns"
+                            className="flex items-center justify-between w-full px-5 py-4 bg-white rounded-xl border border-gray-200 hover:border-gray-300 hover:shadow-sm transition-all group"
+                        >
+                            <div className="flex items-center gap-3">
+                                <span className="text-lg">📊</span>
+                                <div>
+                                    <span className="font-medium text-sm text-gray-900">View All Campaigns</span>
+                                    <span className="block text-xs text-gray-500">{campaigns.length} campaign{campaigns.length !== 1 ? 's' : ''} — track performance & analytics</span>
+                                </div>
+                            </div>
+                            <ArrowRight className="w-4 h-4 text-gray-400 group-hover:text-gray-600 group-hover:translate-x-0.5 transition-all" />
+                        </Link>
+                    </div>
+                )}
             </div>
         </div>
     );
