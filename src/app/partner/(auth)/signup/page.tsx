@@ -1,296 +1,361 @@
-
 "use client";
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from "next/link";
 import { useRouter } from 'next/navigation';
-import { Button } from "../../../../components/ui/button";
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "../../../../components/ui/card";
-import { Input } from "../../../../components/ui/input";
-import { Label } from "../../../../components/ui/label";
-import { useToast } from "../../../../hooks/use-toast";
-import { createTenant } from '../../../../ai/flows/create-tenant-flow';
-import { createUserInTenant } from '../../../../ai/flows/user-management-flow';
-import { getTenantForEmailAction } from '../../../../actions/auth-actions';
-import { SUPPORTED_CURRENCIES } from '../../../../lib/business-persona-types';
-import { cn } from '../../../../lib/utils';
-import { Building2, Mail, Lock, ChevronRight, ChevronLeft } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { useToast } from '@/hooks/use-toast';
+import { getAuth, signInWithEmailAndPassword } from 'firebase/auth';
+import { app } from '@/lib/firebase';
+import { createTenant } from '@/ai/flows/create-tenant-flow';
+import { createUserInTenant } from '@/ai/flows/user-management-flow';
+import { getTenantForEmailAction } from '@/actions/auth-actions';
+import { SUPPORTED_REGIONS } from '@/lib/business-persona-types';
+import {
+  MessageSquare,
+  FileText,
+  Users,
+  TrendingUp,
+  Zap,
+  Shield,
+  Building2,
+  ArrowRight,
+} from 'lucide-react';
 
-// Most common currencies shown first
-const POPULAR_CURRENCIES = ['INR', 'USD', 'EUR', 'GBP', 'AED', 'SGD'];
+const features = [
+  {
+    icon: MessageSquare,
+    title: 'Instant AI Responses',
+    description: 'Reply to customers in 30 seconds, 24/7',
+    stat: '30s',
+    statLabel: 'response time',
+  },
+  {
+    icon: FileText,
+    title: 'Smart Documents',
+    description: 'AI learns from your catalogs & price lists',
+    stat: '100%',
+    statLabel: 'accuracy',
+  },
+  {
+    icon: Users,
+    title: 'Customer Memory',
+    description: 'Remember every customer interaction',
+    stat: '∞',
+    statLabel: 'history',
+  },
+  {
+    icon: TrendingUp,
+    title: 'Revenue Tracking',
+    description: 'Track deals from message to conversion',
+    stat: '3-5x',
+    statLabel: 'more deals',
+  },
+  {
+    icon: Zap,
+    title: 'Auto Pricing',
+    description: 'Bulk discounts & loyalty tiers automatic',
+    stat: '10%',
+    statLabel: 'avg discount',
+  },
+  {
+    icon: Shield,
+    title: 'Full Control',
+    description: 'Approve AI responses or let it fly solo',
+    stat: '100%',
+    statLabel: 'your rules',
+  },
+];
 
 export default function PartnerSignupPage() {
-    const [step, setStep] = useState<1 | 2>(1);
-    const [name, setName] = useState('');
-    const [email, setEmail] = useState('');
-    const [password, setPassword] = useState('');
-    const [currency, setCurrency] = useState('');
-    const [isLoading, setIsLoading] = useState(false);
-    const router = useRouter();
-    const { toast } = useToast();
+  const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [selectedRegion, setSelectedRegion] = useState('');
+  const [currency, setCurrency] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const [activeCard, setActiveCard] = useState(0);
+  const router = useRouter();
+  const { toast } = useToast();
 
-    const popularCurrencies = SUPPORTED_CURRENCIES.filter(c => POPULAR_CURRENCIES.includes(c.code));
-    const otherCurrencies = SUPPORTED_CURRENCIES.filter(c => !POPULAR_CURRENCIES.includes(c.code));
+  useEffect(() => {
+    const cardInterval = setInterval(() => {
+      setActiveCard((prev) => (prev + 1) % features.length);
+    }, 2500);
+    return () => clearInterval(cardInterval);
+  }, []);
 
-    const canProceedToStep2 = name.trim().length >= 2 && email.includes('@') && password.length >= 6;
+  const handleRegionSelect = (regionId: string) => {
+    const region = SUPPORTED_REGIONS.find(r => r.id === regionId);
+    if (region) {
+      setSelectedRegion(regionId);
+      setCurrency(region.currency);
+    }
+  };
 
-    const handleSignup = async (e: React.FormEvent) => {
-        e.preventDefault();
+  const handleSignup = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsLoading(true);
 
-        if (!currency) {
-            toast({
-                variant: "destructive",
-                title: "Currency Required",
-                description: "Please select your business currency.",
-            });
-            return;
-        }
+    try {
+      const existingUserCheck = await getTenantForEmailAction(email);
+      if (existingUserCheck.success && existingUserCheck.tenantId) {
+        throw new Error("An account with this email already exists. Please log in.");
+      }
 
-        setIsLoading(true);
+      const tenantResult = await createTenant({
+        partnerName: name,
+        email: email,
+        currency: currency,
+      });
 
-        try {
-            // Step 1: Check if a user with this email already exists
-            const existingUserCheck = await getTenantForEmailAction(email);
-            if (existingUserCheck.success && existingUserCheck.tenantId) {
-                throw new Error("An account with this email already exists. Please log in.");
-            }
+      if (!tenantResult.success || !tenantResult.tenantId || !tenantResult.partnerId) {
+        throw new Error(tenantResult.message || "Failed to create a new partner workspace.");
+      }
 
-            // Step 2: Create the tenant with currency
-            const tenantResult = await createTenant({
-                partnerName: name,
-                email: email,
-                currency: currency,
-            });
+      const userResult = await createUserInTenant({
+        email: email,
+        password: password,
+        tenantId: tenantResult.tenantId,
+        displayName: name,
+        partnerId: tenantResult.partnerId,
+        role: 'partner_admin',
+      });
 
-            if (!tenantResult.success || !tenantResult.tenantId || !tenantResult.partnerId) {
-                throw new Error(tenantResult.message || "Failed to create a new partner workspace.");
-            }
+      if (!userResult.success) {
+        throw new Error(userResult.message || "Workspace created, but failed to set up admin user.");
+      }
 
-            console.log(`New tenant created: ${tenantResult.tenantId} for partner ${tenantResult.partnerId}`);
+      const auth = getAuth(app);
+      auth.tenantId = tenantResult.tenantId;
+      await signInWithEmailAndPassword(auth, email, password);
+      auth.tenantId = null;
 
-            // Step 3: Create the primary admin user
-            const userResult = await createUserInTenant({
-                email: email,
-                password: password,
-                tenantId: tenantResult.tenantId,
-                displayName: name,
-                partnerId: tenantResult.partnerId,
-                role: 'partner_admin',
-            });
+      await new Promise(resolve => setTimeout(resolve, 1500));
 
-            if (!userResult.success) {
-                throw new Error(userResult.message || "Workspace created, but failed to set up admin user.");
-            }
+      const currentUser = auth.currentUser;
+      if (currentUser) {
+        await currentUser.getIdTokenResult(true);
+      }
 
-            toast({
-                title: "Account Created!",
-                description: "Your organization workspace has been set up. You can now sign in.",
-            });
+      toast({
+        title: "Welcome to PingBox!",
+        description: "Let's set up your business profile.",
+      });
 
-            router.push('/partner/login');
+      router.push('/partner/settings');
 
-        } catch (error: any) {
-            console.error("Signup Error:", error);
+    } catch (error: any) {
+      console.error("Signup Error:", error);
 
-            let errorMessage = "Failed to create account. Please try again.";
-            if (error.message) {
-                errorMessage = error.message;
-            }
+      let errorMessage = "Failed to create account. Please try again.";
+      if (error.message) {
+        errorMessage = error.message;
+      }
 
-            toast({
-                variant: "destructive",
-                title: "Signup Failed",
-                description: errorMessage,
-            });
-        } finally {
-            setIsLoading(false);
-        }
-    };
+      toast({
+        variant: "destructive",
+        title: "Signup Failed",
+        description: errorMessage,
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
-    return (
-        <Card className="w-full max-w-md">
-            <form onSubmit={handleSignup}>
-                <CardHeader className="text-center pb-6">
-                    <div className="w-12 h-12 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-xl flex items-center justify-center mx-auto mb-4">
-                        <Building2 className="w-6 h-6 text-white" />
-                    </div>
-                    <CardTitle className="font-headline text-2xl">Create Partner Account</CardTitle>
-                    <CardDescription>
-                        {step === 1 ? "Set up your organization's workspace" : "Select your business currency"}
-                    </CardDescription>
+  const isFormValid = !isLoading && name.trim().length >= 2 && email.includes('@') && password.length >= 6 && !!selectedRegion;
 
-                    {/* Step Indicator */}
-                    <div className="flex items-center justify-center gap-2 mt-4">
-                        <div className={cn(
-                            "w-8 h-1 rounded-full transition-all",
-                            step === 1 ? "bg-indigo-500" : "bg-indigo-200"
-                        )} />
-                        <div className={cn(
-                            "w-8 h-1 rounded-full transition-all",
-                            step === 2 ? "bg-indigo-500" : "bg-indigo-200"
-                        )} />
-                    </div>
-                </CardHeader>
+  return (
+    <div className="min-h-screen flex" style={{ backgroundColor: '#faf8f5' }}>
+      {/* Left Side - Feature Showcase */}
+      <div className="hidden lg:flex lg:w-1/2 xl:w-3/5 relative overflow-hidden p-8 xl:p-12 flex-col border-r border-stone-200">
+        {/* Logo */}
+        <div className="relative z-10 flex items-center gap-2.5 mb-10">
+          <Link href="/" className="flex items-center gap-2.5">
+            <div className="w-10 h-10 bg-stone-900 rounded-xl flex items-center justify-center">
+              <span className="text-white font-bold">P</span>
+            </div>
+            <span className="font-semibold text-stone-900 text-xl tracking-tight">PingBox</span>
+          </Link>
+        </div>
 
-                <CardContent className="grid gap-4">
-                    {step === 1 ? (
-                        <>
-                            {/* Step 1: Basic Info */}
-                            <div className="grid gap-2">
-                                <Label htmlFor="name" className="flex items-center gap-2">
-                                    <Building2 className="w-4 h-4 text-muted-foreground" />
-                                    Organization Name
-                                </Label>
-                                <Input
-                                    id="name"
-                                    type="text"
-                                    placeholder="Your Company Name"
-                                    required
-                                    value={name}
-                                    onChange={(e) => setName(e.target.value)}
-                                    disabled={isLoading}
-                                    className="h-11"
-                                />
-                            </div>
-                            <div className="grid gap-2">
-                                <Label htmlFor="email" className="flex items-center gap-2">
-                                    <Mail className="w-4 h-4 text-muted-foreground" />
-                                    Work Email
-                                </Label>
-                                <Input
-                                    id="email"
-                                    type="email"
-                                    placeholder="you@company.com"
-                                    required
-                                    value={email}
-                                    onChange={(e) => setEmail(e.target.value)}
-                                    disabled={isLoading}
-                                    className="h-11"
-                                />
-                            </div>
-                            <div className="grid gap-2">
-                                <Label htmlFor="password" className="flex items-center gap-2">
-                                    <Lock className="w-4 h-4 text-muted-foreground" />
-                                    Password
-                                </Label>
-                                <Input
-                                    id="password"
-                                    type="password"
-                                    required
-                                    minLength={6}
-                                    placeholder="Minimum 6 characters"
-                                    value={password}
-                                    onChange={(e) => setPassword(e.target.value)}
-                                    disabled={isLoading}
-                                    className="h-11"
-                                />
-                            </div>
-                        </>
-                    ) : (
-                        <>
-                            {/* Step 2: Currency Selection */}
-                            <div className="space-y-4">
-                                <p className="text-sm text-muted-foreground">
-                                    This will be used for pricing, invoices, and financial displays.
-                                </p>
+        {/* Hero Text */}
+        <div className="relative z-10 mb-10">
+          <h1 className="font-serif text-3xl xl:text-4xl tracking-tight text-stone-900 mb-3 leading-[1.1]">
+            Get your AI sales team{' '}
+            <br />
+            <em>up and running</em>
+          </h1>
+          <p className="text-stone-500 max-w-md leading-relaxed">
+            Set up your workspace in 30 seconds. Your AI assistant handles the rest.
+          </p>
+        </div>
 
-                                {/* Popular Currencies */}
-                                <div className="grid grid-cols-3 gap-2">
-                                    {popularCurrencies.map((curr) => (
-                                        <button
-                                            key={curr.code}
-                                            type="button"
-                                            onClick={() => setCurrency(curr.code)}
-                                            className={cn(
-                                                'p-3 rounded-lg border-2 text-left transition-all',
-                                                currency === curr.code
-                                                    ? 'bg-indigo-50 border-indigo-400 shadow-sm'
-                                                    : 'bg-white border-gray-200 hover:border-gray-300'
-                                            )}
-                                        >
-                                            <div className="flex items-center gap-2">
-                                                <span className="text-lg">{curr.flag}</span>
-                                                <div>
-                                                    <div className="font-medium text-sm">{curr.code}</div>
-                                                    <div className="text-xs text-muted-foreground">{curr.symbol}</div>
-                                                </div>
-                                            </div>
-                                        </button>
-                                    ))}
-                                </div>
+        {/* Feature Cards Grid */}
+        <div className="relative z-10 flex-1 flex flex-col justify-center">
+          <div className="grid grid-cols-2 xl:grid-cols-3 gap-3">
+            {features.map((feature, i) => {
+              const Icon = feature.icon;
+              const isActive = i === activeCard;
+              return (
+                <div
+                  key={i}
+                  className={`rounded-xl p-4 border bg-white transition-all duration-500 ${
+                    isActive ? 'border-rose-300 shadow-lg shadow-rose-100' : 'border-stone-200'
+                  }`}
+                >
+                  <div className="w-10 h-10 rounded-lg flex items-center justify-center mb-3 bg-stone-50">
+                    <Icon className="w-5 h-5 text-stone-700" />
+                  </div>
+                  <h3 className="text-sm font-semibold text-stone-900 mb-1">{feature.title}</h3>
+                  <p className="text-xs text-stone-400 mb-2">{feature.description}</p>
+                  <div className="flex items-baseline gap-1">
+                    <span className="text-lg font-bold text-rose-500">{feature.stat}</span>
+                    <span className="text-xs text-stone-400">{feature.statLabel}</span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
 
-                                {/* Other Currencies */}
-                                <details className="group">
-                                    <summary className="text-sm text-indigo-600 cursor-pointer hover:underline list-none flex items-center gap-1">
-                                        <ChevronRight className="w-4 h-4 transition-transform group-open:rotate-90" />
-                                        More currencies
-                                    </summary>
-                                    <div className="grid grid-cols-3 gap-2 mt-3">
-                                        {otherCurrencies.map((curr) => (
-                                            <button
-                                                key={curr.code}
-                                                type="button"
-                                                onClick={() => setCurrency(curr.code)}
-                                                className={cn(
-                                                    'p-2 rounded-lg border-2 text-left transition-all',
-                                                    currency === curr.code
-                                                        ? 'bg-indigo-50 border-indigo-400 shadow-sm'
-                                                        : 'bg-white border-gray-200 hover:border-gray-300'
-                                                )}
-                                            >
-                                                <div className="flex items-center gap-2">
-                                                    <span className="text-sm">{curr.flag}</span>
-                                                    <div className="font-medium text-xs">{curr.code}</div>
-                                                </div>
-                                            </button>
-                                        ))}
-                                    </div>
-                                </details>
-                            </div>
-                        </>
-                    )}
-                </CardContent>
+      {/* Right Side - Signup Form */}
+      <div className="w-full lg:w-1/2 xl:w-2/5 flex items-center justify-center p-6 lg:p-12 relative">
+        <div className="w-full max-w-md relative z-10">
+          {/* Mobile Logo */}
+          <div className="lg:hidden flex items-center justify-center gap-2.5 mb-8">
+            <Link href="/" className="flex items-center gap-2.5">
+              <div className="w-10 h-10 bg-stone-900 rounded-xl flex items-center justify-center">
+                <span className="text-white font-bold">P</span>
+              </div>
+              <span className="font-semibold text-stone-900 text-xl tracking-tight">PingBox</span>
+            </Link>
+          </div>
 
-                <CardFooter className="flex flex-col gap-4">
-                    {step === 1 ? (
-                        <Button
-                            type="button"
-                            className="w-full h-11"
-                            disabled={!canProceedToStep2}
-                            onClick={() => setStep(2)}
-                        >
-                            Continue
-                            <ChevronRight className="w-4 h-4 ml-2" />
-                        </Button>
-                    ) : (
-                        <div className="flex gap-2 w-full">
-                            <Button
-                                type="button"
-                                variant="outline"
-                                className="h-11"
-                                onClick={() => setStep(1)}
-                                disabled={isLoading}
-                            >
-                                <ChevronLeft className="w-4 h-4" />
-                            </Button>
-                            <Button
-                                type="submit"
-                                className="flex-1 h-11"
-                                disabled={isLoading || !currency}
-                            >
-                                {isLoading ? 'Creating Account...' : 'Create Organization'}
-                            </Button>
-                        </div>
-                    )}
+          {/* Signup Card */}
+          <div className="rounded-2xl p-8 border border-stone-200 bg-white shadow-sm">
+            <div className="text-center mb-8">
+              <div className="w-14 h-14 bg-stone-900 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                <Building2 className="w-7 h-7 text-white" />
+              </div>
+              <h2 className="font-serif text-2xl tracking-tight text-stone-900 mb-2">Create your workspace</h2>
+              <p className="text-stone-500 text-sm">
+                Start managing customer conversations with AI
+              </p>
+            </div>
 
-                    <div className="text-center text-sm text-muted-foreground">
-                        Already have an account?{" "}
-                        <Link href="/partner/login" className="text-indigo-600 hover:underline font-medium">
-                            Sign in
-                        </Link>
-                    </div>
-                </CardFooter>
+            <form onSubmit={handleSignup} className="space-y-5">
+              <div className="space-y-2">
+                <Label htmlFor="name" className="text-stone-700">Organization Name</Label>
+                <Input
+                  id="name"
+                  type="text"
+                  placeholder="Your Company Name"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  required
+                  disabled={isLoading}
+                  className="bg-stone-50 border-stone-200 text-stone-900 placeholder-stone-400 focus:border-rose-500 focus:ring-rose-500/20"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="email" className="text-stone-700">Work Email</Label>
+                <Input
+                  id="email"
+                  type="email"
+                  placeholder="you@company.com"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
+                  disabled={isLoading}
+                  className="bg-stone-50 border-stone-200 text-stone-900 placeholder-stone-400 focus:border-rose-500 focus:ring-rose-500/20"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="password" className="text-stone-700">Password</Label>
+                <Input
+                  id="password"
+                  type="password"
+                  placeholder="Minimum 6 characters"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                  minLength={6}
+                  disabled={isLoading}
+                  className="bg-stone-50 border-stone-200 text-stone-900 placeholder-stone-400 focus:border-rose-500 focus:ring-rose-500/20"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label className="text-stone-700">Region</Label>
+                <div className="grid grid-cols-2 gap-2">
+                  {SUPPORTED_REGIONS.map((region) => (
+                    <button
+                      key={region.id}
+                      type="button"
+                      onClick={() => handleRegionSelect(region.id)}
+                      disabled={isLoading}
+                      className={`rounded-xl border px-3 py-2.5 flex items-center gap-2 text-left transition-all ${
+                        selectedRegion === region.id
+                          ? 'border-rose-400 bg-rose-50 shadow-sm'
+                          : 'border-stone-200 hover:border-stone-400'
+                      }`}
+                    >
+                      <span className="text-lg">{region.flag}</span>
+                      <span className="text-sm font-medium text-stone-900">{region.name}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <Button
+                type="submit"
+                className="w-full bg-stone-900 hover:bg-stone-800 text-white font-semibold rounded-xl h-12 transition-all"
+                disabled={!isFormValid}
+              >
+                {isLoading ? (
+                  <div className="flex items-center gap-2">
+                    <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    Setting up...
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2">
+                    Create workspace
+                    <ArrowRight className="w-4 h-4" />
+                  </div>
+                )}
+              </Button>
             </form>
-        </Card>
-    );
+
+            <div className="mt-6 space-y-2 text-center">
+              <p className="text-stone-500 text-sm">
+                Already have an account?{" "}
+                <Link href="/partner/login" className="text-rose-500 hover:underline font-medium">
+                  Sign in
+                </Link>
+              </p>
+              <p className="text-stone-500 text-sm">
+                Have an invite code?{" "}
+                <Link href="/partner/join" className="text-rose-500 hover:underline font-medium">
+                  Join your team
+                </Link>
+              </p>
+            </div>
+          </div>
+
+          {/* Back to home */}
+          <div className="text-center mt-8">
+            <Link href="/" className="text-stone-400 hover:text-stone-900 text-sm transition-colors">
+              &larr; Back to Homepage
+            </Link>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
 }
