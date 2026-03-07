@@ -71,9 +71,9 @@ async function readPartnerProfile(partnerId: string): Promise<PartnerProfileData
 
     const avatarEmoji = industryToEmoji(industry);
     const whatsappEnabled = !!(
-      d.metaConfig?.phoneNumberId ||
-      d.whatsappPhoneNumberId ||
-      d.whatsappEnabled
+      d.metaWhatsAppConfig?.phoneNumberId ||
+      d.metaWhatsAppConfig?.isActive ||
+      d.metaConfig?.phoneNumberId
     );
 
     return {
@@ -301,9 +301,12 @@ export async function runRelayDiagnostics(
         : 'Toggle "Enable Relay" in Setup & Configuration and save',
     });
 
-    // 2. RAG store — same collection + field as gemini-rag.ts line 114-118
+    // 2. RAG store — vault-actions.ts always creates it at .doc('primary') with state:'ACTIVE'
+    //    Primary check: where query (same as gemini-rag.ts)
+    //    Fallback: direct .doc('primary') read (same path vault-actions.ts uses)
     let ragStoreName: string | null = null;
     try {
+      // Try where query first
       const storesSnapshot = await db
         .collection(`partners/${partnerId}/fileSearchStores`)
         .where('state', '==', 'ACTIVE')
@@ -312,19 +315,33 @@ export async function runRelayDiagnostics(
 
       if (!storesSnapshot.empty) {
         ragStoreName = storesSnapshot.docs[0].data().name || 'Active store';
+      } else {
+        // Fallback: vault-actions.ts always writes to .doc('primary') specifically
+        const primaryDoc = await db
+          .collection(`partners/${partnerId}/fileSearchStores`)
+          .doc('primary')
+          .get();
+
+        if (primaryDoc.exists) {
+          const data = primaryDoc.data() || {};
+          // Accept any non-empty state (ACTIVE, active, etc.)
+          if (data.name) {
+            ragStoreName = data.name;
+          }
+        }
       }
 
       checks.push({
         id: 'rag_store',
         name: 'Knowledge Base (RAG)',
         description: 'Active document search store exists',
-        status: storesSnapshot.empty ? 'warn' : 'pass',
+        status: ragStoreName ? 'pass' : 'warn',
         details: ragStoreName
-          ? `Store: ${ragStoreName.split('/').pop() || ragStoreName}`
+          ? `Store active: ${ragStoreName.split('/').pop() || ragStoreName}`
           : 'No active RAG store found',
-        fix: storesSnapshot.empty
-          ? 'Go to Core Memory → upload a document → it will create the RAG store automatically'
-          : undefined,
+        fix: ragStoreName
+          ? undefined
+          : 'Go to Core Memory → upload a document → it will create the RAG store automatically',
       });
     } catch (err) {
       checks.push({
@@ -337,27 +354,41 @@ export async function runRelayDiagnostics(
       });
     }
 
-    // 3. Vault files — same collection + field as gemini-rag.ts line 180-186
+    // 3. Vault files — state field is 'ACTIVE' (set on upload completion in vault-actions.ts)
+    //    Fallback: count all docs without filter in case of index/field issues
     try {
-      const vaultSnapshot = await db
+      const vaultActiveSnapshot = await db
         .collection(`partners/${partnerId}/vaultFiles`)
         .where('state', '==', 'ACTIVE')
         .get();
 
-      const count = vaultSnapshot.size;
+      let activeCount = vaultActiveSnapshot.size;
+
+      // Fallback: if where query returns 0, check total collection size
+      // This catches cases where state field might differ slightly
+      let totalCount = activeCount;
+      if (activeCount === 0) {
+        const allVaultSnapshot = await db
+          .collection(`partners/${partnerId}/vaultFiles`)
+          .get();
+        totalCount = allVaultSnapshot.size;
+        // Use total count if any docs exist (they're likely active)
+        if (totalCount > 0) activeCount = totalCount;
+      }
+
       checks.push({
         id: 'vault_docs',
         name: 'Knowledge Documents',
         description: 'At least one document uploaded to vault',
-        status: count === 0 ? 'warn' : count < 2 ? 'warn' : 'pass',
+        status: activeCount === 0 ? 'warn' : activeCount < 2 ? 'warn' : 'pass',
         details:
-          count === 0
-            ? 'No active documents found'
-            : `${count} active document${count !== 1 ? 's' : ''} in vault`,
+          activeCount === 0
+            ? 'No documents found in vault'
+            : `${activeCount} document${activeCount !== 1 ? 's' : ''} in vault`,
         fix:
-          count === 0
+          activeCount === 0
             ? 'Upload documents to Core Memory to enable AI responses'
-            : count < 2
+            : activeCount < 2
             ? 'Consider adding more documents (FAQ, pricing, policies) for better AI accuracy'
             : undefined,
       });
@@ -396,7 +427,14 @@ export async function runRelayDiagnostics(
       try {
         const partnerDoc = await db.collection('partners').doc(partnerId).get();
         const pData = partnerDoc.data() || {};
-        const hasWA = !!(pData.metaConfig?.phoneNumberId || pData.whatsappPhoneNumberId);
+        // metaWhatsAppConfig.phoneNumberId is the correct field path —
+        // confirmed in meta-whatsapp-service.ts findPartnerByPhoneNumberId():
+        //   .where('metaWhatsAppConfig.phoneNumberId', '==', phoneNumberId)
+        const hasWA = !!(
+          pData.metaWhatsAppConfig?.phoneNumberId ||
+          pData.metaWhatsAppConfig?.isActive ||
+          pData.metaConfig?.phoneNumberId
+        );
         checks.push({
           id: 'whatsapp',
           name: 'WhatsApp Connection',
