@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { updateRelayConfig } from '@/actions/relay-partner-actions';
+import { updateRelayConfig, deleteRelayConfig } from '@/actions/relay-partner-actions';
 import type { RelayConfig, RelayIntent, RelayTheme } from '@/lib/types-relay';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -42,6 +42,8 @@ interface Props {
 
 export function RelaySetupPanel({ config, partnerId, partnerProfile, onSaved }: Props) {
   const [saving, setSaving] = useState(false);
+  const [resetting, setResetting] = useState(false);
+  const [confirmReset, setConfirmReset] = useState(false);
   const [error, setError] = useState('');
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [profileApplied, setProfileApplied] = useState(false);
@@ -104,6 +106,24 @@ export function RelaySetupPanel({ config, partnerId, partnerProfile, onSaved }: 
       setError('Failed to save configuration');
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleReset = async () => {
+    if (!confirmReset) {
+      setConfirmReset(true);
+      return;
+    }
+    setResetting(true);
+    setError('');
+    try {
+      await deleteRelayConfig(partnerId, config.id);
+      setConfirmReset(false);
+      onSaved();
+    } catch {
+      setError('Failed to reset configuration');
+    } finally {
+      setResetting(false);
     }
   };
 
@@ -522,6 +542,40 @@ export function RelaySetupPanel({ config, partnerId, partnerProfile, onSaved }: 
             </>
           )}
         </Button>
+
+        <div className="border-t pt-4">
+          {confirmReset ? (
+            <div className="flex items-center gap-2">
+              <p className="text-xs text-red-600 flex-1">
+                This will delete your Relay config and start fresh. Are you sure?
+              </p>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setConfirmReset(false)}
+                className="text-xs"
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="destructive"
+                size="sm"
+                onClick={handleReset}
+                disabled={resetting}
+                className="text-xs"
+              >
+                {resetting ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Yes, reset'}
+              </Button>
+            </div>
+          ) : (
+            <button
+              onClick={handleReset}
+              className="text-xs text-gray-400 hover:text-red-500 transition-colors"
+            >
+              Reset Relay configuration
+            </button>
+          )}
+        </div>
       </CardContent>
     </Card>
   );

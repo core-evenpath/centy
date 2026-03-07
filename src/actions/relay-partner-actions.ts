@@ -483,3 +483,21 @@ export async function getPartnerProfileForRelay(
     return { success: false, error: message };
   }
 }
+
+// ===== RESET =====
+
+export async function deleteRelayConfig(
+  partnerId: string,
+  configId: string
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    await db
+      .collection(partnerRelayConfigPath(partnerId))
+      .doc(configId)
+      .delete();
+    return { success: true };
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    return { success: false, error: message };
+  }
+}
