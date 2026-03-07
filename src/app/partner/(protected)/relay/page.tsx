@@ -2,7 +2,11 @@
 
 import { useEffect, useState } from 'react';
 import { useMultiWorkspaceAuth } from '@/hooks/use-multi-workspace-auth';
-import { getRelayConfig, getRelayConversations } from '@/actions/relay-partner-actions';
+import {
+  getRelayConfig,
+  getRelayConversations,
+  getPartnerProfileForRelay,
+} from '@/actions/relay-partner-actions';
 import type { RelayConfig, RelayConversation } from '@/lib/types-relay';
 import { RelaySetupPanel } from '@/components/partner/relay/RelaySetupPanel';
 import { RelayEmbedPanel } from '@/components/partner/relay/RelayEmbedPanel';
@@ -10,11 +14,23 @@ import { RelayDiagnosticsPanel } from '@/components/partner/relay/RelayDiagnosti
 import { RelayConversationList } from '@/components/partner/relay/RelayConversationList';
 import { Loader2, Zap } from 'lucide-react';
 
+interface PartnerProfile {
+  brandName: string;
+  brandTagline: string;
+  avatarEmoji: string;
+  accentColor: string;
+  phone: string;
+  email: string;
+  website: string;
+  whatsappEnabled: boolean;
+}
+
 export default function RelayPage() {
   const { currentWorkspace, loading: authLoading } = useMultiWorkspaceAuth();
   const partnerId = currentWorkspace?.partnerId;
 
   const [config, setConfig] = useState<RelayConfig | null>(null);
+  const [partnerProfile, setPartnerProfile] = useState<PartnerProfile | null>(null);
   const [conversations, setConversations] = useState<RelayConversation[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -23,9 +39,10 @@ export default function RelayPage() {
     if (!partnerId) return;
     setLoading(true);
     try {
-      const [configResult, convsResult] = await Promise.all([
+      const [configResult, convsResult, profileResult] = await Promise.all([
         getRelayConfig(partnerId),
         getRelayConversations(partnerId),
+        getPartnerProfileForRelay(partnerId),
       ]);
 
       if (configResult.success && configResult.config) {
@@ -37,7 +54,11 @@ export default function RelayPage() {
       if (convsResult.success && convsResult.conversations) {
         setConversations(convsResult.conversations);
       }
-    } catch (err) {
+
+      if (profileResult.success && profileResult.profile) {
+        setPartnerProfile(profileResult.profile);
+      }
+    } catch {
       setError('Failed to load Relay data');
     } finally {
       setLoading(false);
@@ -84,10 +105,11 @@ export default function RelayPage() {
         <RelaySetupPanel
           config={config}
           partnerId={partnerId!}
+          partnerProfile={partnerProfile}
           onSaved={loadData}
         />
 
-        {/* Section 2: Embed & Diagnostics */}
+        {/* Section 2: Embed & Diagnostics (only when enabled) */}
         {config.enabled && (
           <>
             <RelayEmbedPanel config={config} />
@@ -95,7 +117,7 @@ export default function RelayPage() {
           </>
         )}
 
-        {/* Section 3: Conversations */}
+        {/* Section 3: Conversations & Leads */}
         <RelayConversationList
           conversations={conversations}
           onFilterChange={async (filter) => {

@@ -16,6 +16,106 @@ const partnerRelayConfigPath = (partnerId: string) =>
 const partnerConversationsPath = (partnerId: string) =>
   `partners/${partnerId}/relayConversations`;
 
+// ===== PARTNER PROFILE READER =====
+// Mirrors the exact field access pattern from src/lib/ai-context-builder.ts
+
+interface PartnerProfileData {
+  brandName: string;
+  brandTagline: string;
+  avatarEmoji: string;
+  accentColor: string;
+  phone: string;
+  email: string;
+  website: string;
+  whatsappEnabled: boolean;
+}
+
+async function readPartnerProfile(partnerId: string): Promise<PartnerProfileData> {
+  const defaults: PartnerProfileData = {
+    brandName: 'My Business',
+    brandTagline: '',
+    avatarEmoji: '💬',
+    accentColor: '#4F46E5',
+    phone: '',
+    email: '',
+    website: '',
+    whatsappEnabled: false,
+  };
+
+  try {
+    const partnerDoc = await db.collection('partners').doc(partnerId).get();
+    if (!partnerDoc.exists) return defaults;
+
+    const d = partnerDoc.data() || {};
+    const persona = d.businessPersona || {};
+    const identity = persona.identity || {};
+    const personality = persona.personality || {};
+
+    const name =
+      identity.name ||
+      d.businessName ||
+      d.name ||
+      defaults.brandName;
+
+    const tagline =
+      personality.tagline ||
+      personality.description ||
+      d.tagline ||
+      d.description ||
+      '';
+
+    const industry =
+      typeof identity.industry === 'string'
+        ? identity.industry
+        : identity.industry?.name || d.industry || '';
+
+    const avatarEmoji = industryToEmoji(industry);
+    const whatsappEnabled = !!(
+      d.metaConfig?.phoneNumberId ||
+      d.whatsappPhoneNumberId ||
+      d.whatsappEnabled
+    );
+
+    return {
+      brandName: name,
+      brandTagline: typeof tagline === 'string' ? tagline.slice(0, 80) : '',
+      avatarEmoji,
+      accentColor: d.brandColor || defaults.accentColor,
+      phone: identity.phone || d.phone || '',
+      email: identity.email || d.email || '',
+      website: identity.website || d.website || '',
+      whatsappEnabled,
+    };
+  } catch {
+    return defaults;
+  }
+}
+
+function industryToEmoji(industry: string): string {
+  const i = industry.toLowerCase();
+  if (i.includes('hotel') || i.includes('resort') || i.includes('hospit')) return '🏨';
+  if (i.includes('restaurant') || i.includes('food') || i.includes('cafe')) return '🍽️';
+  if (i.includes('spa') || i.includes('wellness') || i.includes('gym')) return '💆';
+  if (i.includes('travel') || i.includes('tour')) return '✈️';
+  if (i.includes('retail') || i.includes('shop') || i.includes('store')) return '🛍️';
+  if (i.includes('real estate') || i.includes('property')) return '🏠';
+  if (i.includes('health') || i.includes('clinic') || i.includes('medical')) return '🏥';
+  if (i.includes('education') || i.includes('school') || i.includes('academy')) return '🎓';
+  return '💬';
+}
+
+function darkenHex(hex: string, amount: number): string {
+  try {
+    const num = parseInt(hex.replace('#', ''), 16);
+    const r = Math.max(0, (num >> 16) - amount);
+    const g = Math.max(0, ((num >> 8) & 0xff) - amount);
+    const b = Math.max(0, (num & 0xff) - amount);
+    return `#${((r << 16) | (g << 8) | b).toString(16).padStart(6, '0')}`;
+  } catch {
+    return '#3730A3';
+  }
+}
+
 // ===== WIDGET ID GENERATOR =====
 
 export async function generateRelayWidgetId(
@@ -28,11 +128,11 @@ export async function generateRelayWidgetId(
       .replace(/[^a-z0-9\s-]/g, '')
       .replace(/\s+/g, '-')
       .replace(/-+/g, '-')
-      .slice(0, 30);
+      .slice(0, 30)
+      .replace(/-$/, '');
 
     const suffix = Math.random().toString(36).slice(2, 6);
-    const widgetId = `${base}-${suffix}`;
-
+    const widgetId = `${base || 'relay'}-${suffix}`;
     return { success: true, widgetId };
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : 'Unknown error';
@@ -56,8 +156,9 @@ export async function getRelayConfig(
       return { success: true, config: { id: doc.id, ...doc.data() } as RelayConfig };
     }
 
-    // Create default config
-    const widgetIdResult = await generateRelayWidgetId(partnerId, partnerId);
+    // First time: create default config pre-filled from partner profile
+    const profile = await readPartnerProfile(partnerId);
+    const widgetIdResult = await generateRelayWidgetId(partnerId, profile.brandName);
     const widgetId = widgetIdResult.widgetId || `relay-${partnerId.slice(0, 8)}`;
 
     const now = new Date().toISOString();
@@ -65,14 +166,21 @@ export async function getRelayConfig(
       partnerId,
       enabled: false,
       widgetId,
-      theme: DEFAULT_RELAY_THEME,
-      brandName: 'My Business',
-      welcomeMessage: 'Hello! How can I help you today?',
+      theme: {
+        ...DEFAULT_RELAY_THEME,
+        accentColor: profile.accentColor,
+        accentDarkColor: darkenHex(profile.accentColor, 30),
+      },
+      brandName: profile.brandName,
+      brandTagline: profile.brandTagline,
+      avatarEmoji: profile.avatarEmoji,
+      welcomeMessage: `Hello! Welcome to ${profile.brandName}. How can I help you today?`,
       intents: DEFAULT_RELAY_INTENTS,
       responseFormat: 'generative_ui',
-      whatsappEnabled: false,
-      callbackEnabled: false,
+      whatsappEnabled: profile.whatsappEnabled,
+      callbackEnabled: !!profile.phone,
       directBookingEnabled: false,
+      externalBookingUrl: profile.website || '',
       totalConversations: 0,
       totalLeads: 0,
       createdAt: now,
@@ -120,7 +228,9 @@ export async function getRelayConversations(
   filter?: 'all' | 'hot' | 'converted' | 'abandoned'
 ): Promise<{ success: boolean; conversations?: RelayConversation[]; error?: string }> {
   try {
-    let query = db.collection(partnerConversationsPath(partnerId)).orderBy('lastMessageAt', 'desc');
+    let query = db
+      .collection(partnerConversationsPath(partnerId))
+      .orderBy('lastMessageAt', 'desc');
 
     if (filter && filter !== 'all') {
       if (filter === 'hot') {
@@ -153,7 +263,6 @@ export async function getRelayConversation(
       .get();
 
     if (!doc.exists) return { success: false, error: 'Conversation not found' };
-
     return { success: true, conversation: { id: doc.id, ...doc.data() } as RelayConversation };
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : 'Unknown error';
@@ -162,6 +271,10 @@ export async function getRelayConversation(
 }
 
 // ===== DIAGNOSTICS =====
+// Uses EXACTLY the same Firestore queries as:
+//   src/lib/gemini-rag.ts → collection fileSearchStores, where('state', '==', 'ACTIVE')
+//   src/lib/gemini-rag.ts → collection vaultFiles,       where('state', '==', 'ACTIVE')
+// (state field, not status)
 
 export async function runRelayDiagnostics(
   partnerId: string
@@ -170,26 +283,26 @@ export async function runRelayDiagnostics(
   let widgetId = 'unknown';
 
   try {
-    // Check 1: Config exists
+    // 1. Widget config check
     const configResult = await getRelayConfig(partnerId);
-    const configCheck: RelayDiagnosticCheck = {
-      id: 'config',
-      name: 'Widget Configuration',
-      description: 'Relay config document exists in Firestore',
-      status: configResult.success && configResult.config ? 'pass' : 'fail',
-      details: configResult.success && configResult.config
-        ? `Widget ID: ${configResult.config.widgetId}`
-        : 'No config found',
-      fix: 'Enable Relay and save your configuration',
-    };
-    checks.push(configCheck);
+    const configData = configResult.config;
+    if (configData) widgetId = configData.widgetId;
 
-    if (configResult.config) {
-      widgetId = configResult.config.widgetId;
-    }
+    checks.push({
+      id: 'widget_enabled',
+      name: 'Widget Status',
+      description: 'Relay widget is configured and enabled',
+      status: configData?.enabled ? 'pass' : 'warn',
+      details: configData?.enabled
+        ? `Active — widget ID: ${configData.widgetId}`
+        : 'Widget is disabled',
+      fix: configData?.enabled
+        ? undefined
+        : 'Toggle "Enable Relay" in Setup & Configuration and save',
+    });
 
-    // Check 2: RAG store
-    let ragCheck: RelayDiagnosticCheck;
+    // 2. RAG store — same collection + field as gemini-rag.ts line 114-118
+    let ragStoreName: string | null = null;
     try {
       const storesSnapshot = await db
         .collection(`partners/${partnerId}/fileSearchStores`)
@@ -197,99 +310,136 @@ export async function runRelayDiagnostics(
         .limit(1)
         .get();
 
-      ragCheck = {
+      if (!storesSnapshot.empty) {
+        ragStoreName = storesSnapshot.docs[0].data().name || 'Active store';
+      }
+
+      checks.push({
         id: 'rag_store',
         name: 'Knowledge Base (RAG)',
         description: 'Active document search store exists',
         status: storesSnapshot.empty ? 'warn' : 'pass',
-        details: storesSnapshot.empty
-          ? 'No active RAG store found'
-          : `Store: ${storesSnapshot.docs[0].data().name || 'Active'}`,
-        fix: 'Upload documents to Core Memory to enable AI responses',
-      };
-    } catch {
-      ragCheck = {
+        details: ragStoreName
+          ? `Store: ${ragStoreName.split('/').pop() || ragStoreName}`
+          : 'No active RAG store found',
+        fix: storesSnapshot.empty
+          ? 'Go to Core Memory → upload a document → it will create the RAG store automatically'
+          : undefined,
+      });
+    } catch (err) {
+      checks.push({
         id: 'rag_store',
         name: 'Knowledge Base (RAG)',
         description: 'Active document search store exists',
         status: 'fail',
-        details: 'Could not check RAG store',
-      };
+        details: `Could not query store: ${err instanceof Error ? err.message : 'error'}`,
+        fix: 'Check Firebase Admin permissions for fileSearchStores collection',
+      });
     }
-    checks.push(ragCheck);
 
-    // Check 3: Vault document count
-    let vaultCheck: RelayDiagnosticCheck;
+    // 3. Vault files — same collection + field as gemini-rag.ts line 180-186
     try {
       const vaultSnapshot = await db
         .collection(`partners/${partnerId}/vaultFiles`)
         .where('state', '==', 'ACTIVE')
-        .limit(10)
         .get();
 
       const count = vaultSnapshot.size;
-      vaultCheck = {
+      checks.push({
         id: 'vault_docs',
         name: 'Knowledge Documents',
         description: 'At least one document uploaded to vault',
-        status: count === 0 ? 'warn' : count < 3 ? 'warn' : 'pass',
-        details: `${count} active document${count !== 1 ? 's' : ''} found`,
-        fix: count === 0
-          ? 'Upload documents to Core Memory for AI-powered responses'
-          : 'Consider uploading more documents for better AI coverage',
-      };
-    } catch {
-      vaultCheck = {
+        status: count === 0 ? 'warn' : count < 2 ? 'warn' : 'pass',
+        details:
+          count === 0
+            ? 'No active documents found'
+            : `${count} active document${count !== 1 ? 's' : ''} in vault`,
+        fix:
+          count === 0
+            ? 'Upload documents to Core Memory to enable AI responses'
+            : count < 2
+            ? 'Consider adding more documents (FAQ, pricing, policies) for better AI accuracy'
+            : undefined,
+      });
+    } catch (err) {
+      checks.push({
         id: 'vault_docs',
         name: 'Knowledge Documents',
         description: 'At least one document uploaded to vault',
-        status: 'warn',
-        details: 'Could not check vault documents',
-      };
+        status: 'fail',
+        details: `Could not query vault: ${err instanceof Error ? err.message : 'error'}`,
+        fix: 'Check Firebase Admin permissions for vaultFiles collection',
+      });
     }
-    checks.push(vaultCheck);
 
-    // Check 4: Widget enabled
-    const enabledCheck: RelayDiagnosticCheck = {
-      id: 'widget_enabled',
-      name: 'Widget Status',
-      description: 'Relay widget is enabled',
-      status: configResult.config?.enabled ? 'pass' : 'warn',
-      details: configResult.config?.enabled ? 'Widget is active' : 'Widget is disabled',
-      fix: 'Toggle the "Enable Relay" switch in Setup',
-    };
-    checks.push(enabledCheck);
+    // 4. Brand configured
+    const brandOk =
+      !!configData?.brandName &&
+      configData.brandName !== 'My Business' &&
+      !!configData.welcomeMessage;
 
-    // Check 5: Brand configured
-    const brandCheck: RelayDiagnosticCheck = {
+    checks.push({
       id: 'brand_config',
       name: 'Brand Configuration',
-      description: 'Brand name and welcome message are set',
-      status:
-        configResult.config?.brandName &&
-        configResult.config?.brandName !== 'My Business' &&
-        configResult.config?.welcomeMessage
-          ? 'pass'
-          : 'warn',
-      details: configResult.config?.brandName || 'Not configured',
-      fix: 'Set your brand name and welcome message in Setup',
-    };
-    checks.push(brandCheck);
+      description: 'Brand name and welcome message are customised',
+      status: brandOk ? 'pass' : 'warn',
+      details: configData?.brandName
+        ? `Brand: "${configData.brandName}"`
+        : 'Brand name is not set',
+      fix: brandOk
+        ? undefined
+        : 'Edit your brand name and welcome message in Setup & Configuration',
+    });
 
-    // Overall status
+    // 5. WhatsApp (only if enabled in relay config)
+    if (configData?.whatsappEnabled) {
+      try {
+        const partnerDoc = await db.collection('partners').doc(partnerId).get();
+        const pData = partnerDoc.data() || {};
+        const hasWA = !!(pData.metaConfig?.phoneNumberId || pData.whatsappPhoneNumberId);
+        checks.push({
+          id: 'whatsapp',
+          name: 'WhatsApp Connection',
+          description: 'WhatsApp channel is connected and active',
+          status: hasWA ? 'pass' : 'warn',
+          details: hasWA
+            ? 'WhatsApp channel connected'
+            : 'WhatsApp not connected in partner settings',
+          fix: hasWA ? undefined : 'Connect WhatsApp in Apps → Meta WhatsApp',
+        });
+      } catch {
+        // skip
+      }
+    }
+
     const hasFailure = checks.some(c => c.status === 'fail');
     const hasWarning = checks.some(c => c.status === 'warn');
     const overallStatus = hasFailure ? 'error' : hasWarning ? 'warning' : 'healthy';
 
-    const diagnostics: RelayDiagnostics = {
-      widgetId,
-      partnerId,
-      checks,
-      lastCheckedAt: new Date().toISOString(),
-      overallStatus,
+    return {
+      success: true,
+      diagnostics: {
+        widgetId,
+        partnerId,
+        checks,
+        lastCheckedAt: new Date().toISOString(),
+        overallStatus,
+      },
     };
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    return { success: false, error: message };
+  }
+}
 
-    return { success: true, diagnostics };
+// ===== PARTNER PROFILE (public export for pre-fill) =====
+
+export async function getPartnerProfileForRelay(
+  partnerId: string
+): Promise<{ success: boolean; profile?: PartnerProfileData; error?: string }> {
+  try {
+    const profile = await readPartnerProfile(partnerId);
+    return { success: true, profile };
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : 'Unknown error';
     return { success: false, error: message };

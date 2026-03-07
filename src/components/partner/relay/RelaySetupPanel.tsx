@@ -8,9 +8,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
-import { Loader2, Save, ChevronDown, ChevronUp, GripVertical, Trash2, Plus } from 'lucide-react';
+import { Loader2, Save, ChevronDown, ChevronUp, GripVertical, Trash2, Plus, Sparkles } from 'lucide-react';
 
 const ACCENT_COLORS = [
   { label: 'Indigo', value: '#4F46E5', dark: '#3730A3' },
@@ -23,16 +22,29 @@ const ACCENT_COLORS = [
   { label: 'Slate', value: '#334155', dark: '#0F172A' },
 ];
 
+interface PartnerProfile {
+  brandName: string;
+  brandTagline: string;
+  avatarEmoji: string;
+  accentColor: string;
+  phone: string;
+  email: string;
+  website: string;
+  whatsappEnabled: boolean;
+}
+
 interface Props {
   config: RelayConfig;
   partnerId: string;
+  partnerProfile: PartnerProfile | null;
   onSaved: () => void;
 }
 
-export function RelaySetupPanel({ config, partnerId, onSaved }: Props) {
+export function RelaySetupPanel({ config, partnerId, partnerProfile, onSaved }: Props) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [showAdvanced, setShowAdvanced] = useState(false);
+  const [profileApplied, setProfileApplied] = useState(false);
 
   const [form, setForm] = useState({
     enabled: config.enabled,
@@ -49,6 +61,38 @@ export function RelaySetupPanel({ config, partnerId, onSaved }: Props) {
     theme: { ...config.theme },
     intents: [...config.intents],
   });
+
+  // Detect if config looks like it still has placeholder defaults
+  const hasPlaceholders =
+    partnerProfile &&
+    !profileApplied &&
+    (form.brandName === 'My Business' ||
+      form.brandName === partnerProfile.brandName);
+
+  const applyFromProfile = () => {
+    if (!partnerProfile) return;
+    setForm(prev => ({
+      ...prev,
+      brandName: partnerProfile.brandName,
+      brandTagline: partnerProfile.brandTagline || prev.brandTagline,
+      avatarEmoji: partnerProfile.avatarEmoji || prev.avatarEmoji,
+      welcomeMessage:
+        prev.welcomeMessage === `Hello! Welcome to My Business. How can I help you today?` ||
+        prev.welcomeMessage === `Hello! Welcome to ${partnerProfile.brandName}. How can I help you today?`
+          ? `Hello! Welcome to ${partnerProfile.brandName}. How can I help you today?`
+          : prev.welcomeMessage,
+      whatsappEnabled: partnerProfile.whatsappEnabled || prev.whatsappEnabled,
+      callbackEnabled: !!partnerProfile.phone || prev.callbackEnabled,
+      externalBookingUrl: partnerProfile.website || prev.externalBookingUrl,
+      theme: {
+        ...prev.theme,
+        accentColor: partnerProfile.accentColor !== '#4F46E5'
+          ? partnerProfile.accentColor
+          : prev.theme.accentColor,
+      },
+    }));
+    setProfileApplied(true);
+  };
 
   const handleSave = async () => {
     setSaving(true);
@@ -70,7 +114,9 @@ export function RelaySetupPanel({ config, partnerId, onSaved }: Props) {
   const updateIntent = (index: number, updates: Partial<RelayIntent>) => {
     setForm(prev => ({
       ...prev,
-      intents: prev.intents.map((intent, i) => i === index ? { ...intent, ...updates } : intent),
+      intents: prev.intents.map((intent, i) =>
+        i === index ? { ...intent, ...updates } : intent
+      ),
     }));
   };
 
@@ -113,26 +159,55 @@ export function RelaySetupPanel({ config, partnerId, onSaved }: Props) {
       </CardHeader>
       <CardContent className="space-y-6">
         {error && (
-          <div className="bg-red-50 text-red-700 border border-red-200 rounded-lg p-3 text-sm">{error}</div>
+          <div className="bg-red-50 text-red-700 border border-red-200 rounded-lg p-3 text-sm">
+            {error}
+          </div>
+        )}
+
+        {/* Pre-fill from partner profile banner */}
+        {partnerProfile && !profileApplied && form.brandName === 'My Business' && (
+          <div className="flex items-center justify-between p-3 bg-indigo-50 border border-indigo-200 rounded-lg">
+            <div className="flex items-center gap-2">
+              <Sparkles className="w-4 h-4 text-indigo-500 flex-shrink-0" />
+              <div>
+                <p className="text-sm font-medium text-indigo-800">Pre-fill from your business profile</p>
+                <p className="text-xs text-indigo-600">
+                  We found &quot;{partnerProfile.brandName}&quot; — apply it to get started faster
+                </p>
+              </div>
+            </div>
+            <Button
+              size="sm"
+              variant="outline"
+              className="border-indigo-300 text-indigo-700 hover:bg-indigo-100 flex-shrink-0"
+              onClick={applyFromProfile}
+            >
+              Apply
+            </Button>
+          </div>
         )}
 
         {/* Brand */}
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <Label className="text-xs font-medium text-gray-600 uppercase tracking-wide">Brand Name</Label>
+            <Label className="text-xs font-medium text-gray-600 uppercase tracking-wide">
+              Brand Name
+            </Label>
             <Input
               value={form.brandName}
               onChange={e => setForm(prev => ({ ...prev, brandName: e.target.value }))}
-              placeholder="The Tides Resort"
+              placeholder={partnerProfile?.brandName || 'Your Business Name'}
               className="mt-1"
             />
           </div>
           <div>
-            <Label className="text-xs font-medium text-gray-600 uppercase tracking-wide">Tagline</Label>
+            <Label className="text-xs font-medium text-gray-600 uppercase tracking-wide">
+              Tagline
+            </Label>
             <Input
               value={form.brandTagline}
               onChange={e => setForm(prev => ({ ...prev, brandTagline: e.target.value }))}
-              placeholder="Where the waves meet serenity"
+              placeholder={partnerProfile?.brandTagline || 'Short tagline (optional)'}
               className="mt-1"
             />
           </div>
@@ -140,16 +215,21 @@ export function RelaySetupPanel({ config, partnerId, onSaved }: Props) {
 
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <Label className="text-xs font-medium text-gray-600 uppercase tracking-wide">Avatar Emoji</Label>
+            <Label className="text-xs font-medium text-gray-600 uppercase tracking-wide">
+              Avatar Emoji
+            </Label>
             <Input
               value={form.avatarEmoji}
               onChange={e => setForm(prev => ({ ...prev, avatarEmoji: e.target.value }))}
-              placeholder="🏨"
+              placeholder={partnerProfile?.avatarEmoji || '💬'}
               className="mt-1 text-2xl"
             />
+            <p className="text-[10px] text-gray-400 mt-1">Shows in widget header if no logo is set</p>
           </div>
           <div>
-            <Label className="text-xs font-medium text-gray-600 uppercase tracking-wide">Response Format</Label>
+            <Label className="text-xs font-medium text-gray-600 uppercase tracking-wide">
+              Response Format
+            </Label>
             <div className="flex gap-2 mt-1">
               {(['generative_ui', 'text_only'] as const).map(format => (
                 <button
@@ -170,11 +250,13 @@ export function RelaySetupPanel({ config, partnerId, onSaved }: Props) {
 
         {/* Welcome Message */}
         <div>
-          <Label className="text-xs font-medium text-gray-600 uppercase tracking-wide">Welcome Message</Label>
+          <Label className="text-xs font-medium text-gray-600 uppercase tracking-wide">
+            Welcome Message
+          </Label>
           <Textarea
             value={form.welcomeMessage}
             onChange={e => setForm(prev => ({ ...prev, welcomeMessage: e.target.value }))}
-            placeholder="Hello! How can I help you today?"
+            placeholder={`Hello! Welcome to ${partnerProfile?.brandName || 'us'}. How can I help?`}
             className="mt-1"
             rows={2}
           />
@@ -182,25 +264,52 @@ export function RelaySetupPanel({ config, partnerId, onSaved }: Props) {
 
         {/* Theme */}
         <div>
-          <Label className="text-xs font-medium text-gray-600 uppercase tracking-wide mb-2 block">Accent Color</Label>
+          <Label className="text-xs font-medium text-gray-600 uppercase tracking-wide mb-2 block">
+            Accent Color
+          </Label>
           <div className="flex flex-wrap gap-2">
             {ACCENT_COLORS.map(color => (
               <button
                 key={color.value}
-                onClick={() => updateTheme({ accentColor: color.value, accentDarkColor: color.dark })}
+                onClick={() =>
+                  updateTheme({ accentColor: color.value, accentDarkColor: color.dark })
+                }
                 title={color.label}
                 className={`w-8 h-8 rounded-full border-2 transition-all ${
-                  form.theme.accentColor === color.value ? 'border-[#111] scale-110' : 'border-transparent'
+                  form.theme.accentColor === color.value
+                    ? 'border-[#111] scale-110'
+                    : 'border-transparent hover:scale-105'
                 }`}
                 style={{ backgroundColor: color.value }}
               />
             ))}
+            {/* Custom color from partner profile */}
+            {partnerProfile?.accentColor &&
+              !ACCENT_COLORS.find(c => c.value === partnerProfile.accentColor) && (
+                <button
+                  onClick={() =>
+                    updateTheme({
+                      accentColor: partnerProfile.accentColor,
+                      accentDarkColor: partnerProfile.accentColor,
+                    })
+                  }
+                  title="Your brand color"
+                  className={`w-8 h-8 rounded-full border-2 transition-all ${
+                    form.theme.accentColor === partnerProfile.accentColor
+                      ? 'border-[#111] scale-110'
+                      : 'border-transparent hover:scale-105'
+                  }`}
+                  style={{ backgroundColor: partnerProfile.accentColor }}
+                />
+              )}
           </div>
         </div>
 
         <div className="grid grid-cols-3 gap-3">
           <div>
-            <Label className="text-xs font-medium text-gray-600 uppercase tracking-wide mb-1 block">Mode</Label>
+            <Label className="text-xs font-medium text-gray-600 uppercase tracking-wide mb-1 block">
+              Mode
+            </Label>
             <div className="flex gap-1">
               {(['light', 'dark'] as const).map(mode => (
                 <button
@@ -218,7 +327,9 @@ export function RelaySetupPanel({ config, partnerId, onSaved }: Props) {
             </div>
           </div>
           <div>
-            <Label className="text-xs font-medium text-gray-600 uppercase tracking-wide mb-1 block">Border Radius</Label>
+            <Label className="text-xs font-medium text-gray-600 uppercase tracking-wide mb-1 block">
+              Corners
+            </Label>
             <div className="flex gap-1">
               {(['sharp', 'rounded', 'pill'] as const).map(br => (
                 <button
@@ -236,30 +347,39 @@ export function RelaySetupPanel({ config, partnerId, onSaved }: Props) {
             </div>
           </div>
           <div>
-            <Label className="text-xs font-medium text-gray-600 uppercase tracking-wide mb-1 block">Font</Label>
+            <Label className="text-xs font-medium text-gray-600 uppercase tracking-wide mb-1 block">
+              Font
+            </Label>
             <select
               value={form.theme.fontFamily}
               onChange={e => updateTheme({ fontFamily: e.target.value })}
               className="w-full py-1.5 px-2 rounded-md text-xs border border-[#e5e5e5] bg-white"
             >
               {['Inter', 'Outfit', 'DM Sans', 'Nunito', 'Poppins'].map(f => (
-                <option key={f} value={f}>{f}</option>
+                <option key={f} value={f}>
+                  {f}
+                </option>
               ))}
             </select>
           </div>
         </div>
 
-        {/* Intents */}
+        {/* Intent Strip */}
         <div>
           <div className="flex items-center justify-between mb-2">
-            <Label className="text-xs font-medium text-gray-600 uppercase tracking-wide">Intent Strip</Label>
+            <Label className="text-xs font-medium text-gray-600 uppercase tracking-wide">
+              Intent Strip
+            </Label>
             <Button variant="outline" size="sm" onClick={addIntent} className="h-7 text-xs">
               <Plus className="w-3 h-3 mr-1" /> Add Intent
             </Button>
           </div>
           <div className="space-y-2">
             {form.intents.map((intent, i) => (
-              <div key={intent.id} className="flex items-center gap-2 p-2 bg-[#f5f5f5] rounded-lg">
+              <div
+                key={intent.id}
+                className="flex items-center gap-2 p-2 bg-[#f5f5f5] rounded-lg"
+              >
                 <GripVertical className="w-4 h-4 text-gray-400 flex-shrink-0" />
                 <Input
                   value={intent.icon}
@@ -276,7 +396,7 @@ export function RelaySetupPanel({ config, partnerId, onSaved }: Props) {
                 <Input
                   value={intent.prompt}
                   onChange={e => updateIntent(i, { prompt: e.target.value })}
-                  placeholder="AI prompt when tapped"
+                  placeholder="What gets sent to AI when tapped"
                   className="flex-1 h-8 text-xs"
                 />
                 <Switch
@@ -294,51 +414,67 @@ export function RelaySetupPanel({ config, partnerId, onSaved }: Props) {
               </div>
             ))}
           </div>
+          <p className="text-[10px] text-gray-400 mt-1">
+            These quick-tap buttons appear at the top of the chat and trigger AI responses
+          </p>
         </div>
 
         {/* Conversion Settings */}
-        <div className="grid grid-cols-2 gap-3">
-          <div className="flex items-center justify-between p-3 bg-[#f5f5f5] rounded-lg">
-            <div>
-              <p className="text-sm font-medium text-[#111]">WhatsApp</p>
-              <p className="text-xs text-gray-500">Direct WhatsApp button</p>
-            </div>
-            <Switch
-              checked={form.whatsappEnabled}
-              onCheckedChange={v => setForm(prev => ({ ...prev, whatsappEnabled: v }))}
-            />
-          </div>
-          <div className="flex items-center justify-between p-3 bg-[#f5f5f5] rounded-lg">
-            <div>
-              <p className="text-sm font-medium text-[#111]">Callback Request</p>
-              <p className="text-xs text-gray-500">Request a call back</p>
-            </div>
-            <Switch
-              checked={form.callbackEnabled}
-              onCheckedChange={v => setForm(prev => ({ ...prev, callbackEnabled: v }))}
-            />
-          </div>
-          <div className="flex items-center justify-between p-3 bg-[#f5f5f5] rounded-lg">
-            <div>
-              <p className="text-sm font-medium text-[#111]">Direct Booking</p>
-              <p className="text-xs text-gray-500">In-widget booking flow</p>
-            </div>
-            <Switch
-              checked={form.directBookingEnabled}
-              onCheckedChange={v => setForm(prev => ({ ...prev, directBookingEnabled: v }))}
-            />
-          </div>
-          {form.directBookingEnabled && (
-            <div>
-              <Label className="text-xs font-medium text-gray-600">External Booking URL</Label>
-              <Input
-                value={form.externalBookingUrl}
-                onChange={e => setForm(prev => ({ ...prev, externalBookingUrl: e.target.value }))}
-                placeholder="https://booking.com/your-property"
-                className="mt-1 h-8 text-xs"
+        <div>
+          <Label className="text-xs font-medium text-gray-600 uppercase tracking-wide mb-2 block">
+            Conversion Options
+          </Label>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="flex items-center justify-between p-3 bg-[#f5f5f5] rounded-lg">
+              <div>
+                <p className="text-sm font-medium text-[#111]">WhatsApp</p>
+                <p className="text-xs text-gray-500">
+                  {partnerProfile?.whatsappEnabled ? 'Connected ✓' : 'Direct WhatsApp button'}
+                </p>
+              </div>
+              <Switch
+                checked={form.whatsappEnabled}
+                onCheckedChange={v => setForm(prev => ({ ...prev, whatsappEnabled: v }))}
               />
             </div>
-          )}
+            <div className="flex items-center justify-between p-3 bg-[#f5f5f5] rounded-lg">
+              <div>
+                <p className="text-sm font-medium text-[#111]">Callback Request</p>
+                <p className="text-xs text-gray-500">
+                  {partnerProfile?.phone ? `Call ${partnerProfile.phone}` : 'Request a call back'}
+                </p>
+              </div>
+              <Switch
+                checked={form.callbackEnabled}
+                onCheckedChange={v => setForm(prev => ({ ...prev, callbackEnabled: v }))}
+              />
+            </div>
+            <div className="flex items-center justify-between p-3 bg-[#f5f5f5] rounded-lg">
+              <div>
+                <p className="text-sm font-medium text-[#111]">Direct Booking</p>
+                <p className="text-xs text-gray-500">External booking link</p>
+              </div>
+              <Switch
+                checked={form.directBookingEnabled}
+                onCheckedChange={v =>
+                  setForm(prev => ({ ...prev, directBookingEnabled: v }))
+                }
+              />
+            </div>
+            {form.directBookingEnabled && (
+              <div>
+                <Label className="text-xs font-medium text-gray-600">Booking URL</Label>
+                <Input
+                  value={form.externalBookingUrl}
+                  onChange={e =>
+                    setForm(prev => ({ ...prev, externalBookingUrl: e.target.value }))
+                  }
+                  placeholder={partnerProfile?.website || 'https://booking.com/your-property'}
+                  className="mt-1 h-8 text-xs"
+                />
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Advanced */}
@@ -347,22 +483,44 @@ export function RelaySetupPanel({ config, partnerId, onSaved }: Props) {
             className="flex items-center gap-2 text-xs text-gray-500 hover:text-gray-700"
             onClick={() => setShowAdvanced(!showAdvanced)}
           >
-            {showAdvanced ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
-            Advanced: Custom System Prompt
+            {showAdvanced ? (
+              <ChevronUp className="w-3 h-3" />
+            ) : (
+              <ChevronDown className="w-3 h-3" />
+            )}
+            Advanced: Custom System Prompt Override
           </button>
           {showAdvanced && (
-            <Textarea
-              value={form.systemPrompt}
-              onChange={e => setForm(prev => ({ ...prev, systemPrompt: e.target.value }))}
-              placeholder="Override the default system prompt..."
-              className="mt-2 font-mono text-xs"
-              rows={6}
-            />
+            <>
+              <Textarea
+                value={form.systemPrompt}
+                onChange={e => setForm(prev => ({ ...prev, systemPrompt: e.target.value }))}
+                placeholder={`Optional: override the default assistant personality.\n\nExample: You are a concierge for ${form.brandName}. Be warm and professional. Always recommend specific rooms by name when asked about accommodation.`}
+                className="mt-2 font-mono text-xs"
+                rows={6}
+              />
+              <p className="text-[10px] text-gray-400 mt-1">
+                Leave blank to use the standard business profile + RAG knowledge base.
+                When set, this is prepended to the system prompt.
+              </p>
+            </>
           )}
         </div>
 
-        <Button onClick={handleSave} disabled={saving} className="w-full bg-[#111] hover:bg-[#000] text-white">
-          {saving ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Saving...</> : <><Save className="w-4 h-4 mr-2" /> Save Configuration</>}
+        <Button
+          onClick={handleSave}
+          disabled={saving}
+          className="w-full bg-[#111] hover:bg-[#000] text-white"
+        >
+          {saving ? (
+            <>
+              <Loader2 className="w-4 h-4 mr-2 animate-spin" /> Saving...
+            </>
+          ) : (
+            <>
+              <Save className="w-4 h-4 mr-2" /> Save Configuration
+            </>
+          )}
         </Button>
       </CardContent>
     </Card>
