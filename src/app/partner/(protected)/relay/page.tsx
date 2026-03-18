@@ -1,7 +1,8 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { Zap, MessageCircle, Code2 } from 'lucide-react';
+import { Zap, MessageCircle, Code2, AlertCircle, RefreshCw } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 import { useMultiWorkspaceAuth } from '@/hooks/use-multi-workspace-auth';
 import { RelaySetupPanel } from '@/components/partner/relay/RelaySetupPanel';
 import { RelayEmbedPanel } from '@/components/partner/relay/RelayEmbedPanel';
@@ -16,11 +17,13 @@ export default function PartnerRelayPage() {
 
   const [config, setConfig] = useState<RelayConfig | null>(null);
   const [conversations, setConversations] = useState<RelayConversation[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   const loadData = useCallback(async () => {
     if (!partnerId) return;
     setIsLoading(true);
+    setLoadError(null);
 
     const [configResult, convsResult] = await Promise.all([
       getRelayConfig(partnerId),
@@ -29,16 +32,22 @@ export default function PartnerRelayPage() {
 
     if (configResult.success && configResult.config) {
       setConfig(configResult.config);
+    } else if (!configResult.success) {
+      setLoadError(configResult.error || 'Failed to load relay settings');
     }
+
     if (convsResult.success && convsResult.conversations) {
       setConversations(convsResult.conversations);
     }
+
     setIsLoading(false);
   }, [partnerId]);
 
   useEffect(() => {
-    loadData();
-  }, [loadData]);
+    if (partnerId) {
+      loadData();
+    }
+  }, [loadData, partnerId]);
 
   if (!partnerId) {
     return (
@@ -52,6 +61,22 @@ export default function PartnerRelayPage() {
     return (
       <div className="flex items-center justify-center h-full">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600" />
+      </div>
+    );
+  }
+
+  if (loadError) {
+    return (
+      <div className="flex flex-col items-center justify-center h-full gap-4 text-center p-8">
+        <AlertCircle className="w-10 h-10 text-red-500" />
+        <div>
+          <p className="font-semibold text-gray-900">Failed to load Relay settings</p>
+          <p className="text-sm text-gray-500 mt-1">{loadError}</p>
+        </div>
+        <Button variant="outline" onClick={loadData}>
+          <RefreshCw className="w-4 h-4 mr-2" />
+          Retry
+        </Button>
       </div>
     );
   }
@@ -88,12 +113,21 @@ export default function PartnerRelayPage() {
             </div>
             <h2 className="font-semibold text-gray-900">Setup & Configuration</h2>
           </div>
-          {config && (
+          {config ? (
             <RelaySetupPanel
               config={config}
               onSaved={(updated) => setConfig(updated)}
               onReset={(freshConfig) => setConfig(freshConfig)}
             />
+          ) : (
+            <div className="flex flex-col items-center justify-center py-10 text-center gap-3 bg-white rounded-xl border border-dashed border-gray-300">
+              <Zap className="w-8 h-8 text-gray-300" />
+              <p className="text-sm text-gray-500">Relay is not configured yet.</p>
+              <Button size="sm" onClick={loadData}>
+                <RefreshCw className="w-4 h-4 mr-2" />
+                Initialize Relay
+              </Button>
+            </div>
           )}
         </section>
 
@@ -113,9 +147,9 @@ export default function PartnerRelayPage() {
                   <span className="text-sm font-medium text-gray-700">Embed Code</span>
                 </div>
                 <RelayEmbedPanel config={config} />
-                <RelayDiagnosticsPanel partnerId={partnerId} />
               </>
             )}
+            <RelayDiagnosticsPanel partnerId={partnerId} />
           </div>
         </section>
 
