@@ -2,6 +2,7 @@
  * Pingbox Relay Widget
  * Self-contained embeddable AI chat widget
  * Usage: <pingbox-relay id="your-widget-id"></pingbox-relay>
+ * Standalone/inline mode: <pingbox-relay id="your-widget-id" standalone></pingbox-relay>
  */
 (function () {
   'use strict';
@@ -104,6 +105,23 @@
       .relay-fab { bottom: 16px; right: 16px; }
     }
 
+    /* Standalone / inline mode — panel fills the host element, no FAB */
+    :host([standalone]) .relay-fab { display: none !important; }
+    :host([standalone]) .relay-panel {
+      position: relative;
+      bottom: auto;
+      right: auto;
+      width: 100%;
+      height: 100%;
+      max-width: none;
+      max-height: none;
+      border-radius: 0;
+      box-shadow: none;
+      opacity: 1;
+      transform: none;
+      pointer-events: all;
+    }
+
     .relay-header {
       padding: 14px 16px;
       background: var(--accent, #4F46E5);
@@ -142,6 +160,8 @@
       flex-shrink: 0;
     }
     .relay-close:hover { background: rgba(255,255,255,0.25); }
+    /* Hide close button in standalone mode */
+    :host([standalone]) .relay-close { display: none; }
 
     .relay-intents {
       padding: 10px 12px;
@@ -321,6 +341,10 @@
       if (!widgetId) return;
 
       this._state = createState(widgetId);
+      // In standalone mode the panel is always open
+      if (this.hasAttribute('standalone')) {
+        this._state.isOpen = true;
+      }
       this._loadConfig();
     }
 
@@ -354,7 +378,7 @@
       `;
       shadow.appendChild(style);
 
-      // FAB button
+      // FAB button (hidden in standalone mode via CSS)
       const fab = document.createElement('button');
       fab.className = 'relay-fab';
       fab.innerHTML = isOpen ? '✕' : (avatar);
@@ -367,18 +391,18 @@
       panel.className = `relay-panel${isOpen ? ' open' : ''}`;
 
       // Header
-      panel.innerHTML = `
-        <div class="relay-header">
-          <div class="relay-avatar">${avatar}</div>
-          <div class="relay-header-text">
-            <div class="relay-brand-name">${this._escapeHtml(config.brandName || 'Chat')}</div>
-            ${config.brandTagline ? `<div class="relay-tagline">${this._escapeHtml(config.brandTagline)}</div>` : ''}
-          </div>
-          <button class="relay-close" aria-label="Close">✕</button>
+      const header = document.createElement('div');
+      header.className = 'relay-header';
+      header.innerHTML = `
+        <div class="relay-avatar">${avatar}</div>
+        <div class="relay-header-text">
+          <div class="relay-brand-name">${this._escapeHtml(config.brandName || 'Chat')}</div>
+          ${config.brandTagline ? `<div class="relay-tagline">${this._escapeHtml(config.brandTagline)}</div>` : ''}
         </div>
+        <button class="relay-close" aria-label="Close">✕</button>
       `;
-
-      panel.querySelector('.relay-close').addEventListener('click', () => this._toggleOpen());
+      header.querySelector('.relay-close').addEventListener('click', () => this._toggleOpen());
+      panel.appendChild(header);
 
       // Intent strip
       if (intents.length > 0) {
@@ -415,10 +439,15 @@
         const text = msg.text || (msg.block && msg.block.text) || '';
         const suggestions = msg.block && msg.block.suggestions ? msg.block.suggestions : [];
 
-        msgEl.innerHTML = `
-          <div class="relay-bubble">${this._escapeHtml(text)}</div>
-          <div class="relay-time">${this._formatTime(msg.timestamp)}</div>
-        `;
+        const bubble = document.createElement('div');
+        bubble.className = 'relay-bubble';
+        bubble.textContent = text;
+        msgEl.appendChild(bubble);
+
+        const time = document.createElement('div');
+        time.className = 'relay-time';
+        time.textContent = this._formatTime(msg.timestamp);
+        msgEl.appendChild(time);
 
         if (suggestions.length > 0) {
           const suggestionsEl = document.createElement('div');
@@ -473,10 +502,11 @@
       inputArea.appendChild(sendBtn);
       panel.appendChild(inputArea);
 
-      // Footer
-      panel.innerHTML += `
-        <div class="relay-footer">Powered by <a href="https://pingbox.io" target="_blank" rel="noopener">Pingbox</a></div>
-      `;
+      // Footer — use DOM node to avoid destroying event listeners
+      const footer = document.createElement('div');
+      footer.className = 'relay-footer';
+      footer.innerHTML = 'Powered by <a href="https://pingbox.io" target="_blank" rel="noopener">Pingbox</a>';
+      panel.appendChild(footer);
 
       shadow.appendChild(panel);
 

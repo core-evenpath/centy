@@ -83,6 +83,7 @@ export default async function StandaloneRelayPage({ params }: Props) {
           {/* @ts-expect-error custom element */}
           <pingbox-relay
             id={widgetId}
+            standalone
             style={{ display: 'block', width: '100%', height: '100%' }}
           />
         </div>

@@ -87,6 +87,7 @@ export async function queryWithGeminiRAG(
     maxChunks?: number;
     selectedFileIds?: string[];
     selectedFileNames?: string[];
+    systemInstruction?: string;
   }
 ): Promise<GeminiRAGResult> {
   const maxChunks = options?.maxChunks || 10;
@@ -159,7 +160,7 @@ export async function queryWithGeminiRAG(
 
     const queryStart = Date.now();
 
-    const systemInstruction = `You are a helpful assistant that answers questions based ONLY on the documents in the knowledge base.
+    const systemInstruction = options?.systemInstruction || `You are a helpful assistant that answers questions based ONLY on the documents in the knowledge base.
 
 CRITICAL INSTRUCTIONS:
 1. ONLY use information from the retrieved documents to answer

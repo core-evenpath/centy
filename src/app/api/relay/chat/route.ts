@@ -116,8 +116,8 @@ export async function POST(request: NextRequest) {
     // Build system prompt
     const systemPrompt = buildRelaySystemPrompt(config, blockConfigs);
 
-    // Query RAG with the built system prompt
-    const ragResult = await queryWithGeminiRAG(partnerId, message);
+    // Query RAG with the relay-specific system prompt
+    const ragResult = await queryWithGeminiRAG(partnerId, message, { systemInstruction: systemPrompt });
 
     const responseText = ragResult.success && ragResult.response
       ? ragResult.response
