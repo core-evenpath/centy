@@ -27,7 +27,7 @@ export default async function StandaloneRelayPage({ params }: Props) {
   const resolved = await resolveWidgetId(widgetId);
   const config = resolved?.config;
 
-  if (!config || !config.enabled) {
+  if (!config) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-100">
         <div className="text-center p-8">
@@ -41,9 +41,15 @@ export default async function StandaloneRelayPage({ params }: Props) {
   const brandName = config.brandName || 'Chat';
   const tagline = config.brandTagline || '';
   const avatar = config.avatarEmoji || '🤖';
+  const isPreview = !config.enabled;
 
   return (
     <>
+      {isPreview && (
+        <div className="bg-amber-500 text-white text-center text-xs font-medium py-2 px-4">
+          Preview mode — this widget is not yet live. Enable it in your Relay settings.
+        </div>
+      )}
       <div
         className="min-h-screen flex flex-col items-center justify-center p-4"
         style={{ background: `linear-gradient(135deg, ${accent}15 0%, #f9fafb 100%)` }}

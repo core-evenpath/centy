@@ -96,7 +96,10 @@ export async function getRelayConfig(
 
     if (!snapshot.empty) {
       const doc = snapshot.docs[0];
-      return { success: true, config: { id: doc.id, ...doc.data() } as RelayConfig };
+      const config = { id: doc.id, ...doc.data() } as RelayConfig;
+      // Backfill lookup doc — idempotent, fixes configs created before this index was added
+      await registerWidgetLookup(config.widgetId, partnerId);
+      return { success: true, config };
     }
 
     // Create default config
