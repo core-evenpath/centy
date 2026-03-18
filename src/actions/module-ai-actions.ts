@@ -9,6 +9,7 @@ import type {
 import { generateFieldId, generateCategoryId, cleanAndParseJSON } from '@/lib/modules/utils';
 import { createSystemModuleAction, getSystemModuleAction } from './modules-actions';
 import { BULK_INDUSTRY_CONFIGS, DEFAULT_MODULE_SETTINGS } from '@/lib/modules/constants';
+import { generateRelayBlocksForModule, saveRelayBlockConfigs } from './relay-block-actions';
 
 const genAI = new GoogleGenerativeAI(
     process.env.GEMINI_API_KEY || process.env.GOOGLE_GENAI_API_KEY || ''
@@ -2102,6 +2103,42 @@ export async function bulkGenerateModulesAction(
 
                 if (!createResult.success) {
                     throw new Error(createResult.error || 'Module creation failed');
+                }
+
+                // Co-generate relay blocks for this module (non-blocking)
+                try {
+                    const savedModuleForRelay = {
+                        id: createResult.data!.moduleId,
+                        slug: moduleConfig.slug,
+                        name: moduleConfig.name,
+                        description: `${moduleConfig.name} for ${industry.name} businesses`,
+                        icon: industry.icon,
+                        color: getIndustryColor(industry.id),
+                        currentVersion: 1,
+                        schema: schemaResult.schema,
+                        schemaHistory: {},
+                        migrations: {},
+                        itemLabel: moduleConfig.itemLabel,
+                        itemLabelPlural: moduleConfig.itemLabel + 's',
+                        priceLabel: 'Price',
+                        priceType: moduleConfig.priceType as any,
+                        defaultCurrency: countryCode === 'IN' ? 'INR' : 'USD',
+                        applicableIndustries: [industry.id],
+                        applicableFunctions: [],
+                        status: 'active' as const,
+                        settings: DEFAULT_MODULE_SETTINGS,
+                        usageCount: 0,
+                        createdAt: new Date().toISOString(),
+                        updatedAt: new Date().toISOString(),
+                        createdBy: userId,
+                    };
+                    const relayResult = await generateRelayBlocksForModule(savedModuleForRelay);
+                    if (relayResult.success && relayResult.blocks) {
+                        await saveRelayBlockConfigs(relayResult.blocks);
+                        console.log(`✅ Generated ${relayResult.blocks.length} relay blocks for ${moduleConfig.name}`);
+                    }
+                } catch (relayErr) {
+                    console.warn(`⚠️ Relay block generation failed for ${moduleConfig.slug}, continuing:`, relayErr);
                 }
 
                 generated.push({

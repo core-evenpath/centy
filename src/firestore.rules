@@ -758,6 +758,27 @@ service cloud.firestore {
     }
 
     // ============================================================================
+    // RELAY FEATURE
+    // ============================================================================
+
+    match /relayBlockConfigs/{configId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /partners/{partnerId}/relayConfig/{configId} {
+      allow read: if true;  // Public for widget config fetch
+      allow write: if isSignedIn() && canModifyPartner(partnerId);
+    }
+
+    match /partners/{partnerId}/relayConversations/{convId} {
+      allow read: if (isSignedIn() && canAccessPartner(partnerId)) || isSuperAdmin();
+      allow create: if true;  // Widget creates conversations (public)
+      allow update: if true;  // Widget updates conversations (public)
+      allow delete: if isSignedIn() && canModifyPartner(partnerId);
+    }
+
+    // ============================================================================
     // SECURITY: EXPLICIT DENY FOR UNDEFINED COLLECTIONS
     // ============================================================================
 
