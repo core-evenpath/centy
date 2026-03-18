@@ -25,29 +25,11 @@ export async function generateRelayWidgetId(
   partnerId: string,
   brandName: string
 ): Promise<{ success: boolean; widgetId?: string; error?: string }> {
-  if (!db) return { success: false, error: 'Database unavailable' };
-
   const base = slugify(brandName || partnerId);
-  let attempts = 0;
-
-  while (attempts < 5) {
-    const candidate = `${base}-${randomSuffix()}`;
-
-    // Check uniqueness across all relayConfig sub-collections
-    const snapshot = await db
-      .collectionGroup('relayConfig')
-      .where('widgetId', '==', candidate)
-      .limit(1)
-      .get();
-
-    if (snapshot.empty) {
-      return { success: true, widgetId: candidate };
-    }
-    attempts++;
-  }
-
-  // Fallback: use partnerId prefix
-  return { success: true, widgetId: `${slugify(partnerId)}-${randomSuffix(6)}` };
+  // Use a long random suffix — 36^8 combinations makes collision negligible,
+  // so no need for a collectionGroup index query to verify uniqueness.
+  const widgetId = `${base}-${randomSuffix(8)}`;
+  return { success: true, widgetId };
 }
 
 // ============================================================================
