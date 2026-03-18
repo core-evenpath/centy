@@ -125,6 +125,56 @@ export async function updateRelayConfig(
 }
 
 // ============================================================================
+// RESET RELAY CONFIG
+// ============================================================================
+
+export async function resetRelayConfig(
+  partnerId: string
+): Promise<{ success: boolean; config?: RelayConfig; error?: string }> {
+  if (!db) return { success: false, error: 'Database unavailable' };
+
+  try {
+    // Delete all existing relay config docs for this partner
+    const snapshot = await db
+      .collection(`partners/${partnerId}/relayConfig`)
+      .get();
+
+    const batch = db.batch();
+    snapshot.docs.forEach((doc) => batch.delete(doc.ref));
+    await batch.commit();
+
+    // Create a fresh default config
+    const widgetResult = await generateRelayWidgetId(partnerId, partnerId);
+    const widgetId = widgetResult.widgetId || `relay-${randomSuffix(8)}`;
+
+    const now = new Date().toISOString();
+    const defaultConfig: Omit<RelayConfig, 'id'> = {
+      partnerId,
+      enabled: false,
+      widgetId,
+      theme: DEFAULT_RELAY_THEME,
+      brandName: '',
+      welcomeMessage: 'Hi! How can I help you today?',
+      intents: DEFAULT_RELAY_INTENTS,
+      responseFormat: 'generative_ui',
+      whatsappEnabled: false,
+      callbackEnabled: false,
+      directBookingEnabled: false,
+      totalConversations: 0,
+      totalLeads: 0,
+      createdAt: now,
+      updatedAt: now,
+    };
+
+    const docRef = await db.collection(`partners/${partnerId}/relayConfig`).add(defaultConfig);
+    return { success: true, config: { id: docRef.id, ...defaultConfig } };
+  } catch (error) {
+    console.error('resetRelayConfig error:', error);
+    return { success: false, error: error instanceof Error ? error.message : 'Reset failed' };
+  }
+}
+
+// ============================================================================
 // GET RELAY CONVERSATIONS
 // ============================================================================
 

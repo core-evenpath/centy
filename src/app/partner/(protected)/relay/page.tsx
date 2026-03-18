@@ -92,6 +92,7 @@ export default function PartnerRelayPage() {
             <RelaySetupPanel
               config={config}
               onSaved={(updated) => setConfig(updated)}
+              onReset={(freshConfig) => setConfig(freshConfig)}
             />
           )}
         </section>

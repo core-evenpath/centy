@@ -13,11 +13,12 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from '@/components/ui/accordion';
-import { Loader2, Save, GripVertical, Trash2, Plus } from 'lucide-react';
+import { Loader2, Save, GripVertical, Trash2, Plus, RotateCcw } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import type { RelayConfig, RelayIntent, RelayTheme } from '@/lib/types-relay';
-import { updateRelayConfig } from '@/actions/relay-partner-actions';
+import { DEFAULT_RELAY_THEME, DEFAULT_RELAY_INTENTS } from '@/lib/types-relay';
+import { updateRelayConfig, resetRelayConfig } from '@/actions/relay-partner-actions';
 
 const ACCENT_PRESETS = [
   { label: 'Indigo', value: '#4F46E5', dark: '#3730A3' },
@@ -34,10 +35,12 @@ const ACCENT_PRESETS = [
 interface RelaySetupPanelProps {
   config: RelayConfig;
   onSaved: (updated: RelayConfig) => void;
+  onReset: (freshConfig: RelayConfig) => void;
 }
 
-export function RelaySetupPanel({ config, onSaved }: RelaySetupPanelProps) {
+export function RelaySetupPanel({ config, onSaved, onReset }: RelaySetupPanelProps) {
   const [isSaving, setIsSaving] = useState(false);
+  const [isResetting, setIsResetting] = useState(false);
 
   const [enabled, setEnabled] = useState(config.enabled);
   const [brandName, setBrandName] = useState(config.brandName);
@@ -110,6 +113,37 @@ export function RelaySetupPanel({ config, onSaved }: RelaySetupPanelProps) {
       toast.error(result.error || 'Save failed');
     }
     setIsSaving(false);
+  };
+
+  const handleReset = async () => {
+    if (!confirm('Reset all Relay settings to defaults? This will clear your brand, theme, intents, and generate a new widget ID. This cannot be undone.')) return;
+
+    setIsResetting(true);
+    const result = await resetRelayConfig(config.partnerId);
+
+    if (result.success && result.config) {
+      toast.success('Relay settings reset to defaults');
+      // Update local state from fresh config
+      setEnabled(result.config.enabled);
+      setBrandName(result.config.brandName);
+      setBrandTagline('');
+      setAvatarEmoji('');
+      setWelcomeMessage(result.config.welcomeMessage);
+      setSystemPrompt('');
+      setAccentColor(DEFAULT_RELAY_THEME.accentColor);
+      setAccentDarkColor(DEFAULT_RELAY_THEME.accentDarkColor);
+      setMode(DEFAULT_RELAY_THEME.mode);
+      setBorderRadius(DEFAULT_RELAY_THEME.borderRadius);
+      setIntents([...DEFAULT_RELAY_INTENTS]);
+      setWhatsappEnabled(false);
+      setCallbackEnabled(false);
+      setDirectBookingEnabled(false);
+      setExternalBookingUrl('');
+      onReset(result.config);
+    } else {
+      toast.error(result.error || 'Reset failed');
+    }
+    setIsResetting(false);
   };
 
   return (
@@ -348,8 +382,12 @@ export function RelaySetupPanel({ config, onSaved }: RelaySetupPanelProps) {
         </AccordionItem>
       </Accordion>
 
-      <div className="flex justify-end">
-        <Button onClick={handleSave} disabled={isSaving}>
+      <div className="flex justify-between">
+        <Button variant="outline" onClick={handleReset} disabled={isResetting || isSaving} className="text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200">
+          {isResetting ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <RotateCcw className="w-4 h-4 mr-2" />}
+          Reset to Defaults
+        </Button>
+        <Button onClick={handleSave} disabled={isSaving || isResetting}>
           {isSaving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
           Save Settings
         </Button>
