@@ -1,31 +1,15 @@
 import { Metadata } from 'next';
-import { db } from '@/lib/firebase-admin';
 import Script from 'next/script';
+import { resolveWidgetId } from '@/actions/relay-partner-actions';
 
 interface Props {
   params: Promise<{ widgetId: string }>;
 }
 
-async function getWidgetConfig(widgetId: string) {
-  if (!db) return null;
-
-  try {
-    const snapshot = await db
-      .collectionGroup('relayConfig')
-      .where('widgetId', '==', widgetId)
-      .limit(1)
-      .get();
-
-    if (snapshot.empty) return null;
-    return snapshot.docs[0].data();
-  } catch {
-    return null;
-  }
-}
-
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { widgetId } = await params;
-  const config = await getWidgetConfig(widgetId);
+  const resolved = await resolveWidgetId(widgetId);
+  const config = resolved?.config;
 
   if (!config) {
     return { title: 'Chat Widget' };
@@ -40,7 +24,8 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
 export default async function StandaloneRelayPage({ params }: Props) {
   const { widgetId } = await params;
-  const config = await getWidgetConfig(widgetId);
+  const resolved = await resolveWidgetId(widgetId);
+  const config = resolved?.config;
 
   if (!config || !config.enabled) {
     return (
@@ -52,10 +37,10 @@ export default async function StandaloneRelayPage({ params }: Props) {
     );
   }
 
-  const accent = (config.theme as Record<string, string>)?.accentColor || '#4F46E5';
-  const brandName = config.brandName as string || 'Chat';
-  const tagline = config.brandTagline as string || '';
-  const avatar = config.avatarEmoji as string || '🤖';
+  const accent = config.theme?.accentColor || '#4F46E5';
+  const brandName = config.brandName || 'Chat';
+  const tagline = config.brandTagline || '';
+  const avatar = config.avatarEmoji || '🤖';
 
   return (
     <>

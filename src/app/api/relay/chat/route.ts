@@ -4,33 +4,8 @@ import { FieldValue } from 'firebase-admin/firestore';
 import { queryWithGeminiRAG } from '@/lib/gemini-rag';
 import { getRelayCORSHeaders, relayOptionsResponse } from '@/lib/relay-cors';
 import { buildRelaySystemPrompt, parseRelayAIResponse, calculateLeadScore } from '@/lib/relay-ai';
-import type { RelayConfig, RelayBlockConfig, RelayConversation, RelayMessage } from '@/lib/types-relay';
-
-async function resolveWidgetId(widgetId: string): Promise<{
-  partnerId: string;
-  config: RelayConfig;
-} | null> {
-  if (!db) return null;
-
-  try {
-    const snapshot = await db
-      .collectionGroup('relayConfig')
-      .where('widgetId', '==', widgetId)
-      .limit(1)
-      .get();
-
-    if (snapshot.empty) return null;
-
-    const doc = snapshot.docs[0];
-    const data = doc.data();
-    return {
-      partnerId: data.partnerId as string,
-      config: { id: doc.id, ...data } as RelayConfig,
-    };
-  } catch {
-    return null;
-  }
-}
+import { resolveWidgetId } from '@/actions/relay-partner-actions';
+import type { RelayBlockConfig, RelayConversation, RelayMessage } from '@/lib/types-relay';
 
 async function getActiveBlockConfigs(industries: string[]): Promise<RelayBlockConfig[]> {
   if (!db) return [];

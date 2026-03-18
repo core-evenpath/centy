@@ -1,32 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { db } from '@/lib/firebase-admin';
 import { getRelayCORSHeaders, relayOptionsResponse } from '@/lib/relay-cors';
-
-async function resolveWidgetId(widgetId: string): Promise<{
-  partnerId: string;
-  config: Record<string, unknown>;
-} | null> {
-  if (!db) return null;
-
-  try {
-    const snapshot = await db
-      .collectionGroup('relayConfig')
-      .where('widgetId', '==', widgetId)
-      .limit(1)
-      .get();
-
-    if (snapshot.empty) return null;
-
-    const doc = snapshot.docs[0];
-    const data = doc.data();
-    return {
-      partnerId: data.partnerId as string,
-      config: data,
-    };
-  } catch {
-    return null;
-  }
-}
+import { resolveWidgetId } from '@/actions/relay-partner-actions';
 
 export async function OPTIONS(request: NextRequest) {
   const origin = request.headers.get('origin') || undefined;

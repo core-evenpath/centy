@@ -33,6 +33,53 @@ export async function generateRelayWidgetId(
 }
 
 // ============================================================================
+// WIDGET ID → PARTNER LOOKUP (top-level, no composite index needed)
+// ============================================================================
+
+// Writes relayWidgets/{widgetId} = { partnerId } so we can look up a widget
+// by its public ID without a collectionGroup query (which needs a Firestore index).
+async function registerWidgetLookup(widgetId: string, partnerId: string): Promise<void> {
+  if (!db) return;
+  await db.collection('relayWidgets').doc(widgetId).set({ partnerId });
+}
+
+async function deleteWidgetLookup(widgetId: string): Promise<void> {
+  if (!db) return;
+  try {
+    await db.collection('relayWidgets').doc(widgetId).delete();
+  } catch { /* ignore */ }
+}
+
+// Resolves a widgetId to its partnerId + full config using the top-level index.
+export async function resolveWidgetId(widgetId: string): Promise<{
+  partnerId: string;
+  config: RelayConfig;
+} | null> {
+  if (!db) return null;
+
+  try {
+    const lookupDoc = await db.collection('relayWidgets').doc(widgetId).get();
+    if (!lookupDoc.exists) return null;
+
+    const { partnerId } = lookupDoc.data() as { partnerId: string };
+
+    const configSnapshot = await db
+      .collection(`partners/${partnerId}/relayConfig`)
+      .limit(1)
+      .get();
+
+    if (configSnapshot.empty) return null;
+    const doc = configSnapshot.docs[0];
+    return {
+      partnerId,
+      config: { id: doc.id, ...doc.data() } as RelayConfig,
+    };
+  } catch {
+    return null;
+  }
+}
+
+// ============================================================================
 // GET RELAY CONFIG
 // ============================================================================
 
@@ -76,6 +123,8 @@ export async function getRelayConfig(
     };
 
     const docRef = await db.collection(`partners/${partnerId}/relayConfig`).add(defaultConfig);
+    // Register the top-level lookup so widgetId can be resolved without a collectionGroup index
+    await registerWidgetLookup(widgetId, partnerId);
     return { success: true, config: { id: docRef.id, ...defaultConfig } };
   } catch (error) {
     console.error('getRelayConfig error:', error);
@@ -121,9 +170,15 @@ export async function resetRelayConfig(
       .collection(`partners/${partnerId}/relayConfig`)
       .get();
 
+    // Collect old widgetIds to clean up their lookup entries
+    const oldWidgetIds = snapshot.docs.map((doc) => doc.data().widgetId as string).filter(Boolean);
+
     const batch = db.batch();
     snapshot.docs.forEach((doc) => batch.delete(doc.ref));
     await batch.commit();
+
+    // Remove old lookup entries
+    await Promise.all(oldWidgetIds.map((id) => deleteWidgetLookup(id)));
 
     // Create a fresh default config
     const widgetResult = await generateRelayWidgetId(partnerId, partnerId);
@@ -149,6 +204,7 @@ export async function resetRelayConfig(
     };
 
     const docRef = await db.collection(`partners/${partnerId}/relayConfig`).add(defaultConfig);
+    await registerWidgetLookup(widgetId, partnerId);
     return { success: true, config: { id: docRef.id, ...defaultConfig } };
   } catch (error) {
     console.error('resetRelayConfig error:', error);
