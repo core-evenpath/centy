@@ -15,8 +15,7 @@ import {
   ChevronRight,
   Boxes,
   FileText,
-  Sparkles,
-  Zap,
+  Sparkles
 } from "lucide-react";
 import {
   Sidebar,
@@ -37,7 +36,6 @@ const menuItems = [
   { id: "partners", label: "Partners", icon: Building, href: "/admin/partners" },
   { id: "modules", label: "Modules", icon: Boxes, href: "/admin/modules" },
   { id: "templates", label: "Templates", icon: FileText, href: "/admin/templates" },
-  { id: "relay", label: "Relay Blocks", icon: Zap, href: "/admin/relay" },
   { id: "prompts", label: "Prompts", icon: Sparkles, href: "/admin/prompts" },
   { id: "users", label: "Admins", icon: Users, href: "/admin/users", requiredRole: 'Super Admin' },
   { id: "settings", label: "Settings", icon: Settings, href: "/admin/settings" },
