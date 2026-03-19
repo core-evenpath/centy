@@ -27,6 +27,22 @@ import {
 } from '@/lib/modules/utils';
 import { DEFAULT_MODULE_SETTINGS } from '@/lib/modules/constants';
 import { syncModulesToCoreHub } from './core-hub-actions';
+import { generateRelayBlocksForModule, saveRelayBlockConfigs } from './relay-block-actions';
+
+/**
+ * Trigger relay block generation in background after system module creation
+ */
+function triggerRelayBlockGeneration(systemModule: SystemModule): void {
+    generateRelayBlocksForModule(systemModule)
+        .then(relayResult => {
+            if (relayResult.success && relayResult.blocks) {
+                return saveRelayBlockConfigs(relayResult.blocks);
+            }
+        })
+        .catch(err => {
+            console.error('[Relay] Block generation failed:', err);
+        });
+}
 
 /**
  * Trigger Core Hub sync in background after module changes
@@ -139,6 +155,9 @@ export async function createSystemModuleAction(
         };
 
         await adminDb.collection('systemModules').doc(moduleId).set(moduleData);
+
+        // Trigger relay block generation in background (non-blocking)
+        triggerRelayBlockGeneration(moduleData);
 
         revalidatePath('/admin/modules');
         return { success: true, data: { moduleId } };

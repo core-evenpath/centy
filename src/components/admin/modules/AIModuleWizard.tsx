@@ -107,28 +107,7 @@ export function AIModuleWizard({ userId }: AIModuleWizardProps) {
             const result = await createSystemModuleAction(finalData);
 
             if (result.success) {
-                toast.success("Module created successfully!");
-
-                // Co-generate relay blocks (non-blocking)
-                try {
-                    const { generateRelayBlocksForModule, saveRelayBlockConfigs } = await import('@/actions/relay-block-actions');
-                    const savedModuleForRelay = {
-                        ...finalData,
-                        id: result.data!.moduleId,
-                        currentVersion: 1,
-                        schemaHistory: {},
-                        migrations: {},
-                        usageCount: 0,
-                    } as any;
-                    const relayResult = await generateRelayBlocksForModule(savedModuleForRelay);
-                    if (relayResult.success && relayResult.blocks) {
-                        await saveRelayBlockConfigs(relayResult.blocks);
-                        toast.success(`Also generated ${relayResult.blocks.length} relay blocks`);
-                    }
-                } catch {
-                    // Non-blocking — relay failure does not affect module creation
-                }
-
+                toast.success("Module created! Relay blocks are generating in the background.");
                 router.push(`/admin/modules`);
             } else {
                 toast.error(result.error || "Failed to save module");
