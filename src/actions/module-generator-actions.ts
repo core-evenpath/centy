@@ -1,10 +1,9 @@
 'use server';
 
-import { GoogleGenAI } from "@google/genai";
+import Anthropic from '@anthropic-ai/sdk';
+import anthropic, { AI_MODEL } from '@/lib/anthropic';
 import type { SelectedBusinessCategory } from '@/lib/business-taxonomy/types';
 import { cleanAndParseJSON } from '@/lib/modules/utils';
-
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || process.env.GOOGLE_GENAI_API_KEY });
 
 // ===== TYPES =====
 export interface GeneratedModule {
@@ -208,16 +207,17 @@ OUTPUT FORMAT (valid JSON only, no markdown, no code blocks):
     ]
 }`;
 
-        const response = await ai.models.generateContent({
-            model: 'gemini-2.5-flash',
-            contents: prompt,
-            config: {
-                temperature: 0.7,
-                responseMimeType: 'application/json',
-            }
+        const response = await anthropic.messages.create({
+            model: AI_MODEL,
+            max_tokens: 16000,
+            system: 'You are a business data architect. You ONLY output valid JSON. No markdown, no explanation, no code fences. Raw JSON only.',
+            messages: [{ role: 'user', content: prompt }],
         });
 
-        const text = response.text || '';
+        const text = response.content
+            .filter((block): block is Anthropic.TextBlock => block.type === 'text')
+            .map(block => block.text)
+            .join('');
 
         let parsed: { modules: GeneratedModule[] };
         try {
@@ -273,13 +273,18 @@ OUTPUT (valid JSON only):
     ]
 }`;
 
-        const response = await ai.models.generateContent({
-            model: 'gemini-2.5-flash',
-            contents: prompt,
-            config: { temperature: 0.8, responseMimeType: 'application/json' }
+        const response = await anthropic.messages.create({
+            model: AI_MODEL,
+            max_tokens: 4000,
+            system: 'You are a business data architect. You ONLY output valid JSON. No markdown, no explanation, no code fences. Raw JSON only.',
+            messages: [{ role: 'user', content: prompt }],
         });
 
-        const parsed = JSON.parse(response.text || '{}');
+        const text = response.content
+            .filter((block): block is Anthropic.TextBlock => block.type === 'text')
+            .map(block => block.text)
+            .join('');
+        const parsed = JSON.parse(text || '{}');
         return { success: true, items: parsed.items || [] };
     } catch (error) {
         return { success: false, error: error instanceof Error ? error.message : 'Failed to generate items' };
@@ -309,17 +314,20 @@ Generate: description (2-3 sentences), realistic INR price, 3-5 tags.
 OUTPUT (valid JSON only):
 { "description": "...", "suggestedPrice": 299, "tags": ["tag1", "tag2"] }`;
 
-        const response = await ai.models.generateContent({
-            model: 'gemini-2.5-flash',
-            contents: prompt,
-            config: { temperature: 0.7, responseMimeType: 'application/json' }
+        const response = await anthropic.messages.create({
+            model: AI_MODEL,
+            max_tokens: 2000,
+            system: 'You are a business data architect. You ONLY output valid JSON. No markdown, no explanation, no code fences. Raw JSON only.',
+            messages: [{ role: 'user', content: prompt }],
         });
 
-        const parsed = JSON.parse(response.text || '{}');
+        const text = response.content
+            .filter((block): block is Anthropic.TextBlock => block.type === 'text')
+            .map(block => block.text)
+            .join('');
+        const parsed = JSON.parse(text || '{}');
         return { success: true, enhancement: parsed };
     } catch (error) {
         return { success: false, error: error instanceof Error ? error.message : 'Failed' };
     }
 }
-
-

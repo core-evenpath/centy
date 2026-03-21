@@ -1,7 +1,7 @@
 'use client';
 
 import { useAuth } from '@/hooks/use-auth';
-import { AIModuleWizard } from '@/components/admin/modules/AIModuleWizard';
+import { UnifiedModuleCreator } from '@/components/admin/modules/UnifiedModuleCreator';
 
 export default function NewModulePage() {
     const { user, loading } = useAuth();
@@ -16,7 +16,7 @@ export default function NewModulePage() {
 
     return (
         <div className="container max-w-5xl mx-auto py-10 px-4">
-            <AIModuleWizard userId={user.uid} />
+            <UnifiedModuleCreator userId={user.uid} />
         </div>
     );
 }
