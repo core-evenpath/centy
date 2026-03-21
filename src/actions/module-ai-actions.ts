@@ -1,6 +1,7 @@
 'use server';
 
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import Anthropic from '@anthropic-ai/sdk';
+import anthropic, { AI_MODEL } from '@/lib/anthropic';
 import type {
     ModuleSchema,
     ModuleFieldDefinition,
@@ -10,16 +11,10 @@ import { generateFieldId, generateCategoryId, cleanAndParseJSON } from '@/lib/mo
 import { createSystemModuleAction, getSystemModuleAction } from './modules-actions';
 import { BULK_INDUSTRY_CONFIGS, DEFAULT_MODULE_SETTINGS } from '@/lib/modules/constants';
 
-const genAI = new GoogleGenerativeAI(
-    process.env.GEMINI_API_KEY || process.env.GOOGLE_GENAI_API_KEY || ''
-);
-
-const AI_MODEL = 'gemini-3-flash-preview';
-
 const SCHEMA_CONFIG = {
-    minimal: { minFields: 20, maxFields: 30, minCategories: 5, maxCategories: 10, minSampleItems: 4, maxSampleItems: 6 },
-    standard: { minFields: 35, maxFields: 50, minCategories: 8, maxCategories: 15, minSampleItems: 6, maxSampleItems: 10 },
-    comprehensive: { minFields: 60, maxFields: 80, minCategories: 12, maxCategories: 20, minSampleItems: 10, maxSampleItems: 15 },
+    minimal: { minFields: 30, maxFields: 50, minCategories: 8, maxCategories: 15, minSampleItems: 6, maxSampleItems: 10 },
+    standard: { minFields: 50, maxFields: 80, minCategories: 12, maxCategories: 20, minSampleItems: 10, maxSampleItems: 15 },
+    comprehensive: { minFields: 80, maxFields: 120, minCategories: 15, maxCategories: 30, minSampleItems: 15, maxSampleItems: 25 },
 };
 
 type SchemaComplexity = keyof typeof SCHEMA_CONFIG;
@@ -1439,8 +1434,6 @@ export async function generateIntegrationMappingAction(
     error?: string;
 }> {
     try {
-        const model = genAI.getGenerativeModel({ model: AI_MODEL });
-
         const existingIntegrations = Object.keys(INTEGRATION_CONFIGS).join(', ');
         const sampleContext = sampleApiResponse ? `\nSAMPLE API RESPONSE:\n${JSON.stringify(sampleApiResponse, null, 2).slice(0, 3000)}` : '';
         const docsContext = apiDocumentation ? `\nAPI DOCUMENTATION:\n${apiDocumentation.slice(0, 2000)}` : '';
@@ -1493,8 +1486,16 @@ RESPOND WITH ONLY VALID JSON:
   }
 }`;
 
-        const result = await model.generateContent(prompt);
-        const text = result.response.text();
+        const response = await anthropic.messages.create({
+            model: AI_MODEL,
+            max_tokens: 16000,
+            system: 'You are a business data architect. You ONLY output valid JSON. No markdown, no explanation, no code fences. Raw JSON only.',
+            messages: [{ role: 'user', content: prompt }],
+        });
+        const text = response.content
+            .filter((block): block is Anthropic.TextBlock => block.type === 'text')
+            .map(block => block.text)
+            .join('');
         const parsed = cleanAndParseJSON(text) as IntegrationConfig;
 
         console.log(`✅ AI Generated integration mapping for ${integrationName}: ${Object.keys(parsed.fieldMappings || {}).length} field mappings`);
@@ -1533,8 +1534,6 @@ export async function analyzeApiResponseAction(
     error?: string;
 }> {
     try {
-        const model = genAI.getGenerativeModel({ model: AI_MODEL });
-
         const prompt = `Analyze this API response from "${integrationName}" and generate comprehensive field mappings for a ${targetIndustry} module.
 
 API RESPONSE (analyze every field):
@@ -1557,8 +1556,16 @@ RESPOND WITH VALID JSON:
   "recommendations": ["Add X field for better integration", "Y field needs html_to_text transformation"]
 }`;
 
-        const result = await model.generateContent(prompt);
-        const text = result.response.text();
+        const response = await anthropic.messages.create({
+            model: AI_MODEL,
+            max_tokens: 16000,
+            system: 'You are a business data architect. You ONLY output valid JSON. No markdown, no explanation, no code fences. Raw JSON only.',
+            messages: [{ role: 'user', content: prompt }],
+        });
+        const text = response.content
+            .filter((block): block is Anthropic.TextBlock => block.type === 'text')
+            .map(block => block.text)
+            .join('');
         const parsed = cleanAndParseJSON(text);
 
         console.log(`✅ AI Analyzed API response: ${parsed.detectedFields?.length || 0} fields detected`);
@@ -1591,8 +1598,6 @@ export async function suggestAdditionalMappingsAction(
     error?: string;
 }> {
     try {
-        const model = genAI.getGenerativeModel({ model: AI_MODEL });
-
         const existingConfig = INTEGRATION_CONFIGS[integrationId];
         const existingMappingsList = Object.entries(existingMappings).map(([k, v]) => `${k} -> ${v}`).join('\n');
         const sampleContext = sampleData ? `\nSAMPLE DATA:\n${JSON.stringify(sampleData, null, 2).slice(0, 2000)}` : '';
@@ -1623,8 +1628,18 @@ RESPOND WITH VALID JSON:
   ]
 }`;
 
-        const result = await model.generateContent(prompt);
-        const parsed = cleanAndParseJSON(result.response.text());
+        const response = await anthropic.messages.create({
+            model: AI_MODEL,
+            max_tokens: 8000,
+            system: 'You are a business data architect. You ONLY output valid JSON. No markdown, no explanation, no code fences. Raw JSON only.',
+            messages: [{ role: 'user', content: prompt }],
+        });
+        const parsed = cleanAndParseJSON(
+            response.content
+                .filter((block): block is Anthropic.TextBlock => block.type === 'text')
+                .map(block => block.text)
+                .join('')
+        );
 
         return {
             success: true,
@@ -1655,7 +1670,6 @@ export async function generateModuleSchemaAction(
     error?: string;
 }> {
     try {
-        const model = genAI.getGenerativeModel({ model: AI_MODEL });
         const config = SCHEMA_CONFIG[complexity];
 
         const fieldGroups = INDUSTRY_FIELD_GROUPS[industryId] || INDUSTRY_FIELD_GROUPS['services'];
@@ -1683,6 +1697,14 @@ name, description, short_description, category, status, main_image, images, tags
 
 ${COMPREHENSIVE_FIELD_TYPES}
 
+CRITICAL: Be EXHAUSTIVE. Generate every possible field and category a real ${moduleName} business in ${countryCode} would need. Think like a domain expert who has built software for 100+ businesses in this industry. Include:
+- Every variation of pricing (base, bulk, seasonal, member, wholesale)
+- Every operational attribute (prep time, shelf life, storage, handling)
+- Every compliance field (licenses, certifications, allergens, safety)
+- Every customer-facing attribute (ratings, reviews, popularity, tags)
+- Every internal attribute (cost price, supplier, reorder level, margin)
+- Categories should represent ALL sub-segments, not just top-level groupings
+
 Generate JSON:
 {
   "fields": [{"id": "snake_case", "name": "Display Name", "type": "type", "description": "help", "isRequired": false, "isSearchable": true, "showInList": false, "showInCard": false, "options": []}],
@@ -1692,8 +1714,16 @@ Generate JSON:
 
 Use ${countryCode === 'IN' ? 'INR' : 'USD'} for prices. RESPOND WITH ONLY VALID JSON.`;
 
-        const result = await model.generateContent(prompt);
-        const text = result.response.text();
+        const response = await anthropic.messages.create({
+            model: AI_MODEL,
+            max_tokens: 16000,
+            system: 'You are a business data architect. You ONLY output valid JSON. No markdown, no explanation, no code fences. Raw JSON only.',
+            messages: [{ role: 'user', content: prompt }],
+        });
+        const text = response.content
+            .filter((block): block is Anthropic.TextBlock => block.type === 'text')
+            .map(block => block.text)
+            .join('');
         const parsed = cleanAndParseJSON(text);
 
         const coreFields = [...CORE_FIELDS.all, ...CORE_FIELDS.integration];
@@ -1931,8 +1961,6 @@ export async function regenerateSchemaFieldsAction(
     error?: string;
 }> {
     try {
-        const model = genAI.getGenerativeModel({ model: AI_MODEL });
-
         const existingFieldIds = currentSchema.fields.map(f => f.id);
         const existingFieldNames = currentSchema.fields.map(f => f.name).join(', ');
 
@@ -1953,8 +1981,16 @@ ${COMPREHENSIVE_FIELD_TYPES}
 RESPOND WITH ONLY JSON:
 {"newFields": [...], "newCategories": [...]}`;
 
-        const result = await model.generateContent(prompt);
-        const text = result.response.text();
+        const response = await anthropic.messages.create({
+            model: AI_MODEL,
+            max_tokens: 8000,
+            system: 'You are a business data architect. You ONLY output valid JSON. No markdown, no explanation, no code fences. Raw JSON only.',
+            messages: [{ role: 'user', content: prompt }],
+        });
+        const text = response.content
+            .filter((block): block is Anthropic.TextBlock => block.type === 'text')
+            .map(block => block.text)
+            .join('');
         const parsed = cleanAndParseJSON(text);
 
         const newFields = (parsed.newFields || [])
@@ -2011,8 +2047,6 @@ export async function generateFieldSuggestionsAction(
     error?: string;
 }> {
     try {
-        const model = genAI.getGenerativeModel({ model: AI_MODEL });
-
         const prompt = `Suggest ${count} fields for "${moduleName}" in ${industryName}.
 
 EXISTING: ${existingFieldNames.join(', ')}
@@ -2022,8 +2056,18 @@ Suggest NEW fields with: name, type, description, rationale.
 RESPOND WITH ONLY JSON:
 {"suggestions": [{"name": "...", "type": "...", "description": "...", "rationale": "..."}]}`;
 
-        const result = await model.generateContent(prompt);
-        const parsed = cleanAndParseJSON(result.response.text());
+        const response = await anthropic.messages.create({
+            model: AI_MODEL,
+            max_tokens: 4000,
+            system: 'You are a business data architect. You ONLY output valid JSON. No markdown, no explanation, no code fences. Raw JSON only.',
+            messages: [{ role: 'user', content: prompt }],
+        });
+        const parsed = cleanAndParseJSON(
+            response.content
+                .filter((block): block is Anthropic.TextBlock => block.type === 'text')
+                .map(block => block.text)
+                .join('')
+        );
 
         return { success: true, suggestions: parsed.suggestions || [] };
     } catch (error) {

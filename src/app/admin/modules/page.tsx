@@ -10,22 +10,15 @@ export default function ModulesPage() {
                 <div>
                     <h1 className="text-3xl font-bold tracking-tight">System Modules</h1>
                     <p className="text-muted-foreground mt-2">
-                        Manage reusable business data templates
+                        Manage reusable business data templates for partners
                     </p>
                 </div>
-                <div className="flex gap-4">
-                    <Button variant="outline" asChild>
-                        <Link href="/admin/modules/assignments">
-                            Manage Assignments
-                        </Link>
-                    </Button>
-                    <Button asChild>
-                        <Link href="/admin/modules/new">
-                            <Plus className="mr-2 h-4 w-4" />
-                            New Module
-                        </Link>
-                    </Button>
-                </div>
+                <Button asChild>
+                    <Link href="/admin/modules/new">
+                        <Plus className="mr-2 h-4 w-4" />
+                        Create Module
+                    </Link>
+                </Button>
             </div>
 
             <ModulesList />

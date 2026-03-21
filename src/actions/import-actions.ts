@@ -1,15 +1,10 @@
 'use server';
 
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import Anthropic from '@anthropic-ai/sdk';
+import anthropic, { AI_MODEL } from '@/lib/anthropic';
 import type { ModuleFieldDefinition } from '@/lib/modules/types';
 import { cleanAndParseJSON } from '@/lib/modules/utils';
 import { getPartnerModuleAction, getSystemModuleAction } from './modules-actions';
-
-const genAI = new GoogleGenerativeAI(
-    process.env.GEMINI_API_KEY || process.env.GOOGLE_GENAI_API_KEY || ''
-);
-
-const AI_MODEL = 'gemini-3-flash-preview';
 
 export async function generateSampleCSVAction(
     partnerId: string,
@@ -125,8 +120,6 @@ export async function mapCSVColumnsAction(
     schemaFields: ModuleFieldDefinition[]
 ): Promise<{ success: boolean; mappings?: Record<string, string>; confidence?: Record<string, number>; error?: string }> {
     try {
-        const model = genAI.getGenerativeModel({ model: AI_MODEL });
-
         const schemaFieldLines = schemaFields
             .filter(f => f.type !== 'image')
             .map(f => `${f.id} | ${f.name} | ${f.description || ''} | ${f.type}`)
@@ -160,8 +153,16 @@ Rules:
 - Match semantically similar headers (e.g. "Product Name" -> "name", "Cost" -> "price")
 - Be generous with matching but accurate with field IDs`;
 
-        const result = await model.generateContent(prompt);
-        const text = result.response.text();
+        const response = await anthropic.messages.create({
+            model: AI_MODEL,
+            max_tokens: 4000,
+            system: 'You are a data field mapping assistant. You ONLY output valid JSON. No markdown, no explanation, no code fences. Raw JSON only.',
+            messages: [{ role: 'user', content: prompt }],
+        });
+        const text = response.content
+            .filter((block): block is Anthropic.TextBlock => block.type === 'text')
+            .map(block => block.text)
+            .join('');
         const parsed = cleanAndParseJSON(text);
 
         if (!parsed || !parsed.mappings) {
