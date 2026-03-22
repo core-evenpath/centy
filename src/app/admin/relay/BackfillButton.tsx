@@ -15,7 +15,7 @@ export function BackfillButton() {
         try {
             const result = await backfillRelayBlockConfigsAction();
             if (result.success) {
-                alert(`Backfill complete: ${result.created} created, ${result.skipped} skipped, ${result.failed} failed`);
+                alert(`Backfill complete: ${result.created} created, ${result.skipped} skipped, ${result.errors.length} errors`);
                 router.refresh();
             }
         } catch (e) {

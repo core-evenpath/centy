@@ -1833,59 +1833,57 @@ export async function backfillRelayBlockConfigsAction(): Promise<{
     success: boolean;
     created: number;
     skipped: number;
-    failed: number;
+    errors: string[];
 }> {
     'use server';
-    let created = 0, skipped = 0, failed = 0;
+    let created = 0, skipped = 0;
+    const errors: string[] = [];
 
-    const modulesSnapshot = await adminDb.collection('systemModules')
-        .where('status', '==', 'active')
-        .get();
+    try {
+        const modulesSnapshot = await adminDb.collection('systemModules')
+            .where('status', '==', 'active')
+            .get();
 
-    for (const doc of modulesSnapshot.docs) {
-        const module = doc.data();
-        if (!module.agentConfig) {
-            skipped++;
-            continue;
+        for (const doc of modulesSnapshot.docs) {
+            const mod = doc.data();
+            if (!mod.agentConfig) {
+                skipped++;
+                continue;
+            }
+
+            const blockId = `block_${mod.slug}`;
+            try {
+                await adminDb.collection('relayBlockConfigs').doc(blockId).set({
+                    id: blockId,
+                    blockType: mod.agentConfig.relayBlockType || 'card',
+                    label: mod.name,
+                    description: mod.description || '',
+                    moduleSlug: mod.slug,
+                    moduleId: doc.id,
+                    applicableIndustries: mod.applicableIndustries || [],
+                    applicableFunctions: mod.applicableFunctions || [],
+                    dataSchema: {
+                        sourceCollection: 'moduleItems',
+                        sourceFields: mod.agentConfig.displayFields || [],
+                        displayTemplate: mod.agentConfig.relayBlockType || 'card',
+                        maxItems: 10,
+                        sortBy: 'sortOrder',
+                        sortOrder: 'asc',
+                    },
+                    agentConfig: mod.agentConfig,
+                    aiPromptFragment: mod.agentConfig.inboxContext || '',
+                    status: 'active',
+                    createdAt: new Date().toISOString(),
+                    updatedAt: new Date().toISOString(),
+                }, { merge: true });
+                created++;
+            } catch (e: any) {
+                errors.push(`${mod.slug}: ${e.message}`);
+            }
         }
 
-        const blockConfigId = `block_${module.slug}`;
-        const existing = await adminDb.collection('relayBlockConfigs').doc(blockConfigId).get();
-        if (existing.exists) {
-            skipped++;
-            continue;
-        }
-
-        try {
-            await adminDb.collection('relayBlockConfigs').doc(blockConfigId).set({
-                id: blockConfigId,
-                blockType: module.agentConfig.relayBlockType || 'card',
-                label: module.name,
-                description: module.description || '',
-                moduleSlug: module.slug,
-                moduleId: doc.id,
-                applicableIndustries: module.applicableIndustries || [],
-                applicableFunctions: module.applicableFunctions || [],
-                dataSchema: {
-                    sourceCollection: 'moduleItems',
-                    sourceFields: module.agentConfig.displayFields || [],
-                    displayTemplate: module.agentConfig.relayBlockType || 'card',
-                    maxItems: 10,
-                    sortBy: 'sortOrder',
-                    sortOrder: 'asc',
-                },
-                agentConfig: module.agentConfig,
-                aiPromptFragment: module.agentConfig.inboxContext || '',
-                status: 'active',
-                createdAt: new Date().toISOString(),
-                updatedAt: new Date().toISOString(),
-            });
-            created++;
-        } catch (e) {
-            console.error(`Failed to backfill ${module.slug}:`, e);
-            failed++;
-        }
+        return { success: true, created, skipped, errors };
+    } catch (e: any) {
+        return { success: false, created, skipped, errors: [e.message] };
     }
-
-    return { success: true, created, skipped, failed };
 }
