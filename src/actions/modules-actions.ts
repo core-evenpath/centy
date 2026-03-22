@@ -522,6 +522,15 @@ export async function getModulesForIndustriesAction(
     }
 }
 
+function normalizeCustomFields(raw: any): PartnerCustomField[] {
+    if (!Array.isArray(raw)) return [];
+    return raw.map((field: any) => ({
+        ...field,
+        addedAt: field.addedAt || field.createdAt || new Date().toISOString(),
+        addedBy: field.addedBy || field.createdBy || 'system',
+    }));
+}
+
 export async function getPartnerModulesAction(
     partnerId: string
 ): Promise<ModulesActionResponse<PartnerModule[]>> {
@@ -531,7 +540,14 @@ export async function getPartnerModulesAction(
             .orderBy('createdAt', 'desc')
             .get();
 
-        const modules = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as PartnerModule));
+        const modules = snapshot.docs.map(doc => {
+            const data = doc.data();
+            return {
+                id: doc.id,
+                ...data,
+                customFields: normalizeCustomFields(data.customFields),
+            } as PartnerModule;
+        });
         return { success: true, data: modules };
     } catch (error) {
         console.error('Error fetching partner modules:', error);
@@ -554,9 +570,11 @@ export async function getPartnerModuleAction(
             return { success: false, error: 'Module not enabled for this partner', code: 'NOT_FOUND' };
         }
 
+        const pmData = partnerModuleSnapshot.docs[0].data();
         const partnerModule = {
             id: partnerModuleSnapshot.docs[0].id,
-            ...partnerModuleSnapshot.docs[0].data()
+            ...pmData,
+            customFields: normalizeCustomFields(pmData.customFields),
         } as PartnerModule;
 
         const systemModuleResult = await getSystemModuleAction(moduleSlug);

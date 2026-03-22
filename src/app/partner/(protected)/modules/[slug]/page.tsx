@@ -5,6 +5,7 @@ import { useMultiWorkspaceAuth } from '@/hooks/use-multi-workspace-auth';
 import { usePartnerModule, useModuleItems } from '@/hooks/use-modules';
 import { ItemsList } from '@/components/partner/modules/ItemsList';
 import { ItemEditor } from '@/components/partner/modules/ItemEditor';
+import { CustomFieldManager } from '@/components/partner/modules/CustomFieldManager';
 import { ModuleItem } from '@/lib/modules/types';
 import {
     createModuleItemAction,
@@ -13,7 +14,7 @@ import {
     deleteAllModuleItemsAction,
 } from '@/actions/modules-actions';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Plus, Settings, Package, Trash2, Loader2, AlertTriangle, Upload } from 'lucide-react';
+import { ArrowLeft, Plus, Settings, Package, Trash2, Loader2, AlertTriangle, Upload, ChevronDown } from 'lucide-react';
 import { ImportDialog } from '@/components/partner/modules/ImportDialog';
 import Link from 'next/link';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -67,6 +68,7 @@ export default function ModuleManagePage({ params }: PageProps) {
     const [isDeleteAllOpen, setIsDeleteAllOpen] = useState(false);
     const [isDeleting, setIsDeleting] = useState(false);
     const [isImportOpen, setIsImportOpen] = useState(false);
+    const [showCustomFields, setShowCustomFields] = useState(false);
 
     // Combined loading state
     const isLoading = authLoading || pLoading || (partnerModule && iLoading);
@@ -351,6 +353,32 @@ export default function ModuleManagePage({ params }: PageProps) {
                     onReorder={handleReorder}
                 />
             )}
+
+            {/* Custom Fields Section */}
+            <div className="mt-8 border rounded-lg">
+                <button
+                    onClick={() => setShowCustomFields(!showCustomFields)}
+                    className="w-full flex items-center justify-between p-4 hover:bg-slate-50 transition-colors"
+                >
+                    <div>
+                        <h3 className="font-medium text-sm">Custom Fields</h3>
+                        <p className="text-xs text-muted-foreground">
+                            {partnerModule.customFields?.length || 0} custom fields added
+                        </p>
+                    </div>
+                    <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${showCustomFields ? 'rotate-180' : ''}`} />
+                </button>
+                {showCustomFields && (
+                    <div className="border-t p-4">
+                        <CustomFieldManager
+                            partnerId={partnerId}
+                            moduleId={partnerModule.id}
+                            customFields={partnerModule.customFields || []}
+                            onFieldsChange={() => refetchModule()}
+                        />
+                    </div>
+                )}
+            </div>
 
             <ImportDialog
                 open={isImportOpen}

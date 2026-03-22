@@ -47,9 +47,15 @@ export function ItemEditor({ initialItem, module, schema, onSave, onCancel }: It
     const [isDragging, setIsDragging] = useState(false);
 
     // Combine all fields (schema fields + custom fields)
-    // Note: PartnerModule in types has customFields array. 
-    // We should ideally merge schema.fields and module.customFields for the full list.
-    const allFields = [...schema.fields, ...module.customFields].sort((a, b) => a.order - b.order);
+    // ModuleFieldDefinition has conditionalOn; PartnerCustomField has addedAt/addedBy.
+    // Both share core rendering properties (id, name, type, order, etc.).
+    const allFields = [
+        ...schema.fields,
+        ...(module.customFields || []).map(cf => ({
+            ...cf,
+            order: cf.order ?? (schema.fields.length + 100),
+        })),
+    ].sort((a, b) => (a.order ?? 999) - (b.order ?? 999));
 
     const defaultValues = {
         name: '',

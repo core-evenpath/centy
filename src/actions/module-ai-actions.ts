@@ -1692,8 +1692,8 @@ export async function generateModuleSchemaAction(
 
         const relevantIntegrations = getRelevantIntegrations(industryId);
 
-        const prompt = `Generate a ${complexity.toUpperCase()} module schema for "${moduleName}" for ${industryName} in ${countryCode}.
-
+        const prompt = `Generate a ${complexity.toUpperCase()} module schema for "${moduleName}" for ${functionName ? `${functionName} (${industryName})` : industryName} businesses in ${countryCode}.
+${functionName ? `\nBUSINESS TYPE CONTEXT: This module is specifically for "${functionName}" businesses, NOT generic "${industryName}". Every field, category, and sample item must be relevant to how a real ${functionName} business operates. Think about what makes ${functionName} DIFFERENT from other ${industryName} sub-categories.\n` : ''}
 Generate ${config.minFields}-${config.maxFields} fields. Include fields compatible with: ${relevantIntegrations.join(', ')}.
 
 FIELD GROUPS:
@@ -1704,7 +1704,7 @@ name, description, short_description, category, status, main_image, images, tags
 
 ${COMPREHENSIVE_FIELD_TYPES}
 
-CRITICAL: Be EXHAUSTIVE. Generate every possible field and category a real ${moduleName} business in ${countryCode} would need. Think like a domain expert who has built software for 100+ businesses in this industry. Include:
+CRITICAL: Be EXHAUSTIVE. Generate every possible field and category a real ${moduleName} ${functionName ? functionName : ''} business in ${countryCode} would need. Think like a domain expert who has built software for 100+ businesses in this industry. Include:
 - Every variation of pricing (base, bulk, seasonal, member, wholesale)
 - Every operational attribute (prep time, shelf life, storage, handling)
 - Every compliance field (licenses, certifications, allergens, safety)
