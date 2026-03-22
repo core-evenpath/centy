@@ -1,7 +1,8 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { useMultiWorkspaceAuth } from '@/hooks/use-multi-workspace-auth';
+import Link from 'next/link';
 import {
     getRelayConfigAction,
     saveRelayConfigAction,
@@ -28,6 +29,11 @@ import {
     XCircle,
     Loader2,
     Save,
+    Send,
+    Bot,
+    User,
+    ExternalLink,
+    Play,
 } from 'lucide-react';
 
 const DEFAULT_CONFIG: RelayConfig = {
@@ -46,6 +52,26 @@ const ACCENT_COLORS = [
 
 const EMOJI_OPTIONS = ['💬', '🤖', '✨', '🏨', '🍽️', '💼', '🎯', '🌟'];
 
+// ── Diagnostic fix links ─────────────────────────────────────────────
+
+const DIAG_LINKS: Record<string, string> = {
+    'Widget Configuration': '/partner/relay',
+    'RAG Store': '/partner/core',
+    'Knowledge Documents': '/partner/core',
+    'Module Data': '/partner/modules',
+    'Relay Block Configs': '/admin/modules/new',
+};
+
+// ── Chat message type ────────────────────────────────────────────────
+
+interface ChatMessage {
+    role: 'user' | 'assistant';
+    content: string;
+    items?: any[];
+    suggestions?: string[];
+    type?: string;
+}
+
 export default function PartnerRelayPage() {
     const { currentWorkspace, loading: authLoading } = useMultiWorkspaceAuth();
     const partnerId = currentWorkspace?.partnerId;
@@ -59,6 +85,13 @@ export default function PartnerRelayPage() {
     const [diagRunning, setDiagRunning] = useState(false);
     const [conversations, setConversations] = useState<RelayConversation[]>([]);
     const [convoLoading, setConvoLoading] = useState(true);
+
+    // Chat test state
+    const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
+    const [chatInput, setChatInput] = useState('');
+    const [chatSending, setChatSending] = useState(false);
+    const [conversationId] = useState(() => `test_${Date.now()}`);
+    const chatEndRef = useRef<HTMLDivElement>(null);
 
     // ── Load config via server action ────────────────────────────────
 
@@ -150,6 +183,60 @@ export default function PartnerRelayPage() {
         })();
     }, [partnerId]);
 
+    // ── Chat test ────────────────────────────────────────────────────
+
+    const sendChatMessage = async (messageText?: string) => {
+        const text = messageText || chatInput.trim();
+        if (!text || !partnerId || chatSending) return;
+
+        const userMsg: ChatMessage = { role: 'user', content: text };
+        const updatedMessages = [...chatMessages, userMsg];
+        setChatMessages(updatedMessages);
+        setChatInput('');
+        setChatSending(true);
+
+        try {
+            const res = await fetch('/api/relay/chat', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    partnerId,
+                    conversationId,
+                    messages: updatedMessages.map(m => ({ role: m.role, content: m.content })),
+                }),
+            });
+
+            const data = await res.json();
+
+            if (data.success && data.response) {
+                const assistantMsg: ChatMessage = {
+                    role: 'assistant',
+                    content: data.response.text || JSON.stringify(data.response),
+                    items: data.response.items,
+                    suggestions: data.response.suggestions,
+                    type: data.response.type,
+                };
+                setChatMessages(prev => [...prev, assistantMsg]);
+            } else {
+                setChatMessages(prev => [...prev, {
+                    role: 'assistant',
+                    content: `Error: ${data.error || 'Unknown error'}`,
+                }]);
+            }
+        } catch (e: any) {
+            setChatMessages(prev => [...prev, {
+                role: 'assistant',
+                content: `Network error: ${e.message}`,
+            }]);
+        } finally {
+            setChatSending(false);
+        }
+    };
+
+    useEffect(() => {
+        chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }, [chatMessages]);
+
     // ── Loading / auth guard ─────────────────────────────────────────
 
     if (authLoading || configLoading) {
@@ -190,8 +277,11 @@ export default function PartnerRelayPage() {
                 </div>
             </div>
 
-            <Tabs defaultValue="setup" className="space-y-6">
+            <Tabs defaultValue="test" className="space-y-6">
                 <TabsList>
+                    <TabsTrigger value="test" className="gap-2">
+                        <Play className="h-4 w-4" /> Test Chat
+                    </TabsTrigger>
                     <TabsTrigger value="setup" className="gap-2">
                         <Settings className="h-4 w-4" /> Setup
                     </TabsTrigger>
@@ -202,6 +292,151 @@ export default function PartnerRelayPage() {
                         <MessageSquare className="h-4 w-4" /> Conversations
                     </TabsTrigger>
                 </TabsList>
+
+                {/* ── Section 0: Test Chat ──────────────────────────── */}
+                <TabsContent value="test" className="space-y-6">
+                    <Card className="flex flex-col" style={{ height: '600px' }}>
+                        <CardHeader className="pb-3">
+                            <CardTitle className="text-base">Test your Relay Chat</CardTitle>
+                            <CardDescription>
+                                Chat as a visitor would. This hits the same /api/relay/chat endpoint the widget uses.
+                            </CardDescription>
+                        </CardHeader>
+                        <CardContent className="flex-1 flex flex-col min-h-0 pb-4">
+                            {/* Messages area */}
+                            <div className="flex-1 overflow-y-auto space-y-3 mb-4 p-3 bg-muted/30 rounded-lg">
+                                {chatMessages.length === 0 && (
+                                    <div className="flex flex-col items-center justify-center h-full text-center text-muted-foreground">
+                                        <Bot className="h-10 w-10 mb-3 opacity-50" />
+                                        <p className="text-sm font-medium">Start a conversation</p>
+                                        <p className="text-xs mt-1">Try asking about your products, services, or pricing</p>
+                                        <div className="flex flex-wrap gap-2 mt-4 justify-center">
+                                            {['What do you offer?', 'Tell me about your services', 'Show me your pricing'].map(q => (
+                                                <button
+                                                    key={q}
+                                                    onClick={() => sendChatMessage(q)}
+                                                    className="text-xs px-3 py-1.5 rounded-full border bg-background hover:bg-muted transition-colors"
+                                                >
+                                                    {q}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+
+                                {chatMessages.map((msg, i) => (
+                                    <div key={i} className={`flex gap-2 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                                        {msg.role === 'assistant' && (
+                                            <div className="w-7 h-7 rounded-full bg-primary/10 flex items-center justify-center shrink-0 mt-0.5">
+                                                <Bot className="h-4 w-4 text-primary" />
+                                            </div>
+                                        )}
+                                        <div className={`max-w-[80%] space-y-2 ${msg.role === 'user' ? 'order-first' : ''}`}>
+                                            <div className={`rounded-lg px-3 py-2 text-sm ${
+                                                msg.role === 'user'
+                                                    ? 'bg-primary text-primary-foreground ml-auto'
+                                                    : 'bg-background border'
+                                            }`}>
+                                                <p className="whitespace-pre-wrap">{msg.content}</p>
+                                            </div>
+
+                                            {/* Render items if present */}
+                                            {msg.items && msg.items.length > 0 && (
+                                                <div className="space-y-1.5">
+                                                    {msg.items.slice(0, 5).map((item: any, j: number) => (
+                                                        <div key={j} className="bg-background border rounded-lg p-2.5 text-xs">
+                                                            <div className="flex justify-between items-start">
+                                                                <p className="font-medium">{item.name}</p>
+                                                                {item.price && (
+                                                                    <span className="text-primary font-semibold shrink-0 ml-2">
+                                                                        {item.currency || 'INR'} {item.price}
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                            {item.description && (
+                                                                <p className="text-muted-foreground mt-0.5 line-clamp-2">{item.description}</p>
+                                                            )}
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            )}
+
+                                            {/* Render suggestion chips */}
+                                            {msg.suggestions && msg.suggestions.length > 0 && (
+                                                <div className="flex flex-wrap gap-1.5">
+                                                    {msg.suggestions.map((s: string, j: number) => (
+                                                        <button
+                                                            key={j}
+                                                            onClick={() => sendChatMessage(s)}
+                                                            className="text-xs px-2.5 py-1 rounded-full border bg-background hover:bg-muted transition-colors"
+                                                        >
+                                                            {s}
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                            )}
+
+                                            {/* Show response type badge */}
+                                            {msg.type && msg.type !== 'text' && msg.role === 'assistant' && (
+                                                <Badge variant="outline" className="text-[10px]">
+                                                    {msg.type}
+                                                </Badge>
+                                            )}
+                                        </div>
+                                        {msg.role === 'user' && (
+                                            <div className="w-7 h-7 rounded-full bg-foreground/10 flex items-center justify-center shrink-0 mt-0.5">
+                                                <User className="h-4 w-4" />
+                                            </div>
+                                        )}
+                                    </div>
+                                ))}
+
+                                {chatSending && (
+                                    <div className="flex gap-2">
+                                        <div className="w-7 h-7 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+                                            <Bot className="h-4 w-4 text-primary" />
+                                        </div>
+                                        <div className="bg-background border rounded-lg px-3 py-2">
+                                            <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                                        </div>
+                                    </div>
+                                )}
+                                <div ref={chatEndRef} />
+                            </div>
+
+                            {/* Input area */}
+                            <div className="flex gap-2">
+                                <Input
+                                    value={chatInput}
+                                    onChange={e => setChatInput(e.target.value)}
+                                    onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendChatMessage(); } }}
+                                    placeholder="Type a message..."
+                                    disabled={chatSending}
+                                    className="flex-1"
+                                />
+                                <Button
+                                    onClick={() => sendChatMessage()}
+                                    disabled={!chatInput.trim() || chatSending}
+                                    size="icon"
+                                >
+                                    <Send className="h-4 w-4" />
+                                </Button>
+                            </div>
+
+                            {/* Clear chat */}
+                            {chatMessages.length > 0 && (
+                                <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="mt-2 text-xs self-center"
+                                    onClick={() => setChatMessages([])}
+                                >
+                                    Clear conversation
+                                </Button>
+                            )}
+                        </CardContent>
+                    </Card>
+                </TabsContent>
 
                 {/* ── Section 1: Setup ──────────────────────────────── */}
                 <TabsContent value="setup" className="space-y-6">
@@ -374,8 +609,18 @@ export default function PartnerRelayPage() {
                                         <div className="flex-1">
                                             <p className="font-medium text-sm">{check.label}</p>
                                             <p className="text-xs text-muted-foreground">{check.description}</p>
-                                            {check.fix && (
-                                                <p className="text-xs text-yellow-600 mt-1">Fix: {check.fix}</p>
+                                            {check.fix && check.status !== 'pass' && (
+                                                <div className="flex items-center gap-2 mt-1.5">
+                                                    <p className="text-xs text-yellow-600">Fix: {check.fix}</p>
+                                                    {DIAG_LINKS[check.label] && (
+                                                        <Link
+                                                            href={DIAG_LINKS[check.label]}
+                                                            className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
+                                                        >
+                                                            Go <ExternalLink className="h-3 w-3" />
+                                                        </Link>
+                                                    )}
+                                                </div>
                                             )}
                                         </div>
                                     </div>
@@ -409,7 +654,7 @@ export default function PartnerRelayPage() {
                                     <MessageSquare className="h-10 w-10 text-muted-foreground mx-auto mb-3" />
                                     <p className="font-medium">No conversations yet</p>
                                     <p className="text-sm text-muted-foreground mt-1">
-                                        Embed the widget on your website to start receiving visitors.
+                                        Embed the widget on your website or use the Test Chat tab to start a conversation.
                                     </p>
                                 </div>
                             ) : (
