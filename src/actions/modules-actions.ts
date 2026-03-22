@@ -141,7 +141,43 @@ export async function createSystemModuleAction(
 
         await adminDb.collection('systemModules').doc(moduleId).set(moduleData);
 
+        // Auto-generate relay block config if agentConfig exists
+        if (moduleData.agentConfig) {
+            try {
+                const blockConfigId = `block_${moduleData.slug}`;
+                const relayBlockConfig = {
+                    id: blockConfigId,
+                    blockType: moduleData.agentConfig.relayBlockType || 'card',
+                    label: moduleData.name,
+                    description: `${moduleData.name} — ${moduleData.description || ''}`,
+                    moduleSlug: moduleData.slug,
+                    moduleId: moduleId,
+                    applicableIndustries: moduleData.applicableIndustries || [],
+                    applicableFunctions: moduleData.applicableFunctions || [],
+                    dataSchema: {
+                        sourceCollection: 'moduleItems',
+                        sourceFields: moduleData.agentConfig.displayFields || [],
+                        displayTemplate: moduleData.agentConfig.relayBlockType || 'card',
+                        maxItems: 10,
+                        sortBy: 'sortOrder',
+                        sortOrder: 'asc',
+                    },
+                    agentConfig: moduleData.agentConfig,
+                    aiPromptFragment: moduleData.agentConfig.inboxContext || '',
+                    status: 'active',
+                    createdAt: now,
+                    updatedAt: now,
+                };
+                await adminDb.collection('relayBlockConfigs').doc(blockConfigId).set(relayBlockConfig);
+                console.log(`✅ Relay block config created: ${blockConfigId} for module ${moduleData.slug}`);
+            } catch (relayError) {
+                // Relay block creation failure must NEVER block module creation
+                console.error(`⚠️ Failed to create relay block config for ${moduleData.slug}:`, relayError);
+            }
+        }
+
         revalidatePath('/admin/modules');
+        revalidatePath('/admin/relay');
         return { success: true, data: { moduleId } };
     } catch (error) {
         console.error('Error creating system module:', error);
@@ -1789,4 +1825,67 @@ export async function removePartnerCustomFieldAction(
         console.error('Error removing custom field:', error);
         return { success: false, error: 'Failed to remove custom field' };
     }
+}
+
+// ── Relay Block Config Backfill ──────────────────────────────────────
+
+export async function backfillRelayBlockConfigsAction(): Promise<{
+    success: boolean;
+    created: number;
+    skipped: number;
+    failed: number;
+}> {
+    'use server';
+    let created = 0, skipped = 0, failed = 0;
+
+    const modulesSnapshot = await adminDb.collection('systemModules')
+        .where('status', '==', 'active')
+        .get();
+
+    for (const doc of modulesSnapshot.docs) {
+        const module = doc.data();
+        if (!module.agentConfig) {
+            skipped++;
+            continue;
+        }
+
+        const blockConfigId = `block_${module.slug}`;
+        const existing = await adminDb.collection('relayBlockConfigs').doc(blockConfigId).get();
+        if (existing.exists) {
+            skipped++;
+            continue;
+        }
+
+        try {
+            await adminDb.collection('relayBlockConfigs').doc(blockConfigId).set({
+                id: blockConfigId,
+                blockType: module.agentConfig.relayBlockType || 'card',
+                label: module.name,
+                description: module.description || '',
+                moduleSlug: module.slug,
+                moduleId: doc.id,
+                applicableIndustries: module.applicableIndustries || [],
+                applicableFunctions: module.applicableFunctions || [],
+                dataSchema: {
+                    sourceCollection: 'moduleItems',
+                    sourceFields: module.agentConfig.displayFields || [],
+                    displayTemplate: module.agentConfig.relayBlockType || 'card',
+                    maxItems: 10,
+                    sortBy: 'sortOrder',
+                    sortOrder: 'asc',
+                },
+                agentConfig: module.agentConfig,
+                aiPromptFragment: module.agentConfig.inboxContext || '',
+                status: 'active',
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString(),
+            });
+            created++;
+        } catch (e) {
+            console.error(`Failed to backfill ${module.slug}:`, e);
+            failed++;
+        }
+    }
+
+    return { success: true, created, skipped, failed };
 }

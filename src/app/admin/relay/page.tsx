@@ -4,11 +4,13 @@ import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 import { Zap, Plus, Package } from 'lucide-react';
 import { db } from '@/lib/firebase-admin';
+import { BackfillButton } from './BackfillButton';
 
 interface RelayBlockConfig {
     id: string;
     blockType: string;
     label: string;
+    moduleSlug?: string;
     applicableIndustries: string[];
     status: string;
 }
@@ -22,6 +24,7 @@ export default async function RelayBlocksPage() {
             id: doc.id,
             blockType: doc.data().blockType || 'card',
             label: doc.data().label || doc.id,
+            moduleSlug: doc.data().moduleSlug || undefined,
             applicableIndustries: doc.data().applicableIndustries || [],
             status: doc.data().status || 'active',
         }));
@@ -34,6 +37,7 @@ export default async function RelayBlocksPage() {
             <AdminHeader
                 title="Relay Blocks"
                 subtitle="AI response templates for the embeddable chat widget"
+                actions={<BackfillButton />}
             />
 
             <div className="container mx-auto py-8 px-6">
@@ -67,6 +71,11 @@ export default async function RelayBlocksPage() {
                                             <p className="text-sm text-muted-foreground mt-0.5">
                                                 Type: {config.blockType}
                                             </p>
+                                            {config.moduleSlug && (
+                                                <p className="text-xs text-muted-foreground mt-0.5">
+                                                    Module: {config.moduleSlug}
+                                                </p>
+                                            )}
                                             {config.applicableIndustries.length > 0 && (
                                                 <p className="text-xs text-muted-foreground mt-1">
                                                     Industries: {config.applicableIndustries.join(', ')}
