@@ -2,19 +2,13 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import { useMultiWorkspaceAuth } from '@/hooks/use-multi-workspace-auth';
-import { db } from '@/lib/firebase';
 import {
-    doc,
-    getDoc,
-    setDoc,
-    collection,
-    query,
-    orderBy,
-    limit,
-    getDocs,
-    where,
-    Timestamp,
-} from 'firebase/firestore';
+    getRelayConfigAction,
+    saveRelayConfigAction,
+    runRelayDiagnosticsAction,
+    getRelayConversationsAction,
+} from '@/actions/relay-actions';
+import type { RelayConfig, DiagnosticCheck, RelayConversation } from '@/actions/relay-actions';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -36,33 +30,6 @@ import {
     Save,
 } from 'lucide-react';
 
-// ── Types ────────────────────────────────────────────────────────────
-
-interface RelayConfig {
-    enabled: boolean;
-    brandName: string;
-    tagline: string;
-    brandEmoji: string;
-    accentColor: string;
-    welcomeMessage: string;
-    updatedAt?: string;
-}
-
-interface DiagnosticCheck {
-    label: string;
-    status: 'pass' | 'warn' | 'fail' | 'loading';
-    description: string;
-    fix?: string;
-}
-
-interface RelayConversation {
-    id: string;
-    visitorName: string;
-    lastMessage: string;
-    timestamp: string;
-    messageCount: number;
-}
-
 const DEFAULT_CONFIG: RelayConfig = {
     enabled: false,
     brandName: '',
@@ -79,8 +46,6 @@ const ACCENT_COLORS = [
 
 const EMOJI_OPTIONS = ['💬', '🤖', '✨', '🏨', '🍽️', '💼', '🎯', '🌟'];
 
-// ── Page Component ───────────────────────────────────────────────────
-
 export default function PartnerRelayPage() {
     const { currentWorkspace, loading: authLoading } = useMultiWorkspaceAuth();
     const partnerId = currentWorkspace?.partnerId;
@@ -95,15 +60,15 @@ export default function PartnerRelayPage() {
     const [conversations, setConversations] = useState<RelayConversation[]>([]);
     const [convoLoading, setConvoLoading] = useState(true);
 
-    // ── Load config ──────────────────────────────────────────────────
+    // ── Load config via server action ────────────────────────────────
 
     useEffect(() => {
-        if (!partnerId || !db) return;
+        if (!partnerId) return;
         (async () => {
             try {
-                const snap = await getDoc(doc(db, 'partners', partnerId, 'relayConfig', 'config'));
-                if (snap.exists()) {
-                    setConfig({ ...DEFAULT_CONFIG, ...snap.data() as RelayConfig });
+                const result = await getRelayConfigAction(partnerId);
+                if (result.success && result.config) {
+                    setConfig({ ...DEFAULT_CONFIG, ...result.config });
                 }
             } catch (e) {
                 console.error('Failed to load relay config:', e);
@@ -113,18 +78,19 @@ export default function PartnerRelayPage() {
         })();
     }, [partnerId]);
 
-    // ── Save config ──────────────────────────────────────────────────
+    // ── Save config via server action ────────────────────────────────
 
     const handleSave = async () => {
-        if (!partnerId || !db) return;
+        if (!partnerId) return;
         setSaving(true);
         try {
-            await setDoc(doc(db, 'partners', partnerId, 'relayConfig', 'config'), {
-                ...config,
-                updatedAt: new Date().toISOString(),
-            });
-            setSaved(true);
-            setTimeout(() => setSaved(false), 2000);
+            const result = await saveRelayConfigAction(partnerId, config);
+            if (result.success) {
+                setSaved(true);
+                setTimeout(() => setSaved(false), 2000);
+            } else {
+                alert(`Failed to save: ${result.error}`);
+            }
         } catch (e) {
             console.error('Failed to save relay config:', e);
             alert('Failed to save. Please try again.');
@@ -143,129 +109,39 @@ export default function PartnerRelayPage() {
         setTimeout(() => setCopied(false), 2000);
     };
 
-    // ── Diagnostics ──────────────────────────────────────────────────
+    // ── Diagnostics via server action ────────────────────────────────
 
     const runDiagnostics = useCallback(async () => {
-        if (!partnerId || !db) return;
+        if (!partnerId) return;
         setDiagRunning(true);
-
-        const checks: DiagnosticCheck[] = [
-            { label: 'Widget Configuration', status: 'loading', description: 'Checking...' },
-            { label: 'RAG Store', status: 'loading', description: 'Checking...' },
-            { label: 'Knowledge Documents', status: 'loading', description: 'Checking...' },
-            { label: 'Module Data', status: 'loading', description: 'Checking...' },
-            { label: 'Relay Block Configs', status: 'loading', description: 'Checking...' },
-        ];
-        setDiagnostics([...checks]);
-
-        // Check 1: Widget config
         try {
-            const snap = await getDoc(doc(db, 'partners', partnerId, 'relayConfig', 'config'));
-            if (snap.exists() && snap.data().brandName) {
-                checks[0] = { label: 'Widget Configuration', status: 'pass', description: 'Brand name and config set' };
-            } else {
-                checks[0] = { label: 'Widget Configuration', status: 'warn', description: 'No brand name configured', fix: 'Fill in the Setup tab above' };
+            const result = await runRelayDiagnosticsAction(partnerId);
+            if (result.success) {
+                setDiagnostics(result.checks);
             }
-        } catch {
-            checks[0] = { label: 'Widget Configuration', status: 'fail', description: 'Could not read config', fix: 'Check Firestore permissions' };
+        } catch (e) {
+            console.error('Diagnostics failed:', e);
+        } finally {
+            setDiagRunning(false);
         }
-        setDiagnostics([...checks]);
-
-        // Check 2: RAG Store
-        try {
-            const snap = await getDocs(collection(db, 'partners', partnerId, 'fileSearchStores'));
-            const active = snap.docs.filter(d => d.data().status === 'active');
-            if (active.length > 0) {
-                checks[1] = { label: 'RAG Store', status: 'pass', description: `${active.length} active store(s)` };
-            } else {
-                checks[1] = { label: 'RAG Store', status: 'warn', description: 'No active RAG store', fix: 'Upload documents in Core Memory' };
-            }
-        } catch {
-            checks[1] = { label: 'RAG Store', status: 'warn', description: 'No RAG store found', fix: 'Upload documents in Core Memory' };
-        }
-        setDiagnostics([...checks]);
-
-        // Check 3: Knowledge docs
-        try {
-            const q = query(
-                collection(db, 'partners', partnerId, 'vaultFiles'),
-                where('state', '==', 'ACTIVE'),
-            );
-            const snap = await getDocs(q);
-            if (snap.size > 0) {
-                checks[2] = { label: 'Knowledge Documents', status: 'pass', description: `${snap.size} active document(s)` };
-            } else {
-                checks[2] = { label: 'Knowledge Documents', status: 'warn', description: 'No knowledge documents', fix: 'Upload files in Core Memory' };
-            }
-        } catch {
-            checks[2] = { label: 'Knowledge Documents', status: 'warn', description: 'Could not check documents' };
-        }
-        setDiagnostics([...checks]);
-
-        // Check 4: Module data
-        try {
-            const q = query(
-                collection(db, 'partners', partnerId, 'modules'),
-                where('isEnabled', '==', true),
-            );
-            const snap = await getDocs(q);
-            if (snap.size > 0) {
-                checks[3] = { label: 'Module Data', status: 'pass', description: `${snap.size} enabled module(s)` };
-            } else {
-                checks[3] = { label: 'Module Data', status: 'warn', description: 'No enabled modules', fix: 'Enable modules in the Modules tab' };
-            }
-        } catch {
-            checks[3] = { label: 'Module Data', status: 'warn', description: 'Could not check modules' };
-        }
-        setDiagnostics([...checks]);
-
-        // Check 5: Relay block configs (global collection)
-        try {
-            const snap = await getDocs(collection(db, 'relayBlockConfigs'));
-            if (snap.size > 0) {
-                checks[4] = { label: 'Relay Block Configs', status: 'pass', description: `${snap.size} block config(s)` };
-            } else {
-                checks[4] = { label: 'Relay Block Configs', status: 'warn', description: 'No relay block configs', fix: 'Generate modules in Admin > Modules' };
-            }
-        } catch {
-            checks[4] = { label: 'Relay Block Configs', status: 'warn', description: 'Could not check block configs' };
-        }
-        setDiagnostics([...checks]);
-        setDiagRunning(false);
     }, [partnerId]);
 
     useEffect(() => {
-        if (partnerId && db) {
+        if (partnerId) {
             runDiagnostics();
         }
     }, [partnerId, runDiagnostics]);
 
-    // ── Conversations ────────────────────────────────────────────────
+    // ── Conversations via server action ──────────────────────────────
 
     useEffect(() => {
-        if (!partnerId || !db) { setConvoLoading(false); return; }
+        if (!partnerId) { setConvoLoading(false); return; }
         (async () => {
             try {
-                const q = query(
-                    collection(db, 'relayConversations'),
-                    where('partnerId', '==', partnerId),
-                    orderBy('updatedAt', 'desc'),
-                    limit(20),
-                );
-                const snap = await getDocs(q);
-                setConversations(snap.docs.map(d => {
-                    const data = d.data();
-                    const ts = data.updatedAt instanceof Timestamp
-                        ? data.updatedAt.toDate().toISOString()
-                        : data.updatedAt || '';
-                    return {
-                        id: d.id,
-                        visitorName: data.visitorName || 'Anonymous',
-                        lastMessage: data.lastMessage || '',
-                        timestamp: ts,
-                        messageCount: data.messageCount || 0,
-                    };
-                }));
+                const result = await getRelayConversationsAction(partnerId);
+                if (result.success) {
+                    setConversations(result.conversations);
+                }
             } catch {
                 // Collection may not exist yet
             } finally {
@@ -487,6 +363,11 @@ export default function PartnerRelayPage() {
                         </CardHeader>
                         <CardContent>
                             <div className="space-y-3">
+                                {diagRunning && diagnostics.length === 0 && (
+                                    <div className="flex justify-center py-4">
+                                        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                                    </div>
+                                )}
                                 {diagnostics.map((check, i) => (
                                     <div key={i} className="flex items-start gap-3 p-3 rounded-lg bg-muted/50">
                                         <DiagIcon status={check.status} />
@@ -499,7 +380,7 @@ export default function PartnerRelayPage() {
                                         </div>
                                     </div>
                                 ))}
-                                {diagnostics.length === 0 && (
+                                {!diagRunning && diagnostics.length === 0 && (
                                     <p className="text-sm text-muted-foreground text-center py-4">
                                         Click &quot;Re-run&quot; to check your setup.
                                     </p>
