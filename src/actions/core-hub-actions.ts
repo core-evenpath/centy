@@ -424,18 +424,21 @@ export async function getCoreHubContextString(partnerId: string): Promise<string
       }
 
       if (item.metadata) {
-        const relevantFields = ['features', 'includes', 'duration', 'availability', 'tags'];
+        // Dynamically include ALL fields (system + custom) instead of hardcoded list
+        const excludeKeys = ['name', 'description', 'main_image', 'images', 'internal_notes', 'sort_order', 'is_active', 'is_featured', 'external_id', 'external_source', 'external_url', 'last_synced_at', 'sync_enabled', 'sync_direction'];
 
-        for (const field of relevantFields) {
-          if (item.metadata[field]) {
-            const value = Array.isArray(item.metadata[field])
-              ? item.metadata[field].join(', ')
-              : item.metadata[field];
+        for (const [field, rawValue] of Object.entries(item.metadata)) {
+          if (excludeKeys.includes(field) || rawValue === null || rawValue === undefined || rawValue === '') continue;
 
-            if (value) {
-              const fieldName = field.charAt(0).toUpperCase() + field.slice(1);
-              context += `- **${fieldName}:** ${value}\n`;
-            }
+          const value = Array.isArray(rawValue)
+            ? rawValue.join(', ')
+            : typeof rawValue === 'object'
+              ? null
+              : String(rawValue);
+
+          if (value) {
+            const fieldName = field.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+            context += `- **${fieldName}:** ${value}\n`;
           }
         }
       }

@@ -200,8 +200,10 @@ export function UnifiedModuleCreator({ userId }: UnifiedModuleCreatorProps) {
                     throw new Error(schemaResult.error || 'Schema generation failed');
                 }
 
+                const scopedSlug = `${selectedFunction.functionId}_${mod.slug.replace(/[^a-z0-9_-]/g, '_')}`.substring(0, 60);
+
                 const createResult = await createSystemModuleAction({
-                    slug: mod.slug,
+                    slug: scopedSlug,
                     name: mod.name,
                     description: mod.description,
                     icon: mod.icon,
