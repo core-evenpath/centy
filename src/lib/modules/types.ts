@@ -141,6 +141,8 @@ export interface SystemModule {
     applicableIndustries: string[];
     applicableFunctions: string[];
 
+    agentConfig?: ModuleAgentConfig;
+
     status: 'draft' | 'active' | 'deprecated';
 
     usageCount: number;
@@ -191,8 +193,8 @@ export interface PartnerModule {
     latestVersion: number;
     lastUpgradeCheck: string;
 
-    customFields: ModuleFieldDefinition[];
-    customCategories: ModuleCategoryDefinition[];
+    customFields: PartnerCustomField[];
+    customCategories: PartnerCustomCategory[];
 
     _legacyFields?: Record<string, any>;
 
@@ -314,6 +316,107 @@ export interface MigrationResult {
     startedAt: string;
     completedAt: string;
     duration: number;
+}
+
+// ============================================================================
+// MODULE AGENT CONFIG (AI agent metadata per module)
+// ============================================================================
+
+export interface ModuleAgentConfig {
+    /** How the Relay widget renders items: 'card', 'list', or 'carousel' */
+    relayBlockType: 'card' | 'list' | 'carousel';
+    /** Field IDs to show in Relay widget display */
+    displayFields: string[];
+    /** Field ID or template for the card title (e.g. "name" or "{name} - {location}") */
+    cardTitle: string;
+    /** Field ID or template for the card subtitle */
+    cardSubtitle?: string;
+    /** Field ID for the price display */
+    cardPrice?: string;
+    /** Field ID for the card image */
+    cardImage?: string;
+    /** Field IDs used for comparison features */
+    comparisonFields: string[];
+    /** Field IDs that are searchable via AI */
+    searchableFields: string[];
+    /** Field IDs available as broadcast template variables */
+    broadcastVariables: string[];
+    /** Template string describing how to summarize this module's items for inbox AI context */
+    inboxContext: string;
+}
+
+// ============================================================================
+// MODULE DISCOVERY (AI-discovered modules for a business function)
+// ============================================================================
+
+export interface DiscoveredModule {
+    name: string;
+    slug: string;
+    description: string;
+    icon: string;
+    itemLabel: string;
+    itemLabelPlural: string;
+    priceType: ModulePriceType;
+    priceLabel: string;
+    estimatedFieldCount: number;
+    agentConfig: ModuleAgentConfig;
+    /** Whether this module is selected for generation */
+    selected?: boolean;
+}
+
+export interface ModuleDiscoveryTemplate {
+    id: string;
+    industryId: string;
+    functionId: string;
+    industryName: string;
+    functionName: string;
+    modules: DiscoveredModule[];
+    generatedAt: string;
+    generatedBy: string;
+}
+
+// ============================================================================
+// PARTNER CUSTOM FIELDS & CATEGORIES
+// ============================================================================
+
+export interface PartnerCustomField {
+    id: string;
+    name: string;
+    type: ModuleFieldType;
+    description?: string;
+    isRequired: boolean;
+    isSearchable: boolean;
+    showInList: boolean;
+    showInCard: boolean;
+    placeholder?: string;
+    options?: string[];
+    defaultValue?: any;
+    validation?: {
+        min?: number;
+        max?: number;
+        minLength?: number;
+        maxLength?: number;
+        pattern?: string;
+        patternMessage?: string;
+    };
+    order: number;
+    /** When the partner added this custom field */
+    addedAt: string;
+    /** Who added this custom field */
+    addedBy: string;
+}
+
+export interface PartnerCustomCategory {
+    id: string;
+    name: string;
+    icon?: string;
+    description?: string;
+    color?: string;
+    order: number;
+    /** When the partner added this custom category */
+    addedAt: string;
+    /** Who added this custom category */
+    addedBy: string;
 }
 
 // ============================================================================

@@ -9,12 +9,19 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import {
     ArrowLeft, Check, ChevronRight, Loader2, Package,
-    Plus, Sparkles, X,
+    Plus, RefreshCw, Sparkles, X,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { BULK_INDUSTRY_CONFIGS, DEFAULT_MODULE_SETTINGS, PRICE_TYPE_LABELS, type BulkIndustryConfig } from '@/lib/modules/constants';
-import { generateModuleSchemaAction } from '@/actions/module-ai-actions';
+import { DEFAULT_MODULE_SETTINGS } from '@/lib/modules/constants';
+import {
+    generateModuleSchemaAction,
+    discoverModulesForBusinessType,
+    regenerateModuleTemplate,
+} from '@/actions/module-ai-actions';
 import { createSystemModuleAction } from '@/actions/modules-actions';
+import { getIndustries, getFunctionsByIndustry } from '@/lib/business-taxonomy';
+import type { Industry, BusinessFunction } from '@/lib/business-taxonomy';
+import type { DiscoveredModule } from '@/lib/modules/types';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import Link from 'next/link';
@@ -23,7 +30,7 @@ interface UnifiedModuleCreatorProps {
     userId: string;
 }
 
-type CreatorStep = 'industry' | 'subcategories' | 'generating' | 'results' | 'custom';
+type CreatorStep = 'industry' | 'function' | 'discovery' | 'generating' | 'results' | 'custom';
 
 interface GenerationProgress {
     slug: string;
@@ -32,6 +39,27 @@ interface GenerationProgress {
     fieldsCount?: number;
     categoriesCount?: number;
     error?: string;
+}
+
+const INDUSTRY_ICONS: Record<string, string> = {
+    financial_services: '🏦',
+    hospitality: '🏨',
+    food_beverage: '🍽️',
+    retail_commerce: '🛒',
+    healthcare_medical: '🏥',
+    education_learning: '🎓',
+    business_professional: '💼',
+    home_property: '🏠',
+    personal_wellness: '💆',
+    automotive: '🚗',
+    agriculture: '🌾',
+    logistics_transport: '🚚',
+    entertainment_media: '🎬',
+    technology: '💻',
+};
+
+function getIndustryIcon(industryId: string): string {
+    return INDUSTRY_ICONS[industryId] || '📦';
 }
 
 function getIndustryColor(industryId: string): string {
@@ -45,45 +73,101 @@ function getIndustryColor(industryId: string): string {
 
 export function UnifiedModuleCreator({ userId }: UnifiedModuleCreatorProps) {
     const router = useRouter();
+    const industries = getIndustries();
+
     const [step, setStep] = useState<CreatorStep>('industry');
-    const [selectedIndustry, setSelectedIndustry] = useState<BulkIndustryConfig | null>(null);
-    const [selectedModuleSlugs, setSelectedModuleSlugs] = useState<string[]>([]);
+    const [selectedIndustry, setSelectedIndustry] = useState<Industry | null>(null);
+    const [selectedFunction, setSelectedFunction] = useState<BusinessFunction | null>(null);
+    const [discoveredModules, setDiscoveredModules] = useState<DiscoveredModule[]>([]);
+    const [isDiscovering, setIsDiscovering] = useState(false);
     const [countryCode, setCountryCode] = useState('IN');
     const [progress, setProgress] = useState<GenerationProgress[]>([]);
 
+    // Custom module state
     const [customIndustry, setCustomIndustry] = useState('');
     const [customModuleName, setCustomModuleName] = useState('');
     const [customItemLabel, setCustomItemLabel] = useState('Item');
     const [customCountry, setCustomCountry] = useState('IN');
     const [isCustomGenerating, setIsCustomGenerating] = useState(false);
 
-    const handleSelectIndustry = (industry: BulkIndustryConfig) => {
+    const handleSelectIndustry = (industry: Industry) => {
         setSelectedIndustry(industry);
-        setSelectedModuleSlugs(industry.modules.map(m => m.slug));
-        setStep('subcategories');
+        setSelectedFunction(null);
+        setDiscoveredModules([]);
+        setStep('function');
+    };
+
+    const handleSelectFunction = async (func: BusinessFunction) => {
+        if (!selectedIndustry) return;
+        setSelectedFunction(func);
+        setIsDiscovering(true);
+        setStep('discovery');
+
+        try {
+            const result = await discoverModulesForBusinessType(
+                selectedIndustry.industryId,
+                selectedIndustry.name,
+                func.functionId,
+                func.name,
+                countryCode
+            );
+
+            if (result.success && result.template) {
+                setDiscoveredModules(result.template.modules.map(m => ({ ...m, selected: true })));
+            } else {
+                toast.error(result.error || 'Failed to discover modules');
+                setStep('function');
+            }
+        } catch (error) {
+            toast.error('Failed to discover modules');
+            setStep('function');
+        } finally {
+            setIsDiscovering(false);
+        }
+    };
+
+    const handleRediscover = async () => {
+        if (!selectedIndustry || !selectedFunction) return;
+        setIsDiscovering(true);
+
+        try {
+            const result = await regenerateModuleTemplate(
+                selectedIndustry.industryId,
+                selectedIndustry.name,
+                selectedFunction.functionId,
+                selectedFunction.name,
+                countryCode
+            );
+
+            if (result.success && result.template) {
+                setDiscoveredModules(result.template.modules.map(m => ({ ...m, selected: true })));
+                toast.success('Modules re-discovered');
+            } else {
+                toast.error(result.error || 'Failed to re-discover modules');
+            }
+        } catch {
+            toast.error('Failed to re-discover modules');
+        } finally {
+            setIsDiscovering(false);
+        }
     };
 
     const toggleModule = (slug: string) => {
-        setSelectedModuleSlugs(prev =>
-            prev.includes(slug)
-                ? prev.filter(s => s !== slug)
-                : [...prev, slug]
+        setDiscoveredModules(prev =>
+            prev.map(m => m.slug === slug ? { ...m, selected: !m.selected } : m)
         );
     };
 
     const toggleAll = () => {
-        if (!selectedIndustry) return;
-        if (selectedModuleSlugs.length === selectedIndustry.modules.length) {
-            setSelectedModuleSlugs([]);
-        } else {
-            setSelectedModuleSlugs(selectedIndustry.modules.map(m => m.slug));
-        }
+        const allSelected = discoveredModules.every(m => m.selected);
+        setDiscoveredModules(prev => prev.map(m => ({ ...m, selected: !allSelected })));
     };
 
-    const handleGenerate = async () => {
-        if (!selectedIndustry || selectedModuleSlugs.length === 0) return;
+    const selectedModules = discoveredModules.filter(m => m.selected);
 
-        const selectedModules = selectedIndustry.modules.filter(m => selectedModuleSlugs.includes(m.slug));
+    const handleGenerate = async () => {
+        if (!selectedIndustry || !selectedFunction || selectedModules.length === 0) return;
+
         const initialProgress: GenerationProgress[] = selectedModules.map(m => ({
             slug: m.slug,
             name: m.name,
@@ -94,7 +178,7 @@ export function UnifiedModuleCreator({ userId }: UnifiedModuleCreatorProps) {
         setStep('generating');
 
         for (let i = 0; i < selectedModules.length; i++) {
-            const moduleConfig = selectedModules[i];
+            const mod = selectedModules[i];
 
             setProgress(prev => prev.map((p, idx) =>
                 idx === i ? { ...p, status: 'generating' } : p
@@ -102,12 +186,14 @@ export function UnifiedModuleCreator({ userId }: UnifiedModuleCreatorProps) {
 
             try {
                 const schemaResult = await generateModuleSchemaAction(
-                    selectedIndustry.id,
+                    selectedIndustry.industryId,
                     selectedIndustry.name,
-                    moduleConfig.name,
-                    moduleConfig.itemLabel,
+                    mod.name,
+                    mod.itemLabel,
                     countryCode,
-                    'standard'
+                    'standard',
+                    selectedFunction.functionId,
+                    selectedFunction.name
                 );
 
                 if (!schemaResult.success || !schemaResult.schema) {
@@ -115,18 +201,19 @@ export function UnifiedModuleCreator({ userId }: UnifiedModuleCreatorProps) {
                 }
 
                 const createResult = await createSystemModuleAction({
-                    slug: moduleConfig.slug,
-                    name: moduleConfig.name,
-                    description: `${moduleConfig.name} for ${selectedIndustry.name} businesses`,
-                    icon: selectedIndustry.icon,
-                    color: getIndustryColor(selectedIndustry.id),
-                    itemLabel: moduleConfig.itemLabel,
-                    itemLabelPlural: moduleConfig.itemLabel + 's',
-                    priceLabel: 'Price',
-                    priceType: moduleConfig.priceType as any,
+                    slug: mod.slug,
+                    name: mod.name,
+                    description: mod.description,
+                    icon: mod.icon,
+                    color: getIndustryColor(selectedIndustry.industryId),
+                    itemLabel: mod.itemLabel,
+                    itemLabelPlural: mod.itemLabelPlural,
+                    priceLabel: mod.priceLabel,
+                    priceType: mod.priceType,
                     defaultCurrency: countryCode === 'IN' ? 'INR' : 'USD',
-                    applicableIndustries: [selectedIndustry.id],
-                    applicableFunctions: [],
+                    applicableIndustries: [selectedIndustry.industryId],
+                    applicableFunctions: [selectedFunction.functionId],
+                    agentConfig: mod.agentConfig,
                     status: 'active',
                     settings: DEFAULT_MODULE_SETTINGS,
                     schema: schemaResult.schema,
@@ -218,6 +305,8 @@ export function UnifiedModuleCreator({ userId }: UnifiedModuleCreatorProps) {
     const successCount = progress.filter(p => p.status === 'success').length;
     const failedCount = progress.filter(p => p.status === 'error').length;
 
+    const functions = selectedIndustry ? getFunctionsByIndustry(selectedIndustry.industryId) : [];
+
     return (
         <div className="max-w-4xl mx-auto space-y-6">
             <div className="flex items-center gap-3">
@@ -235,7 +324,7 @@ export function UnifiedModuleCreator({ userId }: UnifiedModuleCreatorProps) {
                 </div>
                 <h1 className="text-3xl font-bold tracking-tight text-slate-900">Create Module</h1>
                 <p className="text-muted-foreground max-w-lg mx-auto">
-                    Pick an industry and let AI generate comprehensive data structures for your business modules.
+                    Pick an industry and business type, then let AI discover and generate the right modules.
                 </p>
             </div>
 
@@ -243,15 +332,17 @@ export function UnifiedModuleCreator({ userId }: UnifiedModuleCreatorProps) {
             {step === 'industry' && (
                 <div className="space-y-6">
                     <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-                        {BULK_INDUSTRY_CONFIGS.map(industry => (
+                        {industries.map(industry => (
                             <button
-                                key={industry.id}
+                                key={industry.industryId}
                                 onClick={() => handleSelectIndustry(industry)}
                                 className="flex flex-col items-start p-4 rounded-xl border border-slate-200 bg-white transition-all text-left hover:border-slate-400 hover:shadow-md group"
                             >
-                                <span className="text-2xl mb-2">{industry.icon}</span>
+                                <span className="text-2xl mb-2">{getIndustryIcon(industry.industryId)}</span>
                                 <span className="font-medium text-sm text-slate-900">{industry.name}</span>
-                                <span className="text-xs text-slate-400 mt-1">{industry.modules.length} modules</span>
+                                <span className="text-xs text-slate-400 mt-1">
+                                    {getFunctionsByIndustry(industry.industryId).length} sub-categories
+                                </span>
                                 <ChevronRight className="h-4 w-4 text-slate-300 mt-2 transition-transform group-hover:translate-x-1" />
                             </button>
                         ))}
@@ -277,48 +368,33 @@ export function UnifiedModuleCreator({ userId }: UnifiedModuleCreatorProps) {
                 </div>
             )}
 
-            {/* Step 2: Subcategory Selection */}
-            {step === 'subcategories' && selectedIndustry && (
+            {/* Step 2: Business Function (Sub-category) Selection */}
+            {step === 'function' && selectedIndustry && (
                 <Card className="border-0 shadow-lg ring-1 ring-slate-200">
                     <CardContent className="p-6 space-y-6">
-                        <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-3">
-                                <span className="text-2xl">{selectedIndustry.icon}</span>
-                                <div>
-                                    <h2 className="text-lg font-semibold">{selectedIndustry.name}</h2>
-                                    <p className="text-sm text-muted-foreground">Select modules to generate</p>
-                                </div>
+                        <div className="flex items-center gap-3">
+                            <span className="text-2xl">{getIndustryIcon(selectedIndustry.industryId)}</span>
+                            <div>
+                                <h2 className="text-lg font-semibold">{selectedIndustry.name}</h2>
+                                <p className="text-sm text-muted-foreground">Select a business type to discover modules</p>
                             </div>
-                            <button
-                                onClick={toggleAll}
-                                className="text-sm font-medium text-slate-600 hover:text-slate-900 transition-colors"
-                            >
-                                {selectedModuleSlugs.length === selectedIndustry.modules.length ? 'Deselect All' : 'Select All'}
-                            </button>
                         </div>
 
-                        <div className="space-y-2 max-h-[400px] overflow-y-auto pr-1">
-                            {selectedIndustry.modules.map(mod => (
-                                <label
-                                    key={mod.slug}
-                                    className={cn(
-                                        "flex items-center gap-3 rounded-lg border p-3 cursor-pointer transition-all",
-                                        selectedModuleSlugs.includes(mod.slug)
-                                            ? "border-slate-400 bg-slate-50"
-                                            : "border-slate-200 hover:border-slate-300"
-                                    )}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-2 max-h-[400px] overflow-y-auto pr-1">
+                            {functions.map(func => (
+                                <button
+                                    key={func.functionId}
+                                    onClick={() => handleSelectFunction(func)}
+                                    className="flex items-center gap-3 rounded-lg border border-slate-200 p-3 text-left transition-all hover:border-slate-400 hover:shadow-sm group"
                                 >
-                                    <Checkbox
-                                        checked={selectedModuleSlugs.includes(mod.slug)}
-                                        onCheckedChange={() => toggleModule(mod.slug)}
-                                    />
                                     <div className="flex-1 min-w-0">
-                                        <div className="font-medium text-sm">{mod.name}</div>
-                                        <div className="text-xs text-slate-500">
-                                            {mod.itemLabel} &middot; {PRICE_TYPE_LABELS[mod.priceType] || mod.priceType}
-                                        </div>
+                                        <div className="font-medium text-sm">{func.name}</div>
+                                        {func.description && (
+                                            <div className="text-xs text-slate-500 truncate">{func.description}</div>
+                                        )}
                                     </div>
-                                </label>
+                                    <ChevronRight className="h-4 w-4 text-slate-300 shrink-0 transition-transform group-hover:translate-x-1" />
+                                </button>
                             ))}
                         </div>
 
@@ -337,34 +413,115 @@ export function UnifiedModuleCreator({ userId }: UnifiedModuleCreatorProps) {
                                     </SelectContent>
                                 </Select>
                             </div>
-                            <div className="text-right pt-5">
-                                <div className="text-2xl font-bold text-slate-900">{selectedModuleSlugs.length}</div>
-                                <div className="text-xs text-slate-500">modules</div>
-                            </div>
                         </div>
 
                         <div className="flex items-center justify-between pt-2">
                             <Button variant="ghost" onClick={() => { setStep('industry'); setSelectedIndustry(null); }}>
                                 <ArrowLeft className="h-4 w-4 mr-1" /> Back
                             </Button>
-                            <Button
-                                onClick={handleGenerate}
-                                disabled={selectedModuleSlugs.length === 0}
-                            >
-                                <Sparkles className="h-4 w-4 mr-2" />
-                                Generate {selectedModuleSlugs.length} Modules
-                            </Button>
                         </div>
                     </CardContent>
                 </Card>
             )}
 
-            {/* Step 3: Generation Progress / Results */}
+            {/* Step 3: Discovery - AI discovers modules for the selected business function */}
+            {step === 'discovery' && selectedIndustry && selectedFunction && (
+                <Card className="border-0 shadow-lg ring-1 ring-slate-200">
+                    <CardContent className="p-6 space-y-6">
+                        <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                                <span className="text-2xl">{getIndustryIcon(selectedIndustry.industryId)}</span>
+                                <div>
+                                    <h2 className="text-lg font-semibold">{selectedFunction.name}</h2>
+                                    <p className="text-sm text-muted-foreground">
+                                        {isDiscovering ? 'Discovering modules...' : `${discoveredModules.length} modules discovered`}
+                                    </p>
+                                </div>
+                            </div>
+                            {!isDiscovering && discoveredModules.length > 0 && (
+                                <div className="flex items-center gap-2">
+                                    <Button variant="ghost" size="sm" onClick={handleRediscover}>
+                                        <RefreshCw className="h-4 w-4 mr-1" /> Re-discover
+                                    </Button>
+                                    <button
+                                        onClick={toggleAll}
+                                        className="text-sm font-medium text-slate-600 hover:text-slate-900 transition-colors"
+                                    >
+                                        {discoveredModules.every(m => m.selected) ? 'Deselect All' : 'Select All'}
+                                    </button>
+                                </div>
+                            )}
+                        </div>
+
+                        {isDiscovering ? (
+                            <div className="flex flex-col items-center justify-center py-12 gap-3">
+                                <Loader2 className="h-8 w-8 text-slate-400 animate-spin" />
+                                <p className="text-sm text-slate-500">AI is discovering modules for {selectedFunction.name}...</p>
+                            </div>
+                        ) : (
+                            <>
+                                <div className="space-y-2 max-h-[400px] overflow-y-auto pr-1">
+                                    {discoveredModules.map(mod => (
+                                        <label
+                                            key={mod.slug}
+                                            className={cn(
+                                                "flex items-center gap-3 rounded-lg border p-3 cursor-pointer transition-all",
+                                                mod.selected
+                                                    ? "border-slate-400 bg-slate-50"
+                                                    : "border-slate-200 hover:border-slate-300"
+                                            )}
+                                        >
+                                            <Checkbox
+                                                checked={mod.selected}
+                                                onCheckedChange={() => toggleModule(mod.slug)}
+                                            />
+                                            <span className="text-lg shrink-0">{mod.icon}</span>
+                                            <div className="flex-1 min-w-0">
+                                                <div className="font-medium text-sm">{mod.name}</div>
+                                                <div className="text-xs text-slate-500">
+                                                    {mod.itemLabel} &middot; {mod.priceLabel} &middot; ~{mod.estimatedFieldCount} fields
+                                                </div>
+                                                {mod.description && (
+                                                    <div className="text-xs text-slate-400 mt-0.5 truncate">{mod.description}</div>
+                                                )}
+                                            </div>
+                                        </label>
+                                    ))}
+                                </div>
+
+                                <div className="flex items-center justify-between pt-2 border-t border-slate-100">
+                                    <Button variant="ghost" onClick={() => {
+                                        setStep('function');
+                                        setSelectedFunction(null);
+                                        setDiscoveredModules([]);
+                                    }}>
+                                        <ArrowLeft className="h-4 w-4 mr-1" /> Back
+                                    </Button>
+                                    <div className="flex items-center gap-3">
+                                        <span className="text-sm text-slate-500">
+                                            {selectedModules.length} of {discoveredModules.length} selected
+                                        </span>
+                                        <Button
+                                            onClick={handleGenerate}
+                                            disabled={selectedModules.length === 0}
+                                        >
+                                            <Sparkles className="h-4 w-4 mr-2" />
+                                            Generate {selectedModules.length} Modules
+                                        </Button>
+                                    </div>
+                                </div>
+                            </>
+                        )}
+                    </CardContent>
+                </Card>
+            )}
+
+            {/* Step 4 & 5: Generation Progress / Results */}
             {(step === 'generating' || step === 'results') && (
                 <Card className="border-0 shadow-lg ring-1 ring-slate-200">
                     <CardContent className="p-6 space-y-6">
                         <div className="flex items-center gap-3">
-                            <span className="text-2xl">{selectedIndustry?.icon}</span>
+                            <span className="text-2xl">{selectedIndustry ? getIndustryIcon(selectedIndustry.industryId) : '📦'}</span>
                             <div>
                                 <h2 className="text-lg font-semibold">
                                     {step === 'generating' ? 'Generating Modules...' : 'Generation Complete'}
@@ -431,6 +588,8 @@ export function UnifiedModuleCreator({ userId }: UnifiedModuleCreatorProps) {
                                 <Button variant="ghost" onClick={() => {
                                     setStep('industry');
                                     setSelectedIndustry(null);
+                                    setSelectedFunction(null);
+                                    setDiscoveredModules([]);
                                     setProgress([]);
                                 }}>
                                     Generate More

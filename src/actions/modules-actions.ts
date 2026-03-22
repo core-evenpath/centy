@@ -10,6 +10,7 @@ import type {
     PartnerModule,
     ModuleItem,
     PartnerModuleCategory,
+    PartnerCustomField,
     ModuleSchema,
     ModuleMigration,
     MigrationPreview,
@@ -437,17 +438,32 @@ export async function getAvailableModulesForPartnerAction(
             };
         }
 
-        // Extract unique industry IDs from partner's business categories
+        // Extract unique industry IDs and function IDs from partner's business categories
         const partnerIndustryIds = [...new Set(
             businessCategories
                 .map((cat: any) => cat.industryId)
                 .filter(Boolean)
         )] as string[];
 
-        // Filter modules that match partner's industries
+        const partnerFunctionIds = [...new Set(
+            businessCategories
+                .map((cat: any) => cat.functionId)
+                .filter(Boolean)
+        )] as string[];
+
+        // Filter modules that match partner's industries and optionally functions
         const matchedModules = allModules.filter(module => {
             const moduleIndustries = module.applicableIndustries || [];
-            return moduleIndustries.some((ind: string) => partnerIndustryIds.includes(ind));
+            const moduleFunctions = module.applicableFunctions || [];
+
+            const industryMatch = moduleIndustries.some((ind: string) => partnerIndustryIds.includes(ind));
+            if (!industryMatch) return false;
+
+            // If the module has no function restrictions, match on industry alone
+            if (moduleFunctions.length === 0) return true;
+
+            // If the module specifies functions, at least one must match
+            return moduleFunctions.some((fn: string) => partnerFunctionIds.includes(fn));
         });
 
         // If no specific matches, return all modules as fallback
@@ -1645,4 +1661,114 @@ export async function resetPartnerModulesAction(
     }
 }
 
+// ============================================================================
+// PARTNER CUSTOM FIELDS
+// ============================================================================
 
+export async function addPartnerCustomFieldAction(
+    partnerId: string,
+    moduleId: string,
+    field: Omit<PartnerCustomField, 'addedAt' | 'addedBy'>,
+    userId: string
+): Promise<ModulesActionResponse<{ fieldId: string }>> {
+    try {
+        const moduleRef = adminDb.doc(`partners/${partnerId}/businessModules/${moduleId}`);
+        const moduleDoc = await moduleRef.get();
+
+        if (!moduleDoc.exists) {
+            return { success: false, error: 'Module not found', code: 'NOT_FOUND' };
+        }
+
+        const moduleData = moduleDoc.data() as PartnerModule;
+        const existingFields = moduleData.customFields || [];
+
+        if (existingFields.some(f => f.id === field.id)) {
+            return { success: false, error: 'Field with this ID already exists', code: 'DUPLICATE_FIELD' };
+        }
+
+        const newField: PartnerCustomField = {
+            ...field,
+            addedAt: new Date().toISOString(),
+            addedBy: userId,
+        };
+
+        await moduleRef.update({
+            customFields: FieldValue.arrayUnion(newField),
+            updatedAt: new Date().toISOString(),
+        });
+
+        revalidatePath('/partner/modules');
+        return { success: true, data: { fieldId: field.id } };
+    } catch (error) {
+        console.error('Error adding custom field:', error);
+        return { success: false, error: 'Failed to add custom field' };
+    }
+}
+
+export async function updatePartnerCustomFieldAction(
+    partnerId: string,
+    moduleId: string,
+    fieldId: string,
+    updates: Partial<Omit<PartnerCustomField, 'id' | 'addedAt' | 'addedBy'>>
+): Promise<ModulesActionResponse> {
+    try {
+        const moduleRef = adminDb.doc(`partners/${partnerId}/businessModules/${moduleId}`);
+        const moduleDoc = await moduleRef.get();
+
+        if (!moduleDoc.exists) {
+            return { success: false, error: 'Module not found', code: 'NOT_FOUND' };
+        }
+
+        const moduleData = moduleDoc.data() as PartnerModule;
+        const existingFields = moduleData.customFields || [];
+        const fieldIndex = existingFields.findIndex(f => f.id === fieldId);
+
+        if (fieldIndex === -1) {
+            return { success: false, error: 'Field not found', code: 'NOT_FOUND' };
+        }
+
+        const updatedFields = [...existingFields];
+        updatedFields[fieldIndex] = { ...updatedFields[fieldIndex], ...updates };
+
+        await moduleRef.update({
+            customFields: updatedFields,
+            updatedAt: new Date().toISOString(),
+        });
+
+        revalidatePath('/partner/modules');
+        return { success: true };
+    } catch (error) {
+        console.error('Error updating custom field:', error);
+        return { success: false, error: 'Failed to update custom field' };
+    }
+}
+
+export async function removePartnerCustomFieldAction(
+    partnerId: string,
+    moduleId: string,
+    fieldId: string
+): Promise<ModulesActionResponse> {
+    try {
+        const moduleRef = adminDb.doc(`partners/${partnerId}/businessModules/${moduleId}`);
+        const moduleDoc = await moduleRef.get();
+
+        if (!moduleDoc.exists) {
+            return { success: false, error: 'Module not found', code: 'NOT_FOUND' };
+        }
+
+        const moduleData = moduleDoc.data() as PartnerModule;
+        const existingFields = moduleData.customFields || [];
+        const updatedFields = existingFields.filter(f => f.id !== fieldId);
+
+        await moduleRef.update({
+            customFields: updatedFields,
+            updatedAt: new Date().toISOString(),
+        });
+
+        revalidatePath('/partner/modules');
+        return { success: true };
+    } catch (error) {
+        console.error('Error removing custom field:', error);
+        return { success: false, error: 'Failed to remove custom field' };
+    }
+}
