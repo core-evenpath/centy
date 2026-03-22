@@ -6,10 +6,15 @@ import type {
     ModuleSchema,
     ModuleFieldDefinition,
     ModuleCategoryDefinition,
+    DiscoveredModule,
+    ModuleDiscoveryTemplate,
+    ModuleAgentConfig,
+    ModulePriceType,
 } from '@/lib/modules/types';
 import { generateFieldId, generateCategoryId, cleanAndParseJSON } from '@/lib/modules/utils';
 import { createSystemModuleAction, getSystemModuleAction } from './modules-actions';
 import { BULK_INDUSTRY_CONFIGS, DEFAULT_MODULE_SETTINGS } from '@/lib/modules/constants';
+import { db as adminDb } from '@/lib/firebase-admin';
 
 const SCHEMA_CONFIG = {
     minimal: { minFields: 30, maxFields: 50, minCategories: 8, maxCategories: 15, minSampleItems: 6, maxSampleItems: 10 },
@@ -1660,7 +1665,9 @@ export async function generateModuleSchemaAction(
     moduleName: string,
     itemLabel: string,
     countryCode: string = 'IN',
-    complexity: SchemaComplexity = 'standard'
+    complexity: SchemaComplexity = 'standard',
+    functionId?: string,
+    functionName?: string
 ): Promise<{
     success: boolean;
     schema?: ModuleSchema;
@@ -2167,4 +2174,178 @@ export async function bulkGenerateModulesAction(
 
     console.log(`📊 Bulk: ${generated.length} succeeded, ${failed.length} failed in ${Date.now() - startTime}ms`);
     return { success: failed.length === 0, generated, failed, totalTime: Date.now() - startTime };
+}
+
+// ============================================================================
+// MODULE DISCOVERY (AI discovers modules for a business function)
+// ============================================================================
+
+const VALID_PRICE_TYPES: ModulePriceType[] = [
+    'one_time', 'per_night', 'per_hour', 'per_session',
+    'per_day', 'per_week', 'per_month', 'per_year', 'custom'
+];
+
+export async function discoverModulesForBusinessType(
+    industryId: string,
+    industryName: string,
+    functionId: string,
+    functionName: string,
+    countryCode: string = 'IN'
+): Promise<{
+    success: boolean;
+    template?: ModuleDiscoveryTemplate;
+    error?: string;
+}> {
+    try {
+        // Check for cached template first
+        const templateId = `${industryId}_${functionId}`;
+        const templateDoc = await adminDb.collection('systemModuleTemplates').doc(templateId).get();
+
+        if (templateDoc.exists) {
+            const cached = templateDoc.data() as ModuleDiscoveryTemplate;
+            return { success: true, template: cached };
+        }
+
+        const response = await anthropic.messages.create({
+            model: AI_MODEL,
+            max_tokens: 4096,
+            messages: [{
+                role: 'user',
+                content: `You are a business module architect. Discover all the inventory/catalog modules that a "${functionName}" business (within the "${industryName}" industry) would need to manage.
+
+Country context: ${countryCode}
+
+For each module, provide:
+- name: Human-readable module name (e.g. "Room Types", "Menu Items")
+- slug: URL-safe lowercase identifier (e.g. "room-types", "menu-items")
+- description: One-line description of what this module manages
+- icon: A single emoji that represents this module
+- itemLabel: Singular label for one item (e.g. "Room", "Dish")
+- itemLabelPlural: Plural label (e.g. "Rooms", "Dishes")
+- priceType: One of: ${VALID_PRICE_TYPES.join(', ')}
+- priceLabel: Label for the price field (e.g. "Price per Night", "Menu Price")
+- estimatedFieldCount: How many fields this module would need (15-80)
+- agentConfig: AI agent configuration with:
+  - relayBlockType: "card" | "list" | "carousel" (how the chat widget renders items)
+  - displayFields: array of field IDs to show in chat widget (use descriptive IDs like "room_type", "cuisine_type")
+  - cardTitle: field ID or template for card title (e.g. "name" or "{name} - {location}")
+  - cardSubtitle: field ID or template for card subtitle
+  - cardPrice: field ID for price display (e.g. "price")
+  - cardImage: field ID for image (e.g. "main_image")
+  - comparisonFields: field IDs useful for comparing items
+  - searchableFields: field IDs that AI should search through
+  - broadcastVariables: field IDs available as WhatsApp broadcast variables
+  - inboxContext: template string describing how to summarize items for inbox AI (e.g. "This {itemLabel} is priced at {price} and features {key_features}")
+
+Think about what makes "${functionName}" DIFFERENT from other "${industryName}" sub-categories. Generate modules specific to this business type.
+
+Respond with ONLY a JSON array of module objects. No markdown, no explanation.`
+            }],
+        });
+
+        const text = response.content
+            .filter((block): block is Anthropic.TextBlock => block.type === 'text')
+            .map(block => block.text)
+            .join('');
+
+        const modules = cleanAndParseJSON(text) as DiscoveredModule[];
+
+        if (!Array.isArray(modules) || modules.length === 0) {
+            throw new Error('AI returned invalid or empty module list');
+        }
+
+        // Validate and sanitize each module
+        const validatedModules: DiscoveredModule[] = modules.map(m => ({
+            name: m.name,
+            slug: m.slug,
+            description: m.description,
+            icon: m.icon || '📦',
+            itemLabel: m.itemLabel,
+            itemLabelPlural: m.itemLabelPlural,
+            priceType: VALID_PRICE_TYPES.includes(m.priceType) ? m.priceType : 'one_time',
+            priceLabel: m.priceLabel || 'Price',
+            estimatedFieldCount: Math.max(15, Math.min(80, m.estimatedFieldCount || 30)),
+            agentConfig: {
+                relayBlockType: m.agentConfig?.relayBlockType || 'card',
+                displayFields: m.agentConfig?.displayFields || [],
+                cardTitle: m.agentConfig?.cardTitle || 'name',
+                cardSubtitle: m.agentConfig?.cardSubtitle,
+                cardPrice: m.agentConfig?.cardPrice || 'price',
+                cardImage: m.agentConfig?.cardImage || 'main_image',
+                comparisonFields: m.agentConfig?.comparisonFields || [],
+                searchableFields: m.agentConfig?.searchableFields || [],
+                broadcastVariables: m.agentConfig?.broadcastVariables || [],
+                inboxContext: m.agentConfig?.inboxContext || `A ${m.itemLabel} from ${functionName}`,
+            },
+            selected: true,
+        }));
+
+        const template: ModuleDiscoveryTemplate = {
+            id: templateId,
+            industryId,
+            functionId,
+            industryName,
+            functionName,
+            modules: validatedModules,
+            generatedAt: new Date().toISOString(),
+            generatedBy: 'ai',
+        };
+
+        // Cache to Firestore
+        await adminDb.collection('systemModuleTemplates').doc(templateId).set(template);
+
+        return { success: true, template };
+    } catch (error) {
+        console.error('Module discovery failed:', error);
+        return {
+            success: false,
+            error: error instanceof Error ? error.message : 'Discovery failed',
+        };
+    }
+}
+
+export async function regenerateModuleTemplate(
+    industryId: string,
+    industryName: string,
+    functionId: string,
+    functionName: string,
+    countryCode: string = 'IN'
+): Promise<{
+    success: boolean;
+    template?: ModuleDiscoveryTemplate;
+    error?: string;
+}> {
+    // Delete cached template and regenerate
+    const templateId = `${industryId}_${functionId}`;
+    try {
+        await adminDb.collection('systemModuleTemplates').doc(templateId).delete();
+    } catch {
+        // Ignore delete errors
+    }
+    return discoverModulesForBusinessType(industryId, industryName, functionId, functionName, countryCode);
+}
+
+export async function getModuleTemplate(
+    industryId: string,
+    functionId: string
+): Promise<{
+    success: boolean;
+    template?: ModuleDiscoveryTemplate;
+    error?: string;
+}> {
+    try {
+        const templateId = `${industryId}_${functionId}`;
+        const doc = await adminDb.collection('systemModuleTemplates').doc(templateId).get();
+
+        if (!doc.exists) {
+            return { success: false, error: 'Template not found' };
+        }
+
+        return { success: true, template: doc.data() as ModuleDiscoveryTemplate };
+    } catch (error) {
+        return {
+            success: false,
+            error: error instanceof Error ? error.message : 'Failed to get template',
+        };
+    }
 }
