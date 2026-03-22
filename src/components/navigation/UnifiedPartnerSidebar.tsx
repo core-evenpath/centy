@@ -15,6 +15,7 @@ import {
   Megaphone,
   Package,
   Link as LinkIcon,
+  Zap,
 } from 'lucide-react';
 import { Button } from '../ui/button';
 import { cn } from '@/lib/utils';
@@ -101,6 +102,11 @@ export default function UnifiedPartnerSidebar() {
       icon: LinkIcon,
       label: 'Apps',
       href: '/partner/apps'
+    },
+    {
+      icon: Zap,
+      label: 'Relay',
+      href: '/partner/relay'
     },
     {
       icon: Settings,

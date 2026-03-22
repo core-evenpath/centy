@@ -2208,38 +2208,80 @@ export async function discoverModulesForBusinessType(
 
         const response = await anthropic.messages.create({
             model: AI_MODEL,
-            max_tokens: 4096,
+            max_tokens: 8000,
+            system: 'You are a business operations architect. You ONLY output valid JSON. No markdown, no explanation, no code fences. Raw JSON only.',
             messages: [{
                 role: 'user',
-                content: `You are a business module architect. Discover all the inventory/catalog modules that a "${functionName}" business (within the "${industryName}" industry) would need to manage.
+                content: `You are a business operations architect who has built back-office software for 500+ businesses across every industry.
 
-Country context: ${countryCode}
+BUSINESS TYPE: ${functionName}
+INDUSTRY: ${industryName}
+COUNTRY: ${countryCode}
 
-For each module, provide:
-- name: Human-readable module name (e.g. "Room Types", "Menu Items")
-- slug: URL-safe lowercase identifier (e.g. "room-types", "menu-items")
-- description: One-line description of what this module manages
-- icon: A single emoji that represents this module
-- itemLabel: Singular label for one item (e.g. "Room", "Dish")
-- itemLabelPlural: Plural label (e.g. "Rooms", "Dishes")
+Your task: Identify EVERY operational data module a real "${functionName}" business needs. Think about what this business manages day-to-day, week-to-week, season-to-season.
+
+DO NOT be generic. DO NOT give me "Inventory" or "Service Catalog". Give me modules specific to HOW "${functionName}" businesses actually operate.
+
+THINK STEP BY STEP:
+1. What is the PRIMARY thing this business sells? (That's the first module — rooms, dishes, treatments, classes, etc.)
+2. What SECONDARY offerings does this business have? (Add-on services, complementary products)
+3. What EXPERIENCES or ACTIVITIES does this business offer beyond the core product?
+4. What EVENTS or PACKAGES does this business sell? (Seasonal, group, corporate)
+5. What SUPPORT SERVICES does this business provide? (Logistics, concierge, maintenance)
+6. What SPACES or FACILITIES does this business manage? (Venues, areas, equipment)
+
+Generate 5-8 modules. Each must be SPECIFIC to "${functionName}" — not reusable across other "${industryName}" sub-categories.
+
+EXAMPLES OF THE DEPTH EXPECTED:
+- "Hotels & Resorts" needs: Rooms & Suites, F&B Outlets, Spa & Wellness, Events & Banquets, Guest Services, Activities & Experiences
+- "Hostels & Backpacker Stays" needs: Dorms & Beds, Private Rooms, Activities & Social, Common Areas, Work Exchange Programs
+- "Fine Dining Restaurants" needs: Tasting Menu, Wine & Beverage List, Private Dining, Chef's Table Experiences, Catering & Events
+- "Yoga & Meditation Studios" needs: Class Schedule, Workshop Series, Teacher Profiles, Membership Plans, Retreat Packages, Merchandise
+
+For EACH module provide:
+- name: Specific to this business (e.g., "Rooms & Suites" not "Inventory")
+- slug: snake_case, unique (e.g., "rooms_suites", "fb_outlets", "spa_wellness")
+- description: What data this module holds (1 sentence, specific)
+- icon: Single emoji that represents this module
+- itemLabel: What ONE item is called (e.g., "Room", "Menu Item", "Treatment")
+- itemLabelPlural: Plural (e.g., "Rooms", "Menu Items", "Treatments")
 - priceType: One of: ${VALID_PRICE_TYPES.join(', ')}
-- priceLabel: Label for the price field (e.g. "Price per Night", "Menu Price")
-- estimatedFieldCount: How many fields this module would need (15-80)
-- agentConfig: AI agent configuration with:
+- priceLabel: What pricing is called (e.g., "Rate", "Price", "Fee", "Package Price")
+- estimatedFieldCount: How many fields this module's schema would have (15-40)
+- rationale: WHY this business needs this module (1 sentence)
+- isCoreBusiness: true for the PRIMARY revenue module, false for others
+- agentConfig: How AI agents should use this module's data:
   - relayBlockType: "card" | "list" | "carousel" (how the chat widget renders items)
-  - displayFields: array of field IDs to show in chat widget (use descriptive IDs like "room_type", "cuisine_type")
-  - cardTitle: field ID or template for card title (e.g. "name" or "{name} - {location}")
-  - cardSubtitle: field ID or template for card subtitle
-  - cardPrice: field ID for price display (e.g. "price")
-  - cardImage: field ID for image (e.g. "main_image")
-  - comparisonFields: field IDs useful for comparing items
-  - searchableFields: field IDs that AI should search through
-  - broadcastVariables: field IDs available as WhatsApp broadcast variables
-  - inboxContext: template string describing how to summarize items for inbox AI (e.g. "This {itemLabel} is priced at {price} and features {key_features}")
+  - displayFields: 4-6 field IDs that should appear on item cards (use snake_case IDs you'd expect the schema to generate, e.g., "bed_type", "rack_rate", "duration_minutes")
+  - cardTitle: field ID for the card title (usually "name")
+  - cardSubtitle: field IDs for subtitle (e.g., "bed_type + room_size")
+  - cardPrice: field ID for price display (e.g., "rack_rate", "price")
+  - cardImage: field ID for image (usually "main_image")
+  - comparisonFields: 5-8 field IDs for side-by-side comparison
+  - searchableFields: 4-6 field IDs the AI should search when answering questions
+  - broadcastVariables: 3-5 field IDs usable as broadcast template variables
+  - inboxContext: 1-sentence instruction for the inbox AI on when to use this module
 
-Think about what makes "${functionName}" DIFFERENT from other "${industryName}" sub-categories. Generate modules specific to this business type.
-
-Respond with ONLY a JSON array of module objects. No markdown, no explanation.`
+RESPOND WITH ONLY VALID JSON:
+{
+  "modules": [
+    {
+      "name": "...", "slug": "...", "description": "...", "icon": "...",
+      "itemLabel": "...", "itemLabelPlural": "...", "priceType": "...", "priceLabel": "...",
+      "estimatedFieldCount": 25, "rationale": "...", "isCoreBusiness": true,
+      "agentConfig": {
+        "relayBlockType": "card",
+        "displayFields": ["field1", "field2", "field3", "field4"],
+        "cardTitle": "name", "cardSubtitle": "field1 + field2",
+        "cardPrice": "price_field", "cardImage": "main_image",
+        "comparisonFields": ["f1","f2","f3","f4","f5"],
+        "searchableFields": ["f1","f2","f3","f4"],
+        "broadcastVariables": ["name","price_field","f1"],
+        "inboxContext": "Use this module to answer questions about..."
+      }
+    }
+  ]
+}`
             }],
         });
 
@@ -2248,10 +2290,16 @@ Respond with ONLY a JSON array of module objects. No markdown, no explanation.`
             .map(block => block.text)
             .join('');
 
-        const modules = cleanAndParseJSON(text) as DiscoveredModule[];
+        const parsed = cleanAndParseJSON(text);
+        // Handle both { "modules": [...] } wrapper and bare array
+        const modules: DiscoveredModule[] = Array.isArray(parsed) ? parsed : (parsed.modules || []);
 
         if (!Array.isArray(modules) || modules.length === 0) {
             throw new Error('AI returned invalid or empty module list');
+        }
+
+        if (modules.length < 4) {
+            console.warn(`⚠️ Module discovery returned only ${modules.length} modules for ${functionName} — expected 5-8`);
         }
 
         // Validate and sanitize each module
