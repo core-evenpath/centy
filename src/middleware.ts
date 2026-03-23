@@ -20,9 +20,12 @@ export function middleware(request: NextRequest) {
   }
 
   if (slug && !RESERVED_SUBDOMAINS.has(slug)) {
-    const url = request.nextUrl.clone();
-    url.pathname = `/relay/s/${slug}`;
-    return NextResponse.rewrite(url);
+    const { pathname } = request.nextUrl;
+    if (!pathname.startsWith('/api/') && !pathname.startsWith('/_next/')) {
+      const url = request.nextUrl.clone();
+      url.pathname = `/relay/s/${slug}`;
+      return NextResponse.rewrite(url);
+    }
   }
 
   const response = NextResponse.next();

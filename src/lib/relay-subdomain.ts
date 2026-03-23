@@ -2,7 +2,7 @@ import { RESERVED_SUBDOMAINS } from '@/lib/types-relay';
 
 export function getRelayUrl(slug: string): string {
   if (process.env.NODE_ENV === 'development') {
-    return `http://${slug}.localhost:3000`;
+    return `http://${slug}.localhost:9002`;
   }
   return `https://${slug}.pingbox.io`;
 }
