@@ -1,30 +1,33 @@
-# Admin Relay Blocks Gallery — Implementation Report
+# Relay Subdomain Implementation Report
 
-## Phase 0: Inventory
-- [x] Read all 19 files
-- [x] Listed all block type aliases
+## Phase Results
+| Phase | Status | Notes |
+|-------|--------|-------|
+| 0 | ✅ | Files inventoried: 24 relay files found. Missing from spec: types-relay.ts, relay-partner-actions.ts, relay-admin-actions.ts, relay/[widgetId]/page.tsx |
+| 1 | ✅ | relaySlug added to RelayConfig, RelaySlugValidation type created in src/lib/types-relay.ts |
+| 2 | ✅ | 3 server actions created: validateRelaySlug, updateRelaySlug, getRelayPartnerBySlug |
+| 3 | ✅ | RelayChatSetup component built with slug input, validation, copy/share, wired into /partner/relay |
+| 4 | ✅ | Middleware updated with subdomain rewrite as first check, preserving existing CSP logic |
+| 5 | ✅ | Public page at /relay/s/[slug] with RelayFullPage component, branded 404 state |
+| 6 | ✅ | Admin pages verified — no changes needed (no dependency on RelayConfig) |
+| 7 | ✅ | Dev helper created at src/lib/relay-subdomain.ts with getRelayUrl and isRelaySubdomain |
 
-## Phase 1: Server Action
-- [x] `RelayBlockConfigDetail` interface added
-- [x] `getRelayBlockConfigsWithModulesAction` function added
-- [x] No existing functions modified
+## Build Status
+- `npm run build`: Cannot complete (Google Fonts network unavailable in build environment)
+- `tsc --noEmit`: PASS (zero new errors, 1 pre-existing error in BusinessProfileTab.tsx)
+- Errors fixed: None needed
 
-## Phase 2: Gallery Page
-- [x] `src/app/admin/relay/blocks/page.tsx` created
-- [x] `src/app/admin/relay/blocks/BlockGallery.tsx` created
-- [x] All 10 block template cards render with sample data
-- [x] Filter bar functional
-- [x] Collapsible config panels functional
-- [x] Section B configured blocks table renders
+## Decisions Made
+- RelayConfig lives in src/actions/relay-actions.ts (not types-relay.ts) — added relaySlug there to avoid moving existing type
+- Created RelaySlugValidation in new src/lib/types-relay.ts as specified
+- relay-partner-actions.ts created as new file (spec's relay-actions.ts already handles config CRUD)
+- relaySlug field is optional (string?) since existing configs don't have it
+- QR code skipped — no qrcode package installed, URL prominently displayed instead
+- Middleware at src/middleware.ts (not root) — matches existing project structure
+- Used sonner toast (already installed) for RelayChatSetup feedback
+- Shared theme builder (buildThemeFromAccent pattern) replicated in RelayFullPage to avoid coupling
 
-## Phase 3: Link
-- [x] "Block Gallery" button added to `/admin/relay` page
-
-## Validation
-- [x] `npx tsc --noEmit` passes (only pre-existing error in BusinessProfileTab.tsx, unrelated)
-- [ ] Page loads at `/admin/relay/blocks` (not tested — no dev server in CI)
-- [ ] All block previews render correctly (not tested — no dev server in CI)
-- [ ] No console errors (not tested — no dev server in CI)
-
-## Honest Status
-PARTIAL — TypeScript compilation passes with zero errors in new/modified files. Runtime validation (page load, preview rendering, console errors) not performed as no dev server was available in this environment. All code follows existing patterns from the codebase and uses verified prop interfaces.
+## What's NOT Done
+- QR code generation (no package installed, would need npm install)
+- Full npm run build verification (Google Fonts unreachable in sandbox)
+- DNS/Vercel wildcard subdomain configuration (infrastructure, not code)

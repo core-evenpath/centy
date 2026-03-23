@@ -10,6 +10,7 @@ import {
     getRelayConversationsAction,
 } from '@/actions/relay-actions';
 import type { RelayConfig, DiagnosticCheck, RelayConversation } from '@/actions/relay-actions';
+import RelayChatSetup from '@/components/partner/relay/RelayChatSetup';
 import BlockRenderer from '@/components/relay/blocks/BlockRenderer';
 import type { RelayBlock } from '@/components/relay/blocks/BlockRenderer';
 import { DEFAULT_THEME } from '@/components/relay/blocks/types';
@@ -334,6 +335,12 @@ export default function PartnerRelayPage() {
                     </p>
                 </div>
             </div>
+
+            <RelayChatSetup
+                partnerId={partnerId}
+                currentSlug={config.relaySlug || null}
+                onSlugUpdated={(newSlug) => setConfig(c => ({ ...c, relaySlug: newSlug }))}
+            />
 
             <Tabs defaultValue="test" className="space-y-6">
                 <TabsList>
