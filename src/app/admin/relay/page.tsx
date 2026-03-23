@@ -2,7 +2,7 @@ import AdminHeader from '@/components/admin/AdminHeader';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
-import { Zap, Plus, Package } from 'lucide-react';
+import { Zap, Plus, Package, Eye } from 'lucide-react';
 import { db } from '@/lib/firebase-admin';
 import { BackfillButton } from './BackfillButton';
 
@@ -37,7 +37,17 @@ export default async function RelayBlocksPage() {
             <AdminHeader
                 title="Relay Blocks"
                 subtitle="AI response templates for the embeddable chat widget"
-                actions={<BackfillButton />}
+                actions={
+                    <div className="flex items-center gap-2">
+                        <Button variant="outline" size="sm" asChild>
+                            <Link href="/admin/relay/blocks">
+                                <Eye className="mr-2 h-4 w-4" />
+                                Block Gallery
+                            </Link>
+                        </Button>
+                        <BackfillButton />
+                    </div>
+                }
             />
 
             <div className="container mx-auto py-8 px-6">
