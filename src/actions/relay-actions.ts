@@ -29,6 +29,28 @@ export interface RelayConversation {
     messageCount: number;
 }
 
+export interface RelayBlockConfigDetail {
+    id: string;
+    blockType: string;
+    label: string;
+    description?: string;
+    moduleSlug?: string;
+    moduleId?: string;
+    applicableIndustries: string[];
+    applicableFunctions: string[];
+    agentConfig?: Record<string, any>;
+    dataSchema?: {
+        sourceCollection?: string;
+        sourceFields?: string[];
+        displayTemplate?: string;
+        maxItems?: number;
+        sortBy?: string;
+        sortOrder?: string;
+    };
+    status: string;
+    createdAt?: string;
+}
+
 // ── Get relay config ─────────────────────────────────────────────────
 
 export async function getRelayConfigAction(partnerId: string): Promise<{
@@ -203,5 +225,46 @@ export async function getRelayConversationsAction(partnerId: string): Promise<{
     } catch {
         // Collection may not exist yet
         return { success: true, conversations: [] };
+    }
+}
+
+// ── Get all relay block configs with module details ─────────────────
+
+export async function getRelayBlockConfigsWithModulesAction(): Promise<{
+    success: boolean;
+    configs: RelayBlockConfigDetail[];
+    error?: string;
+}> {
+    try {
+        const snapshot = await adminDb.collection('relayBlockConfigs').get();
+
+        const configs: RelayBlockConfigDetail[] = snapshot.docs.map(doc => {
+            const data = doc.data();
+            return {
+                id: doc.id,
+                blockType: data.blockType || 'card',
+                label: data.label || doc.id,
+                description: data.description || undefined,
+                moduleSlug: data.moduleSlug || undefined,
+                moduleId: data.moduleId || undefined,
+                applicableIndustries: data.applicableIndustries || [],
+                applicableFunctions: data.applicableFunctions || [],
+                agentConfig: data.agentConfig || undefined,
+                dataSchema: data.dataSchema || undefined,
+                status: data.status || 'active',
+                createdAt: data.createdAt || undefined,
+            };
+        });
+
+        configs.sort((a, b) => {
+            const typeCompare = a.blockType.localeCompare(b.blockType);
+            if (typeCompare !== 0) return typeCompare;
+            return a.label.localeCompare(b.label);
+        });
+
+        return { success: true, configs };
+    } catch (e: any) {
+        console.error('Failed to get relay block configs:', e);
+        return { success: false, configs: [], error: e.message };
     }
 }
