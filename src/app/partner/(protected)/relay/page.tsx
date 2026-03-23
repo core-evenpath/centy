@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useCallback, useRef } from 'react';
+import { useEffect, useState, useCallback, useRef, useMemo } from 'react';
 import { useMultiWorkspaceAuth } from '@/hooks/use-multi-workspace-auth';
 import Link from 'next/link';
 import {
@@ -10,6 +10,10 @@ import {
     getRelayConversationsAction,
 } from '@/actions/relay-actions';
 import type { RelayConfig, DiagnosticCheck, RelayConversation } from '@/actions/relay-actions';
+import BlockRenderer from '@/components/relay/blocks/BlockRenderer';
+import type { RelayBlock } from '@/components/relay/blocks/BlockRenderer';
+import { DEFAULT_THEME } from '@/components/relay/blocks/types';
+import type { RelayTheme, BlockCallbacks } from '@/components/relay/blocks/types';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -34,6 +38,7 @@ import {
     User,
     ExternalLink,
     Play,
+    Trash2,
 } from 'lucide-react';
 
 const DEFAULT_CONFIG: RelayConfig = {
@@ -62,13 +67,39 @@ const DIAG_LINKS: Record<string, string> = {
     'Relay Block Configs': '/admin/modules/new',
 };
 
+// ── Theme builder from accent color ──────────────────────────────────
+
+function hexToRgb(hex: string): [number, number, number] {
+    const h = hex.replace('#', '');
+    return [
+        parseInt(h.substring(0, 2), 16),
+        parseInt(h.substring(2, 4), 16),
+        parseInt(h.substring(4, 6), 16),
+    ];
+}
+
+function rgbToHex(r: number, g: number, b: number): string {
+    return '#' + [r, g, b].map(v => Math.max(0, Math.min(255, Math.round(v))).toString(16).padStart(2, '0')).join('');
+}
+
+function buildThemeFromAccent(accent: string): RelayTheme {
+    const [r, g, b] = hexToRgb(accent);
+    return {
+        ...DEFAULT_THEME,
+        accent,
+        accentHi: rgbToHex(r + 30, g + 30, b + 30),
+        accentDk: rgbToHex(r - 25, g - 25, b - 25),
+        accentBg: `rgba(${r},${g},${b},0.06)`,
+        accentBg2: `rgba(${r},${g},${b},0.13)`,
+    };
+}
+
 // ── Chat message type ────────────────────────────────────────────────
 
 interface ChatMessage {
     role: 'user' | 'assistant';
     content: string;
-    items?: any[];
-    suggestions?: string[];
+    block?: RelayBlock;
     type?: string;
 }
 
@@ -92,6 +123,10 @@ export default function PartnerRelayPage() {
     const [chatSending, setChatSending] = useState(false);
     const [conversationId] = useState(() => `test_${Date.now()}`);
     const chatEndRef = useRef<HTMLDivElement>(null);
+    const [welcomeShown, setWelcomeShown] = useState(false);
+
+    // Compute relay theme from accent color
+    const relayTheme = useMemo(() => buildThemeFromAccent(config.accentColor), [config.accentColor]);
 
     // ── Load config via server action ────────────────────────────────
 
@@ -110,6 +145,30 @@ export default function PartnerRelayPage() {
             }
         })();
     }, [partnerId]);
+
+    // ── Show welcome message ─────────────────────────────────────────
+
+    useEffect(() => {
+        if (!configLoading && config.welcomeMessage && !welcomeShown) {
+            setWelcomeShown(true);
+            setChatMessages([{
+                role: 'assistant',
+                content: config.welcomeMessage,
+                block: {
+                    type: 'text',
+                    text: config.welcomeMessage,
+                    suggestions: ['What do you offer?', 'Show me your services', 'How to reach you?'],
+                },
+            }]);
+        }
+    }, [configLoading, config.welcomeMessage, welcomeShown]);
+
+    // ── BlockRenderer callbacks ───────────────────────────────────────
+
+    const blockCallbacks: BlockCallbacks = useMemo(() => ({
+        onSendMessage: (text: string) => sendChatMessage(text),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }), [partnerId, chatSending]);
 
     // ── Save config via server action ────────────────────────────────
 
@@ -211,9 +270,8 @@ export default function PartnerRelayPage() {
             if (data.success && data.response) {
                 const assistantMsg: ChatMessage = {
                     role: 'assistant',
-                    content: data.response.text || JSON.stringify(data.response),
-                    items: data.response.items,
-                    suggestions: data.response.suggestions,
+                    content: data.response.text || '',
+                    block: data.response as RelayBlock,
                     type: data.response.type,
                 };
                 setChatMessages(prev => [...prev, assistantMsg]);
@@ -295,97 +353,81 @@ export default function PartnerRelayPage() {
 
                 {/* ── Section 0: Test Chat ──────────────────────────── */}
                 <TabsContent value="test" className="space-y-6">
-                    <Card className="flex flex-col" style={{ height: '600px' }}>
-                        <CardHeader className="pb-3">
-                            <CardTitle className="text-base">Test your Relay Chat</CardTitle>
-                            <CardDescription>
-                                Chat as a visitor would. This hits the same /api/relay/chat endpoint the widget uses.
-                            </CardDescription>
+                    <Card className="flex flex-col" style={{ height: '680px' }}>
+                        <CardHeader className="pb-3 flex-row items-center justify-between space-y-0">
+                            <div>
+                                <CardTitle className="text-base flex items-center gap-2">
+                                    {config.brandName || 'Relay'} <Badge variant="secondary" className="text-[10px]">Test Chat</Badge>
+                                </CardTitle>
+                                <CardDescription className="mt-1">
+                                    Chat as a visitor would. Responses render through BlockRenderer.
+                                </CardDescription>
+                            </div>
+                            {chatMessages.length > 1 && (
+                                <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="text-xs"
+                                    onClick={() => { setChatMessages([]); setWelcomeShown(false); }}
+                                >
+                                    <Trash2 className="h-3.5 w-3.5 mr-1" /> Clear
+                                </Button>
+                            )}
                         </CardHeader>
                         <CardContent className="flex-1 flex flex-col min-h-0 pb-4">
                             {/* Messages area */}
-                            <div className="flex-1 overflow-y-auto space-y-3 mb-4 p-3 bg-muted/30 rounded-lg">
+                            <div
+                                className="flex-1 overflow-y-auto space-y-4 mb-4 p-4 rounded-lg"
+                                style={{ backgroundColor: relayTheme.bg }}
+                            >
                                 {chatMessages.length === 0 && (
                                     <div className="flex flex-col items-center justify-center h-full text-center text-muted-foreground">
                                         <Bot className="h-10 w-10 mb-3 opacity-50" />
                                         <p className="text-sm font-medium">Start a conversation</p>
                                         <p className="text-xs mt-1">Try asking about your products, services, or pricing</p>
-                                        <div className="flex flex-wrap gap-2 mt-4 justify-center">
-                                            {['What do you offer?', 'Tell me about your services', 'Show me your pricing'].map(q => (
-                                                <button
-                                                    key={q}
-                                                    onClick={() => sendChatMessage(q)}
-                                                    className="text-xs px-3 py-1.5 rounded-full border bg-background hover:bg-muted transition-colors"
-                                                >
-                                                    {q}
-                                                </button>
-                                            ))}
-                                        </div>
                                     </div>
                                 )}
 
                                 {chatMessages.map((msg, i) => (
-                                    <div key={i} className={`flex gap-2 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                                        {msg.role === 'assistant' && (
-                                            <div className="w-7 h-7 rounded-full bg-primary/10 flex items-center justify-center shrink-0 mt-0.5">
-                                                <Bot className="h-4 w-4 text-primary" />
-                                            </div>
-                                        )}
-                                        <div className={`max-w-[80%] space-y-2 ${msg.role === 'user' ? 'order-first' : ''}`}>
-                                            <div className={`rounded-lg px-3 py-2 text-sm ${
-                                                msg.role === 'user'
-                                                    ? 'bg-primary text-primary-foreground ml-auto'
-                                                    : 'bg-background border'
-                                            }`}>
-                                                <p className="whitespace-pre-wrap">{msg.content}</p>
-                                            </div>
-
-                                            {/* Render items if present */}
-                                            {msg.items && msg.items.length > 0 && (
-                                                <div className="space-y-1.5">
-                                                    {msg.items.slice(0, 5).map((item: any, j: number) => (
-                                                        <div key={j} className="bg-background border rounded-lg p-2.5 text-xs">
-                                                            <div className="flex justify-between items-start">
-                                                                <p className="font-medium">{item.name}</p>
-                                                                {item.price && (
-                                                                    <span className="text-primary font-semibold shrink-0 ml-2">
-                                                                        {item.currency || 'INR'} {item.price}
-                                                                    </span>
-                                                                )}
-                                                            </div>
-                                                            {item.description && (
-                                                                <p className="text-muted-foreground mt-0.5 line-clamp-2">{item.description}</p>
-                                                            )}
-                                                        </div>
-                                                    ))}
+                                    <div key={i}>
+                                        {msg.role === 'user' ? (
+                                            /* User message — right-aligned accent bubble */
+                                            <div className="flex gap-2 justify-end">
+                                                <div
+                                                    className="max-w-[80%] rounded-2xl rounded-br-sm px-4 py-2.5 text-sm text-white"
+                                                    style={{ backgroundColor: relayTheme.accent }}
+                                                >
+                                                    <p className="whitespace-pre-wrap">{msg.content}</p>
                                                 </div>
-                                            )}
-
-                                            {/* Render suggestion chips */}
-                                            {msg.suggestions && msg.suggestions.length > 0 && (
-                                                <div className="flex flex-wrap gap-1.5">
-                                                    {msg.suggestions.map((s: string, j: number) => (
-                                                        <button
-                                                            key={j}
-                                                            onClick={() => sendChatMessage(s)}
-                                                            className="text-xs px-2.5 py-1 rounded-full border bg-background hover:bg-muted transition-colors"
+                                            </div>
+                                        ) : (
+                                            /* Bot message — rendered through BlockRenderer */
+                                            <div className="flex gap-2 justify-start">
+                                                <div className="w-7 h-7 rounded-full flex items-center justify-center shrink-0 mt-0.5 text-sm"
+                                                    style={{ backgroundColor: relayTheme.accentBg2 }}
+                                                >
+                                                    {config.brandEmoji || '🤖'}
+                                                </div>
+                                                <div className="max-w-[90%] space-y-2">
+                                                    {msg.block ? (
+                                                        <BlockRenderer
+                                                            block={msg.block}
+                                                            theme={relayTheme}
+                                                            callbacks={blockCallbacks}
+                                                        />
+                                                    ) : (
+                                                        <div className="rounded-lg px-3 py-2 text-sm bg-white border"
+                                                            style={{ borderColor: relayTheme.bdrL }}
                                                         >
-                                                            {s}
-                                                        </button>
-                                                    ))}
+                                                            <p className="whitespace-pre-wrap">{msg.content}</p>
+                                                        </div>
+                                                    )}
+                                                    {msg.type && msg.type !== 'text' && (
+                                                        <Badge variant="outline" className="text-[10px]">
+                                                            {msg.type}
+                                                        </Badge>
+                                                    )}
                                                 </div>
-                                            )}
-
-                                            {/* Show response type badge */}
-                                            {msg.type && msg.type !== 'text' && msg.role === 'assistant' && (
-                                                <Badge variant="outline" className="text-[10px]">
-                                                    {msg.type}
-                                                </Badge>
-                                            )}
-                                        </div>
-                                        {msg.role === 'user' && (
-                                            <div className="w-7 h-7 rounded-full bg-foreground/10 flex items-center justify-center shrink-0 mt-0.5">
-                                                <User className="h-4 w-4" />
                                             </div>
                                         )}
                                     </div>
@@ -393,11 +435,17 @@ export default function PartnerRelayPage() {
 
                                 {chatSending && (
                                     <div className="flex gap-2">
-                                        <div className="w-7 h-7 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
-                                            <Bot className="h-4 w-4 text-primary" />
+                                        <div className="w-7 h-7 rounded-full flex items-center justify-center shrink-0 text-sm"
+                                            style={{ backgroundColor: relayTheme.accentBg2 }}
+                                        >
+                                            {config.brandEmoji || '🤖'}
                                         </div>
-                                        <div className="bg-background border rounded-lg px-3 py-2">
-                                            <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                                        <div className="rounded-lg px-4 py-3 bg-white border" style={{ borderColor: relayTheme.bdrL }}>
+                                            <div className="flex gap-1">
+                                                <span className="w-2 h-2 rounded-full animate-bounce" style={{ backgroundColor: relayTheme.t4, animationDelay: '0ms' }} />
+                                                <span className="w-2 h-2 rounded-full animate-bounce" style={{ backgroundColor: relayTheme.t4, animationDelay: '150ms' }} />
+                                                <span className="w-2 h-2 rounded-full animate-bounce" style={{ backgroundColor: relayTheme.t4, animationDelay: '300ms' }} />
+                                            </div>
                                         </div>
                                     </div>
                                 )}
@@ -418,22 +466,11 @@ export default function PartnerRelayPage() {
                                     onClick={() => sendChatMessage()}
                                     disabled={!chatInput.trim() || chatSending}
                                     size="icon"
+                                    style={{ backgroundColor: relayTheme.accent }}
                                 >
                                     <Send className="h-4 w-4" />
                                 </Button>
                             </div>
-
-                            {/* Clear chat */}
-                            {chatMessages.length > 0 && (
-                                <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    className="mt-2 text-xs self-center"
-                                    onClick={() => setChatMessages([])}
-                                >
-                                    Clear conversation
-                                </Button>
-                            )}
                         </CardContent>
                     </Card>
                 </TabsContent>
