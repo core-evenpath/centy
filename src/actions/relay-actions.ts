@@ -11,6 +11,7 @@ export interface RelayConfig {
     brandEmoji: string;
     accentColor: string;
     welcomeMessage: string;
+    relaySlug?: string;
     updatedAt?: string;
 }
 

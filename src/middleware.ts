@@ -1,20 +1,40 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
+const RESERVED_SUBDOMAINS = new Set([
+  'www', 'api', 'app', 'admin', 'partner', 'relay',
+  'mail', 'smtp', 'ftp', 'docs', 'help', 'support',
+  'status', 'blog', 'cdn', 'assets', 'static',
+  'dev', 'staging', 'test', 'demo',
+]);
+
 export function middleware(request: NextRequest) {
+  const hostname = request.headers.get('host') || '';
+
+  let slug: string | null = null;
+
+  if (hostname.endsWith('.pingbox.io')) {
+    slug = hostname.replace('.pingbox.io', '');
+  } else if (hostname.includes('.localhost')) {
+    slug = hostname.split('.localhost')[0];
+  }
+
+  if (slug && !RESERVED_SUBDOMAINS.has(slug)) {
+    const url = request.nextUrl.clone();
+    url.pathname = `/relay/s/${slug}`;
+    return NextResponse.rewrite(url);
+  }
+
   const response = NextResponse.next();
 
-  // Get shop parameter from query string
   const shop = request.nextUrl.searchParams.get('shop');
 
   if (shop) {
-    // Embedded app - allow framing from Shopify admin and the specific shop
     response.headers.set(
       'Content-Security-Policy',
       `frame-ancestors https://${shop} https://admin.shopify.com`
     );
   } else {
-    // No shop parameter - disallow framing
     response.headers.set(
       'Content-Security-Policy',
       "frame-ancestors 'none'"
@@ -26,13 +46,6 @@ export function middleware(request: NextRequest) {
 
 export const config = {
   matcher: [
-    /*
-     * Match all paths except:
-     * - api routes
-     * - _next/static (static files)
-     * - _next/image (image optimization)
-     * - favicon.ico
-     */
-    '/((?!api|_next/static|_next/image|favicon.ico).*)',
+    '/((?!_next/static|_next/image|favicon.ico|relay/widget.js).*)',
   ],
 };
