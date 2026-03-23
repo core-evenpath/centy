@@ -9,13 +9,23 @@ import {
 } from '@/actions/modules-actions';
 import type { ModuleAgentConfig } from '@/lib/modules/types';
 
+const corsHeaders = {
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type, X-Relay-Widget-Id',
+};
+
+export async function OPTIONS() {
+    return new NextResponse(null, { status: 200, headers: corsHeaders });
+}
+
 export async function POST(request: NextRequest) {
     try {
         const body = await request.json();
         const { widgetId, conversationId, messages, partnerId: directPartnerId } = body;
 
         if (!messages || !Array.isArray(messages) || messages.length === 0) {
-            return NextResponse.json({ error: 'Messages are required' }, { status: 400 });
+            return NextResponse.json({ error: 'Messages are required' }, { status: 400, headers: corsHeaders });
         }
 
         // Resolve partnerId from widgetId or direct param
@@ -28,7 +38,7 @@ export async function POST(request: NextRequest) {
         }
 
         if (!partnerId) {
-            return NextResponse.json({ error: 'Could not resolve partner' }, { status: 400 });
+            return NextResponse.json({ error: 'Could not resolve partner' }, { status: 400, headers: corsHeaders });
         }
 
         // Fetch partner's enabled modules with agentConfig and items
@@ -87,33 +97,75 @@ ${itemSummary || '  (no items yet)'}`;
             ? `\n\nBUSINESS DATA (from partner's modules — use ONLY this data to answer):\n${blockInstructions}`
             : '\n\nNo business data modules configured yet. Answer general questions only.';
 
+        // Load business persona for richer context
+        let personaContext = '';
+        try {
+            const partnerDoc = await adminDb.collection('partners').doc(partnerId).get();
+            const persona = partnerDoc.data()?.businessPersona;
+            if (persona) {
+                const identity = persona.identity || {};
+                const knowledge = persona.knowledge || {};
+                const parts: string[] = [];
+                if (identity.name) parts.push(`Business: ${identity.name}`);
+                if (identity.phone) parts.push(`Phone: ${identity.phone}`);
+                if (identity.email) parts.push(`Email: ${identity.email}`);
+                if (identity.website) parts.push(`Website: ${identity.website}`);
+                if (identity.address) {
+                    const a = identity.address;
+                    parts.push(`Address: ${[a.street, a.city, a.state, a.country].filter(Boolean).join(', ')}`);
+                }
+                if (identity.operatingHours?.formatted) parts.push(`Hours: ${identity.operatingHours.formatted}`);
+                if (knowledge?.faqs?.length) {
+                    parts.push('FAQs:\n' + knowledge.faqs.slice(0, 10).map((f: any) => `  Q: ${f.question}\n  A: ${f.answer}`).join('\n'));
+                }
+                if (parts.length > 0) {
+                    personaContext = `\n\nBUSINESS PROFILE:\n${parts.join('\n')}`;
+                }
+            }
+        } catch {
+            // Persona not available, continue without it
+        }
+
         // Build system prompt
         const systemPrompt = `You are a helpful business assistant for this company. You help visitors find information, browse products/services, and take action (book, inquire, etc.).
 
-RESPONSE FORMAT:
-Always respond with a JSON object. Structure:
-{
-  "text": "Your conversational response text",
-  "type": "text|rooms|book|compare|activities|location|contact|gallery|info",
-  "items": [...array of items if applicable],
-  "suggestions": [...array of follow-up suggestion strings]
-}
+RESPOND ONLY IN JSON. Choose the most appropriate type:
 
-BLOCK TYPE RULES:
-- "text": Default for general conversation. Include helpful suggestion chips.
-- "rooms" or card-based: Use when showing items from a module. Include items array with real data.
-- "book": Use when the visitor wants to book/reserve. Include the relevant items for selection.
-- "compare": Use when comparing 2-3 items. Include the items being compared.
-- "activities": Use for listing activities/services with categories.
-- "location": Use when asked about location/directions.
-- "contact": Use when asked how to reach the business.
-- "gallery": Use when asked to see photos/images.
-- "info": Use for key-value information display.
+{"type":"catalog","text":"...","items":[{"id":"...","name":"...","price":0,"currency":"₹","subtitle":"...","emoji":"...","color":"#...","rating":4.5,"reviewCount":100,"features":["..."],"specs":[{"label":"...","value":"..."}]}],"suggestions":["..."]}
+— For showing products, services, rooms, menu items, listings
 
-Each item in the items array should include: name, price, currency, fields (object with all field values), and any other available data.
+{"type":"compare","text":"...","items":[...same as catalog items...],"suggestions":["..."]}
+— For side-by-side comparison of 2-3 items
 
-IMPORTANT: Only reference real items and real data from the modules below. Never make up items or prices.
-${moduleContext}
+{"type":"activities","text":"...","items":[{"id":"...","name":"...","description":"...","icon":"🏷️","price":"₹X,XXX","duration":"X hours","category":"...","bookable":true}],"suggestions":["..."]}
+— For listing activities, experiences, classes, treatments
+
+{"type":"book","text":"...","items":[...catalog items for selection...],"suggestions":["..."]}
+— When the user wants to book, reserve, or schedule
+
+{"type":"location","text":"...","location":{"name":"...","address":"...","area":"...","directions":[{"icon":"✈️","label":"Airport","detail":"45 min"}]},"suggestions":["..."]}
+— For location, directions, how to get there
+
+{"type":"contact","text":"...","methods":[{"type":"whatsapp","label":"WhatsApp","value":"+91...","icon":"💬"},{"type":"phone","label":"Call","value":"+91...","icon":"📞"},{"type":"email","label":"Email","value":"...@...","icon":"📧"}],"suggestions":["..."]}
+— For contact information
+
+{"type":"gallery","text":"...","items":[{"emoji":"📸","label":"...","span":1}],"suggestions":["..."]}
+— For showing photos/visual gallery
+
+{"type":"info","text":"...","items":[{"label":"...","value":"..."}],"suggestions":["..."]}
+— For FAQ, policies, key-value information
+
+{"type":"text","text":"...","suggestions":["suggestion 1","suggestion 2","suggestion 3"]}
+— For general conversation. ALWAYS include 2-3 suggestions.
+
+RULES:
+- Only valid JSON, no markdown, no backticks
+- "text" field: 1-3 warm, concise sentences
+- ALWAYS include a "suggestions" array with 2-3 follow-up suggestions
+- Use real business data when available
+- Match the visitor's language
+- For catalog/activities items, include id, name, price, currency at minimum
+${personaContext}${moduleContext}
 
 Respond with ONLY valid JSON. No markdown, no code fences.`;
 
@@ -166,12 +218,12 @@ Respond with ONLY valid JSON. No markdown, no code fences.`;
             success: true,
             response: parsed,
             conversationId: conversationId || `conv_${Date.now()}`,
-        });
+        }, { headers: corsHeaders });
     } catch (error) {
         console.error('Relay chat error:', error);
         return NextResponse.json(
             { error: 'Chat request failed', details: error instanceof Error ? error.message : 'Unknown error' },
-            { status: 500 }
+            { status: 500, headers: corsHeaders }
         );
     }
 }
