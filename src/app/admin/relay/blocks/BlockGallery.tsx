@@ -2,16 +2,6 @@
 
 import React, { useState, useMemo, useCallback } from 'react';
 import {
-    CatalogCards,
-    CompareTable,
-    ServiceList,
-    BookingFlow,
-    LocationCard,
-    ContactCard,
-    GalleryGrid,
-    InfoTable,
-    TextWithSuggestions,
-    GreetingCard,
     DEFAULT_THEME,
 } from '@/components/relay/blocks';
 import type { CatalogItem, ActivityItem, ContactMethod, RelayBlock } from '@/components/relay/blocks';
@@ -100,125 +90,167 @@ const BLOCK_TYPE_COLORS: Record<string, string> = {
     text: 'bg-gray-100 text-gray-800',
 };
 
-const CATALOG_ITEMS: CatalogItem[] = [
+// ── Industry-specific fallback data per block type ──────────────────
+// Each block type gets data that reflects its natural user journey.
+
+const FALLBACK_ROOMS: CatalogItem[] = [
     {
-        id: 'deluxe-suite',
-        name: 'Deluxe Ocean Suite',
-        price: 18500,
-        originalPrice: 22000,
-        currency: 'INR',
-        unit: '/night',
-        subtitle: 'Ocean-facing luxury with private balcony',
-        tagline: 'Most Popular Choice',
-        emoji: '🌊',
-        color: '#2563EB',
-        colorEnd: '#7C3AED',
-        rating: 4.8,
-        reviewCount: 234,
-        badges: ['Best Seller', '15% Off'],
-        features: ['King Bed', 'Ocean View', 'Free WiFi', 'Mini Bar'],
-        specs: [{ label: 'Size', value: '52 sqm' }, { label: 'Floor', value: '8th-12th' }, { label: 'View', value: 'Panoramic Ocean' }],
-        maxCapacity: 3,
+        id: 'deluxe-suite', name: 'Deluxe Ocean Suite', price: 18500, originalPrice: 22000, currency: 'INR', unit: '/night',
+        subtitle: 'Ocean-facing luxury with private balcony', tagline: 'Most Popular Choice', emoji: '🌊',
+        color: '#2563EB', colorEnd: '#7C3AED', rating: 4.8, reviewCount: 234,
+        badges: ['Best Seller', '15% Off'], features: ['King Bed', 'Ocean View', 'Free WiFi', 'Mini Bar'],
+        specs: [{ label: 'Size', value: '52 sqm' }, { label: 'Floor', value: '8th-12th' }], maxCapacity: 3,
     },
     {
-        id: 'garden-villa',
-        name: 'Garden Villa',
-        price: 32000,
-        currency: 'INR',
-        unit: '/night',
-        subtitle: 'Private villa with plunge pool',
-        emoji: '🌺',
-        color: '#059669',
-        colorEnd: '#10B981',
-        rating: 4.9,
-        reviewCount: 87,
-        badges: ['Premium'],
-        features: ['Private Pool', 'Butler Service', 'Garden Terrace', 'Outdoor Shower'],
-        specs: [{ label: 'Size', value: '120 sqm' }, { label: 'Bedrooms', value: '2' }],
-        maxCapacity: 4,
+        id: 'garden-villa', name: 'Garden Villa', price: 32000, currency: 'INR', unit: '/night',
+        subtitle: 'Private villa with plunge pool', emoji: '🌺',
+        color: '#059669', colorEnd: '#10B981', rating: 4.9, reviewCount: 87,
+        badges: ['Premium'], features: ['Private Pool', 'Butler Service', 'Garden Terrace'],
+        specs: [{ label: 'Size', value: '120 sqm' }, { label: 'Bedrooms', value: '2' }], maxCapacity: 4,
     },
     {
-        id: 'superior-room',
-        name: 'Superior Room',
-        price: 8900,
-        currency: 'INR',
-        unit: '/night',
-        subtitle: 'Cozy room with city skyline view',
-        emoji: '🏙️',
-        color: '#A2845B',
-        colorEnd: '#BFA07A',
-        rating: 4.5,
-        reviewCount: 412,
-        features: ['Queen Bed', 'City View', 'Free WiFi'],
-        specs: [{ label: 'Size', value: '32 sqm' }],
-        maxCapacity: 2,
+        id: 'superior-room', name: 'Superior Room', price: 8900, currency: 'INR', unit: '/night',
+        subtitle: 'Cozy room with city skyline view', emoji: '🏙️',
+        color: '#A2845B', colorEnd: '#BFA07A', rating: 4.5, reviewCount: 412,
+        features: ['Queen Bed', 'City View', 'Free WiFi'], specs: [{ label: 'Size', value: '32 sqm' }], maxCapacity: 2,
     },
 ];
 
-const SERVICE_ITEMS: ActivityItem[] = [
-    { id: 'spa-1', name: 'Balinese Hot Stone Massage', description: 'Traditional volcanic stone therapy for deep muscle relaxation', icon: '🪨', price: '₹4,500', duration: '90 min', category: 'Signature Spa', bookable: true },
-    { id: 'spa-2', name: 'Ayurvedic Shirodhara', description: 'Warm herbal oil poured over the forehead for stress relief', icon: '🧘', price: '₹3,800', duration: '60 min', category: 'Signature Spa', bookable: true },
-    { id: 'yoga-1', name: 'Sunrise Beach Yoga', description: 'Start your day with guided yoga on the shore', icon: '🌅', price: 'Free', duration: '45 min', category: 'Wellness', bookable: true },
-    { id: 'pool-1', name: 'Aqua Fitness Class', description: 'High-energy water aerobics in the infinity pool', icon: '🏊', price: 'Free', duration: '30 min', category: 'Wellness', bookable: false },
-    { id: 'cook-1', name: 'Local Cuisine Cooking Class', description: 'Learn authentic coastal recipes with our head chef', icon: '👨‍🍳', price: '₹2,500', duration: '120 min', category: 'Experiences', bookable: true },
+const FALLBACK_MENU: CatalogItem[] = [
+    {
+        id: 'butter-chicken', name: 'Butter Chicken Thali', price: 450, currency: 'INR',
+        subtitle: 'Creamy tomato gravy with naan & rice', emoji: '🍛',
+        color: '#DC2626', colorEnd: '#F97316', rating: 4.9, reviewCount: 1203,
+        badges: ['Chef\'s Special', 'Bestseller'], features: ['Naan', 'Rice', 'Raita', 'Dessert'],
+    },
+    {
+        id: 'paneer-tikka', name: 'Paneer Tikka Platter', price: 350, originalPrice: 420, currency: 'INR',
+        subtitle: 'Charcoal-grilled cottage cheese with mint chutney', emoji: '🧀',
+        color: '#EA580C', colorEnd: '#FACC15', rating: 4.7, reviewCount: 567,
+        badges: ['Vegetarian', '17% Off'],
+    },
+    {
+        id: 'mango-lassi', name: 'Alphonso Mango Lassi', price: 180, currency: 'INR',
+        subtitle: 'Fresh Alphonso mango blended with yogurt', emoji: '🥭',
+        color: '#F59E0B', colorEnd: '#FDE68A', rating: 4.8, reviewCount: 890,
+        badges: ['Seasonal'],
+    },
 ];
 
-const CONTACT_METHODS: ContactMethod[] = [
-    { type: 'whatsapp', label: 'WhatsApp Concierge', value: '+91 98765 43210', icon: '💬' },
-    { type: 'phone', label: 'Front Desk', value: '+91 98765 43211', icon: '📞' },
-    { type: 'email', label: 'Reservations', value: 'reservations@resort.com', icon: '📧' },
-    { type: 'website', label: 'Book Online', value: 'https://resort.com/book', icon: '🌐' },
+const FALLBACK_PRODUCTS: CatalogItem[] = [
+    {
+        id: 'wireless-buds', name: 'AuraSound Pro Buds', price: 4999, originalPrice: 7999, currency: 'INR',
+        subtitle: 'Active noise cancellation with 36hr battery', emoji: '🎧',
+        color: '#1E1B4B', colorEnd: '#4338CA', rating: 4.6, reviewCount: 2341,
+        badges: ['38% Off', 'Top Rated'], features: ['ANC', '36hr Battery', 'IPX5'],
+        specs: [{ label: 'Driver', value: '12mm' }, { label: 'Bluetooth', value: '5.3' }],
+    },
+    {
+        id: 'smart-watch', name: 'FitPulse Ultra Watch', price: 12999, currency: 'INR',
+        subtitle: 'AMOLED display with health monitoring suite', emoji: '⌚',
+        color: '#0F766E', colorEnd: '#2DD4BF', rating: 4.4, reviewCount: 876,
+        badges: ['New Launch'], features: ['Heart Rate', 'SpO2', 'GPS', '5ATM'],
+        specs: [{ label: 'Display', value: '1.43" AMOLED' }, { label: 'Battery', value: '14 days' }],
+    },
+    {
+        id: 'backpack', name: 'UrbanTrail 30L Backpack', price: 2499, currency: 'INR',
+        subtitle: 'Water-resistant laptop backpack with USB port', emoji: '🎒',
+        color: '#4B5563', colorEnd: '#9CA3AF', rating: 4.7, reviewCount: 3120,
+        features: ['Laptop Sleeve', 'USB Port', 'Water Resistant'],
+    },
 ];
 
-const LOCATION_DATA = {
-    name: 'The Shoreline Resort & Spa',
-    address: '42 Marine Drive, Juhu Beach',
-    area: 'Mumbai, Maharashtra',
-    emoji: '🏖️',
-    mapGradient: ['#0EA5E9', '#6366F1'] as [string, string],
-    directions: [
-        { icon: '✈️', label: 'From Airport', detail: '25 min via Western Express Highway' },
-        { icon: '🚂', label: 'From Station', detail: '15 min from Andheri Station' },
-        { icon: '🚕', label: 'Cab Service', detail: 'Complimentary pickup available' },
-    ],
-    actions: ['Get Directions', 'Call Us', 'Share Location'],
-};
-
-const GALLERY_ITEMS = [
-    { emoji: '🏖️', label: 'Beachfront', span: 2 },
-    { emoji: '🛏️', label: 'Suites' },
-    { emoji: '🍽️', label: 'Dining' },
-    { emoji: '🏊', label: 'Infinity Pool', span: 2 },
-    { emoji: '🧖', label: 'Spa' },
-    { emoji: '🌅', label: 'Sunset View' },
+const FALLBACK_SERVICES: CatalogItem[] = [
+    {
+        id: 'full-service', name: 'Complete Home Deep Clean', price: 3500, currency: 'INR', unit: '/visit',
+        subtitle: '3-4 hour deep cleaning by trained professionals', emoji: '✨',
+        color: '#7C3AED', colorEnd: '#A78BFA', rating: 4.8, reviewCount: 1876,
+        badges: ['Most Booked'], features: ['Kitchen', 'Bathrooms', 'Bedrooms', 'Balcony'],
+        specs: [{ label: 'Duration', value: '3-4 hrs' }, { label: 'Team', value: '2-3 cleaners' }],
+    },
+    {
+        id: 'ac-service', name: 'AC Service & Gas Refill', price: 1200, originalPrice: 1800, currency: 'INR',
+        subtitle: 'Complete cleaning, gas top-up & health check', emoji: '❄️',
+        color: '#0284C7', colorEnd: '#38BDF8', rating: 4.6, reviewCount: 4521,
+        badges: ['33% Off', 'Season Special'],
+        specs: [{ label: 'Duration', value: '60 min' }, { label: 'Warranty', value: '30 days' }],
+    },
+    {
+        id: 'pest-control', name: 'Pest Control Treatment', price: 1999, currency: 'INR',
+        subtitle: 'Odourless gel treatment with 90-day guarantee', emoji: '🛡️',
+        color: '#15803D', colorEnd: '#4ADE80', rating: 4.5, reviewCount: 987,
+        features: ['Cockroaches', 'Ants', 'Bed Bugs'],
+    },
 ];
 
-const INFO_ITEMS = [
-    { label: 'Check-in', value: '2:00 PM' },
-    { label: 'Check-out', value: '11:00 AM' },
-    { label: 'WiFi', value: 'Complimentary high-speed' },
-    { label: 'Parking', value: 'Free valet parking' },
-    { label: 'Pool', value: 'Open 6 AM – 10 PM' },
-    { label: 'Pets', value: 'Small pets welcome (₹500/night)' },
-    { label: 'Cancellation', value: 'Free up to 48h before arrival' },
+const FALLBACK_LISTINGS: CatalogItem[] = [
+    {
+        id: 'sea-view-2bhk', name: '2 BHK Sea-View Apartment', price: 15000000, currency: 'INR',
+        subtitle: 'Worli, Mumbai · 1,100 sqft · Ready to Move', emoji: '🏢',
+        color: '#1D4ED8', colorEnd: '#60A5FA', rating: 4.3, reviewCount: 12,
+        badges: ['Premium', 'RERA Approved'], features: ['Sea View', 'Gym', 'Swimming Pool', 'Parking'],
+        specs: [{ label: 'Carpet', value: '1,100 sqft' }, { label: 'Floor', value: '14th of 28' }],
+    },
+    {
+        id: 'villa-lonavala', name: '3 BHK Villa with Garden', price: 8500000, currency: 'INR',
+        subtitle: 'Lonavala · 2,400 sqft · Under Construction', emoji: '🏡',
+        color: '#166534', colorEnd: '#86EFAC', badges: ['New Project'],
+        features: ['Private Garden', 'Club House', 'Mountain View'],
+        specs: [{ label: 'Plot', value: '3,200 sqft' }, { label: 'Possession', value: 'Dec 2026' }],
+    },
 ];
 
-const BRAND_DATA = {
-    name: 'The Shoreline',
-    emoji: '🏖️',
-    tagline: 'Your beachfront escape awaits',
-    quickActions: [
-        { label: 'Browse Rooms', prompt: 'Show me available rooms', emoji: '🛏️' },
-        { label: 'Spa & Wellness', prompt: 'What spa treatments do you offer?', emoji: '🧖' },
-        { label: 'Dining Options', prompt: 'Tell me about restaurants', emoji: '🍽️' },
-        { label: 'Getting Here', prompt: 'How do I get to the resort?', emoji: '📍' },
-    ],
-};
+const FALLBACK_ACTIVITIES: ActivityItem[] = [
+    { id: 'trek-1', name: 'Sunrise Valley Trek', description: 'Guided 8km trail through misty pine forests to a panoramic viewpoint', icon: '🏔️', price: '₹1,200', duration: '4 hrs', category: 'Adventure', bookable: true },
+    { id: 'raft-1', name: 'White Water Rafting', description: 'Grade III rapids on the Ganges with certified instructors', icon: '🚣', price: '₹2,500', duration: '2 hrs', category: 'Adventure', bookable: true },
+    { id: 'culture-1', name: 'Heritage Walking Tour', description: 'Explore 400-year-old temples, markets & hidden alleyways', icon: '🏛️', price: '₹800', duration: '3 hrs', category: 'Culture', bookable: true },
+    { id: 'food-1', name: 'Street Food Crawl', description: 'Taste 12 iconic dishes across the old city with a local foodie', icon: '🍜', price: '₹1,500', duration: '2.5 hrs', category: 'Culture', bookable: true },
+    { id: 'camp-1', name: 'Stargazing Campfire Night', description: 'Telescope session, bonfire & stories under clear mountain skies', icon: '🌌', price: 'Free', duration: '3 hrs', category: 'Leisure', bookable: false },
+];
 
-const BOOKING_CONVERSION_PATHS = [
-    { id: 'direct', label: 'Book Now', icon: '⚡', type: 'primary' as const, color: '#059669', action: 'direct' as const },
-    { id: 'whatsapp', label: 'Chat on WhatsApp', icon: '💬', type: 'secondary' as const, color: '#25D366', action: 'whatsapp' as const },
-    { id: 'callback', label: 'Request Callback', icon: '📞', type: 'secondary' as const, action: 'callback' as const },
+const FALLBACK_EXPERIENCES: ActivityItem[] = [
+    { id: 'exp-1', name: 'Sunset Sailing Cruise', description: 'Catamaran cruise along the coastline with canapes & champagne', icon: '⛵', price: '₹6,000', duration: '2.5 hrs', category: 'Premium', bookable: true },
+    { id: 'exp-2', name: 'Private Wine Tasting', description: 'Curated flight of 8 regional wines with sommelier pairing notes', icon: '🍷', price: '₹3,500', duration: '90 min', category: 'Premium', bookable: true },
+    { id: 'exp-3', name: 'Farm-to-Table Brunch', description: 'Harvest ingredients from the organic farm & cook with our chef', icon: '🌾', price: '₹2,800', duration: '3 hrs', category: 'Culinary', bookable: true },
+    { id: 'exp-4', name: 'Pottery Workshop', description: 'Hand-throw your own ceramic piece on a traditional wheel', icon: '🏺', price: '₹1,200', duration: '2 hrs', category: 'Creative', bookable: true },
+];
+
+const FALLBACK_CLASSES: ActivityItem[] = [
+    { id: 'cls-1', name: 'Beginner Yoga Foundation', description: 'Build strength & flexibility with alignment-focused asanas', icon: '🧘', price: '₹500/class', duration: '60 min', category: 'Yoga', bookable: true },
+    { id: 'cls-2', name: 'Advanced Vinyasa Flow', description: 'Dynamic sequences linking breath to movement for experienced yogis', icon: '💪', price: '₹700/class', duration: '75 min', category: 'Yoga', bookable: true },
+    { id: 'cls-3', name: 'Watercolor Painting', description: 'Learn wet-on-wet techniques painting local landscapes', icon: '🎨', price: '₹1,500', duration: '2 hrs', category: 'Art', bookable: true },
+    { id: 'cls-4', name: 'Conversational Spanish', description: 'Interactive group class — no textbooks, just real conversations', icon: '🇪🇸', price: '₹3,000/mo', duration: '45 min', category: 'Language', bookable: true },
+    { id: 'cls-5', name: 'Kids Coding Camp', description: 'Scratch & Python basics through fun game-building projects', icon: '💻', price: 'Free Trial', duration: '90 min', category: 'Tech', bookable: true },
+];
+
+const FALLBACK_TREATMENTS: ActivityItem[] = [
+    { id: 'treat-1', name: 'Balinese Hot Stone Massage', description: 'Volcanic stone therapy for deep muscle tension release', icon: '🪨', price: '₹4,500', duration: '90 min', category: 'Signature Spa', bookable: true },
+    { id: 'treat-2', name: 'Ayurvedic Shirodhara', description: 'Warm herbal oil poured over the forehead — profound calm', icon: '🧘', price: '₹3,800', duration: '60 min', category: 'Signature Spa', bookable: true },
+    { id: 'treat-3', name: 'HydraGlow Facial', description: 'Deep cleansing, exfoliation & LED light therapy for radiant skin', icon: '✨', price: '₹2,800', duration: '45 min', category: 'Skin Care', bookable: true },
+    { id: 'treat-4', name: 'Sports Recovery Session', description: 'Deep tissue massage + cryo + stretch for active bodies', icon: '🏃', price: '₹5,200', duration: '75 min', category: 'Recovery', bookable: true },
+    { id: 'treat-5', name: 'Couples Candlelight Ritual', description: 'Side-by-side massage, aromatherapy & champagne', icon: '🕯️', price: '₹9,000', duration: '120 min', category: 'Signature Spa', bookable: true },
+];
+
+const FALLBACK_CATALOG: CatalogItem[] = [
+    {
+        id: 'plan-starter', name: 'Starter Plan', price: 999, currency: 'INR', unit: '/month',
+        subtitle: 'Perfect for small teams getting started', emoji: '🚀',
+        color: '#6366F1', colorEnd: '#818CF8', rating: 4.6, reviewCount: 312,
+        badges: ['Popular'], features: ['5 Users', '10 GB Storage', 'Email Support'],
+    },
+    {
+        id: 'plan-pro', name: 'Professional Plan', price: 2999, originalPrice: 3999, currency: 'INR', unit: '/month',
+        subtitle: 'Advanced features for growing businesses', emoji: '💼',
+        color: '#7C3AED', colorEnd: '#A78BFA', rating: 4.8, reviewCount: 567,
+        badges: ['Best Value', '25% Off'], features: ['25 Users', '100 GB', 'Priority Support', 'API Access'],
+        specs: [{ label: 'Uptime SLA', value: '99.9%' }, { label: 'Integrations', value: '50+' }],
+    },
+    {
+        id: 'plan-enterprise', name: 'Enterprise Plan', price: 9999, currency: 'INR', unit: '/month',
+        subtitle: 'Custom solutions for large organizations', emoji: '🏢',
+        color: '#0F172A', colorEnd: '#334155',
+        badges: ['Custom'], features: ['Unlimited Users', '1 TB', 'Dedicated Manager', 'SSO'],
+    },
 ];
 
 function buildPreviewBlock(config: RelayBlockConfigDetail): RelayBlock {
@@ -309,56 +341,218 @@ function buildPreviewBlock(config: RelayBlockConfigDetail): RelayBlock {
 
 function generateFallbackBlock(blockType: string): RelayBlock {
     switch (blockType) {
-        case 'catalog':
+        // ── Catalog family: each subtype gets its own industry ──
         case 'rooms':
-        case 'products':
-        case 'services':
+            return { type: 'rooms', items: FALLBACK_ROOMS, showBookButton: true, bookButtonLabel: 'Book Room' };
         case 'menu':
+            return { type: 'menu', items: FALLBACK_MENU, showBookButton: true, bookButtonLabel: 'Order' };
+        case 'products':
+            return { type: 'products', items: FALLBACK_PRODUCTS, showBookButton: true, bookButtonLabel: 'Add to Cart' };
+        case 'services':
+            return { type: 'services', items: FALLBACK_SERVICES, showBookButton: true, bookButtonLabel: 'Book Service' };
         case 'listings':
-            return { type: blockType, items: CATALOG_ITEMS, showBookButton: true, bookButtonLabel: 'View' };
+            return { type: 'listings', items: FALLBACK_LISTINGS, showBookButton: true, bookButtonLabel: 'View Details' };
+        case 'catalog':
+            return { type: 'catalog', items: FALLBACK_CATALOG, showBookButton: true, bookButtonLabel: 'View Plans' };
+
+        // ── Compare: side-by-side product comparison ──
         case 'compare':
             return {
-                type: blockType, items: CATALOG_ITEMS.slice(0, 2), compareFields: [
+                type: 'compare', items: FALLBACK_PRODUCTS.slice(0, 2), compareFields: [
                     { label: 'Price', key: 'price' },
                     { label: 'Rating', key: 'rating' },
-                    { label: 'Capacity', key: 'maxCapacity' },
                 ],
             };
+
+        // ── Activity family: each subtype reflects its industry ──
         case 'activities':
+            return { type: 'activities', items: FALLBACK_ACTIVITIES };
         case 'experiences':
+            return { type: 'experiences', items: FALLBACK_EXPERIENCES };
         case 'classes':
+            return { type: 'classes', items: FALLBACK_CLASSES };
         case 'treatments':
-            return { type: blockType, items: SERVICE_ITEMS };
+            return { type: 'treatments', items: FALLBACK_TREATMENTS };
+
+        // ── Booking family: each subtype gets appropriate flow ──
         case 'book':
-        case 'reserve':
-        case 'appointment':
-        case 'inquiry':
             return {
-                type: blockType, items: CATALOG_ITEMS.slice(0, 2),
-                conversionPaths: BOOKING_CONVERSION_PATHS,
+                type: 'book', items: FALLBACK_ROOMS.slice(0, 2),
+                conversionPaths: [
+                    { id: 'direct', label: 'Confirm Reservation', icon: '⚡', type: 'primary' as const, color: '#059669', action: 'direct' as const },
+                    { id: 'whatsapp', label: 'Chat on WhatsApp', icon: '💬', type: 'secondary' as const, color: '#25D366', action: 'whatsapp' as const },
+                ],
                 dateMode: 'range', guestMode: 'counter',
                 headerLabel: 'Reserve Your Stay', selectLabel: 'Choose Room',
             };
+        case 'reserve':
+            return {
+                type: 'reserve', items: FALLBACK_MENU.slice(0, 2),
+                conversionPaths: [
+                    { id: 'direct', label: 'Reserve Table', icon: '🍽️', type: 'primary' as const, color: '#DC2626', action: 'direct' as const },
+                    { id: 'callback', label: 'Call Restaurant', icon: '📞', type: 'secondary' as const, action: 'callback' as const },
+                ],
+                dateMode: 'single', guestMode: 'counter',
+                headerLabel: 'Table Reservation', selectLabel: 'Choose Time',
+            };
+        case 'appointment':
+            return {
+                type: 'appointment', items: FALLBACK_TREATMENTS.slice(0, 3).map(t => ({
+                    id: t.id, name: t.name, price: parseInt(t.price.replace(/[^\d]/g, '')) || 0,
+                    currency: 'INR', subtitle: t.description, emoji: t.icon,
+                })),
+                conversionPaths: [
+                    { id: 'direct', label: 'Book Appointment', icon: '📅', type: 'primary' as const, color: '#7C3AED', action: 'direct' as const },
+                    { id: 'whatsapp', label: 'Ask on WhatsApp', icon: '💬', type: 'secondary' as const, color: '#25D366', action: 'whatsapp' as const },
+                ],
+                dateMode: 'single', guestMode: 'none',
+                headerLabel: 'Book Treatment', selectLabel: 'Select Treatment',
+            };
+        case 'inquiry':
+            return {
+                type: 'inquiry', items: FALLBACK_LISTINGS.slice(0, 2),
+                conversionPaths: [
+                    { id: 'ask', label: 'Send Inquiry', icon: '📩', type: 'primary' as const, color: '#1D4ED8', action: 'ask' as const },
+                    { id: 'callback', label: 'Schedule Visit', icon: '🏠', type: 'secondary' as const, action: 'callback' as const },
+                    { id: 'save', label: 'Save for Later', icon: '🔖', type: 'secondary' as const, action: 'save' as const },
+                ],
+                dateMode: 'single', guestMode: 'none',
+                headerLabel: 'Interested in a Property?', selectLabel: 'Select Property',
+            };
+
+        // ── Location: generic business ──
         case 'location':
+            return {
+                type: 'location', location: {
+                    name: 'Downtown Flagship Store', address: '12 MG Road, Brigade Gateway',
+                    area: 'Bengaluru, Karnataka', emoji: '📍',
+                    mapGradient: ['#7C3AED', '#EC4899'] as [string, string],
+                    directions: [
+                        { icon: '🚇', label: 'Metro', detail: 'MG Road Station — 5 min walk' },
+                        { icon: '🚗', label: 'By Car', detail: 'Parking available at Brigade Gateway' },
+                        { icon: '🚕', label: 'Auto/Cab', detail: 'Drop at Brigade Gateway main entrance' },
+                    ],
+                    actions: ['Get Directions', 'Call Store', 'Share'],
+                },
+            };
         case 'directions':
-            return { type: blockType, location: LOCATION_DATA };
+            return {
+                type: 'directions', location: {
+                    name: 'Riverside Adventure Camp', address: 'Kolad River Valley, Off NH-17',
+                    area: 'Raigad, Maharashtra', emoji: '🏕️',
+                    mapGradient: ['#059669', '#84CC16'] as [string, string],
+                    directions: [
+                        { icon: '🚗', label: 'From Mumbai', detail: '3 hrs via Mumbai-Goa Highway (NH-17)' },
+                        { icon: '🚂', label: 'From Pune', detail: '2.5 hrs — take Kolad exit' },
+                        { icon: '🚌', label: 'Bus', detail: 'MSRTC bus to Kolad, 10 min auto from stand' },
+                    ],
+                    actions: ['Get Directions', 'Download Map', 'Share Location'],
+                },
+            };
+
+        // ── Contact: professional services ──
         case 'contact':
-            return { type: blockType, methods: CONTACT_METHODS };
+            return {
+                type: 'contact', methods: [
+                    { type: 'whatsapp' as const, label: 'WhatsApp Support', value: '+91 98765 43210', icon: '💬' },
+                    { type: 'phone' as const, label: 'Call Us', value: '+91 98765 43211', icon: '📞' },
+                    { type: 'email' as const, label: 'Email', value: 'hello@business.com', icon: '📧' },
+                    { type: 'website' as const, label: 'Visit Website', value: 'https://example.com', icon: '🌐' },
+                ],
+            };
+
+        // ── Gallery: resort / portfolio ──
         case 'gallery':
+            return {
+                type: 'gallery', items: [
+                    { emoji: '🏖️', label: 'Beachfront', span: 2 },
+                    { emoji: '🛏️', label: 'Suites' },
+                    { emoji: '🍽️', label: 'Dining' },
+                    { emoji: '🏊', label: 'Infinity Pool', span: 2 },
+                    { emoji: '🧖', label: 'Spa' },
+                    { emoji: '🌅', label: 'Sunset View' },
+                ],
+            };
         case 'photos':
-            return { type: blockType, items: GALLERY_ITEMS };
+            return {
+                type: 'photos', items: [
+                    { emoji: '🏠', label: 'Living Room', span: 2 },
+                    { emoji: '🛏️', label: 'Master Bedroom' },
+                    { emoji: '🍳', label: 'Kitchen' },
+                    { emoji: '🛁', label: 'Bathroom' },
+                    { emoji: '🌳', label: 'Garden View', span: 2 },
+                ],
+            };
+
+        // ── Info family: each subtype has its own context ──
         case 'info':
+            return {
+                type: 'info', items: [
+                    { label: 'Working Hours', value: 'Mon–Sat: 9 AM – 7 PM' },
+                    { label: 'Delivery', value: 'Free above ₹499 · Same-day available' },
+                    { label: 'Returns', value: '7-day easy returns' },
+                    { label: 'Payment', value: 'UPI, Cards, COD, EMI' },
+                    { label: 'Support', value: 'WhatsApp or call 9876543210' },
+                ],
+            };
         case 'faq':
+            return {
+                type: 'faq', items: [
+                    { label: 'How do I book an appointment?', value: 'Chat with us or tap "Book Now" on any service' },
+                    { label: 'Can I reschedule?', value: 'Yes — free reschedule up to 4 hours before' },
+                    { label: 'What\'s the cancellation policy?', value: 'Full refund if cancelled 24 hrs in advance' },
+                    { label: 'Do you offer group discounts?', value: 'Yes! 15% off for groups of 4+' },
+                    { label: 'Is parking available?', value: 'Free parking for all customers' },
+                    { label: 'Are walk-ins accepted?', value: 'Subject to availability — booking recommended' },
+                ],
+            };
         case 'details':
-            return { type: blockType, items: INFO_ITEMS };
+            return {
+                type: 'details', items: [
+                    { label: 'Material', value: '100% Organic Cotton, GOTS Certified' },
+                    { label: 'Weight', value: '180 GSM' },
+                    { label: 'Sizes', value: 'XS · S · M · L · XL · XXL' },
+                    { label: 'Care', value: 'Machine wash cold, tumble dry low' },
+                    { label: 'Origin', value: 'Handcrafted in Jaipur, India' },
+                    { label: 'Warranty', value: '6 months against manufacturing defects' },
+                    { label: 'Shipping', value: '2-5 business days pan-India' },
+                ],
+            };
+
+        // ── Greeting: brand welcome ──
         case 'greeting':
+            return {
+                type: 'greeting', brand: {
+                    name: 'FreshCart', emoji: '🛒',
+                    tagline: 'Groceries delivered in 10 minutes',
+                    quickActions: [
+                        { label: 'Today\'s Deals', prompt: 'Show me today\'s offers', emoji: '🏷️' },
+                        { label: 'Reorder Last', prompt: 'Reorder my last purchase', emoji: '🔄' },
+                        { label: 'Track Order', prompt: 'Where is my order?', emoji: '📦' },
+                        { label: 'Help', prompt: 'I need help with something', emoji: '🤝' },
+                    ],
+                },
+            };
         case 'welcome':
-            return { type: blockType, brand: BRAND_DATA };
+            return {
+                type: 'welcome', brand: {
+                    name: 'The Shoreline', emoji: '🏖️',
+                    tagline: 'Your beachfront escape awaits',
+                    quickActions: [
+                        { label: 'Browse Rooms', prompt: 'Show me available rooms', emoji: '🛏️' },
+                        { label: 'Spa & Wellness', prompt: 'What spa treatments do you offer?', emoji: '🧖' },
+                        { label: 'Dining', prompt: 'Tell me about restaurants', emoji: '🍽️' },
+                        { label: 'Getting Here', prompt: 'How do I get to the resort?', emoji: '📍' },
+                    ],
+                },
+            };
+
+        // ── Text: engaging conversational ──
         default:
             return {
                 type: 'text',
-                text: 'Welcome to The Shoreline Resort & Spa! I\'m your virtual concierge. How can I make your stay unforgettable?',
-                suggestions: ['Browse rooms & suites', 'Spa treatments', 'Restaurant reservations', 'Local experiences'],
+                text: 'Hi there! I\'m here to help you find exactly what you need. What are you looking for today?',
+                suggestions: ['Browse popular items', 'Check today\'s offers', 'Track my order', 'Talk to someone'],
             };
     }
 }
