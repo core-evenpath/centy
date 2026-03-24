@@ -1,7 +1,38 @@
 'use server';
 
 import { db as adminDb } from '@/lib/firebase-admin';
-import anthropic, { AI_MODEL } from '@/lib/anthropic';
+import { GoogleGenAI, Type } from '@google/genai';
+
+// ── Gemini client for block template generation ─────────────────────
+const geminiApiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_GENAI_API_KEY;
+const genAI = new GoogleGenAI({ apiKey: geminiApiKey });
+const BLOCK_GEN_MODEL = 'gemini-3.1-pro-preview';
+
+const wait = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
+async function retryWithBackoff<T>(fn: () => Promise<T>, retries = 3, initialDelay = 1000): Promise<T> {
+    let attempt = 0;
+    while (attempt < retries) {
+        try {
+            return await fn();
+        } catch (error: any) {
+            const status = error?.status || error?.code || 0;
+            const message = error?.message || '';
+            const isRetryable =
+                status === 429 || status >= 500 ||
+                message.includes('429') || message.includes('quota') ||
+                message.includes('RESOURCE_EXHAUSTED');
+            if (isRetryable && attempt < retries - 1) {
+                const delay = initialDelay * Math.pow(2, attempt);
+                await wait(delay);
+                attempt++;
+            } else {
+                throw error;
+            }
+        }
+    }
+    throw new Error('Max retries exceeded');
+}
 
 // ── Types ────────────────────────────────────────────────────────────
 
@@ -50,7 +81,7 @@ export interface RelayBlockConfigDetail {
         sortOrder?: string;
     };
     blockTypeTemplate?: {
-        generatedBy: 'claude' | 'manual' | 'default';
+        generatedBy: 'gemini' | 'manual' | 'default';
         generatedAt: string;
         subcategory: string;
         sampleData: Record<string, any>;
@@ -348,48 +379,85 @@ export interface GenerateRelayBlockModuleInput {
     agentConfig?: Record<string, any>;
 }
 
-const BLOCK_TYPE_PROMPT = `You are a UI/UX expert for chat widget block templates. Given a business module, generate the optimal relay chat block configuration.
+const BLOCK_TYPE_PROMPT = `You are a UI/UX expert designing UNIQUE, visually engaging chat widget block templates. Each template MUST feel distinct and industry-specific — never generic.
 
-Available block types (pick the BEST one for this specific module):
-- "catalog" = general product/item browsing
-- "rooms" = hotel/accommodation room listings
-- "products" = e-commerce product catalogs
-- "services" = service offerings with pricing
-- "menu" = restaurant/food menus
-- "listings" = real estate, classified, directory listings
-- "compare" = side-by-side item comparison
-- "activities" = bookable activities and services
-- "experiences" = tours, events, experiences
-- "classes" = courses, workshops, training
-- "treatments" = spa, medical, beauty treatments
-- "book" = general reservation/booking flow
-- "reserve" = table/seat reservations
-- "appointment" = appointment scheduling
-- "inquiry" = lead capture / inquiry forms
-- "location" = business location with directions
-- "contact" = multi-channel contact methods
-- "gallery" = photo/visual gallery
-- "info" = key-value information (hours, policies, specs)
-- "faq" = frequently asked questions
-- "details" = detailed specs or policies
-- "greeting" = welcome/brand introduction
-- "text" = informational text with suggested follow-ups
+Available block types and their REQUIRED sampleData shapes:
 
-Rules:
-- Choose the MOST SPECIFIC type. E.g., use "rooms" for hotel rooms, "menu" for restaurant dishes, "treatments" for spa services — not generic "catalog".
-- Think about how a visitor would want to SEE this data in a chat widget.
-- For modules with bookable items, pair with an appropriate booking type.
+CATALOG FAMILY (use for browsable items with prices):
+Types: "catalog", "rooms", "products", "services", "menu", "listings"
+- "rooms" for hotel/accommodation, "menu" for food/drink, "products" for retail, "services" for service businesses, "listings" for directories
+sampleData shape: { items: CatalogItem[] } where CatalogItem = {
+  id: string, name: string, price: number, currency: "USD"|"EUR"|etc,
+  originalPrice?: number (for discounts), unit?: string ("per night","each"),
+  subtitle?: string, tagline?: string, emoji?: string,
+  color?: string (hex gradient start), colorEnd?: string (hex gradient end),
+  rating?: number (1-5), reviewCount?: number,
+  badges?: string[] (e.g. ["Best Seller","New"]),
+  features?: string[] (e.g. ["WiFi","Pool"]),
+  specs?: {label:string, value:string}[] (e.g. [{label:"Size",value:"42sqm"}]),
+  maxCapacity?: number
+}
+Generate 3-4 items with VARIED prices, ratings, badges, colors, and features. Use industry-appropriate emojis. Include at least one item with originalPrice (discount), one with specs, one with badges.
 
-Respond with ONLY valid JSON (no markdown, no backticks):
-{
-  "blockType": "one of the types listed above",
-  "displayTemplate": "Template string using {{fieldName}} placeholders from the module fields",
-  "suggestedTitle": "Human-readable title for this block",
-  "suggestedDescription": "One-line description of what this block shows visitors",
-  "maxItems": <number 1-10>,
-  "sortBy": "field name to sort by",
-  "sampleData": { "field1": "realistic sample value", "field2": "realistic sample value" }
-}`;
+ACTIVITY FAMILY (use for bookable services/experiences):
+Types: "activities", "experiences", "classes", "treatments"
+- "experiences" for tours/events, "classes" for education, "treatments" for spa/medical
+sampleData shape: { items: ActivityItem[] } where ActivityItem = {
+  id: string, name: string, description: string,
+  icon: string (emoji), price: string ("$50" or "Free"),
+  duration: string ("60 min"), category: string,
+  bookable: boolean
+}
+Generate 4-5 items across 2-3 categories. Mix free and paid. Use vivid descriptions.
+
+BOOKING FAMILY (use for reservation/conversion flows):
+Types: "book", "reserve", "appointment", "inquiry"
+sampleData shape: {
+  items: CatalogItem[] (2-3 bookable items),
+  conversionPaths: ConversionPath[],
+  dateMode: "range"|"single"|"none",
+  guestMode: "counter"|"none",
+  headerLabel: string, selectLabel: string
+}
+ConversionPath = { id: string, label: string, icon: string (emoji), type: "primary"|"secondary", color?: string (hex), action: "direct"|"whatsapp"|"callback"|"save"|"share"|"ask"|"external" }
+Generate 2-3 conversion paths (mix primary/secondary).
+
+LOCATION (for business locations):
+Types: "location", "directions"
+sampleData shape: { location: { name: string, address: string, area: string, emoji?: string, mapGradient?: [string,string] (two hex colors), directions?: {icon:string,label:string,detail:string}[], actions?: string[] } }
+
+CONTACT (for contact methods):
+Type: "contact"
+sampleData shape: { methods: ContactMethod[] } where ContactMethod = { type: "whatsapp"|"phone"|"email"|"website"|"chat", label: string, value: string, icon: string (emoji) }
+Generate 3-4 methods.
+
+GALLERY (for visual grids):
+Types: "gallery", "photos"
+sampleData shape: { items: GalleryItem[] } where GalleryItem = { emoji: string, label: string, span?: number (1 or 2, use 2 for featured items) }
+Generate 5-6 items, at least one with span:2.
+
+INFO FAMILY (for structured information):
+Types: "info", "faq", "details"
+sampleData shape: { items: InfoItem[] } where InfoItem = { label: string, value: string }
+Generate 5-7 items.
+
+GREETING (for welcome screens):
+Types: "greeting", "welcome"
+sampleData shape: { brand: { name: string, emoji: string, tagline: string, quickActions: {label:string,prompt:string,emoji:string}[] } }
+Generate 3-4 quick actions.
+
+TEXT (for rich text responses):
+Type: "text"
+sampleData shape: { text: string, suggestions: string[] }
+Generate engaging text with 3-4 follow-up suggestions.
+
+CRITICAL RULES:
+1. Choose the MOST SPECIFIC type for the module's industry (never default to "catalog" if a better fit exists)
+2. sampleData MUST match the exact shape above — this drives the live preview
+3. Make every template VISUALLY UNIQUE: use different color palettes, emojis, creative names, varied item counts
+4. Think like a customer browsing on mobile — what would ENGAGE them and feel different from a text chat?
+5. Use the module's actual field names in displayTemplate with {{fieldName}} syntax
+6. Prices, names, and descriptions should be realistic for the specific industry`;
 
 const VALID_BLOCK_TYPES = [
     'catalog', 'rooms', 'products', 'services', 'menu', 'listings',
@@ -402,7 +470,7 @@ const VALID_BLOCK_TYPES = [
     'text',
 ];
 
-async function callClaudeForBlockTemplate(module: GenerateRelayBlockModuleInput): Promise<{
+async function callGeminiForBlockTemplate(module: GenerateRelayBlockModuleInput): Promise<{
     blockType: string;
     displayTemplate: string;
     suggestedTitle: string;
@@ -425,17 +493,35 @@ Module Details:
 - Description: ${module.description || 'N/A'}
 - Fields: ${JSON.stringify(fieldInfo)}
 - Industry: ${(module.applicableIndustries || []).join(', ') || 'general'}
-- Business Functions: ${(module.applicableFunctions || []).join(', ') || 'other'}`;
+- Business Functions: ${(module.applicableFunctions || []).join(', ') || 'other'}
+- Item Label: ${module.agentConfig?.itemLabel || module.name}
+- Price Type: ${module.agentConfig?.priceType || 'one_time'}`;
 
-    const response = await anthropic.messages.create({
-        model: AI_MODEL,
-        max_tokens: 1024,
-        messages: [{ role: 'user', content: prompt }],
-    });
+    const response = await retryWithBackoff(() => genAI.models.generateContent({
+        model: BLOCK_GEN_MODEL,
+        contents: prompt,
+        config: {
+            temperature: 0.9,
+            responseMimeType: "application/json",
+            responseSchema: {
+                type: Type.OBJECT,
+                properties: {
+                    blockType: { type: Type.STRING },
+                    displayTemplate: { type: Type.STRING },
+                    suggestedTitle: { type: Type.STRING },
+                    suggestedDescription: { type: Type.STRING },
+                    maxItems: { type: Type.NUMBER },
+                    sortBy: { type: Type.STRING },
+                    sampleData: { type: Type.OBJECT, properties: {} },
+                },
+                required: ["blockType", "displayTemplate", "suggestedTitle", "suggestedDescription", "maxItems", "sortBy", "sampleData"],
+            },
+        },
+    }));
 
-    const text = response.content[0].type === 'text' ? response.content[0].text : '';
-    const cleaned = text.trim().replace(/```json?\n?/g, '').replace(/```/g, '').trim();
-    const parsed = JSON.parse(cleaned);
+    const jsonText = response.text;
+    if (!jsonText) throw new Error('No response from Gemini');
+    const parsed = JSON.parse(jsonText);
 
     if (!VALID_BLOCK_TYPES.includes(parsed.blockType)) {
         parsed.blockType = 'catalog';
@@ -460,12 +546,12 @@ export async function generateRelayBlockForModule(
     const subcategory = (module.applicableFunctions || [])[0] || 'general';
 
     try {
-        let aiResult: Awaited<ReturnType<typeof callClaudeForBlockTemplate>>;
-        let generatedBy: 'claude' | 'default' = 'claude';
+        let aiResult: Awaited<ReturnType<typeof callGeminiForBlockTemplate>>;
+        let generatedBy: 'gemini' | 'default' = 'gemini';
         let isDefault = false;
 
         try {
-            aiResult = await callClaudeForBlockTemplate(module);
+            aiResult = await callGeminiForBlockTemplate(module);
         } catch (aiError) {
             console.error(`AI generation failed for ${module.slug}, using fallback:`, aiError);
             const fieldNames = module.schema?.fields?.map(f => f.name) || module.agentConfig?.displayFields || [];
@@ -551,7 +637,7 @@ export async function regenerateBlockTemplateAction(
         }
 
         const mod = moduleDoc.data()!;
-        const aiResult = await callClaudeForBlockTemplate({
+        const aiResult = await callGeminiForBlockTemplate({
             id: moduleId,
             name: mod.name,
             slug: mod.slug,
@@ -578,7 +664,7 @@ export async function regenerateBlockTemplateAction(
                 sortOrder: 'desc',
             },
             blockTypeTemplate: {
-                generatedBy: 'claude',
+                generatedBy: 'gemini',
                 generatedAt: now,
                 subcategory,
                 sampleData: aiResult.sampleData,

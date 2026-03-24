@@ -428,7 +428,7 @@ function ConfigCard({ config, onUpdate, onDelete, onRegenerated }: ConfigCardPro
         }
     };
 
-    const isAiGenerated = config.blockTypeTemplate?.generatedBy === 'claude';
+    const isAiGenerated = config.blockTypeTemplate?.generatedBy === 'gemini';
     const subcategory = config.blockTypeTemplate?.subcategory;
 
     return (
