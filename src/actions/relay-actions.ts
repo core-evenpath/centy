@@ -1,6 +1,7 @@
 'use server';
 
 import { db as adminDb } from '@/lib/firebase-admin';
+import anthropic, { AI_MODEL } from '@/lib/anthropic';
 
 // ── Types ────────────────────────────────────────────────────────────
 
@@ -47,6 +48,13 @@ export interface RelayBlockConfigDetail {
         maxItems?: number;
         sortBy?: string;
         sortOrder?: string;
+    };
+    blockTypeTemplate?: {
+        generatedBy: 'claude' | 'manual' | 'default';
+        generatedAt: string;
+        subcategory: string;
+        sampleData: Record<string, any>;
+        isDefault: boolean;
     };
     status: string;
     createdAt?: string;
@@ -252,6 +260,7 @@ export async function getRelayBlockConfigsWithModulesAction(): Promise<{
                 applicableFunctions: data.applicableFunctions || [],
                 agentConfig: data.agentConfig || undefined,
                 dataSchema: data.dataSchema || undefined,
+                blockTypeTemplate: data.blockTypeTemplate || undefined,
                 status: data.status || 'active',
                 createdAt: data.createdAt || undefined,
             };
@@ -323,5 +332,361 @@ export async function deleteRelayBlockConfigAction(
     } catch (e: any) {
         console.error('Failed to delete relay block config:', e);
         return { success: false, error: e.message };
+    }
+}
+
+// ── Generate relay block for a module (AI-powered) ──────────────────
+
+export interface GenerateRelayBlockModuleInput {
+    id: string;
+    name: string;
+    slug: string;
+    description?: string;
+    schema?: { fields?: Array<{ name: string; type: string; label?: string }> };
+    applicableIndustries?: string[];
+    applicableFunctions?: string[];
+    agentConfig?: Record<string, any>;
+}
+
+const BLOCK_TYPE_PROMPT = `You are a UI/UX expert for chat widget block templates. Given a business module, generate the optimal relay chat block configuration.
+
+Available block types (pick the BEST one for this specific module):
+- "catalog" = general product/item browsing
+- "rooms" = hotel/accommodation room listings
+- "products" = e-commerce product catalogs
+- "services" = service offerings with pricing
+- "menu" = restaurant/food menus
+- "listings" = real estate, classified, directory listings
+- "compare" = side-by-side item comparison
+- "activities" = bookable activities and services
+- "experiences" = tours, events, experiences
+- "classes" = courses, workshops, training
+- "treatments" = spa, medical, beauty treatments
+- "book" = general reservation/booking flow
+- "reserve" = table/seat reservations
+- "appointment" = appointment scheduling
+- "inquiry" = lead capture / inquiry forms
+- "location" = business location with directions
+- "contact" = multi-channel contact methods
+- "gallery" = photo/visual gallery
+- "info" = key-value information (hours, policies, specs)
+- "faq" = frequently asked questions
+- "details" = detailed specs or policies
+- "greeting" = welcome/brand introduction
+- "text" = informational text with suggested follow-ups
+
+Rules:
+- Choose the MOST SPECIFIC type. E.g., use "rooms" for hotel rooms, "menu" for restaurant dishes, "treatments" for spa services — not generic "catalog".
+- Think about how a visitor would want to SEE this data in a chat widget.
+- For modules with bookable items, pair with an appropriate booking type.
+
+Respond with ONLY valid JSON (no markdown, no backticks):
+{
+  "blockType": "one of the types listed above",
+  "displayTemplate": "Template string using {{fieldName}} placeholders from the module fields",
+  "suggestedTitle": "Human-readable title for this block",
+  "suggestedDescription": "One-line description of what this block shows visitors",
+  "maxItems": <number 1-10>,
+  "sortBy": "field name to sort by",
+  "sampleData": { "field1": "realistic sample value", "field2": "realistic sample value" }
+}`;
+
+const VALID_BLOCK_TYPES = [
+    'catalog', 'rooms', 'products', 'services', 'menu', 'listings',
+    'compare', 'activities', 'experiences', 'classes', 'treatments',
+    'book', 'reserve', 'appointment', 'inquiry',
+    'location', 'directions', 'contact',
+    'gallery', 'photos',
+    'info', 'faq', 'details',
+    'greeting', 'welcome',
+    'text',
+];
+
+async function callClaudeForBlockTemplate(module: GenerateRelayBlockModuleInput): Promise<{
+    blockType: string;
+    displayTemplate: string;
+    suggestedTitle: string;
+    suggestedDescription: string;
+    maxItems: number;
+    sortBy: string;
+    sampleData: Record<string, any>;
+}> {
+    const fieldInfo = module.schema?.fields?.map(f => ({
+        name: f.name,
+        type: f.type,
+        label: f.label || f.name,
+    })) || [];
+
+    const prompt = `${BLOCK_TYPE_PROMPT}
+
+Module Details:
+- Name: ${module.name}
+- Slug: ${module.slug}
+- Description: ${module.description || 'N/A'}
+- Fields: ${JSON.stringify(fieldInfo)}
+- Industry: ${(module.applicableIndustries || []).join(', ') || 'general'}
+- Business Functions: ${(module.applicableFunctions || []).join(', ') || 'other'}`;
+
+    const response = await anthropic.messages.create({
+        model: AI_MODEL,
+        max_tokens: 1024,
+        messages: [{ role: 'user', content: prompt }],
+    });
+
+    const text = response.content[0].type === 'text' ? response.content[0].text : '';
+    const cleaned = text.trim().replace(/```json?\n?/g, '').replace(/```/g, '').trim();
+    const parsed = JSON.parse(cleaned);
+
+    if (!VALID_BLOCK_TYPES.includes(parsed.blockType)) {
+        parsed.blockType = 'catalog';
+    }
+
+    return {
+        blockType: parsed.blockType,
+        displayTemplate: parsed.displayTemplate || '',
+        suggestedTitle: parsed.suggestedTitle || module.name,
+        suggestedDescription: parsed.suggestedDescription || '',
+        maxItems: Math.min(Math.max(parsed.maxItems || 5, 1), 10),
+        sortBy: parsed.sortBy || 'createdAt',
+        sampleData: parsed.sampleData || {},
+    };
+}
+
+export async function generateRelayBlockForModule(
+    module: GenerateRelayBlockModuleInput
+): Promise<{ success: boolean; blockId?: string; error?: string }> {
+    const blockConfigId = `module_${module.slug}`;
+    const now = new Date().toISOString();
+    const subcategory = (module.applicableFunctions || [])[0] || 'general';
+
+    try {
+        let aiResult: Awaited<ReturnType<typeof callClaudeForBlockTemplate>>;
+        let generatedBy: 'claude' | 'default' = 'claude';
+        let isDefault = false;
+
+        try {
+            aiResult = await callClaudeForBlockTemplate(module);
+        } catch (aiError) {
+            console.error(`AI generation failed for ${module.slug}, using fallback:`, aiError);
+            const fieldNames = module.schema?.fields?.map(f => f.name) || module.agentConfig?.displayFields || [];
+            aiResult = {
+                blockType: module.agentConfig?.relayBlockType || 'catalog',
+                displayTemplate: fieldNames.map(f => `{{${f}}}`).join(' | '),
+                suggestedTitle: module.name,
+                suggestedDescription: module.description || '',
+                maxItems: 5,
+                sortBy: 'createdAt',
+                sampleData: Object.fromEntries(fieldNames.map(f => [f, `Sample ${f}`])),
+            };
+            generatedBy = 'default';
+            isDefault = true;
+        }
+
+        const relayBlockConfig = {
+            id: blockConfigId,
+            blockType: aiResult.blockType,
+            label: aiResult.suggestedTitle,
+            description: aiResult.suggestedDescription,
+            moduleSlug: module.slug,
+            moduleId: module.id,
+            applicableIndustries: module.applicableIndustries || [],
+            applicableFunctions: module.applicableFunctions || [],
+            agentConfig: module.agentConfig || {},
+            dataSchema: {
+                sourceCollection: `modules/${module.id}/entries`,
+                sourceFields: module.schema?.fields?.map(f => f.name) || [],
+                displayTemplate: aiResult.displayTemplate,
+                maxItems: aiResult.maxItems,
+                sortBy: aiResult.sortBy,
+                sortOrder: 'desc',
+            },
+            blockTypeTemplate: {
+                generatedBy,
+                generatedAt: now,
+                subcategory,
+                sampleData: aiResult.sampleData,
+                isDefault,
+            },
+            status: 'active',
+            createdAt: now,
+            updatedAt: now,
+        };
+
+        await adminDb.collection('relayBlockConfigs').doc(blockConfigId).set(relayBlockConfig);
+
+        const { revalidatePath } = await import('next/cache');
+        revalidatePath('/admin/relay/blocks');
+        revalidatePath('/admin/relay');
+
+        return { success: true, blockId: blockConfigId };
+    } catch (e: any) {
+        console.error(`Failed to generate relay block for ${module.slug}:`, e);
+        return { success: false, error: e.message };
+    }
+}
+
+// ── Regenerate a block template via AI ──────────────────────────────
+
+export async function regenerateBlockTemplateAction(
+    blockId: string
+): Promise<{ success: boolean; error?: string }> {
+    try {
+        const blockRef = adminDb.collection('relayBlockConfigs').doc(blockId);
+        const blockDoc = await blockRef.get();
+
+        if (!blockDoc.exists) {
+            return { success: false, error: 'Block config not found' };
+        }
+
+        const blockData = blockDoc.data()!;
+        const moduleId = blockData.moduleId;
+
+        if (!moduleId) {
+            return { success: false, error: 'No linked module found' };
+        }
+
+        const moduleDoc = await adminDb.collection('systemModules').doc(moduleId).get();
+        if (!moduleDoc.exists) {
+            return { success: false, error: 'Linked module not found' };
+        }
+
+        const mod = moduleDoc.data()!;
+        const aiResult = await callClaudeForBlockTemplate({
+            id: moduleId,
+            name: mod.name,
+            slug: mod.slug,
+            description: mod.description,
+            schema: mod.schema,
+            applicableIndustries: mod.applicableIndustries,
+            applicableFunctions: mod.applicableFunctions,
+            agentConfig: mod.agentConfig,
+        });
+
+        const now = new Date().toISOString();
+        const subcategory = (mod.applicableFunctions || [])[0] || 'general';
+
+        await blockRef.update({
+            blockType: aiResult.blockType,
+            label: aiResult.suggestedTitle,
+            description: aiResult.suggestedDescription,
+            dataSchema: {
+                sourceCollection: `modules/${moduleId}/entries`,
+                sourceFields: mod.schema?.fields?.map((f: any) => f.name) || [],
+                displayTemplate: aiResult.displayTemplate,
+                maxItems: aiResult.maxItems,
+                sortBy: aiResult.sortBy,
+                sortOrder: 'desc',
+            },
+            blockTypeTemplate: {
+                generatedBy: 'claude',
+                generatedAt: now,
+                subcategory,
+                sampleData: aiResult.sampleData,
+                isDefault: false,
+            },
+            updatedAt: now,
+        });
+
+        const { revalidatePath } = await import('next/cache');
+        revalidatePath('/admin/relay/blocks');
+        revalidatePath('/admin/relay');
+
+        return { success: true };
+    } catch (e: any) {
+        console.error('Failed to regenerate block template:', e);
+        return { success: false, error: e.message };
+    }
+}
+
+// ── Clear all relay block configs ───────────────────────────────────
+
+export async function clearAllRelayBlockConfigsAction(): Promise<{
+    success: boolean;
+    count: number;
+    error?: string;
+}> {
+    try {
+        const snapshot = await adminDb.collection('relayBlockConfigs').get();
+
+        if (snapshot.empty) {
+            return { success: true, count: 0 };
+        }
+
+        let count = 0;
+        const docs = snapshot.docs;
+
+        for (let i = 0; i < docs.length; i += 500) {
+            const batch = adminDb.batch();
+            const chunk = docs.slice(i, i + 500);
+            for (const doc of chunk) {
+                batch.delete(doc.ref);
+                count++;
+            }
+            await batch.commit();
+        }
+
+        const { revalidatePath } = await import('next/cache');
+        revalidatePath('/admin/relay/blocks');
+        revalidatePath('/admin/relay');
+
+        return { success: true, count };
+    } catch (e: any) {
+        console.error('Failed to clear relay block configs:', e);
+        return { success: false, count: 0, error: e.message };
+    }
+}
+
+// ── Generate blocks for all modules missing configs ─────────────────
+
+export async function generateMissingRelayBlocksAction(): Promise<{
+    success: boolean;
+    generated: number;
+    errors: string[];
+}> {
+    let generated = 0;
+    const errors: string[] = [];
+
+    try {
+        const modulesSnapshot = await adminDb.collection('systemModules')
+            .where('status', '==', 'active')
+            .get();
+
+        const existingSnapshot = await adminDb.collection('relayBlockConfigs').get();
+        const existingIds = new Set(existingSnapshot.docs.map(d => d.id));
+
+        for (const doc of modulesSnapshot.docs) {
+            const mod = doc.data();
+            const blockId = `module_${mod.slug}`;
+
+            if (existingIds.has(blockId)) {
+                continue;
+            }
+
+            try {
+                const result = await generateRelayBlockForModule({
+                    id: doc.id,
+                    name: mod.name,
+                    slug: mod.slug,
+                    description: mod.description,
+                    schema: mod.schema,
+                    applicableIndustries: mod.applicableIndustries,
+                    applicableFunctions: mod.applicableFunctions,
+                    agentConfig: mod.agentConfig,
+                });
+
+                if (result.success) {
+                    generated++;
+                } else {
+                    errors.push(`${mod.slug}: ${result.error}`);
+                }
+            } catch (e: any) {
+                errors.push(`${mod.slug}: ${e.message}`);
+            }
+        }
+
+        return { success: true, generated, errors };
+    } catch (e: any) {
+        console.error('Failed to generate missing relay blocks:', e);
+        return { success: false, generated, errors: [e.message] };
     }
 }

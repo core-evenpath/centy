@@ -28,6 +28,7 @@ import {
 } from '@/lib/modules/utils';
 import { DEFAULT_MODULE_SETTINGS } from '@/lib/modules/constants';
 import { syncModulesToCoreHub } from './core-hub-actions';
+import { generateRelayBlockForModule } from './relay-actions';
 
 /**
  * Trigger Core Hub sync in background after module changes
@@ -141,40 +142,16 @@ export async function createSystemModuleAction(
 
         await adminDb.collection('systemModules').doc(moduleId).set(moduleData);
 
-        // Auto-generate relay block config if agentConfig exists
-        if (moduleData.agentConfig) {
-            try {
-                const blockConfigId = `block_${moduleData.slug}`;
-                const relayBlockConfig = {
-                    id: blockConfigId,
-                    blockType: moduleData.agentConfig.relayBlockType || 'card',
-                    label: moduleData.name,
-                    description: `${moduleData.name} — ${moduleData.description || ''}`,
-                    moduleSlug: moduleData.slug,
-                    moduleId: moduleId,
-                    applicableIndustries: moduleData.applicableIndustries || [],
-                    applicableFunctions: moduleData.applicableFunctions || [],
-                    dataSchema: {
-                        sourceCollection: 'moduleItems',
-                        sourceFields: moduleData.agentConfig.displayFields || [],
-                        displayTemplate: moduleData.agentConfig.relayBlockType || 'card',
-                        maxItems: 10,
-                        sortBy: 'sortOrder',
-                        sortOrder: 'asc',
-                    },
-                    agentConfig: moduleData.agentConfig,
-                    aiPromptFragment: moduleData.agentConfig.inboxContext || '',
-                    status: 'active',
-                    createdAt: now,
-                    updatedAt: now,
-                };
-                await adminDb.collection('relayBlockConfigs').doc(blockConfigId).set(relayBlockConfig);
-                console.log(`✅ Relay block config created: ${blockConfigId} for module ${moduleData.slug}`);
-            } catch (relayError) {
-                // Relay block creation failure must NEVER block module creation
-                console.error(`⚠️ Failed to create relay block config for ${moduleData.slug}:`, relayError);
-            }
-        }
+        generateRelayBlockForModule({
+            id: moduleId,
+            name: moduleData.name,
+            slug: moduleData.slug,
+            description: moduleData.description,
+            schema: moduleData.schema,
+            applicableIndustries: moduleData.applicableIndustries,
+            applicableFunctions: moduleData.applicableFunctions,
+            agentConfig: moduleData.agentConfig,
+        }).catch(err => console.error(`⚠️ Relay block generation failed for ${moduleData.slug}:`, err));
 
         revalidatePath('/admin/modules');
         revalidatePath('/admin/relay');
@@ -207,30 +184,17 @@ export async function updateSystemModuleAction(
         try {
             const updatedDoc = await moduleRef.get();
             const mod = updatedDoc.data();
-            if (mod?.agentConfig && mod?.slug) {
-                const blockConfigId = `block_${mod.slug}`;
-                await adminDb.collection('relayBlockConfigs').doc(blockConfigId).set({
-                    id: blockConfigId,
-                    blockType: mod.agentConfig.relayBlockType || 'card',
-                    label: mod.name,
-                    description: `${mod.name} — ${mod.description || ''}`,
-                    moduleSlug: mod.slug,
-                    moduleId: moduleId,
-                    applicableIndustries: mod.applicableIndustries || [],
-                    applicableFunctions: mod.applicableFunctions || [],
-                    dataSchema: {
-                        sourceCollection: 'moduleItems',
-                        sourceFields: mod.agentConfig.displayFields || [],
-                        displayTemplate: mod.agentConfig.relayBlockType || 'card',
-                        maxItems: 10,
-                        sortBy: 'sortOrder',
-                        sortOrder: 'asc',
-                    },
+            if (mod?.slug) {
+                generateRelayBlockForModule({
+                    id: moduleId,
+                    name: mod.name,
+                    slug: mod.slug,
+                    description: mod.description,
+                    schema: mod.schema,
+                    applicableIndustries: mod.applicableIndustries,
+                    applicableFunctions: mod.applicableFunctions,
                     agentConfig: mod.agentConfig,
-                    aiPromptFragment: mod.agentConfig.inboxContext || '',
-                    status: 'active',
-                    updatedAt: now,
-                }, { merge: true });
+                }).catch(err => console.error(`⚠️ Relay block sync failed for ${mod.slug}:`, err));
             }
         } catch (relayError) {
             console.error(`⚠️ Failed to sync relay block config for module ${moduleId}:`, relayError);
@@ -350,7 +314,16 @@ export async function deleteSystemModuleAction(
 
         await moduleRef.delete();
 
+        try {
+            await adminDb.collection('relayBlockConfigs').doc(`block_${module.slug}`).delete();
+        } catch {}
+        try {
+            await adminDb.collection('relayBlockConfigs').doc(`module_${module.slug}`).delete();
+        } catch {}
+
         revalidatePath('/admin/modules');
+        revalidatePath('/admin/relay');
+        revalidatePath('/admin/relay/blocks');
         return { success: true };
     } catch (error) {
         console.error('Error deleting system module:', error);
@@ -381,6 +354,7 @@ export async function bulkDeleteSystemModulesAction(
 
         for (let i = 0; i < docs.length; i += 500) {
             const batch = adminDb.batch();
+            const relayBatch = adminDb.batch();
             const chunk = docs.slice(i, i + 500);
 
             for (const doc of chunk) {
@@ -393,13 +367,18 @@ export async function bulkDeleteSystemModulesAction(
                 }
 
                 batch.delete(doc.ref);
+                relayBatch.delete(adminDb.collection('relayBlockConfigs').doc(`block_${module.slug}`));
+                relayBatch.delete(adminDb.collection('relayBlockConfigs').doc(`module_${module.slug}`));
                 deletedCount++;
             }
 
             await batch.commit();
+            try { await relayBatch.commit(); } catch {}
         }
 
         revalidatePath('/admin/modules');
+        revalidatePath('/admin/relay');
+        revalidatePath('/admin/relay/blocks');
         return { success: true, data: { deletedCount, skippedCount } };
     } catch (error) {
         console.error('Error bulk deleting system modules:', error);
