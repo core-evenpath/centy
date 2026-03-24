@@ -5,7 +5,7 @@ import { getCoreAccessibleDataAction } from "./business-persona-actions";
 
 const genAI = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || "" });
 
-const FAST_MODEL = "gemini-3-pro-preview";
+const FAST_MODEL = "gemini-3.1-pro-preview";
 
 export async function generateInboxSuggestionFastAction(
     partnerId: string,

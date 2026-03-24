@@ -9,7 +9,7 @@ import {
 import type { ModuleAgentConfig } from '@/lib/modules/types';
 
 const genAI = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || '' });
-const RELAY_CHAT_MODEL = 'gemini-3-pro-preview';
+const RELAY_CHAT_MODEL = 'gemini-3.1-pro-preview';
 
 const corsHeaders = {
     'Access-Control-Allow-Origin': '*',

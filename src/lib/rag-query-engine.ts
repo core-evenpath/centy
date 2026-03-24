@@ -198,7 +198,7 @@ export async function queryVaultRAG(
         console.log('🔵 Calling Gemini with File Search...');
 
         const response = await genAI.models.generateContent({
-            model: 'gemini-3-pro-preview',
+            model: 'gemini-3.1-pro-preview',
             contents: question,
             config: {
                 systemInstruction: RAG_SYSTEM_INSTRUCTION,
@@ -321,7 +321,7 @@ export async function queryVaultRAG(
             groundingChunks,
             consolidatedTags,
             usage: {
-                model: 'gemini-3-pro-preview',
+                model: 'gemini-3.1-pro-preview',
             },
             timings: {
                 totalMs: totalTime,

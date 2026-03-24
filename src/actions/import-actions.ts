@@ -6,7 +6,7 @@ import { cleanAndParseJSON } from '@/lib/modules/utils';
 import { getPartnerModuleAction, getSystemModuleAction } from './modules-actions';
 
 const genAI = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || '' });
-const IMPORT_MODEL = 'gemini-3-pro-preview';
+const IMPORT_MODEL = 'gemini-3.1-pro-preview';
 
 export async function generateSampleCSVAction(
     partnerId: string,

@@ -7,10 +7,10 @@ const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_GENAI_API_KEY;
 const ai = new GoogleGenAI({ apiKey: apiKey });
 
 // Use standard models if preview ones are not available
-// Note: gemini-3-pro-preview may show "thoughtSignature" warnings - these are cosmetic
+// Note: gemini-3.1-pro-preview may show "thoughtSignature" warnings - these are cosmetic
 // The SDK automatically handles the non-text parts
 
-const GENERATION_MODEL = 'gemini-3-pro-preview';
+const GENERATION_MODEL = 'gemini-3.1-pro-preview';
 // Only use Flash Image for strictly generating images, not for analysis
 const IMAGE_GEN_MODEL = 'gemini-2.5-flash-image';
 const EMBEDDING_MODEL = 'text-embedding-004';
@@ -433,7 +433,7 @@ export const generateSuggestions = async (
 
     try {
         const res = await ai.models.generateContent({
-            model: 'gemini-3-pro-preview',
+            model: 'gemini-3.1-pro-preview',
             contents: {
                 parts: [{ text: `User Query: "${query}"\nSystem Response: "${responseContext.slice(0, 500)}..."\n\nGenerate 3 short follow-up questions.` }]
             },

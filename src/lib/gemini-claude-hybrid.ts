@@ -157,7 +157,7 @@ export async function queryWithHybridRAG(
     console.log('🔵 Step 3: Calling Gemini 3 Pro Preview for retrieval');
     console.log(`📤 RAG Store: ${ragStoreName}`);
     console.log(`📤 Question: "${question}"`);
-    console.log(`📤 Model: gemini-3-pro-preview`);
+    console.log(`📤 Model: gemini-3.1-pro-preview`);
     console.log(`📤 Thinking Level: low (optimized for retrieval speed)`);
     console.log(`📤 Filter: ${metadataFilter || 'NONE (searching all docs)'}`);
 
@@ -165,7 +165,7 @@ export async function queryWithHybridRAG(
 
     try {
       const geminiConfig: any = {
-        model: 'gemini-3-pro-preview',
+        model: 'gemini-3.1-pro-preview',
         contents: question,
         config: {
           tools: [
