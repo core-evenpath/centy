@@ -102,34 +102,212 @@ const BLOCK_TYPE_COLORS: Record<string, string> = {
 
 const CATALOG_ITEMS: CatalogItem[] = [
     {
-        id: 'item-1',
-        name: 'Sample Item',
-        price: 5000,
+        id: 'deluxe-suite',
+        name: 'Deluxe Ocean Suite',
+        price: 18500,
+        originalPrice: 22000,
         currency: 'INR',
-        unit: '/each',
-        subtitle: 'Sample subtitle',
-        emoji: '📦',
+        unit: '/night',
+        subtitle: 'Ocean-facing luxury with private balcony',
+        tagline: 'Most Popular Choice',
+        emoji: '🌊',
+        color: '#2563EB',
+        colorEnd: '#7C3AED',
+        rating: 4.8,
+        reviewCount: 234,
+        badges: ['Best Seller', '15% Off'],
+        features: ['King Bed', 'Ocean View', 'Free WiFi', 'Mini Bar'],
+        specs: [{ label: 'Size', value: '52 sqm' }, { label: 'Floor', value: '8th-12th' }, { label: 'View', value: 'Panoramic Ocean' }],
+        maxCapacity: 3,
+    },
+    {
+        id: 'garden-villa',
+        name: 'Garden Villa',
+        price: 32000,
+        currency: 'INR',
+        unit: '/night',
+        subtitle: 'Private villa with plunge pool',
+        emoji: '🌺',
+        color: '#059669',
+        colorEnd: '#10B981',
+        rating: 4.9,
+        reviewCount: 87,
+        badges: ['Premium'],
+        features: ['Private Pool', 'Butler Service', 'Garden Terrace', 'Outdoor Shower'],
+        specs: [{ label: 'Size', value: '120 sqm' }, { label: 'Bedrooms', value: '2' }],
+        maxCapacity: 4,
+    },
+    {
+        id: 'superior-room',
+        name: 'Superior Room',
+        price: 8900,
+        currency: 'INR',
+        unit: '/night',
+        subtitle: 'Cozy room with city skyline view',
+        emoji: '🏙️',
         color: '#A2845B',
         colorEnd: '#BFA07A',
         rating: 4.5,
-        reviewCount: 42,
-        badges: ['Popular'],
-        features: ['Feature A', 'Feature B'],
-        specs: [{ label: 'Type', value: 'Standard' }],
+        reviewCount: 412,
+        features: ['Queen Bed', 'City View', 'Free WiFi'],
+        specs: [{ label: 'Size', value: '32 sqm' }],
         maxCapacity: 2,
     },
 ];
 
 const SERVICE_ITEMS: ActivityItem[] = [
-    { id: 'svc-1', name: 'Sample Service', description: 'A sample service', icon: '⭐', price: '₹2,000', duration: '60 min', category: 'General', bookable: true },
+    { id: 'spa-1', name: 'Balinese Hot Stone Massage', description: 'Traditional volcanic stone therapy for deep muscle relaxation', icon: '🪨', price: '₹4,500', duration: '90 min', category: 'Signature Spa', bookable: true },
+    { id: 'spa-2', name: 'Ayurvedic Shirodhara', description: 'Warm herbal oil poured over the forehead for stress relief', icon: '🧘', price: '₹3,800', duration: '60 min', category: 'Signature Spa', bookable: true },
+    { id: 'yoga-1', name: 'Sunrise Beach Yoga', description: 'Start your day with guided yoga on the shore', icon: '🌅', price: 'Free', duration: '45 min', category: 'Wellness', bookable: true },
+    { id: 'pool-1', name: 'Aqua Fitness Class', description: 'High-energy water aerobics in the infinity pool', icon: '🏊', price: 'Free', duration: '30 min', category: 'Wellness', bookable: false },
+    { id: 'cook-1', name: 'Local Cuisine Cooking Class', description: 'Learn authentic coastal recipes with our head chef', icon: '👨‍🍳', price: '₹2,500', duration: '120 min', category: 'Experiences', bookable: true },
 ];
 
 const CONTACT_METHODS: ContactMethod[] = [
-    { type: 'phone', label: 'Phone', value: '+91 98765 43210', icon: '📞' },
-    { type: 'email', label: 'Email', value: 'hello@example.com', icon: '📧' },
+    { type: 'whatsapp', label: 'WhatsApp Concierge', value: '+91 98765 43210', icon: '💬' },
+    { type: 'phone', label: 'Front Desk', value: '+91 98765 43211', icon: '📞' },
+    { type: 'email', label: 'Reservations', value: 'reservations@resort.com', icon: '📧' },
+    { type: 'website', label: 'Book Online', value: 'https://resort.com/book', icon: '🌐' },
 ];
 
-function generateMockBlock(blockType: string): RelayBlock {
+const LOCATION_DATA = {
+    name: 'The Shoreline Resort & Spa',
+    address: '42 Marine Drive, Juhu Beach',
+    area: 'Mumbai, Maharashtra',
+    emoji: '🏖️',
+    mapGradient: ['#0EA5E9', '#6366F1'] as [string, string],
+    directions: [
+        { icon: '✈️', label: 'From Airport', detail: '25 min via Western Express Highway' },
+        { icon: '🚂', label: 'From Station', detail: '15 min from Andheri Station' },
+        { icon: '🚕', label: 'Cab Service', detail: 'Complimentary pickup available' },
+    ],
+    actions: ['Get Directions', 'Call Us', 'Share Location'],
+};
+
+const GALLERY_ITEMS = [
+    { emoji: '🏖️', label: 'Beachfront', span: 2 },
+    { emoji: '🛏️', label: 'Suites' },
+    { emoji: '🍽️', label: 'Dining' },
+    { emoji: '🏊', label: 'Infinity Pool', span: 2 },
+    { emoji: '🧖', label: 'Spa' },
+    { emoji: '🌅', label: 'Sunset View' },
+];
+
+const INFO_ITEMS = [
+    { label: 'Check-in', value: '2:00 PM' },
+    { label: 'Check-out', value: '11:00 AM' },
+    { label: 'WiFi', value: 'Complimentary high-speed' },
+    { label: 'Parking', value: 'Free valet parking' },
+    { label: 'Pool', value: 'Open 6 AM – 10 PM' },
+    { label: 'Pets', value: 'Small pets welcome (₹500/night)' },
+    { label: 'Cancellation', value: 'Free up to 48h before arrival' },
+];
+
+const BRAND_DATA = {
+    name: 'The Shoreline',
+    emoji: '🏖️',
+    tagline: 'Your beachfront escape awaits',
+    quickActions: [
+        { label: 'Browse Rooms', prompt: 'Show me available rooms', emoji: '🛏️' },
+        { label: 'Spa & Wellness', prompt: 'What spa treatments do you offer?', emoji: '🧖' },
+        { label: 'Dining Options', prompt: 'Tell me about restaurants', emoji: '🍽️' },
+        { label: 'Getting Here', prompt: 'How do I get to the resort?', emoji: '📍' },
+    ],
+};
+
+const BOOKING_CONVERSION_PATHS = [
+    { id: 'direct', label: 'Book Now', icon: '⚡', type: 'primary' as const, color: '#059669', action: 'direct' as const },
+    { id: 'whatsapp', label: 'Chat on WhatsApp', icon: '💬', type: 'secondary' as const, color: '#25D366', action: 'whatsapp' as const },
+    { id: 'callback', label: 'Request Callback', icon: '📞', type: 'secondary' as const, action: 'callback' as const },
+];
+
+function buildPreviewBlock(config: RelayBlockConfigDetail): RelayBlock {
+    const sampleData = config.blockTypeTemplate?.sampleData;
+    const blockType = config.blockType;
+
+    if (sampleData && Object.keys(sampleData).length > 0) {
+        switch (blockType) {
+            case 'catalog':
+            case 'rooms':
+            case 'products':
+            case 'services':
+            case 'menu':
+            case 'listings':
+                if (sampleData.items && Array.isArray(sampleData.items) && sampleData.items.length > 0) {
+                    return { type: blockType, items: sampleData.items, showBookButton: true, bookButtonLabel: 'View', layout: sampleData.layout };
+                }
+                break;
+            case 'compare':
+                if (sampleData.items && Array.isArray(sampleData.items)) {
+                    return { type: blockType, items: sampleData.items, compareFields: sampleData.compareFields };
+                }
+                break;
+            case 'activities':
+            case 'experiences':
+            case 'classes':
+            case 'treatments':
+                if (sampleData.items && Array.isArray(sampleData.items) && sampleData.items.length > 0) {
+                    return { type: blockType, items: sampleData.items };
+                }
+                break;
+            case 'book':
+            case 'reserve':
+            case 'appointment':
+            case 'inquiry':
+                if (sampleData.items && Array.isArray(sampleData.items)) {
+                    return {
+                        type: blockType,
+                        items: sampleData.items,
+                        conversionPaths: sampleData.conversionPaths,
+                        dateMode: sampleData.dateMode || 'single',
+                        guestMode: sampleData.guestMode || 'counter',
+                        headerLabel: sampleData.headerLabel || 'Book Now',
+                        selectLabel: sampleData.selectLabel || 'Select',
+                    };
+                }
+                break;
+            case 'location':
+            case 'directions':
+                if (sampleData.location) {
+                    return { type: blockType, location: sampleData.location };
+                }
+                break;
+            case 'contact':
+                if (sampleData.methods && Array.isArray(sampleData.methods)) {
+                    return { type: blockType, methods: sampleData.methods };
+                }
+                break;
+            case 'gallery':
+            case 'photos':
+                if (sampleData.items && Array.isArray(sampleData.items)) {
+                    return { type: blockType, items: sampleData.items };
+                }
+                break;
+            case 'info':
+            case 'faq':
+            case 'details':
+                if (sampleData.items && Array.isArray(sampleData.items)) {
+                    return { type: blockType, items: sampleData.items };
+                }
+                break;
+            case 'greeting':
+            case 'welcome':
+                if (sampleData.brand) {
+                    return { type: blockType, brand: sampleData.brand };
+                }
+                break;
+            case 'text':
+                if (sampleData.text) {
+                    return { type: blockType, text: sampleData.text, suggestions: sampleData.suggestions };
+                }
+                break;
+        }
+    }
+
+    return generateFallbackBlock(blockType);
+}
+
+function generateFallbackBlock(blockType: string): RelayBlock {
     switch (blockType) {
         case 'catalog':
         case 'rooms':
@@ -140,9 +318,10 @@ function generateMockBlock(blockType: string): RelayBlock {
             return { type: blockType, items: CATALOG_ITEMS, showBookButton: true, bookButtonLabel: 'View' };
         case 'compare':
             return {
-                type: blockType, items: CATALOG_ITEMS, compareFields: [
+                type: blockType, items: CATALOG_ITEMS.slice(0, 2), compareFields: [
                     { label: 'Price', key: 'price' },
                     { label: 'Rating', key: 'rating' },
+                    { label: 'Capacity', key: 'maxCapacity' },
                 ],
             };
         case 'activities':
@@ -154,24 +333,33 @@ function generateMockBlock(blockType: string): RelayBlock {
         case 'reserve':
         case 'appointment':
         case 'inquiry':
-            return { type: blockType, items: CATALOG_ITEMS, dateMode: 'single', guestMode: 'counter', headerLabel: 'Book Now', selectLabel: 'Select' };
+            return {
+                type: blockType, items: CATALOG_ITEMS.slice(0, 2),
+                conversionPaths: BOOKING_CONVERSION_PATHS,
+                dateMode: 'range', guestMode: 'counter',
+                headerLabel: 'Reserve Your Stay', selectLabel: 'Choose Room',
+            };
         case 'location':
         case 'directions':
-            return { type: blockType, location: { name: 'Business Location', address: '123 Main St', area: 'City Center', emoji: '📍', mapGradient: ['#A2845B', '#BFA07A'] as [string, string], directions: [], actions: [] } };
+            return { type: blockType, location: LOCATION_DATA };
         case 'contact':
             return { type: blockType, methods: CONTACT_METHODS };
         case 'gallery':
         case 'photos':
-            return { type: blockType, items: [{ emoji: '📷', label: 'Photo 1', span: 2 }, { emoji: '🖼️', label: 'Photo 2' }] };
+            return { type: blockType, items: GALLERY_ITEMS };
         case 'info':
         case 'faq':
         case 'details':
-            return { type: blockType, items: [{ label: 'Hours', value: '9 AM - 6 PM' }, { label: 'Phone', value: '+91 98765 43210' }] };
+            return { type: blockType, items: INFO_ITEMS };
         case 'greeting':
         case 'welcome':
-            return { type: blockType, brand: { name: 'Your Business', emoji: '👋', tagline: 'Welcome!', quickActions: [] } };
+            return { type: blockType, brand: BRAND_DATA };
         default:
-            return { type: 'text', text: 'Welcome! How can I help you today?', suggestions: ['Learn more', 'Contact us'] };
+            return {
+                type: 'text',
+                text: 'Welcome to The Shoreline Resort & Spa! I\'m your virtual concierge. How can I make your stay unforgettable?',
+                suggestions: ['Browse rooms & suites', 'Spa treatments', 'Restaurant reservations', 'Local experiences'],
+            };
     }
 }
 
@@ -366,7 +554,7 @@ function ConfigCard({ config, onUpdate, onDelete, onRegenerated }: ConfigCardPro
     const [deleting, setDeleting] = useState(false);
     const [regenerating, setRegenerating] = useState(false);
 
-    const mockBlock = useMemo(() => generateMockBlock(draft.blockType), [draft.blockType]);
+    const previewBlock = useMemo(() => buildPreviewBlock(draft), [draft.blockType, draft.blockTypeTemplate]);
 
     const updateDraft = useCallback(<K extends keyof RelayBlockConfigDetail>(
         key: K,
@@ -645,7 +833,7 @@ function ConfigCard({ config, onUpdate, onDelete, onRegenerated }: ConfigCardPro
                         <div className="lg:col-span-2">
                             <Label className="mb-2 block">Live Preview</Label>
                             <div className="max-w-[360px] mx-auto bg-[#FAFAF6] rounded-2xl p-4 shadow-inner border border-gray-100">
-                                <BlockRenderer block={mockBlock} theme={DEFAULT_THEME} />
+                                <BlockRenderer block={previewBlock} theme={DEFAULT_THEME} />
                             </div>
                         </div>
                     </div>
