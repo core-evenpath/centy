@@ -197,13 +197,49 @@ export async function updateSystemModuleAction(
             return { success: false, error: 'Module not found', code: 'NOT_FOUND' };
         }
 
+        const now = new Date().toISOString();
+
         await moduleRef.update({
             ...data,
-            updatedAt: new Date().toISOString(),
+            updatedAt: now,
         });
+
+        try {
+            const updatedDoc = await moduleRef.get();
+            const mod = updatedDoc.data();
+            if (mod?.agentConfig && mod?.slug) {
+                const blockConfigId = `block_${mod.slug}`;
+                await adminDb.collection('relayBlockConfigs').doc(blockConfigId).set({
+                    id: blockConfigId,
+                    blockType: mod.agentConfig.relayBlockType || 'card',
+                    label: mod.name,
+                    description: `${mod.name} — ${mod.description || ''}`,
+                    moduleSlug: mod.slug,
+                    moduleId: moduleId,
+                    applicableIndustries: mod.applicableIndustries || [],
+                    applicableFunctions: mod.applicableFunctions || [],
+                    dataSchema: {
+                        sourceCollection: 'moduleItems',
+                        sourceFields: mod.agentConfig.displayFields || [],
+                        displayTemplate: mod.agentConfig.relayBlockType || 'card',
+                        maxItems: 10,
+                        sortBy: 'sortOrder',
+                        sortOrder: 'asc',
+                    },
+                    agentConfig: mod.agentConfig,
+                    aiPromptFragment: mod.agentConfig.inboxContext || '',
+                    status: 'active',
+                    updatedAt: now,
+                }, { merge: true });
+            }
+        } catch (relayError) {
+            console.error(`⚠️ Failed to sync relay block config for module ${moduleId}:`, relayError);
+        }
 
         revalidatePath('/admin/modules');
         revalidatePath(`/admin/modules/${moduleId}`);
+        revalidatePath('/admin/relay');
+        revalidatePath('/admin/relay/blocks');
         return { success: true };
     } catch (error) {
         console.error('Error updating system module:', error);

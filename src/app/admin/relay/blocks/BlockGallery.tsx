@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import {
     CatalogCards,
     CompareTable,
@@ -14,17 +14,35 @@ import {
     GreetingCard,
     DEFAULT_THEME,
 } from '@/components/relay/blocks';
-import type { CatalogItem, ActivityItem, ContactMethod } from '@/components/relay/blocks';
+import type { CatalogItem, ActivityItem, ContactMethod, RelayBlock } from '@/components/relay/blocks';
+import { BlockRenderer } from '@/components/relay/blocks';
 import type { RelayBlockConfigDetail } from '@/actions/relay-actions';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import {
+    updateRelayBlockConfigAction,
+    deleteRelayBlockConfigAction,
+} from '@/actions/relay-actions';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
-import { Collapsible, CollapsibleTrigger, CollapsibleContent } from '@/components/ui/collapsible';
+import {
+    Select,
+    SelectTrigger,
+    SelectValue,
+    SelectContent,
+    SelectItem,
+} from '@/components/ui/select';
+import {
+    Collapsible,
+    CollapsibleTrigger,
+    CollapsibleContent,
+} from '@/components/ui/collapsible';
 import Link from 'next/link';
-import { ChevronDown, Zap, Plus } from 'lucide-react';
-
-// ── Sample Data ─────────────────────────────────────────────────────
+import { ChevronDown, ChevronRight, Zap, Plus, Save, Trash2 } from 'lucide-react';
+import { toast } from 'sonner';
 
 const CATALOG_ITEMS: CatalogItem[] = [
     {
@@ -85,7 +103,111 @@ const CONTACT_METHODS: ContactMethod[] = [
     { type: 'website', label: 'Website', value: 'grandresort.com', icon: '🌐' },
 ];
 
-// ── Block Definitions ───────────────────────────────────────────────
+const LOCATION_DATA = {
+    name: 'The Grand Resort & Spa',
+    address: '123 Marine Drive, South Mumbai',
+    area: 'Colaba, Mumbai 400005',
+    emoji: '📍',
+    mapGradient: ['#A2845B', '#BFA07A'] as [string, string],
+    directions: [
+        { icon: '✈️', label: 'From Airport', detail: '45 min via Western Express Highway' },
+        { icon: '🚂', label: 'From CST Station', detail: '20 min via taxi' },
+    ],
+    actions: ['Get Directions', 'Share Location'],
+};
+
+const GALLERY_ITEMS = [
+    { emoji: '🏊', label: 'Infinity Pool', span: 2 },
+    { emoji: '🍽️', label: 'Restaurant' },
+    { emoji: '🛏️', label: 'Suite' },
+    { emoji: '🧖', label: 'Spa', span: 2 },
+    { emoji: '🌅', label: 'Beach' },
+];
+
+const INFO_ITEMS = [
+    { label: 'Check-in', value: '2:00 PM' },
+    { label: 'Check-out', value: '11:00 AM' },
+    { label: 'WiFi', value: 'Free — all areas' },
+    { label: 'Parking', value: 'Valet — ₹500/day' },
+    { label: 'Pool Hours', value: '6 AM – 10 PM' },
+    { label: 'Pets', value: 'Not allowed' },
+];
+
+const BRAND_DATA = {
+    name: 'The Grand Resort',
+    emoji: '🏨',
+    tagline: 'Where luxury meets the sea',
+    quickActions: [
+        { icon: '🛏️', label: 'Browse rooms', prompt: 'Show me available rooms' },
+        { icon: '🍽️', label: 'See menu', prompt: "What's on the menu?" },
+        { icon: '💆', label: 'Spa services', prompt: 'Tell me about spa treatments' },
+        { icon: '📍', label: 'Directions', prompt: 'How do I get there?' },
+    ],
+};
+
+const BLOCK_TYPES = [
+    'catalog', 'rooms', 'products', 'services', 'menu', 'listings',
+    'compare',
+    'activities', 'experiences', 'classes', 'treatments',
+    'book', 'reserve', 'appointment', 'inquiry',
+    'location', 'directions',
+    'contact',
+    'gallery', 'photos',
+    'info', 'faq', 'details',
+    'greeting', 'welcome',
+    'text',
+] as const;
+
+function generateMockBlock(blockType: string): RelayBlock {
+    switch (blockType) {
+        case 'catalog':
+        case 'rooms':
+        case 'products':
+        case 'services':
+        case 'menu':
+        case 'listings':
+            return { type: blockType, items: CATALOG_ITEMS, showBookButton: true, bookButtonLabel: 'Reserve' };
+        case 'compare':
+            return {
+                type: blockType, items: CATALOG_ITEMS, compareFields: [
+                    { label: 'Price / night', key: 'price' },
+                    { label: 'Rating', key: 'rating' },
+                    { label: 'Size', key: 'spec:Size' },
+                ],
+            };
+        case 'activities':
+        case 'experiences':
+        case 'classes':
+        case 'treatments':
+            return { type: blockType, items: SERVICE_ITEMS };
+        case 'book':
+        case 'reserve':
+        case 'appointment':
+        case 'inquiry':
+            return { type: blockType, items: CATALOG_ITEMS, dateMode: 'range', guestMode: 'counter', headerLabel: 'Book your stay', selectLabel: 'Select room' };
+        case 'location':
+        case 'directions':
+            return { type: blockType, location: LOCATION_DATA };
+        case 'contact':
+            return { type: blockType, methods: CONTACT_METHODS };
+        case 'gallery':
+        case 'photos':
+            return { type: blockType, items: GALLERY_ITEMS };
+        case 'info':
+        case 'faq':
+        case 'details':
+            return { type: blockType, items: INFO_ITEMS };
+        case 'greeting':
+        case 'welcome':
+            return { type: blockType, brand: BRAND_DATA };
+        default:
+            return {
+                type: 'text',
+                text: 'Welcome! I can help you with room availability, dining options, spa bookings, and local recommendations.',
+                suggestions: ['Show me rooms', 'Restaurant menu', 'Spa treatments'],
+            };
+    }
+}
 
 interface BlockDef {
     component: string;
@@ -180,18 +302,7 @@ const BLOCK_DEFS: BlockDef[] = [
         previews: [{
             render: () => (
                 <LocationCard
-                    location={{
-                        name: 'The Grand Resort & Spa',
-                        address: '123 Marine Drive, South Mumbai',
-                        area: 'Colaba, Mumbai 400005',
-                        emoji: '📍',
-                        mapGradient: ['#A2845B', '#BFA07A'] as [string, string],
-                        directions: [
-                            { icon: '✈️', label: 'From Airport', detail: '45 min via Western Express Highway' },
-                            { icon: '🚂', label: 'From CST Station', detail: '20 min via taxi' },
-                        ],
-                        actions: ['Get Directions', 'Share Location'],
-                    }}
+                    location={LOCATION_DATA}
                     theme={DEFAULT_THEME}
                 />
             ),
@@ -215,13 +326,7 @@ const BLOCK_DEFS: BlockDef[] = [
         previews: [{
             render: () => (
                 <GalleryGrid
-                    items={[
-                        { emoji: '🏊', label: 'Infinity Pool', span: 2 },
-                        { emoji: '🍽️', label: 'Restaurant' },
-                        { emoji: '🛏️', label: 'Suite' },
-                        { emoji: '🧖', label: 'Spa', span: 2 },
-                        { emoji: '🌅', label: 'Beach' },
-                    ]}
+                    items={GALLERY_ITEMS}
                     theme={DEFAULT_THEME}
                 />
             ),
@@ -233,14 +338,7 @@ const BLOCK_DEFS: BlockDef[] = [
         previews: [{
             render: () => (
                 <InfoTable
-                    items={[
-                        { label: 'Check-in', value: '2:00 PM' },
-                        { label: 'Check-out', value: '11:00 AM' },
-                        { label: 'WiFi', value: 'Free — all areas' },
-                        { label: 'Parking', value: 'Valet — ₹500/day' },
-                        { label: 'Pool Hours', value: '6 AM – 10 PM' },
-                        { label: 'Pets', value: 'Not allowed' },
-                    ]}
+                    items={INFO_ITEMS}
                     theme={DEFAULT_THEME}
                 />
             ),
@@ -268,12 +366,7 @@ const BLOCK_DEFS: BlockDef[] = [
                     brandName="The Grand Resort"
                     brandEmoji="🏨"
                     tagline="Where luxury meets the sea"
-                    quickActions={[
-                        { icon: '🛏️', label: 'Browse rooms', prompt: 'Show me available rooms' },
-                        { icon: '🍽️', label: 'See menu', prompt: "What's on the menu?" },
-                        { icon: '💆', label: 'Spa services', prompt: 'Tell me about spa treatments' },
-                        { icon: '📍', label: 'Directions', prompt: 'How do I get there?' },
-                    ]}
+                    quickActions={BRAND_DATA.quickActions}
                     theme={DEFAULT_THEME}
                 />
             ),
@@ -281,24 +374,16 @@ const BLOCK_DEFS: BlockDef[] = [
     },
 ];
 
-// ── Helper: get all type aliases that map to a component ────────────
-
-function getAliasesForComponent(componentName: string): string[] {
-    const def = BLOCK_DEFS.find(d => d.component === componentName);
-    return def?.aliases ?? [];
-}
-
 function configMatchesBlock(config: RelayBlockConfigDetail, block: BlockDef): boolean {
     return block.aliases.some(alias => alias === config.blockType);
 }
-
-// ── Component ───────────────────────────────────────────────────────
 
 interface BlockGalleryProps {
     configs: RelayBlockConfigDetail[];
 }
 
-export function BlockGallery({ configs }: BlockGalleryProps) {
+export function BlockGallery({ configs: initialConfigs }: BlockGalleryProps) {
+    const [configs, setConfigs] = useState(initialConfigs);
     const [activeFilter, setActiveFilter] = useState<string>('All');
 
     const filteredBlocks = useMemo(() => {
@@ -306,17 +391,20 @@ export function BlockGallery({ configs }: BlockGalleryProps) {
         return BLOCK_DEFS.filter(b => b.component === activeFilter);
     }, [activeFilter]);
 
-    const configCountForBlock = (block: BlockDef): number => {
-        return configs.filter(c => configMatchesBlock(c, block)).length;
-    };
-
     const configsForBlock = (block: BlockDef): RelayBlockConfigDetail[] => {
         return configs.filter(c => configMatchesBlock(c, block));
     };
 
+    const handleConfigUpdate = useCallback((id: string, updated: RelayBlockConfigDetail) => {
+        setConfigs(prev => prev.map(c => c.id === id ? updated : c));
+    }, []);
+
+    const handleConfigDelete = useCallback((id: string) => {
+        setConfigs(prev => prev.filter(c => c.id !== id));
+    }, []);
+
     return (
         <div className="space-y-8">
-            {/* ── Filter Bar ──────────────────────────────────── */}
             <div className="flex flex-wrap gap-2">
                 <Button
                     variant={activeFilter === 'All' ? 'default' : 'outline'}
@@ -337,7 +425,6 @@ export function BlockGallery({ configs }: BlockGalleryProps) {
                 ))}
             </div>
 
-            {/* ── Section A: Block Type Templates ─────────────── */}
             <div>
                 <h2 className="text-xl font-semibold mb-4">Block Type Templates</h2>
                 <div className="grid gap-6 lg:grid-cols-2">
@@ -374,7 +461,6 @@ export function BlockGallery({ configs }: BlockGalleryProps) {
                                         </div>
                                     ))}
 
-                                    {/* Collapsible config panel */}
                                     {count > 0 && (
                                         <>
                                             <Separator />
@@ -421,7 +507,6 @@ export function BlockGallery({ configs }: BlockGalleryProps) {
                 </div>
             </div>
 
-            {/* ── Section B: Configured Blocks ────────────────── */}
             <div>
                 <h2 className="text-xl font-semibold mb-4">Configured Blocks</h2>
                 {configs.length === 0 ? (
@@ -441,66 +526,230 @@ export function BlockGallery({ configs }: BlockGalleryProps) {
                         </CardContent>
                     </Card>
                 ) : (
-                    <Card>
-                        <CardContent className="p-0">
-                            <div className="overflow-x-auto">
-                                <table className="w-full text-sm">
-                                    <thead>
-                                        <tr className="border-b bg-muted/50">
-                                            <th className="text-left p-3 font-medium">Label</th>
-                                            <th className="text-left p-3 font-medium">Block Type</th>
-                                            <th className="text-left p-3 font-medium">Module</th>
-                                            <th className="text-left p-3 font-medium">Industries</th>
-                                            <th className="text-left p-3 font-medium">Status</th>
-                                            <th className="text-left p-3 font-medium">Template</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {configs.map(config => {
-                                            const matchingBlock = BLOCK_DEFS.find(b => configMatchesBlock(config, b));
-                                            return (
-                                                <tr key={config.id} className="border-b last:border-0">
-                                                    <td className="p-3 font-medium">{config.label}</td>
-                                                    <td className="p-3">
-                                                        <Badge variant="outline">{config.blockType}</Badge>
-                                                    </td>
-                                                    <td className="p-3 text-muted-foreground">
-                                                        {config.moduleSlug || '—'}
-                                                    </td>
-                                                    <td className="p-3">
-                                                        <div className="flex flex-wrap gap-1">
-                                                            {config.applicableIndustries.length > 0
-                                                                ? config.applicableIndustries.map(ind => (
-                                                                    <Badge key={ind} variant="outline" className="text-xs py-0">
-                                                                        {ind}
-                                                                    </Badge>
-                                                                ))
-                                                                : <span className="text-muted-foreground">—</span>
-                                                            }
-                                                        </div>
-                                                    </td>
-                                                    <td className="p-3">
-                                                        <span className={`text-xs px-2 py-1 rounded-full font-medium ${
-                                                            config.status === 'active'
-                                                                ? 'bg-green-100 text-green-700'
-                                                                : 'bg-gray-100 text-gray-600'
-                                                        }`}>
-                                                            {config.status}
-                                                        </span>
-                                                    </td>
-                                                    <td className="p-3 text-muted-foreground">
-                                                        {matchingBlock?.component || 'TextWithSuggestions'}
-                                                    </td>
-                                                </tr>
-                                            );
-                                        })}
-                                    </tbody>
-                                </table>
-                            </div>
-                        </CardContent>
-                    </Card>
+                    <div className="space-y-3">
+                        {configs.map(config => (
+                            <ConfigCard
+                                key={config.id}
+                                config={config}
+                                onUpdate={handleConfigUpdate}
+                                onDelete={handleConfigDelete}
+                            />
+                        ))}
+                    </div>
                 )}
             </div>
         </div>
+    );
+}
+
+interface ConfigCardProps {
+    config: RelayBlockConfigDetail;
+    onUpdate: (id: string, updated: RelayBlockConfigDetail) => void;
+    onDelete: (id: string) => void;
+}
+
+function ConfigCard({ config, onUpdate, onDelete }: ConfigCardProps) {
+    const [isOpen, setIsOpen] = useState(false);
+    const [draft, setDraft] = useState(config);
+    const [saving, setSaving] = useState(false);
+    const [deleting, setDeleting] = useState(false);
+
+    const mockBlock = useMemo(() => generateMockBlock(draft.blockType), [draft.blockType]);
+
+    const updateDraft = useCallback(<K extends keyof RelayBlockConfigDetail>(
+        key: K,
+        value: RelayBlockConfigDetail[K]
+    ) => {
+        setDraft(prev => ({ ...prev, [key]: value }));
+    }, []);
+
+    const updateDataSchema = useCallback((
+        key: string,
+        value: string | number | string[]
+    ) => {
+        setDraft(prev => ({
+            ...prev,
+            dataSchema: { ...prev.dataSchema, [key]: value },
+        }));
+    }, []);
+
+    const handleSave = async () => {
+        setSaving(true);
+        const { id, ...updates } = draft;
+        const result = await updateRelayBlockConfigAction(id, updates);
+        if (result.success) {
+            toast.success('Block config saved');
+            onUpdate(config.id, draft);
+        } else {
+            toast.error(result.error || 'Failed to save');
+        }
+        setSaving(false);
+    };
+
+    const handleDelete = async () => {
+        if (!window.confirm(`Delete block config "${config.label}"? This cannot be undone.`)) return;
+        setDeleting(true);
+        const result = await deleteRelayBlockConfigAction(config.id);
+        if (result.success) {
+            toast.success('Block config deleted');
+            onDelete(config.id);
+        } else {
+            toast.error(result.error || 'Failed to delete');
+        }
+        setDeleting(false);
+    };
+
+    return (
+        <Card className="border border-[#e5e5e5]">
+            <button
+                type="button"
+                className="w-full text-left px-5 py-4 flex items-center gap-3"
+                onClick={() => setIsOpen(!isOpen)}
+            >
+                {isOpen
+                    ? <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />
+                    : <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
+                }
+                <Badge variant="outline" className="shrink-0">{config.blockType}</Badge>
+                <span className="font-medium truncate">{config.label}</span>
+                {config.moduleSlug && (
+                    <span className="text-sm text-muted-foreground truncate hidden sm:inline">
+                        {config.moduleSlug}
+                    </span>
+                )}
+                <span className="ml-auto shrink-0">
+                    <Badge
+                        variant={config.status === 'active' ? 'success' : 'secondary'}
+                        className="text-xs"
+                    >
+                        {config.status}
+                    </Badge>
+                </span>
+            </button>
+
+            {isOpen && (
+                <CardContent className="pt-0 pb-5 px-5">
+                    <Separator className="mb-5" />
+                    <div className="grid gap-6 lg:grid-cols-2">
+                        <div className="space-y-4">
+                            <div>
+                                <Label>Block Type</Label>
+                                <Select
+                                    value={draft.blockType}
+                                    onValueChange={v => updateDraft('blockType', v)}
+                                >
+                                    <SelectTrigger className="mt-1">
+                                        <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {BLOCK_TYPES.map(t => (
+                                            <SelectItem key={t} value={t}>{t}</SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+
+                            <div>
+                                <Label>Label</Label>
+                                <Input
+                                    className="mt-1"
+                                    value={draft.label}
+                                    onChange={e => updateDraft('label', e.target.value)}
+                                />
+                            </div>
+
+                            <div>
+                                <Label>Description</Label>
+                                <Textarea
+                                    className="mt-1"
+                                    rows={2}
+                                    value={draft.description || ''}
+                                    onChange={e => updateDraft('description', e.target.value)}
+                                />
+                            </div>
+
+                            <div>
+                                <Label>Display Template</Label>
+                                <Textarea
+                                    className="mt-1 font-mono text-xs"
+                                    rows={2}
+                                    placeholder="{name} — {price} per night"
+                                    value={draft.dataSchema?.displayTemplate || ''}
+                                    onChange={e => updateDataSchema('displayTemplate', e.target.value)}
+                                />
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-3">
+                                <div>
+                                    <Label>Max Items</Label>
+                                    <Input
+                                        className="mt-1"
+                                        type="number"
+                                        min={1}
+                                        max={100}
+                                        value={draft.dataSchema?.maxItems ?? ''}
+                                        onChange={e => updateDataSchema('maxItems', parseInt(e.target.value) || 0)}
+                                    />
+                                </div>
+                                <div>
+                                    <Label>Status</Label>
+                                    <Select
+                                        value={draft.status}
+                                        onValueChange={v => updateDraft('status', v)}
+                                    >
+                                        <SelectTrigger className="mt-1">
+                                            <SelectValue />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="active">active</SelectItem>
+                                            <SelectItem value="inactive">inactive</SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                            </div>
+
+                            <div>
+                                <Label>Source Fields</Label>
+                                <Input
+                                    className="mt-1"
+                                    placeholder="name, price, description"
+                                    value={(draft.dataSchema?.sourceFields || []).join(', ')}
+                                    onChange={e =>
+                                        updateDataSchema(
+                                            'sourceFields',
+                                            e.target.value.split(',').map(s => s.trim()).filter(Boolean)
+                                        )
+                                    }
+                                />
+                                <p className="text-xs text-muted-foreground mt-1">Comma-separated field names</p>
+                            </div>
+
+                            <div className="flex gap-2 pt-2">
+                                <Button onClick={handleSave} disabled={saving} size="sm">
+                                    <Save className="mr-2 h-4 w-4" />
+                                    {saving ? 'Saving...' : 'Save Changes'}
+                                </Button>
+                                <Button
+                                    variant="destructive"
+                                    size="sm"
+                                    onClick={handleDelete}
+                                    disabled={deleting}
+                                >
+                                    <Trash2 className="mr-2 h-4 w-4" />
+                                    {deleting ? 'Deleting...' : 'Delete Block'}
+                                </Button>
+                            </div>
+                        </div>
+
+                        <div>
+                            <Label className="mb-2 block">Live Preview</Label>
+                            <div className="max-w-[360px] mx-auto bg-[#FAFAF6] rounded-2xl p-4 shadow-inner border border-gray-100">
+                                <BlockRenderer block={mockBlock} theme={DEFAULT_THEME} />
+                            </div>
+                        </div>
+                    </div>
+                </CardContent>
+            )}
+        </Card>
     );
 }
