@@ -1,9 +1,9 @@
-// src/app/admin/model/page.tsx
+// src/app/admin/models/page.tsx
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
 import AdminHeader from "../../../components/admin/AdminHeader";
-import { Card, CardContent, CardHeader, CardTitle } from "../../../components/ui/card";
+import { Card, CardContent } from "../../../components/ui/card";
 import { Badge } from "../../../components/ui/badge";
 import { Button } from "../../../components/ui/button";
 import {
@@ -29,12 +29,14 @@ import {
   Search,
 } from "lucide-react";
 import {
-  getSystemModelConfig,
-  updateProcessModel,
-  resetToDefaults,
   DEFAULT_PROCESSES,
   AVAILABLE_MODELS,
   type SystemModelConfig,
+} from "../../../lib/model-config";
+import {
+  getSystemModelConfig,
+  updateProcessModel,
+  resetToDefaults,
 } from "../../../actions/model-config-actions";
 import { useAuth } from "../../../hooks/use-auth";
 

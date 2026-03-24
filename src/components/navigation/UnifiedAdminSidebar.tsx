@@ -40,7 +40,7 @@ const menuItems = [
   { id: "templates", label: "Templates", icon: FileText, href: "/admin/templates" },
   { id: "relay", label: "Relay Blocks", icon: Zap, href: "/admin/relay" },
   { id: "prompts", label: "Prompts", icon: Sparkles, href: "/admin/prompts" },
-  { id: "model", label: "AI Models", icon: Brain, href: "/admin/model" },
+  { id: "models", label: "AI Models", icon: Brain, href: "/admin/models" },
   { id: "users", label: "Admins", icon: Users, href: "/admin/users", requiredRole: 'Super Admin' },
   { id: "settings", label: "Settings", icon: Settings, href: "/admin/settings" },
 ];
