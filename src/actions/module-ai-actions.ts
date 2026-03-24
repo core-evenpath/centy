@@ -1,7 +1,6 @@
 'use server';
 
-import Anthropic from '@anthropic-ai/sdk';
-import anthropic, { AI_MODEL } from '@/lib/anthropic';
+import { GoogleGenAI } from '@google/genai';
 import type {
     ModuleSchema,
     ModuleFieldDefinition,
@@ -15,6 +14,11 @@ import { generateFieldId, generateCategoryId, cleanAndParseJSON } from '@/lib/mo
 import { createSystemModuleAction, getSystemModuleAction } from './modules-actions';
 import { BULK_INDUSTRY_CONFIGS, DEFAULT_MODULE_SETTINGS } from '@/lib/modules/constants';
 import { db as adminDb } from '@/lib/firebase-admin';
+
+// ── Gemini client for module AI operations ──────────────────────────
+const geminiApiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_GENAI_API_KEY;
+const genAI = new GoogleGenAI({ apiKey: geminiApiKey });
+const MODULE_AI_MODEL = 'gemini-3.1-pro-preview';
 
 const SCHEMA_CONFIG = {
     minimal: { minFields: 30, maxFields: 50, minCategories: 8, maxCategories: 15, minSampleItems: 6, maxSampleItems: 10 },
@@ -1491,16 +1495,15 @@ RESPOND WITH ONLY VALID JSON:
   }
 }`;
 
-        const response = await anthropic.messages.create({
-            model: AI_MODEL,
-            max_tokens: 16000,
-            system: 'You are a business data architect. You ONLY output valid JSON. No markdown, no explanation, no code fences. Raw JSON only.',
-            messages: [{ role: 'user', content: prompt }],
+        const response = await genAI.models.generateContent({
+            model: MODULE_AI_MODEL,
+            contents: 'You are a business data architect. You ONLY output valid JSON. No markdown, no explanation, no code fences. Raw JSON only.\n\n' + prompt,
+            config: {
+                temperature: 0.7,
+                responseMimeType: "application/json",
+            },
         });
-        const text = response.content
-            .filter((block): block is Anthropic.TextBlock => block.type === 'text')
-            .map(block => block.text)
-            .join('');
+        const text = response.text || '';
         const parsed = cleanAndParseJSON(text) as IntegrationConfig;
 
         console.log(`✅ AI Generated integration mapping for ${integrationName}: ${Object.keys(parsed.fieldMappings || {}).length} field mappings`);
@@ -1561,16 +1564,15 @@ RESPOND WITH VALID JSON:
   "recommendations": ["Add X field for better integration", "Y field needs html_to_text transformation"]
 }`;
 
-        const response = await anthropic.messages.create({
-            model: AI_MODEL,
-            max_tokens: 16000,
-            system: 'You are a business data architect. You ONLY output valid JSON. No markdown, no explanation, no code fences. Raw JSON only.',
-            messages: [{ role: 'user', content: prompt }],
+        const response = await genAI.models.generateContent({
+            model: MODULE_AI_MODEL,
+            contents: 'You are a business data architect. You ONLY output valid JSON. No markdown, no explanation, no code fences. Raw JSON only.\n\n' + prompt,
+            config: {
+                temperature: 0.7,
+                responseMimeType: "application/json",
+            },
         });
-        const text = response.content
-            .filter((block): block is Anthropic.TextBlock => block.type === 'text')
-            .map(block => block.text)
-            .join('');
+        const text = response.text || '';
         const parsed = cleanAndParseJSON(text);
 
         console.log(`✅ AI Analyzed API response: ${parsed.detectedFields?.length || 0} fields detected`);
@@ -1633,18 +1635,15 @@ RESPOND WITH VALID JSON:
   ]
 }`;
 
-        const response = await anthropic.messages.create({
-            model: AI_MODEL,
-            max_tokens: 8000,
-            system: 'You are a business data architect. You ONLY output valid JSON. No markdown, no explanation, no code fences. Raw JSON only.',
-            messages: [{ role: 'user', content: prompt }],
+        const response = await genAI.models.generateContent({
+            model: MODULE_AI_MODEL,
+            contents: 'You are a business data architect. You ONLY output valid JSON. No markdown, no explanation, no code fences. Raw JSON only.\n\n' + prompt,
+            config: {
+                temperature: 0.7,
+                responseMimeType: "application/json",
+            },
         });
-        const parsed = cleanAndParseJSON(
-            response.content
-                .filter((block): block is Anthropic.TextBlock => block.type === 'text')
-                .map(block => block.text)
-                .join('')
-        );
+        const parsed = cleanAndParseJSON(response.text || '');
 
         return {
             success: true,
@@ -1721,16 +1720,15 @@ Generate JSON:
 
 Use ${countryCode === 'IN' ? 'INR' : 'USD'} for prices. RESPOND WITH ONLY VALID JSON.`;
 
-        const response = await anthropic.messages.create({
-            model: AI_MODEL,
-            max_tokens: 16000,
-            system: 'You are a business data architect. You ONLY output valid JSON. No markdown, no explanation, no code fences. Raw JSON only.',
-            messages: [{ role: 'user', content: prompt }],
+        const response = await genAI.models.generateContent({
+            model: MODULE_AI_MODEL,
+            contents: 'You are a business data architect. You ONLY output valid JSON. No markdown, no explanation, no code fences. Raw JSON only.\n\n' + prompt,
+            config: {
+                temperature: 0.7,
+                responseMimeType: "application/json",
+            },
         });
-        const text = response.content
-            .filter((block): block is Anthropic.TextBlock => block.type === 'text')
-            .map(block => block.text)
-            .join('');
+        const text = response.text || '';
         const parsed = cleanAndParseJSON(text);
 
         const coreFields = [...CORE_FIELDS.all, ...CORE_FIELDS.integration];
@@ -1988,16 +1986,15 @@ ${COMPREHENSIVE_FIELD_TYPES}
 RESPOND WITH ONLY JSON:
 {"newFields": [...], "newCategories": [...]}`;
 
-        const response = await anthropic.messages.create({
-            model: AI_MODEL,
-            max_tokens: 8000,
-            system: 'You are a business data architect. You ONLY output valid JSON. No markdown, no explanation, no code fences. Raw JSON only.',
-            messages: [{ role: 'user', content: prompt }],
+        const response = await genAI.models.generateContent({
+            model: MODULE_AI_MODEL,
+            contents: 'You are a business data architect. You ONLY output valid JSON. No markdown, no explanation, no code fences. Raw JSON only.\n\n' + prompt,
+            config: {
+                temperature: 0.7,
+                responseMimeType: "application/json",
+            },
         });
-        const text = response.content
-            .filter((block): block is Anthropic.TextBlock => block.type === 'text')
-            .map(block => block.text)
-            .join('');
+        const text = response.text || '';
         const parsed = cleanAndParseJSON(text);
 
         const newFields = (parsed.newFields || [])
@@ -2063,18 +2060,15 @@ Suggest NEW fields with: name, type, description, rationale.
 RESPOND WITH ONLY JSON:
 {"suggestions": [{"name": "...", "type": "...", "description": "...", "rationale": "..."}]}`;
 
-        const response = await anthropic.messages.create({
-            model: AI_MODEL,
-            max_tokens: 4000,
-            system: 'You are a business data architect. You ONLY output valid JSON. No markdown, no explanation, no code fences. Raw JSON only.',
-            messages: [{ role: 'user', content: prompt }],
+        const response = await genAI.models.generateContent({
+            model: MODULE_AI_MODEL,
+            contents: 'You are a business data architect. You ONLY output valid JSON. No markdown, no explanation, no code fences. Raw JSON only.\n\n' + prompt,
+            config: {
+                temperature: 0.7,
+                responseMimeType: "application/json",
+            },
         });
-        const parsed = cleanAndParseJSON(
-            response.content
-                .filter((block): block is Anthropic.TextBlock => block.type === 'text')
-                .map(block => block.text)
-                .join('')
-        );
+        const parsed = cleanAndParseJSON(response.text || '');
 
         return { success: true, suggestions: parsed.suggestions || [] };
     } catch (error) {
@@ -2206,13 +2200,11 @@ export async function discoverModulesForBusinessType(
             return { success: true, template: cached };
         }
 
-        const response = await anthropic.messages.create({
-            model: AI_MODEL,
-            max_tokens: 8000,
-            system: 'You are a business operations architect. You ONLY output valid JSON. No markdown, no explanation, no code fences. Raw JSON only.',
-            messages: [{
-                role: 'user',
-                content: `You are a business operations architect who has built back-office software for 500+ businesses across every industry.
+        const response = await genAI.models.generateContent({
+            model: MODULE_AI_MODEL,
+            contents: `You are a business operations architect. You ONLY output valid JSON. No markdown, no explanation, no code fences. Raw JSON only.
+
+You are a business operations architect who has built back-office software for 500+ businesses across every industry.
 
 BUSINESS TYPE: ${functionName}
 INDUSTRY: ${industryName}
@@ -2281,14 +2273,14 @@ RESPOND WITH ONLY VALID JSON:
       }
     }
   ]
-}`
-            }],
+}`,
+            config: {
+                temperature: 0.7,
+                responseMimeType: "application/json",
+            },
         });
 
-        const text = response.content
-            .filter((block): block is Anthropic.TextBlock => block.type === 'text')
-            .map(block => block.text)
-            .join('');
+        const text = response.text || '';
 
         const parsed = cleanAndParseJSON(text);
         // Handle both { "modules": [...] } wrapper and bare array
