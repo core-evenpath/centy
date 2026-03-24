@@ -390,6 +390,8 @@ export default function AdminModelPage() {
                                   <p className="text-xs text-muted-foreground">{proc.description}</p>
                                   <p className="text-xs text-muted-foreground/60 mt-0.5">
                                     Source: <code className="text-xs">{proc.sourceFile}</code>
+                                    <span className="mx-1.5">·</span>
+                                    Used in: <span className="text-muted-foreground/80">{proc.usedIn}</span>
                                   </p>
                                 </div>
 
