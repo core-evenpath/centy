@@ -150,7 +150,7 @@ async function extractDocumentTags(
     console.log('📊 Content length:', content.length, 'chars');
 
     const response = await genAI.models.generateContent({
-      model: 'gemini-3-pro-preview',
+      model: 'gemini-3.1-pro-preview',
       contents: prompt,
       config: {
         temperature: 0.3,
@@ -1383,7 +1383,7 @@ export async function queryVault(
     console.log('🔵 Calling Gemini with File Search...');
 
     const response = await genAI.models.generateContent({
-      model: 'gemini-3-pro-preview',
+      model: 'gemini-3.1-pro-preview',
       contents: query,
       config: {
         systemInstruction: RAG_SYSTEM_INSTRUCTION,
@@ -1500,10 +1500,10 @@ export async function queryVault(
         selectedFileIds: effectiveFileIds,
         selectedFileNames: fileNames,
         provider: 'gemini-rag',
-        modelUsed: 'gemini-3-pro-preview',
+        modelUsed: 'gemini-3.1-pro-preview',
         sources,
         consolidatedTags,
-        usage: { model: 'gemini-3-pro-preview' },
+        usage: { model: 'gemini-3.1-pro-preview' },
         timings: {
           totalMs: totalTime,
           retrievalMs: retrievalTime,
@@ -1531,7 +1531,7 @@ export async function queryVault(
       groundingChunks,
       consolidatedTags,
       usage: {
-        model: 'gemini-3-pro-preview',
+        model: 'gemini-3.1-pro-preview',
       },
       timings: {
         totalMs: totalTime,
@@ -2061,7 +2061,7 @@ Return ONLY a JSON array of 4 question strings, nothing else. Example format:
 ["Question 1?", "Question 2?", "Question 3?", "Question 4?"]`;
 
     const response = await genAI.models.generateContent({
-      model: 'gemini-3-pro-preview',
+      model: 'gemini-3.1-pro-preview',
       contents: prompt,
       config: {
         tools: [

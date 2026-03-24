@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import Anthropic from '@anthropic-ai/sdk';
-import anthropic, { AI_MODEL } from '@/lib/anthropic';
+import { GoogleGenAI } from '@google/genai';
 import { db as adminDb } from '@/lib/firebase-admin';
 import {
     getPartnerModulesAction,
@@ -8,6 +7,9 @@ import {
     getModuleItemsAction,
 } from '@/actions/modules-actions';
 import type { ModuleAgentConfig } from '@/lib/modules/types';
+
+const genAI = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || '' });
+const RELAY_CHAT_MODEL = 'gemini-3.1-pro-preview';
 
 const corsHeaders = {
     'Access-Control-Allow-Origin': '*',
@@ -169,23 +171,33 @@ ${personaContext}${moduleContext}
 
 Respond with ONLY valid JSON. No markdown, no code fences.`;
 
-        // Format messages for Anthropic
-        const formattedMessages = messages.map((m: any) => ({
-            role: m.role === 'user' ? 'user' as const : 'assistant' as const,
-            content: m.content,
+        // Format conversation history for Gemini
+        const conversationHistory = messages.map((m: any) => ({
+            role: m.role === 'user' ? 'user' : 'model',
+            parts: [{ text: m.content }],
         }));
 
-        const response = await anthropic.messages.create({
-            model: AI_MODEL,
-            max_tokens: 2048,
-            system: systemPrompt,
-            messages: formattedMessages,
+        // Build the full contents array: system instruction as first user turn context + conversation
+        const lastUserMessage = conversationHistory[conversationHistory.length - 1];
+        const priorMessages = conversationHistory.slice(0, -1);
+
+        const response = await genAI.models.generateContent({
+            model: RELAY_CHAT_MODEL,
+            contents: [
+                ...priorMessages,
+                {
+                    role: 'user',
+                    parts: [{ text: lastUserMessage?.parts?.[0]?.text || '' }],
+                },
+            ],
+            config: {
+                systemInstruction: systemPrompt,
+                maxOutputTokens: 2048,
+                temperature: 0.3,
+            },
         });
 
-        const text = response.content
-            .filter((block): block is Anthropic.TextBlock => block.type === 'text')
-            .map(block => block.text)
-            .join('');
+        const text = response.text?.trim() || '';
 
         // Try to parse as JSON block response
         let parsed: any;

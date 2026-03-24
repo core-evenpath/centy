@@ -66,7 +66,7 @@ export async function extractDocumentTags(
         console.log('📊 Content length:', content.length, 'chars');
 
         const response = await genAI.models.generateContent({
-            model: 'gemini-3-pro-preview',
+            model: 'gemini-3.1-pro-preview',
             contents: prompt,
             config: {
                 temperature: 0.3,
@@ -134,7 +134,7 @@ export async function extractDocumentTags(
 export async function generateQueryTags(query: string): Promise<string[]> {
     try {
         const response = await genAI.models.generateContent({
-            model: 'gemini-3-pro-preview',
+            model: 'gemini-3.1-pro-preview',
             contents: `Extract 3-5 key search terms from this query. Return ONLY a JSON array of strings, nothing else.
 
 Query: "${query}"

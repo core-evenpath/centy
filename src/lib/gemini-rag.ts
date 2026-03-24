@@ -155,7 +155,7 @@ export async function queryWithGeminiRAG(
     console.log('🔵 Step 3: Calling Gemini 3 Pro with File Search');
     console.log(`📤 RAG Store: ${ragStoreName}`);
     console.log(`📤 Question: "${question}"`);
-    console.log(`📤 Model: gemini-3-pro-preview`);
+    console.log(`📤 Model: gemini-3.1-pro-preview`);
 
     const queryStart = Date.now();
 
@@ -229,7 +229,7 @@ CRITICAL INSTRUCTIONS:
     }
 
     let geminiResponse = await genAI.models.generateContent({
-      model: 'gemini-3-pro-preview',
+      model: 'gemini-3.1-pro-preview',
       contents: question,
       config: {
         systemInstruction: systemInstruction,
@@ -349,11 +349,11 @@ CRITICAL INSTRUCTIONS:
       response: responseText,
       geminiChunks: processedChunks,
       usage: {
-        model: 'gemini-3-pro-preview',
+        model: 'gemini-3.1-pro-preview',
       },
       retrievalTime: totalTime,
       generationTime: totalTime,
-      modelUsed: 'gemini-3-pro-preview',
+      modelUsed: 'gemini-3.1-pro-preview',
       metadataFilter: metadataFilter,
     };
 

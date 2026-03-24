@@ -710,7 +710,7 @@ export async function testAgentAction(
         const prompt = `${systemPrompt}\n\nDOCUMENT CONTEXT:\n${contextString || 'No documents available'}\n\nCUSTOMER MESSAGE:\n"${userMessage}"`;
 
         const result = await ai.models.generateContent({
-            model: 'gemini-3-pro-preview',
+            model: 'gemini-3.1-pro-preview',
             contents: prompt,
             config: {
                 temperature: 0.7,
@@ -802,7 +802,7 @@ export async function generateInboxSuggestionAction(
 }`;
 
         const result = await ai.models.generateContent({
-            model: 'gemini-3-pro-preview',
+            model: 'gemini-3.1-pro-preview',
             contents: prompt,
             config: {
                 temperature: 0.7,
