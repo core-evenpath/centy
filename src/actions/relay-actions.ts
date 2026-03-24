@@ -269,3 +269,59 @@ export async function getRelayBlockConfigsWithModulesAction(): Promise<{
         return { success: false, configs: [], error: e.message };
     }
 }
+
+// ── Update a relay block config ─────────────────────────────────────
+
+export async function updateRelayBlockConfigAction(
+    id: string,
+    updates: Partial<Omit<RelayBlockConfigDetail, 'id'>>
+): Promise<{ success: boolean; error?: string }> {
+    try {
+        const docRef = adminDb.collection('relayBlockConfigs').doc(id);
+        const doc = await docRef.get();
+
+        if (!doc.exists) {
+            return { success: false, error: 'Block config not found' };
+        }
+
+        await docRef.update({
+            ...updates,
+            updatedAt: new Date().toISOString(),
+        });
+
+        const { revalidatePath } = await import('next/cache');
+        revalidatePath('/admin/relay/blocks');
+        revalidatePath('/admin/relay');
+
+        return { success: true };
+    } catch (e: any) {
+        console.error('Failed to update relay block config:', e);
+        return { success: false, error: e.message };
+    }
+}
+
+// ── Delete a relay block config ─────────────────────────────────────
+
+export async function deleteRelayBlockConfigAction(
+    id: string
+): Promise<{ success: boolean; error?: string }> {
+    try {
+        const docRef = adminDb.collection('relayBlockConfigs').doc(id);
+        const doc = await docRef.get();
+
+        if (!doc.exists) {
+            return { success: false, error: 'Block config not found' };
+        }
+
+        await docRef.delete();
+
+        const { revalidatePath } = await import('next/cache');
+        revalidatePath('/admin/relay/blocks');
+        revalidatePath('/admin/relay');
+
+        return { success: true };
+    } catch (e: any) {
+        console.error('Failed to delete relay block config:', e);
+        return { success: false, error: e.message };
+    }
+}
