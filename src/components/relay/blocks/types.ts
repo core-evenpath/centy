@@ -138,4 +138,83 @@ export interface BlockCallbacks {
     itemId?: string;
   }) => void;
   onExternalLink?: (url: string) => void;
+  onLeadSubmit?: (data: Record<string, string>) => void;
+  onHandoff?: (option: { type: string; value?: string }) => void;
+  onPromoClick?: (promoId: string) => void;
+  onScheduleBook?: (slotId: string) => void;
+}
+
+export interface PricingTier {
+  id: string;
+  name: string;
+  price: number;
+  currency: string;
+  unit?: string;
+  features: string[];
+  isPopular?: boolean;
+  emoji?: string;
+  color?: string;
+}
+
+export interface Testimonial {
+  id: string;
+  name: string;
+  text: string;
+  rating?: number;
+  date?: string;
+  avatar?: string;
+  source?: string;
+}
+
+export interface QuickAction {
+  id: string;
+  label: string;
+  emoji: string;
+  prompt: string;
+  description?: string;
+  color?: string;
+}
+
+export interface ScheduleSlot {
+  id: string;
+  time: string;
+  endTime?: string;
+  title: string;
+  instructor?: string;
+  spots?: number;
+  price?: string;
+  emoji?: string;
+  isAvailable: boolean;
+}
+
+export interface PromoOffer {
+  id: string;
+  title: string;
+  description: string;
+  discount?: string;
+  code?: string;
+  validUntil?: string;
+  emoji?: string;
+  color?: string;
+  colorEnd?: string;
+  ctaLabel?: string;
+  ctaPrompt?: string;
+}
+
+export interface LeadField {
+  id: string;
+  label: string;
+  type: 'text' | 'phone' | 'email' | 'select';
+  placeholder?: string;
+  required?: boolean;
+  options?: string[];
+}
+
+export interface HandoffOption {
+  id: string;
+  type: 'whatsapp' | 'phone' | 'callback' | 'chat';
+  label: string;
+  value?: string;
+  icon: string;
+  description?: string;
 }
