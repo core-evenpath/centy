@@ -58,6 +58,7 @@
   var messages = []; // { role, content, parsed }
   var isOpen = false;
   var isLoading = false;
+  var flowMeta = null; // { stage, leadTemperature, leadScore, shouldHandoff, turnCount }
 
   function rand() {
     return Math.random().toString(36).slice(2, 8);
@@ -211,6 +212,14 @@
           submitMessage(input, msgsEl);
         }
       }
+      var qaBtn = e.target.closest('[data-prompt]');
+      if (qaBtn && !chip && !cardBtn) {
+        var prompt = qaBtn.getAttribute('data-prompt');
+        if (prompt) {
+          input.value = prompt;
+          submitMessage(input, msgsEl);
+        }
+      }
     });
   }
 
@@ -269,6 +278,7 @@
           messages.push({ role: 'assistant', content: JSON.stringify(p) });
           appendAssistantMessage(container, p);
           if (res.conversationId) conversationId = res.conversationId;
+          if (res.flowMeta) flowMeta = res.flowMeta;
         }
       })
       .catch(function () {
@@ -361,6 +371,30 @@
         return renderInfo(parsed);
       case 'book':
         return renderCards(items, true);
+      case 'pricing':
+      case 'packages':
+      case 'plans':
+        return renderPricing(parsed.pricingTiers || items);
+      case 'testimonials':
+      case 'reviews':
+        return renderTestimonials(parsed.testimonials || items);
+      case 'quick_actions':
+      case 'menu_actions':
+        return renderQuickActions(parsed.quickActions || items);
+      case 'schedule':
+      case 'timetable':
+      case 'slots':
+        return renderSchedule(parsed.schedule || items);
+      case 'promo':
+      case 'offer':
+      case 'deal':
+        return renderPromos(parsed.promos || items);
+      case 'lead_capture':
+      case 'form':
+        return renderLeadForm(parsed);
+      case 'handoff':
+      case 'connect':
+        return renderHandoff(parsed);
       default:
         // card / list / carousel / rooms / activities etc.
         if (items.length > 3) return renderCarousel(items);
@@ -505,6 +539,146 @@
     var html = '<div class="cr-suggestions">';
     suggestions.forEach(function (s) {
       html += '<button class="cr-chip">' + esc(s) + '</button>';
+    });
+    html += '</div>';
+    return html;
+  }
+
+  /** Pricing tiers */
+  function renderPricing(tiers) {
+    if (!tiers || tiers.length === 0) return '';
+    var html = '<div class="cr-block cr-cards">';
+    tiers.forEach(function (tier) {
+      html += '<div class="cr-card">';
+      html += '<div class="cr-card-body" style="text-align:center">';
+      if (tier.emoji) html += '<div style="font-size:24px;margin-bottom:4px">' + esc(tier.emoji) + '</div>';
+      html += '<div class="cr-card-title">' + esc(tier.name || '') + '</div>';
+      html += '<div class="cr-card-price" style="font-size:18px;margin:6px 0">' + esc((tier.currency || '') + ' ' + (tier.price || '')) + '</div>';
+      if (tier.unit) html += '<div class="cr-card-sub">' + esc(tier.unit) + '</div>';
+      if (tier.features && tier.features.length > 0) {
+        html += '<div style="text-align:left;margin-top:8px;font-size:12px;color:#6b7280">';
+        tier.features.forEach(function (f) { html += '<div style="padding:2px 0">' + esc(f) + '</div>'; });
+        html += '</div>';
+      }
+      html += '</div>';
+      if (tier.isPopular) html += '<div style="background:' + CFG.primaryColor + ';color:#fff;font-size:11px;text-align:center;padding:4px">Popular</div>';
+      html += '<button class="cr-card-btn" data-action="I\'m interested in the ' + esc(tier.name || '') + ' plan">Select</button>';
+      html += '</div>';
+    });
+    html += '</div>';
+    return html;
+  }
+
+  /** Testimonials */
+  function renderTestimonials(testimonials) {
+    if (!testimonials || testimonials.length === 0) return '';
+    var html = '<div class="cr-block cr-list">';
+    testimonials.forEach(function (t) {
+      html += '<div class="cr-list-item" style="flex-direction:column;align-items:flex-start">';
+      html += '<div style="font-size:13px;color:#374151;line-height:1.5">&ldquo;' + esc(t.text || '') + '&rdquo;</div>';
+      html += '<div style="display:flex;align-items:center;gap:6px;margin-top:6px">';
+      html += '<div style="font-size:13px;font-weight:600">' + esc(t.name || '') + '</div>';
+      if (t.rating) html += '<div style="font-size:12px;color:#eab308">' + '\u2605'.repeat(Math.min(t.rating, 5)) + '</div>';
+      if (t.source) html += '<div style="font-size:11px;color:#9ca3af">' + esc(t.source) + '</div>';
+      html += '</div></div>';
+    });
+    html += '</div>';
+    return html;
+  }
+
+  /** Quick actions */
+  function renderQuickActions(actions) {
+    if (!actions || actions.length === 0) return '';
+    var html = '<div class="cr-block" style="display:grid;grid-template-columns:1fr 1fr;gap:6px">';
+    actions.forEach(function (a) {
+      html += '<button class="cr-chip" style="display:flex;align-items:center;gap:6px;padding:10px 12px;text-align:left" data-prompt="' + esc(a.prompt || a.label || '') + '">';
+      if (a.emoji) html += '<span style="font-size:16px">' + esc(a.emoji) + '</span>';
+      html += '<span style="font-size:13px;font-weight:500">' + esc(a.label || '') + '</span>';
+      html += '</button>';
+    });
+    html += '</div>';
+    return html;
+  }
+
+  /** Schedule / time slots */
+  function renderSchedule(slots) {
+    if (!slots || slots.length === 0) return '';
+    var html = '<div class="cr-block cr-list">';
+    slots.forEach(function (s) {
+      html += '<div class="cr-list-item">';
+      html += '<div style="min-width:70px;text-align:center">';
+      html += '<div style="font-size:13px;font-weight:600;color:' + CFG.primaryColor + '">' + esc(s.time || '') + '</div>';
+      if (s.endTime) html += '<div style="font-size:11px;color:#9ca3af">' + esc(s.endTime) + '</div>';
+      html += '</div>';
+      html += '<div class="cr-list-body">';
+      html += '<div class="cr-list-title">' + esc(s.title || '') + '</div>';
+      if (s.instructor) html += '<div class="cr-list-sub">' + esc(s.instructor) + '</div>';
+      if (s.price) html += '<div class="cr-list-price">' + esc(s.price) + '</div>';
+      html += '</div>';
+      if (s.isAvailable !== false) {
+        html += '<button class="cr-chip" style="font-size:12px;padding:6px 10px" data-action="Book ' + esc(s.title || 'slot') + ' at ' + esc(s.time || '') + '">Book</button>';
+      } else {
+        html += '<span style="font-size:11px;color:#9ca3af">Full</span>';
+      }
+      html += '</div>';
+    });
+    html += '</div>';
+    return html;
+  }
+
+  /** Promo cards */
+  function renderPromos(promos) {
+    if (!promos || promos.length === 0) return '';
+    var html = '<div class="cr-block cr-cards">';
+    promos.forEach(function (p) {
+      html += '<div class="cr-card" style="background:linear-gradient(135deg,' + CFG.primaryColor + ',#6366f1);color:#fff">';
+      html += '<div class="cr-card-body">';
+      if (p.discount) html += '<div style="font-size:18px;font-weight:700">' + esc(p.discount) + '</div>';
+      html += '<div style="font-size:14px;font-weight:600;margin:4px 0">' + esc(p.title || '') + '</div>';
+      if (p.description) html += '<div style="font-size:12px;opacity:.9">' + esc(p.description) + '</div>';
+      if (p.code) html += '<div style="margin-top:8px;padding:4px 8px;border:1px dashed rgba(255,255,255,.5);border-radius:4px;font-size:12px;text-align:center">' + esc(p.code) + '</div>';
+      if (p.validUntil) html += '<div style="font-size:11px;opacity:.7;margin-top:4px">Valid until ' + esc(p.validUntil) + '</div>';
+      html += '</div>';
+      html += '<button class="cr-card-btn" style="background:rgba(255,255,255,.2)" data-action="I\'d like to use the ' + esc(p.title || 'promo') + '">' + esc(p.ctaLabel || 'Claim') + '</button>';
+      html += '</div>';
+    });
+    html += '</div>';
+    return html;
+  }
+
+  /** Lead capture form */
+  function renderLeadForm(parsed) {
+    var fields = parsed.fields || [];
+    if (fields.length === 0) return '';
+    var html = '<div class="cr-block cr-lead-form">';
+    if (parsed.title) html += '<div style="font-size:14px;font-weight:600;margin-bottom:4px">' + esc(parsed.title) + '</div>';
+    if (parsed.subtitle) html += '<div style="font-size:12px;color:#6b7280;margin-bottom:8px">' + esc(parsed.subtitle) + '</div>';
+    fields.forEach(function (f) {
+      html += '<input type="' + esc(f.type || 'text') + '" placeholder="' + esc(f.placeholder || f.label || '') + '" data-field-id="' + esc(f.id || f.label || '') + '" ' + (f.required ? 'required' : '') + '>';
+    });
+    html += '<button onclick="(function(btn){var form=btn.closest(\'.cr-lead-form\');var data={};form.querySelectorAll(\'input\').forEach(function(inp){data[inp.getAttribute(\'data-field-id\')]=inp.value});btn.textContent=\'Sent!\';btn.disabled=true})(this)">Submit</button>';
+    html += '</div>';
+    return html;
+  }
+
+  /** Handoff options */
+  function renderHandoff(parsed) {
+    var options = parsed.handoffOptions || [];
+    if (options.length === 0) return '';
+    var html = '<div class="cr-block cr-list">';
+    if (parsed.title) html += '<div style="font-size:14px;font-weight:600;margin-bottom:8px">' + esc(parsed.title) + '</div>';
+    options.forEach(function (opt) {
+      var href = '';
+      if (opt.type === 'whatsapp') href = 'https://wa.me/' + esc((opt.value || '').replace(/[^0-9]/g, ''));
+      else if (opt.type === 'phone') href = 'tel:' + esc(opt.value || '');
+      else if (opt.type === 'email') href = 'mailto:' + esc(opt.value || '');
+
+      html += '<a href="' + href + '" target="_blank" rel="noopener" style="text-decoration:none;color:inherit" class="cr-list-item">';
+      if (opt.icon) html += '<div style="font-size:20px;flex-shrink:0">' + esc(opt.icon) + '</div>';
+      html += '<div class="cr-list-body">';
+      html += '<div class="cr-list-title">' + esc(opt.label || '') + '</div>';
+      if (opt.description) html += '<div class="cr-list-sub">' + esc(opt.description) + '</div>';
+      html += '</div></a>';
     });
     html += '</div>';
     return html;

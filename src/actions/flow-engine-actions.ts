@@ -243,3 +243,77 @@ export async function getAllFlowTemplatesAction(): Promise<{
 }> {
   return { success: true, templates: SYSTEM_FLOW_TEMPLATES };
 }
+
+export async function getAdminFlowOverviewAction(): Promise<{
+  success: boolean;
+  overview?: {
+    totalTemplates: number;
+    partnersWithCustomFlows: number;
+    recentFlowPartners: Array<{
+      partnerId: string;
+      flowName: string;
+      status: string;
+      stageCount: number;
+      updatedAt: string;
+    }>;
+    templateUsage: Array<{ functionId: string; name: string; stageCount: number }>;
+  };
+  error?: string;
+}> {
+  try {
+    const templateUsage = SYSTEM_FLOW_TEMPLATES.map(t => ({
+      functionId: t.functionId,
+      name: t.name,
+      stageCount: t.stages.length,
+    }));
+
+    // Query partners that have custom flows
+    const recentFlowPartners: Array<{
+      partnerId: string;
+      flowName: string;
+      status: string;
+      stageCount: number;
+      updatedAt: string;
+    }> = [];
+
+    try {
+      const partnersSnap = await adminDb.collection('partners').limit(100).get();
+      for (const partnerDoc of partnersSnap.docs) {
+        try {
+          const flowDoc = await adminDb
+            .collection('partners')
+            .doc(partnerDoc.id)
+            .collection('relayConfig')
+            .doc('flowDefinition')
+            .get();
+          if (flowDoc.exists) {
+            const data = flowDoc.data() as FlowDefinition;
+            recentFlowPartners.push({
+              partnerId: partnerDoc.id,
+              flowName: data.name || 'Unnamed',
+              status: data.status || 'active',
+              stageCount: data.stages?.length || 0,
+              updatedAt: data.updatedAt || '',
+            });
+          }
+        } catch {
+          // Skip this partner
+        }
+      }
+    } catch {
+      // Collection may not exist
+    }
+
+    return {
+      success: true,
+      overview: {
+        totalTemplates: SYSTEM_FLOW_TEMPLATES.length,
+        partnersWithCustomFlows: recentFlowPartners.length,
+        recentFlowPartners: recentFlowPartners.slice(0, 20),
+        templateUsage,
+      },
+    };
+  } catch (e: any) {
+    return { success: false, error: e.message };
+  }
+}

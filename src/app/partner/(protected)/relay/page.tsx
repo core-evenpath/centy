@@ -40,7 +40,9 @@ import {
     ExternalLink,
     Play,
     Trash2,
+    GitBranch,
 } from 'lucide-react';
+import FlowEditor from '@/components/partner/relay/FlowEditor';
 
 const DEFAULT_CONFIG: RelayConfig = {
     enabled: false,
@@ -355,6 +357,9 @@ export default function PartnerRelayPage() {
                     </TabsTrigger>
                     <TabsTrigger value="conversations" className="gap-2">
                         <MessageSquare className="h-4 w-4" /> Conversations
+                    </TabsTrigger>
+                    <TabsTrigger value="flows" className="gap-2">
+                        <GitBranch className="h-4 w-4" /> Flows
                     </TabsTrigger>
                 </TabsList>
 
@@ -733,6 +738,11 @@ export default function PartnerRelayPage() {
                             )}
                         </CardContent>
                     </Card>
+                </TabsContent>
+
+                {/* ── Section 4: Flows ──────────────────────────── */}
+                <TabsContent value="flows" className="space-y-6">
+                    <FlowEditor />
                 </TabsContent>
             </Tabs>
         </div>

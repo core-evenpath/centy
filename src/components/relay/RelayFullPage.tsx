@@ -13,6 +13,14 @@ interface RelayFullPageProps {
   config: RelayConfig;
 }
 
+interface FlowMeta {
+  stage?: string;
+  leadTemperature?: string;
+  leadScore?: number;
+  shouldHandoff?: boolean;
+  turnCount?: number;
+}
+
 interface ChatMessage {
   role: 'user' | 'assistant';
   content: string;
@@ -50,6 +58,7 @@ export default function RelayFullPage({ partnerId, config }: RelayFullPageProps)
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
+  const [flowMeta, setFlowMeta] = useState<FlowMeta | null>(null);
   const [conversationId] = useState(() => `relay_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`);
   const chatEndRef = useRef<HTMLDivElement>(null);
 
@@ -103,6 +112,7 @@ export default function RelayFullPage({ partnerId, config }: RelayFullPageProps)
           content: data.response.text || '',
           block: data.response as RelayBlock,
         }]);
+        if (data.flowMeta) setFlowMeta(data.flowMeta);
       } else {
         setMessages(prev => [...prev, {
           role: 'assistant',
@@ -135,7 +145,7 @@ export default function RelayFullPage({ partnerId, config }: RelayFullPageProps)
         >
           {config.brandEmoji || '💬'}
         </div>
-        <div className="min-w-0">
+        <div className="min-w-0 flex-1">
           <h1 className="font-semibold text-sm truncate" style={{ color: theme.text }}>
             {config.brandName || 'Chat'}
           </h1>
@@ -145,6 +155,20 @@ export default function RelayFullPage({ partnerId, config }: RelayFullPageProps)
             </p>
           )}
         </div>
+        {flowMeta && flowMeta.leadTemperature && flowMeta.leadTemperature !== 'cold' && (
+          <div
+            className="flex items-center gap-1 px-2 py-1 rounded-full text-[10px] font-medium shrink-0"
+            style={{
+              backgroundColor: flowMeta.leadTemperature === 'hot' || flowMeta.leadTemperature === 'converted'
+                ? 'rgba(239,68,68,0.1)' : 'rgba(234,179,8,0.1)',
+              color: flowMeta.leadTemperature === 'hot' || flowMeta.leadTemperature === 'converted'
+                ? '#dc2626' : '#ca8a04',
+            }}
+          >
+            <span>{flowMeta.leadTemperature === 'hot' ? '🔥' : flowMeta.leadTemperature === 'converted' ? '✅' : '🌡️'}</span>
+            {flowMeta.leadTemperature}
+          </div>
+        )}
       </header>
 
       <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4">

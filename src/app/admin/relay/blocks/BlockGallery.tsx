@@ -58,6 +58,7 @@ import {
     AlertTriangle,
 } from 'lucide-react';
 import { toast } from 'sonner';
+import type { FlowStageType } from '@/lib/types-flow-engine';
 
 const BLOCK_TYPES = [
     'catalog', 'rooms', 'products', 'services', 'menu', 'listings',
@@ -125,6 +126,54 @@ const BLOCK_TYPE_COLORS: Record<string, string> = {
     handoff: 'bg-sky-100 text-sky-800',
     connect: 'bg-sky-100 text-sky-800',
     human: 'bg-sky-100 text-sky-800',
+};
+
+// Maps block types to flow stages they appear in (derived from STAGE_TO_BLOCKS in flow-engine.ts)
+const BLOCK_TO_FLOW_STAGES: Record<string, FlowStageType[]> = {
+    greeting: ['greeting'],
+    welcome: ['greeting'],
+    quick_actions: ['greeting', 'discovery', 'followup'],
+    menu_actions: ['greeting', 'discovery', 'followup'],
+    catalog: ['discovery', 'showcase'],
+    services: ['discovery'],
+    activities: ['discovery'],
+    pricing: ['showcase', 'conversion'],
+    packages: ['showcase', 'conversion'],
+    plans: ['showcase', 'conversion'],
+    schedule: ['showcase'],
+    timetable: ['showcase'],
+    slots: ['showcase'],
+    promo: ['showcase', 'followup'],
+    offer: ['showcase', 'followup'],
+    deal: ['showcase', 'followup'],
+    menu: ['showcase'],
+    compare: ['comparison'],
+    testimonials: ['social_proof'],
+    reviews: ['social_proof'],
+    book: ['conversion'],
+    reserve: ['conversion'],
+    lead_capture: ['conversion'],
+    form: ['conversion'],
+    info: ['objection'],
+    faq: ['objection'],
+    location: ['objection'],
+    text: ['objection', 'followup'],
+    handoff: ['handoff'],
+    contact: ['handoff'],
+    connect: ['handoff'],
+    human: ['handoff'],
+};
+
+const FLOW_STAGE_COLORS: Record<FlowStageType, string> = {
+    greeting: 'bg-blue-50 text-blue-600 border-blue-200',
+    discovery: 'bg-emerald-50 text-emerald-600 border-emerald-200',
+    showcase: 'bg-purple-50 text-purple-600 border-purple-200',
+    comparison: 'bg-amber-50 text-amber-600 border-amber-200',
+    social_proof: 'bg-pink-50 text-pink-600 border-pink-200',
+    conversion: 'bg-green-50 text-green-600 border-green-200',
+    objection: 'bg-orange-50 text-orange-600 border-orange-200',
+    handoff: 'bg-red-50 text-red-600 border-red-200',
+    followup: 'bg-gray-50 text-gray-600 border-gray-200',
 };
 
 const CATALOG_ITEMS: CatalogItem[] = [
@@ -619,6 +668,14 @@ function ConfigCard({ config, onUpdate, onDelete, onRegenerated }: ConfigCardPro
                         {subcategory}
                     </Badge>
                 )}
+                {(BLOCK_TO_FLOW_STAGES[config.blockType] || []).map(stage => (
+                    <span
+                        key={stage}
+                        className={`inline-flex items-center rounded-full px-1.5 py-0 text-[9px] font-medium border shrink-0 hidden lg:inline-flex ${FLOW_STAGE_COLORS[stage] || ''}`}
+                    >
+                        {stage}
+                    </span>
+                ))}
                 {isAiGenerated && (
                     <Sparkles className="h-3.5 w-3.5 text-amber-500 shrink-0" />
                 )}
