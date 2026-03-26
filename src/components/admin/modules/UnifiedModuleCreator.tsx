@@ -9,7 +9,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import {
     ArrowLeft, Check, ChevronRight, Loader2, Package,
-    Plus, RefreshCw, Sparkles, X,
+    Plus, RefreshCw, Sparkles, X, Zap,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { DEFAULT_MODULE_SETTINGS } from '@/lib/modules/constants';
@@ -39,6 +39,9 @@ interface GenerationProgress {
     fieldsCount?: number;
     categoriesCount?: number;
     error?: string;
+    relayBlockStatus?: 'pending' | 'success' | 'error';
+    relayBlockId?: string;
+    relayBlockError?: string;
 }
 
 const INDUSTRY_ICONS: Record<string, string> = {
@@ -226,12 +229,17 @@ export function UnifiedModuleCreator({ userId }: UnifiedModuleCreatorProps) {
                     throw new Error(createResult.error || 'Module creation failed');
                 }
 
+                const relayBlock = createResult.data?.relayBlock;
+
                 setProgress(prev => prev.map((p, idx) =>
                     idx === i ? {
                         ...p,
                         status: 'success',
                         fieldsCount: schemaResult.schema!.fields.length,
                         categoriesCount: schemaResult.schema!.categories.length,
+                        relayBlockStatus: relayBlock?.success ? 'success' : 'error',
+                        relayBlockId: relayBlock?.blockId,
+                        relayBlockError: relayBlock?.error,
                     } : p
                 ));
             } catch (error) {
@@ -294,7 +302,12 @@ export function UnifiedModuleCreator({ userId }: UnifiedModuleCreatorProps) {
                 throw new Error(createResult.error || 'Module creation failed');
             }
 
-            toast.success('Module created successfully!');
+            const relayBlock = createResult.data?.relayBlock;
+            if (relayBlock?.success) {
+                toast.success('Module + Relay block created successfully!');
+            } else {
+                toast.success('Module created! Relay block failed — generate it from Admin > Relay.');
+            }
             router.push('/admin/modules');
         } catch (error) {
             console.error(error);
@@ -531,7 +544,7 @@ export function UnifiedModuleCreator({ userId }: UnifiedModuleCreatorProps) {
                                 <p className="text-sm text-muted-foreground">
                                     {step === 'generating'
                                         ? `${progress.filter(p => p.status === 'success').length} of ${progress.length} completed`
-                                        : `${successCount} succeeded, ${failedCount} failed`
+                                        : `${successCount} modules, ${progress.filter(p => p.relayBlockStatus === 'success').length} relay blocks created`
                                     }
                                 </p>
                             </div>
@@ -570,8 +583,26 @@ export function UnifiedModuleCreator({ userId }: UnifiedModuleCreatorProps) {
                                     <div className="flex-1 min-w-0">
                                         <div className="font-medium text-sm">{item.name}</div>
                                         {item.status === 'success' && (
-                                            <div className="text-xs text-emerald-600">
-                                                {item.fieldsCount} fields &middot; {item.categoriesCount} categories
+                                            <div className="space-y-0.5">
+                                                <div className="text-xs text-emerald-600">
+                                                    {item.fieldsCount} fields &middot; {item.categoriesCount} categories
+                                                </div>
+                                                <div className={cn(
+                                                    "text-xs flex items-center gap-1",
+                                                    item.relayBlockStatus === 'success' ? "text-emerald-600" : "text-amber-600"
+                                                )}>
+                                                    {item.relayBlockStatus === 'success' ? (
+                                                        <>
+                                                            <Zap className="h-3 w-3" />
+                                                            Relay block created
+                                                        </>
+                                                    ) : item.relayBlockStatus === 'error' ? (
+                                                        <>
+                                                            <Zap className="h-3 w-3" />
+                                                            Relay block failed{item.relayBlockError ? `: ${item.relayBlockError}` : ''}
+                                                        </>
+                                                    ) : null}
+                                                </div>
                                             </div>
                                         )}
                                         {item.status === 'error' && (
