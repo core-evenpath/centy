@@ -40,6 +40,7 @@ import {
     ExternalLink,
     Play,
     Trash2,
+    GitBranch,
 } from 'lucide-react';
 
 const DEFAULT_CONFIG: RelayConfig = {
@@ -355,6 +356,9 @@ export default function PartnerRelayPage() {
                     </TabsTrigger>
                     <TabsTrigger value="conversations" className="gap-2">
                         <MessageSquare className="h-4 w-4" /> Conversations
+                    </TabsTrigger>
+                    <TabsTrigger value="flows" className="gap-2">
+                        <GitBranch className="h-4 w-4" /> Flows
                     </TabsTrigger>
                 </TabsList>
 
@@ -731,6 +735,26 @@ export default function PartnerRelayPage() {
                                     ))}
                                 </div>
                             )}
+                        </CardContent>
+                    </Card>
+                </TabsContent>
+
+                {/* ── Section 5: Flows ─────────────────────────── */}
+                <TabsContent value="flows" className="space-y-6">
+                    <Card>
+                        <CardHeader>
+                            <CardTitle>Conversation Flows</CardTitle>
+                            <CardDescription>
+                                Configure how your AI assistant guides visitors through the sales journey
+                            </CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                            <Button asChild>
+                                <Link href="/partner/relay/flows">
+                                    <GitBranch className="h-4 w-4 mr-2" />
+                                    Open Flow Editor
+                                </Link>
+                            </Button>
                         </CardContent>
                     </Card>
                 </TabsContent>
