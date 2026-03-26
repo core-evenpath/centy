@@ -278,6 +278,20 @@ function generateMockBlock(blockType: string): RelayBlock {
     }
 }
 
+function sampleDataToRelayBlock(blockType: string, sampleData: Record<string, any>): RelayBlock | null {
+    if (!sampleData || Object.keys(sampleData).length === 0) {
+        return null;
+    }
+
+    const block: RelayBlock = { type: blockType, ...sampleData };
+
+    if (['handoff', 'connect', 'human'].includes(blockType) && sampleData.options && !sampleData.handoffOptions) {
+        block.handoffOptions = sampleData.options;
+    }
+
+    return block;
+}
+
 function getBlockTypeColor(blockType: string): string {
     return BLOCK_TYPE_COLORS[blockType] || 'bg-gray-100 text-gray-800';
 }
@@ -529,7 +543,13 @@ function ConfigCard({ config, onUpdate, onDelete, onRegenerated }: ConfigCardPro
     const [deleting, setDeleting] = useState(false);
     const [regenerating, setRegenerating] = useState(false);
 
-    const mockBlock = useMemo(() => generateMockBlock(draft.blockType), [draft.blockType]);
+    const previewBlock = useMemo(() => {
+        const fromSampleData = sampleDataToRelayBlock(
+            draft.blockType,
+            draft.blockTypeTemplate?.sampleData || {}
+        );
+        return fromSampleData || generateMockBlock(draft.blockType);
+    }, [draft.blockType, draft.blockTypeTemplate?.sampleData]);
 
     const updateDraft = useCallback(<K extends keyof RelayBlockConfigDetail>(
         key: K,
@@ -806,9 +826,21 @@ function ConfigCard({ config, onUpdate, onDelete, onRegenerated }: ConfigCardPro
                         </div>
 
                         <div className="lg:col-span-2">
-                            <Label className="mb-2 block">Live Preview</Label>
+                            <div className="flex items-center gap-2 mb-2">
+                                <Label>Live Preview</Label>
+                                {draft.blockTypeTemplate?.sampleData && Object.keys(draft.blockTypeTemplate.sampleData).length > 0 ? (
+                                    <Badge variant="secondary" className="text-[10px] py-0 gap-1">
+                                        <Sparkles className="h-2.5 w-2.5" />
+                                        AI Data
+                                    </Badge>
+                                ) : (
+                                    <Badge variant="outline" className="text-[10px] py-0">
+                                        Sample
+                                    </Badge>
+                                )}
+                            </div>
                             <div className="max-w-[360px] mx-auto bg-[#FAFAF6] rounded-2xl p-4 shadow-inner border border-gray-100">
-                                <BlockRenderer block={mockBlock} theme={DEFAULT_THEME} />
+                                <BlockRenderer block={previewBlock} theme={DEFAULT_THEME} />
                             </div>
                         </div>
                     </div>
