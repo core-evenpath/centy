@@ -12,6 +12,13 @@ import GalleryGrid from "./GalleryGrid";
 import InfoTable from "./InfoTable";
 import TextWithSuggestions from "./TextWithSuggestions";
 import GreetingCard from "./GreetingCard";
+import PricingTable from "./PricingTable";
+import TestimonialCards from "./TestimonialCards";
+import QuickActions from "./QuickActions";
+import ScheduleView from "./ScheduleView";
+import PromoCard from "./PromoCard";
+import LeadCapture from "./LeadCapture";
+import HandoffCard from "./HandoffCard";
 
 export interface RelayBlock {
   type: string;
@@ -31,6 +38,15 @@ export interface RelayBlock {
   bookLabel?: string;
   showBookButton?: boolean;
   layout?: "stack" | "carousel";
+  pricingTiers?: any[];
+  testimonials?: any[];
+  quickActions?: any[];
+  schedule?: any[];
+  promos?: any[];
+  fields?: any[];
+  handoffOptions?: any[];
+  title?: string;
+  subtitle?: string;
 }
 
 interface BlockRendererProps {
@@ -150,6 +166,85 @@ export default function BlockRenderer({
           quickActions={block.brand?.quickActions}
           theme={theme}
           onAction={(prompt) => callbacks?.onSendMessage?.(prompt)}
+        />
+      );
+
+    case "pricing":
+    case "packages":
+    case "plans":
+      return (
+        <PricingTable
+          items={block.pricingTiers || block.items || []}
+          theme={theme}
+          onSelect={(id) => callbacks?.onSendMessage?.(`I'm interested in the ${id} plan`)}
+          headerLabel={block.title}
+        />
+      );
+
+    case "testimonials":
+    case "reviews":
+      return (
+        <TestimonialCards
+          items={block.testimonials || block.items || []}
+          theme={theme}
+        />
+      );
+
+    case "quick_actions":
+    case "menu_actions":
+      return (
+        <QuickActions
+          items={block.quickActions || block.items || []}
+          theme={theme}
+          onAction={(prompt) => callbacks?.onSendMessage?.(prompt)}
+        />
+      );
+
+    case "schedule":
+    case "timetable":
+    case "slots":
+      return (
+        <ScheduleView
+          items={block.schedule || block.items || []}
+          theme={theme}
+          onBook={(id) => callbacks?.onSendMessage?.(`I'd like to book the ${id} slot`)}
+        />
+      );
+
+    case "promo":
+    case "offer":
+    case "deal":
+      return (
+        <PromoCard
+          items={block.promos || block.items || []}
+          theme={theme}
+          onClaim={(id) => callbacks?.onSendMessage?.(`I want to claim the ${id} offer`)}
+        />
+      );
+
+    case "lead_capture":
+    case "form":
+    case "inquiry_form":
+      return (
+        <LeadCapture
+          fields={block.fields || []}
+          theme={theme}
+          title={block.title}
+          subtitle={block.subtitle}
+          onSubmit={(data) => callbacks?.onLeadSubmit?.(data)}
+        />
+      );
+
+    case "handoff":
+    case "connect":
+    case "human":
+      return (
+        <HandoffCard
+          options={block.handoffOptions || block.items || []}
+          theme={theme}
+          title={block.title}
+          subtitle={block.subtitle}
+          onSelect={(opt) => callbacks?.onHandoff?.(opt)}
         />
       );
 

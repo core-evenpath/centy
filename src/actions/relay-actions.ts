@@ -2,6 +2,7 @@
 
 import { db as adminDb } from '@/lib/firebase-admin';
 import { GoogleGenAI, Type } from '@google/genai';
+import { getBlockMappingForFunction } from '@/lib/relay-block-taxonomy';
 
 // ── Gemini client for block template generation ─────────────────────
 const geminiApiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_GENAI_API_KEY;
@@ -457,7 +458,67 @@ CRITICAL RULES:
 3. Make every template VISUALLY UNIQUE: use different color palettes, emojis, creative names, varied item counts
 4. Think like a customer browsing on mobile — what would ENGAGE them and feel different from a text chat?
 5. Use the module's actual field names in displayTemplate with {{fieldName}} syntax
-6. Prices, names, and descriptions should be realistic for the specific industry`;
+6. Prices, names, and descriptions should be realistic for the specific industry
+
+PRICING FAMILY (for tiered service packages):
+Types: "pricing", "packages", "plans"
+- "pricing" for general, "packages" for bundled offerings, "plans" for subscription-style
+sampleData shape: { items: PricingTier[] } where PricingTier = {
+  id: string, name: string, price: number, currency: string,
+  unit?: string ("per session","per month"), features: string[],
+  isPopular?: boolean, emoji?: string, color?: string (hex)
+}
+Generate 2-3 tiers with varied prices. Mark one as isPopular. Include 3-5 features per tier.
+
+TESTIMONIAL (for social proof and reviews):
+Types: "testimonials", "reviews"
+sampleData shape: { items: Testimonial[] } where Testimonial = {
+  id: string, name: string, text: string (1-2 sentences),
+  rating?: number (1-5), date?: string ("2 weeks ago"), source?: string ("Google","WhatsApp")
+}
+Generate 3-4 testimonials with varied ratings (mostly 4-5). Use realistic first names.
+
+QUICK ACTIONS (for intent entry points):
+Types: "quick_actions", "menu_actions"
+sampleData shape: { items: QuickAction[] } where QuickAction = {
+  id: string, label: string (2-4 words), emoji: string,
+  prompt: string (message sent on tap), description?: string
+}
+Generate 4-6 actions relevant to the business type.
+
+SCHEDULE (for time-based availability):
+Types: "schedule", "timetable", "slots"
+sampleData shape: { items: ScheduleSlot[] } where ScheduleSlot = {
+  id: string, time: string ("10:00 AM"), endTime?: string ("11:00 AM"),
+  title: string, instructor?: string, spots?: number,
+  price?: string ("₹500"), emoji?: string, isAvailable: boolean
+}
+Generate 5-7 slots. Mix available and unavailable.
+
+PROMO (for offers and discounts):
+Types: "promo", "offer", "deal"
+sampleData shape: { items: PromoOffer[] } where PromoOffer = {
+  id: string, title: string, description: string,
+  discount?: string ("30% OFF"), code?: string ("WEEKEND30"),
+  validUntil?: string, emoji?: string, color?: string (hex), ctaLabel?: string
+}
+Generate 1-2 promos with eye-catching details.
+
+LEAD CAPTURE (for inquiry/quote forms):
+Types: "lead_capture", "form", "inquiry_form"
+sampleData shape: { fields: LeadField[] } where LeadField = {
+  id: string, label: string, type: "text"|"phone"|"email"|"select",
+  placeholder?: string, required?: boolean, options?: string[] (for select)
+}
+Generate 3-4 fields (name + phone + email + one industry-specific select).
+
+HANDOFF (for connecting to humans):
+Types: "handoff", "connect", "human"
+sampleData shape: { options: HandoffOption[] } where HandoffOption = {
+  id: string, type: "whatsapp"|"phone"|"callback"|"chat",
+  label: string, value?: string, icon: string (emoji), description?: string
+}
+Generate 2-3 options. Always include whatsapp.`;
 
 const VALID_BLOCK_TYPES = [
     'catalog', 'rooms', 'products', 'services', 'menu', 'listings',
@@ -468,6 +529,13 @@ const VALID_BLOCK_TYPES = [
     'info', 'faq', 'details',
     'greeting', 'welcome',
     'text',
+    'pricing', 'packages', 'plans',
+    'testimonials', 'reviews',
+    'quick_actions', 'menu_actions',
+    'schedule', 'timetable', 'slots',
+    'promo', 'offer', 'deal',
+    'lead_capture', 'form', 'inquiry_form',
+    'handoff', 'connect', 'human',
 ];
 
 async function callGeminiForBlockTemplate(module: GenerateRelayBlockModuleInput): Promise<{
@@ -497,9 +565,15 @@ Module Details:
 - Item Label: ${module.agentConfig?.itemLabel || module.name}
 - Price Type: ${module.agentConfig?.priceType || 'one_time'}`;
 
+    const functionId = (module.applicableFunctions || [])[0] || 'general';
+    const taxonomyMapping = getBlockMappingForFunction(functionId);
+    const taxonomyContext = `\n\nTaxonomy Constraints for "${functionId}":\n- PREFERRED types (choose from these first): ${taxonomyMapping.primaryBlocks.join(', ')}\n- ACCEPTABLE types (use if primary doesn't fit): ${taxonomyMapping.secondaryBlocks.join(', ')}\n- NEVER use these: ${taxonomyMapping.excludedBlocks.join(', ')}\n\nYour blockType MUST be from PREFERRED or ACCEPTABLE. Do NOT default to "catalog" if a more specific type fits.`;
+
+    const fullPrompt = prompt + taxonomyContext;
+
     const response = await retryWithBackoff(() => genAI.models.generateContent({
         model: BLOCK_GEN_MODEL,
-        contents: prompt,
+        contents: fullPrompt,
         config: {
             temperature: 0.9,
             responseMimeType: "application/json",
@@ -556,7 +630,7 @@ export async function generateRelayBlockForModule(
             console.error(`AI generation failed for ${module.slug}, using fallback:`, aiError);
             const fieldNames = module.schema?.fields?.map(f => f.name) || module.agentConfig?.displayFields || [];
             aiResult = {
-                blockType: module.agentConfig?.relayBlockType || 'catalog',
+                blockType: (() => { const fid = (module.applicableFunctions || [])[0] || 'general'; return getBlockMappingForFunction(fid).primaryBlocks[0] || 'catalog'; })(),
                 displayTemplate: fieldNames.map(f => `{{${f}}}`).join(' | '),
                 suggestedTitle: module.name,
                 suggestedDescription: module.description || '',
