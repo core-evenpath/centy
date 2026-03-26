@@ -7,6 +7,9 @@ import {
     getModuleItemsAction,
 } from '@/actions/modules-actions';
 import type { ModuleAgentConfig } from '@/lib/modules/types';
+import { createInitialFlowState, detectIntent, runFlowEngine } from '@/lib/flow-engine';
+import { getFlowTemplateForFunction } from '@/lib/flow-templates';
+import type { ConversationFlowState, FlowDefinition } from '@/lib/types-flow-engine';
 
 const genAI = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || '' });
 const RELAY_CHAT_MODEL = 'gemini-3.1-pro-preview';
@@ -128,6 +131,72 @@ ${itemSummary || '  (no items yet)'}`;
             // Persona not available, continue without it
         }
 
+        // Determine partner's business function from persona
+        let partnerFunctionId = 'general';
+        try {
+            const partnerDoc2 = await adminDb.collection('partners').doc(partnerId).get();
+            const personaData = partnerDoc2.data()?.businessPersona;
+            const businessCategories = personaData?.identity?.businessCategories;
+            if (Array.isArray(businessCategories) && businessCategories.length > 0) {
+                partnerFunctionId = businessCategories[0].functionId || 'general';
+            }
+        } catch {
+            // Use 'general' fallback
+        }
+
+        // Load or create conversation flow state
+        let flowState: ConversationFlowState | null = null;
+        if (conversationId) {
+            try {
+                const convDoc = await adminDb.collection('relayConversations').doc(conversationId).get();
+                if (convDoc.exists && convDoc.data()?.flowState) {
+                    flowState = convDoc.data()!.flowState as ConversationFlowState;
+                }
+            } catch { /* use null */ }
+        }
+        if (!flowState) {
+            flowState = createInitialFlowState(
+                conversationId || `conv_${Date.now()}`,
+                partnerId
+            );
+        }
+
+        // Load partner's custom flow or fall back to system template
+        let flowDefinition: FlowDefinition | null = null;
+        try {
+            const flowDoc = await adminDb.collection('partners').doc(partnerId)
+                .collection('relayConfig').doc('flowDefinition').get();
+            if (flowDoc.exists) {
+                flowDefinition = flowDoc.data() as FlowDefinition;
+            }
+        } catch { /* use null */ }
+
+        if (!flowDefinition) {
+            const template = getFlowTemplateForFunction(partnerFunctionId);
+            if (template) {
+                flowDefinition = {
+                    id: `system_${template.id}`,
+                    name: template.name,
+                    industryId: template.industryId,
+                    functionId: template.functionId,
+                    stages: template.stages,
+                    transitions: template.transitions,
+                    settings: template.settings,
+                    status: 'active',
+                    isSystem: true,
+                    createdAt: '',
+                    updatedAt: '',
+                    createdBy: 'system',
+                };
+            }
+        }
+
+        // Run flow engine
+        const userMessageText = messages[messages.length - 1]?.content || '';
+        const detectedIntent = detectIntent(userMessageText, messages);
+        const flowDecision = runFlowEngine(flowState, detectedIntent, flowDefinition, partnerFunctionId);
+        flowState = flowDecision.updatedState;
+
         // Build system prompt
         const systemPrompt = `You are a helpful business assistant for this company. You help visitors find information, browse products/services, and take action (book, inquire, etc.).
 
@@ -157,6 +226,27 @@ RESPOND ONLY IN JSON. Choose the most appropriate type:
 {"type":"info","text":"...","items":[{"label":"...","value":"..."}],"suggestions":["..."]}
 — For FAQ, policies, key-value information
 
+{"type":"pricing","text":"...","pricingTiers":[{"id":"...","name":"...","price":0,"currency":"INR","unit":"/month","features":["..."],"isPopular":false,"emoji":"..."}],"suggestions":["..."]}
+— For showing pricing plans, packages, tiers
+
+{"type":"testimonials","text":"...","testimonials":[{"id":"...","name":"...","text":"...","rating":5,"date":"...","source":"Google"}],"suggestions":["..."]}
+— For social proof, reviews
+
+{"type":"quick_actions","text":"...","quickActions":[{"id":"...","label":"...","emoji":"...","prompt":"...","description":"..."}],"suggestions":["..."]}
+— For showing actionable buttons/menu
+
+{"type":"schedule","text":"...","schedule":[{"id":"...","time":"10:00 AM","endTime":"11:00 AM","title":"...","instructor":"...","spots":5,"price":"...","emoji":"...","isAvailable":true}],"suggestions":["..."]}
+— For showing time slots, timetable, availability
+
+{"type":"promo","text":"...","promos":[{"id":"...","title":"...","description":"...","discount":"30% OFF","code":"SAVE30","validUntil":"...","emoji":"...","ctaLabel":"Claim"}],"suggestions":["..."]}
+— For promotional offers, deals
+
+{"type":"lead_capture","text":"...","fields":[{"id":"...","label":"...","type":"text","placeholder":"...","required":true}],"title":"...","subtitle":"...","suggestions":["..."]}
+— For capturing visitor contact info (name, phone, email forms)
+
+{"type":"handoff","text":"...","handoffOptions":[{"id":"...","type":"whatsapp","label":"...","value":"...","icon":"...","description":"..."}],"title":"Talk to our team","suggestions":["..."]}
+— For connecting visitor to a human agent
+
 {"type":"text","text":"...","suggestions":["suggestion 1","suggestion 2","suggestion 3"]}
 — For general conversation. ALWAYS include 2-3 suggestions.
 
@@ -167,6 +257,8 @@ RULES:
 - Use real business data when available
 - Match the visitor's language
 - For catalog/activities items, include id, name, price, currency at minimum
+
+${flowDecision.contextForAI}
 ${personaContext}${moduleContext}
 
 Respond with ONLY valid JSON. No markdown, no code fences.`;
@@ -209,7 +301,23 @@ Respond with ONLY valid JSON. No markdown, no code fences.`;
             parsed = { type: 'text', text, suggestions: [] };
         }
 
-        // Store conversation turn if conversationId provided
+        // Update flow state with response data
+        flowState.lastBlockType = parsed.type || 'text';
+        flowState.interactionCount += 1;
+        flowState.lastActivityAt = new Date().toISOString();
+
+        if (['catalog', 'rooms', 'products', 'services', 'menu', 'listings', 'pricing'].includes(parsed.type)) {
+            const itemIds = (parsed.items || parsed.pricingTiers || [])
+                .map((i: any) => i.id).filter(Boolean);
+            flowState.itemsViewed = [...new Set([...flowState.itemsViewed, ...itemIds])];
+        }
+        if (parsed.type === 'compare') {
+            const itemIds = (parsed.items || []).map((i: any) => i.id).filter(Boolean);
+            flowState.itemsCompared = [...new Set([...flowState.itemsCompared, ...itemIds])];
+        }
+
+        // Store conversation turn and flow state
+        const activeConversationId = conversationId || `conv_${Date.now()}`;
         if (conversationId) {
             try {
                 const turnData = {
@@ -221,6 +329,11 @@ Respond with ONLY valid JSON. No markdown, no code fences.`;
                 };
                 await adminDb.collection('relayConversations').doc(conversationId)
                     .collection('turns').add(turnData);
+
+                await adminDb.collection('relayConversations').doc(conversationId).set(
+                    { flowState, partnerId, updatedAt: new Date().toISOString() },
+                    { merge: true }
+                );
             } catch (e) {
                 console.error('Failed to store conversation turn:', e);
             }
@@ -229,7 +342,14 @@ Respond with ONLY valid JSON. No markdown, no code fences.`;
         return NextResponse.json({
             success: true,
             response: parsed,
-            conversationId: conversationId || `conv_${Date.now()}`,
+            conversationId: activeConversationId,
+            flowMeta: {
+                stage: flowDecision.suggestedStageType,
+                leadTemperature: flowDecision.leadTemperature,
+                leadScore: flowDecision.leadScore,
+                shouldHandoff: flowDecision.shouldHandoff,
+                turnCount: flowState.interactionCount,
+            },
         }, { headers: corsHeaders });
     } catch (error) {
         console.error('Relay chat error:', error);
