@@ -23,3 +23,21 @@ export type {
   BlockCallbacks,
 } from "./types";
 export type { RelayBlock } from "./BlockRenderer";
+
+export { default as PricingTable } from "./PricingTable";
+export { default as TestimonialCards } from "./TestimonialCards";
+export { default as QuickActions } from "./QuickActions";
+export { default as ScheduleView } from "./ScheduleView";
+export { default as PromoCard } from "./PromoCard";
+export { default as LeadCapture } from "./LeadCapture";
+export { default as HandoffCard } from "./HandoffCard";
+
+export type {
+  PricingTier,
+  Testimonial,
+  QuickAction,
+  ScheduleSlot,
+  PromoOffer,
+  LeadField,
+  HandoffOption,
+} from "./types";
