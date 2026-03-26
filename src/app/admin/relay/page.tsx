@@ -105,6 +105,36 @@ export default async function RelayBlocksPage() {
                         ))}
                     </div>
                 )}
+
+                {configs.length > 0 && (
+                    <Card className="mt-6">
+                        <CardContent className="p-5">
+                            <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-6">
+                                    <div>
+                                        <div className="text-2xl font-bold">{configs.length}</div>
+                                        <div className="text-sm text-muted-foreground">Block Configs</div>
+                                    </div>
+                                    <div>
+                                        <div className="text-2xl font-bold">{new Set(configs.map(c => c.blockType)).size}</div>
+                                        <div className="text-sm text-muted-foreground">Block Types</div>
+                                    </div>
+                                    <div>
+                                        <div className="text-2xl font-bold">
+                                            {new Set(configs.flatMap(c => c.applicableIndustries)).size}
+                                        </div>
+                                        <div className="text-sm text-muted-foreground">Industries Covered</div>
+                                    </div>
+                                </div>
+                                <Button variant="outline" size="sm" asChild>
+                                    <Link href="/admin/relay/blocks">
+                                        View Full Gallery →
+                                    </Link>
+                                </Button>
+                            </div>
+                        </CardContent>
+                    </Card>
+                )}
             </div>
         </div>
     );
