@@ -7,6 +7,7 @@ import {
     getModuleItemsAction,
 } from '@/actions/modules-actions';
 import type { ModuleAgentConfig } from '@/lib/modules/types';
+import { RELAY_BLOCK_SCHEMAS } from '@/lib/relay-chat-schemas';
 
 const genAI = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || '' });
 const RELAY_CHAT_MODEL = 'gemini-3.1-pro-preview';
@@ -74,6 +75,29 @@ export async function POST(request: NextRequest) {
             }
         }
 
+        // Fetch correct block types from relayBlockConfigs
+        const relayBlockTypes = new Map<string, string>();
+        if (moduleConfigs.length > 0) {
+            try {
+                const slugs = moduleConfigs.map(mc => `module_${mc.slug}`);
+                const chunkSize = 10;
+                for (let i = 0; i < slugs.length; i += chunkSize) {
+                    const chunk = slugs.slice(i, i + chunkSize);
+                    const snap = await adminDb.collection('relayBlockConfigs')
+                        .where('__name__', 'in', chunk)
+                        .get();
+                    snap.docs.forEach(doc => {
+                        const data = doc.data();
+                        if (data.moduleSlug && data.blockType) {
+                            relayBlockTypes.set(data.moduleSlug, data.blockType);
+                        }
+                    });
+                }
+            } catch {
+                // relayBlockConfigs not available — will fall back to module slug-based inference
+            }
+        }
+
         // Build dynamic block instructions from agentConfig
         const blockInstructions = moduleConfigs.map(mc => {
             const ac = mc.agentConfig;
@@ -85,7 +109,7 @@ export async function POST(request: NextRequest) {
             }).join('\n');
 
             return `MODULE: ${mc.name} (slug: ${mc.slug})
-Block type: "${ac.relayBlockType}"
+Block type: "${relayBlockTypes.get(mc.slug) || 'catalog'}"
 Price type: ${mc.priceType}
 When visitor asks about: ${ac.inboxContext}
 Display fields: ${ac.displayFields.join(', ')}
@@ -131,34 +155,7 @@ ${itemSummary || '  (no items yet)'}`;
         // Build system prompt
         const systemPrompt = `You are a helpful business assistant for this company. You help visitors find information, browse products/services, and take action (book, inquire, etc.).
 
-RESPOND ONLY IN JSON. Choose the most appropriate type:
-
-{"type":"catalog","text":"...","items":[{"id":"...","name":"...","price":0,"currency":"₹","subtitle":"...","emoji":"...","color":"#...","rating":4.5,"reviewCount":100,"features":["..."],"specs":[{"label":"...","value":"..."}]}],"suggestions":["..."]}
-— For showing products, services, rooms, menu items, listings
-
-{"type":"compare","text":"...","items":[...same as catalog items...],"suggestions":["..."]}
-— For side-by-side comparison of 2-3 items
-
-{"type":"activities","text":"...","items":[{"id":"...","name":"...","description":"...","icon":"🏷️","price":"₹X,XXX","duration":"X hours","category":"...","bookable":true}],"suggestions":["..."]}
-— For listing activities, experiences, classes, treatments
-
-{"type":"book","text":"...","items":[...catalog items for selection...],"suggestions":["..."]}
-— When the user wants to book, reserve, or schedule
-
-{"type":"location","text":"...","location":{"name":"...","address":"...","area":"...","directions":[{"icon":"✈️","label":"Airport","detail":"45 min"}]},"suggestions":["..."]}
-— For location, directions, how to get there
-
-{"type":"contact","text":"...","methods":[{"type":"whatsapp","label":"WhatsApp","value":"+91...","icon":"💬"},{"type":"phone","label":"Call","value":"+91...","icon":"📞"},{"type":"email","label":"Email","value":"...@...","icon":"📧"}],"suggestions":["..."]}
-— For contact information
-
-{"type":"gallery","text":"...","items":[{"emoji":"📸","label":"...","span":1}],"suggestions":["..."]}
-— For showing photos/visual gallery
-
-{"type":"info","text":"...","items":[{"label":"...","value":"..."}],"suggestions":["..."]}
-— For FAQ, policies, key-value information
-
-{"type":"text","text":"...","suggestions":["suggestion 1","suggestion 2","suggestion 3"]}
-— For general conversation. ALWAYS include 2-3 suggestions.
+${RELAY_BLOCK_SCHEMAS}
 
 RULES:
 - Only valid JSON, no markdown, no backticks
@@ -167,6 +164,15 @@ RULES:
 - Use real business data when available
 - Match the visitor's language
 - For catalog/activities items, include id, name, price, currency at minimum
+- Use "pricing" type (not "catalog") when visitor asks about prices, rates, or plans
+- Use "greeting" type when conversation starts or visitor says hello/hi
+- Use "quick_actions" when visitor seems unsure or asks "what can you help with"
+- Use "handoff" when you cannot resolve the query or visitor asks for a human
+- Use "schedule" when visitor asks about available times or slots
+- Use "testimonials" when visitor asks about reviews, ratings, or experiences
+- Use "lead_capture" when visitor wants a callback, quote, or to submit an inquiry
+- Use "promo" when visitor asks about offers, deals, or discounts
+- Choose the MOST SPECIFIC block type for the query — prefer "pricing" over "catalog" for price questions, prefer "schedule" over "info" for availability questions
 ${personaContext}${moduleContext}
 
 Respond with ONLY valid JSON. No markdown, no code fences.`;
