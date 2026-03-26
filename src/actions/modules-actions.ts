@@ -104,7 +104,7 @@ export async function getSystemModuleAction(
 
 export async function createSystemModuleAction(
     data: Omit<SystemModule, 'id' | 'createdAt' | 'updatedAt' | 'usageCount' | 'currentVersion' | 'schemaHistory' | 'migrations'>
-): Promise<ModulesActionResponse<{ moduleId: string }>> {
+): Promise<ModulesActionResponse<{ moduleId: string; relayBlock: { success: boolean; blockId?: string; error?: string } }>> {
     try {
         const existingSnapshot = await adminDb
             .collection('systemModules')
@@ -142,20 +142,28 @@ export async function createSystemModuleAction(
 
         await adminDb.collection('systemModules').doc(moduleId).set(moduleData);
 
-        generateRelayBlockForModule({
-            id: moduleId,
-            name: moduleData.name,
-            slug: moduleData.slug,
-            description: moduleData.description,
-            schema: moduleData.schema,
-            applicableIndustries: moduleData.applicableIndustries,
-            applicableFunctions: moduleData.applicableFunctions,
-            agentConfig: moduleData.agentConfig,
-        }).catch(err => console.error(`⚠️ Relay block generation failed for ${moduleData.slug}:`, err));
+        let relayBlockResult: { success: boolean; blockId?: string; error?: string } = { success: false, error: 'Not attempted' };
+
+        try {
+            relayBlockResult = await generateRelayBlockForModule({
+                id: moduleId,
+                name: moduleData.name,
+                slug: moduleData.slug,
+                description: moduleData.description,
+                schema: moduleData.schema,
+                applicableIndustries: moduleData.applicableIndustries,
+                applicableFunctions: moduleData.applicableFunctions,
+                agentConfig: moduleData.agentConfig,
+            });
+        } catch (err) {
+            console.error(`⚠️ Relay block generation failed for ${moduleData.slug}:`, err);
+            relayBlockResult = { success: false, error: err instanceof Error ? err.message : 'Relay block generation failed' };
+        }
 
         revalidatePath('/admin/modules');
         revalidatePath('/admin/relay');
-        return { success: true, data: { moduleId } };
+        revalidatePath('/admin/relay/blocks');
+        return { success: true, data: { moduleId, relayBlock: relayBlockResult } };
     } catch (error) {
         console.error('Error creating system module:', error);
         return { success: false, error: 'Failed to create system module' };
