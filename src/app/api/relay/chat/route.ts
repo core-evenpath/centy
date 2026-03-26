@@ -8,6 +8,9 @@ import {
 } from '@/actions/modules-actions';
 import type { ModuleAgentConfig } from '@/lib/modules/types';
 import { RELAY_BLOCK_SCHEMAS } from '@/lib/relay-chat-schemas';
+import { createInitialFlowState, detectIntent, runFlowEngine } from '@/lib/flow-engine';
+import { getFlowTemplateForFunction } from '@/lib/flow-templates';
+import type { ConversationFlowState, FlowDefinition, FlowEngineDecision } from '@/lib/types-flow-engine';
 
 const genAI = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || '' });
 const RELAY_CHAT_MODEL = 'gemini-3.1-pro-preview';
@@ -42,6 +45,71 @@ export async function POST(request: NextRequest) {
 
         if (!partnerId) {
             return NextResponse.json({ error: 'Could not resolve partner' }, { status: 400, headers: corsHeaders });
+        }
+
+        // Fetch partner doc early — used by both flow engine and persona context
+        let partnerData: Record<string, any> | null = null;
+        try {
+            const partnerDoc = await adminDb.collection('partners').doc(partnerId).get();
+            partnerData = partnerDoc.exists ? (partnerDoc.data() as Record<string, any>) : null;
+        } catch {
+            // Partner doc not available, continue without it
+        }
+
+        // ── Flow Engine ──────────────────────────────────────────────────
+        let flowDecision: FlowEngineDecision | null = null;
+        try {
+            // 1. Load or create flow state
+            let flowState: ConversationFlowState | null = null;
+            if (conversationId) {
+                const convDoc = await adminDb.collection('relayConversations').doc(conversationId).get();
+                flowState = (convDoc.data()?.flowState as ConversationFlowState) || null;
+            }
+            if (!flowState) {
+                flowState = createInitialFlowState(
+                    conversationId || `conv_${Date.now()}`,
+                    partnerId
+                );
+            }
+
+            // 2. Detect intent from last user message
+            const lastMsg = messages[messages.length - 1]?.content || '';
+            const priorHistory = messages.slice(0, -1).map((m: any) => ({
+                role: m.role as string,
+                content: m.content as string,
+            }));
+            const intent = detectIntent(lastMsg, priorHistory);
+
+            // 3. Resolve flow definition
+            let flowDef: FlowDefinition | null = null;
+
+            // Try custom partner flow first
+            const flowDoc = await adminDb
+                .collection('partners').doc(partnerId)
+                .collection('relayConfig').doc('flowDefinition')
+                .get();
+            if (flowDoc.exists) {
+                flowDef = flowDoc.data() as FlowDefinition;
+            }
+
+            // Resolve functionId for template fallback or intent-only mode
+            const functionId = partnerData
+                ?.businessPersona?.identity?.businessCategories?.[0]?.functionId
+                || 'general';
+
+            // If no custom flow, try system template
+            if (!flowDef) {
+                const template = getFlowTemplateForFunction(functionId);
+                if (template) {
+                    flowDef = template as unknown as FlowDefinition;
+                }
+            }
+
+            // 4. Run engine
+            flowDecision = runFlowEngine(flowState, intent, flowDef, functionId);
+        } catch (flowErr) {
+            console.error('Flow engine error (non-fatal):', flowErr);
+            // flowDecision stays null — chat continues without flow features
         }
 
         // Fetch partner's enabled modules with agentConfig and items
@@ -123,11 +191,10 @@ ${itemSummary || '  (no items yet)'}`;
             ? `\n\nBUSINESS DATA (from partner's modules — use ONLY this data to answer):\n${blockInstructions}`
             : '\n\nNo business data modules configured yet. Answer general questions only.';
 
-        // Load business persona for richer context
+        // Load business persona for richer context (using already-fetched partnerData)
         let personaContext = '';
         try {
-            const partnerDoc = await adminDb.collection('partners').doc(partnerId).get();
-            const persona = partnerDoc.data()?.businessPersona;
+            const persona = partnerData?.businessPersona;
             if (persona) {
                 const identity = persona.identity || {};
                 const knowledge = persona.knowledge || {};
@@ -153,8 +220,12 @@ ${itemSummary || '  (no items yet)'}`;
         }
 
         // Build system prompt
-        const systemPrompt = `You are a helpful business assistant for this company. You help visitors find information, browse products/services, and take action (book, inquire, etc.).
+        const flowContext = flowDecision?.contextForAI
+            ? `\n${flowDecision.contextForAI}\n\n`
+            : '';
 
+        const systemPrompt = `You are a helpful business assistant for this company. You help visitors find information, browse products/services, and take action (book, inquire, etc.).
+${flowContext}
 ${RELAY_BLOCK_SCHEMAS}
 
 RULES:
@@ -232,10 +303,27 @@ Respond with ONLY valid JSON. No markdown, no code fences.`;
             }
         }
 
+        // Persist flow state (fire-and-forget)
+        if (conversationId && flowDecision) {
+            adminDb.collection('relayConversations').doc(conversationId)
+                .set({ flowState: flowDecision.updatedState }, { merge: true })
+                .catch((e) => console.error('Failed to save flow state:', e));
+        }
+
         return NextResponse.json({
             success: true,
             response: parsed,
             conversationId: conversationId || `conv_${Date.now()}`,
+            ...(flowDecision && {
+                flowMeta: {
+                    stageType: flowDecision.suggestedStageType,
+                    leadTemperature: flowDecision.leadTemperature,
+                    leadScore: flowDecision.leadScore,
+                    suggestedBlockTypes: flowDecision.suggestedBlockTypes,
+                    shouldHandoff: flowDecision.shouldHandoff,
+                    interactionCount: flowDecision.updatedState.interactionCount,
+                },
+            }),
         }, { headers: corsHeaders });
     } catch (error) {
         console.error('Relay chat error:', error);
