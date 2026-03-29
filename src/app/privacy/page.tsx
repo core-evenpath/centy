@@ -15,11 +15,8 @@ export default function PrivacyPage() {
       {/* Nav */}
       <nav className="fixed top-0 left-0 right-0 z-50 backdrop-blur-xl border-b border-stone-200/60" style={{ backgroundColor: 'rgba(250, 248, 245, 0.9)' }}>
         <div className="max-w-4xl mx-auto px-6 py-4 flex items-center justify-between">
-          <Link href="/" className="flex items-center gap-2.5">
-            <div className="w-9 h-9 bg-stone-900 rounded-xl flex items-center justify-center">
-              <span className="text-white font-bold text-sm">P</span>
-            </div>
-            <span className="font-semibold text-stone-900 text-lg tracking-tight">PingBox</span>
+          <Link href="/" aria-label="Pingbox home">
+            <img src="/images/brand/logo.svg" alt="Pingbox" className="h-10 w-auto" />
           </Link>
           <Link href="/" className="text-sm text-stone-500 hover:text-stone-900 transition-colors">
             Back to Home

@@ -167,12 +167,6 @@ function RelayDemo() {
               animation: rVisible ? "relay-float 5s ease-in-out 1.2s infinite" : "none"
             }}
           >
-            {/* Notch */}
-            <div className="absolute top-3 left-1/2 -translate-x-1/2 w-20 h-6 rounded-full flex items-center justify-center gap-2 bg-black z-50">
-              <div className="w-2 h-2 rounded-full bg-neutral-700" />
-              <div className="w-8 h-1 rounded-full bg-neutral-700" />
-            </div>
-
             <div className="absolute top-3 left-3 right-3 bottom-3 rounded-[2rem] overflow-hidden flex flex-col bg-[#fafafa]">
               {/* Phone Header */}
               <div className="px-4 pt-8 pb-3.5 flex items-center gap-3 bg-white border-b border-stone-100 shrink-0 relative z-20">

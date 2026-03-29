@@ -149,11 +149,8 @@ export default function PartnerLoginPage() {
       <div className="hidden lg:flex lg:w-1/2 xl:w-3/5 relative overflow-hidden p-8 xl:p-12 flex-col border-r border-stone-200">
         {/* Logo */}
         <div className="relative z-10 flex items-center gap-2.5 mb-10">
-          <Link href="/" className="flex items-center gap-2.5">
-            <div className="w-10 h-10 bg-stone-900 rounded-xl flex items-center justify-center">
-              <span className="text-white font-bold">P</span>
-            </div>
-            <span className="font-semibold text-stone-900 text-xl tracking-tight">PingBox</span>
+          <Link href="/" aria-label="Pingbox home">
+            <img src="/images/brand/logo.svg" alt="Pingbox" className="h-12 w-auto" />
           </Link>
         </div>
 
@@ -203,11 +200,8 @@ export default function PartnerLoginPage() {
         <div className="w-full max-w-md relative z-10">
           {/* Mobile Logo */}
           <div className="lg:hidden flex items-center justify-center gap-2.5 mb-8">
-            <Link href="/" className="flex items-center gap-2.5">
-              <div className="w-10 h-10 bg-stone-900 rounded-xl flex items-center justify-center">
-                <span className="text-white font-bold">P</span>
-              </div>
-              <span className="font-semibold text-stone-900 text-xl tracking-tight">PingBox</span>
+            <Link href="/" aria-label="Pingbox home">
+              <img src="/images/brand/logo.svg" alt="Pingbox" className="h-10 w-auto" />
             </Link>
           </div>
 
