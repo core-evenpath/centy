@@ -8,13 +8,15 @@ const RESERVED_SUBDOMAINS = new Set([
   'dev', 'staging', 'test', 'demo',
 ]);
 
+const RELAY_DOMAIN = process.env.NEXT_PUBLIC_RELAY_DOMAIN || 'pingbox.io';
+
 export function middleware(request: NextRequest) {
   const hostname = request.headers.get('host') || '';
 
   let slug: string | null = null;
 
-  if (hostname.endsWith('.pingbox.io')) {
-    slug = hostname.replace('.pingbox.io', '');
+  if (hostname.endsWith(`.${RELAY_DOMAIN}`)) {
+    slug = hostname.replace(`.${RELAY_DOMAIN}`, '');
   } else if (hostname.includes('.localhost')) {
     slug = hostname.split('.localhost')[0];
   }
