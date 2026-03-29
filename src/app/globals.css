@@ -120,6 +120,57 @@
   animation: shake 0.4s ease-out;
 }
 
+/* Homepage animations */
+@keyframes hp-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}
+
+@keyframes hp-fadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes hp-slideIn {
+  from { opacity: 0; transform: translateX(-16px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes hp-slideRight {
+  from { opacity: 0; transform: translateX(20px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes hp-slideUp {
+  from { opacity: 0; transform: translateY(16px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes hp-spin {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes hp-floatL {
+  0%, 100% { transform: translate(0, 0); }
+  50% { transform: translate(3px, -4px); }
+}
+
+@keyframes hp-floatR {
+  0%, 100% { transform: translate(0, 0); }
+  50% { transform: translate(-3px, -4px); }
+}
+
+@keyframes hp-ping {
+  0% { transform: scale(1); opacity: 1; }
+  100% { transform: scale(2.5); opacity: 0; }
+}
+
+@keyframes hp-pulseDot {
+  0% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.6; transform: scale(1.8); }
+  100% { opacity: 0; transform: scale(1); }
+}
+
 /* Add to your existing globals.css */
 
 /* Custom Scrollbar Styles */

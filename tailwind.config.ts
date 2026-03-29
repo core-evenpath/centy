@@ -19,8 +19,8 @@ export default {
     },
     extend: {
       fontFamily: {
-        sans: ['var(--font-inter)', ...fontFamily.sans],
-        serif: ['var(--font-playfair)', 'Georgia', 'Times New Roman', 'serif'],
+        sans: ['var(--font-dm-sans)', ...fontFamily.sans],
+        serif: ['var(--font-instrument-serif)', 'Georgia', 'Times New Roman', 'serif'],
       },
       colors: {
         border: 'hsl(var(--border))',
