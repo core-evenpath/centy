@@ -68,10 +68,10 @@ export default function HomePage() {
     { status: 'Calculating pricing...', icon: 'processing' },
     { status: 'Generating response...', icon: 'generating' },
     { status: 'Response sent!', icon: 'sent' },
-    { status: 'Deal tracked: ₹56.2L', icon: 'complete' },
+    { status: 'Deal tracked: $3,864', icon: 'complete' },
   ];
 
-  const responseText = "Hi! For 500 units of 2HP pumps: ₹56,25,000 (10% off). Shall I send a quote?";
+  const responseText = "Hi! For 200 brass ball valves: $3,864 (8% off). Free freight to Houston. Want a formal quote?";
 
   useEffect(() => {
     if (!isFlowActive) {
@@ -196,11 +196,10 @@ export default function HomePage() {
             <div className="w-9 h-9 bg-stone-900 rounded-xl flex items-center justify-center">
               <span className="text-white font-bold text-sm">P</span>
             </div>
-            <span className="font-semibold text-stone-900 text-lg tracking-tight">PingBox</span>
+            <span className="font-semibold text-stone-900 text-lg tracking-tight">Pingbox</span>
           </Link>
           <div className="hidden sm:flex items-center gap-8">
             <a href="#flow" className="text-sm text-stone-500 hover:text-stone-900 transition-colors">How it works</a>
-            <a href="#pricing" className="text-sm text-stone-500 hover:text-stone-900 transition-colors">Pricing</a>
           </div>
           <div className="flex items-center gap-4">
             <Link href="/partner/login" className="text-sm text-stone-500 hover:text-stone-900 transition-colors hidden sm:block">Sign in</Link>
@@ -233,11 +232,11 @@ export default function HomePage() {
           </p>
 
           <p className="text-base text-stone-400 max-w-xl mx-auto mb-10">
-            PingBox reads your documents and responds on WhatsApp in <span className="text-rose-500 font-semibold">30 seconds</span>. You just approve.
+            Pingbox reads your documents and responds to customers in <span className="text-rose-500 font-semibold">30 seconds</span> — on any channel. You just approve.
           </p>
 
           <Link href="/early-access" className="inline-flex items-center bg-stone-900 text-white pl-8 pr-2 py-2 rounded-full font-medium hover:bg-stone-800 transition-colors">
-            <span className="mr-4">Connect WhatsApp — Free 14 Days</span>
+            <span className="mr-4">Start Free — 14 Days</span>
             <div className="w-10 h-10 bg-rose-500 rounded-full flex items-center justify-center">
               <ArrowRight className="w-5 h-5 text-white" />
             </div>
@@ -252,32 +251,32 @@ export default function HomePage() {
       {/* WhatsApp Business Facts */}
       <section className="py-16 px-6 border-y border-stone-200" style={{ backgroundColor: '#faf8f5' }}>
         <div className="max-w-5xl mx-auto">
-          <p className="text-rose-500 text-sm font-medium tracking-widest uppercase text-center mb-3">Why WhatsApp for Business?</p>
+          <p className="text-rose-500 text-sm font-medium tracking-widest uppercase text-center mb-3">Why speed wins</p>
           <h2 className="font-serif text-2xl sm:text-3xl tracking-tight text-stone-900 text-center mb-12">
-            Your customers are already there. <em>Are you?</em>
+            The first business to reply <em>wins the customer.</em>
           </h2>
 
           <div className="grid grid-cols-2 md:grid-cols-4 gap-6 md:gap-8">
             <div className="text-center">
-              <div className="font-serif text-4xl sm:text-5xl font-bold text-stone-900 mb-2">98%</div>
-              <p className="text-sm text-stone-500 leading-snug">Message open rate — vs just 20% for email</p>
+              <div className="font-serif text-4xl sm:text-5xl font-bold text-stone-900 mb-2">78%</div>
+              <p className="text-sm text-stone-500 leading-snug">Of customers buy from the first business that responds</p>
             </div>
             <div className="text-center">
-              <div className="font-serif text-4xl sm:text-5xl font-bold text-stone-900 mb-2">80%</div>
-              <p className="text-sm text-stone-500 leading-snug">Of messages read within 5 minutes of delivery</p>
+              <div className="font-serif text-4xl sm:text-5xl font-bold text-stone-900 mb-2">5min</div>
+              <p className="text-sm text-stone-500 leading-snug">Response time drops your conversion rate by 80%</p>
             </div>
             <div className="text-center">
-              <div className="font-serif text-4xl sm:text-5xl font-bold text-stone-900 mb-2">175M</div>
-              <p className="text-sm text-stone-500 leading-snug">People message a business on WhatsApp every day</p>
+              <div className="font-serif text-4xl sm:text-5xl font-bold text-stone-900 mb-2">2-3</div>
+              <p className="text-sm text-stone-500 leading-snug">Leads lost per week to competitors who replied faster</p>
             </div>
             <div className="text-center">
-              <div className="font-serif text-4xl sm:text-5xl font-bold text-stone-900 mb-2">65%</div>
-              <p className="text-sm text-stone-500 leading-snug">Of buyers prefer messaging a business over email</p>
+              <div className="font-serif text-4xl sm:text-5xl font-bold text-stone-900 mb-2">24/7</div>
+              <p className="text-sm text-stone-500 leading-snug">Your AI responds nights, weekends, and holidays — instantly</p>
             </div>
           </div>
 
           <p className="text-center text-stone-400 text-xs mt-10">
-            Sources: Meta &middot; WhatsApp Business &middot; Zendesk, 2025
+            Sources: Harvard Business Review &middot; InsideSales &middot; Drift, 2025
           </p>
         </div>
       </section>
@@ -309,12 +308,12 @@ export default function HomePage() {
                 <span className="text-xs text-green-600 font-medium">INCOMING MESSAGE</span>
               </div>
               <div className="rounded-xl p-3 bg-stone-50">
-                <div className="text-xs text-green-600 mb-1">WhatsApp • Just now</div>
-                <div className="text-sm text-stone-700">&ldquo;Hi, I need pricing for 500 units of 2HP pumps. What&apos;s the bulk discount?&rdquo;</div>
+                <div className="text-xs text-green-600 mb-1">Website Chat • Just now</div>
+                <div className="text-sm text-stone-700">&ldquo;We need 200 units of 3/4" brass ball valves. What&apos;s the price for delivery to our Houston warehouse?&rdquo;</div>
               </div>
               <div className="mt-2 flex items-center gap-2 text-xs text-stone-400">
                 <Phone className="w-3 h-3" />
-                <span>+91 98765 43210</span>
+                <span>+1 (713) 555-0192</span>
               </div>
             </div>
 
@@ -328,18 +327,18 @@ export default function HomePage() {
               <div className="flex items-center gap-3 mb-3">
                 <div className="w-10 h-10 bg-gradient-to-br from-blue-400 to-blue-600 rounded-full flex items-center justify-center text-white font-bold text-sm">VK</div>
                 <div>
-                  <div className="text-sm font-medium text-stone-900">Vikram Industries</div>
-                  <div className="text-xs text-stone-400">Gujarat, India</div>
+                  <div className="text-sm font-medium text-stone-900">Gulf Coast Industrial</div>
+                  <div className="text-xs text-stone-400">Houston, TX</div>
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-2 text-xs">
                 <div className="rounded-lg p-2 bg-stone-50">
                   <div className="text-stone-400">Lifetime</div>
-                  <div className="text-stone-900 font-medium">₹4.2L</div>
+                  <div className="text-stone-900 font-medium">$84K</div>
                 </div>
                 <div className="rounded-lg p-2 bg-stone-50">
                   <div className="text-stone-400">Tier</div>
-                  <div className="text-amber-600 font-medium">Gold</div>
+                  <div className="text-amber-600 font-medium">Preferred</div>
                 </div>
               </div>
             </div>
@@ -352,7 +351,7 @@ export default function HomePage() {
                 <span className="text-xs text-purple-600 font-medium">CONVERSATION HISTORY</span>
               </div>
               <div className="space-y-2">
-                {[{ date: '15 Jan', msg: 'Ordered 200 units' }, { date: '3 Dec', msg: 'Price inquiry - 1HP' }, { date: '18 Nov', msg: 'Delivery follow-up' }].map((item, i) => (
+                {[{ date: 'Mar 5', msg: 'Ordered 500 fittings' }, { date: 'Jan 12', msg: 'Price inquiry — valves' }, { date: 'Nov 8', msg: 'Delivery follow-up' }].map((item, i) => (
                   <div key={i} className="flex items-center justify-between text-xs rounded-lg p-2 bg-stone-50">
                     <span className="text-stone-400">{item.date}</span>
                     <span className="text-stone-600 truncate ml-2">{item.msg}</span>
@@ -370,7 +369,7 @@ export default function HomePage() {
                 <span className="text-xs text-orange-600 font-medium">KNOWLEDGE BASE</span>
               </div>
               <div className="space-y-2">
-                {[{ name: 'Catalog 2025.pdf', match: 98 }, { name: 'Pricing.xlsx', match: 95 }].map((doc, i) => (
+                {[{ name: 'Product Catalog 2025.pdf', match: 97 }, { name: 'Wholesale Pricing.xlsx', match: 94 }].map((doc, i) => (
                   <div key={i} className="flex items-center gap-2 text-xs rounded-lg p-2 bg-stone-50">
                     <FileText className="w-3 h-3 text-orange-500" />
                     <span className="text-stone-600 truncate flex-1">{doc.name}</span>
@@ -408,7 +407,7 @@ export default function HomePage() {
                         <span className="text-white font-bold text-xs">P</span>
                       </div>
                       <div>
-                        <div className="text-white font-semibold text-sm">PingBox</div>
+                        <div className="text-white font-semibold text-sm">Pingbox</div>
                         <div className="text-rose-400 text-[10px]">AI Assistant</div>
                       </div>
                     </div>
@@ -419,7 +418,7 @@ export default function HomePage() {
                     {currentPhase >= 1 && (
                       <div className="flex justify-start mb-3">
                         <div className="max-w-[85%] rounded-2xl rounded-tl-sm px-3 py-2 text-xs bg-white/10">
-                          <span className="text-white/90">Need pricing for 500 pumps...</span>
+                          <span className="text-white/90">Need 200 units of 3/4" brass...</span>
                         </div>
                       </div>
                     )}
@@ -489,11 +488,11 @@ export default function HomePage() {
                 <span className="text-xs text-cyan-600 font-medium">PRODUCT FOUND</span>
               </div>
               <div className="rounded-xl p-3 bg-stone-50">
-                <div className="text-sm font-medium text-stone-900 mb-1">2HP Submersible Pump</div>
-                <div className="text-xs text-stone-400 mb-2">SKU: SUB-2HP-001</div>
+                <div className="text-sm font-medium text-stone-900 mb-1">3/4" Brass Ball Valve</div>
+                <div className="text-xs text-stone-400 mb-2">SKU: BBV-075</div>
                 <div className="flex justify-between text-xs">
                   <span className="text-stone-400">Base Price</span>
-                  <span className="text-stone-900 font-medium">₹12,500</span>
+                  <span className="text-stone-900 font-medium">$21.00</span>
                 </div>
               </div>
             </div>
@@ -507,10 +506,9 @@ export default function HomePage() {
                 <span className="text-xs text-amber-600 font-medium">PRICE CALCULATED</span>
               </div>
               <div className="space-y-2 text-xs">
-                <div className="flex justify-between"><span className="text-stone-400">500 × ₹12,500</span><span className="text-stone-900">₹62,50,000</span></div>
-                <div className="flex justify-between text-rose-500"><span>Bulk discount</span><span>-8%</span></div>
-                <div className="flex justify-between text-rose-500"><span>Gold tier</span><span>-2%</span></div>
-                <div className="border-t border-stone-200 pt-2 flex justify-between font-medium"><span className="text-stone-900">Total</span><span className="text-rose-500">₹56,25,000</span></div>
+                <div className="flex justify-between"><span className="text-stone-400">3/4" Brass Ball Valve × 200</span><span className="text-stone-900">$4,200</span></div>
+                <div className="flex justify-between text-rose-500"><span>Preferred discount</span><span>-8%</span></div>
+                <div className="border-t border-stone-200 pt-2 flex justify-between font-medium"><span className="text-stone-900">Total</span><span className="text-rose-500">$3,864</span></div>
               </div>
             </div>
 
@@ -522,7 +520,7 @@ export default function HomePage() {
                 <span className="text-xs text-pink-600 font-medium">DISCOUNTS APPLIED</span>
               </div>
               <div className="space-y-2">
-                {['500+ units: 8% off', 'Gold customer: +2%', 'Total: 10% discount'].map((rule, i) => (
+                {['200+ units: 8% off', 'Preferred customer: Free freight', 'Total calculation complete'].map((rule, i) => (
                   <div key={i} className="flex items-center gap-2 text-xs rounded-lg p-2 bg-stone-50">
                     <CheckCircle2 className="w-3 h-3 text-rose-500" />
                     <span className="text-stone-600">{rule}</span>
@@ -548,9 +546,12 @@ export default function HomePage() {
                 )}
               </div>
               <div className="rounded-xl p-4 text-sm text-stone-700 leading-relaxed bg-stone-50">
-                &ldquo;Hi! For <strong className="text-stone-900">500 units of 2HP submersible pumps</strong>:<br /><br />
-                • Unit price: ₹12,500 | Bulk discount: <span className="text-rose-500 font-medium">8% off</span> | Gold bonus: <span className="text-rose-500 font-medium">+2% off</span><br /><br />
-                <strong className="text-rose-500">Your total: ₹56,25,000</strong> (₹11,250/unit). Shall I prepare a formal quotation?&rdquo;
+                &ldquo;Hi! For 200 units of 3/4&quot; brass ball valves:<br /><br />
+                • Unit price: $21.00<br />
+                • Preferred discount: 8%<br />
+                • Your total: $3,864<br /><br />
+                Delivery to Houston: 3-5 business days, free freight.<br /><br />
+                Want me to send a formal quote?&rdquo;
               </div>
             </div>
 
@@ -563,11 +564,11 @@ export default function HomePage() {
               </div>
               <div className="grid grid-cols-2 gap-2">
                 <div className="rounded-lg p-3 text-center bg-stone-50">
-                  <div className="text-lg font-bold text-rose-500">₹56.2L</div>
+                  <div className="text-lg font-bold text-rose-500">$3,864</div>
                   <div className="text-xs text-stone-400">This Deal</div>
                 </div>
                 <div className="rounded-lg p-3 text-center bg-stone-50">
-                  <div className="text-lg font-bold text-stone-900">₹2.1Cr</div>
+                  <div className="text-lg font-bold text-stone-900">$142K</div>
                   <div className="text-xs text-stone-400">This Month</div>
                 </div>
               </div>
@@ -595,7 +596,7 @@ export default function HomePage() {
                       <span className="text-white font-bold text-xs">P</span>
                     </div>
                     <div>
-                      <div className="text-white font-semibold text-sm">PingBox</div>
+                      <div className="text-white font-semibold text-sm">Pingbox</div>
                       <div className="text-rose-400 text-[10px]">AI Assistant</div>
                     </div>
                   </div>
@@ -606,7 +607,7 @@ export default function HomePage() {
                   {currentPhase >= 1 && (
                     <div className="flex justify-start mb-3">
                       <div className="max-w-[85%] rounded-2xl rounded-tl-sm px-3 py-2 text-xs bg-white/10">
-                        <span className="text-white/90">Need pricing for 500 pumps...</span>
+                        <span className="text-white/90">Need 200 units of 3/4" brass...</span>
                       </div>
                     </div>
                   )}
@@ -695,7 +696,7 @@ export default function HomePage() {
                 <div className="w-10 h-10 bg-red-100 rounded-xl flex items-center justify-center">
                   <X className="w-5 h-5 text-red-500" />
                 </div>
-                <span className="text-red-600 font-semibold text-sm tracking-wide uppercase">Without PingBox</span>
+                <span className="text-red-600 font-semibold text-sm tracking-wide uppercase">Without Pingbox</span>
               </div>
               <div className="space-y-4">
                 {[
@@ -718,7 +719,7 @@ export default function HomePage() {
                 <div className="w-10 h-10 bg-rose-50 rounded-xl flex items-center justify-center">
                   <Check className="w-5 h-5 text-rose-500" />
                 </div>
-                <span className="text-stone-900 font-semibold text-sm tracking-wide uppercase">With PingBox</span>
+                <span className="text-stone-900 font-semibold text-sm tracking-wide uppercase">With Pingbox</span>
               </div>
               <div className="space-y-4">
                 {[
@@ -778,9 +779,9 @@ export default function HomePage() {
 
           <div className="grid sm:grid-cols-3 gap-8">
             {[
-              { name: 'Consultants', examples: 'Study abroad, immigration, financial advisors', question: '"What\'s the fee? What\'s the process?"' },
-              { name: 'Service Businesses', examples: 'Real estate, healthcare, professional services', question: '"Is this available? What\'s the price?"' },
-              { name: 'B2B Sales', examples: 'Manufacturers, distributors, wholesalers', question: '"What\'s the bulk rate? MOQ?"' },
+              { name: 'Home Services', examples: 'HVAC, plumbing, roofing, electricians', question: '"My AC isn\'t working. Can someone come today?"' },
+              { name: 'Professional Services', examples: 'Law firms, insurance agents, dental practices', question: '"Do you handle personal injury cases? What\'s the process?"' },
+              { name: 'B2B & Wholesale', examples: 'Manufacturers, distributors, industrial supply', question: '"What\'s the bulk price? Lead time for 500 units?"' },
             ].map((item, i) => (
               <div key={i} className="rounded-2xl p-6 border border-stone-200 hover:border-stone-300 transition-colors bg-white">
                 <h3 className="text-lg font-semibold text-stone-900 mb-1">{item.name}</h3>
@@ -795,61 +796,6 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* Pricing */}
-      <section id="pricing" className="py-24 px-6 relative" style={{ backgroundColor: '#faf8f5' }}>
-        <div className="max-w-3xl mx-auto">
-          <div className="text-center mb-12">
-            <p className="text-rose-500 text-sm font-medium tracking-widest uppercase mb-4">Pricing</p>
-            <h2 className="font-serif text-3xl sm:text-5xl tracking-tight text-stone-900">
-              One plan. <em>Everything included.</em>
-            </h2>
-          </div>
-
-          <div className="border border-stone-200 rounded-3xl p-8 md:p-12 relative overflow-hidden bg-white shadow-sm">
-            <div className="absolute top-0 right-0 bg-stone-900 text-white text-xs font-semibold px-4 py-1.5 rounded-bl-xl">
-              14-DAY FREE TRIAL
-            </div>
-
-            <div className="text-center mb-8">
-              <div className="flex items-baseline justify-center gap-2 mb-2">
-                <span className="font-serif text-5xl md:text-6xl font-bold text-stone-900">₹7,999</span>
-                <span className="text-stone-400">/month</span>
-              </div>
-              <p className="text-stone-500">Close ONE extra lead and it pays for itself</p>
-            </div>
-
-            <div className="grid sm:grid-cols-2 gap-4 mb-8">
-              {[
-                'All channels (WhatsApp, Telegram, SMS)',
-                'Unlimited documents',
-                'Unlimited team members',
-                'Unlimited AI responses',
-                'Revenue tracking',
-                'Smart broadcasts',
-                'Priority support',
-                'No setup fees',
-              ].map((item, i) => (
-                <div key={i} className="flex items-center gap-3">
-                  <Check className="w-5 h-5 text-rose-500 flex-shrink-0" />
-                  <span className="text-stone-600">{item}</span>
-                </div>
-              ))}
-            </div>
-
-            <div className="text-center">
-              <Link href="/early-access" className="inline-flex items-center bg-stone-900 text-white pl-8 pr-2 py-2 rounded-full font-medium hover:bg-stone-800 transition-colors">
-                <span className="mr-4">Start free — no credit card</span>
-                <div className="w-10 h-10 bg-rose-500 rounded-full flex items-center justify-center">
-                  <ArrowRight className="w-5 h-5 text-white" />
-                </div>
-              </Link>
-              <p className="text-sm text-stone-400 mt-4">
-                Full refund in first 30 days. No questions asked.
-              </p>
-            </div>
-          </div>
-        </div>
-      </section>
 
       {/* Final CTA */}
       <section id="cta" className="py-24 px-6 relative overflow-hidden bg-stone-900">
@@ -859,11 +805,11 @@ export default function HomePage() {
             <em className="text-rose-400">faster competitors</em>
           </h2>
           <p className="text-lg text-stone-400 mb-10 leading-relaxed">
-            Connect your WhatsApp. Upload one document. See your first AI response in 5 minutes.
+            Upload one document. Connect your channels. See your first AI response in 5 minutes.
           </p>
 
           <Link href="/early-access" className="inline-flex items-center bg-white text-stone-900 pl-8 pr-2 py-2 rounded-full font-medium hover:bg-stone-100 transition-colors">
-            <span className="mr-4">Start free trial</span>
+            <span className="mr-4">Start free — 14 days</span>
             <div className="w-10 h-10 bg-rose-500 rounded-full flex items-center justify-center">
               <ArrowRight className="w-5 h-5 text-white" />
             </div>
@@ -884,14 +830,14 @@ export default function HomePage() {
             <div className="w-8 h-8 bg-stone-900 rounded-lg flex items-center justify-center">
               <span className="text-white font-bold text-xs">P</span>
             </div>
-            <span className="font-semibold text-stone-900">PingBox</span>
+            <span className="font-semibold text-stone-900">Pingbox</span>
           </Link>
           <div className="flex items-center gap-8 text-sm text-stone-400">
             <Link href="/privacy" className="hover:text-stone-900 transition-colors">Privacy</Link>
             <Link href="/terms" className="hover:text-stone-900 transition-colors">Terms</Link>
             <a href="mailto:hello@pingbox.io" className="hover:text-stone-900 transition-colors">Contact</a>
           </div>
-          <div className="text-sm text-stone-400">© 2025 PingBox. All rights reserved.</div>
+          <div className="text-sm text-stone-400">© 2025 Pingbox. All rights reserved.</div>
         </div>
       </footer>
     </div>
