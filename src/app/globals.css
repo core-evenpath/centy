@@ -126,6 +126,10 @@
   50% { opacity: 0.3; }
 }
 
+@keyframes hp-blink {
+  50% { opacity: 0; }
+}
+
 @keyframes hp-fadeIn {
   from { opacity: 0; transform: translateY(8px); }
   to { opacity: 1; transform: translateY(0); }

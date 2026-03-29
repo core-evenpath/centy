@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from 'next';
-import { DM_Sans, Instrument_Serif } from 'next/font/google';
+import { DM_Sans, Instrument_Serif, JetBrains_Mono } from 'next/font/google';
 import { Toaster } from "../components/ui/toaster";
 import FirebaseErrorListener from '../components/FirebaseErrorListener';
 import './globals.css';
@@ -16,11 +16,16 @@ const instrumentSerif = Instrument_Serif({
   variable: '--font-instrument-serif',
 });
 
+const jetbrainsMono = JetBrains_Mono({
+  subsets: ['latin'],
+  variable: '--font-jetbrains-mono',
+});
+
 export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
   maximumScale: 5,
-  themeColor: '#faf8f5',
+  themeColor: '#08080a',
 };
 
 export const metadata: Metadata = {
@@ -81,7 +86,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <body className={`${dmSans.variable} ${instrumentSerif.variable} font-sans antialiased`}>
+      <body className={`${dmSans.variable} ${instrumentSerif.variable} ${jetbrainsMono.variable} font-sans antialiased`}>
         {children}
         <Toaster />
         <FirebaseErrorListener />

@@ -21,6 +21,7 @@ export default {
       fontFamily: {
         sans: ['var(--font-dm-sans)', ...fontFamily.sans],
         serif: ['var(--font-instrument-serif)', 'Georgia', 'Times New Roman', 'serif'],
+        mono: ['var(--font-jetbrains-mono)', ...fontFamily.mono],
       },
       colors: {
         border: 'hsl(var(--border))',
