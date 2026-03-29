@@ -81,7 +81,7 @@ function RelayDemo() {
 
   const replayRelay = () => { setRVisible(false); setTimeout(() => setRVisible(true), 300); };
 
-  const STORE_BRAND = { name: "AirPro HVAC", emoji: "��", tagline: "24/7 AI service assistant", accent: "#ea580c" };
+  const STORE_BRAND = { name: "AirPro HVAC", tagline: "24/7 AI service assistant", accent: "#ea580c" };
   const STORE_TILES = [
     { id: "services", label: "Our Services", sub: "HVAC · Plumbing · Electrical", icon: "🔧", size: "large" },
     { id: "pricing", label: "Pricing", sub: "Transparent rates", icon: "💰", size: "medium" },
@@ -176,8 +176,8 @@ function RelayDemo() {
             <div className="absolute top-3 left-3 right-3 bottom-3 rounded-[2rem] overflow-hidden flex flex-col bg-[#fafafa]">
               {/* Phone Header */}
               <div className="px-4 pt-8 pb-3.5 flex items-center gap-3 bg-white border-b border-stone-100 shrink-0 relative z-20">
-                <div className="w-9 h-9 rounded-[10px] overflow-hidden bg-orange-600 flex items-center justify-center shrink-0">
-                  <span className="text-white text-[16px]">{STORE_BRAND.emoji}</span>
+                <div className="w-9 h-9 rounded-[10px] overflow-hidden shrink-0">
+                  <img src="/images/brand/icon_pingbox.png" alt={STORE_BRAND.name} className="w-full h-full object-cover" />
                 </div>
                 <div className="flex flex-col justify-center">
                   <span className="font-bold text-[16px] text-stone-900 leading-none mb-1">{STORE_BRAND.name}</span>
