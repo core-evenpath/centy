@@ -1,8 +1,8 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
-import { AlertCircle, ArrowRight, Check, X, FileText, TrendingUp, MessageSquare, User, Sparkles, Database, CheckCircle2, DollarSign, History, Tag, Package, Phone, Bot, Loader2 } from 'lucide-react';
+import { AlertCircle, ArrowRight, Check, X, FileText, TrendingUp, MessageSquare, User, Sparkles, Database, CheckCircle2, DollarSign, History, Tag, Package, Phone, Bot, Loader2, Globe } from 'lucide-react';
 
 const howItWorks = [
   { step: '1', title: 'Upload your docs', desc: 'Product catalogs, price lists, FAQs — any documents your business runs on.' },
@@ -54,11 +54,284 @@ function WaveformBars({ active, intensity = 1 }: { active: boolean; intensity?: 
   );
 }
 
+function RelayDemo() {
+  const relayRef = useRef<HTMLElement>(null);
+  const [rVisible, setRVisible] = useState(false);
+  const [rDone, setRDone] = useState(false);
+
+  useEffect(() => {
+    const el = relayRef.current;
+    if (!el) return;
+    const obs = new IntersectionObserver(
+      ([e]) => { if (e.isIntersecting && !rVisible) setRVisible(true); },
+      { threshold: 0.2 }
+    );
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, [rVisible]);
+
+  useEffect(() => {
+    if (rVisible) {
+      const timer = setTimeout(() => setRDone(true), 1500);
+      return () => clearTimeout(timer);
+    } else {
+      setRDone(false);
+    }
+  }, [rVisible]);
+
+  const replayRelay = () => { setRVisible(false); setTimeout(() => setRVisible(true), 300); };
+
+  const STORE_BRAND = { name: "AirPro HVAC", emoji: "��", tagline: "24/7 AI service assistant", accent: "#ea580c" };
+  const STORE_TILES = [
+    { id: "services", label: "Our Services", sub: "HVAC · Plumbing · Electrical", icon: "🔧", size: "large" },
+    { id: "pricing", label: "Pricing", sub: "Transparent rates", icon: "💰", size: "medium" },
+    { id: "book", label: "Book a Visit", sub: "Same-day available", icon: "📅", size: "medium" },
+    { id: "reviews", label: "Reviews", sub: "4.9 ★ · 847 reviews", icon: "⭐", size: "small" },
+    { id: "area", label: "Service Area", sub: "Phoenix metro", icon: "📍", size: "small" },
+    { id: "faq", label: "Quick Answers", sub: "Common questions", icon: "💬", size: "small" },
+  ];
+
+  return (
+    <section ref={relayRef} id="relay" className="py-24 px-4 relative overflow-hidden bg-[#faf8f5] border-b border-stone-200">
+      <div className="max-w-7xl mx-auto relative">
+        <div className="text-center mb-14">
+          <p className="text-rose-500 text-sm font-medium tracking-widest uppercase mb-4">Relay</p>
+          <h2 className="font-serif text-3xl sm:text-5xl tracking-tight text-stone-900 mb-4">
+            Your AI storefront, inside a chat
+          </h2>
+          <p className="text-stone-500 max-w-xl mx-auto leading-relaxed">
+            Not a chatbot. An AI storefront that renders interactive UI — catalogs, booking forms, payments — right inside the chat.
+          </p>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-[1fr_280px_1fr] gap-6 md:gap-8 items-center max-w-5xl mx-auto">
+          {/* Left Side */}
+          <div className="space-y-4">
+            <div 
+              className="rounded-2xl p-4 border border-stone-200 bg-white"
+              style={{
+                opacity: rVisible ? 1 : 0,
+                transform: rVisible ? "translateX(0)" : "translateX(-8px)",
+                transition: "all 0.4s ease 0.2s"
+              }}
+            >
+              <div className="flex items-center gap-3 mb-2">
+                <div className="w-8 h-8 rounded-full bg-rose-50 flex items-center justify-center">
+                  <Sparkles className="w-4 h-4 text-rose-500" />
+                </div>
+                <h3 className="text-sm font-semibold text-stone-900">Not a chatbot</h3>
+              </div>
+              <p className="text-xs text-stone-500 leading-relaxed">A branded storefront with interactive service cards, booking forms, and payments — all inside one conversation.</p>
+            </div>
+            
+            <div 
+              className="rounded-2xl p-4 border border-stone-200 bg-white"
+              style={{
+                opacity: rVisible ? 1 : 0,
+                transform: rVisible ? "translateX(0)" : "translateX(-8px)",
+                transition: "all 0.4s ease 0.4s"
+              }}
+            >
+              <div className="flex items-center gap-3 mb-2">
+                <div className="w-8 h-8 rounded-full bg-rose-50 flex items-center justify-center">
+                  <Database className="w-4 h-4 text-rose-500" />
+                </div>
+                <h3 className="text-sm font-semibold text-stone-900">Your industry, built in</h3>
+              </div>
+              <p className="text-xs text-stone-500 leading-relaxed">142 business functions across 14 verticals. AI generates the right storefront automatically.</p>
+            </div>
+
+            <div 
+              className="rounded-2xl p-4 border border-stone-200 bg-white"
+              style={{
+                opacity: rVisible ? 1 : 0,
+                transform: rVisible ? "translateX(0)" : "translateX(-8px)",
+                transition: "all 0.4s ease 0.6s"
+              }}
+            >
+              <div className="flex items-center gap-3 mb-2">
+                <div className="w-8 h-8 rounded-full bg-rose-50 flex items-center justify-center">
+                  <TrendingUp className="w-4 h-4 text-rose-500" />
+                </div>
+                <h3 className="text-sm font-semibold text-stone-900">Every conversation = revenue</h3>
+              </div>
+              <p className="text-xs text-stone-500 leading-relaxed">AI qualifies leads, recommends services, and tracks every interaction as pipeline.</p>
+            </div>
+          </div>
+
+          {/* Center Phone Mockup */}
+          <div 
+            className="relative mx-auto w-full max-w-[280px] h-[500px] rounded-[2.5rem] border-[3px] border-stone-300 shadow-2xl mt-4 md:mt-0" 
+            style={{ 
+              background: '#fafafa',
+              animation: rVisible ? "relay-float 5s ease-in-out 1.2s infinite" : "none"
+            }}
+          >
+            {/* Notch */}
+            <div className="absolute top-3 left-1/2 -translate-x-1/2 w-20 h-6 rounded-full flex items-center justify-center gap-2 bg-black z-50">
+              <div className="w-2 h-2 rounded-full bg-neutral-700" />
+              <div className="w-8 h-1 rounded-full bg-neutral-700" />
+            </div>
+
+            <div className="absolute top-3 left-3 right-3 bottom-3 rounded-[2rem] overflow-hidden flex flex-col bg-[#fafafa]">
+              {/* Phone Header */}
+              <div className="px-4 pt-8 pb-3.5 flex items-center gap-3 bg-white border-b border-stone-100 shrink-0 relative z-20">
+                <div className="w-9 h-9 rounded-[10px] overflow-hidden bg-orange-600 flex items-center justify-center shrink-0">
+                  <span className="text-white text-[16px]">{STORE_BRAND.emoji}</span>
+                </div>
+                <div className="flex flex-col justify-center">
+                  <span className="font-bold text-[16px] text-stone-900 leading-none mb-1">{STORE_BRAND.name}</span>
+                  <div className="text-[12px] text-stone-400">{STORE_BRAND.tagline}</div>
+                </div>
+              </div>
+
+              {/* Bento Grid */}
+              <div className="flex-1 relative overflow-hidden flex flex-col bg-[#fafafa] z-10 p-3 pb-2 pt-4">
+                <div className="grid grid-cols-2 gap-2 mb-auto">
+                  {STORE_TILES.map((tile, index) => (
+                    <div 
+                      key={tile.id}
+                      className={`bg-white border border-stone-200 rounded-[12px] ${tile.size === 'large' ? 'col-span-2 flex items-center justify-between p-4' : 'flex flex-col items-center justify-center p-3.5'}`}
+                      style={{
+                        opacity: rVisible ? 1 : 0,
+                        transform: rVisible ? "translateY(0)" : "translateY(8px)",
+                        transition: `opacity 0.4s ease ${index * 0.1}s, transform 0.4s ease ${index * 0.1}s`
+                      }}
+                    >
+                      {tile.size === 'large' ? (
+                        <>
+                          <div className="flex items-center gap-3">
+                            <div className="text-[28px]">{tile.icon}</div>
+                            <div>
+                              <div className="text-[13px] font-semibold text-stone-900 mb-0.5">{tile.label}</div>
+                              <div className="text-[11px] text-stone-400">{tile.sub}</div>
+                            </div>
+                          </div>
+                          <ArrowRight className="w-3 h-3 text-stone-400" />
+                        </>
+                      ) : (
+                        <>
+                          <div className="text-[24px] mb-1.5 leading-none">{tile.icon}</div>
+                          <div className="text-[13px] font-semibold text-stone-900 text-center leading-tight">{tile.label}</div>
+                          <div className="text-[11px] text-stone-400 text-center mt-0.5 whitespace-nowrap overflow-hidden text-ellipsis w-full px-1">{tile.sub}</div>
+                        </>
+                      )}
+                    </div>
+                  ))}
+                </div>
+
+                {/* Input Bar */}
+                <div 
+                  className="mt-4 pt-10"
+                  style={{
+                    opacity: rVisible ? 1 : 0,
+                    transform: rVisible ? "translateY(0)" : "translateY(8px)",
+                    transition: `opacity 0.4s ease 0.7s, transform 0.4s ease 0.7s`
+                  }}
+                >
+                  <div className="bg-[#fafafa] border border-stone-200 rounded-[10px] px-3.5 py-3 flex items-center gap-2 shadow-sm">
+                    <Sparkles className="w-3.5 h-3.5 text-stone-400" />
+                    <div className="text-[13px] text-stone-400">Describe what you need...</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Right Side */}
+          <div className="space-y-4">
+            <div 
+              className="rounded-2xl p-4 border border-stone-200 bg-white"
+              style={{
+                opacity: rVisible ? 1 : 0,
+                transform: rVisible ? "translateX(0)" : "translateX(8px)",
+                transition: "all 0.4s ease 0.3s"
+              }}
+            >
+              <h3 className="text-sm font-semibold text-stone-900 mb-2">yourname.pingbox.io</h3>
+              <div className="bg-stone-50 border border-stone-200 rounded-lg p-2 flex items-center gap-2 mb-2 w-full truncate">
+                <Globe className="w-3.5 h-3.5 text-stone-400 shrink-0" />
+                <span className="font-mono text-[11px] text-stone-600">acmehvac.pingbox.io</span>
+              </div>
+              <p className="text-xs text-stone-500">One link. Customers land in your AI storefront.</p>
+            </div>
+
+            <div 
+              className="rounded-2xl p-4 border border-stone-200 bg-white"
+              style={{
+                opacity: rVisible ? 1 : 0,
+                transform: rVisible ? "translateX(0)" : "translateX(8px)",
+                transition: "all 0.4s ease 0.5s"
+              }}
+            >
+              <h3 className="text-sm font-semibold text-stone-900 mb-2">Every channel, one brain</h3>
+              <div className="flex flex-wrap gap-1.5 mb-2">
+                {['Web', 'SMS', 'WhatsApp', 'Telegram'].map(ch => (
+                  <span key={ch} className="px-2 py-0.5 bg-stone-100 border border-stone-200 rounded text-[10px] font-medium text-stone-600">{ch}</span>
+                ))}
+              </div>
+              <p className="text-xs text-stone-500">Same storefront, same AI, everywhere.</p>
+            </div>
+
+            <div 
+              className="rounded-2xl p-4 border border-stone-200 bg-white"
+              style={{
+                opacity: rVisible ? 1 : 0,
+                transform: rVisible ? "translateX(0)" : "translateX(8px)",
+                transition: "all 0.4s ease 0.7s"
+              }}
+            >
+              <h3 className="text-sm font-semibold text-stone-900 mb-1.5">Complex? → Your team</h3>
+              <p className="text-xs text-stone-500">AI handles routine. Humans get the hard stuff with full context.</p>
+              <div className="mt-3 flex -space-x-1.5">
+                <div className="w-6 h-6 rounded-full bg-blue-100 border-2 border-white flex items-center justify-center text-[9px] font-bold text-blue-700 z-20">JD</div>
+                <div className="w-6 h-6 rounded-full bg-rose-100 border-2 border-white flex items-center justify-center text-[9px] font-bold text-rose-700 z-10">MR</div>
+                <div className="w-6 h-6 rounded-full bg-stone-100 border-2 border-white flex items-center justify-center text-[9px] font-bold text-stone-600 z-0">
+                  <User className="w-3 h-3" />
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Status Bar & Replay */}
+        <div className="text-center mt-8 min-h-[4rem]">
+          <div 
+            style={{
+              opacity: rVisible ? 1 : 0,
+              transition: "opacity 0.5s ease 1s",
+            }}
+          >
+            <p className="text-sm text-stone-400 mb-2">
+              This is what your customers see at <span className="font-mono text-stone-500">yourname.pingbox.io</span>
+            </p>
+            {rDone && (
+              <button 
+                onClick={replayRelay} 
+                className="inline-flex items-center gap-1.5 text-sm text-stone-400 hover:text-stone-700 font-medium transition-colors cursor-pointer"
+              >
+                <History className="w-3.5 h-3.5" /> Replay
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 export default function HomePage() {
   const [activeCards, setActiveCards] = useState<string[]>([]);
   const [isFlowActive, setIsFlowActive] = useState(true);
   const [typedText, setTypedText] = useState('');
   const [currentPhase, setCurrentPhase] = useState(0);
+  const [mobileNav, setMobileNav] = useState(false);
+
+  useEffect(() => {
+    const close = () => setMobileNav(false);
+    window.addEventListener("scroll", close, { passive: true });
+    return () => window.removeEventListener("scroll", close);
+  }, []);
 
   const phases = [
     { status: 'Ready', icon: 'idle' },
@@ -187,27 +460,99 @@ export default function HomePage() {
           background-size: 200% 100%;
           animation: shimmer 2s infinite;
         }
+        .relay-card {
+          transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+          background: white;
+          border: 1px solid #e7e5e4;
+        }
+        .relay-card.r-active {
+          opacity: 1;
+          transform: translateY(0);
+          border-color: #fecdd3;
+          box-shadow: 0 4px 20px rgba(244, 63, 94, 0.06);
+        }
+        .relay-card.r-inactive {
+          opacity: 0;
+          transform: translateY(12px);
+        }
+        .relay-phone-content {
+          transition: opacity 0.4s ease, transform 0.3s ease;
+        }
+        [id] {
+          scroll-margin-top: 80px;
+        }
+        @media (prefers-reduced-motion: reduce) {
+          *, *::before, *::after {
+            animation-duration: 0.01ms !important;
+            animation-iteration-count: 1 !important;
+            transition-duration: 0.01ms !important;
+          }
+        }
       `}</style>
 
       {/* Navigation */}
-      <nav className="fixed top-0 left-0 right-0 z-50 backdrop-blur-xl border-b border-stone-200/60" style={{ backgroundColor: 'rgba(250, 248, 245, 0.9)' }}>
+      <nav aria-label="Main navigation" className="fixed top-0 left-0 right-0 z-50 backdrop-blur-xl border-b border-stone-200/60" style={{ backgroundColor: 'rgba(250, 248, 245, 0.9)' }}>
         <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
-          <Link href="/" className="flex items-center gap-2.5" aria-label="Pingbox home">
-            <div className="w-9 h-9 bg-stone-900 rounded-xl flex items-center justify-center">
-              <span className="text-white font-bold text-sm">P</span>
-            </div>
-            <span className="font-semibold text-stone-900 text-lg tracking-tight">Pingbox</span>
+          <Link href="/" aria-label="Pingbox home">
+            <img src="/images/brand/logo.svg" alt="Pingbox" className="h-12 w-auto" />
           </Link>
           <div className="hidden sm:flex items-center gap-8">
-            <a href="#flow" className="text-sm text-stone-500 hover:text-stone-900 transition-colors">How it works</a>
+            {[
+              { label: "Relay", href: "#relay" },
+              { label: "How it works", href: "#demo" },
+              { label: "Industries", href: "#industries" },
+            ].map((link) => (
+              <a
+                key={link.href}
+                href={link.href}
+                className="text-sm text-stone-500 hover:text-stone-900 transition-colors"
+              >
+                {link.label}
+              </a>
+            ))}
           </div>
           <div className="flex items-center gap-4">
             <Link href="/partner/login" className="text-sm text-stone-500 hover:text-stone-900 transition-colors hidden sm:block">Sign in</Link>
-            <Link href="/early-access" className="text-sm bg-stone-900 hover:bg-stone-800 text-white px-5 py-2.5 rounded-full font-medium transition-colors">
+            <Link href="/early-access" className="text-sm bg-stone-900 hover:bg-stone-800 text-white px-5 py-2.5 rounded-full font-medium transition-colors hidden sm:block">
               Get started
             </Link>
+            <button
+              onClick={() => setMobileNav(!mobileNav)}
+              className="sm:hidden w-9 h-9 flex items-center justify-center rounded-lg hover:bg-stone-100 transition-colors"
+              aria-label="Toggle navigation menu"
+              aria-expanded={mobileNav}
+            >
+              {mobileNav ? (
+                <X className="w-5 h-5 text-stone-600" />
+              ) : (
+                <svg className="w-5 h-5 text-stone-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
+                </svg>
+              )}
+            </button>
           </div>
         </div>
+        {mobileNav && (
+          <div className="sm:hidden border-t border-stone-200/60 px-6 py-4 flex flex-col gap-3" style={{ backgroundColor: 'rgba(250, 248, 245, 0.98)' }}>
+            {[
+              { label: "Relay", href: "#relay" },
+              { label: "How it works", href: "#demo" },
+              { label: "Industries", href: "#industries" },
+            ].map((link) => (
+              <a
+                key={link.href}
+                href={link.href}
+                onClick={() => setMobileNav(false)}
+                className="text-sm text-stone-600 hover:text-stone-900 transition-colors py-1"
+              >
+                {link.label}
+              </a>
+            ))}
+            <div className="h-px bg-stone-200 my-1" />
+            <a href="/partner/login" className="text-sm text-stone-500 hover:text-stone-900 transition-colors py-1">Sign in</a>
+            <a href="/early-access" className="text-sm bg-stone-900 text-white px-4 py-2 rounded-full font-medium text-center hover:bg-stone-800 transition-colors">Get started</a>
+          </div>
+        )}
       </nav>
 
       <main>
@@ -281,8 +626,10 @@ export default function HomePage() {
         </div>
       </section>
 
+      <RelayDemo />
+
       {/* Animated Grid Flow Section */}
-      <section id="flow" className="py-24 px-4 relative overflow-hidden">
+      <section id="demo" className="py-24 px-4 relative overflow-hidden">
         <div className="max-w-7xl mx-auto relative">
           <div className="text-center mb-14">
             <p className="text-rose-500 text-sm font-medium tracking-widest uppercase mb-4">The platform</p>
@@ -766,7 +1113,7 @@ export default function HomePage() {
       </section>
 
       {/* Works For */}
-      <section className="py-24 px-6 relative bg-white">
+      <section id="industries" className="py-24 px-6 relative bg-white">
         <div className="max-w-5xl mx-auto">
           <div className="text-center mb-16">
             <p className="text-rose-500 text-sm font-medium tracking-widest uppercase mb-4">Works for</p>
@@ -826,13 +1173,11 @@ export default function HomePage() {
       {/* Footer */}
       <footer className="py-12 px-6 border-t border-stone-200" style={{ backgroundColor: '#faf8f5' }}>
         <div className="max-w-6xl mx-auto flex flex-col md:flex-row items-center justify-between gap-6">
-          <Link href="/" className="flex items-center gap-2.5">
-            <div className="w-8 h-8 bg-stone-900 rounded-lg flex items-center justify-center">
-              <span className="text-white font-bold text-xs">P</span>
-            </div>
-            <span className="font-semibold text-stone-900">Pingbox</span>
+          <Link href="/" aria-label="Pingbox home">
+            <img src="/images/brand/logo.svg" alt="Pingbox" className="h-10 w-auto" />
           </Link>
           <div className="flex items-center gap-8 text-sm text-stone-400">
+            <a href="#relay" className="hover:text-stone-900 transition-colors">Relay</a>
             <Link href="/privacy" className="hover:text-stone-900 transition-colors">Privacy</Link>
             <Link href="/terms" className="hover:text-stone-900 transition-colors">Terms</Link>
             <a href="mailto:hello@pingbox.io" className="hover:text-stone-900 transition-colors">Contact</a>

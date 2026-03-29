@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" fill="none">
+  <rect width="1200" height="630" fill="#FAF8F5"/>
+  <rect x="520" y="220" width="56" height="56" rx="14" fill="#171717"/>
+  <text x="548" y="258" text-anchor="middle" font-family="system-ui, sans-serif" font-weight="800" font-size="32" fill="white">P</text>
+  <text x="600" y="340" text-anchor="middle" font-family="system-ui, sans-serif" font-weight="700" font-size="42" fill="#171717" letter-spacing="-1">Pingbox</text>
+  <text x="600" y="380" text-anchor="middle" font-family="system-ui, sans-serif" font-weight="400" font-size="18" fill="#6B7280">AI-powered messaging for service businesses</text>
+</svg>
