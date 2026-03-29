@@ -6,15 +6,23 @@ import type {
   FlowDefinition,
   ConversationFlowState,
   SystemFlowTemplate,
+  SystemFlowTemplateRecord,
 } from '@/lib/types-flow-engine';
 
 // ---------------------------------------------------------------------------
-// 1. Get system flow templates (in-memory)
+// 1. Get system flow templates (Firestore-first, in-memory fallback)
 // ---------------------------------------------------------------------------
 export async function getFlowTemplatesAction(
   functionId: string
 ): Promise<{ success: boolean; templates: SystemFlowTemplate[]; error?: string }> {
   try {
+    const dbResult = await getSystemFlowTemplatesFromDB();
+    if (dbResult.success && dbResult.templates.length > 0) {
+      const templates = functionId
+        ? dbResult.templates.filter((t) => t.functionId === functionId && t.status === 'active')
+        : dbResult.templates.filter((t) => t.status === 'active');
+      return { success: true, templates };
+    }
     const templates = functionId
       ? SYSTEM_FLOW_TEMPLATES.filter((t) => t.functionId === functionId)
       : SYSTEM_FLOW_TEMPLATES;
@@ -255,7 +263,7 @@ export async function getFlowAnalyticsAction(
 }
 
 // ---------------------------------------------------------------------------
-// 8. Get all system flow templates (admin view)
+// 8. Get all system flow templates (Firestore-first, in-memory fallback)
 // ---------------------------------------------------------------------------
 export async function getAllFlowTemplatesAction(): Promise<{
   success: boolean;
@@ -263,6 +271,10 @@ export async function getAllFlowTemplatesAction(): Promise<{
   error?: string;
 }> {
   try {
+    const dbResult = await getSystemFlowTemplatesFromDB();
+    if (dbResult.success && dbResult.templates.length > 0) {
+      return { success: true, templates: dbResult.templates };
+    }
     return { success: true, templates: SYSTEM_FLOW_TEMPLATES };
   } catch (e: any) {
     console.error('Failed to get all flow templates:', e);
@@ -373,5 +385,223 @@ export async function getAdminFlowOverviewAction(): Promise<{
   } catch (e: any) {
     console.error('Failed to get admin flow overview:', e);
     return { success: false, partnerFlows: [], error: e.message };
+  }
+}
+
+// ---------------------------------------------------------------------------
+// 10. Get system flow templates from Firestore
+// ---------------------------------------------------------------------------
+export async function getSystemFlowTemplatesFromDB(): Promise<{
+  success: boolean;
+  templates: SystemFlowTemplateRecord[];
+  error?: string;
+}> {
+  try {
+    const snap = await adminDb
+      .collection('systemFlowTemplates')
+      .orderBy('updatedAt', 'desc')
+      .get();
+
+    const templates = snap.docs.map((d) => ({
+      ...d.data(),
+      id: d.id,
+    })) as SystemFlowTemplateRecord[];
+
+    return { success: true, templates };
+  } catch (e: any) {
+    console.error('Failed to get system flow templates from DB:', e);
+    return { success: false, templates: [], error: e.message };
+  }
+}
+
+// ---------------------------------------------------------------------------
+// 11. Get single system flow template by ID
+// ---------------------------------------------------------------------------
+export async function getSystemFlowTemplateByIdAction(
+  templateId: string
+): Promise<{ success: boolean; template?: SystemFlowTemplateRecord; error?: string }> {
+  try {
+    const doc = await adminDb.collection('systemFlowTemplates').doc(templateId).get();
+    if (!doc.exists) {
+      return { success: false, error: 'Template not found' };
+    }
+    return {
+      success: true,
+      template: { ...doc.data(), id: doc.id } as SystemFlowTemplateRecord,
+    };
+  } catch (e: any) {
+    console.error('Failed to get system flow template:', e);
+    return { success: false, error: e.message };
+  }
+}
+
+// ---------------------------------------------------------------------------
+// 12. Create system flow template
+// ---------------------------------------------------------------------------
+export async function createSystemFlowTemplateAction(
+  data: Omit<SystemFlowTemplateRecord, 'id' | 'createdAt' | 'updatedAt' | 'createdBy'>,
+  userId: string
+): Promise<{ success: boolean; templateId?: string; error?: string }> {
+  try {
+    if (!data.name?.trim()) {
+      return { success: false, error: 'Template name is required' };
+    }
+    if (!data.stages || data.stages.length === 0) {
+      return { success: false, error: 'At least one stage is required' };
+    }
+
+    const now = new Date().toISOString();
+    const templateId = `flow_tpl_${Date.now()}`;
+
+    const record: SystemFlowTemplateRecord = {
+      ...data,
+      id: templateId,
+      createdAt: now,
+      updatedAt: now,
+      createdBy: userId,
+    };
+
+    await adminDb.collection('systemFlowTemplates').doc(templateId).set(record);
+
+    const { revalidatePath } = await import('next/cache');
+    revalidatePath('/admin/relay/flows');
+
+    return { success: true, templateId };
+  } catch (e: any) {
+    console.error('Failed to create system flow template:', e);
+    return { success: false, error: e.message };
+  }
+}
+
+// ---------------------------------------------------------------------------
+// 13. Update system flow template
+// ---------------------------------------------------------------------------
+export async function updateSystemFlowTemplateAction(
+  templateId: string,
+  updates: Partial<SystemFlowTemplateRecord>,
+  userId: string
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const doc = await adminDb.collection('systemFlowTemplates').doc(templateId).get();
+    if (!doc.exists) {
+      return { success: false, error: 'Template not found' };
+    }
+
+    const { id: _id, createdAt: _ca, createdBy: _cb, ...safeUpdates } = updates;
+
+    await adminDb.collection('systemFlowTemplates').doc(templateId).update({
+      ...safeUpdates,
+      updatedAt: new Date().toISOString(),
+    });
+
+    const { revalidatePath } = await import('next/cache');
+    revalidatePath('/admin/relay/flows');
+
+    return { success: true };
+  } catch (e: any) {
+    console.error('Failed to update system flow template:', e);
+    return { success: false, error: e.message };
+  }
+}
+
+// ---------------------------------------------------------------------------
+// 14. Delete system flow template
+// ---------------------------------------------------------------------------
+export async function deleteSystemFlowTemplateAction(
+  templateId: string
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    await adminDb.collection('systemFlowTemplates').doc(templateId).delete();
+
+    const { revalidatePath } = await import('next/cache');
+    revalidatePath('/admin/relay/flows');
+
+    return { success: true };
+  } catch (e: any) {
+    console.error('Failed to delete system flow template:', e);
+    return { success: false, error: e.message };
+  }
+}
+
+// ---------------------------------------------------------------------------
+// 15. Duplicate system flow template
+// ---------------------------------------------------------------------------
+export async function duplicateSystemFlowTemplateAction(
+  templateId: string,
+  userId: string
+): Promise<{ success: boolean; templateId?: string; error?: string }> {
+  try {
+    const doc = await adminDb.collection('systemFlowTemplates').doc(templateId).get();
+    if (!doc.exists) {
+      return { success: false, error: 'Template not found' };
+    }
+
+    const existing = doc.data() as SystemFlowTemplateRecord;
+    const now = new Date().toISOString();
+    const newId = `flow_tpl_${Date.now()}`;
+
+    const copy: SystemFlowTemplateRecord = {
+      ...existing,
+      id: newId,
+      name: `${existing.name} (Copy)`,
+      status: 'draft',
+      createdAt: now,
+      updatedAt: now,
+      createdBy: userId,
+    };
+
+    await adminDb.collection('systemFlowTemplates').doc(newId).set(copy);
+
+    const { revalidatePath } = await import('next/cache');
+    revalidatePath('/admin/relay/flows');
+
+    return { success: true, templateId: newId };
+  } catch (e: any) {
+    console.error('Failed to duplicate system flow template:', e);
+    return { success: false, error: e.message };
+  }
+}
+
+// ---------------------------------------------------------------------------
+// 16. Seed in-memory templates to Firestore
+// ---------------------------------------------------------------------------
+export async function seedSystemFlowTemplatesToDB(
+  userId: string
+): Promise<{ success: boolean; seeded: number; skipped: number; error?: string }> {
+  try {
+    const snap = await adminDb.collection('systemFlowTemplates').get();
+    const existingFunctionIds = new Set(
+      snap.docs.map((d) => d.data()?.functionId).filter(Boolean)
+    );
+
+    const now = new Date().toISOString();
+    let seeded = 0;
+    let skipped = 0;
+
+    for (const tpl of SYSTEM_FLOW_TEMPLATES) {
+      if (existingFunctionIds.has(tpl.functionId)) {
+        skipped++;
+        continue;
+      }
+
+      const record: SystemFlowTemplateRecord = {
+        ...tpl,
+        createdAt: now,
+        updatedAt: now,
+        createdBy: userId,
+        status: 'active',
+      };
+
+      await adminDb.collection('systemFlowTemplates').doc(tpl.id).set(record);
+      seeded++;
+    }
+
+    const { revalidatePath } = await import('next/cache');
+    revalidatePath('/admin/relay/flows');
+
+    return { success: true, seeded, skipped };
+  } catch (e: any) {
+    console.error('Failed to seed system flow templates:', e);
+    return { success: false, seeded: 0, skipped: 0, error: e.message };
   }
 }

@@ -119,3 +119,10 @@ export interface SystemFlowTemplate {
   settings: FlowSettings;
   description: string;
 }
+
+export interface SystemFlowTemplateRecord extends SystemFlowTemplate {
+  createdAt: string;
+  updatedAt: string;
+  createdBy: string;
+  status: 'active' | 'draft' | 'archived';
+}
