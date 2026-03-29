@@ -10,7 +10,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   const { slug } = await params;
   const result = await getRelayPartnerBySlug(slug);
 
-  if (!result) {
+  if (result.status !== 'found') {
     return { title: 'Not Found — Pingbox' };
   }
 
@@ -24,7 +24,29 @@ export default async function RelaySubdomainPage({ params }: PageProps) {
   const { slug } = await params;
   const result = await getRelayPartnerBySlug(slug);
 
-  if (!result || !result.relayConfig.enabled) {
+  if (result.status === 'error') {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen bg-white">
+        <div className="text-center space-y-4 px-6">
+          <div className="text-4xl mb-2">⚠️</div>
+          <h1 className="text-xl font-semibold text-gray-900">
+            Something went wrong
+          </h1>
+          <p className="text-sm text-gray-500 max-w-xs mx-auto">
+            We&apos;re having trouble loading this page. Please try again in a moment.
+          </p>
+          <a
+            href="https://pingbox.io"
+            className="inline-block mt-4 px-6 py-2.5 bg-black text-white text-sm font-medium rounded-lg hover:bg-gray-800 transition-colors"
+          >
+            Visit pingbox.io
+          </a>
+        </div>
+      </div>
+    );
+  }
+
+  if (result.status === 'not_found' || !result.relayConfig.enabled) {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen bg-white">
         <div className="text-center space-y-4 px-6">

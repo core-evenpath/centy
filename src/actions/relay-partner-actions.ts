@@ -1,6 +1,6 @@
 'use server';
 
-import { db as adminDb } from '@/lib/firebase-admin';
+import { getAdminDb } from '@/lib/firebase-admin';
 import type { RelaySlugValidation } from '@/lib/types-relay';
 import { RESERVED_SUBDOMAINS } from '@/lib/types-relay';
 import type { RelayConfig } from '@/actions/relay-actions';
@@ -28,11 +28,13 @@ export async function validateRelaySlug(
   }
 
   try {
-    const slugDoc = await adminDb.collection('relaySlugs').doc(slug).get();
+    const db = getAdminDb();
+    const slugDoc = await db.collection('relaySlugs').doc(slug).get();
     if (slugDoc.exists && slugDoc.data()?.partnerId !== currentPartnerId) {
       return { valid: false, error: 'taken' };
     }
-  } catch {
+  } catch (error) {
+    console.error('[Relay] validateRelaySlug failed:', error);
     return { valid: false, error: 'taken' };
   }
 
@@ -49,7 +51,8 @@ export async function updateRelaySlug(
   }
 
   try {
-    const configRef = adminDb
+    const db = getAdminDb();
+    const configRef = db
       .collection('partners')
       .doc(partnerId)
       .collection('relayConfig')
@@ -58,13 +61,13 @@ export async function updateRelaySlug(
     const configSnap = await configRef.get();
     const oldSlug = configSnap.exists ? configSnap.data()?.relaySlug : null;
 
-    const batch = adminDb.batch();
+    const batch = db.batch();
 
     if (oldSlug && oldSlug !== slug) {
-      batch.delete(adminDb.collection('relaySlugs').doc(oldSlug));
+      batch.delete(db.collection('relaySlugs').doc(oldSlug));
     }
 
-    batch.set(adminDb.collection('relaySlugs').doc(slug), {
+    batch.set(db.collection('relaySlugs').doc(slug), {
       partnerId,
       createdAt: new Date().toISOString(),
     });
@@ -78,35 +81,43 @@ export async function updateRelaySlug(
     await batch.commit();
     return { success: true, message: 'Relay link updated' };
   } catch (e: any) {
-    console.error('Failed to update relay slug:', e);
+    console.error('[Relay] Failed to update relay slug:', e);
     return { success: false, message: e.message || 'Failed to update relay link' };
   }
 }
 
+export type RelayLookupResult =
+  | { status: 'found'; partnerId: string; relayConfig: RelayConfig }
+  | { status: 'not_found' }
+  | { status: 'error'; message: string };
+
 export async function getRelayPartnerBySlug(
   slug: string
-): Promise<{ partnerId: string; relayConfig: RelayConfig } | null> {
+): Promise<RelayLookupResult> {
   try {
-    const slugDoc = await adminDb.collection('relaySlugs').doc(slug).get();
-    if (!slugDoc.exists) return null;
+    const db = getAdminDb();
+    const slugDoc = await db.collection('relaySlugs').doc(slug).get();
+    if (!slugDoc.exists) return { status: 'not_found' };
 
     const partnerId = slugDoc.data()?.partnerId;
-    if (!partnerId) return null;
+    if (!partnerId) return { status: 'not_found' };
 
-    const configSnap = await adminDb
+    const configSnap = await db
       .collection('partners')
       .doc(partnerId)
       .collection('relayConfig')
       .doc('config')
       .get();
 
-    if (!configSnap.exists) return null;
+    if (!configSnap.exists) return { status: 'not_found' };
 
     return {
+      status: 'found',
       partnerId,
       relayConfig: configSnap.data() as RelayConfig,
     };
-  } catch {
-    return null;
+  } catch (error) {
+    console.error('[Relay] getRelayPartnerBySlug failed:', error);
+    return { status: 'error', message: error instanceof Error ? error.message : 'Unknown error' };
   }
 }

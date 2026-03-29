@@ -63,5 +63,14 @@ if (!admin.apps.length) {
   adminStorage = getStorage(app);
 }
 
+export function getAdminDb(): admin.firestore.Firestore {
+  if (!db) {
+    throw new Error(
+      'Firebase Admin is not initialized. Check FIREBASE_PRIVATE_KEY, FIREBASE_CLIENT_EMAIL, NEXT_PUBLIC_FIREBASE_PROJECT_ID, NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET.'
+    );
+  }
+  return db;
+}
+
 // @ts-ignore
 export { db, adminAuth, adminStorage, adminStorage as storage };
