@@ -48,3 +48,44 @@
 - [x] All nav links have matching section IDs
 - [x] PingBox → Pingbox everywhere
 - [x] Mobile nav works and auto-closes
+
+---
+
+## Pipeline Orchestrator: Software & IT Services
+
+### Files Created
+
+| File | Lines | Purpose |
+|------|-------|---------|
+| `src/actions/vertical-pipeline-actions.ts` | 304 | Server action orchestrating the full module-to-flow pipeline |
+| `src/scripts/seed-software-it.ts` | 36 | CLI seed script for the `software_it` vertical |
+
+### Files Modified
+
+None.
+
+### What the Pipeline Does (Step by Step)
+
+1. **Module Discovery** — Calls `discoverModulesForBusinessType()` with industry/function IDs to get AI-discovered modules for the business type
+2. **For each discovered module** (sequential, with 2s delay for rate limiting):
+   - Checks if a module with slug `${functionId}_${slug}` already exists — skips if so
+   - Calls `generateModuleSchemaAction()` to AI-generate the field schema
+   - Calls `createSystemModuleAction()` which:
+     - Persists the system module to Firestore
+     - Auto-triggers `generateRelayBlockForModule()` to create the relay block
+3. **Flow Template Creation** — Creates a hardcoded `SystemFlowTemplateRecord` for `software_it` with 6 stages (Welcome, Discovery, Qualification, Presentation, Conversion, Team Connect), 20 transitions, and default flow settings
+4. **Returns a `PipelineResult`** summarizing modules discovered/created/skipped/failed, relay blocks created, and the flow template ID
+
+### How to Run
+
+```bash
+npx tsx src/scripts/seed-software-it.ts
+```
+
+### Assumptions
+
+- The `discoverModulesForBusinessType` AI call returns modules with `selected` defaulting to true (modules without `selected: false` are included)
+- Default currency is `USD` when `countryCode` is `US`, otherwise `INR`
+- Module color defaults to `#6366f1` (indigo) for all discovered modules
+- The flow template stages map to existing `FlowStageType` values: `greeting`, `discovery`, `showcase` (qualification), `comparison` (presentation), `conversion`, `handoff`
+- `IntentSignal` values from the type system are used for `intentTriggers` (not free-form strings)
