@@ -1,19 +1,7 @@
 'use client';
 
 import React, { useState, useMemo, useCallback } from 'react';
-import {
-    CatalogCards,
-    CompareTable,
-    ServiceList,
-    BookingFlow,
-    LocationCard,
-    ContactCard,
-    GalleryGrid,
-    InfoTable,
-    TextWithSuggestions,
-    GreetingCard,
-    DEFAULT_THEME,
-} from '@/components/relay/blocks';
+import { DEFAULT_THEME } from '@/components/relay/blocks';
 import type { CatalogItem, ActivityItem, ContactMethod, RelayBlock } from '@/components/relay/blocks';
 import { BlockRenderer } from '@/components/relay/blocks';
 import type { RelayBlockConfigDetail } from '@/actions/relay-actions';
@@ -30,7 +18,6 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
-import { Separator } from '@/components/ui/separator';
 import {
     Select,
     SelectTrigger,
@@ -38,16 +25,9 @@ import {
     SelectContent,
     SelectItem,
 } from '@/components/ui/select';
-import {
-    Collapsible,
-    CollapsibleTrigger,
-    CollapsibleContent,
-} from '@/components/ui/collapsible';
 import Link from 'next/link';
 import { INDUSTRIES, BUSINESS_FUNCTIONS } from '@/lib/business-taxonomy/industries';
 import {
-    ChevronDown,
-    ChevronRight,
     Zap,
     Plus,
     Save,
@@ -308,6 +288,9 @@ export function BlockGallery({ configs: initialConfigs }: BlockGalleryProps) {
     const [generatingAll, setGeneratingAll] = useState(false);
     const [clearingAll, setClearingAll] = useState(false);
     const [showClearConfirm, setShowClearConfirm] = useState(false);
+    const [selectedId, setSelectedId] = useState<string | null>(initialConfigs[0]?.id ?? null);
+
+    const selectedConfig = useMemo(() => configs.find(c => c.id === selectedId) ?? null, [configs, selectedId]);
 
     const uniqueBlockTypes = useMemo(() => {
         const types = new Set(configs.map(c => c.blockType));
@@ -496,13 +479,13 @@ export function BlockGallery({ configs: initialConfigs }: BlockGalleryProps) {
                 ))}
             </div>
 
-            {filteredConfigs.length === 0 ? (
+            {configs.length === 0 ? (
                 <Card className="border-dashed">
                     <CardContent className="flex flex-col items-center justify-center py-16 text-center">
                         <Zap className="h-12 w-12 text-muted-foreground mb-4" />
                         <h3 className="text-xl font-semibold mb-2">No Block Configs Yet</h3>
                         <p className="text-muted-foreground mb-6 max-w-md">
-                            Block configs are auto-generated when modules are created, or use "Generate All Missing" above.
+                            Block configs are auto-generated when modules are created, or use &quot;Generate All Missing&quot; above.
                         </p>
                         <Button asChild>
                             <Link href="/admin/modules/new">
@@ -513,339 +496,72 @@ export function BlockGallery({ configs: initialConfigs }: BlockGalleryProps) {
                     </CardContent>
                 </Card>
             ) : (
-                <div className="space-y-3">
-                    {filteredConfigs.map(config => (
-                        <ConfigCard
-                            key={config.id}
-                            config={config}
-                            onUpdate={handleConfigUpdate}
-                            onDelete={handleConfigDelete}
-                            onRegenerated={handleConfigRegenerated}
-                        />
-                    ))}
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    {/* LEFT: scrollable block list */}
+                    <div className="lg:col-span-1 space-y-2 max-h-[75vh] overflow-y-auto pr-2">
+                        {filteredConfigs.map(config => (
+                            <BlockListItem
+                                key={config.id}
+                                config={config}
+                                selected={config.id === selectedId}
+                                onClick={() => setSelectedId(config.id)}
+                            />
+                        ))}
+                    </div>
+
+                    {/* RIGHT: preview + edit area */}
+                    <div className="lg:col-span-2">
+                        {selectedConfig ? (
+                            <div className="space-y-6">
+                                {/* Preview placeholder (replaced in Prompt 2B) */}
+                                <div className="flex items-center justify-center h-[500px] border-2 border-dashed border-gray-200 rounded-xl bg-gray-50">
+                                    <div className="text-center text-muted-foreground">
+                                        <p className="font-medium">{selectedConfig.label}</p>
+                                        <p className="text-sm">Phone preview coming soon</p>
+                                        <Badge variant="secondary" className="mt-2">{selectedConfig.blockType}</Badge>
+                                    </div>
+                                </div>
+
+                                {/* Edit panel placeholder (replaced in Prompt 2C) */}
+                                <div className="text-sm text-muted-foreground text-center">Edit panel coming soon</div>
+                            </div>
+                        ) : (
+                            <div className="flex items-center justify-center h-[500px] text-muted-foreground">
+                                Select a block to preview
+                            </div>
+                        )}
+                    </div>
                 </div>
             )}
         </div>
     );
 }
 
-interface ConfigCardProps {
+function BlockListItem({ config, selected, onClick }: {
     config: RelayBlockConfigDetail;
-    onUpdate: (id: string, updated: RelayBlockConfigDetail) => void;
-    onDelete: (id: string) => void;
-    onRegenerated: (id: string, updated: Partial<RelayBlockConfigDetail>) => void;
-}
-
-function ConfigCard({ config, onUpdate, onDelete, onRegenerated }: ConfigCardProps) {
-    const [isOpen, setIsOpen] = useState(false);
-    const [draft, setDraft] = useState(config);
-    const [saving, setSaving] = useState(false);
-    const [deleting, setDeleting] = useState(false);
-    const [regenerating, setRegenerating] = useState(false);
-
-    const previewBlock = useMemo(() => {
-        const fromSampleData = sampleDataToRelayBlock(
-            draft.blockType,
-            draft.blockTypeTemplate?.sampleData || {}
-        );
-        return fromSampleData || generateMockBlock(draft.blockType);
-    }, [draft.blockType, draft.blockTypeTemplate?.sampleData]);
-
-    const updateDraft = useCallback(<K extends keyof RelayBlockConfigDetail>(
-        key: K,
-        value: RelayBlockConfigDetail[K]
-    ) => {
-        setDraft(prev => ({ ...prev, [key]: value }));
-    }, []);
-
-    const updateDataSchema = useCallback((
-        key: string,
-        value: string | number | string[]
-    ) => {
-        setDraft(prev => ({
-            ...prev,
-            dataSchema: { ...prev.dataSchema, [key]: value },
-        }));
-    }, []);
-
-    const handleSave = async () => {
-        setSaving(true);
-        const { id, ...updates } = draft;
-        const result = await updateRelayBlockConfigAction(id, updates);
-        if (result.success) {
-            toast.success('Block config saved');
-            onUpdate(config.id, draft);
-        } else {
-            toast.error(result.error || 'Failed to save');
-        }
-        setSaving(false);
-    };
-
-    const handleDelete = async () => {
-        if (!window.confirm(`Delete block config "${config.label}"? This cannot be undone.`)) return;
-        setDeleting(true);
-        const result = await deleteRelayBlockConfigAction(config.id);
-        if (result.success) {
-            toast.success('Block config deleted');
-            onDelete(config.id);
-        } else {
-            toast.error(result.error || 'Failed to delete');
-        }
-        setDeleting(false);
-    };
-
-    const handleRegenerate = async () => {
-        setRegenerating(true);
-        try {
-            const result = await regenerateBlockTemplateAction(config.id);
-            if (result.success) {
-                toast.success('Template regenerated');
-                window.location.reload();
-            } else {
-                toast.error(result.error || 'Regeneration failed');
-            }
-        } catch {
-            toast.error('Regeneration failed');
-        } finally {
-            setRegenerating(false);
-        }
-    };
-
-    const isAiGenerated = config.blockTypeTemplate?.generatedBy === 'gemini';
-    const subcategory = config.blockTypeTemplate?.subcategory;
-
+    selected: boolean;
+    onClick: () => void;
+}) {
     return (
-        <Card className="border border-[#e5e5e5]">
-            <button
-                type="button"
-                className="w-full text-left px-5 py-4 flex items-center gap-3"
-                onClick={() => setIsOpen(!isOpen)}
-            >
-                {isOpen
-                    ? <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />
-                    : <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
-                }
-                <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium shrink-0 ${getBlockTypeColor(config.blockType)}`}>
-                    {config.blockType}
-                </span>
-                <span className="font-medium truncate">{config.label}</span>
-                {config.moduleSlug && (
-                    <Badge variant="outline" className="text-xs shrink-0 hidden sm:inline-flex">
-                        {config.moduleSlug}
-                    </Badge>
-                )}
-                {subcategory && (
-                    <Badge variant="outline" className="text-xs shrink-0 hidden md:inline-flex bg-[#f5f5f5]">
-                        {subcategory}
-                    </Badge>
-                )}
-                {isAiGenerated && (
-                    <Sparkles className="h-3.5 w-3.5 text-amber-500 shrink-0" />
-                )}
-                <span className="ml-auto shrink-0">
-                    <Badge
-                        variant={config.status === 'active' ? 'default' : 'secondary'}
-                        className="text-xs"
-                    >
-                        {config.status}
-                    </Badge>
-                </span>
-            </button>
-
-            {isOpen && (
-                <CardContent className="pt-0 pb-5 px-5">
-                    <Separator className="mb-5" />
-                    <div className="grid gap-6 lg:grid-cols-5">
-                        <div className="lg:col-span-3 space-y-4">
-                            {config.blockTypeTemplate && (
-                                <div className="rounded-lg border border-[#e5e5e5] bg-[#f5f5f5] p-4 space-y-3">
-                                    <div className="flex items-center gap-2 text-sm font-medium">
-                                        {isAiGenerated && <Sparkles className="h-4 w-4 text-amber-500" />}
-                                        <span>AI-Generated Template</span>
-                                        {config.blockTypeTemplate.generatedAt && (
-                                            <span className="text-xs text-muted-foreground ml-auto">
-                                                {new Date(config.blockTypeTemplate.generatedAt).toLocaleDateString()}
-                                            </span>
-                                        )}
-                                    </div>
-
-                                    {config.dataSchema?.displayTemplate && (
-                                        <div>
-                                            <p className="text-xs text-muted-foreground mb-1">Display Template</p>
-                                            <pre className="text-xs font-mono bg-white rounded p-2 border border-[#e5e5e5] whitespace-pre-wrap">
-                                                {config.dataSchema.displayTemplate}
-                                            </pre>
-                                        </div>
-                                    )}
-
-                                    {config.blockTypeTemplate.sampleData && Object.keys(config.blockTypeTemplate.sampleData).length > 0 && (
-                                        <div>
-                                            <p className="text-xs text-muted-foreground mb-1">Sample Data</p>
-                                            <div className="bg-white rounded border border-[#e5e5e5] divide-y divide-[#e5e5e5]">
-                                                {Object.entries(config.blockTypeTemplate.sampleData).map(([key, value]) => (
-                                                    <div key={key} className="flex justify-between px-3 py-1.5 text-xs">
-                                                        <span className="font-mono text-muted-foreground">{key}</span>
-                                                        <span className="text-right truncate ml-4">{String(value)}</span>
-                                                    </div>
-                                                ))}
-                                            </div>
-                                        </div>
-                                    )}
-
-                                    <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
-                                        <span>Source: {config.blockTypeTemplate.generatedBy}</span>
-                                        {config.blockTypeTemplate.subcategory && (
-                                            <span>| Subcategory: {config.blockTypeTemplate.subcategory}</span>
-                                        )}
-                                        {config.blockTypeTemplate.isDefault && (
-                                            <Badge variant="outline" className="text-xs py-0">fallback</Badge>
-                                        )}
-                                    </div>
-                                </div>
-                            )}
-
-                            <div>
-                                <Label>Block Type</Label>
-                                <Select
-                                    value={draft.blockType}
-                                    onValueChange={v => updateDraft('blockType', v)}
-                                >
-                                    <SelectTrigger className="mt-1">
-                                        <SelectValue />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        {BLOCK_TYPES.map(t => (
-                                            <SelectItem key={t} value={t}>{t}</SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
-                            </div>
-
-                            <div>
-                                <Label>Label</Label>
-                                <Input
-                                    className="mt-1"
-                                    value={draft.label}
-                                    onChange={e => updateDraft('label', e.target.value)}
-                                />
-                            </div>
-
-                            <div>
-                                <Label>Description</Label>
-                                <Textarea
-                                    className="mt-1"
-                                    rows={2}
-                                    value={draft.description || ''}
-                                    onChange={e => updateDraft('description', e.target.value)}
-                                />
-                            </div>
-
-                            <div>
-                                <Label>Display Template</Label>
-                                <Textarea
-                                    className="mt-1 font-mono text-xs"
-                                    rows={2}
-                                    placeholder="{{name}} — {{price}} per night"
-                                    value={draft.dataSchema?.displayTemplate || ''}
-                                    onChange={e => updateDataSchema('displayTemplate', e.target.value)}
-                                />
-                            </div>
-
-                            <div className="grid grid-cols-2 gap-3">
-                                <div>
-                                    <Label>Max Items</Label>
-                                    <Input
-                                        className="mt-1"
-                                        type="number"
-                                        min={1}
-                                        max={100}
-                                        value={draft.dataSchema?.maxItems ?? ''}
-                                        onChange={e => updateDataSchema('maxItems', parseInt(e.target.value) || 0)}
-                                    />
-                                </div>
-                                <div>
-                                    <Label>Status</Label>
-                                    <Select
-                                        value={draft.status}
-                                        onValueChange={v => updateDraft('status', v)}
-                                    >
-                                        <SelectTrigger className="mt-1">
-                                            <SelectValue />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            <SelectItem value="active">active</SelectItem>
-                                            <SelectItem value="inactive">inactive</SelectItem>
-                                        </SelectContent>
-                                    </Select>
-                                </div>
-                            </div>
-
-                            <div>
-                                <Label>Source Fields</Label>
-                                <Input
-                                    className="mt-1"
-                                    placeholder="name, price, description"
-                                    value={(draft.dataSchema?.sourceFields || []).join(', ')}
-                                    onChange={e =>
-                                        updateDataSchema(
-                                            'sourceFields',
-                                            e.target.value.split(',').map(s => s.trim()).filter(Boolean)
-                                        )
-                                    }
-                                />
-                                <p className="text-xs text-muted-foreground mt-1">Comma-separated field names</p>
-                            </div>
-
-                            <div className="flex flex-wrap gap-2 pt-2">
-                                <Button onClick={handleSave} disabled={saving} size="sm">
-                                    <Save className="mr-2 h-4 w-4" />
-                                    {saving ? 'Saving...' : 'Save Changes'}
-                                </Button>
-                                <Button
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={handleRegenerate}
-                                    disabled={regenerating || !config.moduleId}
-                                >
-                                    {regenerating ? (
-                                        <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Regenerating...</>
-                                    ) : (
-                                        <><RefreshCw className="mr-2 h-4 w-4" />Regenerate Template</>
-                                    )}
-                                </Button>
-                                <Button
-                                    variant="destructive"
-                                    size="sm"
-                                    onClick={handleDelete}
-                                    disabled={deleting}
-                                >
-                                    <Trash2 className="mr-2 h-4 w-4" />
-                                    {deleting ? 'Deleting...' : 'Delete'}
-                                </Button>
-                            </div>
-                        </div>
-
-                        <div className="lg:col-span-2">
-                            <div className="flex items-center gap-2 mb-2">
-                                <Label>Live Preview</Label>
-                                {draft.blockTypeTemplate?.sampleData && Object.keys(draft.blockTypeTemplate.sampleData).length > 0 ? (
-                                    <Badge variant="secondary" className="text-[10px] py-0 gap-1">
-                                        <Sparkles className="h-2.5 w-2.5" />
-                                        AI Data
-                                    </Badge>
-                                ) : (
-                                    <Badge variant="outline" className="text-[10px] py-0">
-                                        Sample
-                                    </Badge>
-                                )}
-                            </div>
-                            <div className="max-w-[360px] mx-auto bg-[#FAFAF6] rounded-2xl p-4 shadow-inner border border-gray-100">
-                                <BlockRenderer block={previewBlock} theme={DEFAULT_THEME} />
-                            </div>
-                        </div>
-                    </div>
-                </CardContent>
+        <div
+            className={`p-3 rounded-lg border cursor-pointer transition-colors ${
+                selected ? 'border-orange-300 bg-orange-50' : 'border-gray-200 hover:border-gray-300'
+            }`}
+            onClick={onClick}
+        >
+            <div className="flex items-center justify-between">
+                <div className="min-w-0">
+                    <div className="text-sm font-semibold truncate">{config.label}</div>
+                    <div className="text-xs text-muted-foreground truncate">{config.moduleSlug}</div>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                    <Badge variant="secondary" className="text-xs">{config.blockType}</Badge>
+                    <span className={`w-2 h-2 rounded-full ${config.status === 'active' ? 'bg-green-500' : 'bg-gray-300'}`} />
+                </div>
+            </div>
+            {config.applicableFunctions?.[0] && (
+                <div className="text-xs text-muted-foreground mt-1 truncate">{config.applicableFunctions[0]}</div>
             )}
-        </Card>
+        </div>
     );
 }
