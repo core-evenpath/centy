@@ -142,3 +142,33 @@ npx tsx src/scripts/seed-software-it.ts
 - All constants, state, handlers, memos unchanged
 - `BlockListItem` component unchanged
 - "Edit panel coming soon" placeholder remains (for Prompt 2C)
+
+---
+
+## Prompt 2C: BlockGallery — Edit Panel
+
+### File changed
+- `src/app/admin/relay/blocks/BlockGallery.tsx`
+
+### Before / After
+- **Before:** 745 lines
+- **After:** 909 lines
+
+### What changed (edit panel)
+- Added `EditPanel` component — collapsible card with block type select, label, description, source collection, max items, sort by fields, save/delete/regenerate actions
+- Replaced placeholder ("Edit panel coming soon") with `<EditPanel>` wired to existing handlers
+- On delete, auto-selects next available block via `setSelectedId`
+- Re-added imports: `useEffect`, `ChevronDown`, `Separator`
+- Removed unused imports: `RefreshCw`, `CardHeader`, `CardTitle`
+
+### What stayed
+- Two-column grid layout (Prompt 2A)
+- Phone frame preview with sampleData (Prompt 2B)
+- All constants, state, handlers, memos unchanged
+- `BlockListItem` and `PhonePreview` components unchanged
+
+### Full feature summary (Prompts 2A–2C)
+1. **Two-column layout** — scrollable block list (left), preview + edit (right)
+2. **Phone frame preview** — 375x667 phone with notch, chat bubbles, BlockRenderer with real sampleData, suggestion chips
+3. **Collapsible edit panel** — inline config editing with save/delete/regenerate actions
+All done in 3 incremental prompts modifying 1 file (852 → 909 lines).

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { DEFAULT_THEME } from '@/components/relay/blocks';
 import type { CatalogItem, ActivityItem, ContactMethod, RelayBlock } from '@/components/relay/blocks';
 import { BlockRenderer } from '@/components/relay/blocks';
@@ -12,7 +12,8 @@ import {
     clearAllRelayBlockConfigsAction,
     generateMissingRelayBlocksAction,
 } from '@/actions/relay-actions';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
+import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -28,11 +29,11 @@ import {
 import Link from 'next/link';
 import { INDUSTRIES, BUSINESS_FUNCTIONS } from '@/lib/business-taxonomy/industries';
 import {
+    ChevronDown,
     Zap,
     Plus,
     Save,
     Trash2,
-    RefreshCw,
     Sparkles,
     Loader2,
     AlertTriangle,
@@ -598,8 +599,15 @@ export function BlockGallery({ configs: initialConfigs }: BlockGalleryProps) {
                             <div className="space-y-6">
                                 <PhonePreview config={selectedConfig} />
 
-                                {/* Edit panel placeholder (replaced in Prompt 2C) */}
-                                <div className="text-sm text-muted-foreground text-center">Edit panel coming soon</div>
+                                <EditPanel
+                                    config={selectedConfig}
+                                    onUpdate={handleConfigUpdate}
+                                    onDelete={(id) => {
+                                        handleConfigDelete(id);
+                                        setSelectedId(filteredConfigs.find(c => c.id !== id)?.id ?? null);
+                                    }}
+                                    onRegenerated={handleConfigRegenerated}
+                                />
                             </div>
                         ) : (
                             <div className="flex items-center justify-center h-[500px] text-muted-foreground">
@@ -712,6 +720,162 @@ function PhonePreview({ config }: { config: RelayBlockConfigDetail }) {
                 </div>
             </div>
         </div>
+    );
+}
+
+function EditPanel({ config, onUpdate, onDelete, onRegenerated }: {
+    config: RelayBlockConfigDetail;
+    onUpdate: (id: string, updated: RelayBlockConfigDetail) => void;
+    onDelete: (id: string) => void;
+    onRegenerated: (id: string, updated: Partial<RelayBlockConfigDetail>) => void;
+}) {
+    const [draft, setDraft] = useState(config);
+    const [saving, setSaving] = useState(false);
+    const [deleting, setDeleting] = useState(false);
+    const [regenerating, setRegenerating] = useState(false);
+    const [isOpen, setIsOpen] = useState(false);
+
+    useEffect(() => {
+        setDraft(config);
+        setIsOpen(false);
+    }, [config.id]);
+
+    const updateDraft = useCallback(<K extends keyof RelayBlockConfigDetail>(key: K, value: RelayBlockConfigDetail[K]) => {
+        setDraft(prev => ({ ...prev, [key]: value }));
+    }, []);
+
+    const updateDataSchema = useCallback((key: string, value: string | number | string[]) => {
+        setDraft(prev => ({ ...prev, dataSchema: { ...prev.dataSchema, [key]: value } }));
+    }, []);
+
+    const handleSave = async () => {
+        setSaving(true);
+        const { id, ...updates } = draft;
+        const result = await updateRelayBlockConfigAction(id, updates);
+        if (result.success) {
+            toast.success('Block config saved');
+            onUpdate(config.id, draft);
+        } else {
+            toast.error(result.error || 'Failed to save');
+        }
+        setSaving(false);
+    };
+
+    const handleDelete = async () => {
+        if (!window.confirm(`Delete block config "${config.label}"?`)) return;
+        setDeleting(true);
+        const result = await deleteRelayBlockConfigAction(config.id);
+        if (result.success) {
+            toast.success('Deleted');
+            onDelete(config.id);
+        } else {
+            toast.error(result.error || 'Failed to delete');
+        }
+        setDeleting(false);
+    };
+
+    const handleRegenerate = async () => {
+        setRegenerating(true);
+        const result = await regenerateBlockTemplateAction(config.id);
+        if (result.success) {
+            toast.success('Regenerated! Reload to see changes.');
+            onRegenerated(config.id, {});
+        } else {
+            toast.error(result.error || 'Failed to regenerate');
+        }
+        setRegenerating(false);
+    };
+
+    return (
+        <Card>
+            <div
+                className="flex items-center justify-between p-4 cursor-pointer hover:bg-gray-50 transition-colors"
+                onClick={() => setIsOpen(!isOpen)}
+            >
+                <div className="flex items-center gap-2">
+                    <span className="text-sm font-medium">Edit Configuration</span>
+                    <Badge variant="secondary" className="text-xs">{config.blockType}</Badge>
+                </div>
+                <div className="flex items-center gap-2">
+                    <Button size="sm" variant="outline" onClick={(e) => { e.stopPropagation(); handleRegenerate(); }} disabled={regenerating}>
+                        {regenerating ? <Loader2 className="w-3 h-3 animate-spin" /> : <Sparkles className="w-3 h-3" />}
+                        <span className="ml-1 text-xs">{regenerating ? 'Regenerating...' : 'Regenerate'}</span>
+                    </Button>
+                    <ChevronDown className={`w-4 h-4 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+                </div>
+            </div>
+
+            {isOpen && (
+                <CardContent className="pt-0 space-y-4">
+                    <Separator />
+
+                    {config.blockTypeTemplate && (
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground flex-wrap">
+                            <span>Generated by: {config.blockTypeTemplate.generatedBy}</span>
+                            {config.blockTypeTemplate.generatedAt && (
+                                <span>| {new Date(config.blockTypeTemplate.generatedAt).toLocaleDateString()}</span>
+                            )}
+                            {config.blockTypeTemplate.subcategory && (
+                                <span>| {config.blockTypeTemplate.subcategory}</span>
+                            )}
+                            {config.blockTypeTemplate.isDefault && (
+                                <Badge variant="outline" className="text-xs py-0">fallback</Badge>
+                            )}
+                        </div>
+                    )}
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <Label>Block Type</Label>
+                            <Select value={draft.blockType} onValueChange={v => updateDraft('blockType', v)}>
+                                <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
+                                <SelectContent>
+                                    {BLOCK_TYPES.map(t => (
+                                        <SelectItem key={t} value={t}>{t}</SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
+
+                        <div>
+                            <Label>Label</Label>
+                            <Input className="mt-1" value={draft.label} onChange={e => updateDraft('label', e.target.value)} />
+                        </div>
+                    </div>
+
+                    <div>
+                        <Label>Description</Label>
+                        <Textarea className="mt-1" rows={2} value={draft.description || ''} onChange={e => updateDraft('description', e.target.value)} />
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div>
+                            <Label>Source Collection</Label>
+                            <Input className="mt-1" value={draft.dataSchema?.sourceCollection || ''} onChange={e => updateDataSchema('sourceCollection', e.target.value)} />
+                        </div>
+                        <div>
+                            <Label>Max Items</Label>
+                            <Input className="mt-1" type="number" value={draft.dataSchema?.maxItems || 5} onChange={e => updateDataSchema('maxItems', parseInt(e.target.value) || 5)} />
+                        </div>
+                        <div>
+                            <Label>Sort By</Label>
+                            <Input className="mt-1" value={draft.dataSchema?.sortBy || 'createdAt'} onChange={e => updateDataSchema('sortBy', e.target.value)} />
+                        </div>
+                    </div>
+
+                    <div className="flex items-center justify-between pt-2">
+                        <Button variant="destructive" size="sm" onClick={handleDelete} disabled={deleting}>
+                            <Trash2 className="w-3 h-3 mr-1" />
+                            {deleting ? 'Deleting...' : 'Delete'}
+                        </Button>
+                        <Button size="sm" onClick={handleSave} disabled={saving}>
+                            <Save className="w-3 h-3 mr-1" />
+                            {saving ? 'Saving...' : 'Save Changes'}
+                        </Button>
+                    </div>
+                </CardContent>
+            )}
+        </Card>
     );
 }
 
