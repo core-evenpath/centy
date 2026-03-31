@@ -44,7 +44,7 @@ export interface RelayStorefrontData {
   functionId?: string;
 }
 
-const MODULE_ICON_MAP: Record<string, string> = {
+export const MODULE_ICON_MAP: Record<string, string> = {
   catalog: 'ShoppingBag',
   products: 'Package',
   services: 'Wrench',
@@ -74,7 +74,7 @@ const MODULE_ICON_MAP: Record<string, string> = {
   quick_actions: 'Zap',
 };
 
-const CATEGORY_MAP: Record<string, string> = {
+export const CATEGORY_MAP: Record<string, string> = {
   catalog: 'Products',
   products: 'Products',
   menu: 'Products',
@@ -109,14 +109,18 @@ export async function getRelayStorefrontDataAction(partnerId: string): Promise<{
   error?: string;
 }> {
   try {
-    const [partnerDoc, modulesSnap, blockConfigsSnap, relayConfigSnap, flowSnap, ragSnap] =
+    const [partnerDoc, modulesSnap, partnerBlocksSnap, relayConfigSnap, flowSnap, ragSnap] =
       await Promise.all([
         adminDb.collection('partners').doc(partnerId).get(),
         adminDb
           .collection(`partners/${partnerId}/businessModules`)
           .where('enabled', '==', true)
           .get(),
-        adminDb.collection('relayBlockConfigs').get(),
+        adminDb
+          .collection(`partners/${partnerId}/relayConfig/blocks`)
+          .where('isVisible', '==', true)
+          .orderBy('sortOrder', 'asc')
+          .get(),
         adminDb.collection(`partners/${partnerId}/relayConfig`).doc('config').get(),
         adminDb.collection(`partners/${partnerId}/relayConfig`).doc('flowDefinition').get(),
         adminDb
@@ -132,34 +136,54 @@ export async function getRelayStorefrontDataAction(partnerId: string): Promise<{
     const personality = persona?.personality;
     const relayConfig = relayConfigSnap.exists ? relayConfigSnap.data() : null;
 
-    const blockConfigsBySlug = new Map<string, { blockType: string }>();
-    const blockConfigsById = new Map<string, { blockType: string }>();
-    blockConfigsSnap.docs.forEach((doc) => {
-      const data = doc.data();
-      if (data.moduleSlug) {
-        blockConfigsBySlug.set(data.moduleSlug, { blockType: data.blockType || 'catalog' });
-      }
-      blockConfigsById.set(doc.id, { blockType: data.blockType || 'catalog' });
-    });
+    let modules: RelayModuleEntry[];
 
-    const modules: RelayModuleEntry[] = modulesSnap.docs.map((doc) => {
-      const data = doc.data();
-      const slug = data.moduleSlug || '';
-      const blockConfig =
-        blockConfigsBySlug.get(slug) || blockConfigsById.get(`module_${slug}`) || null;
-      const blockType = blockConfig?.blockType || 'catalog';
+    if (!partnerBlocksSnap.empty) {
+      modules = partnerBlocksSnap.docs.map((doc) => {
+        const data = doc.data();
+        return {
+          id: doc.id,
+          slug: data.moduleSlug || '',
+          name: data.customLabel || data.label || '',
+          description: data.customDescription || data.description,
+          iconName: data.iconName || MODULE_ICON_MAP[data.blockType] || 'Layers',
+          blockType: data.blockType || 'catalog',
+          itemCount: 0,
+          category: data.category || CATEGORY_MAP[data.blockType] || 'Information',
+        };
+      });
+    } else {
+      const blockConfigsSnap = await adminDb.collection('relayBlockConfigs').get();
 
-      return {
-        id: doc.id,
-        slug,
-        name: data.name || slug,
-        description: data.description,
-        iconName: MODULE_ICON_MAP[blockType] || 'Layers',
-        blockType,
-        itemCount: data.itemCount ?? 0,
-        category: CATEGORY_MAP[blockType] || 'Information',
-      };
-    });
+      const blockConfigsBySlug = new Map<string, { blockType: string }>();
+      const blockConfigsById = new Map<string, { blockType: string }>();
+      blockConfigsSnap.docs.forEach((doc) => {
+        const data = doc.data();
+        if (data.moduleSlug) {
+          blockConfigsBySlug.set(data.moduleSlug, { blockType: data.blockType || 'catalog' });
+        }
+        blockConfigsById.set(doc.id, { blockType: data.blockType || 'catalog' });
+      });
+
+      modules = modulesSnap.docs.map((doc) => {
+        const data = doc.data();
+        const slug = data.moduleSlug || '';
+        const blockConfig =
+          blockConfigsBySlug.get(slug) || blockConfigsById.get(`module_${slug}`) || null;
+        const blockType = blockConfig?.blockType || 'catalog';
+
+        return {
+          id: doc.id,
+          slug,
+          name: data.name || slug,
+          description: data.description,
+          iconName: MODULE_ICON_MAP[blockType] || 'Layers',
+          blockType,
+          itemCount: data.itemCount ?? 0,
+          category: CATEGORY_MAP[blockType] || 'Information',
+        };
+      });
+    }
 
     const address = identity?.address;
     const formattedAddress =
