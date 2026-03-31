@@ -89,3 +89,31 @@ npx tsx src/scripts/seed-software-it.ts
 - Module color defaults to `#6366f1` (indigo) for all discovered modules
 - The flow template stages map to existing `FlowStageType` values: `greeting`, `discovery`, `showcase` (qualification), `comparison` (presentation), `conversion`, `handoff`
 - `IntentSignal` values from the type system are used for `intentTriggers` (not free-form strings)
+
+---
+
+## Prompt 2A: BlockGallery — Scaffold Two-Column Layout
+
+### File changed
+- `src/app/admin/relay/blocks/BlockGallery.tsx`
+
+### Before / After
+- **Before:** 852 lines
+- **After:** 567 lines
+
+### What changed (layout)
+- Replaced vertical collapsible `ConfigCard` list with a two-column grid layout (`lg:grid-cols-3`)
+- **Left column** (`lg:col-span-1`): scrollable `BlockListItem` list with selection state (`selectedId`)
+- **Right column** (`lg:col-span-2`): placeholder preview area (dashed border box with block label, "Phone preview coming soon", block type badge) + "Edit panel coming soon" text
+- Added `BlockListItem` internal component (compact row: label, module slug, block type badge, status dot, first applicable function)
+- Deleted `ConfigCard` component entirely (~320 lines)
+- Removed unused imports: `CatalogCards`, `CompareTable`, `ServiceList`, `BookingFlow`, `LocationCard`, `ContactCard`, `GalleryGrid`, `InfoTable`, `TextWithSuggestions`, `GreetingCard`, `Collapsible`, `CollapsibleTrigger`, `CollapsibleContent`, `ChevronDown`, `ChevronRight`, `Separator`
+
+### What stayed (all state/handlers/constants/actions)
+- All constants: `BLOCK_TYPES`, `BLOCK_TYPE_COLORS`, `CATALOG_ITEMS`, `SERVICE_ITEMS`, `CONTACT_METHODS`, `generateMockBlock`, `sampleDataToRelayBlock`, `getBlockTypeColor`
+- All state variables: `configs`, `activeFilter`, `industryFilter`, `functionFilter`, `generatingAll`, `clearingAll`, `showClearConfirm`
+- All handlers: `handleConfigUpdate`, `handleConfigDelete`, `handleGenerateAll`, `handleClearAll`, `handleConfigRegenerated`
+- All memos: `uniqueBlockTypes`, `availableFunctions`, `filteredConfigs`, `blockTypeDistribution`
+- Filter pills row, Generate All / Clear All buttons row, empty state card
+- Export signature: `export function BlockGallery`
+- Kept imports needed for Prompt 2C: `Card`, `CardContent`, `Badge`, `Button`, `Input`, `Textarea`, `Label`, `Select*`, `BlockRenderer`, `DEFAULT_THEME`, type imports
