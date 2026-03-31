@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { DEFAULT_THEME } from '@/components/relay/blocks';
 import type { CatalogItem, ActivityItem, ContactMethod, RelayBlock } from '@/components/relay/blocks';
 import { BlockRenderer } from '@/components/relay/blocks';
@@ -12,7 +12,8 @@ import {
     clearAllRelayBlockConfigsAction,
     generateMissingRelayBlocksAction,
 } from '@/actions/relay-actions';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
+import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -28,11 +29,11 @@ import {
 import Link from 'next/link';
 import { INDUSTRIES, BUSINESS_FUNCTIONS } from '@/lib/business-taxonomy/industries';
 import {
+    ChevronDown,
     Zap,
     Plus,
     Save,
     Trash2,
-    RefreshCw,
     Sparkles,
     Loader2,
     AlertTriangle,
@@ -276,6 +277,89 @@ function getBlockTypeColor(blockType: string): string {
     return BLOCK_TYPE_COLORS[blockType] || 'bg-gray-100 text-gray-800';
 }
 
+function buildBlockFromConfig(config: RelayBlockConfigDetail): RelayBlock {
+    const sampleData = config.blockTypeTemplate?.sampleData;
+    if (sampleData && typeof sampleData === 'object' && Object.keys(sampleData).length > 0) {
+        return { type: config.blockType, ...sampleData } as RelayBlock;
+    }
+    return generateMockBlock(config.blockType);
+}
+
+function getUserMessage(blockType: string, label: string): string {
+    const m: Record<string, string> = {
+        catalog: `What ${label.toLowerCase()} do you have?`,
+        services: 'What services do you offer?',
+        products: 'Show me your products',
+        menu: 'Can I see the menu?',
+        rooms: 'What rooms are available?',
+        listings: 'Show me available listings',
+        pricing: 'What are your pricing plans?',
+        packages: 'What packages do you offer?',
+        activities: 'What activities can I do?',
+        experiences: 'What experiences do you offer?',
+        classes: 'What classes are available?',
+        treatments: 'What treatments do you have?',
+        book: "I'd like to book something",
+        reserve: 'Can I make a reservation?',
+        appointment: 'I need to schedule an appointment',
+        inquiry: 'I have a question about your services',
+        testimonials: 'What do your clients say?',
+        reviews: 'Can I see reviews?',
+        compare: 'Can you compare options for me?',
+        schedule: "What's available today?",
+        promo: 'Any current offers?',
+        location: 'Where are you located?',
+        directions: 'How do I get there?',
+        contact: 'How can I reach you?',
+        gallery: 'Can I see photos?',
+        photos: 'Show me some photos',
+        info: 'Tell me more',
+        faq: 'I have a question',
+        details: 'Can I get more details?',
+        greeting: 'Hi!',
+        welcome: 'Hello!',
+    };
+    return m[blockType] || `Tell me about ${label.toLowerCase()}`;
+}
+
+function getSuggestions(blockType: string): string[] {
+    const s: Record<string, string[]> = {
+        catalog: ['Compare options', 'Book now', 'See pricing'],
+        services: ['Book a consultation', 'See pricing'],
+        products: ['Add to cart', 'Compare'],
+        menu: ['Order now', 'See specials'],
+        rooms: ['Check availability', 'See amenities'],
+        listings: ['View details', 'Contact agent'],
+        activities: ['Book now', 'See schedule'],
+        experiences: ['Book experience', 'See details'],
+        classes: ['Enroll now', 'See schedule'],
+        treatments: ['Book treatment', 'See pricing'],
+        book: ['Check availability', 'Contact us'],
+        reserve: ['Pick a date', 'Contact us'],
+        appointment: ['See available slots', 'Call us'],
+        compare: ['Book now', 'Learn more'],
+        location: ['Get directions', 'Contact us'],
+        contact: ['Send a message', 'Call now'],
+        gallery: ['Learn more', 'Book now'],
+        info: ['Contact us', 'Book now'],
+        faq: ['Ask another question', 'Contact us'],
+        greeting: ['Browse services', 'See pricing', 'Contact us'],
+        welcome: ['Browse services', 'See pricing'],
+    };
+    return s[blockType] || ['Learn more', 'Contact us'];
+}
+
+const PREVIEW_THEME = {
+    accent: '#c2410c',
+    bg: '#faf8f5',
+    surface: '#ffffff',
+    t1: '#1c1917',
+    t2: '#44403c',
+    t3: '#78716c',
+    t4: '#a8a29e',
+    bdrL: '#e7e5e4',
+};
+
 interface BlockGalleryProps {
     configs: RelayBlockConfigDetail[];
 }
@@ -513,17 +597,17 @@ export function BlockGallery({ configs: initialConfigs }: BlockGalleryProps) {
                     <div className="lg:col-span-2">
                         {selectedConfig ? (
                             <div className="space-y-6">
-                                {/* Preview placeholder (replaced in Prompt 2B) */}
-                                <div className="flex items-center justify-center h-[500px] border-2 border-dashed border-gray-200 rounded-xl bg-gray-50">
-                                    <div className="text-center text-muted-foreground">
-                                        <p className="font-medium">{selectedConfig.label}</p>
-                                        <p className="text-sm">Phone preview coming soon</p>
-                                        <Badge variant="secondary" className="mt-2">{selectedConfig.blockType}</Badge>
-                                    </div>
-                                </div>
+                                <PhonePreview config={selectedConfig} />
 
-                                {/* Edit panel placeholder (replaced in Prompt 2C) */}
-                                <div className="text-sm text-muted-foreground text-center">Edit panel coming soon</div>
+                                <EditPanel
+                                    config={selectedConfig}
+                                    onUpdate={handleConfigUpdate}
+                                    onDelete={(id) => {
+                                        handleConfigDelete(id);
+                                        setSelectedId(filteredConfigs.find(c => c.id !== id)?.id ?? null);
+                                    }}
+                                    onRegenerated={handleConfigRegenerated}
+                                />
                             </div>
                         ) : (
                             <div className="flex items-center justify-center h-[500px] text-muted-foreground">
@@ -534,6 +618,264 @@ export function BlockGallery({ configs: initialConfigs }: BlockGalleryProps) {
                 </div>
             )}
         </div>
+    );
+}
+
+function PhonePreview({ config }: { config: RelayBlockConfigDetail }) {
+    const block = useMemo(() => buildBlockFromConfig(config), [config]);
+    const userMsg = getUserMessage(config.blockType, config.label);
+    const suggestions = getSuggestions(config.blockType);
+
+    return (
+        <div className="flex justify-center">
+            <div style={{
+                width: '375px', height: '667px',
+                border: '6px solid #1c1917', borderRadius: '32px',
+                background: PREVIEW_THEME.bg, overflow: 'hidden',
+                display: 'flex', flexDirection: 'column', position: 'relative',
+            }}>
+                {/* Notch */}
+                <div style={{
+                    position: 'absolute', top: 0, left: '50%', transform: 'translateX(-50%)',
+                    width: '110px', height: '24px', background: '#1c1917',
+                    borderRadius: '0 0 14px 14px', zIndex: 10,
+                }} />
+
+                {/* Header */}
+                <div style={{
+                    padding: '36px 16px 10px', background: PREVIEW_THEME.surface,
+                    borderBottom: `1px solid ${PREVIEW_THEME.bdrL}`,
+                    display: 'flex', alignItems: 'center', gap: '8px',
+                }}>
+                    <div style={{
+                        width: '32px', height: '32px', borderRadius: '9999px',
+                        background: PREVIEW_THEME.accent,
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        color: '#fff', fontSize: '14px',
+                    }}>⚡</div>
+                    <div>
+                        <div style={{ fontSize: '14px', fontWeight: 600, color: PREVIEW_THEME.t1 }}>{config.label}</div>
+                        <div style={{ fontSize: '11px', color: PREVIEW_THEME.t3 }}>{config.blockType}</div>
+                    </div>
+                </div>
+
+                {/* Chat area */}
+                <div style={{ flex: 1, overflowY: 'auto', padding: '16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                    {/* User bubble */}
+                    <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                        <div style={{
+                            background: PREVIEW_THEME.accent, color: '#fff',
+                            padding: '8px 14px', borderRadius: '16px 16px 4px 16px',
+                            fontSize: '13px', maxWidth: '80%',
+                        }}>{userMsg}</div>
+                    </div>
+
+                    {/* Bot response */}
+                    <div style={{ display: 'flex', gap: '8px', alignItems: 'flex-start' }}>
+                        <div style={{
+                            width: '28px', height: '28px', borderRadius: '9999px',
+                            background: PREVIEW_THEME.accent, flexShrink: 0,
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            color: '#fff', fontSize: '12px',
+                        }}>⚡</div>
+                        <div style={{
+                            background: PREVIEW_THEME.surface,
+                            border: `1px solid ${PREVIEW_THEME.bdrL}`,
+                            borderRadius: '4px 16px 16px 16px',
+                            padding: '10px', maxWidth: 'calc(100% - 40px)', overflow: 'hidden',
+                        }}>
+                            <BlockRenderer block={block} theme={DEFAULT_THEME} />
+                        </div>
+                    </div>
+
+                    {/* Suggestion chips */}
+                    <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', paddingLeft: '36px' }}>
+                        {suggestions.map((s, i) => (
+                            <div key={i} style={{
+                                padding: '5px 12px', borderRadius: '9999px', fontSize: '12px',
+                                border: `1px solid ${PREVIEW_THEME.bdrL}`, color: PREVIEW_THEME.t2,
+                                background: PREVIEW_THEME.surface, cursor: 'default',
+                            }}>{s}</div>
+                        ))}
+                    </div>
+                </div>
+
+                {/* Input bar */}
+                <div style={{
+                    padding: '10px 16px', background: PREVIEW_THEME.surface,
+                    borderTop: `1px solid ${PREVIEW_THEME.bdrL}`,
+                    display: 'flex', alignItems: 'center', gap: '8px',
+                }}>
+                    <div style={{
+                        flex: 1, padding: '8px 12px', borderRadius: '9999px',
+                        background: PREVIEW_THEME.bg, fontSize: '12px', color: PREVIEW_THEME.t4,
+                        border: `1px solid ${PREVIEW_THEME.bdrL}`,
+                    }}>Ask about {config.label.toLowerCase()}...</div>
+                    <div style={{
+                        width: '32px', height: '32px', borderRadius: '9999px',
+                        background: PREVIEW_THEME.accent,
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        color: '#fff', fontSize: '14px',
+                    }}>↑</div>
+                </div>
+            </div>
+        </div>
+    );
+}
+
+function EditPanel({ config, onUpdate, onDelete, onRegenerated }: {
+    config: RelayBlockConfigDetail;
+    onUpdate: (id: string, updated: RelayBlockConfigDetail) => void;
+    onDelete: (id: string) => void;
+    onRegenerated: (id: string, updated: Partial<RelayBlockConfigDetail>) => void;
+}) {
+    const [draft, setDraft] = useState(config);
+    const [saving, setSaving] = useState(false);
+    const [deleting, setDeleting] = useState(false);
+    const [regenerating, setRegenerating] = useState(false);
+    const [isOpen, setIsOpen] = useState(false);
+
+    useEffect(() => {
+        setDraft(config);
+        setIsOpen(false);
+    }, [config.id]);
+
+    const updateDraft = useCallback(<K extends keyof RelayBlockConfigDetail>(key: K, value: RelayBlockConfigDetail[K]) => {
+        setDraft(prev => ({ ...prev, [key]: value }));
+    }, []);
+
+    const updateDataSchema = useCallback((key: string, value: string | number | string[]) => {
+        setDraft(prev => ({ ...prev, dataSchema: { ...prev.dataSchema, [key]: value } }));
+    }, []);
+
+    const handleSave = async () => {
+        setSaving(true);
+        const { id, ...updates } = draft;
+        const result = await updateRelayBlockConfigAction(id, updates);
+        if (result.success) {
+            toast.success('Block config saved');
+            onUpdate(config.id, draft);
+        } else {
+            toast.error(result.error || 'Failed to save');
+        }
+        setSaving(false);
+    };
+
+    const handleDelete = async () => {
+        if (!window.confirm(`Delete block config "${config.label}"?`)) return;
+        setDeleting(true);
+        const result = await deleteRelayBlockConfigAction(config.id);
+        if (result.success) {
+            toast.success('Deleted');
+            onDelete(config.id);
+        } else {
+            toast.error(result.error || 'Failed to delete');
+        }
+        setDeleting(false);
+    };
+
+    const handleRegenerate = async () => {
+        setRegenerating(true);
+        const result = await regenerateBlockTemplateAction(config.id);
+        if (result.success) {
+            toast.success('Regenerated! Reload to see changes.');
+            onRegenerated(config.id, {});
+        } else {
+            toast.error(result.error || 'Failed to regenerate');
+        }
+        setRegenerating(false);
+    };
+
+    return (
+        <Card>
+            <div
+                className="flex items-center justify-between p-4 cursor-pointer hover:bg-gray-50 transition-colors"
+                onClick={() => setIsOpen(!isOpen)}
+            >
+                <div className="flex items-center gap-2">
+                    <span className="text-sm font-medium">Edit Configuration</span>
+                    <Badge variant="secondary" className="text-xs">{config.blockType}</Badge>
+                </div>
+                <div className="flex items-center gap-2">
+                    <Button size="sm" variant="outline" onClick={(e) => { e.stopPropagation(); handleRegenerate(); }} disabled={regenerating}>
+                        {regenerating ? <Loader2 className="w-3 h-3 animate-spin" /> : <Sparkles className="w-3 h-3" />}
+                        <span className="ml-1 text-xs">{regenerating ? 'Regenerating...' : 'Regenerate'}</span>
+                    </Button>
+                    <ChevronDown className={`w-4 h-4 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+                </div>
+            </div>
+
+            {isOpen && (
+                <CardContent className="pt-0 space-y-4">
+                    <Separator />
+
+                    {config.blockTypeTemplate && (
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground flex-wrap">
+                            <span>Generated by: {config.blockTypeTemplate.generatedBy}</span>
+                            {config.blockTypeTemplate.generatedAt && (
+                                <span>| {new Date(config.blockTypeTemplate.generatedAt).toLocaleDateString()}</span>
+                            )}
+                            {config.blockTypeTemplate.subcategory && (
+                                <span>| {config.blockTypeTemplate.subcategory}</span>
+                            )}
+                            {config.blockTypeTemplate.isDefault && (
+                                <Badge variant="outline" className="text-xs py-0">fallback</Badge>
+                            )}
+                        </div>
+                    )}
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <Label>Block Type</Label>
+                            <Select value={draft.blockType} onValueChange={v => updateDraft('blockType', v)}>
+                                <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
+                                <SelectContent>
+                                    {BLOCK_TYPES.map(t => (
+                                        <SelectItem key={t} value={t}>{t}</SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
+
+                        <div>
+                            <Label>Label</Label>
+                            <Input className="mt-1" value={draft.label} onChange={e => updateDraft('label', e.target.value)} />
+                        </div>
+                    </div>
+
+                    <div>
+                        <Label>Description</Label>
+                        <Textarea className="mt-1" rows={2} value={draft.description || ''} onChange={e => updateDraft('description', e.target.value)} />
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div>
+                            <Label>Source Collection</Label>
+                            <Input className="mt-1" value={draft.dataSchema?.sourceCollection || ''} onChange={e => updateDataSchema('sourceCollection', e.target.value)} />
+                        </div>
+                        <div>
+                            <Label>Max Items</Label>
+                            <Input className="mt-1" type="number" value={draft.dataSchema?.maxItems || 5} onChange={e => updateDataSchema('maxItems', parseInt(e.target.value) || 5)} />
+                        </div>
+                        <div>
+                            <Label>Sort By</Label>
+                            <Input className="mt-1" value={draft.dataSchema?.sortBy || 'createdAt'} onChange={e => updateDataSchema('sortBy', e.target.value)} />
+                        </div>
+                    </div>
+
+                    <div className="flex items-center justify-between pt-2">
+                        <Button variant="destructive" size="sm" onClick={handleDelete} disabled={deleting}>
+                            <Trash2 className="w-3 h-3 mr-1" />
+                            {deleting ? 'Deleting...' : 'Delete'}
+                        </Button>
+                        <Button size="sm" onClick={handleSave} disabled={saving}>
+                            <Save className="w-3 h-3 mr-1" />
+                            {saving ? 'Saving...' : 'Save Changes'}
+                        </Button>
+                    </div>
+                </CardContent>
+            )}
+        </Card>
     );
 }
 
