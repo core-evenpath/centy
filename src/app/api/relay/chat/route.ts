@@ -1,12 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { GoogleGenAI } from '@google/genai';
 import { db as adminDb } from '@/lib/firebase-admin';
-import {
-    getPartnerModulesAction,
-    getSystemModuleAction,
-    getModuleItemsAction,
-} from '@/actions/modules-actions';
-import type { ModuleAgentConfig } from '@/lib/modules/types';
 import { RELAY_BLOCK_SCHEMAS } from '@/lib/relay-chat-schemas';
 import { createInitialFlowState, detectIntent, runFlowEngine } from '@/lib/flow-engine';
 import { getFlowTemplateForFunction } from '@/lib/flow-templates';
@@ -112,84 +106,93 @@ export async function POST(request: NextRequest) {
             // flowDecision stays null — chat continues without flow features
         }
 
-        // Fetch partner's enabled modules with agentConfig and items
-        const moduleConfigs: Array<{
-            name: string;
-            slug: string;
-            priceType: string;
-            agentConfig: ModuleAgentConfig;
-            items: any[];
-        }> = [];
+        // Module data now loaded from Core Hub (replaces N+1 module action queries)
+        let coreHubContext = '';
+        try {
+            const coreHubItemsSnap = await adminDb
+                .collection(`partners/${partnerId}/coreHub/data/items`)
+                .where('isActive', '==', true)
+                .limit(100)
+                .get();
 
-        const partnerModulesResult = await getPartnerModulesAction(partnerId);
-        const partnerModules = partnerModulesResult.success ? partnerModulesResult.data || [] : [];
-
-        for (const pm of partnerModules.slice(0, 10)) {
-            const systemResult = await getSystemModuleAction(pm.moduleSlug);
-            if (systemResult.success && systemResult.data?.agentConfig) {
-                const itemsResult = await getModuleItemsAction(partnerId, pm.id, {
-                    isActive: true,
-                    pageSize: 20,
-                    sortBy: 'sortOrder',
-                    sortOrder: 'asc',
+            if (!coreHubItemsSnap.empty) {
+                const items = coreHubItemsSnap.docs.map(doc => {
+                    const data = doc.data();
+                    return {
+                        name: data.name,
+                        description: data.description,
+                        category: data.category,
+                        module: data.sourceModule,
+                        price: data.price,
+                        priceUnit: data.priceUnit,
+                        currency: data.currency,
+                        keywords: data.keywords?.join(', ') || '',
+                    };
                 });
-                moduleConfigs.push({
-                    name: systemResult.data.name,
-                    slug: pm.moduleSlug,
-                    priceType: systemResult.data.priceType,
-                    agentConfig: systemResult.data.agentConfig,
-                    items: itemsResult.success ? (itemsResult.data?.items || []) : [],
-                });
-            }
-        }
 
-        // Fetch correct block types from relayBlockConfigs
-        const relayBlockTypes = new Map<string, string>();
-        if (moduleConfigs.length > 0) {
-            try {
-                const slugs = moduleConfigs.map(mc => `module_${mc.slug}`);
-                const chunkSize = 10;
-                for (let i = 0; i < slugs.length; i += chunkSize) {
-                    const chunk = slugs.slice(i, i + chunkSize);
-                    const snap = await adminDb.collection('relayBlockConfigs')
-                        .where('__name__', 'in', chunk)
-                        .get();
-                    snap.docs.forEach(doc => {
-                        const data = doc.data();
-                        if (data.moduleSlug && data.blockType) {
-                            relayBlockTypes.set(data.moduleSlug, data.blockType);
-                        }
-                    });
+                const grouped: Record<string, typeof items> = {};
+                for (const item of items) {
+                    const key = item.module || 'general';
+                    if (!grouped[key]) grouped[key] = [];
+                    grouped[key].push(item);
                 }
-            } catch {
-                // relayBlockConfigs not available — will fall back to module slug-based inference
+
+                const sections = Object.entries(grouped).map(([module, moduleItems]) => {
+                    const itemLines = moduleItems.map(i => {
+                        let line = `- ${i.name}`;
+                        if (i.description) line += `: ${i.description}`;
+                        if (i.price) line += ` (${i.currency || 'USD'} ${i.price}${i.priceUnit ? '/' + i.priceUnit : ''})`;
+                        return line;
+                    }).join('\n');
+                    return `[${module}]\n${itemLines}`;
+                });
+
+                coreHubContext = `\n\nBUSINESS DATA (products, services, inventory):\n${sections.join('\n\n')}`;
             }
+        } catch (e) {
+            console.error('[Relay] Core Hub load failed, falling back to empty context:', e);
         }
 
-        // Build dynamic block instructions from agentConfig
-        const blockInstructions = moduleConfigs.map(mc => {
-            const ac = mc.agentConfig;
-            const itemSummary = mc.items.slice(0, 10).map(item => {
-                const fields = ac.displayFields
-                    .map(f => `${f}: ${item.fields?.[f] || item[f] || 'N/A'}`)
-                    .join(', ');
-                return `  - ${item.name} (${item.price ? `${item.currency || 'INR'} ${item.price}` : 'No price'}): ${fields}`;
-            }).join('\n');
+        let vaultContext = '';
+        try {
+            const vaultFilesSnap = await adminDb
+                .collection(`partners/${partnerId}/vaultFiles`)
+                .where('state', '==', 'ACTIVE')
+                .limit(20)
+                .get();
 
-            return `MODULE: ${mc.name} (slug: ${mc.slug})
-Block type: "${relayBlockTypes.get(mc.slug) || 'catalog'}"
-Price type: ${mc.priceType}
-When visitor asks about: ${ac.inboxContext}
-Display fields: ${ac.displayFields.join(', ')}
-Card: title=${ac.cardTitle}, subtitle=${ac.cardSubtitle || 'N/A'}, price=${ac.cardPrice || 'N/A'}, image=${ac.cardImage || 'N/A'}
-Comparison fields: ${ac.comparisonFields.join(', ') || 'N/A'}
-Available items (${mc.items.length} total):
-${itemSummary || '  (no items yet)'}`;
-        }).join('\n\n');
+            if (!vaultFilesSnap.empty) {
+                const excludedDocIds: string[] = [];
+                try {
+                    const relayConfigSnap = await adminDb
+                        .collection('partners').doc(partnerId)
+                        .collection('relayConfig').doc('config')
+                        .get();
+                    const configData = relayConfigSnap.data();
+                    if (configData?.excludedVaultDocIds) {
+                        excludedDocIds.push(...configData.excludedVaultDocIds);
+                    }
+                } catch { }
 
-        const moduleContext = moduleConfigs.length > 0
-            ? `\n\nBUSINESS DATA (from partner's modules — use ONLY this data to answer):\n${blockInstructions}`
-            : '\n\nNo business data modules configured yet. Answer general questions only.';
+                const allowedFiles = vaultFilesSnap.docs
+                    .filter(doc => !excludedDocIds.includes(doc.id))
+                    .map(doc => {
+                        const data = doc.data();
+                        const name = data.originalName || data.fileName || doc.id;
+                        const tags = data.tags;
+                        let desc = name;
+                        if (tags?.primaryCategory) desc += ` (${tags.primaryCategory})`;
+                        if (tags?.topics?.length) desc += ` — ${tags.topics.slice(0, 3).join(', ')}`;
+                        return desc;
+                    });
+
+                if (allowedFiles.length > 0) {
+                    vaultContext = `\n\nKNOWLEDGE BASE DOCUMENTS:\nThe business has uploaded these documents. Reference them when relevant:\n${allowedFiles.map(f => `- ${f}`).join('\n')}`;
+                }
+            }
+        } catch (e) {
+            console.error('[Relay] Vault metadata load failed:', e);
+        }
 
         // Load business persona for richer context (using already-fetched partnerData)
         let personaContext = '';
@@ -244,7 +247,7 @@ RULES:
 - Use "lead_capture" when visitor wants a callback, quote, or to submit an inquiry
 - Use "promo" when visitor asks about offers, deals, or discounts
 - Choose the MOST SPECIFIC block type for the query — prefer "pricing" over "catalog" for price questions, prefer "schedule" over "info" for availability questions
-${personaContext}${moduleContext}
+${personaContext}${coreHubContext}${vaultContext}
 
 Respond with ONLY valid JSON. No markdown, no code fences.`;
 

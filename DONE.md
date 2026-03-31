@@ -184,3 +184,19 @@ All done in 3 incremental prompts modifying 1 file (852 → 909 lines).
 1. `getRelayKnowledgeConfigAction(partnerId)` — reads `excludedVaultDocIds` from `partners/{partnerId}/relayConfig/config`, returns empty array if missing
 2. `updateRelayDocExclusionsAction(partnerId, excludedDocIds)` — writes exclusions with `merge: true` to preserve other relay config fields, revalidates `/partner/relay`
 3. `getVaultFilesForRelayAction(partnerId)` — reads active vault files ordered by createdAt desc, maps field names (`originalName || displayName || name || doc.id`), handles Firestore Timestamp vs string for createdAt
+
+---
+
+## Prompt 3B: Relay Chat API — Core Hub + Vault Metadata Context
+
+### File modified
+- `src/app/api/relay/chat/route.ts` (336 → 338 lines)
+
+### What changed
+- **Core Hub replaces N+1 module queries**: removed `getPartnerModulesAction` → loop → `getSystemModuleAction` + `getModuleItemsAction` pattern. Now single query to `partners/{partnerId}/coreHub/data/items` where `isActive == true`, grouped by `sourceModule`
+- **Vault metadata context added**: loads active vault file names/tags (limit 20), filters out `excludedVaultDocIds` from relay config, appends as `KNOWLEDGE BASE DOCUMENTS` section
+- **Removed imports**: `getPartnerModulesAction`, `getSystemModuleAction`, `getModuleItemsAction`, `ModuleAgentConfig`
+- **System prompt**: `${moduleContext}` replaced with `${coreHubContext}${vaultContext}`
+
+### Data flow
+`user msg → [Core Hub items + vault file metadata + business persona] → Gemini → block response`
