@@ -15,6 +15,10 @@ import BlockRenderer from '@/components/relay/blocks/BlockRenderer';
 import type { RelayBlock } from '@/components/relay/blocks/BlockRenderer';
 import { DEFAULT_THEME } from '@/components/relay/blocks/types';
 import type { RelayTheme, BlockCallbacks } from '@/components/relay/blocks/types';
+import {
+    BotBubble, UserBubble, TypingIndicator,
+    RELAY_KEYFRAMES,
+} from '@/components/relay/primitives';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -399,66 +403,38 @@ export default function PartnerRelayPage() {
                                     </div>
                                 )}
 
+                                <style>{RELAY_KEYFRAMES}</style>
                                 {chatMessages.map((msg, i) => (
                                     <div key={i}>
                                         {msg.role === 'user' ? (
-                                            /* User message — right-aligned accent bubble */
-                                            <div className="flex gap-2 justify-end">
-                                                <div
-                                                    className="max-w-[80%] rounded-2xl rounded-br-sm px-4 py-2.5 text-sm text-white"
-                                                    style={{ backgroundColor: relayTheme.accent }}
-                                                >
-                                                    <p className="whitespace-pre-wrap">{msg.content}</p>
-                                                </div>
-                                            </div>
+                                            <UserBubble text={msg.content} theme={relayTheme} />
                                         ) : (
-                                            /* Bot message — rendered through BlockRenderer */
-                                            <div className="flex gap-2 justify-start">
-                                                <div className="w-7 h-7 rounded-full flex items-center justify-center shrink-0 mt-0.5 text-sm"
-                                                    style={{ backgroundColor: relayTheme.accentBg2 }}
-                                                >
-                                                    {config.brandEmoji || '🤖'}
-                                                </div>
-                                                <div className="max-w-[90%] space-y-2">
-                                                    {msg.block ? (
+                                            <>
+                                                {msg.block ? (
+                                                    <BotBubble theme={relayTheme}>
                                                         <BlockRenderer
                                                             block={msg.block}
                                                             theme={relayTheme}
                                                             callbacks={blockCallbacks}
                                                         />
-                                                    ) : (
-                                                        <div className="rounded-lg px-3 py-2 text-sm bg-white border"
-                                                            style={{ borderColor: relayTheme.bdrL }}
-                                                        >
-                                                            <p className="whitespace-pre-wrap">{msg.content}</p>
-                                                        </div>
-                                                    )}
-                                                    {msg.type && msg.type !== 'text' && (
+                                                    </BotBubble>
+                                                ) : (
+                                                    <BotBubble text={msg.content} theme={relayTheme} />
+                                                )}
+                                                {msg.type && msg.type !== 'text' && (
+                                                    <div style={{ marginLeft: 36, marginTop: 4 }}>
                                                         <Badge variant="outline" className="text-[10px]">
                                                             {msg.type}
                                                         </Badge>
-                                                    )}
-                                                </div>
-                                            </div>
+                                                    </div>
+                                                )}
+                                            </>
                                         )}
                                     </div>
                                 ))}
 
                                 {chatSending && (
-                                    <div className="flex gap-2">
-                                        <div className="w-7 h-7 rounded-full flex items-center justify-center shrink-0 text-sm"
-                                            style={{ backgroundColor: relayTheme.accentBg2 }}
-                                        >
-                                            {config.brandEmoji || '🤖'}
-                                        </div>
-                                        <div className="rounded-lg px-4 py-3 bg-white border" style={{ borderColor: relayTheme.bdrL }}>
-                                            <div className="flex gap-1">
-                                                <span className="w-2 h-2 rounded-full animate-bounce" style={{ backgroundColor: relayTheme.t4, animationDelay: '0ms' }} />
-                                                <span className="w-2 h-2 rounded-full animate-bounce" style={{ backgroundColor: relayTheme.t4, animationDelay: '150ms' }} />
-                                                <span className="w-2 h-2 rounded-full animate-bounce" style={{ backgroundColor: relayTheme.t4, animationDelay: '300ms' }} />
-                                            </div>
-                                        </div>
-                                    </div>
+                                    <TypingIndicator theme={relayTheme} />
                                 )}
                                 <div ref={chatEndRef} />
                             </div>

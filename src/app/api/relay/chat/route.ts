@@ -6,6 +6,8 @@ import {
     getSystemModuleAction,
     getModuleItemsAction,
 } from '@/actions/modules-actions';
+import { getRelayStorefrontDataAction } from '@/actions/relay-storefront-actions';
+import { queryWithGeminiRAG } from '@/lib/gemini-rag';
 import type { ModuleAgentConfig } from '@/lib/modules/types';
 import { RELAY_BLOCK_SCHEMAS } from '@/lib/relay-chat-schemas';
 import { createInitialFlowState, detectIntent, runFlowEngine } from '@/lib/flow-engine';
@@ -28,7 +30,7 @@ export async function OPTIONS() {
 export async function POST(request: NextRequest) {
     try {
         const body = await request.json();
-        const { widgetId, conversationId, messages, partnerId: directPartnerId } = body;
+        const { widgetId, conversationId, messages, partnerId: directPartnerId, stage } = body;
 
         if (!messages || !Array.isArray(messages) || messages.length === 0) {
             return NextResponse.json({ error: 'Messages are required' }, { status: 400, headers: corsHeaders });
@@ -219,10 +221,60 @@ ${itemSummary || '  (no items yet)'}`;
             // Persona not available, continue without it
         }
 
+        // Fetch storefront data for enriched context
+        let storefrontContext = '';
+        try {
+            const sfResult = await getRelayStorefrontDataAction(partnerId);
+            if (sfResult.success && sfResult.data) {
+                const sf = sfResult.data;
+                const parts: string[] = [];
+                if (sf.brand.name) parts.push(`Business: ${sf.brand.name}`);
+                if (sf.brand.tagline) parts.push(`Tagline: ${sf.brand.tagline}`);
+                if (sf.usp.length > 0) parts.push(`USPs: ${sf.usp.join(', ')}`);
+                if (sf.contact.phone) parts.push(`Phone: ${sf.contact.phone}`);
+                if (sf.contact.email) parts.push(`Email: ${sf.contact.email}`);
+                if (sf.contact.website) parts.push(`Website: ${sf.contact.website}`);
+                if (sf.contact.address) parts.push(`Address: ${sf.contact.address}`);
+                if (sf.contact.whatsapp) parts.push(`WhatsApp: ${sf.contact.whatsapp}`);
+                if (sf.operatingHours) {
+                    if (sf.operatingHours.isOpen24x7) parts.push('Hours: Open 24/7');
+                    else if (sf.operatingHours.appointmentOnly) parts.push('Hours: By appointment only');
+                    if (sf.operatingHours.specialNote) parts.push(`Note: ${sf.operatingHours.specialNote}`);
+                }
+                if (sf.modules.length > 0) {
+                    parts.push('\nAVAILABLE MODULES:');
+                    sf.modules.forEach(m => {
+                        parts.push(`- "${m.name}" (slug: ${m.slug}, blockType: ${m.blockType}, items: ${m.itemCount})`);
+                    });
+                }
+                if (parts.length > 0) {
+                    storefrontContext = `\n\nSTOREFRONT CONTEXT:\n${parts.join('\n')}`;
+                }
+            }
+        } catch {
+            // Storefront data not available, continue without it
+        }
+
+        // RAG context from vault documents
+        let ragContext = '';
+        try {
+            const lastUserMsg = messages[messages.length - 1]?.content || '';
+            if (lastUserMsg) {
+                const ragResult = await queryWithGeminiRAG(partnerId, lastUserMsg, { maxChunks: 5 });
+                if (ragResult.success && ragResult.response) {
+                    ragContext = `\n\nRAG CONTEXT (from uploaded documents — use this to answer questions):\n${ragResult.response}`;
+                }
+            }
+        } catch {
+            // RAG not available, continue without it
+        }
+
         // Build system prompt
         const flowContext = flowDecision?.contextForAI
             ? `\n${flowDecision.contextForAI}\n\n`
             : '';
+
+        const stageContext = stage ? `\nCurrent conversation stage: ${stage}\nGuide the conversation from greeting → discovery → presentation → action.\n` : '';
 
         const systemPrompt = `You are a helpful business assistant for this company. You help visitors find information, browse products/services, and take action (book, inquire, etc.).
 ${flowContext}
@@ -244,7 +296,10 @@ RULES:
 - Use "lead_capture" when visitor wants a callback, quote, or to submit an inquiry
 - Use "promo" when visitor asks about offers, deals, or discounts
 - Choose the MOST SPECIFIC block type for the query — prefer "pricing" over "catalog" for price questions, prefer "schedule" over "info" for availability questions
-${personaContext}${moduleContext}
+- NEVER use emojis in icon fields — use descriptive text labels instead
+- When user asks about a specific module, use the matching blockType from the module data
+- When user asks something answerable from documents, use type "text" with a detailed answer
+${stageContext}${storefrontContext}${personaContext}${moduleContext}${ragContext}
 
 Respond with ONLY valid JSON. No markdown, no code fences.`;
 
