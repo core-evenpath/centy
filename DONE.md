@@ -200,3 +200,21 @@ All done in 3 incremental prompts modifying 1 file (852 → 909 lines).
 
 ### Data flow
 `user msg → [Core Hub items + vault file metadata + business persona] → Gemini → block response`
+
+---
+
+## Prompt 3C: Partner Relay Settings — Knowledge Tab
+
+### File modified
+- `src/app/partner/(protected)/relay/page.tsx` (765 → 870 lines)
+
+### What changed
+- Added 6th tab "Knowledge" with `FileText` icon to relay settings page
+- Knowledge tab shows all active vault files with `Switch` toggles to include/exclude from Relay
+- Displays file name, size (KB/MB), and active count summary
+- "Save Knowledge Settings" button persists `excludedDocIds` via `updateRelayDocExclusionsAction`
+- Empty state when no vault files uploaded
+- Loading spinner while fetching vault files and knowledge config
+
+### End-to-end flow
+Partner toggles docs off in Knowledge tab → saved to `partners/{partnerId}/relayConfig/config.excludedVaultDocIds` → relay chat API reads exclusion list → excluded docs filtered from vault metadata context sent to Gemini

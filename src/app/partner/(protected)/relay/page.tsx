@@ -41,7 +41,15 @@ import {
     Play,
     Trash2,
     GitBranch,
+    FileText,
 } from 'lucide-react';
+import {
+    getRelayKnowledgeConfigAction,
+    updateRelayDocExclusionsAction,
+    getVaultFilesForRelayAction,
+} from '@/actions/relay-knowledge-actions';
+import { Switch } from '@/components/ui/switch';
+import { toast } from 'sonner';
 
 const DEFAULT_CONFIG: RelayConfig = {
     enabled: false,
@@ -118,6 +126,12 @@ export default function PartnerRelayPage() {
     const [diagRunning, setDiagRunning] = useState(false);
     const [conversations, setConversations] = useState<RelayConversation[]>([]);
     const [convoLoading, setConvoLoading] = useState(true);
+
+    // Knowledge state
+    const [vaultFiles, setVaultFiles] = useState<Array<{ id: string; name: string; mimeType: string; size?: number }>>([]);
+    const [excludedDocIds, setExcludedDocIds] = useState<string[]>([]);
+    const [knowledgeLoading, setKnowledgeLoading] = useState(true);
+    const [knowledgeSaving, setKnowledgeSaving] = useState(false);
 
     // Chat test state
     const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
@@ -244,6 +258,30 @@ export default function PartnerRelayPage() {
         })();
     }, [partnerId]);
 
+    // ── Load knowledge config ─────────────────────────────────────────
+
+    useEffect(() => {
+        if (!partnerId) return;
+        (async () => {
+            try {
+                const [filesResult, configResult] = await Promise.all([
+                    getVaultFilesForRelayAction(partnerId),
+                    getRelayKnowledgeConfigAction(partnerId),
+                ]);
+                if (filesResult.success && filesResult.files) {
+                    setVaultFiles(filesResult.files);
+                }
+                if (configResult.success && configResult.config) {
+                    setExcludedDocIds(configResult.config.excludedVaultDocIds);
+                }
+            } catch (e) {
+                console.error('Failed to load knowledge config:', e);
+            } finally {
+                setKnowledgeLoading(false);
+            }
+        })();
+    }, [partnerId]);
+
     // ── Chat test ────────────────────────────────────────────────────
 
     const sendChatMessage = async (messageText?: string) => {
@@ -296,6 +334,33 @@ export default function PartnerRelayPage() {
     useEffect(() => {
         chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }, [chatMessages]);
+
+    // ── Knowledge handlers ────────────────────────────────────────────
+
+    const toggleDocExclusion = useCallback((fileId: string) => {
+        setExcludedDocIds(prev =>
+            prev.includes(fileId)
+                ? prev.filter(id => id !== fileId)
+                : [...prev, fileId]
+        );
+    }, []);
+
+    const saveKnowledgeSettings = useCallback(async () => {
+        if (!partnerId) return;
+        setKnowledgeSaving(true);
+        try {
+            const result = await updateRelayDocExclusionsAction(partnerId, excludedDocIds);
+            if (result.success) {
+                toast.success('Knowledge settings saved');
+            } else {
+                toast.error(result.error || 'Failed to save');
+            }
+        } catch (e: any) {
+            toast.error(e.message || 'Failed to save');
+        } finally {
+            setKnowledgeSaving(false);
+        }
+    }, [partnerId, excludedDocIds]);
 
     // ── Loading / auth guard ─────────────────────────────────────────
 
@@ -356,6 +421,9 @@ export default function PartnerRelayPage() {
                     </TabsTrigger>
                     <TabsTrigger value="conversations" className="gap-2">
                         <MessageSquare className="h-4 w-4" /> Conversations
+                    </TabsTrigger>
+                    <TabsTrigger value="knowledge" className="gap-2">
+                        <FileText className="h-4 w-4" /> Knowledge
                     </TabsTrigger>
                     <TabsTrigger value="flows" className="gap-2">
                         <GitBranch className="h-4 w-4" /> Flows
@@ -733,6 +801,84 @@ export default function PartnerRelayPage() {
                                             </span>
                                         </div>
                                     ))}
+                                </div>
+                            )}
+                        </CardContent>
+                    </Card>
+                </TabsContent>
+
+                {/* ── Section 4: Knowledge Base ────────────────── */}
+                <TabsContent value="knowledge" className="space-y-6">
+                    <Card>
+                        <CardHeader>
+                            <CardTitle>Knowledge Base</CardTitle>
+                            <CardDescription>
+                                Choose which uploaded documents Relay can use to answer customer questions.
+                                Toggle off documents you don&apos;t want exposed to the public chat widget.
+                            </CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                            {knowledgeLoading ? (
+                                <div className="flex justify-center py-8">
+                                    <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                                </div>
+                            ) : vaultFiles.length === 0 ? (
+                                <div className="text-center py-12">
+                                    <FileText className="h-10 w-10 text-muted-foreground mx-auto mb-3" />
+                                    <p className="font-medium">No documents uploaded yet</p>
+                                    <p className="text-sm text-muted-foreground mt-1">
+                                        Upload files in Core Memory to give Relay knowledge to answer from.
+                                    </p>
+                                </div>
+                            ) : (
+                                <div className="space-y-4">
+                                    <div className="space-y-1">
+                                        {vaultFiles.map(file => {
+                                            const isIncluded = !excludedDocIds.includes(file.id);
+                                            return (
+                                                <div
+                                                    key={file.id}
+                                                    className="flex items-center justify-between p-3 rounded-lg border hover:bg-muted/50 transition-colors"
+                                                >
+                                                    <div className="flex items-center gap-3 min-w-0">
+                                                        <FileText className="h-4 w-4 text-muted-foreground shrink-0" />
+                                                        <div className="min-w-0">
+                                                            <p className="text-sm font-medium truncate">{file.name}</p>
+                                                            {file.size && (
+                                                                <p className="text-xs text-muted-foreground">
+                                                                    {file.size > 1024 * 1024
+                                                                        ? `${(file.size / 1024 / 1024).toFixed(1)} MB`
+                                                                        : `${Math.round(file.size / 1024)} KB`}
+                                                                </p>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                    <Switch
+                                                        checked={isIncluded}
+                                                        onCheckedChange={() => toggleDocExclusion(file.id)}
+                                                    />
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+
+                                    <div className="flex items-center justify-between pt-2 border-t">
+                                        <p className="text-sm text-muted-foreground">
+                                            {vaultFiles.length - excludedDocIds.filter(id => vaultFiles.some(f => f.id === id)).length} of {vaultFiles.length} documents active for Relay
+                                        </p>
+                                        <Button
+                                            size="sm"
+                                            onClick={saveKnowledgeSettings}
+                                            disabled={knowledgeSaving}
+                                        >
+                                            {knowledgeSaving ? (
+                                                <Loader2 className="h-4 w-4 animate-spin mr-1" />
+                                            ) : (
+                                                <Save className="h-4 w-4 mr-1" />
+                                            )}
+                                            {knowledgeSaving ? 'Saving...' : 'Save Knowledge Settings'}
+                                        </Button>
+                                    </div>
                                 </div>
                             )}
                         </CardContent>
