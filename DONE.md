@@ -117,3 +117,28 @@ npx tsx src/scripts/seed-software-it.ts
 - Filter pills row, Generate All / Clear All buttons row, empty state card
 - Export signature: `export function BlockGallery`
 - Kept imports needed for Prompt 2C: `Card`, `CardContent`, `Badge`, `Button`, `Input`, `Textarea`, `Label`, `Select*`, `BlockRenderer`, `DEFAULT_THEME`, type imports
+
+---
+
+## Prompt 2B: BlockGallery — Phone Frame Preview
+
+### File changed
+- `src/app/admin/relay/blocks/BlockGallery.tsx`
+
+### Before / After
+- **Before:** 567 lines
+- **After:** 745 lines
+
+### What changed (phone frame preview)
+- Added `buildBlockFromConfig()` — uses real `sampleData` from Firestore config, falls back to `generateMockBlock()`
+- Added `getUserMessage()` — contextual user chat bubble text per block type
+- Added `getSuggestions()` — suggestion chips per block type
+- Added `PREVIEW_THEME` constant — warm stone color palette for phone chrome
+- Added `PhonePreview` component — full phone frame (375x667) with notch, header, user bubble, bot response via `BlockRenderer`, suggestion chips, and input bar
+- Replaced placeholder div ("Phone preview coming soon") with `<PhonePreview config={selectedConfig} />`
+
+### What stayed
+- Two-column grid layout from Prompt 2A
+- All constants, state, handlers, memos unchanged
+- `BlockListItem` component unchanged
+- "Edit panel coming soon" placeholder remains (for Prompt 2C)
