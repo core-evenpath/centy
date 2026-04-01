@@ -109,16 +109,16 @@ export async function getRelayStorefrontDataAction(partnerId: string): Promise<{
   error?: string;
 }> {
   try {
-    const [partnerDoc, modulesSnap, partnerBlocksSnap, relayConfigSnap, flowSnap, ragSnap] =
+    const [partnerDoc, modulesSnap, globalBlocksSnap, partnerBlocksSnap, relayConfigSnap, flowSnap, ragSnap] =
       await Promise.all([
         adminDb.collection('partners').doc(partnerId).get(),
         adminDb
           .collection(`partners/${partnerId}/businessModules`)
           .where('enabled', '==', true)
           .get(),
+        adminDb.collection('relayBlockConfigs').get(),
         adminDb
           .collection(`partners/${partnerId}/relayConfig/blocks`)
-          .where('isVisible', '==', true)
           .orderBy('sortOrder', 'asc')
           .get(),
         adminDb.collection(`partners/${partnerId}/relayConfig`).doc('config').get(),
@@ -136,28 +136,30 @@ export async function getRelayStorefrontDataAction(partnerId: string): Promise<{
     const personality = persona?.personality;
     const relayConfig = relayConfigSnap.exists ? relayConfigSnap.data() : null;
 
+    const hasPartnerBlocks = !partnerBlocksSnap.empty;
+
     let modules: RelayModuleEntry[];
 
-    if (!partnerBlocksSnap.empty) {
-      modules = partnerBlocksSnap.docs.map((doc) => {
-        const data = doc.data();
-        return {
-          id: doc.id,
-          slug: data.moduleSlug || '',
-          name: data.customLabel || data.label || '',
-          description: data.customDescription || data.description,
-          iconName: data.iconName || MODULE_ICON_MAP[data.blockType] || 'Layers',
-          blockType: data.blockType || 'catalog',
-          itemCount: 0,
-          category: data.category || CATEGORY_MAP[data.blockType] || 'Information',
-        };
-      });
+    if (hasPartnerBlocks) {
+      modules = partnerBlocksSnap.docs
+        .filter(doc => doc.data().isVisible !== false)
+        .map((doc) => {
+          const data = doc.data();
+          return {
+            id: doc.id,
+            slug: data.moduleSlug || '',
+            name: data.customLabel || data.label || doc.id,
+            description: data.customDescription || data.description,
+            iconName: data.iconName || MODULE_ICON_MAP[data.blockType] || 'Layers',
+            blockType: data.blockType || 'catalog',
+            itemCount: 0,
+            category: data.category || CATEGORY_MAP[data.blockType] || 'Information',
+          };
+        });
     } else {
-      const blockConfigsSnap = await adminDb.collection('relayBlockConfigs').get();
-
       const blockConfigsBySlug = new Map<string, { blockType: string }>();
       const blockConfigsById = new Map<string, { blockType: string }>();
-      blockConfigsSnap.docs.forEach((doc) => {
+      globalBlocksSnap.docs.forEach((doc) => {
         const data = doc.data();
         if (data.moduleSlug) {
           blockConfigsBySlug.set(data.moduleSlug, { blockType: data.blockType || 'catalog' });
