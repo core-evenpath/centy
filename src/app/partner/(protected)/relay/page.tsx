@@ -11,6 +11,7 @@ import {
 } from '@/actions/relay-actions';
 import type { RelayConfig, DiagnosticCheck, RelayConversation } from '@/actions/relay-actions';
 import RelayChatSetup from '@/components/partner/relay/RelayChatSetup';
+import RelayStorefrontManager from '@/components/partner/relay/RelayStorefrontManager';
 import BlockRenderer from '@/components/relay/blocks/BlockRenderer';
 import type { RelayBlock } from '@/components/relay/blocks/BlockRenderer';
 import { DEFAULT_THEME } from '@/components/relay/blocks/types';
@@ -360,6 +361,7 @@ export default function PartnerRelayPage() {
                     <TabsTrigger value="flows" className="gap-2">
                         <GitBranch className="h-4 w-4" /> Flows
                     </TabsTrigger>
+                    <TabsTrigger value="storefront">Storefront</TabsTrigger>
                 </TabsList>
 
                 {/* ── Section 0: Test Chat ──────────────────────────── */}
@@ -757,6 +759,10 @@ export default function PartnerRelayPage() {
                             </Button>
                         </CardContent>
                     </Card>
+                </TabsContent>
+
+                <TabsContent value="storefront">
+                    <RelayStorefrontManager partnerId={partnerId!} accentColor={config.accentColor} />
                 </TabsContent>
             </Tabs>
         </div>
