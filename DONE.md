@@ -625,3 +625,54 @@ AFTER (block-driven, deterministic):
 - [x] No modification to existing module files — PASSED
 - [x] No circular imports — PASSED
 - [x] Pre-existing TypeScript error in BusinessProfileTab.tsx unchanged
+
+---
+
+# Phase 7 — Flow Composer (Block-Aware Enhancement) — DONE
+
+## Date: 2026-04-04
+
+## Files Created
+- `src/actions/flow-composer-actions.ts` — 8 server actions for block-aware flow composition
+
+## Files Modified
+- (none — existing flow-engine-actions.ts untouched)
+
+## Server Action Inventory
+| Action | Purpose |
+|--------|---------|
+| `getFlowBlockConfigAction(templateId)` | Read block enhancement fields from existing flow template |
+| `saveFlowBlockConfigAction(templateId, config)` | Save homeScreen + stageBlocks + preloadBlocks + cacheStrategy |
+| `updateHomeScreenAction(templateId, homeScreen)` | Update homescreen sections (validates block IDs against registry) |
+| `updateStageBlocksAction(templateId, stageId, config)` | Set eligible blocks + intent mappings for a stage |
+| `getAvailableBlocksForFlowAction(verticalId?)` | List all blocks available for a vertical (includes shared blocks) |
+| `generateDefaultHomeScreenAction(verticalId)` | Auto-generate a default homescreen for e-commerce |
+| `publishFlowAction(templateId)` | Collect all block IDs → derive module schema → set status active |
+| `unpublishFlowAction(templateId)` | Set status back to draft |
+
+## Enhancement Architecture
+```
+EXISTING (untouched):                     NEW (additive):
+systemFlowTemplates                       systemFlowTemplates (same collection)
+  ├── id, name, status                      ├── (all existing fields preserved)
+  ├── stages[]                               ├── homeScreen: { layout, sections[] }
+  ├── industryId, functionId                 ├── stageBlocks: [{ stageId, eligibleBlocks[], intentMappings[] }]
+  ├── createdAt, updatedAt                   ├── preloadBlocks: string[]
+  └── ...                                    ├── cacheStrategy: 'aggressive' | 'moderate' | 'none'
+                                             ├── publishedAt
+                                             ├── publishedBlockIds: string[]
+                                             └── publishedFieldCount: number
+```
+
+## Key Design Decisions
+- Additive only — new fields on existing Firestore docs, old templates without these fields work fine
+- Block ID validation — updateHomeScreen and updateStageBlocks verify blocks exist in registry before saving
+- Publish triggers derivation but does NOT auto-apply schema — admin reviews via Phase 6 compare/apply
+- Existing flow-engine-actions.ts is NOT modified — flow composer is a parallel enhancement layer
+
+## Validation
+- [x] `npx tsc --noEmit` — PASSED (only pre-existing error in BusinessProfileTab.tsx)
+- [x] File exists — PASSED
+- [x] All 8 actions exported — PASSED
+- [x] Existing flow-engine-actions not modified — PASSED
+- [x] No circular imports — PASSED
