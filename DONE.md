@@ -368,3 +368,85 @@ Returns a flat `RelaySessionData` payload ready for client-side caching.
 - Category determination uses `industry?.id` with fallback to `industry?.name` lowercased, then `'general'`
 - Flow template matching checks both `industryId` and `functionId` against the category
 - Pre-existing TypeScript error in BusinessProfileTab.tsx unchanged
+
+---
+
+# Phase 3 — Block Resolver + Intent Engine — DONE
+
+## Date: 2026-04-04
+
+## Files Modified
+- `src/lib/relay/session-cache.ts` — Extended with 6 new methods (`getItem`, `getItemCount`, `getCategories`, `hasRag`, scored `searchItems`, object-param `filterItems`), `SearchResult` and `FilterOptions` exports, `itemIndex` for O(1) lookups
+- `src/lib/relay/types.ts` — Added `welcomeMessage?: string` to `SessionBrand` interface
+- `src/actions/relay-session-actions.ts` — Map `welcomeMessage` from relay config into brand
+
+## Files Created
+- `src/lib/relay/query-parser.ts` — Extracts price range, category, keywords, sort preference, product ref, quantity from natural language
+- `src/lib/relay/intent-engine.ts` — Classifies messages into 15 intent types via keyword + regex pattern matching
+- `src/lib/relay/block-resolver.ts` — Maps intent → block ID + populated data from session cache
+
+## Architecture
+```
+User: "Show me silk sarees under 5000"
+  ↓
+query-parser.parseQuery()                           [<5ms]
+  → { category: "sarees", priceMax: 5000, keywords: ["silk"], sortBy: null }
+  ↓
+intent-engine.classifyIntent()                      [<5ms]
+  → { type: "browse", confidence: 0.75, filters: { ... } }
+  ↓
+block-resolver.resolveBlock()                       [<20ms]
+  → cache.filterItems({ category: "sarees", priceMax: 5000 })
+  → 3 items matched
+  → { blockId: "ecom_product_card", data: { items: [...] }, confidence: 0.9 }
+  ↓
+TOTAL: <30ms, ZERO network calls
+```
+
+## Intent Types Supported (15)
+| Intent | Block | Trigger Example |
+|--------|-------|-----------------|
+| greeting | ecom_greeting | "hi", "hello" |
+| browse | ecom_product_card | "show me kurtas" |
+| search | ecom_product_card | "blue cotton under 2000" |
+| product_detail | ecom_product_detail | "tell me about the silk saree" |
+| compare | ecom_compare | "compare kurta vs anarkali" |
+| price_check | ecom_product_detail | "how much is the choker set" |
+| cart_view | ecom_cart | "show my cart" |
+| cart_add | (no block) | "add to bag" — handled by UI |
+| checkout | ecom_cart | "ready to checkout" |
+| order_status | ecom_order_tracker | "track my order #PBX-123" |
+| return_request | (no block) | "want to return" — RAG text |
+| promo_inquiry | ecom_promo | "any discounts?" |
+| contact | shared_contact | "how to contact you" |
+| support | shared_contact | "need help with..." |
+| general | (no block) | everything else → RAG text only |
+
+## Query Parser Capabilities
+- Price: "under 2000", "₹500-1000", "above $50", "budget 3k"
+- Category: matches against known categories from session cache
+- Keywords: extracts after removing stop words, prices, categories
+- Sort: "cheapest", "top rated", "newest", "trending"
+- Product reference: searches cache for matching item by name
+- Quantity: "2 pcs", "3 items"
+
+## API Mismatches Resolved (12)
+The spec code referenced methods/fields that didn't exist in Phase 2's implementation:
+- Extended `session-cache.ts` with: `getItem()`, `getItemCount()`, `getCategories()`, `hasRag()`, scored `searchItems(query, limit)`, object-param `filterItems(opts)`
+- Adapted spec code: `item.metadata` → `item.raw`, `item.keywords` → `item.tags`, `item.category` → `item.moduleSlug`, `item.currency` with `|| 'INR'` default
+- Added `welcomeMessage` to `SessionBrand` type + server action mapping
+
+## Validation
+- [x] `npx tsc --noEmit` — PASSED (only pre-existing error in BusinessProfileTab.tsx)
+- [x] All 3 new files exist — PASSED
+- [x] All functions are synchronous — PASSED
+- [x] No server/client directives — PASSED
+- [x] No network imports — PASSED
+
+## Honesty Check
+- Spec said "3 new files, 0 modified files" but code referenced 12 non-existent APIs — had to extend session-cache.ts, types.ts, and server action
+- `hasRag()` returns `items.length > 0` — no separate RAG flag in session data
+- `getCategories()` returns unique `moduleSlug` values + `raw.category` values — items have no dedicated `category` field
+- `INTENT_TO_BLOCK` map is defined but not used (resolveBlock uses switch instead) — kept for documentation/future use
+- Compare intent requires 2+ matched items from cache, otherwise falls through to next pattern
+- Pre-existing TypeScript error in BusinessProfileTab.tsx unchanged

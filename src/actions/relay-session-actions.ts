@@ -47,6 +47,7 @@ export async function loadRelaySessionAction(partnerId: string): Promise<{
       emoji: relayConfig.brandEmoji || '🤖',
       accentColor: relayConfig.accentColor || '#c2410c',
       logoUrl: partnerData.logoUrl || undefined,
+      welcomeMessage: relayConfig.welcomeMessage || undefined,
     };
 
     const contact: SessionContact = {
