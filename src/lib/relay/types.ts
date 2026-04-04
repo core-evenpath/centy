@@ -110,3 +110,67 @@ export interface BlockMatch {
   confidence: number;
   matchedBy: 'keyword' | 'pattern' | 'condition';
 }
+
+// ── Session types ─────────────────────────────────────────────────────
+
+export interface SessionModuleItem {
+  id: string;
+  moduleSlug: string;
+  name: string;
+  description?: string;
+  price?: number;
+  currency?: string;
+  imageUrl?: string;
+  tags?: string[];
+  status: string;
+  raw: Record<string, any>;
+}
+
+export interface SessionBrand {
+  name: string;
+  tagline: string;
+  emoji: string;
+  accentColor: string;
+  logoUrl?: string;
+}
+
+export interface SessionContact {
+  whatsapp?: string;
+  phone?: string;
+  email?: string;
+}
+
+export interface SessionFlowStage {
+  id: string;
+  type: string;
+  label: string;
+  blockIds: string[];
+  transitions: { target: string; condition?: string }[];
+}
+
+export interface SessionFlowDefinition {
+  id: string;
+  vertical: string;
+  stages: SessionFlowStage[];
+  defaultStageId: string;
+}
+
+export interface SessionBlockOverride {
+  blockId: string;
+  isVisible: boolean;
+  sortOrder: number;
+  customLabel?: string;
+  customConfig?: Record<string, any>;
+}
+
+export interface RelaySessionData {
+  partnerId: string;
+  category: string;
+  brand: SessionBrand;
+  contact: SessionContact;
+  items: SessionModuleItem[];
+  blocks: BlockDefinition[];
+  flow?: SessionFlowDefinition;
+  blockOverrides: SessionBlockOverride[];
+  cachedAt: number;
+}
