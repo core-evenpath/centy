@@ -218,3 +218,263 @@ export interface HandoffOption {
   icon: string;
   description?: string;
 }
+
+export interface QuizOption {
+  label: string;
+  selected?: boolean;
+}
+
+export interface QuizStep {
+  question: string;
+  hint?: string;
+  options: QuizOption[];
+  currentStep: number;
+  totalSteps: number;
+}
+
+export interface ConcernOption {
+  id: string;
+  label: string;
+  icon: string;
+}
+
+export interface ProductDetailData {
+  id: string;
+  name: string;
+  brand?: string;
+  description: string;
+  price: number;
+  currency: string;
+  originalPrice?: number;
+  rating?: number;
+  reviewCount?: number;
+  badge?: string;
+  emoji?: string;
+  color?: string;
+  colorEnd?: string;
+  sizes?: string[];
+  selectedSize?: number;
+  features?: string[];
+  ctaLabel?: string;
+}
+
+export interface IngredientItem {
+  name: string;
+  role: string;
+  concentration?: string;
+}
+
+export interface ShadeOption {
+  label: string;
+  gradient: string;
+  selected?: boolean;
+}
+
+export interface ShadeMatch {
+  name: string;
+  subtitle: string;
+  swatchGradient: string;
+}
+
+export interface RoutineStep {
+  name: string;
+  price: number;
+}
+
+export interface RoutineData {
+  amSteps: RoutineStep[];
+  pmSteps: RoutineStep[];
+  totalPrice: number;
+  discountPercent?: number;
+  skinProfile?: string;
+}
+
+export interface BundleItem {
+  name: string;
+  price: number;
+}
+
+export interface BundleData {
+  title: string;
+  subtitle?: string;
+  items: BundleItem[];
+  originalTotal: number;
+  bundlePrice: number;
+  badge?: string;
+  color?: string;
+  colorEnd?: string;
+}
+
+export interface GiftCardData {
+  amounts: number[];
+  selectedIndex?: number;
+  currency: string;
+  brandName?: string;
+  color?: string;
+  colorEnd?: string;
+}
+
+export interface CartItem {
+  name: string;
+  variant?: string;
+  price: number;
+  emoji?: string;
+}
+
+export interface CartData {
+  items: CartItem[];
+  subtotal: number;
+  discount?: number;
+  discountLabel?: string;
+  shippingThreshold?: number;
+  shipping?: number;
+  total: number;
+  promoCode?: string;
+}
+
+export interface PaymentMethod {
+  label: string;
+  subtitle: string;
+  selected?: boolean;
+  bgColor?: string;
+}
+
+export interface CheckoutData {
+  total: number;
+  currency: string;
+  methods: PaymentMethod[];
+}
+
+export interface ConfirmationItem {
+  name: string;
+  price: string;
+}
+
+export interface ConfirmationData {
+  orderId: string;
+  items: ConfirmationItem[];
+  total: number;
+  currency: string;
+  shipping?: string;
+  estimatedDelivery?: string;
+}
+
+export interface OrderTrackerData {
+  orderId: string;
+  orderDate?: string;
+  steps: string[];
+  currentStep: string;
+  carrier?: string;
+  estimatedArrival?: string;
+}
+
+export interface ReturnReason {
+  label: string;
+  selected?: boolean;
+}
+
+export interface ReturnOption {
+  label: string;
+  subtitle: string;
+  selected?: boolean;
+}
+
+export interface ReturnData {
+  productName: string;
+  orderId: string;
+  deliveredDate?: string;
+  reasons: ReturnReason[];
+  options: ReturnOption[];
+  policyNote?: string;
+}
+
+export interface ReorderItem {
+  name: string;
+  price: number;
+  emoji?: string;
+}
+
+export interface ReorderData {
+  items: ReorderItem[];
+  total: number;
+  currency: string;
+  daysSinceOrder?: number;
+}
+
+export interface SubscriptionFrequency {
+  label: string;
+  discount: string;
+  price: string;
+  selected?: boolean;
+}
+
+export interface SubscriptionData {
+  productName: string;
+  productDesc?: string;
+  oneTimePrice: number;
+  currency: string;
+  frequencies: SubscriptionFrequency[];
+  emoji?: string;
+  color?: string;
+}
+
+export interface LoyaltyData {
+  tierName: string;
+  points: number;
+  nextTier?: string;
+  pointsToNext?: number;
+  progressPercent: number;
+  redeemableValue?: string;
+  perks?: Array<{ label: string; value: string; emoji?: string; color?: string }>;
+}
+
+export interface WishlistItem {
+  name: string;
+  price: number;
+  originalPrice?: number;
+  flag?: string;
+  flagColor?: string;
+  emoji?: string;
+}
+
+export interface ReferralData {
+  givesAmount: string;
+  getsAmount: string;
+  code: string;
+  currency: string;
+  friendsJoined?: number;
+  totalEarned?: string;
+}
+
+export interface SocialProofStat {
+  value: string;
+  label: string;
+}
+
+export interface SocialProofData {
+  stats: SocialProofStat[];
+  badges?: string[];
+  certifications?: string[];
+}
+
+export interface FeedbackData {
+  productName: string;
+  deliveredAgo?: string;
+  rewardPoints?: number;
+  maxStars?: number;
+}
+
+export interface BookingSlot {
+  time: string;
+  selected?: boolean;
+}
+
+export interface BookingData {
+  title: string;
+  subtitle?: string;
+  slots: BookingSlot[];
+  includes?: string[];
+  ctaLabel?: string;
+  price?: string;
+  color?: string;
+}

@@ -48,5 +48,68 @@ export const RELAY_BLOCK_SCHEMAS = `RESPOND ONLY IN JSON. Choose the most approp
 {"type":"handoff","text":"...","handoffOptions":[{"id":"...","type":"whatsapp","label":"WhatsApp Us","value":"+91...","icon":"💬","description":"Usually replies within 5 min"}],"title":"...","subtitle":"...","suggestions":["..."]}
 — For connecting visitor to a human agent. Option types: "whatsapp", "phone", "callback", "chat". Use when AI cannot resolve the query or visitor explicitly asks for human support.
 
+{"type":"skin_quiz","text":"...","quizStep":{"question":"What's your skin type?","hint":"This helps us recommend the right products","options":[{"label":"Oily","selected":false},{"label":"Dry","selected":false},{"label":"Combination","selected":false},{"label":"Normal","selected":false}],"currentStep":1,"totalSteps":3},"suggestions":["..."]}
+— For interactive quizzes, skin assessments, product finders. Use when helping customer find their match.
+
+{"type":"concern_picker","text":"...","concerns":[{"id":"acne","label":"Acne & Breakouts","icon":"🔴"},{"id":"aging","label":"Fine Lines","icon":"✨"},{"id":"dark_spots","label":"Dark Spots","icon":"🌑"}],"suggestions":["..."]}
+— For selecting skin concerns, preferences, or categories. Use when narrowing down customer needs.
+
+{"type":"product_detail","text":"...","productDetail":{"id":"...","name":"...","brand":"...","description":"...","price":29,"currency":"$","originalPrice":39,"rating":4.8,"reviewCount":2340,"badge":"BESTSELLER","emoji":"✨","color":"#A2845B","sizes":["30ml","50ml","100ml"],"features":["Hydrating","Non-comedogenic"],"ctaLabel":"Add to Bag"},"suggestions":["..."]}
+— For showing a single product in detail with full specs, sizes, and CTA. Use when customer asks about a specific product.
+
+{"type":"ingredients","text":"...","ingredients":[{"name":"Hyaluronic Acid","role":"Deep hydration and plumping","concentration":"2%"},{"name":"Niacinamide","role":"Pore minimizing and brightening","concentration":"5%"}],"certifications":["Vegan","Cruelty-free","Clean Beauty"],"suggestions":["..."]}
+— For showing ingredient breakdowns and certifications. Use when customer asks what's in a product.
+
+{"type":"shade_finder","text":"...","shadeOptions":[{"label":"Cool","gradient":"linear-gradient(135deg,#F5D0C5,#E8B4A6)","selected":false},{"label":"Neutral","gradient":"linear-gradient(135deg,#F0C9A0,#DEB887)","selected":true},{"label":"Warm","gradient":"linear-gradient(135deg,#D4A574,#C19660)","selected":false}],"shadeMatch":{"name":"Honey Beige","subtitle":"Neutral · Medium","swatchGradient":"linear-gradient(135deg,#D4A574,#C19660)"},"suggestions":["..."]}
+— For shade/color matching tools. Use when customer needs help finding their shade.
+
+{"type":"routine_builder","text":"...","routine":{"amSteps":[{"name":"Gentle Cleanser","price":24},{"name":"Vitamin C Serum","price":38}],"pmSteps":[{"name":"Oil Cleanser","price":28},{"name":"Retinol Serum","price":45}],"totalPrice":135,"discountPercent":15,"skinProfile":"combination"},"suggestions":["..."]}
+— For personalized skincare/beauty routines. Use after quiz or when recommending a regimen.
+
+{"type":"bundle","text":"...","bundleData":{"title":"Glow Essentials Set","items":[{"name":"Cleanser","price":24},{"name":"Serum","price":38},{"name":"Moisturizer","price":32}],"originalTotal":94,"bundlePrice":75,"badge":"SAVE 20%","color":"#A2845B"},"suggestions":["..."]}
+— For curated product bundles or gift sets with savings. Use when suggesting value sets.
+
+{"type":"gift_card","text":"...","giftCard":{"amounts":[25,50,75,100],"currency":"$","brandName":"Beauty Co","color":"#A2845B"},"suggestions":["..."]}
+— For gift card purchase. Use when customer wants to buy a gift.
+
+{"type":"cart","text":"...","cart":{"items":[{"name":"Vitamin C Serum","variant":"30ml","price":38,"emoji":"✨"},{"name":"Moisturizer","variant":"50ml","price":32,"emoji":"💧"}],"subtotal":70,"discount":10,"discountLabel":"GLOW10","shipping":0,"total":60,"promoCode":"GLOW10"},"suggestions":["..."]}
+— For showing shopping cart/bag contents with totals. Use when customer asks about their bag or to review items.
+
+{"type":"checkout","text":"...","checkout":{"total":60,"currency":"$","methods":[{"label":"Credit Card","subtitle":"Visa, Mastercard, Amex","selected":true},{"label":"PayPal","subtitle":"Pay securely","selected":false},{"label":"Apple Pay","subtitle":"One-tap checkout","selected":false}]},"suggestions":["..."]}
+— For payment method selection. Use when customer proceeds to checkout.
+
+{"type":"order_confirmed","text":"...","confirmation":{"orderId":"ORD-7829","items":[{"name":"Vitamin C Serum","price":"$38"},{"name":"Moisturizer","price":"$32"}],"total":60,"currency":"$","shipping":"Standard (3-5 days)","estimatedDelivery":"Apr 12-14"},"suggestions":["..."]}
+— For order confirmation with success state. Use after successful payment.
+
+{"type":"order_tracker","text":"...","tracker":{"orderId":"ORD-7829","orderDate":"Apr 8, 2025","steps":["Placed","Packed","Shipped","Out for Delivery","Delivered"],"currentStep":"Shipped","carrier":"FedEx","estimatedArrival":"Apr 12"},"suggestions":["..."]}
+— For tracking order status with progress stepper. Use when customer asks about order status.
+
+{"type":"return_exchange","text":"...","returnData":{"productName":"Vitamin C Serum 30ml","orderId":"ORD-7829","deliveredDate":"Apr 12","reasons":[{"label":"Wrong item","selected":false},{"label":"Damaged","selected":false},{"label":"Changed mind","selected":true}],"options":[{"label":"Refund","subtitle":"5-7 business days"},{"label":"Exchange","subtitle":"Free shipping"},{"label":"Store Credit","subtitle":"Instant + 10% bonus"}],"policyNote":"Free returns within 30 days of delivery"},"suggestions":["..."]}
+— For processing returns or exchanges. Use when customer wants to return an item.
+
+{"type":"quick_reorder","text":"...","reorderData":{"items":[{"name":"Gentle Cleanser","price":24,"emoji":"🧴"},{"name":"SPF Moisturizer","price":32,"emoji":"☀️"}],"total":56,"currency":"$","daysSinceOrder":28},"suggestions":["..."]}
+— For quick reordering of previous purchases. Use when customer wants to reorder or items may be running low.
+
+{"type":"subscription","text":"...","subscriptionData":{"productName":"Vitamin C Serum","productDesc":"30ml · Award-winning formula","oneTimePrice":38,"currency":"$","frequencies":[{"label":"Every 4 weeks","discount":"Save 20%","price":"$30.40","selected":true},{"label":"Every 6 weeks","discount":"Save 15%","price":"$32.30","selected":false},{"label":"Every 8 weeks","discount":"Save 10%","price":"$34.20","selected":false}],"emoji":"✨"},"suggestions":["..."]}
+— For subscribe & save options. Use when customer buys repeatedly or asks about subscriptions.
+
+{"type":"loyalty","text":"...","loyaltyData":{"tierName":"Gold Member","points":2450,"nextTier":"Platinum","pointsToNext":550,"progressPercent":82,"redeemableValue":"$24.50","perks":[{"label":"Points multiplier","value":"2x","emoji":"⚡"},{"label":"Free shipping","value":"Always","emoji":"🚚"},{"label":"Early access","value":"48h","emoji":"🎯"}]},"suggestions":["..."]}
+— For loyalty program status and perks. Use when customer asks about points, rewards, or tier status.
+
+{"type":"wishlist","text":"...","wishlistItems":[{"name":"Retinol Serum","price":45,"originalPrice":55,"flag":"SALE","emoji":"✨"},{"name":"Eye Cream","price":38,"emoji":"👁️"}],"suggestions":["..."]}
+— For showing saved/wishlisted items. Use when customer asks about saved items or favorites.
+
+{"type":"referral","text":"...","referralData":{"givesAmount":"$10","getsAmount":"$10","code":"FRIEND10","currency":"$","friendsJoined":3,"totalEarned":"$30"},"suggestions":["..."]}
+— For referral/invite program. Use when customer asks about referring friends or earning rewards.
+
+{"type":"social_proof","text":"...","socialProofData":{"stats":[{"value":"50K+","label":"Happy customers"},{"value":"4.9","label":"Avg rating"},{"value":"98%","label":"Would recommend"}],"badges":["Editor's Pick 2025","Best of Beauty"],"certifications":["Dermatologist Tested","Hypoallergenic","Leaping Bunny Certified"]},"suggestions":["..."]}
+— For trust signals and social proof. Use when customer hesitates or asks about brand credibility.
+
+{"type":"feedback_request","text":"...","feedbackData":{"productName":"Vitamin C Serum","deliveredAgo":"3 days ago","rewardPoints":50},"suggestions":["..."]}
+— For post-purchase feedback/review request. Use after delivery confirmation or when checking in.
+
+{"type":"consultation","text":"...","bookingData":{"title":"Virtual Skin Consultation","subtitle":"15 min with a certified esthetician","slots":[{"time":"10:00 AM","selected":false},{"time":"11:30 AM","selected":true},{"time":"2:00 PM","selected":false},{"time":"3:30 PM","selected":false},{"time":"5:00 PM","selected":false},{"time":"6:30 PM","selected":false}],"includes":["Personalized skin analysis","Custom routine plan","Product samples"],"price":"Free"},"suggestions":["..."]}
+— For booking consultations or appointments with time slot selection. Use when customer wants expert advice.
+
 {"type":"text","text":"...","suggestions":["suggestion 1","suggestion 2","suggestion 3"]}
 — For general conversation. ALWAYS include 2-3 suggestions.`;

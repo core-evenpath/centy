@@ -31,6 +31,27 @@ export { default as ScheduleView } from "./ScheduleView";
 export { default as PromoCard } from "./PromoCard";
 export { default as LeadCapture } from "./LeadCapture";
 export { default as HandoffCard } from "./HandoffCard";
+export { default as SkinQuiz } from "./SkinQuiz";
+export { default as ConcernPicker } from "./ConcernPicker";
+export { default as ProductDetailCard } from "./ProductDetailCard";
+export { default as IngredientsList } from "./IngredientsList";
+export { default as ShadeFinderCard } from "./ShadeFinderCard";
+export { default as RoutineBuilderCard } from "./RoutineBuilderCard";
+export { default as BundleCard } from "./BundleCard";
+export { default as GiftCardBlock } from "./GiftCardBlock";
+export { default as CartSummary } from "./CartSummary";
+export { default as CheckoutCard } from "./CheckoutCard";
+export { default as OrderConfirmation } from "./OrderConfirmation";
+export { default as OrderTrackerCard } from "./OrderTrackerCard";
+export { default as ReturnExchange } from "./ReturnExchange";
+export { default as QuickReorder } from "./QuickReorder";
+export { default as SubscriptionCard } from "./SubscriptionCard";
+export { default as LoyaltyCard } from "./LoyaltyCard";
+export { default as WishlistCard } from "./WishlistCard";
+export { default as ReferralCard } from "./ReferralCard";
+export { default as SocialProofCard } from "./SocialProofCard";
+export { default as FeedbackRequest } from "./FeedbackRequest";
+export { default as ConsultationBooking } from "./ConsultationBooking";
 
 export type {
   PricingTier,
@@ -40,4 +61,38 @@ export type {
   PromoOffer,
   LeadField,
   HandoffOption,
+  QuizOption,
+  QuizStep,
+  ConcernOption,
+  ProductDetailData,
+  IngredientItem,
+  ShadeOption,
+  ShadeMatch,
+  RoutineStep,
+  RoutineData,
+  BundleItem,
+  BundleData,
+  GiftCardData,
+  CartItem,
+  CartData,
+  PaymentMethod,
+  CheckoutData,
+  ConfirmationItem,
+  ConfirmationData,
+  OrderTrackerData,
+  ReturnReason,
+  ReturnOption,
+  ReturnData,
+  ReorderItem,
+  ReorderData,
+  SubscriptionFrequency,
+  SubscriptionData,
+  LoyaltyData,
+  WishlistItem,
+  ReferralData,
+  SocialProofStat,
+  SocialProofData,
+  FeedbackData,
+  BookingSlot,
+  BookingData,
 } from "./types";
