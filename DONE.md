@@ -566,3 +566,62 @@ The AI receives a one-line summary of what the customer sees:
 - Server action imports `registerAllBlocks` from blocks/index.ts which imports 'use client' components — works in Next.js (stores component references, doesn't render them)
 - Registry initialization uses lazy `ensureRegistry()` pattern to avoid startup overhead
 - Pre-existing TypeScript error in BusinessProfileTab.tsx unchanged
+
+---
+
+# Phase 6 — Module Derivation from Block Data Contracts — DONE
+
+## Date: 2026-04-04
+
+## Files Created
+- `src/actions/module-derivation-actions.ts` — 5 server actions for deriving module schemas from block data contracts
+
+## Files Modified
+- (none)
+
+## Server Action Inventory
+| Action | Purpose |
+|--------|---------|
+| `deriveModuleSchemaAction(blockIds[])` | Merge data contracts from selected blocks → DerivedField[] with provenance |
+| `deriveSchemaForVerticalAction(verticalId)` | Auto-select all blocks for a vertical (+ shared) → derive schema |
+| `compareWithExistingModuleAction(moduleId, blockIds[])` | Diff: current module schema vs block-derived schema (added/removed/unchanged/modified) |
+| `applyDerivedSchemaAction(moduleId, fields, options)` | Apply derived fields to existing module (add_only or full_replace, keep orphaned fields) |
+| `getFieldProvenanceAction(blockIds[])` | Which blocks need which fields (for admin transparency) |
+
+## Architecture: How Modules Are Now Derived
+
+```
+BEFORE (AI-driven, fragile):
+  Admin creates module → AI guesses schema → AI generates block → hope they match
+
+AFTER (block-driven, deterministic):
+  Blocks define data contracts (Phase 1)
+    ↓
+  computeDataContract(blockIds) merges contracts
+    ↓
+  deriveModuleSchemaAction converts to ModuleFieldDefinitions
+    ↓
+  compareWithExistingModule shows diff
+    ↓
+  Admin reviews → applyDerivedSchema updates module
+    ↓
+  Partner fills module items → Session cache loads items → Blocks render items
+```
+
+## Key Design Decisions
+- DerivedField type is self-contained — does NOT import from @/lib/modules/types to avoid coupling
+- applyDerivedSchemaAction defaults to 'add_only' mode — never deletes fields without explicit opt-in
+- Orphaned fields (in current module but not needed by blocks) are KEPT by default — admin decides
+- Field type mapping: rating→number, images→tags, everything else maps 1:1
+- Smart display defaults: SEARCHABLE_TYPES, LIST_TYPES, CARD_TYPES sets determine field visibility
+- trackFieldProvenance helper reused across deriveModuleSchema and getFieldProvenance actions
+- deriveSchemaForVerticalAction includes 'shared' family blocks alongside vertical-specific blocks
+- Required fields sorted first, then optional — alphabetically within each group
+
+## Validation
+- [x] `npx tsc --noEmit` — PASSED (only pre-existing error in BusinessProfileTab.tsx)
+- [x] File exists — PASSED
+- [x] All 5 actions exported — PASSED
+- [x] No modification to existing module files — PASSED
+- [x] No circular imports — PASSED
+- [x] Pre-existing TypeScript error in BusinessProfileTab.tsx unchanged
