@@ -718,3 +718,68 @@ systemFlowTemplates                       systemFlowTemplates (same collection)
 - [x] File exists — PASSED
 - [x] All 9 actions exported — PASSED
 - [x] Existing partner files not modified — PASSED
+
+---
+
+# Phase 9 — Widget Runtime — DONE
+
+## Date: 2026-04-04
+
+## Files Created
+- `src/components/relay/RegistryBlockRenderer.tsx` — Registry lookup + render any block by ID
+- `src/components/relay/HomeScreenRenderer.tsx` — Bento grid from preloaded blocks
+- `src/components/relay/ChatInterface.tsx` — Conversation view with blocks + AI text + suggestion chips
+- `src/components/relay/RelayWidget.tsx` — Top-level container: session init + tab switching
+
+## Files Modified
+- (none — existing RelayFullPage.tsx and blocks/BlockRenderer.tsx untouched)
+
+## Runtime Pipeline
+```
+Page Load (partnername.pingbox.io):
+  → RelayWidget mounts with partnerId
+  → loadRelaySessionAction(partnerId)               [~500ms, 6 parallel Firestore queries]
+  → buildRelaySession(data) + resolvePreloadData()   [<20ms, build cache + pre-resolve blocks]
+  → Render HomeScreen with preloaded blocks           [instant]
+  → Widget is interactive
+
+User Types / Taps:
+  → classifyIntent(message, cache)                   [<5ms, synchronous]
+  → resolveBlock(intent, cache)                      [<20ms, synchronous]
+  → RegistryBlockRenderer renders block immediately   [<50ms total]
+  → IN PARALLEL: generateRelayResponseAction(...)    [~1000ms]
+  → AI text merges into the assistant message
+  → Follow-up chips appear below
+```
+
+## Component Architecture
+```
+RelayWidget (container)
+  ├── Header (brand name + avatar + Browse/Chat tabs)
+  ├── HomeScreenRenderer (browse-first view)
+  │     └── RegistryBlockRenderer × N (one per preloaded block)
+  └── ChatInterface (conversation view)
+        ├── Message bubbles
+        │     ├── Customer bubble (accent, right-aligned)
+        │     └── Assistant bubble (left-aligned)
+        │           ├── RegistryBlockRenderer (if block resolved)
+        │           ├── AI text (if RAG responded)
+        │           └── Suggestion chips (tappable)
+        ├── Loading indicator
+        └── Input bar (text field + send button)
+```
+
+## Key Adaptations from Spec
+- Named `RegistryBlockRenderer` to avoid conflict with existing `blocks/BlockRenderer.tsx`
+- Used `loadRelaySessionAction` (not `initRelaySessionAction`) — matched actual export
+- `buildRelaySession()` returns `RelaySessionCache`, not `{ cache, preloadedBlocks }` — called `resolvePreloadData()` separately
+- Built theme manually from `DEFAULT_THEME` + `brand.accentColor` — no `getTheme()` on cache
+- `findLastIndex` works fine with `lib: ["esnext"]` in tsconfig
+- Used `className="animate-spin"` on Loader2 (Tailwind utility available in existing codebase for lucide icons)
+
+## Validation
+- [x] `npx tsc --noEmit` — PASSED (only pre-existing error in BusinessProfileTab.tsx)
+- [x] All 4 component files exist — PASSED
+- [x] All components are 'use client' — PASSED
+- [x] No direct Firestore imports in components — PASSED
+- [x] Import chain connects all phases — PASSED
