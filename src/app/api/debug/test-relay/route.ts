@@ -145,22 +145,25 @@ export async function GET(request: NextRequest) {
             }
         }
 
-        // ── Test 6: Check relay block configs exist ──────────────────
+        // ── Test 6: Check block registry health ──────────────────────
         if (run === 'all') {
             try {
-                const snap = await adminDb.collection('relayBlockConfigs').limit(10).get();
-                results.relayBlockConfigs = {
-                    status: snap.size > 0 ? 'PASS' : 'WARN (empty)',
-                    count: snap.size,
-                    configs: snap.docs.map(d => ({
-                        id: d.id,
-                        label: d.data().label,
-                        blockType: d.data().blockType,
-                        moduleSlug: d.data().moduleSlug,
+                const { registerAllBlocks } = await import('@/lib/relay/blocks/index');
+                const { listBlocks, getRegistrySize } = await import('@/lib/relay/registry');
+                registerAllBlocks();
+                const size = getRegistrySize();
+                const blocks = listBlocks();
+                results.blockRegistry = {
+                    status: size > 0 ? 'PASS' : 'WARN (empty)',
+                    count: size,
+                    blocks: blocks.slice(0, 10).map(b => ({
+                        id: b.id,
+                        label: b.label,
+                        family: b.family,
                     })),
                 };
             } catch (e: any) {
-                results.relayBlockConfigs = { status: 'ERROR', error: e.message };
+                results.blockRegistry = { status: 'ERROR', error: e.message };
             }
         }
 

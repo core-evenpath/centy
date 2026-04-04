@@ -112,12 +112,16 @@ async function main() {
         report('backfillRelayBlockConfigsAction', false, e.message);
     }
 
-    // ── Test 6: Check relayBlockConfigs collection ───────────────────
+    // ── Test 6: Check block registry ──────────────────────────────────
     try {
-        const snap = await adminDb.collection('relayBlockConfigs').limit(5).get();
-        report('relayBlockConfigs collection', true, `${snap.size} configs found${snap.size > 0 ? ': ' + snap.docs.map(d => d.data().label || d.id).join(', ') : ''}`);
+        const { registerAllBlocks } = await import('@/lib/relay/blocks/index');
+        const { listBlocks, getRegistrySize } = await import('@/lib/relay/registry');
+        registerAllBlocks();
+        const size = getRegistrySize();
+        const blocks = listBlocks();
+        report('block registry', true, `${size} blocks registered${size > 0 ? ': ' + blocks.slice(0, 5).map(b => b.label).join(', ') : ''}`);
     } catch (e: any) {
-        report('relayBlockConfigs collection', false, e.message);
+        report('block registry', false, e.message);
     }
 
     // ── Summary ──────────────────────────────────────────────────────

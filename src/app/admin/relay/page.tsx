@@ -3,8 +3,9 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 import { Zap, Plus, Package, Eye, GitBranch } from 'lucide-react';
-import { db } from '@/lib/firebase-admin';
 import { BackfillButton } from './BackfillButton';
+import { registerAllBlocks } from '@/lib/relay/blocks/index';
+import { listBlocks } from '@/lib/relay/registry';
 
 interface RelayBlockConfig {
     id: string;
@@ -16,27 +17,23 @@ interface RelayBlockConfig {
 }
 
 export default async function RelayBlocksPage() {
-    let configs: RelayBlockConfig[] = [];
+    registerAllBlocks();
+    const allBlocks = listBlocks();
 
-    try {
-        const snapshot = await db.collection('relayBlockConfigs').get();
-        configs = snapshot.docs.map(doc => ({
-            id: doc.id,
-            blockType: doc.data().blockType || 'card',
-            label: doc.data().label || doc.id,
-            moduleSlug: doc.data().moduleSlug || undefined,
-            applicableIndustries: doc.data().applicableIndustries || [],
-            status: doc.data().status || 'active',
-        }));
-    } catch {
-        // Collection may not exist yet — show empty state
-    }
+    const configs: RelayBlockConfig[] = allBlocks.map(b => ({
+        id: b.id,
+        blockType: b.family,
+        label: b.label,
+        moduleSlug: undefined,
+        applicableIndustries: b.applicableCategories,
+        status: 'active',
+    }));
 
     return (
         <div>
             <AdminHeader
                 title="Relay Blocks"
-                subtitle="AI response templates for the embeddable chat widget"
+                subtitle="Block definitions from the code registry (@/lib/relay/blocks/)"
                 actions={
                     <div className="flex items-center gap-2">
                         <Button variant="outline" size="sm" asChild>
@@ -61,9 +58,9 @@ export default async function RelayBlocksPage() {
                     <Card className="border-dashed">
                         <CardContent className="flex flex-col items-center justify-center py-16 text-center">
                             <Zap className="h-12 w-12 text-muted-foreground mb-4" />
-                            <h2 className="text-xl font-semibold mb-2">Relay Block Configs</h2>
+                            <h2 className="text-xl font-semibold mb-2">Relay Block Registry</h2>
                             <p className="text-muted-foreground mb-6 max-w-md">
-                                Block configs are auto-generated when modules are created via /admin/modules/new
+                                No blocks found in the code registry. Add block definitions in @/lib/relay/blocks/.
                             </p>
                             <Button asChild>
                                 <Link href="/admin/modules/new">
@@ -87,22 +84,13 @@ export default async function RelayBlocksPage() {
                                             <p className="text-sm text-muted-foreground mt-0.5">
                                                 Type: {config.blockType}
                                             </p>
-                                            {config.moduleSlug && (
-                                                <p className="text-xs text-muted-foreground mt-0.5">
-                                                    Module: {config.moduleSlug}
-                                                </p>
-                                            )}
                                             {config.applicableIndustries.length > 0 && (
                                                 <p className="text-xs text-muted-foreground mt-1">
-                                                    Industries: {config.applicableIndustries.join(', ')}
+                                                    Categories: {config.applicableIndustries.join(', ')}
                                                 </p>
                                             )}
                                         </div>
-                                        <span className={`text-xs px-2 py-1 rounded-full font-medium ${
-                                            config.status === 'active'
-                                                ? 'bg-green-100 text-green-700'
-                                                : 'bg-gray-100 text-gray-600'
-                                        }`}>
+                                        <span className="text-xs px-2 py-1 rounded-full font-medium bg-green-100 text-green-700">
                                             {config.status}
                                         </span>
                                     </div>
@@ -129,7 +117,7 @@ export default async function RelayBlocksPage() {
                                         <div className="text-2xl font-bold">
                                             {new Set(configs.flatMap(c => c.applicableIndustries)).size}
                                         </div>
-                                        <div className="text-sm text-muted-foreground">Industries Covered</div>
+                                        <div className="text-sm text-muted-foreground">Categories Covered</div>
                                     </div>
                                 </div>
                                 <Button variant="outline" size="sm" asChild>

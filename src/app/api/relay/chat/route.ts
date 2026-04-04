@@ -143,26 +143,11 @@ export async function POST(request: NextRequest) {
             }
         }
 
-        // Fetch correct block types from relayBlockConfigs
+        // Resolve block types from agentConfig (no Firestore lookup needed)
         const relayBlockTypes = new Map<string, string>();
-        if (moduleConfigs.length > 0) {
-            try {
-                const slugs = moduleConfigs.map(mc => `module_${mc.slug}`);
-                const chunkSize = 10;
-                for (let i = 0; i < slugs.length; i += chunkSize) {
-                    const chunk = slugs.slice(i, i + chunkSize);
-                    const snap = await adminDb.collection('relayBlockConfigs')
-                        .where('__name__', 'in', chunk)
-                        .get();
-                    snap.docs.forEach(doc => {
-                        const data = doc.data();
-                        if (data.moduleSlug && data.blockType) {
-                            relayBlockTypes.set(data.moduleSlug, data.blockType);
-                        }
-                    });
-                }
-            } catch {
-                // relayBlockConfigs not available — will fall back to module slug-based inference
+        for (const mc of moduleConfigs) {
+            if (mc.agentConfig.relayBlockType) {
+                relayBlockTypes.set(mc.slug, mc.agentConfig.relayBlockType);
             }
         }
 
