@@ -4,30 +4,11 @@ import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 import { Zap, Plus, Package, Eye, GitBranch } from 'lucide-react';
 import { BackfillButton } from './BackfillButton';
-import { registerAllBlocks } from '@/lib/relay/blocks/index';
-import { listBlocks } from '@/lib/relay/registry';
-
-interface RelayBlockConfig {
-    id: string;
-    blockType: string;
-    label: string;
-    moduleSlug?: string;
-    applicableIndustries: string[];
-    status: string;
-}
+import { getRelayBlockConfigsWithModulesAction } from '@/actions/relay-actions';
 
 export default async function RelayBlocksPage() {
-    registerAllBlocks();
-    const allBlocks = listBlocks();
-
-    const configs: RelayBlockConfig[] = allBlocks.map(b => ({
-        id: b.id,
-        blockType: b.family,
-        label: b.label,
-        moduleSlug: undefined,
-        applicableIndustries: b.applicableCategories,
-        status: 'active',
-    }));
+    const result = await getRelayBlockConfigsWithModulesAction();
+    const configs = result.success ? result.configs : [];
 
     return (
         <div>
@@ -84,9 +65,9 @@ export default async function RelayBlocksPage() {
                                             <p className="text-sm text-muted-foreground mt-0.5">
                                                 Type: {config.blockType}
                                             </p>
-                                            {config.applicableIndustries.length > 0 && (
+                                            {(config.applicableIndustries?.length ?? 0) > 0 && (
                                                 <p className="text-xs text-muted-foreground mt-1">
-                                                    Categories: {config.applicableIndustries.join(', ')}
+                                                    Categories: {(config.applicableIndustries || []).join(', ')}
                                                 </p>
                                             )}
                                         </div>
@@ -115,7 +96,7 @@ export default async function RelayBlocksPage() {
                                     </div>
                                     <div>
                                         <div className="text-2xl font-bold">
-                                            {new Set(configs.flatMap(c => c.applicableIndustries)).size}
+                                            {new Set(configs.flatMap(c => c.applicableIndustries || [])).size}
                                         </div>
                                         <div className="text-sm text-muted-foreground">Categories Covered</div>
                                     </div>

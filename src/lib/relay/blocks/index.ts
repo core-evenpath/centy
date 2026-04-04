@@ -12,7 +12,11 @@ import NudgeBlock, { definition as nudgeDef } from './shared/nudge';
 import SuggestionsBlock, { definition as suggestionsDef } from './shared/suggestions';
 import ContactBlock, { definition as contactDef } from './shared/contact';
 
+let registered = false;
+
 export function registerAllBlocks(): void {
+  if (registered) return;
+  registered = true;
   registerBlock(greetingDef, GreetingBlock);
   registerBlock(productCardDef, ProductCardBlock);
   registerBlock(productDetailDef, ProductDetailBlock);
