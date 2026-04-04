@@ -13,6 +13,7 @@ import type {
 import { generateFieldId, generateCategoryId, cleanAndParseJSON } from '@/lib/modules/utils';
 import { createSystemModuleAction, getSystemModuleAction } from './modules-actions';
 import { BULK_INDUSTRY_CONFIGS, DEFAULT_MODULE_SETTINGS } from '@/lib/modules/constants';
+import { getBlockMappingForFunction } from '@/lib/relay-block-taxonomy';
 import { db as adminDb } from '@/lib/firebase-admin';
 
 // ── Gemini client for module AI operations ──────────────────────────
@@ -2210,6 +2211,14 @@ BUSINESS TYPE: ${functionName}
 INDUSTRY: ${industryName}
 COUNTRY: ${countryCode}
 
+RELAY CHAT BLOCKS AVAILABLE FOR THIS BUSINESS TYPE:
+${(() => {
+    const mapping = getBlockMappingForFunction(functionId);
+    return `Primary blocks: ${mapping.primaryBlocks.join(', ')}\nSecondary blocks: ${mapping.secondaryBlocks.join(', ')}`;
+})()}
+
+These relay blocks define the interactive UI components available in the chat widget for this business type. When designing modules, consider how each module's data will power these blocks. For example, product catalog modules should leverage blocks like product_detail, compare, cart, checkout. Subscription modules map to the subscription block. Loyalty programs map to loyalty block. The agentConfig.relayBlockType should reference one of these available blocks when possible.
+
 Your task: Identify EVERY operational data module a real "${functionName}" business needs. Think about what this business manages day-to-day, week-to-week, season-to-season.
 
 DO NOT be generic. DO NOT give me "Inventory" or "Service Catalog". Give me modules specific to HOW "${functionName}" businesses actually operate.
@@ -2243,7 +2252,7 @@ For EACH module provide:
 - rationale: WHY this business needs this module (1 sentence)
 - isCoreBusiness: true for the PRIMARY revenue module, false for others
 - agentConfig: How AI agents should use this module's data:
-  - relayBlockType: "card" | "list" | "carousel" (how the chat widget renders items)
+  - relayBlockType: The relay block type for rendering. Use one of the available relay blocks listed above (e.g., "product_detail", "cart", "subscription", "loyalty") or a layout type: "card" | "list" | "carousel"
   - displayFields: 4-6 field IDs that should appear on item cards (use snake_case IDs you'd expect the schema to generate, e.g., "bed_type", "rack_rate", "duration_minutes")
   - cardTitle: field ID for the card title (usually "name")
   - cardSubtitle: field IDs for subtitle (e.g., "bed_type + room_size")

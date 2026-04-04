@@ -1024,8 +1024,8 @@ export default function VeilD2CDemo() {
       <div style={{ width: "280px", borderRight: `1px solid ${T.bdr}`, background: T.surface, display: "flex", flexDirection: "column", overflowY: "auto" }}>
         <div style={{ padding: "18px 16px 12px" }}>
           <div style={{ fontSize: "9px", fontWeight: 700, color: T.pri, textTransform: "uppercase", letterSpacing: "1.5px" }}>Relay Block System</div>
-          <div style={{ fontSize: "20px", fontWeight: 300, color: T.t1, lineHeight: 1.2, marginTop: "4px", fontFamily: "'Cormorant Garamond', Georgia, serif" }}>VEIL — Clean Beauty</div>
-          <div style={{ fontSize: "10px", color: T.t3, marginTop: "3px" }}>US-based D2C skincare · DTC.com model</div>
+          <div style={{ fontSize: "14px", fontWeight: 600, color: T.t1, lineHeight: 1.3, marginTop: "4px" }}>Retail & Commerce</div>
+          <div style={{ fontSize: "10px", color: T.t3, marginTop: "3px" }}>E-commerce / D2C Brand · Default Blocks</div>
           <div style={{ display: "flex", gap: "5px", marginTop: "8px" }}>
             <div style={{ padding: "4px 8px", background: T.bg, borderRadius: "5px", textAlign: "center" }}><div style={{ fontSize: "15px", fontWeight: 700, color: T.t1 }}>{totalBlocks}</div><div style={{ fontSize: "7px", color: T.t4 }}>Total</div></div>
             <div style={{ padding: "4px 8px", background: T.priBg, borderRadius: "5px", textAlign: "center" }}><div style={{ fontSize: "15px", fontWeight: 700, color: T.pri }}>{newB}</div><div style={{ fontSize: "7px", color: T.pri }}>New</div></div>
