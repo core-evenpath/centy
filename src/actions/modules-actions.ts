@@ -280,16 +280,8 @@ export async function deleteSystemModuleAction(
 
         await moduleRef.delete();
 
-        try {
-            await adminDb.collection('relayBlockConfigs').doc(`block_${module.slug}`).delete();
-        } catch {}
-        try {
-            await adminDb.collection('relayBlockConfigs').doc(`module_${module.slug}`).delete();
-        } catch {}
-
         revalidatePath('/admin/modules');
         revalidatePath('/admin/relay');
-        revalidatePath('/admin/relay/blocks');
         return { success: true };
     } catch (error) {
         console.error('Error deleting system module:', error);
@@ -320,7 +312,6 @@ export async function bulkDeleteSystemModulesAction(
 
         for (let i = 0; i < docs.length; i += 500) {
             const batch = adminDb.batch();
-            const relayBatch = adminDb.batch();
             const chunk = docs.slice(i, i + 500);
 
             for (const doc of chunk) {
@@ -333,18 +324,14 @@ export async function bulkDeleteSystemModulesAction(
                 }
 
                 batch.delete(doc.ref);
-                relayBatch.delete(adminDb.collection('relayBlockConfigs').doc(`block_${module.slug}`));
-                relayBatch.delete(adminDb.collection('relayBlockConfigs').doc(`module_${module.slug}`));
                 deletedCount++;
             }
 
             await batch.commit();
-            try { await relayBatch.commit(); } catch {}
         }
 
         revalidatePath('/admin/modules');
         revalidatePath('/admin/relay');
-        revalidatePath('/admin/relay/blocks');
         return { success: true, data: { deletedCount, skippedCount } };
     } catch (error) {
         console.error('Error bulk deleting system modules:', error);
@@ -1808,7 +1795,7 @@ export async function removePartnerCustomFieldAction(
     }
 }
 
-// ── Relay Block Config Backfill ──────────────────────────────────────
+// ── Relay Block Config Backfill (deprecated — blocks now in code registry) ──
 
 export async function backfillRelayBlockConfigsAction(): Promise<{
     success: boolean;
@@ -1816,55 +1803,10 @@ export async function backfillRelayBlockConfigsAction(): Promise<{
     skipped: number;
     errors: string[];
 }> {
-    'use server';
-    let created = 0, skipped = 0;
-    const errors: string[] = [];
-
-    try {
-        const modulesSnapshot = await adminDb.collection('systemModules')
-            .where('status', '==', 'active')
-            .get();
-
-        for (const doc of modulesSnapshot.docs) {
-            const mod = doc.data();
-            if (!mod.agentConfig) {
-                skipped++;
-                continue;
-            }
-
-            const blockId = `block_${mod.slug}`;
-            try {
-                await adminDb.collection('relayBlockConfigs').doc(blockId).set({
-                    id: blockId,
-                    blockType: mod.agentConfig.relayBlockType || 'card',
-                    label: mod.name,
-                    description: mod.description || '',
-                    moduleSlug: mod.slug,
-                    moduleId: doc.id,
-                    applicableIndustries: mod.applicableIndustries || [],
-                    applicableFunctions: mod.applicableFunctions || [],
-                    dataSchema: {
-                        sourceCollection: 'moduleItems',
-                        sourceFields: mod.agentConfig.displayFields || [],
-                        displayTemplate: mod.agentConfig.relayBlockType || 'card',
-                        maxItems: 10,
-                        sortBy: 'sortOrder',
-                        sortOrder: 'asc',
-                    },
-                    agentConfig: mod.agentConfig,
-                    aiPromptFragment: mod.agentConfig.inboxContext || '',
-                    status: 'active',
-                    createdAt: new Date().toISOString(),
-                    updatedAt: new Date().toISOString(),
-                }, { merge: true });
-                created++;
-            } catch (e: any) {
-                errors.push(`${mod.slug}: ${e.message}`);
-            }
-        }
-
-        return { success: true, created, skipped, errors };
-    } catch (e: any) {
-        return { success: false, created, skipped, errors: [e.message] };
-    }
+    return {
+        success: true,
+        created: 0,
+        skipped: 0,
+        errors: ['Backfill is no longer needed — blocks are defined in @/lib/relay/blocks/ code registry'],
+    };
 }

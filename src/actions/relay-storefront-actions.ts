@@ -103,24 +103,34 @@ export const CATEGORY_MAP: Record<string, string> = {
   quick_actions: 'Actions',
 };
 
+function resolveBlockType(moduleData: Record<string, any>, systemModule?: Record<string, any>): string {
+  if (systemModule?.agentConfig?.relayBlockType) {
+    return systemModule.agentConfig.relayBlockType;
+  }
+  if (moduleData.blockType) {
+    return moduleData.blockType;
+  }
+  return 'catalog';
+}
+
 export async function getRelayStorefrontDataAction(partnerId: string): Promise<{
   success: boolean;
   data?: RelayStorefrontData;
   error?: string;
 }> {
   try {
-    const [partnerDoc, modulesSnap, globalBlocksSnap, partnerBlocksSnap, relayConfigSnap, flowSnap, ragSnap] =
+    const [partnerDoc, modulesSnap, partnerBlocksSnap, relayConfigSnap, flowSnap, ragSnap] =
       await Promise.all([
         adminDb.collection('partners').doc(partnerId).get(),
         adminDb
           .collection(`partners/${partnerId}/businessModules`)
           .where('enabled', '==', true)
           .get(),
-        adminDb.collection('relayBlockConfigs').get(),
         adminDb
           .collection(`partners/${partnerId}/relayConfig/blocks`)
           .orderBy('sortOrder', 'asc')
-          .get(),
+          .get()
+          .catch(() => null),
         adminDb.collection(`partners/${partnerId}/relayConfig`).doc('config').get(),
         adminDb.collection(`partners/${partnerId}/relayConfig`).doc('flowDefinition').get(),
         adminDb
@@ -136,43 +146,59 @@ export async function getRelayStorefrontDataAction(partnerId: string): Promise<{
     const personality = persona?.personality;
     const relayConfig = relayConfigSnap.exists ? relayConfigSnap.data() : null;
 
-    const hasPartnerBlocks = !partnerBlocksSnap.empty;
+    const hasPartnerBlocks = partnerBlocksSnap && !partnerBlocksSnap.empty;
 
     let modules: RelayModuleEntry[];
 
     if (hasPartnerBlocks) {
-      modules = partnerBlocksSnap.docs
+      modules = partnerBlocksSnap!.docs
         .filter(doc => doc.data().isVisible !== false)
         .map((doc) => {
           const data = doc.data();
+          const blockType = data.blockType || 'catalog';
           return {
             id: doc.id,
             slug: data.moduleSlug || '',
             name: data.customLabel || data.label || doc.id,
             description: data.customDescription || data.description,
-            iconName: data.iconName || MODULE_ICON_MAP[data.blockType] || 'Layers',
-            blockType: data.blockType || 'catalog',
+            iconName: data.iconName || MODULE_ICON_MAP[blockType] || 'Layers',
+            blockType,
             itemCount: 0,
-            category: data.category || CATEGORY_MAP[data.blockType] || 'Information',
+            category: data.category || CATEGORY_MAP[blockType] || 'Information',
           };
         });
     } else {
-      const blockConfigsBySlug = new Map<string, { blockType: string }>();
-      const blockConfigsById = new Map<string, { blockType: string }>();
-      globalBlocksSnap.docs.forEach((doc) => {
-        const data = doc.data();
-        if (data.moduleSlug) {
-          blockConfigsBySlug.set(data.moduleSlug, { blockType: data.blockType || 'catalog' });
+      const systemModulesBySlug = new Map<string, Record<string, any>>();
+
+      if (modulesSnap.size > 0) {
+        const slugs = modulesSnap.docs
+          .map((d) => d.data().moduleSlug)
+          .filter(Boolean) as string[];
+
+        if (slugs.length > 0) {
+          const chunkSize = 10;
+          for (let i = 0; i < slugs.length; i += chunkSize) {
+            const chunk = slugs.slice(i, i + chunkSize);
+            try {
+              const snap = await adminDb.collection('systemModules')
+                .where('slug', 'in', chunk)
+                .get();
+              snap.docs.forEach((doc) => {
+                const data = doc.data();
+                if (data.slug) {
+                  systemModulesBySlug.set(data.slug, data);
+                }
+              });
+            } catch {}
+          }
         }
-        blockConfigsById.set(doc.id, { blockType: data.blockType || 'catalog' });
-      });
+      }
 
       modules = modulesSnap.docs.map((doc) => {
         const data = doc.data();
         const slug = data.moduleSlug || '';
-        const blockConfig =
-          blockConfigsBySlug.get(slug) || blockConfigsById.get(`module_${slug}`) || null;
-        const blockType = blockConfig?.blockType || 'catalog';
+        const systemModule = systemModulesBySlug.get(slug);
+        const blockType = resolveBlockType(data, systemModule);
 
         return {
           id: doc.id,

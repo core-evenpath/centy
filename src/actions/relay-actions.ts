@@ -1,7 +1,17 @@
 'use server';
 
 import { db as adminDb } from '@/lib/firebase-admin';
-// ── Types ────────────────────────────────────────────────────────────
+import { registerAllBlocks } from '@/lib/relay/blocks/index';
+import { listBlocks, getRegistrySize } from '@/lib/relay/registry';
+
+let registryReady = false;
+
+function ensureRegistry(): void {
+  if (!registryReady) {
+    registerAllBlocks();
+    registryReady = true;
+  }
+}
 
 export interface RelayConfig {
     enabled: boolean;
@@ -48,7 +58,7 @@ export interface RelayBlockConfigDetail {
         sortOrder?: string;
     };
     blockTypeTemplate?: {
-        generatedBy: 'gemini' | 'manual' | 'default';
+        generatedBy: 'gemini' | 'manual' | 'default' | 'registry';
         generatedAt: string;
         subcategory: string;
         sampleData: Record<string, any>;
@@ -57,8 +67,6 @@ export interface RelayBlockConfigDetail {
     status: string;
     createdAt?: string;
 }
-
-// ── Get relay config ─────────────────────────────────────────────────
 
 export async function getRelayConfigAction(partnerId: string): Promise<{
     success: boolean;
@@ -83,8 +91,6 @@ export async function getRelayConfigAction(partnerId: string): Promise<{
     }
 }
 
-// ── Save relay config ────────────────────────────────────────────────
-
 export async function saveRelayConfigAction(
     partnerId: string,
     config: RelayConfig
@@ -106,15 +112,12 @@ export async function saveRelayConfigAction(
     }
 }
 
-// ── Run diagnostics ──────────────────────────────────────────────────
-
 export async function runRelayDiagnosticsAction(partnerId: string): Promise<{
     success: boolean;
     checks: DiagnosticCheck[];
 }> {
     const checks: DiagnosticCheck[] = [];
 
-    // Check 1: Widget config
     try {
         const snap = await adminDb
             .collection('partners')
@@ -131,7 +134,6 @@ export async function runRelayDiagnosticsAction(partnerId: string): Promise<{
         checks.push({ label: 'Widget Configuration', status: 'fail', description: 'Could not read config', fix: 'Check Firestore setup' });
     }
 
-    // Check 2: RAG Store
     try {
         const snap = await adminDb
             .collection('partners')
@@ -148,7 +150,6 @@ export async function runRelayDiagnosticsAction(partnerId: string): Promise<{
         checks.push({ label: 'RAG Store', status: 'warn', description: 'No RAG store found', fix: 'Upload documents in Core Memory' });
     }
 
-    // Check 3: Knowledge docs
     try {
         const snap = await adminDb
             .collection('partners')
@@ -165,7 +166,6 @@ export async function runRelayDiagnosticsAction(partnerId: string): Promise<{
         checks.push({ label: 'Knowledge Documents', status: 'warn', description: 'Could not check documents' });
     }
 
-    // Check 4: Module data
     try {
         const snap = await adminDb
             .collection('partners')
@@ -182,22 +182,20 @@ export async function runRelayDiagnosticsAction(partnerId: string): Promise<{
         checks.push({ label: 'Module Data', status: 'warn', description: 'Could not check modules' });
     }
 
-    // Check 5: Relay block configs (global)
     try {
-        const snap = await adminDb.collection('relayBlockConfigs').get();
-        if (snap.size > 0) {
-            checks.push({ label: 'Relay Block Configs', status: 'pass', description: `${snap.size} block config(s)` });
+        ensureRegistry();
+        const blockCount = getRegistrySize();
+        if (blockCount > 0) {
+            checks.push({ label: 'Block Registry', status: 'pass', description: `${blockCount} block(s) in code registry` });
         } else {
-            checks.push({ label: 'Relay Block Configs', status: 'warn', description: 'No relay block configs', fix: 'Generate modules in Admin > Modules' });
+            checks.push({ label: 'Block Registry', status: 'fail', description: 'No blocks registered', fix: 'Check @/lib/relay/blocks/ for block definitions' });
         }
     } catch {
-        checks.push({ label: 'Relay Block Configs', status: 'warn', description: 'Could not check block configs' });
+        checks.push({ label: 'Block Registry', status: 'fail', description: 'Registry failed to load' });
     }
 
     return { success: true, checks };
 }
-
-// ── Get conversations ────────────────────────────────────────────────
 
 export async function getRelayConversationsAction(partnerId: string): Promise<{
     success: boolean;
@@ -230,105 +228,74 @@ export async function getRelayConversationsAction(partnerId: string): Promise<{
 
         return { success: true, conversations };
     } catch {
-        // Collection may not exist yet
         return { success: true, conversations: [] };
     }
 }
 
-// ── Get all relay block configs with module details ─────────────────
-
-export async function getRelayBlockConfigsWithModulesAction(): Promise<{
+export async function getRelayBlockConfigsWithModulesAction(filters?: {
+    family?: string;
+    category?: string;
+}): Promise<{
     success: boolean;
     configs: RelayBlockConfigDetail[];
+    totalCount: number;
+    families: string[];
     error?: string;
 }> {
     try {
-        const snapshot = await adminDb.collection('relayBlockConfigs').get();
+        ensureRegistry();
 
-        const configs: RelayBlockConfigDetail[] = snapshot.docs.map(doc => {
-            const data = doc.data();
-            return {
-                id: doc.id,
-                blockType: data.blockType || 'card',
-                label: data.label || doc.id,
-                description: data.description || undefined,
-                moduleSlug: data.moduleSlug || undefined,
-                moduleId: data.moduleId || undefined,
-                applicableIndustries: data.applicableIndustries || [],
-                applicableFunctions: data.applicableFunctions || [],
-                agentConfig: data.agentConfig || undefined,
-                dataSchema: data.dataSchema || undefined,
-                blockTypeTemplate: data.blockTypeTemplate || undefined,
-                status: data.status || 'active',
-                createdAt: data.createdAt || undefined,
-            };
-        });
+        const allBlocks = listBlocks(filters ? {
+            family: filters.family,
+            category: filters.category,
+        } : undefined);
 
-        configs.sort((a, b) => {
-            const typeCompare = a.blockType.localeCompare(b.blockType);
-            if (typeCompare !== 0) return typeCompare;
-            return a.label.localeCompare(b.label);
-        });
+        const configs: RelayBlockConfigDetail[] = allBlocks.map((d) => ({
+            id: d.id,
+            blockType: d.family,
+            label: d.label,
+            description: d.description,
+            applicableIndustries: d.applicableCategories,
+            applicableFunctions: [],
+            agentConfig: {
+                intentKeywords: d.intentTriggers.keywords,
+                queryPatterns: d.intentTriggers.queryPatterns,
+                variants: d.variants,
+                preloadable: d.preloadable,
+                streamable: d.streamable,
+                cacheDuration: d.cacheDuration,
+            },
+            dataSchema: {
+                sourceFields: [
+                    ...d.dataContract.required.map((f) => f.field),
+                    ...d.dataContract.optional.map((f) => f.field),
+                ],
+                maxItems: 10,
+                sortBy: 'sortOrder',
+                sortOrder: 'asc',
+            },
+            blockTypeTemplate: {
+                generatedBy: 'registry' as const,
+                generatedAt: '',
+                subcategory: d.applicableCategories[0] || 'general',
+                sampleData: d.sampleData || {},
+                isDefault: false,
+            },
+            status: 'active',
+        }));
 
-        return { success: true, configs };
+        const familySet = new Set<string>();
+        const unfilteredBlocks = listBlocks();
+        unfilteredBlocks.forEach((d) => familySet.add(d.family));
+
+        return {
+            success: true,
+            configs,
+            totalCount: getRegistrySize(),
+            families: Array.from(familySet).sort(),
+        };
     } catch (e: any) {
-        console.error('Failed to get relay block configs:', e);
-        return { success: false, configs: [], error: e.message };
-    }
-}
-
-// ── Update a relay block config ─────────────────────────────────────
-
-export async function updateRelayBlockConfigAction(
-    id: string,
-    updates: Partial<Omit<RelayBlockConfigDetail, 'id'>>
-): Promise<{ success: boolean; error?: string }> {
-    try {
-        const docRef = adminDb.collection('relayBlockConfigs').doc(id);
-        const doc = await docRef.get();
-
-        if (!doc.exists) {
-            return { success: false, error: 'Block config not found' };
-        }
-
-        await docRef.update({
-            ...updates,
-            updatedAt: new Date().toISOString(),
-        });
-
-        const { revalidatePath } = await import('next/cache');
-        revalidatePath('/admin/relay/blocks');
-        revalidatePath('/admin/relay');
-
-        return { success: true };
-    } catch (e: any) {
-        console.error('Failed to update relay block config:', e);
-        return { success: false, error: e.message };
-    }
-}
-
-// ── Delete a relay block config ─────────────────────────────────────
-
-export async function deleteRelayBlockConfigAction(
-    id: string
-): Promise<{ success: boolean; error?: string }> {
-    try {
-        const docRef = adminDb.collection('relayBlockConfigs').doc(id);
-        const doc = await docRef.get();
-
-        if (!doc.exists) {
-            return { success: false, error: 'Block config not found' };
-        }
-
-        await docRef.delete();
-
-        const { revalidatePath } = await import('next/cache');
-        revalidatePath('/admin/relay/blocks');
-        revalidatePath('/admin/relay');
-
-        return { success: true };
-    } catch (e: any) {
-        console.error('Failed to delete relay block config:', e);
-        return { success: false, error: e.message };
+        console.error('Failed to get relay block configs from registry:', e);
+        return { success: false, configs: [], totalCount: 0, families: [], error: e.message };
     }
 }

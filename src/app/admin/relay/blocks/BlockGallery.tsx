@@ -5,10 +5,6 @@ import { DEFAULT_THEME } from '@/components/relay/blocks';
 import type { CatalogItem, ActivityItem, ContactMethod, RelayBlock } from '@/components/relay/blocks';
 import { BlockRenderer } from '@/components/relay/blocks';
 import type { RelayBlockConfigDetail } from '@/actions/relay-actions';
-import {
-    updateRelayBlockConfigAction,
-    deleteRelayBlockConfigAction,
-} from '@/actions/relay-actions';
 import { Card, CardContent } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
@@ -650,28 +646,12 @@ function EditPanel({ config, onUpdate, onDelete }: {
 
     const handleSave = async () => {
         setSaving(true);
-        const { id, ...updates } = draft;
-        const result = await updateRelayBlockConfigAction(id, updates);
-        if (result.success) {
-            toast.success('Block config saved');
-            onUpdate(config.id, draft);
-        } else {
-            toast.error(result.error || 'Failed to save');
-        }
+        toast.error('Block configs are now defined in code — edit @/lib/relay/blocks/ instead');
         setSaving(false);
     };
 
     const handleDelete = async () => {
-        if (!window.confirm(`Delete block config "${config.label}"?`)) return;
-        setDeleting(true);
-        const result = await deleteRelayBlockConfigAction(config.id);
-        if (result.success) {
-            toast.success('Deleted');
-            onDelete(config.id);
-        } else {
-            toast.error(result.error || 'Failed to delete');
-        }
-        setDeleting(false);
+        toast.error('Block configs are now defined in code — remove from @/lib/relay/blocks/ instead');
     };
 
     return (
