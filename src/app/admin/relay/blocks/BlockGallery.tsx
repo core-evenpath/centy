@@ -8,9 +8,6 @@ import type { RelayBlockConfigDetail } from '@/actions/relay-actions';
 import {
     updateRelayBlockConfigAction,
     deleteRelayBlockConfigAction,
-    regenerateBlockTemplateAction,
-    clearAllRelayBlockConfigsAction,
-    generateMissingRelayBlocksAction,
 } from '@/actions/relay-actions';
 import { Card, CardContent } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
@@ -34,9 +31,7 @@ import {
     Plus,
     Save,
     Trash2,
-    Sparkles,
     Loader2,
-    AlertTriangle,
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -369,9 +364,6 @@ export function BlockGallery({ configs: initialConfigs }: BlockGalleryProps) {
     const [activeFilter, setActiveFilter] = useState<string>('All');
     const [industryFilter, setIndustryFilter] = useState<string>('All');
     const [functionFilter, setFunctionFilter] = useState<string>('All');
-    const [generatingAll, setGeneratingAll] = useState(false);
-    const [clearingAll, setClearingAll] = useState(false);
-    const [showClearConfirm, setShowClearConfirm] = useState(false);
     const [selectedId, setSelectedId] = useState<string | null>(initialConfigs[0]?.id ?? null);
 
     const selectedConfig = useMemo(() => configs.find(c => c.id === selectedId) ?? null, [configs, selectedId]);
@@ -414,97 +406,8 @@ export function BlockGallery({ configs: initialConfigs }: BlockGalleryProps) {
         setConfigs(prev => prev.filter(c => c.id !== id));
     }, []);
 
-    const handleGenerateAll = async () => {
-        setGeneratingAll(true);
-        try {
-            const result = await generateMissingRelayBlocksAction();
-            if (result.success) {
-                toast.success(`Generated ${result.generated} block config(s)${result.errors.length > 0 ? `, ${result.errors.length} error(s)` : ''}`);
-                if (result.generated > 0) {
-                    window.location.reload();
-                }
-            } else {
-                toast.error('Failed to generate block configs');
-            }
-        } catch {
-            toast.error('Generation failed');
-        } finally {
-            setGeneratingAll(false);
-        }
-    };
-
-    const handleClearAll = async () => {
-        setClearingAll(true);
-        try {
-            const result = await clearAllRelayBlockConfigsAction();
-            if (result.success) {
-                toast.success(`Cleared ${result.count} block config(s)`);
-                setConfigs([]);
-            } else {
-                toast.error(result.error || 'Failed to clear');
-            }
-        } catch {
-            toast.error('Clear failed');
-        } finally {
-            setClearingAll(false);
-            setShowClearConfirm(false);
-        }
-    };
-
-    const handleConfigRegenerated = useCallback((id: string, updated: Partial<RelayBlockConfigDetail>) => {
-        setConfigs(prev => prev.map(c => c.id === id ? { ...c, ...updated } : c));
-    }, []);
-
     return (
         <div className="space-y-6">
-            <div className="flex flex-wrap items-center gap-3">
-                <Button
-                    size="sm"
-                    onClick={handleGenerateAll}
-                    disabled={generatingAll}
-                >
-                    {generatingAll ? (
-                        <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Generating...</>
-                    ) : (
-                        <><Sparkles className="mr-2 h-4 w-4" />Generate All Missing</>
-                    )}
-                </Button>
-
-                {!showClearConfirm ? (
-                    <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setShowClearConfirm(true)}
-                        disabled={configs.length === 0}
-                    >
-                        <Trash2 className="mr-2 h-4 w-4" />
-                        Clear All Configs
-                    </Button>
-                ) : (
-                    <div className="flex items-center gap-2 rounded-md border border-red-200 bg-red-50 px-3 py-1.5">
-                        <AlertTriangle className="h-4 w-4 text-red-500" />
-                        <span className="text-sm text-red-700">Delete all {configs.length} configs?</span>
-                        <Button
-                            variant="destructive"
-                            size="sm"
-                            onClick={handleClearAll}
-                            disabled={clearingAll}
-                            className="h-7"
-                        >
-                            {clearingAll ? <Loader2 className="h-3 w-3 animate-spin" /> : 'Confirm'}
-                        </Button>
-                        <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => setShowClearConfirm(false)}
-                            className="h-7"
-                        >
-                            Cancel
-                        </Button>
-                    </div>
-                )}
-            </div>
-
             {blockTypeDistribution.length > 0 && (
                 <div className="flex flex-wrap gap-1.5 mb-4">
                     {blockTypeDistribution.map(([type, count]) => (
@@ -606,7 +509,6 @@ export function BlockGallery({ configs: initialConfigs }: BlockGalleryProps) {
                                         handleConfigDelete(id);
                                         setSelectedId(filteredConfigs.find(c => c.id !== id)?.id ?? null);
                                     }}
-                                    onRegenerated={handleConfigRegenerated}
                                 />
                             </div>
                         ) : (
@@ -723,16 +625,14 @@ function PhonePreview({ config }: { config: RelayBlockConfigDetail }) {
     );
 }
 
-function EditPanel({ config, onUpdate, onDelete, onRegenerated }: {
+function EditPanel({ config, onUpdate, onDelete }: {
     config: RelayBlockConfigDetail;
     onUpdate: (id: string, updated: RelayBlockConfigDetail) => void;
     onDelete: (id: string) => void;
-    onRegenerated: (id: string, updated: Partial<RelayBlockConfigDetail>) => void;
 }) {
     const [draft, setDraft] = useState(config);
     const [saving, setSaving] = useState(false);
     const [deleting, setDeleting] = useState(false);
-    const [regenerating, setRegenerating] = useState(false);
     const [isOpen, setIsOpen] = useState(false);
 
     useEffect(() => {
@@ -774,18 +674,6 @@ function EditPanel({ config, onUpdate, onDelete, onRegenerated }: {
         setDeleting(false);
     };
 
-    const handleRegenerate = async () => {
-        setRegenerating(true);
-        const result = await regenerateBlockTemplateAction(config.id);
-        if (result.success) {
-            toast.success('Regenerated! Reload to see changes.');
-            onRegenerated(config.id, {});
-        } else {
-            toast.error(result.error || 'Failed to regenerate');
-        }
-        setRegenerating(false);
-    };
-
     return (
         <Card>
             <div
@@ -797,10 +685,6 @@ function EditPanel({ config, onUpdate, onDelete, onRegenerated }: {
                     <Badge variant="secondary" className="text-xs">{config.blockType}</Badge>
                 </div>
                 <div className="flex items-center gap-2">
-                    <Button size="sm" variant="outline" onClick={(e) => { e.stopPropagation(); handleRegenerate(); }} disabled={regenerating}>
-                        {regenerating ? <Loader2 className="w-3 h-3 animate-spin" /> : <Sparkles className="w-3 h-3" />}
-                        <span className="ml-1 text-xs">{regenerating ? 'Regenerating...' : 'Regenerate'}</span>
-                    </Button>
                     <ChevronDown className={`w-4 h-4 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
                 </div>
             </div>

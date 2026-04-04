@@ -28,7 +28,6 @@ import {
 } from '@/lib/modules/utils';
 import { DEFAULT_MODULE_SETTINGS } from '@/lib/modules/constants';
 import { syncModulesToCoreHub } from './core-hub-actions';
-import { generateRelayBlockForModule } from './relay-actions';
 
 /**
  * Trigger Core Hub sync in background after module changes
@@ -104,7 +103,7 @@ export async function getSystemModuleAction(
 
 export async function createSystemModuleAction(
     data: Omit<SystemModule, 'id' | 'createdAt' | 'updatedAt' | 'usageCount' | 'currentVersion' | 'schemaHistory' | 'migrations'>
-): Promise<ModulesActionResponse<{ moduleId: string; relayBlock: { success: boolean; blockId?: string; error?: string } }>> {
+): Promise<ModulesActionResponse<{ moduleId: string }>> {
     try {
         const existingSnapshot = await adminDb
             .collection('systemModules')
@@ -142,28 +141,8 @@ export async function createSystemModuleAction(
 
         await adminDb.collection('systemModules').doc(moduleId).set(moduleData);
 
-        let relayBlockResult: { success: boolean; blockId?: string; error?: string } = { success: false, error: 'Not attempted' };
-
-        try {
-            relayBlockResult = await generateRelayBlockForModule({
-                id: moduleId,
-                name: moduleData.name,
-                slug: moduleData.slug,
-                description: moduleData.description,
-                schema: moduleData.schema,
-                applicableIndustries: moduleData.applicableIndustries,
-                applicableFunctions: moduleData.applicableFunctions,
-                agentConfig: moduleData.agentConfig,
-            });
-        } catch (err) {
-            console.error(`⚠️ Relay block generation failed for ${moduleData.slug}:`, err);
-            relayBlockResult = { success: false, error: err instanceof Error ? err.message : 'Relay block generation failed' };
-        }
-
         revalidatePath('/admin/modules');
-        revalidatePath('/admin/relay');
-        revalidatePath('/admin/relay/blocks');
-        return { success: true, data: { moduleId, relayBlock: relayBlockResult } };
+        return { success: true, data: { moduleId } };
     } catch (error) {
         console.error('Error creating system module:', error);
         return { success: false, error: 'Failed to create system module' };
@@ -189,29 +168,8 @@ export async function updateSystemModuleAction(
             updatedAt: now,
         });
 
-        try {
-            const updatedDoc = await moduleRef.get();
-            const mod = updatedDoc.data();
-            if (mod?.slug) {
-                generateRelayBlockForModule({
-                    id: moduleId,
-                    name: mod.name,
-                    slug: mod.slug,
-                    description: mod.description,
-                    schema: mod.schema,
-                    applicableIndustries: mod.applicableIndustries,
-                    applicableFunctions: mod.applicableFunctions,
-                    agentConfig: mod.agentConfig,
-                }).catch(err => console.error(`⚠️ Relay block sync failed for ${mod.slug}:`, err));
-            }
-        } catch (relayError) {
-            console.error(`⚠️ Failed to sync relay block config for module ${moduleId}:`, relayError);
-        }
-
         revalidatePath('/admin/modules');
         revalidatePath(`/admin/modules/${moduleId}`);
-        revalidatePath('/admin/relay');
-        revalidatePath('/admin/relay/blocks');
         return { success: true };
     } catch (error) {
         console.error('Error updating system module:', error);
