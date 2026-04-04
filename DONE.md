@@ -304,3 +304,67 @@ All done in 3 incremental prompts modifying 1 file (852 → 909 lines).
 - Added `import type React from 'react'` to types.ts (not in original spec) because `React.ComponentType` in `BlockRegistryEntry` needs it in `.ts` files
 - All blocks follow the exact structure: `export const definition` + `export default function`
 - No existing files were modified
+
+---
+
+# Phase 2 — Session Cache + Pre-warming — DONE
+
+## Date: 2026-04-04
+
+## Files Modified
+- `src/lib/relay/types.ts` — Appended 7 session interfaces (~60 lines): SessionModuleItem, SessionBrand, SessionContact, SessionFlowStage, SessionFlowDefinition, SessionBlockOverride, RelaySessionData
+
+## Files Created
+- `src/actions/relay-session-actions.ts` — Server action: `loadRelaySessionAction()` fires 6 parallel Firestore queries via Promise.all, returns `RelaySessionData`
+- `src/lib/relay/session-cache.ts` — `RelaySessionCache` class: in-memory cache with moduleIndex, filterItems, searchItems, getVisibleBlockIds, isStale
+- `src/lib/relay/preloader.ts` — Orchestrator: `buildRelaySession()` creates cache, `resolvePreloadData()` pre-resolves preloadable blocks with data from cache
+
+## Architecture
+
+### Server Action (relay-session-actions.ts)
+Single `loadRelaySessionAction(partnerId)` does 6 parallel Firestore reads:
+1. Partner doc → brand name, logo, contact info
+2. Relay config → brandName, tagline, accentColor, emoji
+3. Partner blocks → block overrides (visibility, sort order)
+4. CoreHub items → all denormalized module items
+5. System modules → module metadata
+6. Flow templates → active flow matching partner's industry
+
+Returns a flat `RelaySessionData` payload ready for client-side caching.
+
+### Session Cache (session-cache.ts)
+`RelaySessionCache` class:
+- Builds `moduleIndex` (Map<string, items[]>) on construction for O(1) module lookups
+- `filterItems(moduleSlug?, tags?)` — filtered by module and/or tags
+- `searchItems(query)` — case-insensitive text search across name, description, tags
+- `getVisibleBlockIds()` — sorted visible block IDs from partner overrides
+- `isStale(maxAgeMs?)` — checks cache age (default 5 min)
+
+### Preloader (preloader.ts)
+- `buildRelaySession(data)` — wraps data in RelaySessionCache
+- `resolvePreloadData(cache)` — for each preloadable block in the session category:
+  - Resolves field data from cache items
+  - Injects contact info for support blocks
+  - Falls back to sampleData for missing required fields
+  - Returns `PreloadedBlock[]` ready for rendering
+
+## Firestore Paths Used
+- `partners/{partnerId}` — partner document
+- `partners/{partnerId}/relayConfig/config` — relay config
+- `partners/{partnerId}/relayConfig/blocks` — partner block overrides
+- `partners/{partnerId}/coreHub/data/items` — CoreHub items
+- `systemModules` — system module collection
+- `systemFlowTemplates` — flow templates (where status='active')
+
+## Validation
+- [x] `npx tsc --noEmit` — PASSED (only pre-existing error in BusinessProfileTab.tsx)
+- [x] All 3 new files exist — PASSED
+- [x] types.ts has 7 session interfaces — PASSED
+- [x] No circular imports — PASSED
+
+## Honesty Check
+- Partner blocks collection path uses flat `partners/{id}/relayConfig/blocks` (matching relay-block-actions.ts), not a nested subcollection
+- `blocks` field in RelaySessionData is currently empty array — block definitions come from the client-side registry, not Firestore
+- Category determination uses `industry?.id` with fallback to `industry?.name` lowercased, then `'general'`
+- Flow template matching checks both `industryId` and `functionId` against the category
+- Pre-existing TypeScript error in BusinessProfileTab.tsx unchanged
