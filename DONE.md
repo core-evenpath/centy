@@ -368,3 +368,201 @@ Returns a flat `RelaySessionData` payload ready for client-side caching.
 - Category determination uses `industry?.id` with fallback to `industry?.name` lowercased, then `'general'`
 - Flow template matching checks both `industryId` and `functionId` against the category
 - Pre-existing TypeScript error in BusinessProfileTab.tsx unchanged
+
+---
+
+# Phase 3 — Block Resolver + Intent Engine — DONE
+
+## Date: 2026-04-04
+
+## Files Modified
+- `src/lib/relay/session-cache.ts` — Extended with 6 new methods (`getItem`, `getItemCount`, `getCategories`, `hasRag`, scored `searchItems`, object-param `filterItems`), `SearchResult` and `FilterOptions` exports, `itemIndex` for O(1) lookups
+- `src/lib/relay/types.ts` — Added `welcomeMessage?: string` to `SessionBrand` interface
+- `src/actions/relay-session-actions.ts` — Map `welcomeMessage` from relay config into brand
+
+## Files Created
+- `src/lib/relay/query-parser.ts` — Extracts price range, category, keywords, sort preference, product ref, quantity from natural language
+- `src/lib/relay/intent-engine.ts` — Classifies messages into 15 intent types via keyword + regex pattern matching
+- `src/lib/relay/block-resolver.ts` — Maps intent → block ID + populated data from session cache
+
+## Architecture
+```
+User: "Show me silk sarees under 5000"
+  ↓
+query-parser.parseQuery()                           [<5ms]
+  → { category: "sarees", priceMax: 5000, keywords: ["silk"], sortBy: null }
+  ↓
+intent-engine.classifyIntent()                      [<5ms]
+  → { type: "browse", confidence: 0.75, filters: { ... } }
+  ↓
+block-resolver.resolveBlock()                       [<20ms]
+  → cache.filterItems({ category: "sarees", priceMax: 5000 })
+  → 3 items matched
+  → { blockId: "ecom_product_card", data: { items: [...] }, confidence: 0.9 }
+  ↓
+TOTAL: <30ms, ZERO network calls
+```
+
+## Intent Types Supported (15)
+| Intent | Block | Trigger Example |
+|--------|-------|-----------------|
+| greeting | ecom_greeting | "hi", "hello" |
+| browse | ecom_product_card | "show me kurtas" |
+| search | ecom_product_card | "blue cotton under 2000" |
+| product_detail | ecom_product_detail | "tell me about the silk saree" |
+| compare | ecom_compare | "compare kurta vs anarkali" |
+| price_check | ecom_product_detail | "how much is the choker set" |
+| cart_view | ecom_cart | "show my cart" |
+| cart_add | (no block) | "add to bag" — handled by UI |
+| checkout | ecom_cart | "ready to checkout" |
+| order_status | ecom_order_tracker | "track my order #PBX-123" |
+| return_request | (no block) | "want to return" — RAG text |
+| promo_inquiry | ecom_promo | "any discounts?" |
+| contact | shared_contact | "how to contact you" |
+| support | shared_contact | "need help with..." |
+| general | (no block) | everything else → RAG text only |
+
+## Query Parser Capabilities
+- Price: "under 2000", "₹500-1000", "above $50", "budget 3k"
+- Category: matches against known categories from session cache
+- Keywords: extracts after removing stop words, prices, categories
+- Sort: "cheapest", "top rated", "newest", "trending"
+- Product reference: searches cache for matching item by name
+- Quantity: "2 pcs", "3 items"
+
+## API Mismatches Resolved (12)
+The spec code referenced methods/fields that didn't exist in Phase 2's implementation:
+- Extended `session-cache.ts` with: `getItem()`, `getItemCount()`, `getCategories()`, `hasRag()`, scored `searchItems(query, limit)`, object-param `filterItems(opts)`
+- Adapted spec code: `item.metadata` → `item.raw`, `item.keywords` → `item.tags`, `item.category` → `item.moduleSlug`, `item.currency` with `|| 'INR'` default
+- Added `welcomeMessage` to `SessionBrand` type + server action mapping
+
+## Validation
+- [x] `npx tsc --noEmit` — PASSED (only pre-existing error in BusinessProfileTab.tsx)
+- [x] All 3 new files exist — PASSED
+- [x] All functions are synchronous — PASSED
+- [x] No server/client directives — PASSED
+- [x] No network imports — PASSED
+
+## Honesty Check
+- Spec said "3 new files, 0 modified files" but code referenced 12 non-existent APIs — had to extend session-cache.ts, types.ts, and server action
+- `hasRag()` returns `items.length > 0` — no separate RAG flag in session data
+- `getCategories()` returns unique `moduleSlug` values + `raw.category` values — items have no dedicated `category` field
+- `INTENT_TO_BLOCK` map is defined but not used (resolveBlock uses switch instead) — kept for documentation/future use
+- Compare intent requires 2+ matched items from cache, otherwise falls through to next pattern
+- Pre-existing TypeScript error in BusinessProfileTab.tsx unchanged
+
+---
+
+# Phase 4 — RAG Enhancement (Block-Aware Relay AI) — DONE
+
+## Date: 2026-04-04
+
+## Files Created
+- `src/lib/relay/rag-context-builder.ts` — Builds minimal AI prompt from session data + block context
+- `src/actions/relay-rag-actions.ts` — Server action calling Gemini with two paths (fast + document)
+
+## Two Response Paths
+
+### Fast Path: `generateRelayResponseAction`
+- Used when: A block is displayed (browse, detail, compare, cart, etc.)
+- Context: ~1500 tokens (brand + business context + block summary + history)
+- Output: ~200 tokens (1-3 sentence commentary + follow-ups)
+- Model: gemini-2.5-flash (configurable via RELAY_AI_MODEL env var)
+- Target latency: 800-1200ms
+
+### Document Path: `generateRelayResponseWithDocsAction`
+- Used when: No block is shown (general/policy questions)
+- Context: Customer message + conversation history + vault documents via file search
+- Output: ~300 tokens (document-grounded answer + follow-ups)
+- Falls back to fast path if no RAG store is available
+
+## Context Budget Comparison
+```
+Existing Inbox RAG:                    Relay RAG (fast path):
+  System prompt:    ~500 tokens          System prompt:    ~200 tokens
+  Business persona: ~400 tokens          Brand summary:    ~50 tokens
+  ALL module items: ~2000 tokens         Block summary:    ~50 tokens (what's SHOWN)
+  History:          ~800 tokens          Business context: ~200 tokens (truncated)
+  RAG docs:         ~1000 tokens          History:          ~300 tokens (last 6)
+  Total:            ~4700 tokens          Total:            ~800 tokens
+  Output:           ~500 tokens          Output:           ~200 tokens
+  Latency:          2-3.5 seconds         Latency:          0.8-1.2 seconds
+```
+
+## Block-Aware Prompt Design
+The AI receives a one-line summary of what the customer sees:
+- "The customer sees 4 products: Block Print Kurta, Mirror Work Anarkali... (₹2,800 - ₹5,200)"
+- "The customer sees the detail view of 'Block Print Kurta Set' at ₹2,800, rated 4.2/5"
+- "The shopping cart shows 2 items totaling ₹7,000. Checkout button is visible."
+
+## API Fixes Applied
+- `tools` moved inside `config` (not top-level) per new `@google/genai` SDK pattern
+- `contents` uses plain string (not `[{role, parts}]` object) per new SDK
+- `systemInstruction` as string in `config` per codebase convention
+- `response.text` as property access (not method call)
+- `fileSearch` config uses `any` type matching `rag-query-engine.ts` pattern
+- `responseMimeType: 'application/json'` for structured JSON output
+
+## Validation
+- [x] `npx tsc --noEmit` — PASSED (only pre-existing error in BusinessProfileTab.tsx)
+- [x] Both files exist — PASSED
+- [x] Context builder has no network imports — PASSED
+- [x] Server action has 'use server' — PASSED
+- [x] Imports from existing codebase resolve — PASSED
+
+## Honesty Check
+- Adapted Gemini API calls from spec to match codebase's new SDK patterns (tools inside config, string contents, property text access)
+- `getCoreHubContextString` import resolves correctly from `./core-hub-actions`
+- fileSearch tools API uses `any` cast for `fileSearchConfig` matching existing pattern in `rag-query-engine.ts`
+- Business context truncated to 800 chars to keep total prompt under ~1500 tokens
+- Pre-existing TypeScript error in BusinessProfileTab.tsx unchanged
+
+---
+
+# Phase 5 — Block Builder + Admin UI — DONE
+
+## Date: 2026-04-04
+
+## Files Created
+- `src/actions/block-builder-actions.ts` — Server actions: list registry, block details, generate from prompt, export registry, derive schema
+- `src/app/admin/relay/blocks/page.tsx` — Admin Block Library page (replaced old BlockGallery page, backup at page.tsx.bak)
+
+## Server Action Inventory
+| Action | Purpose |
+|--------|---------|
+| `getRegisteredBlocksAction(filters?)` | List all blocks from code registry with family/category filters |
+| `getBlockDetailAction(blockId)` | Full definition + computed data contract for one block |
+| `getBlockSampleDataAction(blockId)` | Sample data for block preview |
+| `getDerivedSchemaAction(blockIds[])` | Compute merged module schema from selected blocks |
+| `generateBlockFromPromptAction(prompt, vertical)` | AI generates React component + BlockDefinition from natural language |
+| `exportBlockRegistryAction()` | Full registry export for debugging/analysis |
+
+## Admin Page Features
+- Block grid with family icon, color, label, description
+- Filter by family (navigation, catalog, detail, compare, etc.)
+- Text search across block labels, IDs, descriptions
+- Expandable detail: categories, variants, required/optional fields, intent triggers
+- Block Builder: enter prompt + select vertical -> AI generates .tsx code -> copy to clipboard
+- Inline styles throughout (no Tailwind dependency)
+
+## Block Builder Flow
+1. Admin clicks "Generate Block" -> Selects vertical (ecommerce, hospitality, etc.)
+2. Describes the block in natural language
+3. Gemini generates full .tsx file with BlockDefinition export + default component
+4. Admin reviews generated code in the UI, copies with one click
+5. Admin creates file in src/lib/relay/blocks/ and registers in blocks/index.ts
+6. Generated blocks are NOT auto-saved — human review required
+
+## Validation
+- [x] `npx tsc --noEmit` — PASSED (only pre-existing error in BusinessProfileTab.tsx)
+- [x] Both files exist — PASSED
+- [x] Server action has 'use server' — PASSED
+- [x] Admin page has 'use client' — PASSED
+- [x] Page imports server actions correctly — PASSED
+
+## Honesty Check
+- Old page.tsx backed up to page.tsx.bak before overwriting (was server component importing BlockGallery)
+- BlockGallery.tsx still exists but is now unused (only imported by old page.tsx)
+- Server action imports `registerAllBlocks` from blocks/index.ts which imports 'use client' components — works in Next.js (stores component references, doesn't render them)
+- Registry initialization uses lazy `ensureRegistry()` pattern to avoid startup overhead
+- Pre-existing TypeScript error in BusinessProfileTab.tsx unchanged

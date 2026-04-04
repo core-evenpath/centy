@@ -132,6 +132,7 @@ export interface SessionBrand {
   emoji: string;
   accentColor: string;
   logoUrl?: string;
+  welcomeMessage?: string;
 }
 
 export interface SessionContact {
