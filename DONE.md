@@ -184,3 +184,123 @@ All done in 3 incremental prompts modifying 1 file (852 → 909 lines).
 1. `getRelayKnowledgeConfigAction(partnerId)` — reads `excludedVaultDocIds` from `partners/{partnerId}/relayConfig/config`, returns empty array if missing
 2. `updateRelayDocExclusionsAction(partnerId, excludedDocIds)` — writes exclusions with `merge: true` to preserve other relay config fields, revalidates `/partner/relay`
 3. `getVaultFilesForRelayAction(partnerId)` — reads active vault files ordered by createdAt desc, maps field names (`originalName || displayName || name || doc.id`), handles Firestore Timestamp vs string for createdAt
+
+---
+
+## Phase 0 — AI Block Generation Removal — DONE
+
+### Date: 2026-04-04
+
+### Files Modified
+- `src/actions/relay-actions.ts` — Removed 518 lines (AI block generation functions, Gemini client, prompts)
+- `src/actions/modules-actions.ts` — Removed relay block generation calls from create/update (46 lines changed)
+- `src/actions/relay-block-actions.ts` — Removed syncBlocksFromTemplatesAction + ICON_MAP/CAT_MAP (132 lines)
+- `src/actions/vertical-pipeline-actions.ts` — Removed relayBlocksCreated tracking (6 lines)
+- `src/app/admin/relay/blocks/BlockGallery.tsx` — Removed Generate All, Clear All, Regenerate buttons/handlers (118 lines)
+- `src/components/partner/relay/RelayStorefrontManager.tsx` — Removed Sync blocks button/handler (31 lines)
+- `src/components/admin/modules/UnifiedModuleCreator.tsx` — Removed relay block status UI (41 lines)
+
+### Files NOT Modified (confirmed unchanged)
+- `src/actions/relay-partner-actions.ts` — no changes needed
+- `src/actions/relay-storefront-actions.ts` — no changes needed
+- `src/actions/relay-knowledge-actions.ts` — no changes needed
+- `src/actions/flow-engine-actions.ts` — no changes needed
+- `src/actions/module-ai-actions.ts` — calls createSystemModuleAction but doesn't use relayBlock from result
+- `src/components/admin/modules/ModuleEditor.tsx` — calls createSystemModuleAction but only uses moduleId
+- `src/lib/relay-block-taxonomy.ts` — still imported by flow-engine.ts, not removed
+
+### What Was Removed
+- `generateRelayBlockForModule()` — AI-generated block configs from module schemas
+- `callGeminiForBlockTemplate()` — Gemini call for block template generation
+- `regenerateBlockTemplateAction()` — Re-generate a block template via AI
+- `clearAllRelayBlockConfigsAction()` — Bulk delete all relayBlockConfigs
+- `generateMissingRelayBlocksAction()` — Generate blocks for modules missing configs
+- `syncBlocksFromTemplatesAction()` — Sync partner blocks from system templates
+- `BLOCK_TYPE_PROMPT` — 140-line prompt constant
+- `VALID_BLOCK_TYPES` — Block type validation array
+- `ICON_MAP` / `CAT_MAP` — Block type to icon/category mapping
+- `GenerateRelayBlockModuleInput` — Interface for AI block generation input
+- `retryWithBackoff()` — Gemini retry helper
+- `wait()` — Sleep utility
+- GoogleGenAI import and client setup (`genAI`, `BLOCK_GEN_MODEL`)
+- relay-block-taxonomy import (from relay-actions only)
+- UI: "Generate All Missing" button, "Clear All Configs" button, "Regenerate" button, "Sync Blocks" button
+- Relay block status tracking in UnifiedModuleCreator and vertical-pipeline-actions
+
+### What Was Kept (verified present)
+- RelayConfig, DiagnosticCheck, RelayConversation, RelayBlockConfigDetail types
+- getRelayConfigAction, saveRelayConfigAction
+- runRelayDiagnosticsAction
+- getRelayConversationsAction
+- getRelayBlockConfigsWithModulesAction, updateRelayBlockConfigAction, deleteRelayBlockConfigAction
+- All partner block operations (get, toggle, reorder, update, remove)
+- All module CRUD (create, read, update, delete, publish schema)
+- All flow template CRUD
+- relay-partner-actions.ts (slug validation, lookup)
+- relay-storefront-actions.ts (storefront data)
+- relay-knowledge-actions.ts (vault file exclusions)
+
+### Downstream Fixes
+- BlockGallery.tsx: Removed Generate All, Clear All, Regenerate buttons and their handlers/state
+- RelayStorefrontManager.tsx: Removed Sync blocks button and handler
+- UnifiedModuleCreator.tsx: Removed relay block status from GenerationProgress interface and UI
+- vertical-pipeline-actions.ts: Removed relayBlocksCreated from PipelineResult summary
+
+### Validation
+- [x] `npx tsc --noEmit` — PASSED (only pre-existing error in BusinessProfileTab.tsx)
+- [x] No dangling references — PASSED (only flow-engine.ts importing relay-block-taxonomy, which is expected)
+- [x] All keeper functions verified present — PASSED
+
+### Honesty Check
+- Pre-existing TypeScript error in `src/components/partner/settings/BusinessProfileTab.tsx` — not introduced by this change
+- `src/lib/relay-block-taxonomy.ts` file itself was NOT deleted because `src/lib/flow-engine.ts` still imports from it
+- Module delete functions in modules-actions.ts still reference `relayBlockConfigs` Firestore collection for cleanup — this is correct CRUD behavior, not AI generation
+- Total: 882 deletions, 10 insertions across 7 files
+
+---
+
+# Phase 1 — Block Registry + E-Commerce Blocks — DONE
+
+## Date: 2026-04-04
+
+## Files Created
+- `src/lib/relay/types.ts` — BlockDefinition, DataContract, BlockTheme, BlockComponentProps types
+- `src/lib/relay/registry.ts` ��� registerBlock, getBlock, listBlocks, matchBlocksToIntent, computeDataContract
+- `src/lib/relay/blocks/index.ts` — Registration of all 11 blocks
+- `src/lib/relay/blocks/ecommerce/greeting.tsx` — Welcome + quick actions
+- `src/lib/relay/blocks/ecommerce/product-card.tsx` — Product catalog card
+- `src/lib/relay/blocks/ecommerce/product-detail.tsx` — Expanded product view
+- `src/lib/relay/blocks/ecommerce/compare.tsx` — Side-by-side comparison
+- `src/lib/relay/blocks/ecommerce/cart.tsx` — Shopping cart
+- `src/lib/relay/blocks/ecommerce/order-confirmation.tsx` — Order success
+- `src/lib/relay/blocks/ecommerce/order-tracker.tsx` — Shipment tracking
+- `src/lib/relay/blocks/ecommerce/promo.tsx` ��� Promotional offers (4 variants)
+- `src/lib/relay/blocks/shared/nudge.tsx` — Smart contextual prompt
+- `src/lib/relay/blocks/shared/suggestions.tsx` — Quick reply chips
+- `src/lib/relay/blocks/shared/contact.tsx` — Multi-channel contact
+
+## Block Registry Summary
+| Block ID | Family | Preloadable | Variants |
+|----------|--------|-------------|----------|
+| ecom_greeting | navigation | yes | 3 |
+| ecom_product_card | catalog | yes | 6 |
+| ecom_product_detail | detail | no | 3 |
+| ecom_compare | compare | no | 1 |
+| ecom_cart | cart | no | 3 |
+| ecom_order_confirmation | confirmation | no | 1 |
+| ecom_order_tracker | tracking | no | 1 |
+| ecom_promo | promo | yes | 4 |
+| shared_nudge | shared | yes | 4 |
+| shared_suggestions | shared | yes | 2 |
+| shared_contact | support | yes | 1 |
+
+## Validation
+- [x] `npx tsc --noEmit` — PASSED (only pre-existing error in BusinessProfileTab.tsx)
+- [x] All 14 files exist — PASSED
+- [x] All 11 blocks registered — PASSED
+- [x] No references to removed Phase 0 code — PASSED
+
+## Honesty Check
+- Added `import type React from 'react'` to types.ts (not in original spec) because `React.ComponentType` in `BlockRegistryEntry` needs it in `.ts` files
+- All blocks follow the exact structure: `export const definition` + `export default function`
+- No existing files were modified

@@ -3,7 +3,6 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   getPartnerBlockConfigsAction,
-  syncBlocksFromTemplatesAction,
   togglePartnerBlockVisibilityAction,
   reorderPartnerBlocksAction,
   removePartnerBlockAction,
@@ -20,7 +19,7 @@ import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
 import {
   Eye, EyeOff, ChevronUp, ChevronDown, Trash2,
-  RefreshCw, Loader2, Layers, Pencil, X, Save,
+  Loader2, Layers, Pencil, X, Save,
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -59,7 +58,6 @@ function buildTheme(accent: string): RelayTheme {
 export default function RelayStorefrontManager({ partnerId, accentColor }: RelayStorefrontManagerProps) {
   const [blocks, setBlocks] = useState<PartnerBlockConfig[]>([]);
   const [loading, setLoading] = useState(true);
-  const [syncing, setSyncing] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [editLabel, setEditLabel] = useState('');
 
@@ -97,23 +95,6 @@ export default function RelayStorefrontManager({ partnerId, accentColor }: Relay
       setEditLabel(selectedBlock.customLabel || selectedBlock.label);
     }
   }, [selectedBlock]);
-
-  const handleSync = async () => {
-    setSyncing(true);
-    try {
-      const result = await syncBlocksFromTemplatesAction(partnerId);
-      if (result.success) {
-        toast.success(`Synced: ${result.added} added, ${result.skipped} skipped`);
-        await loadBlocks();
-      } else {
-        toast.error(result.error || 'Failed to sync blocks');
-      }
-    } catch {
-      toast.error('Failed to sync blocks');
-    } finally {
-      setSyncing(false);
-    }
-  };
 
   const handleToggle = async (blockId: string, isVisible: boolean) => {
     setBlocks(prev => prev.map(b => b.id === blockId ? { ...b, isVisible } : b));
@@ -191,13 +172,9 @@ export default function RelayStorefrontManager({ partnerId, accentColor }: Relay
         <div>
           <p className="font-semibold text-lg">No storefront blocks yet</p>
           <p className="text-sm text-muted-foreground">
-            Sync blocks from your enabled modules to get started.
+            No blocks are configured for this storefront.
           </p>
         </div>
-        <Button onClick={handleSync} disabled={syncing}>
-          {syncing ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <RefreshCw className="h-4 w-4 mr-2" />}
-          Sync Blocks
-        </Button>
       </div>
     );
   }
@@ -212,10 +189,6 @@ export default function RelayStorefrontManager({ partnerId, accentColor }: Relay
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
             <CardTitle className="text-lg">Storefront Blocks</CardTitle>
-            <Button variant="outline" size="sm" onClick={handleSync} disabled={syncing}>
-              {syncing ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <RefreshCw className="h-4 w-4 mr-1" />}
-              Sync
-            </Button>
           </CardHeader>
           <CardContent>
             <div className="space-y-2">

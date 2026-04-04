@@ -18,7 +18,6 @@ export interface PipelineResult {
     modulesCreated: number;
     modulesSkipped: number;
     modulesFailed: { slug: string; error: string }[];
-    relayBlocksCreated: number;
     flowTemplateId?: string;
   };
   error?: string;
@@ -43,7 +42,6 @@ export async function runVerticalPipelineAction(
     modulesCreated: 0,
     modulesSkipped: 0,
     modulesFailed: [],
-    relayBlocksCreated: 0,
   };
 
   try {
@@ -149,10 +147,6 @@ export async function runVerticalPipelineAction(
       } else {
         console.log(`[Pipeline]   ↳ Created module ${createResult.data.moduleId}`);
         summary.modulesCreated++;
-        if (createResult.data.relayBlock?.success) {
-          summary.relayBlocksCreated++;
-          console.log(`[Pipeline]   ↳ Relay block created: ${createResult.data.relayBlock.blockId}`);
-        }
       }
 
       // Rate-limit delay between iterations
