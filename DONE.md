@@ -625,3 +625,96 @@ AFTER (block-driven, deterministic):
 - [x] No modification to existing module files — PASSED
 - [x] No circular imports — PASSED
 - [x] Pre-existing TypeScript error in BusinessProfileTab.tsx unchanged
+
+---
+
+# Phase 7 — Flow Composer (Block-Aware Enhancement) — DONE
+
+## Date: 2026-04-04
+
+## Files Created
+- `src/actions/flow-composer-actions.ts` — 8 server actions for block-aware flow composition
+
+## Files Modified
+- (none — existing flow-engine-actions.ts untouched)
+
+## Server Action Inventory
+| Action | Purpose |
+|--------|---------|
+| `getFlowBlockConfigAction(templateId)` | Read block enhancement fields from existing flow template |
+| `saveFlowBlockConfigAction(templateId, config)` | Save homeScreen + stageBlocks + preloadBlocks + cacheStrategy |
+| `updateHomeScreenAction(templateId, homeScreen)` | Update homescreen sections (validates block IDs against registry) |
+| `updateStageBlocksAction(templateId, stageId, config)` | Set eligible blocks + intent mappings for a stage |
+| `getAvailableBlocksForFlowAction(verticalId?)` | List all blocks available for a vertical (includes shared blocks) |
+| `generateDefaultHomeScreenAction(verticalId)` | Auto-generate a default homescreen for e-commerce |
+| `publishFlowAction(templateId)` | Collect all block IDs → derive module schema → set status active |
+| `unpublishFlowAction(templateId)` | Set status back to draft |
+
+## Enhancement Architecture
+```
+EXISTING (untouched):                     NEW (additive):
+systemFlowTemplates                       systemFlowTemplates (same collection)
+  ├── id, name, status                      ├── (all existing fields preserved)
+  ├── stages[]                               ├── homeScreen: { layout, sections[] }
+  ├── industryId, functionId                 ├── stageBlocks: [{ stageId, eligibleBlocks[], intentMappings[] }]
+  ├── createdAt, updatedAt                   ├── preloadBlocks: string[]
+  └── ...                                    ├── cacheStrategy: 'aggressive' | 'moderate' | 'none'
+                                             ├── publishedAt
+                                             ├── publishedBlockIds: string[]
+                                             └── publishedFieldCount: number
+```
+
+## Key Design Decisions
+- Additive only — new fields on existing Firestore docs, old templates without these fields work fine
+- Block ID validation — updateHomeScreen and updateStageBlocks verify blocks exist in registry before saving
+- Publish triggers derivation but does NOT auto-apply schema — admin reviews via Phase 6 compare/apply
+- Existing flow-engine-actions.ts is NOT modified — flow composer is a parallel enhancement layer
+
+## Validation
+- [x] `npx tsc --noEmit` — PASSED (only pre-existing error in BusinessProfileTab.tsx)
+- [x] File exists — PASSED
+- [x] All 8 actions exported — PASSED
+- [x] Existing flow-engine-actions not modified — PASSED
+- [x] No circular imports — PASSED
+
+---
+
+# Phase 8 — Partner Layer (Block Overrides + Customization) — DONE
+
+## Date: 2026-04-04
+
+## Files Created
+- `src/actions/relay-customization-actions.ts` — 9 server actions for partner block customization
+
+## Files Modified
+- (none — existing relay-partner-actions.ts and relay-storefront-actions.ts untouched)
+
+## Server Action Inventory
+| Action | Purpose |
+|--------|---------|
+| `getPartnerCustomizationAction(partnerId)` | Read block overrides + homescreen overrides |
+| `savePartnerCustomizationAction(partnerId, config)` | Save full customization doc |
+| `toggleBlockAction(partnerId, blockId, enabled)` | Enable/disable a specific block |
+| `setBlockFieldPriorityAction(partnerId, blockId, fields)` | Reorder which fields display first |
+| `setBlockLabelOverridesAction(partnerId, blockId, labels)` | Change CTA text, section titles |
+| `updateHomeScreenOverridesAction(partnerId, overrides)` | Reorder/hide homescreen sections |
+| `assignFlowToPartnerAction(partnerId, flowTemplateId)` | Link partner to a flow template |
+| `applyPartnerPromptAction(partnerId, prompt)` | Natural language → structured block overrides via Gemini |
+| `resetPartnerCustomizationAction(partnerId)` | Clear all customizations to defaults |
+
+## Storage Location
+`partners/{partnerId}/relayConfig/blockOverrides` — single Firestore doc containing blockOverrides map, homeScreenOverrides, flowTemplateId, updatedAt.
+
+## Key Design Decisions
+- Thin config layer — no component forking, blocks read overrides at render time
+- Natural language customization via Gemini — interprets prompts into structured field_priority/label_override/toggle/config changes
+- All block IDs validated against registry before saving
+- `adminDb` null check at top of applyPartnerPromptAction (before AI call) to avoid wasted API calls
+- Uses `{ merge: true }` on all writes — additive, never overwrites unrelated fields
+- Reset action deletes the entire blockOverrides doc — clean slate
+
+## Validation
+- [x] `npx tsc --noEmit` — PASSED (only pre-existing error in BusinessProfileTab.tsx)
+- [x] File exists — PASSED
+- [x] All 9 actions exported — PASSED
+- [x] Existing partner files not modified — PASSED
