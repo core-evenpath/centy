@@ -516,3 +516,53 @@ The AI receives a one-line summary of what the customer sees:
 - fileSearch tools API uses `any` cast for `fileSearchConfig` matching existing pattern in `rag-query-engine.ts`
 - Business context truncated to 800 chars to keep total prompt under ~1500 tokens
 - Pre-existing TypeScript error in BusinessProfileTab.tsx unchanged
+
+---
+
+# Phase 5 — Block Builder + Admin UI — DONE
+
+## Date: 2026-04-04
+
+## Files Created
+- `src/actions/block-builder-actions.ts` — Server actions: list registry, block details, generate from prompt, export registry, derive schema
+- `src/app/admin/relay/blocks/page.tsx` — Admin Block Library page (replaced old BlockGallery page, backup at page.tsx.bak)
+
+## Server Action Inventory
+| Action | Purpose |
+|--------|---------|
+| `getRegisteredBlocksAction(filters?)` | List all blocks from code registry with family/category filters |
+| `getBlockDetailAction(blockId)` | Full definition + computed data contract for one block |
+| `getBlockSampleDataAction(blockId)` | Sample data for block preview |
+| `getDerivedSchemaAction(blockIds[])` | Compute merged module schema from selected blocks |
+| `generateBlockFromPromptAction(prompt, vertical)` | AI generates React component + BlockDefinition from natural language |
+| `exportBlockRegistryAction()` | Full registry export for debugging/analysis |
+
+## Admin Page Features
+- Block grid with family icon, color, label, description
+- Filter by family (navigation, catalog, detail, compare, etc.)
+- Text search across block labels, IDs, descriptions
+- Expandable detail: categories, variants, required/optional fields, intent triggers
+- Block Builder: enter prompt + select vertical -> AI generates .tsx code -> copy to clipboard
+- Inline styles throughout (no Tailwind dependency)
+
+## Block Builder Flow
+1. Admin clicks "Generate Block" -> Selects vertical (ecommerce, hospitality, etc.)
+2. Describes the block in natural language
+3. Gemini generates full .tsx file with BlockDefinition export + default component
+4. Admin reviews generated code in the UI, copies with one click
+5. Admin creates file in src/lib/relay/blocks/ and registers in blocks/index.ts
+6. Generated blocks are NOT auto-saved — human review required
+
+## Validation
+- [x] `npx tsc --noEmit` — PASSED (only pre-existing error in BusinessProfileTab.tsx)
+- [x] Both files exist — PASSED
+- [x] Server action has 'use server' — PASSED
+- [x] Admin page has 'use client' — PASSED
+- [x] Page imports server actions correctly — PASSED
+
+## Honesty Check
+- Old page.tsx backed up to page.tsx.bak before overwriting (was server component importing BlockGallery)
+- BlockGallery.tsx still exists but is now unused (only imported by old page.tsx)
+- Server action imports `registerAllBlocks` from blocks/index.ts which imports 'use client' components — works in Next.js (stores component references, doesn't render them)
+- Registry initialization uses lazy `ensureRegistry()` pattern to avoid startup overhead
+- Pre-existing TypeScript error in BusinessProfileTab.tsx unchanged
