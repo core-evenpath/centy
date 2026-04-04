@@ -450,3 +450,69 @@ The spec code referenced methods/fields that didn't exist in Phase 2's implement
 - `INTENT_TO_BLOCK` map is defined but not used (resolveBlock uses switch instead) — kept for documentation/future use
 - Compare intent requires 2+ matched items from cache, otherwise falls through to next pattern
 - Pre-existing TypeScript error in BusinessProfileTab.tsx unchanged
+
+---
+
+# Phase 4 — RAG Enhancement (Block-Aware Relay AI) — DONE
+
+## Date: 2026-04-04
+
+## Files Created
+- `src/lib/relay/rag-context-builder.ts` — Builds minimal AI prompt from session data + block context
+- `src/actions/relay-rag-actions.ts` — Server action calling Gemini with two paths (fast + document)
+
+## Two Response Paths
+
+### Fast Path: `generateRelayResponseAction`
+- Used when: A block is displayed (browse, detail, compare, cart, etc.)
+- Context: ~1500 tokens (brand + business context + block summary + history)
+- Output: ~200 tokens (1-3 sentence commentary + follow-ups)
+- Model: gemini-2.5-flash (configurable via RELAY_AI_MODEL env var)
+- Target latency: 800-1200ms
+
+### Document Path: `generateRelayResponseWithDocsAction`
+- Used when: No block is shown (general/policy questions)
+- Context: Customer message + conversation history + vault documents via file search
+- Output: ~300 tokens (document-grounded answer + follow-ups)
+- Falls back to fast path if no RAG store is available
+
+## Context Budget Comparison
+```
+Existing Inbox RAG:                    Relay RAG (fast path):
+  System prompt:    ~500 tokens          System prompt:    ~200 tokens
+  Business persona: ~400 tokens          Brand summary:    ~50 tokens
+  ALL module items: ~2000 tokens         Block summary:    ~50 tokens (what's SHOWN)
+  History:          ~800 tokens          Business context: ~200 tokens (truncated)
+  RAG docs:         ~1000 tokens          History:          ~300 tokens (last 6)
+  Total:            ~4700 tokens          Total:            ~800 tokens
+  Output:           ~500 tokens          Output:           ~200 tokens
+  Latency:          2-3.5 seconds         Latency:          0.8-1.2 seconds
+```
+
+## Block-Aware Prompt Design
+The AI receives a one-line summary of what the customer sees:
+- "The customer sees 4 products: Block Print Kurta, Mirror Work Anarkali... (₹2,800 - ₹5,200)"
+- "The customer sees the detail view of 'Block Print Kurta Set' at ₹2,800, rated 4.2/5"
+- "The shopping cart shows 2 items totaling ₹7,000. Checkout button is visible."
+
+## API Fixes Applied
+- `tools` moved inside `config` (not top-level) per new `@google/genai` SDK pattern
+- `contents` uses plain string (not `[{role, parts}]` object) per new SDK
+- `systemInstruction` as string in `config` per codebase convention
+- `response.text` as property access (not method call)
+- `fileSearch` config uses `any` type matching `rag-query-engine.ts` pattern
+- `responseMimeType: 'application/json'` for structured JSON output
+
+## Validation
+- [x] `npx tsc --noEmit` — PASSED (only pre-existing error in BusinessProfileTab.tsx)
+- [x] Both files exist — PASSED
+- [x] Context builder has no network imports — PASSED
+- [x] Server action has 'use server' — PASSED
+- [x] Imports from existing codebase resolve — PASSED
+
+## Honesty Check
+- Adapted Gemini API calls from spec to match codebase's new SDK patterns (tools inside config, string contents, property text access)
+- `getCoreHubContextString` import resolves correctly from `./core-hub-actions`
+- fileSearch tools API uses `any` cast for `fileSearchConfig` matching existing pattern in `rag-query-engine.ts`
+- Business context truncated to 800 chars to keep total prompt under ~1500 tokens
+- Pre-existing TypeScript error in BusinessProfileTab.tsx unchanged
