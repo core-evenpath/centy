@@ -8,8 +8,9 @@ import {
     saveRelayConfigAction,
     runRelayDiagnosticsAction,
     getRelayConversationsAction,
+    getRelayBlockConfigsWithModulesAction,
 } from '@/actions/relay-actions';
-import type { RelayConfig, DiagnosticCheck, RelayConversation } from '@/actions/relay-actions';
+import type { RelayConfig, DiagnosticCheck, RelayConversation, RelayBlockConfigDetail } from '@/actions/relay-actions';
 import RelayChatSetup from '@/components/partner/relay/RelayChatSetup';
 import RelayStorefrontManager from '@/components/partner/relay/RelayStorefrontManager';
 import BlockRenderer from '@/components/relay/blocks/BlockRenderer';
@@ -42,6 +43,7 @@ import {
     Play,
     Trash2,
     GitBranch,
+    Layers,
 } from 'lucide-react';
 
 const DEFAULT_CONFIG: RelayConfig = {
@@ -119,6 +121,11 @@ export default function PartnerRelayPage() {
     const [diagRunning, setDiagRunning] = useState(false);
     const [conversations, setConversations] = useState<RelayConversation[]>([]);
     const [convoLoading, setConvoLoading] = useState(true);
+
+    // Block configs state
+    const [blockConfigs, setBlockConfigs] = useState<RelayBlockConfigDetail[]>([]);
+    const [blocksLoading, setBlocksLoading] = useState(false);
+    const [blocksError, setBlocksError] = useState<string | null>(null);
 
     // Chat test state
     const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
@@ -245,6 +252,27 @@ export default function PartnerRelayPage() {
         })();
     }, [partnerId]);
 
+    // ── Load block configs ────────────────────────────────────────────
+
+    useEffect(() => {
+        if (!partnerId) return;
+        setBlocksLoading(true);
+        (async () => {
+            try {
+                const result = await getRelayBlockConfigsWithModulesAction();
+                if (result.success) {
+                    setBlockConfigs(result.configs || []);
+                } else {
+                    setBlocksError(result.error || 'Failed to load block configs');
+                }
+            } catch (e: any) {
+                setBlocksError(e.message || 'Unknown error');
+            } finally {
+                setBlocksLoading(false);
+            }
+        })();
+    }, [partnerId]);
+
     // ── Chat test ────────────────────────────────────────────────────
 
     const sendChatMessage = async (messageText?: string) => {
@@ -360,6 +388,9 @@ export default function PartnerRelayPage() {
                     </TabsTrigger>
                     <TabsTrigger value="flows" className="gap-2">
                         <GitBranch className="h-4 w-4" /> Flows
+                    </TabsTrigger>
+                    <TabsTrigger value="blocks" className="gap-2">
+                        <Layers className="h-4 w-4" /> Blocks
                     </TabsTrigger>
                     <TabsTrigger value="storefront">Storefront</TabsTrigger>
                 </TabsList>
@@ -757,6 +788,68 @@ export default function PartnerRelayPage() {
                                     Open Flow Editor
                                 </Link>
                             </Button>
+                        </CardContent>
+                    </Card>
+                </TabsContent>
+
+                {/* ── Section 6: Blocks ─────────────────────────── */}
+                <TabsContent value="blocks" className="space-y-6">
+                    <Card>
+                        <CardHeader>
+                            <CardTitle>Block Configurations</CardTitle>
+                            <CardDescription>
+                                Available block types that the AI assistant can use when responding to visitors
+                            </CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                            {blocksLoading ? (
+                                <div className="flex justify-center py-8">
+                                    <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                                </div>
+                            ) : blocksError ? (
+                                <div className="text-center py-12">
+                                    <AlertTriangle className="h-10 w-10 text-yellow-500 mx-auto mb-3" />
+                                    <p className="font-medium">Failed to load block configs</p>
+                                    <p className="text-sm text-muted-foreground mt-1">{blocksError}</p>
+                                </div>
+                            ) : (blockConfigs || []).length === 0 ? (
+                                <div className="text-center py-12">
+                                    <Layers className="h-10 w-10 text-muted-foreground mx-auto mb-3" />
+                                    <p className="font-medium">No block configurations</p>
+                                    <p className="text-sm text-muted-foreground mt-1">
+                                        Block configs are generated when modules are created in the admin area.
+                                    </p>
+                                </div>
+                            ) : (
+                                <div className="grid gap-4 sm:grid-cols-2">
+                                    {(blockConfigs || []).map(cfg => (
+                                        <div key={cfg.id} className="p-4 rounded-lg border hover:bg-muted/50 transition-colors">
+                                            <div className="flex items-center gap-2 mb-2">
+                                                <Badge variant="secondary">{cfg.blockType}</Badge>
+                                                <Badge variant={cfg.status === 'active' ? 'default' : 'outline'} className="text-xs">
+                                                    {cfg.status}
+                                                </Badge>
+                                            </div>
+                                            <p className="font-medium text-sm">{cfg.label}</p>
+                                            {cfg.description && (
+                                                <p className="text-xs text-muted-foreground mt-1">{cfg.description}</p>
+                                            )}
+                                            {cfg.moduleSlug && (
+                                                <p className="text-xs text-muted-foreground mt-1">
+                                                    Module: <span className="font-mono">{cfg.moduleSlug}</span>
+                                                </p>
+                                            )}
+                                            {(cfg.applicableIndustries || []).length > 0 && (
+                                                <div className="flex gap-1 flex-wrap mt-2">
+                                                    {(cfg.applicableIndustries || []).map(ind => (
+                                                        <Badge key={ind} variant="outline" className="text-[10px]">{ind}</Badge>
+                                                    ))}
+                                                </div>
+                                            )}
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
                         </CardContent>
                     </Card>
                 </TabsContent>

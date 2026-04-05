@@ -21,6 +21,69 @@ const corsHeaders = {
     'Access-Control-Allow-Headers': 'Content-Type, X-Relay-Widget-Id',
 };
 
+// Utility block schemas — always available regardless of published configs
+const UTILITY_BLOCK_SCHEMAS: Record<string, { sample: string; description: string }> = {
+    text: {
+        sample: '{"type":"text","text":"...","suggestions":["suggestion 1","suggestion 2","suggestion 3"]}',
+        description: 'For general conversation. ALWAYS include 2-3 suggestions.',
+    },
+    greeting: {
+        sample: '{"type":"greeting","text":"...","brand":{"name":"...","emoji":"👋","tagline":"...","quickActions":[{"label":"...","prompt":"...","emoji":"..."}]},"suggestions":["..."]}',
+        description: 'For welcome/greeting screens when conversation starts or user says hello. Include 3-4 quickActions.',
+    },
+    contact: {
+        sample: '{"type":"contact","text":"...","methods":[{"type":"whatsapp","label":"WhatsApp","value":"+91...","icon":"💬"},{"type":"phone","label":"Call","value":"+91...","icon":"📞"},{"type":"email","label":"Email","value":"...@...","icon":"📧"}],"suggestions":["..."]}',
+        description: 'For contact information.',
+    },
+    info: {
+        sample: '{"type":"info","text":"...","items":[{"label":"...","value":"..."}],"suggestions":["..."]}',
+        description: 'For FAQ, policies, details, key-value information.',
+    },
+    handoff: {
+        sample: '{"type":"handoff","text":"...","handoffOptions":[{"id":"...","type":"whatsapp","label":"WhatsApp Us","value":"+91...","icon":"💬","description":"Usually replies within 5 min"}],"title":"...","subtitle":"...","suggestions":["..."]}',
+        description: 'For connecting visitor to a human agent. Use when AI cannot resolve the query or visitor explicitly asks for human support.',
+    },
+};
+
+function buildDynamicBlockSchemas(
+    configs: Array<{
+        blockType: string;
+        label: string;
+        description?: string;
+        blockTypeTemplate?: { sampleData?: Record<string, any> };
+    }>
+): string {
+    const seenTypes = new Set<string>();
+    const lines: string[] = ['RESPOND ONLY IN JSON. Choose the most appropriate block type:'];
+
+    for (const cfg of configs) {
+        if (seenTypes.has(cfg.blockType)) continue;
+        seenTypes.add(cfg.blockType);
+
+        const sample = cfg.blockTypeTemplate?.sampleData;
+        if (sample) {
+            lines.push('');
+            lines.push(`${JSON.stringify(sample)}`);
+            lines.push(`— ${cfg.description || cfg.label}`);
+        } else {
+            lines.push('');
+            lines.push(`{"type":"${cfg.blockType}","text":"...","suggestions":["..."]}`);
+            lines.push(`— ${cfg.description || cfg.label}`);
+        }
+    }
+
+    // Ensure utility blocks are always present
+    for (const [utilType, schema] of Object.entries(UTILITY_BLOCK_SCHEMAS)) {
+        if (!seenTypes.has(utilType)) {
+            lines.push('');
+            lines.push(schema.sample);
+            lines.push(`— ${schema.description}`);
+        }
+    }
+
+    return lines.join('\n');
+}
+
 export async function OPTIONS() {
     return new NextResponse(null, { status: 200, headers: corsHeaders });
 }
@@ -219,6 +282,34 @@ ${itemSummary || '  (no items yet)'}`;
             // Persona not available, continue without it
         }
 
+        // Load all published block configs for dynamic schema generation
+        let allPublishedConfigs: Array<{
+            blockType: string;
+            label: string;
+            description?: string;
+            blockTypeTemplate?: { sampleData?: Record<string, any> };
+        }> = [];
+        try {
+            const allBlockSnap = await adminDb.collection('relayBlockConfigs')
+                .where('status', '==', 'active')
+                .get();
+            allPublishedConfigs = allBlockSnap.docs.map(doc => {
+                const data = doc.data();
+                return {
+                    blockType: data.blockType || 'text',
+                    label: data.label || doc.id,
+                    description: data.description || '',
+                    blockTypeTemplate: data.blockTypeTemplate || undefined,
+                };
+            });
+        } catch {
+            // Fall through to hardcoded schemas if Firestore unavailable
+        }
+
+        const dynamicSchemas = allPublishedConfigs.length > 0
+            ? buildDynamicBlockSchemas(allPublishedConfigs)
+            : RELAY_BLOCK_SCHEMAS;
+
         // Build system prompt
         const flowContext = flowDecision?.contextForAI
             ? `\n${flowDecision.contextForAI}\n\n`
@@ -226,7 +317,7 @@ ${itemSummary || '  (no items yet)'}`;
 
         const systemPrompt = `You are a helpful business assistant for this company. You help visitors find information, browse products/services, and take action (book, inquire, etc.).
 ${flowContext}
-${RELAY_BLOCK_SCHEMAS}
+${dynamicSchemas}
 
 RULES:
 - Only valid JSON, no markdown, no backticks
