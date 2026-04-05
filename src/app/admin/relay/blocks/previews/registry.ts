@@ -1,9 +1,11 @@
 import { SHARED_BLOCKS, SHARED_BLOCK_IDS } from './shared';
 import { ECOM_CONFIG } from './ecommerce';
+import { EDU_CONFIG } from './education';
 import type { BlockRegistryData, VerticalConfig, VerticalBlockDef, SubVerticalDef } from './_types';
 
 const VERTICALS: VerticalConfig[] = [
   ECOM_CONFIG,
+  EDU_CONFIG,
 ];
 
 const ALL_BLOCKS: VerticalBlockDef[] = [

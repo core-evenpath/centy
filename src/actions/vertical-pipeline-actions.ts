@@ -3,11 +3,8 @@
 import { discoverModulesForBusinessType, generateModuleSchemaAction } from './module-ai-actions';
 import { createSystemModuleAction, getSystemModuleAction } from './modules-actions';
 import { createSystemFlowTemplateAction } from './flow-engine-actions';
+import { getFlowTemplateForFunction, getDefaultFlowForIndustry } from '@/lib/flow-templates';
 import type { FlowStage, FlowTransition, FlowSettings, SystemFlowTemplateRecord } from '@/lib/types-flow-engine';
-
-// ---------------------------------------------------------------------------
-// Result type
-// ---------------------------------------------------------------------------
 
 export interface PipelineResult {
   success: boolean;
@@ -22,10 +19,6 @@ export interface PipelineResult {
   };
   error?: string;
 }
-
-// ---------------------------------------------------------------------------
-// Pipeline orchestrator
-// ---------------------------------------------------------------------------
 
 export async function runVerticalPipelineAction(
   industryId: string,
@@ -45,9 +38,6 @@ export async function runVerticalPipelineAction(
   };
 
   try {
-    // ------------------------------------------------------------------
-    // Step 1: Discover modules for the business function
-    // ------------------------------------------------------------------
     console.log(`[Pipeline] Discovering modules for ${functionName}...`);
     const discoveryResult = await discoverModulesForBusinessType(
       industryId,
@@ -65,9 +55,6 @@ export async function runVerticalPipelineAction(
     summary.modulesDiscovered = selectedModules.length;
     console.log(`[Pipeline] Discovered ${selectedModules.length} modules`);
 
-    // ------------------------------------------------------------------
-    // Step 2: For each module — generate schema then create system module
-    // ------------------------------------------------------------------
     for (let i = 0; i < selectedModules.length; i++) {
       const discovered = selectedModules[i];
       const slug = `${functionId}_${discovered.slug}`;
@@ -75,16 +62,14 @@ export async function runVerticalPipelineAction(
 
       console.log(`[Pipeline] Creating module ${label}: ${discovered.name}...`);
 
-      // Check if module already exists
       const existing = await getSystemModuleAction(slug);
       if (existing.success && existing.data) {
-        console.log(`[Pipeline]   ↳ Already exists, skipping`);
+        console.log(`[Pipeline]   Already exists, skipping`);
         summary.modulesSkipped++;
         continue;
       }
 
-      // Generate schema via AI
-      console.log(`[Pipeline]   ↳ Generating schema...`);
+      console.log(`[Pipeline]   Generating schema...`);
       const schemaResult = await generateModuleSchemaAction(
         industryId,
         industryName,
@@ -97,17 +82,15 @@ export async function runVerticalPipelineAction(
       );
 
       if (!schemaResult.success || !schemaResult.schema) {
-        console.error(`[Pipeline]   ↳ Schema generation failed: ${schemaResult.error}`);
+        console.error(`[Pipeline]   Schema generation failed: ${schemaResult.error}`);
         summary.modulesFailed.push({ slug, error: schemaResult.error || 'Schema generation failed' });
-        // Still delay before next iteration to respect rate limits
         if (i < selectedModules.length - 1) {
           await new Promise((r) => setTimeout(r, 2000));
         }
         continue;
       }
 
-      // Create system module (auto-triggers relay block generation)
-      console.log(`[Pipeline]   ↳ Creating system module...`);
+      console.log(`[Pipeline]   Creating system module...`);
       const createResult = await createSystemModuleAction({
         slug,
         name: discovered.name,
@@ -142,25 +125,21 @@ export async function runVerticalPipelineAction(
       });
 
       if (!createResult.success || !createResult.data) {
-        console.error(`[Pipeline]   ↳ Module creation failed: ${createResult.error}`);
+        console.error(`[Pipeline]   Module creation failed: ${createResult.error}`);
         summary.modulesFailed.push({ slug, error: createResult.error || 'Module creation failed' });
       } else {
-        console.log(`[Pipeline]   ↳ Created module ${createResult.data.moduleId}`);
+        console.log(`[Pipeline]   Created module ${createResult.data.moduleId}`);
         summary.modulesCreated++;
       }
 
-      // Rate-limit delay between iterations
       if (i < selectedModules.length - 1) {
         await new Promise((r) => setTimeout(r, 2000));
       }
     }
 
-    // ------------------------------------------------------------------
-    // Step 3: Create flow template for this function
-    // ------------------------------------------------------------------
     console.log(`[Pipeline] Creating flow template for ${functionName}...`);
 
-    const flowTemplateData = buildSoftwareItFlowTemplate(functionId, industryId, industryName, functionName);
+    const flowTemplateData = resolveFlowTemplate(functionId, industryId, industryName, functionName);
 
     const flowResult = await createSystemFlowTemplateAction(flowTemplateData, userId);
 
@@ -180,96 +159,140 @@ export async function runVerticalPipelineAction(
   }
 }
 
-// ---------------------------------------------------------------------------
-// Flow template builder for Software & IT Services
-// ---------------------------------------------------------------------------
-
-function buildSoftwareItFlowTemplate(
+function resolveFlowTemplate(
   functionId: string,
   industryId: string,
   industryName: string,
   functionName: string
 ): Omit<SystemFlowTemplateRecord, 'id' | 'createdAt' | 'updatedAt' | 'createdBy'> {
+  const preBuilt = getFlowTemplateForFunction(functionId);
+  if (preBuilt) {
+    console.log(`[Pipeline] Using pre-built flow template for ${functionId}`);
+    return {
+      name: preBuilt.name,
+      description: preBuilt.description,
+      industryId: preBuilt.industryId,
+      functionId: preBuilt.functionId,
+      industryName: preBuilt.industryName,
+      functionName: preBuilt.functionName,
+      stages: preBuilt.stages,
+      transitions: preBuilt.transitions,
+      settings: preBuilt.settings,
+      status: 'active',
+    };
+  }
+
+  const industryFallback = getDefaultFlowForIndustry(industryId);
+  if (industryFallback) {
+    console.log(`[Pipeline] Adapting industry-level template for ${industryId} -> ${functionId}`);
+    const prefixedStages = industryFallback.stages.map(s => ({
+      ...s,
+      id: s.id.replace(/^[a-z]+_/, `${functionId}_`),
+    }));
+    const prefixedTransitions = industryFallback.transitions.map(t => ({
+      ...t,
+      from: t.from.replace(/^[a-z]+_/, `${functionId}_`),
+      to: t.to.replace(/^[a-z]+_/, `${functionId}_`),
+    }));
+    return {
+      name: `${functionName} Flow`,
+      description: `Conversation flow for ${functionName} (adapted from ${industryFallback.functionName})`,
+      industryId,
+      functionId,
+      industryName,
+      functionName,
+      stages: prefixedStages,
+      transitions: prefixedTransitions,
+      settings: industryFallback.settings,
+      status: 'active',
+    };
+  }
+
+  console.log(`[Pipeline] Building generic flow template for ${functionId}`);
+  return buildGenericFlowTemplate(functionId, industryId, industryName, functionName);
+}
+
+function buildGenericFlowTemplate(
+  functionId: string,
+  industryId: string,
+  industryName: string,
+  functionName: string
+): Omit<SystemFlowTemplateRecord, 'id' | 'createdAt' | 'updatedAt' | 'createdBy'> {
+  const p = functionId;
+
   const stages: FlowStage[] = [
     {
-      id: `${functionId}_greeting`,
+      id: `${p}_greeting`,
       type: 'greeting',
       label: 'Welcome',
-      description: 'Greet visitor, identify if they are a potential client or existing customer',
       blockTypes: ['greeting', 'quick_actions'],
       intentTriggers: ['browsing'],
       leadScoreImpact: 0,
       isEntry: true,
     },
     {
-      id: `${functionId}_discovery`,
+      id: `${p}_discovery`,
       type: 'discovery',
-      label: 'Discovery',
-      description: 'Understand what the visitor needs — custom software, SaaS product, IT support, consulting',
-      blockTypes: ['services', 'quick_actions', 'pricing'],
-      intentTriggers: ['browsing', 'inquiry', 'pricing'],
+      label: 'Browse',
+      blockTypes: ['services', 'catalog', 'quick_actions'],
+      intentTriggers: ['browsing', 'inquiry', 'returning'],
       leadScoreImpact: 10,
     },
     {
-      id: `${functionId}_qualification`,
+      id: `${p}_showcase`,
       type: 'showcase',
-      label: 'Qualification',
-      description: 'Qualify the lead — budget range, timeline, team size, current tech stack',
-      blockTypes: ['pricing', 'lead_capture', 'info'],
-      intentTriggers: ['pricing', 'inquiry', 'schedule'],
-      leadScoreImpact: 20,
-    },
-    {
-      id: `${functionId}_presentation`,
-      type: 'comparison',
-      label: 'Presentation',
-      description: 'Show relevant portfolio items, case studies, tech stack capabilities, engagement models',
-      blockTypes: ['catalog', 'services', 'testimonials', 'gallery'],
-      intentTriggers: ['comparing', 'browsing'],
+      label: 'Details & Pricing',
+      blockTypes: ['pricing', 'info', 'gallery'],
+      intentTriggers: ['pricing', 'comparing'],
       leadScoreImpact: 15,
     },
     {
-      id: `${functionId}_conversion`,
+      id: `${p}_social_proof`,
+      type: 'social_proof',
+      label: 'Reviews',
+      blockTypes: ['testimonials', 'reviews'],
+      intentTriggers: ['comparing'],
+      leadScoreImpact: 10,
+    },
+    {
+      id: `${p}_conversion`,
       type: 'conversion',
-      label: 'Conversion',
-      description: 'Drive toward booking a discovery call, requesting a proposal, or starting a trial',
+      label: 'Take Action',
       blockTypes: ['book', 'lead_capture', 'contact'],
       intentTriggers: ['booking', 'schedule'],
       leadScoreImpact: 30,
     },
     {
-      id: `${functionId}_handoff`,
+      id: `${p}_handoff`,
       type: 'handoff',
-      label: 'Team Connect',
-      description: 'Complex requirements, enterprise deals, or custom integrations — connect to founder or sales',
+      label: 'Contact',
       blockTypes: ['handoff', 'contact'],
       intentTriggers: ['contact', 'complaint', 'urgent'],
-      leadScoreImpact: 25,
+      leadScoreImpact: 0,
       isExit: true,
     },
   ];
 
   const transitions: FlowTransition[] = [
-    { from: `${functionId}_greeting`, to: `${functionId}_discovery`, trigger: 'browsing' },
-    { from: `${functionId}_greeting`, to: `${functionId}_discovery`, trigger: 'inquiry' },
-    { from: `${functionId}_greeting`, to: `${functionId}_conversion`, trigger: 'booking', priority: 1 },
-    { from: `${functionId}_greeting`, to: `${functionId}_handoff`, trigger: 'contact' },
-    { from: `${functionId}_discovery`, to: `${functionId}_qualification`, trigger: 'pricing' },
-    { from: `${functionId}_discovery`, to: `${functionId}_qualification`, trigger: 'inquiry' },
-    { from: `${functionId}_discovery`, to: `${functionId}_presentation`, trigger: 'comparing' },
-    { from: `${functionId}_discovery`, to: `${functionId}_handoff`, trigger: 'contact' },
-    { from: `${functionId}_qualification`, to: `${functionId}_presentation`, trigger: 'comparing' },
-    { from: `${functionId}_qualification`, to: `${functionId}_conversion`, trigger: 'booking', priority: 1 },
-    { from: `${functionId}_qualification`, to: `${functionId}_handoff`, trigger: 'contact' },
-    { from: `${functionId}_presentation`, to: `${functionId}_conversion`, trigger: 'booking', priority: 1 },
-    { from: `${functionId}_presentation`, to: `${functionId}_discovery`, trigger: 'browsing' },
-    { from: `${functionId}_presentation`, to: `${functionId}_handoff`, trigger: 'contact' },
-    { from: `${functionId}_conversion`, to: `${functionId}_handoff`, trigger: 'contact' },
-    { from: `${functionId}_conversion`, to: `${functionId}_discovery`, trigger: 'browsing' },
-    { from: `${functionId}_discovery`, to: `${functionId}_handoff`, trigger: 'complaint' },
-    { from: `${functionId}_discovery`, to: `${functionId}_handoff`, trigger: 'urgent' },
-    { from: `${functionId}_qualification`, to: `${functionId}_handoff`, trigger: 'complaint' },
-    { from: `${functionId}_conversion`, to: `${functionId}_handoff`, trigger: 'complaint' },
+    { from: `${p}_greeting`, to: `${p}_discovery`, trigger: 'browsing' },
+    { from: `${p}_greeting`, to: `${p}_conversion`, trigger: 'booking', priority: 1 },
+    { from: `${p}_greeting`, to: `${p}_handoff`, trigger: 'contact' },
+    { from: `${p}_greeting`, to: `${p}_handoff`, trigger: 'urgent', priority: 2 },
+    { from: `${p}_discovery`, to: `${p}_showcase`, trigger: 'pricing' },
+    { from: `${p}_discovery`, to: `${p}_showcase`, trigger: 'comparing' },
+    { from: `${p}_discovery`, to: `${p}_conversion`, trigger: 'booking', priority: 1 },
+    { from: `${p}_discovery`, to: `${p}_handoff`, trigger: 'contact' },
+    { from: `${p}_discovery`, to: `${p}_handoff`, trigger: 'complaint' },
+    { from: `${p}_showcase`, to: `${p}_social_proof`, trigger: 'comparing' },
+    { from: `${p}_showcase`, to: `${p}_conversion`, trigger: 'booking', priority: 1 },
+    { from: `${p}_showcase`, to: `${p}_discovery`, trigger: 'browsing' },
+    { from: `${p}_showcase`, to: `${p}_handoff`, trigger: 'contact' },
+    { from: `${p}_social_proof`, to: `${p}_conversion`, trigger: 'booking', priority: 1 },
+    { from: `${p}_social_proof`, to: `${p}_discovery`, trigger: 'browsing' },
+    { from: `${p}_social_proof`, to: `${p}_handoff`, trigger: 'contact' },
+    { from: `${p}_conversion`, to: `${p}_handoff`, trigger: 'contact' },
+    { from: `${p}_conversion`, to: `${p}_discovery`, trigger: 'browsing' },
+    { from: `${p}_conversion`, to: `${p}_handoff`, trigger: 'complaint' },
   ];
 
   const settings: FlowSettings = {
@@ -284,8 +307,8 @@ function buildSoftwareItFlowTemplate(
   };
 
   return {
-    name: 'Software & IT Services Flow',
-    description: 'Conversation flow for software companies, IT service providers, and SaaS businesses',
+    name: `${functionName} Flow`,
+    description: `Conversation flow for ${functionName} in ${industryName}`,
     industryId,
     functionId,
     industryName,

@@ -52,7 +52,7 @@ const MiniCart = () => React.createElement('div', {
   style: { background: T.bg, borderRadius: '12px', border: `1px solid ${T.bdr}`, padding: '12px' }
 },
   React.createElement('div', { style: { display: 'flex', alignItems: 'center', gap: '8px', paddingBottom: '8px', borderBottom: `1px solid ${T.bdr}`, marginBottom: '8px' } },
-    React.createElement(I, { path: ic.bag, size: 16, color: T.t1 }),
+    React.createElement(I, { d: ic.bag, size: 16, color: T.t1 }),
     React.createElement('span', { style: { fontSize: '13px', fontWeight: 600, color: T.t1 } }, 'Your Cart')
   ),
   [1, 2].map(i => React.createElement('div', { key: i, style: { display: 'flex', justifyContent: 'space-between', marginBottom: '8px', fontSize: '11px', color: T.t2 } },
@@ -69,12 +69,12 @@ const MiniContact = () => React.createElement('div', {
   style: { background: T.bg, borderRadius: '12px', border: `1px solid ${T.bdr}`, padding: '16px' }
 },
   [
-    { icon: ic.call, text: '+1 234 567 8900', color: T.green },
+    { icon: ic.cal, text: '+1 234 567 8900', color: T.green },
     { icon: ic.mail, text: 'hello@store.com', color: T.blue },
-    { icon: ic.pin, text: '123 Main St, City', color: T.pri }
+    { icon: ic.map, text: '123 Main St, City', color: T.pri }
   ].map((item, i) => React.createElement('div', { key: i, style: { display: 'flex', alignItems: 'center', gap: '10px', marginBottom: i < 2 ? '12px' : '0' } },
     React.createElement('div', { style: { width: 28, height: 28, borderRadius: '50%', background: `${item.color}15`, display: 'flex', alignItems: 'center', justifyContent: 'center' } },
-      React.createElement(I, { path: item.icon, size: 14, color: item.color })
+      React.createElement(I, { d: item.icon, size: 14, color: item.color })
     ),
     React.createElement('div', { style: { fontSize: '12px', color: T.t2 } }, item.text)
   ))

@@ -261,7 +261,7 @@ export async function getRelayDiagnosticsAction(): Promise<{
     });
 
     const moduleBound = blocksSnap.docs.filter(d => d.data().module != null).length;
-    const moduleUnbound = blocksSnap.docs.filter(d => d.data().module != null).length;
+    const moduleUnbound = blocksSnap.docs.filter(d => d.data().module == null).length;
     checks.push({
       label: 'Module Connection',
       status: moduleUnbound > 0 ? 'warn' : 'pass',
