@@ -1,10 +1,10 @@
 import { SHARED_BLOCKS, SHARED_BLOCK_IDS } from './shared';
 import { ECOM_CONFIG } from './ecommerce';
-import type { VerticalBlockDef, VerticalConfig, SubVerticalDef, BlockRegistryData } from './_types';
+import type { BlockRegistryData, VerticalConfig, VerticalBlockDef, SubVerticalDef } from './_types';
 
-// ── Data ────────────────────────────────────────────────────────────
-
-const VERTICALS: VerticalConfig[] = [ECOM_CONFIG];
+const VERTICALS: VerticalConfig[] = [
+  ECOM_CONFIG,
+];
 
 const ALL_BLOCKS: VerticalBlockDef[] = [
   ...SHARED_BLOCKS,
@@ -13,13 +13,17 @@ const ALL_BLOCKS: VerticalBlockDef[] = [
 
 const ALL_SUB_VERTICALS: SubVerticalDef[] = VERTICALS.flatMap(v => v.subVerticals);
 
-// ── Lookup Functions ────────────────────────────────────────────────
-
 export function getBlocksForFunction(functionId: string): VerticalBlockDef[] {
-  const sub = ALL_SUB_VERTICALS.find(s => s.id === functionId);
-  if (!sub) return [];
-  const blockIds = [...sub.blocks, ...(sub.genericBlocks || [])];
-  return ALL_BLOCKS.filter(b => blockIds.includes(b.id));
+  for (const v of VERTICALS) {
+    const sub = v.subVerticals.find(s => s.id === functionId);
+    if (sub) {
+      const verticalBlocks = sub.blocks
+        .map(id => v.blocks.find(b => b.id === id))
+        .filter(Boolean) as VerticalBlockDef[];
+      return [...SHARED_BLOCKS, ...verticalBlocks];
+    }
+  }
+  return SHARED_BLOCKS;
 }
 
 export function getVerticalForIndustry(industryId: string): VerticalConfig | null {
@@ -27,16 +31,16 @@ export function getVerticalForIndustry(industryId: string): VerticalConfig | nul
 }
 
 export function getSubVertical(functionId: string): { vertical: VerticalConfig; subVertical: SubVerticalDef } | null {
-  for (const vertical of VERTICALS) {
-    const subVertical = vertical.subVerticals.find(s => s.id === functionId);
-    if (subVertical) return { vertical, subVertical };
+  for (const v of VERTICALS) {
+    const sub = v.subVerticals.find(s => s.id === functionId);
+    if (sub) return { vertical: v, subVertical: sub };
   }
   return null;
 }
 
 export function getAllFamilies(): Record<string, { label: string; color: string }> {
   const families: Record<string, { label: string; color: string }> = {
-    shared: { label: 'Shared', color: '#7a7a70' },
+    shared: { label: 'Shared / Universal', color: '#7a7a70' },
   };
   for (const v of VERTICALS) {
     Object.assign(families, v.families);
@@ -44,15 +48,13 @@ export function getAllFamilies(): Record<string, { label: string; color: string 
   return families;
 }
 
-export function getBlockById(blockId: string): VerticalBlockDef | null {
-  return ALL_BLOCKS.find(b => b.id === blockId) || null;
+export function getBlockById(blockId: string): VerticalBlockDef | undefined {
+  return ALL_BLOCKS.find(b => b.id === blockId);
 }
 
 export function getBlocksByStage(stage: string): VerticalBlockDef[] {
   return ALL_BLOCKS.filter(b => b.stage === stage);
 }
-
-// ── Registry Object ─────────────────────────────────────────────────
 
 export const BLOCK_REGISTRY: BlockRegistryData = {
   verticals: VERTICALS,
@@ -62,7 +64,5 @@ export const BLOCK_REGISTRY: BlockRegistryData = {
   getVerticalForIndustry,
   getSubVertical,
 };
-
-// ── Re-exports ──────────────────────────────────────────────────────
 
 export { SHARED_BLOCKS, SHARED_BLOCK_IDS, VERTICALS, ALL_BLOCKS, ALL_SUB_VERTICALS };

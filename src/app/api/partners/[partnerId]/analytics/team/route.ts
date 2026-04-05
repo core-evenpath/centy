@@ -32,12 +32,12 @@ interface TeamAnalytics {
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { partnerId: string } }
+  { params }: { params: Promise<{ partnerId: string }> }
 ) {
   try {
-    const headersList = headers();
+    const headersList = await headers();
     const authHeader = headersList.get('authorization') || '';
-    const partnerId = params.partnerId;
+    const partnerId = (await params).partnerId;
     const { searchParams } = new URL(request.url);
     const timeRange = searchParams.get('timeRange') || '30d'; // 7d, 30d, 90d, 1y
     const includeDetails = searchParams.get('includeDetails') === 'true';
@@ -104,7 +104,7 @@ async function generateTeamAnalytics(
   const teamMembers = teamMembersSnapshot.docs.map(doc => ({
     id: doc.id,
     ...doc.data()
-  }));
+  } as any));
 
   // Get audit logs for the time period
   const auditLogsSnapshot = await db

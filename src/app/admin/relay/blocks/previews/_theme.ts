@@ -2,8 +2,6 @@
 
 import React from 'react';
 
-// ── Theme ────────────────────────────────────────────────────────────
-
 export const T = {
   pri: '#2d4a3e', priLt: '#3d6354', priBg: 'rgba(45,74,62,0.06)', priBg2: 'rgba(45,74,62,0.12)',
   acc: '#c4704b', accBg: 'rgba(196,112,75,0.06)', accBg2: 'rgba(196,112,75,0.12)',
@@ -18,110 +16,83 @@ export const T = {
   teal: '#0f766e', tealBg: 'rgba(15,118,110,0.06)',
 };
 
-// ── Vertical Themes ─────────────────────────────────────────────────
-
 export const VERTICAL_THEMES: Record<string, typeof T> = {
   hospitality: {
     ...T,
-    pri: '#1e3a5f', priLt: '#2b5080', priBg: 'rgba(30,58,95,0.06)', priBg2: 'rgba(30,58,95,0.12)',
-    acc: '#c4704b', accBg: 'rgba(196,112,75,0.06)', accBg2: 'rgba(196,112,75,0.12)',
-    bg: '#f5f7fa',
+    pri: '#1e3a5f', priLt: '#2a5080', priBg: 'rgba(30,58,95,0.06)', priBg2: 'rgba(30,58,95,0.12)',
+    acc: '#b8860b', accBg: 'rgba(184,134,11,0.06)', accBg2: 'rgba(184,134,11,0.14)',
+    bg: '#f5f3ef',
   },
   education: {
     ...T,
-    pri: '#4338ca', priLt: '#5b50db', priBg: 'rgba(67,56,202,0.06)', priBg2: 'rgba(67,56,202,0.12)',
-    acc: '#c4704b', accBg: 'rgba(196,112,75,0.06)', accBg2: 'rgba(196,112,75,0.12)',
-    bg: '#f8f7fd',
+    pri: '#4338ca', priLt: '#6366f1', priBg: 'rgba(67,56,202,0.06)', priBg2: 'rgba(67,56,202,0.12)',
+    acc: '#0f766e', accBg: 'rgba(15,118,110,0.06)', accBg2: 'rgba(15,118,110,0.14)',
+    bg: '#f8f7f4',
   },
   healthcare: {
     ...T,
-    pri: '#0e7490', priLt: '#1299b5', priBg: 'rgba(14,116,144,0.06)', priBg2: 'rgba(14,116,144,0.12)',
-    acc: '#c4704b', accBg: 'rgba(196,112,75,0.06)', accBg2: 'rgba(196,112,75,0.12)',
-    bg: '#f5fafb',
+    pri: '#0e7490', priLt: '#22a3c0', priBg: 'rgba(14,116,144,0.06)', priBg2: 'rgba(14,116,144,0.12)',
+    acc: '#dc2626', accBg: 'rgba(220,38,38,0.06)', accBg2: 'rgba(220,38,38,0.12)',
+    bg: '#f0f9ff',
   },
   food_beverage: {
     ...T,
     pri: '#b45309', priLt: '#d97706', priBg: 'rgba(180,83,9,0.06)', priBg2: 'rgba(180,83,9,0.12)',
-    acc: '#c4704b', accBg: 'rgba(196,112,75,0.06)', accBg2: 'rgba(196,112,75,0.12)',
-    bg: '#fdf8f0',
+    acc: '#dc2626', accBg: 'rgba(220,38,38,0.06)', accBg2: 'rgba(220,38,38,0.12)',
+    bg: '#fffbeb',
   },
   personal_wellness: {
     ...T,
     pri: '#9333ea', priLt: '#a855f7', priBg: 'rgba(147,51,234,0.06)', priBg2: 'rgba(147,51,234,0.12)',
-    acc: '#c4704b', accBg: 'rgba(196,112,75,0.06)', accBg2: 'rgba(196,112,75,0.12)',
-    bg: '#faf5ff',
+    acc: '#ec4899', accBg: 'rgba(236,72,153,0.06)', accBg2: 'rgba(236,72,153,0.12)',
+    bg: '#fdf4ff',
   },
   automotive: {
     ...T,
     pri: '#334155', priLt: '#475569', priBg: 'rgba(51,65,85,0.06)', priBg2: 'rgba(51,65,85,0.12)',
-    acc: '#c4704b', accBg: 'rgba(196,112,75,0.06)', accBg2: 'rgba(196,112,75,0.12)',
-    bg: '#f6f7f9',
+    acc: '#dc2626', accBg: 'rgba(220,38,38,0.06)', accBg2: 'rgba(220,38,38,0.12)',
+    bg: '#f8fafc',
   },
 };
 
-// ── Helpers ──────────────────────────────────────────────────────────
+export const fmt = (n: number): string =>
+  '$' + n.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 });
 
-export const fmt = (n: number): string => '$' + n.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 });
-
-// ── Icon Component ──────────────────────────────────────────────────
-
-export function I({ d, size = 14, color = T.t3, stroke = 1.5 }: { d: string; size?: number; color?: string; stroke?: number }) {
+export function I({ d, size = 12, color, stroke = 1.5 }: { d: string; size?: number; color?: string; stroke?: number }) {
   return React.createElement('svg', {
-    width: size,
-    height: size,
-    viewBox: '0 0 24 24',
-    fill: 'none',
-    stroke: color,
-    strokeWidth: stroke,
-    strokeLinecap: 'round',
-    strokeLinejoin: 'round',
+    width: size, height: size, viewBox: '0 0 24 24', fill: 'none',
+    stroke: color || T.t3, strokeWidth: stroke, strokeLinecap: 'round', strokeLinejoin: 'round',
+    style: { flexShrink: 0, display: 'inline-block', verticalAlign: 'middle' },
   }, React.createElement('path', { d }));
 }
 
-// ── Tag Component ───────────────────────────────────────────────────
-
-export function Tag({ children, color = T.t3, bg = T.priBg }: { children: React.ReactNode; color?: string; bg?: string }) {
+export function Tag({ children, color, bg }: { children: React.ReactNode; color?: string; bg?: string }) {
   return React.createElement('span', {
     style: {
-      fontSize: '7px',
-      fontWeight: 600,
-      color,
-      background: bg,
-      padding: '2px 6px',
-      borderRadius: '4px',
-      whiteSpace: 'nowrap' as const,
-      textTransform: 'uppercase' as const,
-      letterSpacing: '0.3px',
+      fontSize: '7px', fontWeight: 600, color: color || '#fff', background: bg || T.pri,
+      padding: '2px 6px', borderRadius: '4px', whiteSpace: 'nowrap' as const,
+      textTransform: 'uppercase' as const, letterSpacing: '0.3px', lineHeight: 1,
     },
   }, children);
 }
 
-// ── Stars Component ─────────────────────────────────────────────────
-
 export function Stars({ r, size = 8 }: { r: number; size?: number }) {
   return React.createElement('div', { style: { display: 'flex', gap: '1px' } },
-    ...[1, 2, 3, 4, 5].map(i =>
-      React.createElement('span', {
-        key: i,
-        style: { fontSize: `${size}px`, color: i <= Math.round(r) ? '#d97706' : T.bdr },
-      }, '★')
+    [1, 2, 3, 4, 5].map(i =>
+      React.createElement('svg', {
+        key: i, width: size, height: size, viewBox: '0 0 24 24',
+        fill: i <= Math.round(r) ? '#d97706' : T.bdr, stroke: 'none',
+      }, React.createElement('path', { d: 'M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z' }))
     )
   );
 }
 
-// ── Amenity Chip Component ──────────────────────────────────────────
-
-export function Amen({ icon, label, color = T.t3 }: { icon: string; label: string; color?: string }) {
-  return React.createElement('div', {
+export function Amen({ icon, label, color }: { icon: string; label: string; color?: string }) {
+  return React.createElement('span', {
     style: {
-      display: 'inline-flex',
-      alignItems: 'center',
-      gap: '3px',
-      fontSize: '8px',
-      color,
+      display: 'inline-flex', alignItems: 'center', gap: '2px', fontSize: '7px',
+      padding: '2px 5px', borderRadius: '3px', background: T.bg,
+      color: color || T.t2, border: `1px solid ${T.bdr}`,
     },
-  },
-    React.createElement('span', { style: { fontSize: '10px' } }, icon),
-    React.createElement('span', null, label)
-  );
+  }, React.createElement(I, { d: icon, size: 8, color: color || T.t3, stroke: 1.5 }), label);
 }

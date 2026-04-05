@@ -29,7 +29,7 @@ export interface VerticalConfig {
   id: string;
   industryId: string;
   name: string;
-  iconEmoji: string;
+  iconName: string;
   accentColor: string;
   blocks: VerticalBlockDef[];
   subVerticals: SubVerticalDef[];
