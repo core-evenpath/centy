@@ -8,9 +8,10 @@ import {
     saveRelayConfigAction,
     runRelayDiagnosticsAction,
     getRelayConversationsAction,
-    getRelayBlockConfigsWithModulesAction,
 } from '@/actions/relay-actions';
-import type { RelayConfig, DiagnosticCheck, RelayConversation, RelayBlockConfigDetail } from '@/actions/relay-actions';
+import type { RelayConfig, DiagnosticCheck, RelayConversation } from '@/actions/relay-actions';
+import { getRegisteredBlocksAction } from '@/actions/block-builder-actions';
+import type { BlockListItem } from '@/actions/block-builder-actions';
 import RelayChatSetup from '@/components/partner/relay/RelayChatSetup';
 import RelayStorefrontManager from '@/components/partner/relay/RelayStorefrontManager';
 import BlockRenderer from '@/components/relay/blocks/BlockRenderer';
@@ -123,7 +124,7 @@ export default function PartnerRelayPage() {
     const [convoLoading, setConvoLoading] = useState(true);
 
     // Block configs state
-    const [blockConfigs, setBlockConfigs] = useState<RelayBlockConfigDetail[]>([]);
+    const [blockConfigs, setBlockConfigs] = useState<BlockListItem[]>([]);
     const [blocksLoading, setBlocksLoading] = useState(false);
     const [blocksError, setBlocksError] = useState<string | null>(null);
 
@@ -259,11 +260,11 @@ export default function PartnerRelayPage() {
         setBlocksLoading(true);
         (async () => {
             try {
-                const result = await getRelayBlockConfigsWithModulesAction();
+                const result = await getRegisteredBlocksAction();
                 if (result.success) {
-                    setBlockConfigs(result.configs || []);
+                    setBlockConfigs(result.blocks || []);
                 } else {
-                    setBlocksError(result.error || 'Failed to load block configs');
+                    setBlocksError(result.error || 'Failed to load blocks');
                 }
             } catch (e: any) {
                 setBlocksError(e.message || 'Unknown error');
@@ -825,26 +826,28 @@ export default function PartnerRelayPage() {
                                     {(blockConfigs || []).map(cfg => (
                                         <div key={cfg.id} className="p-4 rounded-lg border hover:bg-muted/50 transition-colors">
                                             <div className="flex items-center gap-2 mb-2">
-                                                <Badge variant="secondary">{cfg.blockType}</Badge>
-                                                <Badge variant={cfg.status === 'active' ? 'default' : 'outline'} className="text-xs">
-                                                    {cfg.status}
-                                                </Badge>
+                                                <Badge variant="secondary">{cfg.family}</Badge>
+                                                {(cfg.variants || []).length > 1 && (
+                                                    <Badge variant="outline" className="text-[10px]">
+                                                        {cfg.variants.length} variants
+                                                    </Badge>
+                                                )}
                                             </div>
                                             <p className="font-medium text-sm">{cfg.label}</p>
                                             {cfg.description && (
                                                 <p className="text-xs text-muted-foreground mt-1">{cfg.description}</p>
                                             )}
-                                            {cfg.moduleSlug && (
-                                                <p className="text-xs text-muted-foreground mt-1">
-                                                    Module: <span className="font-mono">{cfg.moduleSlug}</span>
-                                                </p>
-                                            )}
-                                            {(cfg.applicableIndustries || []).length > 0 && (
+                                            {(cfg.intentKeywords || []).length > 0 && (
                                                 <div className="flex gap-1 flex-wrap mt-2">
-                                                    {(cfg.applicableIndustries || []).map(ind => (
-                                                        <Badge key={ind} variant="outline" className="text-[10px]">{ind}</Badge>
+                                                    {(cfg.intentKeywords || []).map(kw => (
+                                                        <Badge key={kw} variant="outline" className="text-[10px]">{kw}</Badge>
                                                     ))}
                                                 </div>
+                                            )}
+                                            {(cfg.applicableCategories || []).length > 0 && (
+                                                <p className="text-xs text-muted-foreground mt-1">
+                                                    Categories: {(cfg.applicableCategories || []).join(', ')}
+                                                </p>
                                             )}
                                         </div>
                                     ))}
