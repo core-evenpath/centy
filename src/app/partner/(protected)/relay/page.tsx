@@ -12,6 +12,7 @@ import {
 import type { RelayConfig, DiagnosticCheck, RelayConversation } from '@/actions/relay-actions';
 import RelayChatSetup from '@/components/partner/relay/RelayChatSetup';
 import RelayStorefrontManager from '@/components/partner/relay/RelayStorefrontManager';
+import RelayBlocksPreview from '@/components/partner/relay/RelayBlocksPreview';
 import BlockRenderer from '@/components/relay/blocks/BlockRenderer';
 import type { RelayBlock } from '@/components/relay/blocks/BlockRenderer';
 import { DEFAULT_THEME } from '@/components/relay/blocks/types';
@@ -42,6 +43,7 @@ import {
     Play,
     Trash2,
     GitBranch,
+    Layers,
 } from 'lucide-react';
 
 const DEFAULT_CONFIG: RelayConfig = {
@@ -360,6 +362,9 @@ export default function PartnerRelayPage() {
                     </TabsTrigger>
                     <TabsTrigger value="flows" className="gap-2">
                         <GitBranch className="h-4 w-4" /> Flows
+                    </TabsTrigger>
+                    <TabsTrigger value="blocks" className="gap-2">
+                        <Layers className="h-4 w-4" /> Blocks
                     </TabsTrigger>
                     <TabsTrigger value="storefront">Storefront</TabsTrigger>
                 </TabsList>
@@ -757,6 +762,20 @@ export default function PartnerRelayPage() {
                                     Open Flow Editor
                                 </Link>
                             </Button>
+                        </CardContent>
+                    </Card>
+                </TabsContent>
+
+                <TabsContent value="blocks" className="space-y-6">
+                    <Card>
+                        <CardHeader>
+                            <CardTitle>Relay Blocks</CardTitle>
+                            <CardDescription>
+                                Interactive block components available for your chat experience. These blocks render automatically based on conversation context.
+                            </CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                            <RelayBlocksPreview theme={relayTheme} />
                         </CardContent>
                     </Card>
                 </TabsContent>
