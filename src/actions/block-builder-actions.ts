@@ -167,7 +167,7 @@ export async function generateBlockFromPromptAction(
 }> {
   const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_GENAI_API_KEY;
   if (!apiKey) {
-    return { success: false, error: 'AI service not configured — missing API key' };
+    return { success: false, error: 'Gemini API key not configured. Set GEMINI_API_KEY in environment variables.' };
   }
 
   try {
@@ -231,10 +231,16 @@ Return ONLY valid JSON.`;
 
     let parsed: any;
     try {
-      const jsonMatch = responseText.match(/\{[\s\S]*\}/);
-      parsed = jsonMatch ? JSON.parse(jsonMatch[0]) : null;
+      // Try direct parse first (responseMimeType: 'application/json' should return clean JSON)
+      parsed = JSON.parse(responseText);
     } catch {
-      return { success: false, error: 'AI returned invalid JSON' };
+      // Fallback: extract JSON object from response
+      try {
+        const jsonMatch = responseText.match(/\{[\s\S]*\}/);
+        parsed = jsonMatch ? JSON.parse(jsonMatch[0]) : null;
+      } catch {
+        return { success: false, error: 'AI returned invalid JSON. Try simplifying your prompt.' };
+      }
     }
 
     if (!parsed || !parsed.componentCode) {
@@ -261,7 +267,17 @@ Return ONLY valid JSON.`;
     };
   } catch (error: any) {
     console.error('[BlockBuilder] Generation failed:', error);
-    return { success: false, error: error.message };
+    const msg = error.message || 'Unknown error';
+    if (msg.includes('not found') || msg.includes('404')) {
+      return { success: false, error: `Model "${BUILDER_MODEL}" not available. Check RELAY_AI_MODEL env var or try a different model.` };
+    }
+    if (msg.includes('API key') || msg.includes('401') || msg.includes('403')) {
+      return { success: false, error: 'Invalid or expired API key. Check GEMINI_API_KEY env var.' };
+    }
+    if (msg.includes('429') || msg.includes('quota') || msg.includes('rate')) {
+      return { success: false, error: 'Rate limit exceeded. Wait a moment and try again.' };
+    }
+    return { success: false, error: `Generation failed: ${msg}` };
   }
 }
 
