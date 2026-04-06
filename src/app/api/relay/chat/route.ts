@@ -11,6 +11,10 @@ import { getActiveBlocksForPartner, buildBlockSchemasFromConfigs } from '@/lib/r
 import { createInitialFlowState, detectIntent, runFlowEngine } from '@/lib/flow-engine';
 import { getFlowTemplateForFunction } from '@/lib/flow-templates';
 import type { ConversationFlowState, FlowDefinition, FlowEngineDecision } from '@/lib/types-flow-engine';
+import { RelaySessionCache } from '@/lib/relay/session-cache';
+import { classifyIntent } from '@/lib/relay/intent-engine';
+import { resolveBlock } from '@/lib/relay/block-resolver';
+import type { RelaySessionData, SessionModuleItem, SessionBrand, SessionContact } from '@/lib/relay/types';
 
 const genAI = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || '' });
 const RELAY_CHAT_MODEL = 'gemini-3.1-pro-preview';
@@ -294,6 +298,65 @@ Respond with ONLY valid JSON. No markdown, no code fences.`;
         } catch {
             // If not valid JSON, wrap as text response
             parsed = { type: 'text', text, suggestions: [] };
+        }
+
+        // ── New block system: intent classification + block resolution ───
+        try {
+            const persona = partnerData?.businessPersona?.identity || {};
+
+            const brand: SessionBrand = {
+                name: persona.name || partnerData?.name || '',
+                tagline: persona.tagline || '',
+                emoji: partnerData?.relayConfig?.brandEmoji || '💬',
+                accentColor: partnerData?.relayConfig?.accentColor || '#6366f1',
+                logoUrl: persona.logoUrl || undefined,
+                welcomeMessage: partnerData?.relayConfig?.welcomeMessage || undefined,
+            };
+
+            const contact: SessionContact = {
+                whatsapp: persona.whatsapp || persona.phone || undefined,
+                phone: persona.phone || undefined,
+                email: persona.email || undefined,
+            };
+
+            const sessionItems: SessionModuleItem[] = moduleConfigs.flatMap(mc =>
+                mc.items.map(item => ({
+                    id: item.id,
+                    moduleSlug: mc.slug,
+                    name: item.name || '',
+                    description: item.description || item.fields?.description || undefined,
+                    price: item.price ?? item.fields?.price ?? undefined,
+                    currency: item.currency || 'INR',
+                    imageUrl: item.imageUrl || item.fields?.imageUrl || undefined,
+                    tags: item.tags || [],
+                    status: item.isActive !== false ? 'active' : 'inactive',
+                    raw: item.fields || item,
+                }))
+            );
+
+            const sessionData: RelaySessionData = {
+                partnerId,
+                category: partnerData?.businessPersona?.identity?.businessCategories?.[0]?.functionId || 'general',
+                brand,
+                contact,
+                items: sessionItems,
+                blocks: [],
+                blockOverrides: [],
+                cachedAt: Date.now(),
+            };
+
+            const cache = new RelaySessionCache(sessionData);
+            const lastMsg = messages[messages.length - 1]?.content || '';
+            const intent = classifyIntent(lastMsg, cache);
+            const resolution = resolveBlock(intent, cache);
+
+            if (resolution.blockId && resolution.confidence >= 0.6) {
+                parsed.blockId = resolution.blockId;
+                parsed.blockData = resolution.data;
+                if (resolution.variant) parsed.blockVariant = resolution.variant;
+            }
+        } catch (blockErr) {
+            console.error('Block resolution error (non-fatal):', blockErr);
         }
 
         // Store conversation turn if conversationId provided
