@@ -450,6 +450,18 @@ export async function createSystemFlowTemplateAction(
       return { success: false, error: 'At least one stage is required' };
     }
 
+    // Validate block IDs against registry
+    const { ALL_BLOCKS } = await import('@/app/admin/relay/blocks/previews/registry');
+    const validBlockIds = new Set(ALL_BLOCKS.map(b => b.id));
+    for (const stage of data.stages) {
+      const blockIds = stage.blockTypes || [];
+      for (const blockId of blockIds) {
+        if (!validBlockIds.has(blockId)) {
+          return { success: false, error: `Unknown block "${blockId}" in stage "${stage.id || stage.label}". Check the block registry.` };
+        }
+      }
+    }
+
     const now = new Date().toISOString();
     const templateId = `flow_tpl_${Date.now()}`;
 
@@ -488,6 +500,19 @@ export async function updateSystemFlowTemplateAction(
     }
 
     const { id: _id, createdAt: _ca, createdBy: _cb, ...safeUpdates } = updates;
+
+    if (safeUpdates.stages) {
+      const { ALL_BLOCKS } = await import('@/app/admin/relay/blocks/previews/registry');
+      const validBlockIds = new Set(ALL_BLOCKS.map(b => b.id));
+      for (const stage of safeUpdates.stages) {
+        const blockIds = stage.blockTypes || [];
+        for (const blockId of blockIds) {
+          if (!validBlockIds.has(blockId)) {
+            return { success: false, error: `Unknown block "${blockId}" in stage "${stage.id || stage.label}". Check the block registry.` };
+          }
+        }
+      }
+    }
 
     await adminDb.collection('systemFlowTemplates').doc(templateId).update({
       ...safeUpdates,
