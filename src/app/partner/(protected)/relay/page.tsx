@@ -16,6 +16,8 @@ import RelayChatSetup from '@/components/partner/relay/RelayChatSetup';
 import RelayStorefrontManager from '@/components/partner/relay/RelayStorefrontManager';
 import BlockRenderer from '@/components/relay/blocks/BlockRenderer';
 import type { RelayBlock } from '@/components/relay/blocks/BlockRenderer';
+import RegistryBlockRenderer from '@/components/relay/RegistryBlockRenderer';
+import type { BlockTheme } from '@/lib/relay/types';
 import { DEFAULT_THEME } from '@/components/relay/blocks/types';
 import type { RelayTheme, BlockCallbacks } from '@/components/relay/blocks/types';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -100,6 +102,29 @@ function buildThemeFromAccent(accent: string): RelayTheme {
     };
 }
 
+function relayThemeToBlockTheme(rt: RelayTheme): BlockTheme {
+    return {
+        accent: rt.accent,
+        accentBg: rt.accentBg,
+        accentBg2: rt.accentBg2,
+        bg: rt.bg,
+        surface: rt.surface,
+        t1: rt.text,
+        t2: rt.t2,
+        t3: rt.t3,
+        t4: rt.t4,
+        bdr: rt.bdr,
+        bdrM: rt.bdrL,
+        green: rt.green,
+        greenBg: rt.greenBg,
+        greenBdr: rt.greenBdr,
+        red: rt.red,
+        redBg: 'rgba(220,38,38,0.05)',
+        amber: '#d97706',
+        amberBg: 'rgba(217,119,6,0.06)',
+    };
+}
+
 // ── Chat message type ────────────────────────────────────────────────
 
 interface ChatMessage {
@@ -107,6 +132,9 @@ interface ChatMessage {
     content: string;
     block?: RelayBlock;
     type?: string;
+    blockId?: string;
+    blockData?: Record<string, any>;
+    blockVariant?: string;
 }
 
 export default function PartnerRelayPage() {
@@ -305,6 +333,9 @@ export default function PartnerRelayPage() {
                     content: data.response.text || '',
                     block: data.response as RelayBlock,
                     type: data.response.type,
+                    blockId: data.response.blockId || undefined,
+                    blockData: data.response.blockData || undefined,
+                    blockVariant: data.response.blockVariant || undefined,
                 };
                 setChatMessages(prev => [...prev, assistantMsg]);
             } else {
@@ -454,7 +485,14 @@ export default function PartnerRelayPage() {
                                                     {config.brandEmoji || '🤖'}
                                                 </div>
                                                 <div className="max-w-[90%] space-y-2">
-                                                    {msg.block ? (
+                                                    {msg.blockId && msg.blockData ? (
+                                                        <RegistryBlockRenderer
+                                                            blockId={msg.blockId}
+                                                            data={msg.blockData}
+                                                            theme={relayThemeToBlockTheme(relayTheme)}
+                                                            variant={msg.blockVariant}
+                                                        />
+                                                    ) : msg.block ? (
                                                         <BlockRenderer
                                                             block={msg.block}
                                                             theme={relayTheme}
@@ -470,6 +508,11 @@ export default function PartnerRelayPage() {
                                                     {msg.type && msg.type !== 'text' && (
                                                         <Badge variant="outline" className="text-[10px]">
                                                             {msg.type}
+                                                        </Badge>
+                                                    )}
+                                                    {msg.blockId && (
+                                                        <Badge variant="outline" className="text-[10px] ml-1">
+                                                            {msg.blockId}
                                                         </Badge>
                                                     )}
                                                 </div>

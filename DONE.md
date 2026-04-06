@@ -840,3 +840,11 @@ RelayWidget (container)
 - tsc --noEmit: PASS (only pre-existing TS5101 baseUrl deprecation warning)
 - Module slugs found in registry: `moduleItems` (only slug used across all block verticals)
 - Notes: All blocks use `module: 'moduleItems'` or `module: null`. Schema fields adapted to real ModuleFieldDefinition interface (isRequired/isSearchable/showInList/showInCard, not required/searchable/showInDetail). SystemModuleSettings uses DEFAULT_MODULE_SETTINGS spread. ModuleAgentConfig.inboxContext is string type. getPartnerModuleByIdAction was internal-only — now exported for use by exportModuleItemsAction.
+
+## Partner Relay — Prompt 7 (New Block System Wiring)
+- Date: 2026-04-06
+- Files modified:
+  - `src/app/api/relay/chat/route.ts` — added imports for RelaySessionCache, classifyIntent, resolveBlock; builds RelaySessionData from already-loaded partnerData + moduleConfigs (brand from businessPersona.identity, contact from identity, items from moduleConfigs flatMap); constructs RelaySessionCache, runs classifyIntent→resolveBlock pipeline after Gemini response; merges blockId/blockData/blockVariant into parsed response when confidence >= 0.6; entire block is try/catch so failures fall back silently to Gemini-only mode
+  - `src/app/partner/(protected)/relay/page.tsx` — added RegistryBlockRenderer + BlockTheme imports; added relayThemeToBlockTheme() mapper (RelayTheme 29 fields → BlockTheme 18 fields, maps text→t1, bdrL→bdrM, hardcodes redBg/amber/amberBg); extended ChatMessage with blockId/blockData/blockVariant; updated sendChatMessage to capture new fields; three-tier rendering: RegistryBlockRenderer (new) → BlockRenderer (old fallback) → plain text; added blockId diagnostic badge
+- tsc --noEmit: PASS (only pre-existing TS5101 baseUrl deprecation warning)
+- Notes: RelaySessionCache constructed via `new RelaySessionCache(data)` (not static factory). blocks/blockOverrides set to empty arrays (not needed by intent engine or block resolver). Response includes BOTH old format (type/items) and new format (blockId/blockData) for backward compatibility with embeddable widget. Theme types are incompatible (RelayTheme vs BlockTheme) — solved with mapping function at call site, no modifications to RegistryBlockRenderer.
