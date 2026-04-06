@@ -18,6 +18,7 @@ import BlockRenderer from '@/components/relay/blocks/BlockRenderer';
 import type { RelayBlock } from '@/components/relay/blocks/BlockRenderer';
 import RegistryBlockRenderer from '@/components/relay/RegistryBlockRenderer';
 import type { BlockTheme } from '@/lib/relay/types';
+import { mapGeminiToRegistryBlock } from './gemini-block-mapper';
 import { DEFAULT_THEME } from '@/components/relay/blocks/types';
 import type { RelayTheme, BlockCallbacks } from '@/components/relay/blocks/types';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -134,7 +135,6 @@ interface ChatMessage {
     type?: string;
     blockId?: string;
     blockData?: Record<string, any>;
-    blockVariant?: string;
 }
 
 export default function PartnerRelayPage() {
@@ -328,14 +328,14 @@ export default function PartnerRelayPage() {
             const data = await res.json();
 
             if (data.success && data.response) {
+                const mapped = mapGeminiToRegistryBlock(data.response);
                 const assistantMsg: ChatMessage = {
                     role: 'assistant',
                     content: data.response.text || '',
                     block: data.response as RelayBlock,
                     type: data.response.type,
-                    blockId: data.response.blockId || undefined,
-                    blockData: data.response.blockData || undefined,
-                    blockVariant: data.response.blockVariant || undefined,
+                    blockId: mapped?.blockId || data.response.blockId || undefined,
+                    blockData: mapped?.data || data.response.blockData || undefined,
                 };
                 setChatMessages(prev => [...prev, assistantMsg]);
             } else {
@@ -486,12 +486,23 @@ export default function PartnerRelayPage() {
                                                 </div>
                                                 <div className="max-w-[90%] space-y-2">
                                                     {msg.blockId && msg.blockData ? (
-                                                        <RegistryBlockRenderer
-                                                            blockId={msg.blockId}
-                                                            data={msg.blockData}
-                                                            theme={relayThemeToBlockTheme(relayTheme)}
-                                                            variant={msg.blockVariant}
-                                                        />
+                                                        <>
+                                                            <RegistryBlockRenderer
+                                                                blockId={msg.blockId}
+                                                                data={msg.blockData}
+                                                                theme={relayThemeToBlockTheme(relayTheme)}
+                                                            />
+                                                            {msg.block?.suggestions && msg.block.suggestions.length > 0 && (
+                                                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginTop: '8px' }}>
+                                                                    {msg.block.suggestions.map((s: string, j: number) => (
+                                                                        <button key={j} onClick={() => sendChatMessage(s)}
+                                                                            style={{ padding: '5px 12px', borderRadius: '99px', border: `1px solid ${relayTheme.bdrL}`, background: relayTheme.surface, fontSize: '11px', color: relayTheme.accent, cursor: 'pointer', fontWeight: 500 }}>
+                                                                            {s}
+                                                                        </button>
+                                                                    ))}
+                                                                </div>
+                                                            )}
+                                                        </>
                                                     ) : msg.block ? (
                                                         <BlockRenderer
                                                             block={msg.block}
