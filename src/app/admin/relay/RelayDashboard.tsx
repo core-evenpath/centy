@@ -8,6 +8,7 @@ import {
   resetAllBlockConfigsAction,
   getRelayDiagnosticsAction,
 } from '@/actions/relay-admin-actions';
+import { FLOW_STAGE_STYLES } from './blocks/previews/_types';
 
 interface RelayDashboardProps {
   initialStats: {
@@ -31,6 +32,16 @@ interface RelayDashboardProps {
     stages: number;
     status: string;
   }>;
+  initialFlowTemplate: {
+    id: string;
+    name: string;
+    stages: Array<{
+      id: string; name: string; type: string; blockIds: string[];
+      intentTriggers: string[]; leadScoreImpact: number;
+      isEntry?: boolean; isExit?: boolean;
+    }>;
+    transitions: Array<{ from: string; to: string; trigger: string; priority?: number }>;
+  } | null;
 }
 
 const T = {
@@ -59,7 +70,7 @@ interface Stage {
   isExit?: boolean;
 }
 
-const STAGES: Stage[] = [
+const DEFAULT_STAGES: Stage[] = [
   { id: "greeting", label: "Greeting", type: "greeting", color: "#EEEDFE", textColor: "#534AB7", blocks: ["greeting", "suggestions"], intents: ["browsing"], leadScore: 1, isEntry: true },
   { id: "discovery", label: "Discovery", type: "discovery", color: "#E6F1FB", textColor: "#185FA5", blocks: ["product_card", "suggestions", "skin_quiz"], intents: ["browsing", "returning"], leadScore: 2 },
   { id: "showcase", label: "Showcase", type: "showcase", color: "#E1F5EE", textColor: "#0F6E56", blocks: ["product_detail", "promo", "bundle"], intents: ["pricing", "promo"], leadScore: 3 },
@@ -72,7 +83,7 @@ const STAGES: Stage[] = [
 
 interface Transition { from: string; to: string; trigger: string; priority?: number; }
 
-const TRANSITIONS: Transition[] = [
+const DEFAULT_TRANSITIONS: Transition[] = [
   { from: "greeting", to: "discovery", trigger: "browsing" },
   { from: "greeting", to: "conversion", trigger: "booking", priority: 1 },
   { from: "greeting", to: "handoff", trigger: "urgent", priority: 2 },
@@ -98,7 +109,31 @@ const STATUS_COLORS: Record<string, { color: string; bg: string }> = {
   archived: { color: T.red, bg: T.redBg },
 };
 
-export default function AdminRelayDashboard({ initialStats, initialDiagnostics, initialTemplates }: RelayDashboardProps) {
+export default function AdminRelayDashboard({ initialStats, initialDiagnostics, initialTemplates, initialFlowTemplate }: RelayDashboardProps) {
+  const STAGES: Stage[] = initialFlowTemplate
+    ? initialFlowTemplate.stages.map(s => ({
+        id: s.id,
+        label: s.name,
+        type: s.type,
+        color: FLOW_STAGE_STYLES[s.type]?.color || '#F1EFE8',
+        textColor: FLOW_STAGE_STYLES[s.type]?.textColor || '#5F5E5A',
+        blocks: s.blockIds,
+        intents: s.intentTriggers,
+        leadScore: s.leadScoreImpact,
+        isEntry: s.isEntry,
+        isExit: s.isExit,
+      }))
+    : DEFAULT_STAGES;
+
+  const TRANSITIONS: Transition[] = initialFlowTemplate
+    ? initialFlowTemplate.transitions.map(t => ({
+        from: t.from,
+        to: t.to,
+        trigger: t.trigger,
+        priority: t.priority,
+      }))
+    : DEFAULT_TRANSITIONS;
+
   const [tab, setTab] = useState("overview");
   const [selectedStage, setSelectedStage] = useState<string | null>(null);
   const [expandedTemplate, setExpandedTemplate] = useState<string | null>(null);
@@ -227,7 +262,10 @@ export default function AdminRelayDashboard({ initialStats, initialDiagnostics, 
           <React.Fragment>
             <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: "24px" }}>
               <div>
-                <div style={{ fontSize: "13px", fontWeight: 600, color: T.t1, marginBottom: "12px" }}>Default Conversation Flow (E-commerce)</div>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "12px" }}>
+                  <div style={{ fontSize: "13px", fontWeight: 600, color: T.t1 }}>{initialFlowTemplate ? initialFlowTemplate.name : "Default Conversation Flow (E-commerce)"}</div>
+                  <Link href="/admin/relay/flows" style={{ display: "inline-flex", alignItems: "center", gap: "6px", padding: "8px 16px", borderRadius: "8px", background: T.pri, color: "#fff", fontSize: "12px", fontWeight: 600, textDecoration: "none" }}>Open Visual Flow Builder →</Link>
+                </div>
                 <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
                   {STAGES.map((s, i) => (
                     <React.Fragment key={s.id}>

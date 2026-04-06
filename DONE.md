@@ -803,3 +803,12 @@ RelayWidget (container)
 - Key mapping: FlowStage(label/blockTypes) ↔ FlowBuilderStage(name/blockIds)
 - tsc --noEmit: PASS (only pre-existing TS5101 baseUrl deprecation warning)
 - Verification: no className usage, correct client/server directives, zero new type errors
+
+## Flow Builder — Prompt 3 (Dashboard Integration + Validation)
+- Date: 2026-04-06
+- Files modified:
+  - `src/app/admin/relay/page.tsx` — added getSystemFlowTemplatesFromDB call, passes initialFlowTemplate prop
+  - `src/app/admin/relay/RelayDashboard.tsx` — STAGES/TRANSITIONS derived from Firestore prop with fallback to DEFAULT_STAGES/DEFAULT_TRANSITIONS, added flow builder link in flows tab
+  - `src/actions/flow-engine-actions.ts` — added block registry validation to create/update template actions
+- tsc --noEmit: PASS (only pre-existing TS5101 baseUrl deprecation warning)
+- Notes: Field mapping label→name, blockTypes→blockIds handled in page.tsx server component; FLOW_STAGE_STYLES imported for stage colors; dynamic import of ALL_BLOCKS in validation to avoid client bundle in server actions
