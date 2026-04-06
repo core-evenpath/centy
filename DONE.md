@@ -876,3 +876,20 @@ RelayWidget (container)
   - `src/app/api/relay/chat/route.ts` — removed GEMINI_TYPE_TO_BLOCK hybrid fallback section (70 lines). Kept intent/resolve pipeline with diagnostic logging.
 - tsc --noEmit: PASS (only pre-existing TS5101 baseUrl deprecation warning)
 - Block types rendered: catalog, rooms, menu, products, services, listings, compare, activities, experiences, classes, treatments, book, reserve, appointment, inquiry, location, directions, contact, gallery, photos, info, faq, details, greeting, welcome, pricing, packages, plans, testimonials, reviews, quick_actions, menu_actions, schedule, timetable, slots, promo, offer, deal, lead_capture, form, inquiry_form, handoff, connect, human, text (44 case labels, 17 base types)
+
+## Partner Relay — Prompt 10 (Gemini-to-Registry Block Mapper)
+- Date: 2026-04-06
+- Files created:
+  - `src/app/partner/(protected)/relay/gemini-block-mapper.ts` — pure mapping function that transforms Gemini response format into registry block data format. Maps 14 Gemini type aliases to 6 registry block IDs with per-type data transformations.
+- Files modified:
+  - `src/app/partner/(protected)/relay/page.tsx` — imports mapper, calls mapGeminiToRegistryBlock on every API response to populate blockId/blockData for RegistryBlockRenderer; added suggestion chips as clickable buttons below new registry blocks; removed unused blockVariant from ChatMessage interface
+- Mapping coverage:
+  - catalog/products/rooms/menu/services/listings → ecom_product_card (reviewCount→reviews, features→tags, subtitle→description)
+  - compare → ecom_compare (items[].name → itemLabels[], compareFields × items → rows[][])
+  - greeting/welcome → ecom_greeting (brand.name→brandName, brand.tagline→tagline, text→welcomeMessage, brand.quickActions[].label→quickActions[] strings)
+  - contact → shared_contact (methods[] array → flat whatsapp/phone/email)
+  - promo/offer/deal → ecom_promo (promos[0] → flat title/subtitle/code/discount/ctaLabel)
+  - text → shared_suggestions (suggestions[] → items[])
+- Unmapped types (fall through to old BlockRenderer): activities, book, location, gallery, info, pricing, testimonials, quick_actions, schedule, lead_capture, handoff
+- Returns null (→ old BlockRenderer fallback) when: unknown type, no items for catalog, no rows for compare, no contact data
+- tsc --noEmit: PASS (only pre-existing TS5101 baseUrl deprecation warning)
