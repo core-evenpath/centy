@@ -830,3 +830,13 @@ RelayWidget (container)
 - tsc --noEmit: PASS (only pre-existing TS5101 baseUrl deprecation warning)
 - Flow engine status: fully wired
 - Notes: Chat route already had complete flow engine integration (state loading, intent detection, flow resolution with partner→system template fallback, engine execution, prompt injection, state persistence, flowMeta response). Only addition was the autoAssignFlowTemplateAction for automatic template matching by functionId/industryId.
+
+## Modules — Prompt 6 (Auto-Derive + Export)
+- Date: 2026-04-06
+- Files modified:
+  - `src/actions/modules-actions.ts` — exported getPartnerModuleByIdAction; added deriveModulesFromRegistryAction (scans ALL_BLOCKS for module bindings, creates missing system modules via createSystemModuleAction with proper ModuleFieldDefinition/SystemModuleSettings types); added exportModuleItemsAction (exports partner items to CSV with fixed + dynamic columns, proper CSV escaping)
+  - `src/app/partner/(protected)/modules/[slug]/page.tsx` — added Export CSV button next to Import button with download handler
+  - `src/components/admin/modules/ModulesList.tsx` — added "Derive from Blocks" button with toast feedback showing created/skipped/errors
+- tsc --noEmit: PASS (only pre-existing TS5101 baseUrl deprecation warning)
+- Module slugs found in registry: `moduleItems` (only slug used across all block verticals)
+- Notes: All blocks use `module: 'moduleItems'` or `module: null`. Schema fields adapted to real ModuleFieldDefinition interface (isRequired/isSearchable/showInList/showInCard, not required/searchable/showInDetail). SystemModuleSettings uses DEFAULT_MODULE_SETTINGS spread. ModuleAgentConfig.inboxContext is string type. getPartnerModuleByIdAction was internal-only — now exported for use by exportModuleItemsAction.

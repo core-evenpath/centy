@@ -12,9 +12,10 @@ import {
     updateModuleItemAction,
     reorderItemsAction,
     deleteAllModuleItemsAction,
+    exportModuleItemsAction,
 } from '@/actions/modules-actions';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Plus, Settings, Package, Trash2, Loader2, AlertTriangle, Upload, ChevronDown } from 'lucide-react';
+import { ArrowLeft, Plus, Settings, Package, Trash2, Loader2, AlertTriangle, Upload, Download, ChevronDown } from 'lucide-react';
 import { ImportDialog } from '@/components/partner/modules/ImportDialog';
 import Link from 'next/link';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -68,6 +69,7 @@ export default function ModuleManagePage({ params }: PageProps) {
     const [isDeleteAllOpen, setIsDeleteAllOpen] = useState(false);
     const [isDeleting, setIsDeleting] = useState(false);
     const [isImportOpen, setIsImportOpen] = useState(false);
+    const [isExporting, setIsExporting] = useState(false);
     const [showCustomFields, setShowCustomFields] = useState(false);
 
     // Combined loading state
@@ -251,6 +253,30 @@ export default function ModuleManagePage({ params }: PageProps) {
         }
     };
 
+    const handleExport = async () => {
+        if (!partnerId || !moduleId) return;
+        setIsExporting(true);
+        try {
+            const result = await exportModuleItemsAction(partnerId, moduleId);
+            if (result.success && result.data) {
+                const blob = new Blob([result.data.csvContent], { type: 'text/csv' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = result.data.filename;
+                a.click();
+                URL.revokeObjectURL(url);
+                toast.success(`Exported ${result.data.itemCount} items`);
+            } else {
+                toast.error(result.error || 'Export failed');
+            }
+        } catch {
+            toast.error('Export failed');
+        } finally {
+            setIsExporting(false);
+        }
+    };
+
     return (
         <div className="container mx-auto py-8">
             <div className="mb-8">
@@ -290,6 +316,11 @@ export default function ModuleManagePage({ params }: PageProps) {
                                 </DropdownMenuItem>
                             </DropdownMenuContent>
                         </DropdownMenu>
+
+                        <Button variant="outline" onClick={handleExport} disabled={isExporting}>
+                            <Download className={`mr-2 h-4 w-4 ${isExporting ? 'animate-spin' : ''}`} />
+                            {isExporting ? 'Exporting...' : 'Export CSV'}
+                        </Button>
 
                         <Button variant="outline" onClick={() => setIsImportOpen(true)}>
                             <Upload className="mr-2 h-4 w-4" />

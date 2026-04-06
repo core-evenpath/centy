@@ -12,6 +12,7 @@ import type {
     PartnerModuleCategory,
     PartnerCustomField,
     ModuleSchema,
+    ModuleFieldDefinition,
     ModuleMigration,
     MigrationPreview,
     MigrationResult,
@@ -1323,7 +1324,7 @@ export async function executeModuleMigrationAction(
 // HELPER ACTIONS
 // ============================================================================
 
-async function getPartnerModuleByIdAction(
+export async function getPartnerModuleByIdAction(
     partnerId: string,
     moduleId: string
 ): Promise<ModulesActionResponse<{ partnerModule: PartnerModule; systemModule: SystemModule }>> {
@@ -1866,5 +1867,205 @@ export async function backfillRelayBlockConfigsAction(): Promise<{
         return { success: true, created, skipped, errors };
     } catch (e: any) {
         return { success: false, created, skipped, errors: [e.message] };
+    }
+}
+
+// ============================================================================
+// DERIVE SYSTEM MODULES FROM BLOCK REGISTRY
+// ============================================================================
+
+export async function deriveModulesFromRegistryAction(): Promise<{
+    success: boolean;
+    created: number;
+    skipped: number;
+    errors: string[];
+}> {
+    let created = 0;
+    let skipped = 0;
+    const errors: string[] = [];
+
+    try {
+        const { ALL_BLOCKS } = await import(
+            '@/app/admin/relay/blocks/previews/registry'
+        );
+
+        // Collect all unique non-null module slugs and the blocks that reference them
+        const moduleSlugs = new Map<string, Array<{
+            id: string;
+            label: string;
+            family: string;
+            stage: string;
+            desc: string;
+        }>>();
+
+        for (const block of ALL_BLOCKS) {
+            if (!block.module) continue;
+            if (!moduleSlugs.has(block.module)) {
+                moduleSlugs.set(block.module, []);
+            }
+            moduleSlugs.get(block.module)!.push({
+                id: block.id,
+                label: block.label,
+                family: block.family,
+                stage: block.stage,
+                desc: block.desc,
+            });
+        }
+
+        for (const [slug, blocks] of moduleSlugs) {
+            try {
+                // Skip if system module already exists for this slug
+                const existing = await getSystemModuleAction(slug);
+                if (existing.success && existing.data) {
+                    skipped++;
+                    continue;
+                }
+
+                const families = [...new Set(blocks.map(b => b.family))];
+                const primaryFamily = families[0] || 'catalog';
+
+                const schemaFields: ModuleFieldDefinition[] = [
+                    { id: 'fld_name', name: 'name', type: 'text', isRequired: true, isSearchable: true, showInList: true, showInCard: true, order: 0 },
+                    { id: 'fld_description', name: 'description', type: 'textarea', isRequired: false, isSearchable: true, showInList: false, showInCard: false, order: 1 },
+                    { id: 'fld_image_url', name: 'image_url', type: 'url', isRequired: false, isSearchable: false, showInList: true, showInCard: true, order: 2 },
+                    { id: 'fld_subtitle', name: 'subtitle', type: 'text', isRequired: false, isSearchable: false, showInList: true, showInCard: true, order: 3 },
+                    { id: 'fld_rating', name: 'rating', type: 'number', isRequired: false, isSearchable: false, showInList: true, showInCard: true, order: 4 },
+                    { id: 'fld_badges', name: 'badges', type: 'tags', isRequired: false, isSearchable: false, showInList: true, showInCard: true, order: 5 },
+                    { id: 'fld_features', name: 'features', type: 'tags', isRequired: false, isSearchable: true, showInList: false, showInCard: false, order: 6 },
+                ];
+
+                if (primaryFamily === 'catalog' || primaryFamily === 'commerce') {
+                    schemaFields.push(
+                        { id: 'fld_sku', name: 'sku', type: 'text', isRequired: false, isSearchable: true, showInList: true, showInCard: false, order: 7 },
+                        { id: 'fld_stock_quantity', name: 'stock_quantity', type: 'number', isRequired: false, isSearchable: false, showInList: true, showInCard: false, order: 8 },
+                    );
+                }
+
+                if (primaryFamily === 'conversion' || primaryFamily === 'marketing') {
+                    schemaFields.push(
+                        { id: 'fld_cta_label', name: 'cta_label', type: 'text', isRequired: false, isSearchable: false, showInList: false, showInCard: false, order: 7 },
+                        { id: 'fld_cta_url', name: 'cta_url', type: 'url', isRequired: false, isSearchable: false, showInList: false, showInCard: false, order: 8 },
+                    );
+                }
+
+                const result = await createSystemModuleAction({
+                    slug,
+                    name: slug === 'moduleItems' ? 'Items / Products' : slug.replace(/^module/, '').replace(/([A-Z])/g, ' $1').trim(),
+                    description: `Auto-derived from ${blocks.length} block(s): ${blocks.slice(0, 5).map(b => b.label).join(', ')}${blocks.length > 5 ? '...' : ''}`,
+                    icon: primaryFamily === 'catalog' ? '📦' : primaryFamily === 'commerce' ? '🛒' : '📋',
+                    color: 'blue',
+                    itemLabel: 'Item',
+                    itemLabelPlural: 'Items',
+                    priceLabel: 'Price',
+                    priceType: 'one_time',
+                    defaultCurrency: 'USD',
+                    applicableIndustries: [],
+                    applicableFunctions: [],
+                    status: 'active',
+                    settings: {
+                        ...DEFAULT_MODULE_SETTINGS,
+                    },
+                    schema: {
+                        fields: schemaFields,
+                        categories: [
+                            { id: 'cat_general', name: 'General', icon: '📁', order: 0 },
+                        ],
+                    },
+                    agentConfig: {
+                        relayBlockType: primaryFamily === 'catalog' ? 'card' : 'list',
+                        displayFields: ['name', 'description', 'image_url'],
+                        cardTitle: 'name',
+                        cardSubtitle: 'subtitle',
+                        cardPrice: 'price',
+                        cardImage: 'image_url',
+                        searchableFields: ['name', 'description', 'features'],
+                        comparisonFields: ['name', 'price', 'rating'],
+                        broadcastVariables: ['name', 'price'],
+                        inboxContext: '{name} - {description}',
+                    },
+                    createdBy: 'system-registry-derive',
+                });
+
+                if (result.success) {
+                    created++;
+                } else {
+                    errors.push(`${slug}: ${result.error}`);
+                }
+            } catch (e: any) {
+                errors.push(`${slug}: ${e.message}`);
+            }
+        }
+
+        revalidatePath('/admin/modules');
+        return { success: true, created, skipped, errors };
+    } catch (e: any) {
+        return { success: false, created, skipped, errors: [e.message] };
+    }
+}
+
+// ============================================================================
+// EXPORT MODULE ITEMS TO CSV
+// ============================================================================
+
+export async function exportModuleItemsAction(
+    partnerId: string,
+    moduleId: string
+): Promise<ModulesActionResponse<{ csvContent: string; filename: string; itemCount: number }>> {
+    try {
+        const moduleResult = await getPartnerModuleByIdAction(partnerId, moduleId);
+        if (!moduleResult.success || !moduleResult.data) {
+            return { success: false, error: moduleResult.error || 'Module not found' };
+        }
+
+        const { partnerModule, systemModule } = moduleResult.data;
+        const schema = systemModule.schema;
+
+        const itemsSnap = await adminDb
+            .collection(`partners/${partnerId}/businessModules/${moduleId}/items`)
+            .orderBy('sortOrder', 'asc')
+            .get();
+
+        const fixedColumns = ['name', 'description', 'category', 'price', 'currency', 'isActive', 'isFeatured'];
+        const dynamicColumns = schema.fields.map(f => f.name);
+        const headers = [...fixedColumns, ...dynamicColumns];
+
+        const escapeCSV = (val: any): string => {
+            if (val === null || val === undefined) return '';
+            const str = Array.isArray(val) ? val.join('; ') : String(val);
+            if (str.includes(',') || str.includes('"') || str.includes('\n')) {
+                return `"${str.replace(/"/g, '""')}"`;
+            }
+            return str;
+        };
+
+        const rows = itemsSnap.docs.map(doc => {
+            const item = doc.data();
+            const row: string[] = [];
+
+            row.push(escapeCSV(item.name));
+            row.push(escapeCSV(item.description));
+            row.push(escapeCSV(item.category));
+            row.push(escapeCSV(item.price));
+            row.push(escapeCSV(item.currency));
+            row.push(escapeCSV(item.isActive));
+            row.push(escapeCSV(item.isFeatured));
+
+            for (const field of schema.fields) {
+                row.push(escapeCSV(item.fields?.[field.name]));
+            }
+
+            return row.join(',');
+        });
+
+        const csvContent = [headers.join(','), ...rows].join('\n');
+        const filename = `${partnerModule.moduleSlug}_items_export_${new Date().toISOString().split('T')[0]}.csv`;
+
+        return {
+            success: true,
+            data: { csvContent, filename, itemCount: itemsSnap.size },
+        };
+    } catch (error: any) {
+        console.error('Error exporting module items:', error);
+        return { success: false, error: 'Failed to export items' };
     }
 }

@@ -7,11 +7,38 @@ import { BulkDeleteDialog } from './BulkDeleteDialog';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import Link from 'next/link';
-import { Plus, Package, Trash2, RefreshCw, Brain } from 'lucide-react';
+import { Plus, Package, Trash2, RefreshCw, Brain, Wand2 } from 'lucide-react';
+import { deriveModulesFromRegistryAction } from '@/actions/modules-actions';
+import { toast } from 'sonner';
 
 export function ModulesList() {
     const [bulkDeleteDialogOpen, setBulkDeleteDialogOpen] = useState(false);
+    const [isDeriving, setIsDeriving] = useState(false);
     const { modules, isLoading, error, refetch } = useSystemModules();
+
+    const handleDerive = async () => {
+        setIsDeriving(true);
+        try {
+            const result = await deriveModulesFromRegistryAction();
+            if (result.success) {
+                if (result.created > 0) {
+                    toast.success(`Created ${result.created} module(s), skipped ${result.skipped}`);
+                    refetch();
+                } else {
+                    toast.info(`No new modules to create (${result.skipped} already exist)`);
+                }
+                if (result.errors.length > 0) {
+                    toast.warning(`Errors: ${result.errors.join(', ')}`);
+                }
+            } else {
+                toast.error(result.errors[0] || 'Derivation failed');
+            }
+        } catch {
+            toast.error('Failed to derive modules from registry');
+        } finally {
+            setIsDeriving(false);
+        }
+    };
 
     if (isLoading) {
         return (
@@ -81,6 +108,15 @@ export function ModulesList() {
             <div className="flex items-center justify-between mb-6">
                 <span className="text-sm text-slate-500">{modules.length} modules</span>
                 <div className="flex gap-2">
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={handleDerive}
+                        disabled={isDeriving}
+                    >
+                        <Wand2 className={`h-4 w-4 mr-1 ${isDeriving ? 'animate-spin' : ''}`} />
+                        {isDeriving ? 'Deriving...' : 'Derive from Blocks'}
+                    </Button>
                     <Button
                         variant="outline"
                         size="sm"
