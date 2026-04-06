@@ -792,3 +792,14 @@ RelayWidget (container)
 - Files modified: none
 - tsc --noEmit: PASS (only pre-existing TS5101 baseUrl deprecation warning)
 - Notes: none — all spec requirements met
+
+## Flow Builder — Prompt 2 (StagePanel + FlowBuilder + page.tsx)
+- Date: 2026-04-06
+- Files created:
+  - `src/app/admin/relay/flows/StagePanel.tsx` (~190 lines, 'use client')
+  - `src/app/admin/relay/flows/FlowBuilder.tsx` (~217 lines, 'use client')
+- Files modified:
+  - `src/app/admin/relay/flows/page.tsx` — replaced 972-line 'use client' page with lean server component (34 lines)
+- Key mapping: FlowStage(label/blockTypes) ↔ FlowBuilderStage(name/blockIds)
+- tsc --noEmit: PASS (only pre-existing TS5101 baseUrl deprecation warning)
+- Verification: no className usage, correct client/server directives, zero new type errors
