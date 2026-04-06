@@ -783,3 +783,12 @@ RelayWidget (container)
 - [x] All components are 'use client' — PASSED
 - [x] No direct Firestore imports in components — PASSED
 - [x] Import chain connects all phases — PASSED
+
+## Flow Builder — Prompt 1 (Types + Canvas)
+- Date: 2026-04-06
+- Files created:
+  - `src/app/admin/relay/flows/flow-builder-types.ts` (86 lines)
+  - `src/app/admin/relay/flows/FlowCanvas.tsx` (219 lines)
+- Files modified: none
+- tsc --noEmit: PASS (only pre-existing TS5101 baseUrl deprecation warning)
+- Notes: none — all spec requirements met
