@@ -1,6 +1,7 @@
 'use server';
 
 import { db as adminDb } from '@/lib/firebase-admin';
+import { invalidatePartnerBlockCache } from '@/lib/relay/block-config-service';
 
 export interface PartnerBlockConfig {
   id: string;
@@ -62,6 +63,7 @@ export async function togglePartnerBlockVisibilityAction(
         isVisible,
         updatedAt: new Date().toISOString(),
       });
+    invalidatePartnerBlockCache(partnerId);
     return { success: true };
   } catch (error) {
     console.error('Failed to toggle partner block visibility:', error);

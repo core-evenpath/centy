@@ -1,3 +1,8 @@
+/**
+ * @deprecated Firestore `relayBlockConfigs` is now the source of truth for block schemas.
+ * This constant is kept as a fallback in case Firestore is unavailable.
+ * See: block-config-service.ts → buildBlockSchemasFromConfigs()
+ */
 export const RELAY_BLOCK_SCHEMAS = `RESPOND ONLY IN JSON. Choose the most appropriate block type:
 
 {"type":"catalog","text":"...","items":[{"id":"...","name":"...","price":0,"currency":"INR","subtitle":"...","emoji":"...","color":"#...","rating":4.5,"reviewCount":100,"features":["..."],"specs":[{"label":"...","value":"..."}]}],"suggestions":["..."]}

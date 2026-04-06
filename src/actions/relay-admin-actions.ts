@@ -2,137 +2,257 @@
 
 import { revalidatePath } from 'next/cache';
 import { db as adminDb } from '@/lib/firebase-admin';
+import { invalidateBlockConfigCache } from '@/lib/relay/block-config-service';
+import { VERTICAL_MANIFEST } from '@/app/admin/relay/blocks/previews/_manifest';
+import type { UnifiedBlockConfig } from '@/lib/relay/types';
 
-const DEFAULT_BLOCKS = [
+// ── Prompt schema templates by block type ────────────────────────────
+// Decomposed from the monolithic RELAY_BLOCK_SCHEMAS string into per-type entries.
+
+const PROMPT_SCHEMAS: Record<string, string> = {
+  catalog: '{"type":"catalog","text":"...","items":[{"id":"...","name":"...","price":0,"currency":"INR","subtitle":"...","emoji":"...","color":"#...","rating":4.5,"reviewCount":100,"features":["..."],"specs":[{"label":"...","value":"..."}]}],"suggestions":["..."]}',
+  compare: '{"type":"compare","text":"...","items":[{"id":"...","name":"...","price":0,"currency":"INR","subtitle":"...","features":["..."]}],"compareFields":[{"label":"...","key":"..."}],"suggestions":["..."]}',
+  activities: '{"type":"activities","text":"...","items":[{"id":"...","name":"...","description":"...","icon":"🏷️","price":"₹X,XXX","duration":"X hours","category":"...","bookable":true}],"suggestions":["..."]}',
+  book: '{"type":"book","text":"...","items":[{"id":"...","name":"...","price":0}],"conversionPaths":[{"id":"...","label":"...","icon":"📞","type":"primary","action":"whatsapp"}],"dateMode":"single","guestMode":"counter","headerLabel":"Book Now","selectLabel":"Select","suggestions":["..."]}',
+  location: '{"type":"location","text":"...","location":{"name":"...","address":"...","area":"...","directions":[{"icon":"✈️","label":"Airport","detail":"45 min"}]},"suggestions":["..."]}',
+  contact: '{"type":"contact","text":"...","methods":[{"type":"whatsapp","label":"WhatsApp","value":"+91...","icon":"💬"},{"type":"phone","label":"Call","value":"+91...","icon":"📞"},{"type":"email","label":"Email","value":"...@...","icon":"📧"}],"suggestions":["..."]}',
+  gallery: '{"type":"gallery","text":"...","items":[{"emoji":"📸","label":"...","span":1}],"suggestions":["..."]}',
+  info: '{"type":"info","text":"...","items":[{"label":"...","value":"..."}],"suggestions":["..."]}',
+  greeting: '{"type":"greeting","text":"...","brand":{"name":"...","emoji":"👋","tagline":"...","quickActions":[{"label":"...","prompt":"...","emoji":"..."}]},"suggestions":["..."]}',
+  pricing: '{"type":"pricing","text":"...","pricingTiers":[{"id":"...","name":"...","price":0,"currency":"INR","unit":"/session","features":["..."],"isPopular":false,"emoji":"..."}],"suggestions":["..."]}',
+  testimonials: '{"type":"testimonials","text":"...","testimonials":[{"id":"...","name":"...","text":"...","rating":5,"date":"1 week ago","source":"Google"}],"suggestions":["..."]}',
+  quick_actions: '{"type":"quick_actions","text":"...","quickActions":[{"id":"...","label":"...","emoji":"...","prompt":"...","description":"..."}],"suggestions":["..."]}',
+  schedule: '{"type":"schedule","text":"...","schedule":[{"id":"...","time":"10:00 AM","endTime":"11:00 AM","title":"...","instructor":"...","spots":4,"price":"₹500","emoji":"...","isAvailable":true}],"suggestions":["..."]}',
+  promo: '{"type":"promo","text":"...","promos":[{"id":"...","title":"...","description":"...","discount":"25% OFF","code":"SAVE25","validUntil":"...","emoji":"🎉","ctaLabel":"Claim Offer"}],"suggestions":["..."]}',
+  lead_capture: '{"type":"lead_capture","text":"...","fields":[{"id":"...","label":"Your Name","type":"text","placeholder":"...","required":true}],"title":"...","subtitle":"...","suggestions":["..."]}',
+  handoff: '{"type":"handoff","text":"...","handoffOptions":[{"id":"...","type":"whatsapp","label":"WhatsApp Us","value":"+91...","icon":"💬","description":"Usually replies within 5 min"}],"title":"...","subtitle":"...","suggestions":["..."]}',
+  text: '{"type":"text","text":"...","suggestions":["suggestion 1","suggestion 2","suggestion 3"]}',
+};
+
+// Maps block stage/family to the closest prompt schema type
+function resolvePromptSchemaType(block: { family: string; stage: string; id: string }): string {
+  // Direct ID matches
+  const idMap: Record<string, string> = {
+    greeting: 'greeting', suggestions: 'quick_actions', contact: 'contact',
+    promo: 'promo', cart: 'catalog', compare: 'compare',
+    product_card: 'catalog', product_detail: 'catalog',
+    nudge: 'info', loyalty: 'info', booking: 'book',
+    order_tracker: 'info', order_confirmation: 'info',
+    subscription: 'pricing', bundle: 'catalog', skin_quiz: 'lead_capture',
+  };
+  if (idMap[block.id]) return idMap[block.id];
+
+  // Family-based mapping
+  const familyMap: Record<string, string> = {
+    catalog: 'catalog', rooms: 'catalog', menu: 'catalog', practitioners: 'catalog',
+    services: 'catalog', booking: 'book', reservation: 'book', conversion: 'book',
+    ordering: 'catalog', social_proof: 'testimonials', people: 'catalog',
+    pricing: 'pricing', insurance: 'info', clinical: 'info', tracking: 'info',
+    content: 'info', credentials: 'info', info: 'info', property: 'gallery',
+    timetable: 'schedule', scheduling: 'schedule', concierge: 'activities',
+    events: 'catalog', transport: 'catalog', dining: 'catalog',
+    operations: 'lead_capture', kitchen: 'info',
+  };
+  if (familyMap[block.family]) return familyMap[block.family];
+
+  // Stage-based fallback
+  const stageMap: Record<string, string> = {
+    greeting: 'greeting', discovery: 'catalog', showcase: 'catalog',
+    comparison: 'compare', conversion: 'book', followup: 'info',
+    social_proof: 'testimonials', handoff: 'handoff', objection: 'info',
+  };
+  return stageMap[block.stage] || 'text';
+}
+
+// ── Core block definitions (shared + ecommerce) ─────────────────────
+
+const CORE_BLOCKS: Array<Omit<UnifiedBlockConfig, 'createdAt' | 'updatedAt' | 'sampleData' | 'promptSchema'>> = [
   {
-    id: 'greeting', family: 'entry', label: 'Greeting', description: 'Welcome message with brand identity and quick action buttons',
-    stage: 'greeting', status: 'active' as const,
+    id: 'greeting', verticalId: 'shared', family: 'entry', label: 'Greeting', description: 'Welcome message with brand identity and quick action buttons',
+    stage: 'greeting', status: 'active',
     fields_req: ['brandName', 'tagline', 'welcomeMessage'], fields_opt: ['quickActions', 'brandEmoji', 'logoUrl'],
     intents: ['hello', 'hi', 'start', 'hey'], module: null,
     applicableCategories: [], variants: [], preloadable: true, streamable: false, cacheDuration: 3600,
     moduleBinding: null,
   },
   {
-    id: 'skin_quiz', family: 'entry', label: 'Quiz / Survey', description: 'Multi-step qualification quiz with progress tracking',
-    stage: 'discovery', status: 'new' as const,
+    id: 'skin_quiz', verticalId: 'shared', family: 'entry', label: 'Quiz / Survey', description: 'Multi-step qualification quiz with progress tracking',
+    stage: 'discovery', status: 'new',
     fields_req: ['questions', 'steps'], fields_opt: ['progressBar', 'skipEnabled'],
     intents: ['quiz', 'help me find', 'recommend'], module: null,
     applicableCategories: [], variants: [], preloadable: false, streamable: false, cacheDuration: 0,
     moduleBinding: null,
   },
   {
-    id: 'product_card', family: 'catalog', label: 'Product Card', description: 'Browsable item card with price, image, rating, and add-to-cart',
-    stage: 'discovery', status: 'active' as const,
+    id: 'product_card', verticalId: 'ecommerce', family: 'catalog', label: 'Product Card', description: 'Browsable item card with price, image, rating, and add-to-cart',
+    stage: 'discovery', status: 'active',
     fields_req: ['name', 'price', 'currency'], fields_opt: ['image', 'rating', 'badges', 'subtitle', 'specs', 'reviewCount'],
     intents: ['show', 'browse', 'products', 'menu', 'catalog'], module: 'moduleItems',
     applicableCategories: [], variants: [], preloadable: true, streamable: true, cacheDuration: 1800,
     moduleBinding: { sourceCollection: 'items', titleField: 'name', priceField: 'price', imageField: 'image', sortBy: 'popular', maxItems: 10 },
   },
   {
-    id: 'product_detail', family: 'catalog', label: 'Product Detail', description: 'Full item view with images, variants, specs, and actions',
-    stage: 'showcase', status: 'active' as const,
+    id: 'product_detail', verticalId: 'ecommerce', family: 'catalog', label: 'Product Detail', description: 'Full item view with images, variants, specs, and actions',
+    stage: 'showcase', status: 'active',
     fields_req: ['name', 'price', 'description'], fields_opt: ['images', 'variants', 'specs', 'reviews', 'sizes'],
     intents: ['details', 'tell me more', 'specs', 'about'], module: 'moduleItems',
     applicableCategories: [], variants: [], preloadable: true, streamable: true, cacheDuration: 1800,
     moduleBinding: { sourceCollection: 'items', titleField: 'name', priceField: 'price', imageField: 'image', sortBy: 'popular', maxItems: 1 },
   },
   {
-    id: 'compare', family: 'catalog', label: 'Compare', description: 'Side-by-side comparison table for 2-4 items',
-    stage: 'comparison', status: 'active' as const,
+    id: 'compare', verticalId: 'shared', family: 'catalog', label: 'Compare', description: 'Side-by-side comparison table for 2-4 items',
+    stage: 'comparison', status: 'active',
     fields_req: ['items', 'comparisonFields'], fields_opt: ['highlightWinner', 'recommendation'],
     intents: ['compare', 'difference', 'vs', 'which one'], module: 'moduleItems',
     applicableCategories: [], variants: [], preloadable: false, streamable: false, cacheDuration: 900,
     moduleBinding: { sourceCollection: 'items', titleField: 'name', priceField: 'price', imageField: 'image', sortBy: 'popular', maxItems: 4 },
   },
   {
-    id: 'promo', family: 'marketing', label: 'Promo Banner', description: 'Promotional offer with discount code, countdown, or sale info',
-    stage: 'showcase', status: 'active' as const,
+    id: 'promo', verticalId: 'shared', family: 'marketing', label: 'Promo Banner', description: 'Promotional offer with discount code, countdown, or sale info',
+    stage: 'showcase', status: 'active',
     fields_req: ['title', 'description'], fields_opt: ['code', 'expiresAt', 'discountPercent', 'ctaLabel'],
     intents: ['offer', 'deal', 'discount', 'promo', 'sale'], module: null,
     applicableCategories: [], variants: [], preloadable: true, streamable: false, cacheDuration: 3600,
     moduleBinding: null,
   },
   {
-    id: 'bundle', family: 'marketing', label: 'Bundle / Set', description: 'Multi-item bundle with combined pricing and savings indicator',
-    stage: 'showcase', status: 'new' as const,
+    id: 'bundle', verticalId: 'ecommerce', family: 'marketing', label: 'Bundle / Set', description: 'Multi-item bundle with combined pricing and savings indicator',
+    stage: 'showcase', status: 'new',
     fields_req: ['items', 'bundlePrice'], fields_opt: ['originalPrice', 'savingsPercent', 'title'],
     intents: ['bundle', 'set', 'package', 'combo'], module: 'moduleItems',
     applicableCategories: [], variants: [], preloadable: true, streamable: false, cacheDuration: 1800,
     moduleBinding: { sourceCollection: 'items', titleField: 'name', priceField: 'price', imageField: 'image', sortBy: 'popular', maxItems: 5 },
   },
   {
-    id: 'cart', family: 'commerce', label: 'Cart', description: 'Shopping cart with line items, discounts, and checkout CTA',
-    stage: 'conversion', status: 'active' as const,
+    id: 'cart', verticalId: 'shared', family: 'commerce', label: 'Cart', description: 'Shopping cart with line items, discounts, and checkout CTA',
+    stage: 'conversion', status: 'active',
     fields_req: ['items', 'total', 'currency'], fields_opt: ['discount', 'deliveryFee', 'tax', 'promoCode'],
     intents: ['cart', 'checkout', 'order', 'buy', 'bag'], module: null,
     applicableCategories: [], variants: [], preloadable: false, streamable: false, cacheDuration: 0,
     moduleBinding: null,
   },
   {
-    id: 'order_confirmation', family: 'commerce', label: 'Order Confirmation', description: 'Post-purchase confirmation with order ID and delivery info',
-    stage: 'followup', status: 'active' as const,
+    id: 'order_confirmation', verticalId: 'shared', family: 'commerce', label: 'Order Confirmation', description: 'Post-purchase confirmation with order ID and delivery info',
+    stage: 'followup', status: 'active',
     fields_req: ['orderId', 'items', 'total'], fields_opt: ['estimatedDelivery', 'trackingUrl'],
     intents: ['confirm', 'receipt', 'thank'], module: null,
     applicableCategories: [], variants: [], preloadable: false, streamable: false, cacheDuration: 0,
     moduleBinding: null,
   },
   {
-    id: 'order_tracker', family: 'commerce', label: 'Order Tracker', description: 'Live order status with timeline steps and tracking link',
-    stage: 'followup', status: 'active' as const,
+    id: 'order_tracker', verticalId: 'shared', family: 'commerce', label: 'Order Tracker', description: 'Live order status with timeline steps and tracking link',
+    stage: 'followup', status: 'active',
     fields_req: ['orderId', 'status', 'steps'], fields_opt: ['estimatedArrival', 'carrier'],
     intents: ['track', 'status', 'where is', 'delivery'], module: null,
     applicableCategories: [], variants: [], preloadable: false, streamable: false, cacheDuration: 300,
     moduleBinding: null,
   },
   {
-    id: 'booking', family: 'conversion', label: 'Booking / Appointment', description: 'Time slot picker for consultations or appointments',
-    stage: 'conversion', status: 'new' as const,
+    id: 'booking', verticalId: 'shared', family: 'conversion', label: 'Booking / Appointment', description: 'Time slot picker for consultations or appointments',
+    stage: 'conversion', status: 'new',
     fields_req: ['availableSlots', 'serviceType'], fields_opt: ['duration', 'price', 'staffName'],
     intents: ['book', 'appointment', 'schedule', 'reserve'], module: null,
     applicableCategories: [], variants: [], preloadable: false, streamable: false, cacheDuration: 0,
     moduleBinding: null,
   },
   {
-    id: 'subscription', family: 'commerce', label: 'Subscribe & Save', description: 'Auto-replenish subscription with frequency options and savings',
-    stage: 'conversion', status: 'new' as const,
+    id: 'subscription', verticalId: 'ecommerce', family: 'commerce', label: 'Subscribe & Save', description: 'Auto-replenish subscription with frequency options and savings',
+    stage: 'conversion', status: 'new',
     fields_req: ['item', 'frequencies'], fields_opt: ['currentPrice', 'savingsPerFrequency'],
     intents: ['subscribe', 'auto', 'recurring', 'replenish'], module: 'moduleItems',
     applicableCategories: [], variants: [], preloadable: false, streamable: false, cacheDuration: 0,
     moduleBinding: { sourceCollection: 'items', titleField: 'name', priceField: 'price', imageField: 'image', sortBy: 'popular', maxItems: 1 },
   },
   {
-    id: 'loyalty', family: 'engagement', label: 'Loyalty / Rewards', description: 'Points balance, tier progress, and redeemable rewards',
-    stage: 'social_proof', status: 'new' as const,
+    id: 'loyalty', verticalId: 'shared', family: 'engagement', label: 'Loyalty / Rewards', description: 'Points balance, tier progress, and redeemable rewards',
+    stage: 'social_proof', status: 'new',
     fields_req: ['points', 'tier'], fields_opt: ['nextTier', 'redeemable', 'multiplier'],
     intents: ['points', 'rewards', 'loyalty', 'tier'], module: null,
     applicableCategories: [], variants: [], preloadable: false, streamable: false, cacheDuration: 600,
     moduleBinding: null,
   },
   {
-    id: 'nudge', family: 'engagement', label: 'Smart Nudge', description: 'Non-blocking contextual suggestion, upsell, or info tip',
-    stage: 'social_proof', status: 'active' as const,
+    id: 'nudge', verticalId: 'shared', family: 'engagement', label: 'Smart Nudge', description: 'Non-blocking contextual suggestion, upsell, or info tip',
+    stage: 'social_proof', status: 'active',
     fields_req: ['message'], fields_opt: ['ctaLabel', 'ctaAction', 'icon', 'variant'],
-    intents: [] as string[], module: null,
+    intents: [], module: null,
     applicableCategories: [], variants: [], preloadable: true, streamable: false, cacheDuration: 1800,
     moduleBinding: null,
   },
   {
-    id: 'suggestions', family: 'shared', label: 'Quick Replies', description: 'Tappable suggestion chips for guided conversation flow',
-    stage: 'greeting', status: 'active' as const,
+    id: 'suggestions', verticalId: 'shared', family: 'shared', label: 'Quick Replies', description: 'Tappable suggestion chips for guided conversation flow',
+    stage: 'greeting', status: 'active',
     fields_req: ['items'], fields_opt: ['title'],
-    intents: [] as string[], module: null,
+    intents: [], module: null,
     applicableCategories: [], variants: [], preloadable: true, streamable: false, cacheDuration: 3600,
     moduleBinding: null,
   },
   {
-    id: 'contact', family: 'support', label: 'Contact Card', description: 'Business contact info with click-to-call, email, WhatsApp',
-    stage: 'handoff', status: 'active' as const,
+    id: 'contact', verticalId: 'shared', family: 'support', label: 'Contact Card', description: 'Business contact info with click-to-call, email, WhatsApp',
+    stage: 'handoff', status: 'active',
     fields_req: ['businessName'], fields_opt: ['phone', 'email', 'whatsapp', 'address', 'hours'],
     intents: ['contact', 'phone', 'email', 'reach', 'call'], module: null,
     applicableCategories: [], variants: [], preloadable: true, streamable: false, cacheDuration: 3600,
     moduleBinding: null,
   },
 ];
+
+// ── Build all blocks from core + vertical manifest ───────────────────
+
+function buildAllBlockConfigs(): Array<Omit<UnifiedBlockConfig, 'createdAt' | 'updatedAt'>> {
+  const allBlocks: Array<Omit<UnifiedBlockConfig, 'createdAt' | 'updatedAt'>> = [];
+  const seenIds = new Set<string>();
+
+  // 1. Core blocks (shared + ecommerce)
+  for (const block of CORE_BLOCKS) {
+    const schemaType = resolvePromptSchemaType(block);
+    allBlocks.push({
+      ...block,
+      sampleData: {},
+      promptSchema: PROMPT_SCHEMAS[schemaType] || PROMPT_SCHEMAS.text,
+    });
+    seenIds.add(block.id);
+  }
+
+  // 2. Vertical blocks from manifest
+  for (const vertical of VERTICAL_MANIFEST) {
+    for (const mb of vertical.blocks) {
+      if (seenIds.has(mb.id)) continue;
+      seenIds.add(mb.id);
+
+      const stub: Omit<UnifiedBlockConfig, 'createdAt' | 'updatedAt' | 'sampleData' | 'promptSchema'> = {
+        id: mb.id,
+        verticalId: vertical.id,
+        family: mb.family,
+        label: mb.label,
+        description: mb.desc,
+        stage: mb.stage,
+        status: 'new',
+        intents: mb.intents,
+        fields_req: [],
+        fields_opt: [],
+        module: mb.module,
+        moduleBinding: mb.module === 'moduleItems'
+          ? { sourceCollection: 'items', titleField: 'name', priceField: 'price', imageField: 'image', sortBy: 'popular', maxItems: 10 }
+          : null,
+        preloadable: false,
+        streamable: false,
+        cacheDuration: 300,
+        variants: [],
+        applicableCategories: [],
+      };
+
+      const schemaType = resolvePromptSchemaType(stub);
+      allBlocks.push({
+        ...stub,
+        sampleData: {},
+        promptSchema: PROMPT_SCHEMAS[schemaType] || PROMPT_SCHEMAS.text,
+      });
+    }
+  }
+
+  return allBlocks;
+}
 
 const DEFAULT_STAGES = [
   { id: 'greeting', label: 'Greeting', type: 'greeting', blockIds: ['greeting', 'suggestions'], intentTriggers: ['browsing'], leadScoreImpact: 1, isEntry: true },
@@ -168,15 +288,30 @@ const DEFAULT_TRANSITIONS = [
 export async function seedDefaultBlocksAction(): Promise<{ success: boolean; seeded: number; error?: string }> {
   try {
     const now = new Date().toISOString();
+    const allBlocks = buildAllBlockConfigs();
+
+    // Read existing docs to preserve admin-toggled status values
+    const existingSnap = await adminDb.collection('relayBlockConfigs').get();
+    const existingStatus = new Map<string, string>();
+    existingSnap.docs.forEach(doc => {
+      const status = doc.data().status;
+      if (status) existingStatus.set(doc.id, status);
+    });
+
     let seeded = 0;
-    for (const block of DEFAULT_BLOCKS) {
+    for (const block of allBlocks) {
+      // Preserve status if admin already toggled it
+      const preservedStatus = existingStatus.get(block.id);
       await adminDb.collection('relayBlockConfigs').doc(block.id).set({
         ...block,
+        ...(preservedStatus ? { status: preservedStatus } : {}),
         createdAt: now,
         updatedAt: now,
       }, { merge: true });
       seeded++;
     }
+
+    invalidateBlockConfigCache();
     revalidatePath('/admin/relay');
     revalidatePath('/admin/relay/blocks');
     return { success: true, seeded };
@@ -227,6 +362,7 @@ export async function toggleBlockStatusAction(blockId: string, enabled: boolean)
       status: enabled ? 'active' : 'disabled',
       updatedAt: new Date().toISOString(),
     });
+    invalidateBlockConfigCache();
     revalidatePath('/admin/relay');
     revalidatePath('/admin/relay/blocks');
     return { success: true };

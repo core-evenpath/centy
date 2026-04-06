@@ -3,7 +3,8 @@
 import { revalidatePath } from 'next/cache';
 import { db as adminDb } from '@/lib/firebase-admin';
 import { registerAllBlocks } from '@/lib/relay/blocks/index';
-import { computeDataContract, listBlocks, getBlock } from '@/lib/relay/registry';
+import { getBlock } from '@/lib/relay/registry';
+import { getGlobalBlockConfigs } from '@/lib/relay/block-config-service';
 import type { FieldSpec, DataContract } from '@/lib/relay/types';
 
 let registryReady = false;
@@ -217,12 +218,11 @@ export async function deriveSchemaForVerticalAction(
   verticalId: string
 ): Promise<DerivationResult> {
   try {
-    ensureRegistry();
-
-    const allBlocks = listBlocks();
+    const allBlocks = await getGlobalBlockConfigs();
     const verticalBlocks = allBlocks.filter(
       (b) =>
         b.applicableCategories.includes(verticalId) ||
+        b.verticalId === 'shared' ||
         b.family === 'shared'
     );
 

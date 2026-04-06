@@ -3,17 +3,7 @@
 import { revalidatePath } from 'next/cache';
 import { db as adminDb } from '@/lib/firebase-admin';
 import { GoogleGenAI } from '@google/genai';
-import { registerAllBlocks } from '@/lib/relay/blocks/index';
-import { getBlock, listBlocks } from '@/lib/relay/registry';
-
-let registryReady = false;
-
-function ensureRegistry(): void {
-  if (!registryReady) {
-    registerAllBlocks();
-    registryReady = true;
-  }
-}
+import { getGlobalBlockConfigs, getBlockConfig } from '@/lib/relay/block-config-service';
 
 export interface PartnerBlockOverride {
   enabled: boolean;
@@ -119,8 +109,7 @@ export async function toggleBlockAction(
       return { success: false, error: 'Database not available' };
     }
 
-    ensureRegistry();
-    if (!getBlock(blockId)) {
+    if (!(await getBlockConfig(blockId))) {
       return { success: false, error: `Block "${blockId}" not found in registry` };
     }
 
@@ -321,15 +310,12 @@ export async function applyPartnerPromptAction(
   }
 
   try {
-    ensureRegistry();
-
-    const allBlocks = listBlocks();
+    const allBlocks = await getGlobalBlockConfigs();
     const blockSummary = allBlocks
       .map(
         (b) =>
-          `- ${b.id} (${b.label}): fields=[${b.dataContract.required
-            .map((f) => f.field)
-            .concat(b.dataContract.optional.map((f) => f.field))
+          `- ${b.id} (${b.label}): fields=[${b.fields_req
+            .concat(b.fields_opt)
             .join(', ')}]`
       )
       .join('\n');
@@ -393,7 +379,8 @@ Respond with JSON:
 
     for (const change of parsed.changes) {
       const blockId = change.blockId;
-      if (!blockId || !getBlock(blockId)) continue;
+      const blockExists = allBlocks.some(b => b.id === blockId);
+      if (!blockId || !blockExists) continue;
 
       if (!overrides[blockId]) {
         overrides[blockId] = { enabled: true };

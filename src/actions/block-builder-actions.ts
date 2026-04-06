@@ -2,8 +2,9 @@
 
 import { GoogleGenAI } from '@google/genai';
 import { registerAllBlocks } from '@/lib/relay/blocks/index';
-import { listBlocks, getBlock, computeDataContract, getRegistrySize } from '@/lib/relay/registry';
-import type { BlockDefinition, DataContract } from '@/lib/relay/types';
+import { getBlock, computeDataContract, getRegistrySize } from '@/lib/relay/registry';
+import { getGlobalBlockConfigs } from '@/lib/relay/block-config-service';
+import type { BlockDefinition, DataContract, UnifiedBlockConfig } from '@/lib/relay/types';
 
 let registryReady = false;
 
@@ -59,34 +60,36 @@ export async function getRegisteredBlocksAction(filters?: {
   error?: string;
 }> {
   try {
-    ensureRegistry();
+    let allConfigs = await getGlobalBlockConfigs();
 
-    const allBlocks = listBlocks(filters ? {
-      family: filters.family,
-      category: filters.category,
-    } : undefined);
+    if (filters?.family) {
+      allConfigs = allConfigs.filter(b => b.family === filters.family);
+    }
+    if (filters?.category) {
+      allConfigs = allConfigs.filter(b => b.applicableCategories.includes(filters.category!));
+    }
 
-    const blocks: BlockListItem[] = allBlocks.map((d) => ({
+    const blocks: BlockListItem[] = allConfigs.map((d) => ({
       id: d.id,
       family: d.family,
       label: d.label,
       description: d.description,
       applicableCategories: d.applicableCategories,
       variants: d.variants,
-      requiredFieldCount: d.dataContract.required.length,
-      optionalFieldCount: d.dataContract.optional.length,
+      requiredFieldCount: d.fields_req.length,
+      optionalFieldCount: d.fields_opt.length,
       preloadable: d.preloadable,
-      intentKeywords: d.intentTriggers.keywords.slice(0, 5),
+      intentKeywords: d.intents.slice(0, 5),
     }));
 
+    const allBlocksForFamilies = await getGlobalBlockConfigs();
     const familySet = new Set<string>();
-    const unfilteredBlocks = listBlocks();
-    unfilteredBlocks.forEach((d) => familySet.add(d.family));
+    allBlocksForFamilies.forEach((d) => familySet.add(d.family));
 
     return {
       success: true,
       blocks,
-      totalCount: getRegistrySize(),
+      totalCount: allBlocksForFamilies.length,
       families: Array.from(familySet).sort(),
     };
   } catch (error: any) {
@@ -298,8 +301,7 @@ export async function exportBlockRegistryAction(): Promise<{
   };
 }> {
   try {
-    ensureRegistry();
-    const all = listBlocks();
+    const all = await getGlobalBlockConfigs();
 
     const families: Record<string, number> = {};
     all.forEach((d) => {
@@ -316,8 +318,8 @@ export async function exportBlockRegistryAction(): Promise<{
           family: d.family,
           label: d.label,
           categories: d.applicableCategories,
-          requiredFields: d.dataContract.required.map((f) => f.field),
-          optionalFields: d.dataContract.optional.map((f) => f.field),
+          requiredFields: d.fields_req,
+          optionalFields: d.fields_opt,
           variants: d.variants,
         })),
       },
