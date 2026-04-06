@@ -1,11 +1,35 @@
 import { SHARED_BLOCKS, SHARED_BLOCK_IDS } from './shared';
 import { ECOM_CONFIG } from './ecommerce';
 import { EDU_CONFIG } from './education';
+import { HOSP_CONFIG } from './hospitality';
+import { HC_CONFIG } from './healthcare';
+import { BIZ_CONFIG } from './business';
+import { FB_CONFIG } from './food_beverage';
+import { FS_CONFIG } from './food_supply';
+import { PW_CONFIG } from './personal_wellness';
+import { AUTO_CONFIG } from './automotive';
+import { TL_CONFIG } from './travel_transport';
+import { EVT_CONFIG } from './events_entertainment';
+import { PU_CONFIG } from './public_nonprofit';
+import { HP_CONFIG } from './home_property';
+import { FIN_CONFIG } from './financial_services';
 import type { BlockRegistryData, VerticalConfig, VerticalBlockDef, SubVerticalDef } from './_types';
 
 const VERTICALS: VerticalConfig[] = [
   ECOM_CONFIG,
   EDU_CONFIG,
+  HOSP_CONFIG,
+  HC_CONFIG,
+  BIZ_CONFIG,
+  FB_CONFIG,
+  FS_CONFIG,
+  PW_CONFIG,
+  AUTO_CONFIG,
+  TL_CONFIG,
+  EVT_CONFIG,
+  PU_CONFIG,
+  HP_CONFIG,
+  FIN_CONFIG,
 ];
 
 const ALL_BLOCKS: VerticalBlockDef[] = [
