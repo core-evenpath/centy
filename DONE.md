@@ -812,3 +812,11 @@ RelayWidget (container)
   - `src/actions/flow-engine-actions.ts` — added block registry validation to create/update template actions
 - tsc --noEmit: PASS (only pre-existing TS5101 baseUrl deprecation warning)
 - Notes: Field mapping label→name, blockTypes→blockIds handled in page.tsx server component; FLOW_STAGE_STYLES imported for stage colors; dynamic import of ALL_BLOCKS in validation to avoid client bundle in server actions
+
+## Flow Builder — Prompt 4 (Registry Sync + Chat API Block Status)
+- Date: 2026-04-06
+- Files modified:
+  - `src/actions/relay-admin-actions.ts` — seedDefaultBlocksAction now uses ALL_BLOCKS from preview registry via dynamic import instead of buildAllBlockConfigs(); skips existing blocks to preserve admin toggles; added syncRegistryToFirestoreAction that adds new blocks and marks removed as deprecated
+  - `src/app/api/relay/chat/route.ts` — removed stale RELAY_BLOCK_SCHEMAS import and fallback; chat API already respected Firestore block status via getActiveBlocksForPartner() filter
+- tsc --noEmit: PASS (only pre-existing TS5101 baseUrl deprecation warning)
+- Notes: getActiveBlocksForPartner already filters status!=='active' (block-config-service.ts:115), so disabled blocks were already excluded from chat. The RELAY_BLOCK_SCHEMAS fallback was stale (~11 blocks vs 53+ in registry) and replaced with empty string

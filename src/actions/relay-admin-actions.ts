@@ -285,38 +285,126 @@ const DEFAULT_TRANSITIONS = [
   { from: 'followup', to: 'handoff', trigger: 'complaint' },
 ];
 
-export async function seedDefaultBlocksAction(): Promise<{ success: boolean; seeded: number; error?: string }> {
+export async function seedDefaultBlocksAction(): Promise<{ success: boolean; seeded: number; skipped: number; error?: string }> {
+  let seeded = 0;
+  let skipped = 0;
+
   try {
-    const now = new Date().toISOString();
-    const allBlocks = buildAllBlockConfigs();
+    const { ALL_BLOCKS } = await import('@/app/admin/relay/blocks/previews/registry');
 
-    // Read existing docs to preserve admin-toggled status values
+    // Read existing docs — skip blocks that already exist (preserves admin toggles)
     const existingSnap = await adminDb.collection('relayBlockConfigs').get();
-    const existingStatus = new Map<string, string>();
-    existingSnap.docs.forEach(doc => {
-      const status = doc.data().status;
-      if (status) existingStatus.set(doc.id, status);
-    });
+    const existingIds = new Set(existingSnap.docs.map(d => d.id));
 
-    let seeded = 0;
-    for (const block of allBlocks) {
-      // Preserve status if admin already toggled it
-      const preservedStatus = existingStatus.get(block.id);
+    const now = new Date().toISOString();
+
+    for (const block of ALL_BLOCKS) {
+      if (existingIds.has(block.id)) {
+        skipped++;
+        continue;
+      }
+
+      const schemaType = resolvePromptSchemaType(block);
       await adminDb.collection('relayBlockConfigs').doc(block.id).set({
-        ...block,
-        ...(preservedStatus ? { status: preservedStatus } : {}),
+        id: block.id,
+        verticalId: '',
+        family: block.family,
+        label: block.label,
+        description: block.desc,
+        stage: block.stage,
+        status: block.status || 'active',
+        intents: block.intents,
+        fields_req: [],
+        fields_opt: [],
+        module: block.module,
+        moduleBinding: null,
+        sampleData: {},
+        promptSchema: PROMPT_SCHEMAS[schemaType] || PROMPT_SCHEMAS.text,
+        preloadable: false,
+        streamable: false,
+        cacheDuration: 300,
+        variants: [],
+        applicableCategories: [],
         createdAt: now,
         updatedAt: now,
-      }, { merge: true });
+      });
       seeded++;
     }
 
     invalidateBlockConfigCache();
     revalidatePath('/admin/relay');
     revalidatePath('/admin/relay/blocks');
-    return { success: true, seeded };
+    return { success: true, seeded, skipped };
   } catch (err: unknown) {
-    return { success: false, seeded: 0, error: err instanceof Error ? err.message : 'Unknown error' };
+    return { success: false, seeded, skipped, error: err instanceof Error ? err.message : 'Unknown error' };
+  }
+}
+
+export async function syncRegistryToFirestoreAction(): Promise<{
+  success: boolean; added: number; deprecated: number; unchanged: number; error?: string;
+}> {
+  let added = 0;
+  let deprecated = 0;
+  let unchanged = 0;
+
+  try {
+    const { ALL_BLOCKS } = await import('@/app/admin/relay/blocks/previews/registry');
+    const registryIds = new Set(ALL_BLOCKS.map(b => b.id));
+
+    const existingSnap = await adminDb.collection('relayBlockConfigs').get();
+    const existingMap = new Map(existingSnap.docs.map(d => [d.id, d]));
+
+    const now = new Date().toISOString();
+
+    for (const block of ALL_BLOCKS) {
+      if (existingMap.has(block.id)) {
+        unchanged++;
+        continue;
+      }
+
+      const schemaType = resolvePromptSchemaType(block);
+      await adminDb.collection('relayBlockConfigs').doc(block.id).set({
+        id: block.id,
+        verticalId: '',
+        family: block.family,
+        label: block.label,
+        description: block.desc,
+        stage: block.stage,
+        status: block.status || 'active',
+        intents: block.intents,
+        fields_req: [],
+        fields_opt: [],
+        module: block.module,
+        moduleBinding: null,
+        sampleData: {},
+        promptSchema: PROMPT_SCHEMAS[schemaType] || PROMPT_SCHEMAS.text,
+        preloadable: false,
+        streamable: false,
+        cacheDuration: 300,
+        variants: [],
+        applicableCategories: [],
+        createdAt: now,
+        updatedAt: now,
+      });
+      added++;
+    }
+
+    for (const [id, doc] of existingMap) {
+      if (!registryIds.has(id) && doc.data().status !== 'deprecated') {
+        await adminDb.collection('relayBlockConfigs').doc(id).update({
+          status: 'deprecated',
+          updatedAt: now,
+        });
+        deprecated++;
+      }
+    }
+
+    invalidateBlockConfigCache();
+    revalidatePath('/admin/relay');
+    revalidatePath('/admin/relay/blocks');
+    return { success: true, added, deprecated, unchanged };
+  } catch (err: unknown) {
+    return { success: false, added, deprecated, unchanged, error: err instanceof Error ? err.message : 'Unknown error' };
   }
 }
 
