@@ -350,13 +350,91 @@ Respond with ONLY valid JSON. No markdown, no code fences.`;
             const intent = classifyIntent(lastMsg, cache);
             const resolution = resolveBlock(intent, cache);
 
+            console.log('[Relay Block Pipeline] Intent:', JSON.stringify({ type: intent.type, confidence: intent.confidence }));
+            console.log('[Relay Block Pipeline] Resolution:', JSON.stringify({ blockId: resolution.blockId, confidence: resolution.confidence, source: resolution.source, itemsUsed: resolution.itemsUsed }));
+            console.log('[Relay Block Pipeline] Cache stats:', JSON.stringify({ itemCount: cache.getItemCount(), hasRag: cache.hasRag() }));
+
             if (resolution.blockId && resolution.confidence >= 0.6) {
                 parsed.blockId = resolution.blockId;
                 parsed.blockData = resolution.data;
                 if (resolution.variant) parsed.blockVariant = resolution.variant;
+                console.log('[Relay Block Pipeline] ✅ Using resolved block:', resolution.blockId);
+            } else {
+                console.log('[Relay Block Pipeline] ⚠️ Skipped (blockId:', resolution.blockId, 'confidence:', resolution.confidence, ')');
             }
         } catch (blockErr) {
             console.error('Block resolution error (non-fatal):', blockErr);
+        }
+
+        // ── Hybrid fallback: map Gemini's type → new blockId with data transform ──
+        if (!parsed.blockId && parsed.type) {
+            try {
+                const GEMINI_TYPE_TO_BLOCK: Record<string, string> = {
+                    'catalog': 'ecom_product_card',
+                    'products': 'ecom_product_card',
+                    'greeting': 'ecom_greeting',
+                    'contact': 'shared_contact',
+                    'promo': 'ecom_promo',
+                };
+                const mappedBlockId = GEMINI_TYPE_TO_BLOCK[parsed.type];
+                if (mappedBlockId) {
+                    parsed.blockId = mappedBlockId;
+                    switch (mappedBlockId) {
+                        case 'ecom_greeting': {
+                            const persona = partnerData?.businessPersona?.identity || {};
+                            parsed.blockData = {
+                                brandName: parsed.brand?.name || persona.name || partnerData?.name || '',
+                                tagline: parsed.brand?.tagline || persona.tagline || '',
+                                welcomeMessage: parsed.text || '',
+                                quickActions: (parsed.brand?.quickActions || parsed.quickActions || parsed.suggestions || [])
+                                    .map((a: any) => typeof a === 'string' ? a : a.label || ''),
+                            };
+                            break;
+                        }
+                        case 'ecom_product_card': {
+                            parsed.blockData = {
+                                items: (parsed.items || []).map((item: any) => ({
+                                    name: item.name || '',
+                                    price: item.price ?? 0,
+                                    description: item.subtitle || item.description || '',
+                                    imageUrl: item.imageUrl || item.image || undefined,
+                                    rating: item.rating || undefined,
+                                    reviews: item.reviewCount || item.reviews || undefined,
+                                    tags: item.features || item.tags || [],
+                                    currency: item.currency || 'INR',
+                                })),
+                            };
+                            break;
+                        }
+                        case 'shared_contact': {
+                            const methods = parsed.methods || [];
+                            const persona = partnerData?.businessPersona?.identity || {};
+                            parsed.blockData = {
+                                whatsapp: methods.find((m: any) => m.type === 'whatsapp')?.value || persona.whatsapp || persona.phone || '',
+                                phone: methods.find((m: any) => m.type === 'phone')?.value || persona.phone || '',
+                                email: methods.find((m: any) => m.type === 'email')?.value || persona.email || '',
+                            };
+                            break;
+                        }
+                        case 'ecom_promo': {
+                            const promo = parsed.promos?.[0] || parsed;
+                            parsed.blockData = {
+                                title: promo.title || parsed.title || '',
+                                subtitle: promo.description || promo.subtitle || '',
+                                code: promo.code || '',
+                                discount: promo.discount || '',
+                                ctaLabel: promo.ctaLabel || 'View Offer',
+                            };
+                            break;
+                        }
+                        default:
+                            parsed.blockData = parsed;
+                    }
+                    console.log('[Relay Block Pipeline] Hybrid mapped:', parsed.type, '→', mappedBlockId);
+                }
+            } catch (hybridErr) {
+                console.error('[Relay Block Pipeline] Hybrid mapping error (non-fatal):', hybridErr);
+            }
         }
 
         // Store conversation turn if conversationId provided
