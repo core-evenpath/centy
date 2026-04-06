@@ -7,7 +7,6 @@ import {
     getModuleItemsAction,
 } from '@/actions/modules-actions';
 import type { ModuleAgentConfig } from '@/lib/modules/types';
-import { RELAY_BLOCK_SCHEMAS } from '@/lib/relay-chat-schemas';
 import { getActiveBlocksForPartner, buildBlockSchemasFromConfigs } from '@/lib/relay/block-config-service';
 import { createInitialFlowState, detectIntent, runFlowEngine } from '@/lib/flow-engine';
 import { getFlowTemplateForFunction } from '@/lib/flow-templates';
@@ -226,8 +225,8 @@ ${itemSummary || '  (no items yet)'}`;
             const activeBlocks = await getActiveBlocksForPartner(partnerId);
             blockSchemas = buildBlockSchemasFromConfigs(activeBlocks);
         } catch {
-            console.warn('Failed to load block configs from Firestore, falling back to hardcoded schemas');
-            blockSchemas = RELAY_BLOCK_SCHEMAS;
+            console.warn('Failed to load block configs from Firestore, proceeding without block schemas');
+            blockSchemas = '';
         }
 
         // Build system prompt
