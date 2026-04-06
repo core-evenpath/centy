@@ -121,3 +121,95 @@ export async function getRelayPartnerBySlug(
     return { status: 'error', message: error instanceof Error ? error.message : 'Unknown error' };
   }
 }
+
+/**
+ * Auto-assign a flow template to a partner based on their industry/function.
+ * Does NOT overwrite an existing partner flow.
+ */
+export async function autoAssignFlowTemplateAction(
+  partnerId: string
+): Promise<{ success: boolean; templateId?: string; error?: string }> {
+  try {
+    const db = getAdminDb();
+
+    // Get partner's industry/function
+    const partnerDoc = await db.collection('partners').doc(partnerId).get();
+    if (!partnerDoc.exists) {
+      return { success: false, error: 'Partner not found' };
+    }
+
+    const partnerData = partnerDoc.data();
+    const industryId = partnerData?.businessPersona?.identity?.industryId
+      || partnerData?.industryId || '';
+    const functionId = partnerData?.businessPersona?.identity?.functionId
+      || partnerData?.functionId || '';
+
+    if (!functionId && !industryId) {
+      return { success: false, error: 'Partner has no industry or function set' };
+    }
+
+    // Check if partner already has a flow — do not overwrite
+    const existingFlow = await db
+      .collection('partners').doc(partnerId)
+      .collection('relayConfig').doc('flowDefinition')
+      .get();
+
+    if (existingFlow.exists) {
+      return { success: true, templateId: existingFlow.data()?.sourceTemplateId || existingFlow.data()?.id };
+    }
+
+    // Find matching system template
+    const templatesSnap = await db.collection('systemFlowTemplates')
+      .where('status', '==', 'active')
+      .get();
+
+    if (templatesSnap.empty) {
+      return { success: false, error: 'No flow templates available. Seed defaults in Admin > Relay.' };
+    }
+
+    // Match by functionId first, then industryId, then fall back to first available
+    let matchedTemplate = templatesSnap.docs.find(d => {
+      const data = d.data();
+      return data.functionId === functionId;
+    });
+
+    if (!matchedTemplate && industryId) {
+      matchedTemplate = templatesSnap.docs.find(d => {
+        const data = d.data();
+        return data.industryId === industryId;
+      });
+    }
+
+    if (!matchedTemplate) {
+      matchedTemplate = templatesSnap.docs[0];
+    }
+
+    // Copy template to partner's flow definition
+    const templateData = matchedTemplate.data();
+    const now = new Date().toISOString();
+
+    await db.collection('partners').doc(partnerId)
+      .collection('relayConfig').doc('flowDefinition')
+      .set({
+        id: `flow_${partnerId}`,
+        name: templateData.name,
+        industryId: templateData.industryId || industryId,
+        functionId: templateData.functionId || functionId,
+        stages: templateData.stages || [],
+        transitions: templateData.transitions || [],
+        status: 'active',
+        sourceTemplateId: matchedTemplate.id,
+        createdAt: now,
+        updatedAt: now,
+        createdBy: 'auto',
+      }, { merge: true });
+
+    return { success: true, templateId: matchedTemplate.id };
+  } catch (err: unknown) {
+    console.error('[Relay] Failed to auto-assign flow template:', err);
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : 'Unknown error',
+    };
+  }
+}

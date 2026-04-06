@@ -820,3 +820,13 @@ RelayWidget (container)
   - `src/app/api/relay/chat/route.ts` — removed stale RELAY_BLOCK_SCHEMAS import and fallback; chat API already respected Firestore block status via getActiveBlocksForPartner() filter
 - tsc --noEmit: PASS (only pre-existing TS5101 baseUrl deprecation warning)
 - Notes: getActiveBlocksForPartner already filters status!=='active' (block-config-service.ts:115), so disabled blocks were already excluded from chat. The RELAY_BLOCK_SCHEMAS fallback was stale (~11 blocks vs 53+ in registry) and replaced with empty string
+
+## Flow Builder — Prompt 5 (Flow Engine → Chat API Wiring)
+- Date: 2026-04-06
+- Path taken: A — flow engine was already fully wired in the chat route
+- Files modified:
+  - `src/app/api/relay/chat/route.ts` — confirmed fully wired: loads/creates flow state, calls detectIntent + runFlowEngine, injects contextForAI into Gemini prompt, persists updated state, returns flowMeta in response. No changes needed.
+  - `src/actions/relay-partner-actions.ts` — added autoAssignFlowTemplateAction: auto-assigns a system flow template to a partner based on industry/function matching; does not overwrite existing flows
+- tsc --noEmit: PASS (only pre-existing TS5101 baseUrl deprecation warning)
+- Flow engine status: fully wired
+- Notes: Chat route already had complete flow engine integration (state loading, intent detection, flow resolution with partner→system template fallback, engine execution, prompt injection, state persistence, flowMeta response). Only addition was the autoAssignFlowTemplateAction for automatic template matching by functionId/industryId.
