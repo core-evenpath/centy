@@ -848,3 +848,18 @@ RelayWidget (container)
   - `src/app/partner/(protected)/relay/page.tsx` — added RegistryBlockRenderer + BlockTheme imports; added relayThemeToBlockTheme() mapper (RelayTheme 29 fields → BlockTheme 18 fields, maps text→t1, bdrL→bdrM, hardcodes redBg/amber/amberBg); extended ChatMessage with blockId/blockData/blockVariant; updated sendChatMessage to capture new fields; three-tier rendering: RegistryBlockRenderer (new) → BlockRenderer (old fallback) → plain text; added blockId diagnostic badge
 - tsc --noEmit: PASS (only pre-existing TS5101 baseUrl deprecation warning)
 - Notes: RelaySessionCache constructed via `new RelaySessionCache(data)` (not static factory). blocks/blockOverrides set to empty arrays (not needed by intent engine or block resolver). Response includes BOTH old format (type/items) and new format (blockId/blockData) for backward compatibility with embeddable widget. Theme types are incompatible (RelayTheme vs BlockTheme) — solved with mapping function at call site, no modifications to RegistryBlockRenderer.
+
+## Partner Relay — Prompt 8 (Block Pipeline Debug + Fix)
+- Date: 2026-04-06
+- Root cause: Two issues — (1) intent/resolve returns blockId: null with confidence 0.3-0.5 for most queries when partner has no items (browse/search/general all fail the 0.6 threshold), only greeting (0.95), promo (0.7), and contact-with-data (0.8) pass; (2) old Gemini JSON schema format (brand.name, methods[], promos[], features/specs) doesn't match what new block components expect (flat brandName, whatsapp/phone/email, title/subtitle, tags/imageUrl)
+- Files modified:
+  - `src/app/api/relay/chat/route.ts` — added diagnostic logging with `[Relay Block Pipeline]` prefix showing intent type/confidence, resolution blockId/confidence/source/itemsUsed, cache item count; added hybrid Gemini-type-to-blockId fallback mapping (GEMINI_TYPE_TO_BLOCK) that activates when intent/resolve doesn't produce a blockId — maps catalog→ecom_product_card, greeting→ecom_greeting, contact→shared_contact, promo→ecom_promo with per-type data transformations (brand.name→brandName, methods[]→flat fields, promos[0]→flat fields, items[] field remapping); compare NOT mapped (data transformation too complex, falls through to old BlockRenderer)
+- tsc --noEmit: PASS (only pre-existing TS5101 baseUrl deprecation warning)
+- Test expectations:
+  - "hello" → ecom_greeting via intent/resolve (confidence 0.95) or via hybrid (Gemini type: 'greeting')
+  - "show me products" with items → ecom_product_card via intent/resolve
+  - "show me products" without items → ecom_product_card via hybrid mapping (Gemini type: 'catalog')
+  - "contact us" → shared_contact via intent/resolve or hybrid
+  - "compare X vs Y" → falls through to old BlockRenderer
+  - Generic question → old BlockRenderer or plain text
+- Notes: Diagnostic logging left in for development debugging (prefixed with [Relay Block Pipeline] for easy grep). Hybrid mapping is try/catch wrapped — failures fall back silently. No changes needed to relay page (three-tier rendering already correct from Prompt 7).
