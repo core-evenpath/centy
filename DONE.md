@@ -863,3 +863,16 @@ RelayWidget (container)
   - "compare X vs Y" → falls through to old BlockRenderer
   - Generic question → old BlockRenderer or plain text
 - Notes: Diagnostic logging left in for development debugging (prefixed with [Relay Block Pipeline] for easy grep). Hybrid mapping is try/catch wrapped — failures fall back silently. No changes needed to relay page (three-tier rendering already correct from Prompt 7).
+
+## Partner Relay — Prompt 9 (Complete Block Rendering)
+- Date: 2026-04-06
+- Finding: BlockRenderer already handles ALL 17 block types with dedicated components (44 case labels). The 7 "missing" types (pricing, testimonials, quick_actions, schedule, promo, lead_capture, handoff) were already implemented with dedicated components (PricingTable, TestimonialCards, QuickActions, ScheduleView, PromoCard, LeadCapture, HandoffCard).
+- Root cause of rendering issue: The Prompt 8 hybrid mapping (GEMINI_TYPE_TO_BLOCK) was intercepting Gemini responses for 4 types (catalog, greeting, contact, promo) and routing them to RegistryBlockRenderer with fragile data transformations, bypassing the old BlockRenderer which already renders them correctly with the original Gemini data.
+- Fix: Removed the hybrid mapping entirely. Pipeline is now cleanly two-layered:
+  1. Intent/resolve pipeline → sets blockId/blockData when confident → RegistryBlockRenderer (tier 1)
+  2. Gemini response with type field → BlockRenderer handles all 17 types (tier 2)
+  3. No block → plain text (tier 3)
+- Files modified:
+  - `src/app/api/relay/chat/route.ts` — removed GEMINI_TYPE_TO_BLOCK hybrid fallback section (70 lines). Kept intent/resolve pipeline with diagnostic logging.
+- tsc --noEmit: PASS (only pre-existing TS5101 baseUrl deprecation warning)
+- Block types rendered: catalog, rooms, menu, products, services, listings, compare, activities, experiences, classes, treatments, book, reserve, appointment, inquiry, location, directions, contact, gallery, photos, info, faq, details, greeting, welcome, pricing, packages, plans, testimonials, reviews, quick_actions, menu_actions, schedule, timetable, slots, promo, offer, deal, lead_capture, form, inquiry_form, handoff, connect, human, text (44 case labels, 17 base types)
