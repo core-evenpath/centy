@@ -2,7 +2,6 @@ import type {
   BlockDefinition,
   BlockRegistryEntry,
   BlockComponentProps,
-  BlockMatch,
   DataContract,
   FieldSpec,
 } from './types';
@@ -23,6 +22,10 @@ export function getBlock(blockId: string): BlockRegistryEntry | undefined {
   return registry.get(blockId);
 }
 
+/**
+ * @deprecated Use getGlobalBlockConfigs() from block-config-service for listing.
+ * Kept for server actions that need rich BlockDefinition data (dataContract, sampleData).
+ */
 export function listBlocks(filters?: {
   family?: string;
   category?: string;
@@ -37,51 +40,6 @@ export function listBlocks(filters?: {
     defs.push(d);
   });
   return defs;
-}
-
-export function getBlocksByFamily(family: string): BlockDefinition[] {
-  return listBlocks({ family });
-}
-
-export function getBlocksForCategory(categoryId: string): BlockDefinition[] {
-  return listBlocks({ category: categoryId });
-}
-
-export function matchBlocksToIntent(
-  message: string,
-  availableBlockIds: string[]
-): BlockMatch[] {
-  const matches: BlockMatch[] = [];
-  const lower = message.toLowerCase();
-
-  for (const blockId of availableBlockIds) {
-    const entry = registry.get(blockId);
-    if (!entry) continue;
-    const triggers = entry.definition.intentTriggers;
-
-    for (const kw of triggers.keywords) {
-      if (lower.includes(kw.toLowerCase())) {
-        matches.push({ blockId, confidence: 0.8, matchedBy: 'keyword' });
-        break;
-      }
-    }
-
-    if (!matches.find((m) => m.blockId === blockId)) {
-      for (const pattern of triggers.queryPatterns) {
-        const regex = new RegExp(
-          pattern.replace(/\*/g, '.*').replace(/\?/g, '.'),
-          'i'
-        );
-        if (regex.test(message)) {
-          matches.push({ blockId, confidence: 0.7, matchedBy: 'pattern' });
-          break;
-        }
-      }
-    }
-  }
-
-  matches.sort((a, b) => b.confidence - a.confidence);
-  return matches;
 }
 
 export function computeDataContract(blockIds: string[]): DataContract {

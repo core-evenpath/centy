@@ -111,6 +111,41 @@ export interface BlockMatch {
   matchedBy: 'keyword' | 'pattern' | 'condition';
 }
 
+// ── Unified block config (Firestore source of truth) ─────────────────
+
+export interface ModuleBinding {
+  sourceCollection: string;
+  titleField: string;
+  priceField: string;
+  imageField: string;
+  sortBy: string;
+  maxItems: number;
+}
+
+export interface UnifiedBlockConfig {
+  id: string;
+  verticalId: string;
+  family: string;
+  label: string;
+  description: string;
+  stage: string;
+  status: 'active' | 'disabled' | 'new' | 'planned';
+  intents: string[];
+  fields_req: string[];
+  fields_opt: string[];
+  module: string | null;
+  moduleBinding: ModuleBinding | null;
+  sampleData: Record<string, any>;
+  promptSchema: string;
+  preloadable: boolean;
+  streamable: boolean;
+  cacheDuration: number;
+  variants: string[];
+  applicableCategories: string[];
+  createdAt: string;
+  updatedAt: string;
+}
+
 // ── Session types ─────────────────────────────────────────────────────
 
 export interface SessionModuleItem {

@@ -2,19 +2,9 @@
 
 import { revalidatePath } from 'next/cache';
 import { db as adminDb } from '@/lib/firebase-admin';
-import { registerAllBlocks } from '@/lib/relay/blocks/index';
-import { listBlocks, getBlock } from '@/lib/relay/registry';
+import { getGlobalBlockConfigs, getBlockConfig } from '@/lib/relay/block-config-service';
 import { deriveModuleSchemaAction } from './module-derivation-actions';
-import type { BlockDefinition } from '@/lib/relay/types';
-
-let registryReady = false;
-
-function ensureRegistry(): void {
-  if (!registryReady) {
-    registerAllBlocks();
-    registryReady = true;
-  }
-}
+import type { UnifiedBlockConfig } from '@/lib/relay/types';
 
 export interface HomeScreenSection {
   blockId: string;
@@ -126,10 +116,8 @@ export async function updateHomeScreenAction(
       return { success: false, error: 'Database not available' };
     }
 
-    ensureRegistry();
-
     for (const section of homeScreen.sections) {
-      const entry = getBlock(section.blockId);
+      const entry = await getBlockConfig(section.blockId);
       if (!entry) {
         return { success: false, error: `Block "${section.blockId}" not found in registry` };
       }
@@ -158,19 +146,20 @@ export async function updateStageBlocksAction(
       return { success: false, error: 'Database not available' };
     }
 
-    ensureRegistry();
+    const allConfigs = await getGlobalBlockConfigs();
+    const configIds = new Set(allConfigs.map(c => c.id));
 
     for (const blockId of stageConfig.eligibleBlocks) {
-      if (!getBlock(blockId)) {
+      if (!configIds.has(blockId)) {
         return { success: false, error: `Block "${blockId}" not found in registry` };
       }
     }
 
     for (const mapping of stageConfig.intentMappings) {
-      if (!getBlock(mapping.primaryBlock)) {
+      if (!configIds.has(mapping.primaryBlock)) {
         return { success: false, error: `Primary block "${mapping.primaryBlock}" not found` };
       }
-      if (mapping.fallbackBlock && !getBlock(mapping.fallbackBlock)) {
+      if (mapping.fallbackBlock && !configIds.has(mapping.fallbackBlock)) {
         return { success: false, error: `Fallback block "${mapping.fallbackBlock}" not found` };
       }
     }
@@ -219,20 +208,15 @@ export async function getAvailableBlocksForFlowAction(
   }>;
 }> {
   try {
-    ensureRegistry();
+    const allConfigs = await getGlobalBlockConfigs();
 
-    let blocks: BlockDefinition[];
+    let blocks: UnifiedBlockConfig[];
     if (verticalId) {
-      blocks = listBlocks({ category: verticalId });
-      const sharedBlocks = listBlocks().filter((b) => b.family === 'shared');
-      const blockIds = new Set(blocks.map((b) => b.id));
-      for (const sb of sharedBlocks) {
-        if (!blockIds.has(sb.id)) {
-          blocks.push(sb);
-        }
-      }
+      blocks = allConfigs.filter(
+        (b) => b.applicableCategories.includes(verticalId) || b.verticalId === 'shared' || b.family === 'shared'
+      );
     } else {
-      blocks = listBlocks();
+      blocks = allConfigs;
     }
 
     return {
@@ -243,7 +227,7 @@ export async function getAvailableBlocksForFlowAction(
         label: b.label,
         description: b.description,
         preloadable: b.preloadable,
-        intentKeywords: b.intentTriggers.keywords.slice(0, 5),
+        intentKeywords: b.intents.slice(0, 5),
       })),
     };
   } catch (error: any) {
@@ -259,54 +243,25 @@ export async function generateDefaultHomeScreenAction(
   error?: string;
 }> {
   try {
-    ensureRegistry();
+    const allConfigs = await getGlobalBlockConfigs();
+    const configIds = new Set(allConfigs.map(c => c.id));
 
     const sections: HomeScreenSection[] = [];
     let position = 0;
 
-    const greeting = getBlock('ecom_greeting');
-    if (greeting) {
-      sections.push({
-        blockId: 'ecom_greeting',
-        position: position++,
-        config: { variant: 'default' },
-      });
-    }
+    // Default home screen blocks (using Firestore IDs)
+    const defaultSections: Array<{ id: string; config: Record<string, any> }> = [
+      { id: 'greeting', config: { variant: 'default' } },
+      { id: 'promo', config: { variant: 'coupon', title: 'Offers' } },
+      { id: 'product_card', config: { title: 'Popular Products', maxItems: 4 } },
+      { id: 'suggestions', config: {} },
+      { id: 'contact', config: {} },
+    ];
 
-    const promo = getBlock('ecom_promo');
-    if (promo) {
-      sections.push({
-        blockId: 'ecom_promo',
-        position: position++,
-        config: { variant: 'coupon', title: 'Offers' },
-      });
-    }
-
-    const productCard = getBlock('ecom_product_card');
-    if (productCard) {
-      sections.push({
-        blockId: 'ecom_product_card',
-        position: position++,
-        config: { title: 'Popular Products', maxItems: 4 },
-      });
-    }
-
-    const suggestions = getBlock('shared_suggestions');
-    if (suggestions) {
-      sections.push({
-        blockId: 'shared_suggestions',
-        position: position++,
-        config: {},
-      });
-    }
-
-    const contact = getBlock('shared_contact');
-    if (contact) {
-      sections.push({
-        blockId: 'shared_contact',
-        position: position++,
-        config: {},
-      });
+    for (const s of defaultSections) {
+      if (configIds.has(s.id)) {
+        sections.push({ blockId: s.id, position: position++, config: s.config });
+      }
     }
 
     return {
@@ -334,7 +289,8 @@ export async function publishFlowAction(
       return { success: false, blockIds: [], derivedFieldCount: 0, error: 'Database not available' };
     }
 
-    ensureRegistry();
+    const allConfigs = await getGlobalBlockConfigs();
+    const configMap = new Map(allConfigs.map(c => [c.id, c]));
 
     const doc = await adminDb.collection('systemFlowTemplates').doc(templateId).get();
     if (!doc.exists) {
@@ -366,8 +322,8 @@ export async function publishFlowAction(
     const blockIds = Array.from(blockIdSet);
 
     const preloadBlocks = blockIds.filter((id) => {
-      const entry = getBlock(id);
-      return entry?.definition.preloadable === true;
+      const config = configMap.get(id);
+      return config?.preloadable === true;
     });
 
     let derivedFieldCount = 0;

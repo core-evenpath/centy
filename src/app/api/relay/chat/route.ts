@@ -8,8 +8,7 @@ import {
 } from '@/actions/modules-actions';
 import type { ModuleAgentConfig } from '@/lib/modules/types';
 import { RELAY_BLOCK_SCHEMAS } from '@/lib/relay-chat-schemas';
-import { registerAllBlocks } from '@/lib/relay/blocks/index';
-import { listBlocks } from '@/lib/relay/registry';
+import { getActiveBlocksForPartner, buildBlockSchemasFromConfigs } from '@/lib/relay/block-config-service';
 import { createInitialFlowState, detectIntent, runFlowEngine } from '@/lib/flow-engine';
 import { getFlowTemplateForFunction } from '@/lib/flow-templates';
 import type { ConversationFlowState, FlowDefinition, FlowEngineDecision } from '@/lib/types-flow-engine';
@@ -22,29 +21,6 @@ const corsHeaders = {
     'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
     'Access-Control-Allow-Headers': 'Content-Type, X-Relay-Widget-Id',
 };
-
-// ── Block registry for dynamic schema generation ────────────────────
-let registryReady = false;
-function ensureRegistry(): void {
-    if (!registryReady) {
-        registerAllBlocks();
-        registryReady = true;
-    }
-}
-
-function buildRegistryBlockSchemas(): string {
-    ensureRegistry();
-    const allBlocks = listBlocks();
-    if (allBlocks.length === 0) return '';
-
-    const lines: string[] = ['RESPOND ONLY IN JSON. Choose the most appropriate block type:'];
-    for (const def of allBlocks) {
-        lines.push('');
-        lines.push(JSON.stringify(def.sampleData));
-        lines.push(`— ${def.label}: ${def.description}. Intent keywords: ${(def.intentTriggers?.keywords || []).slice(0, 5).join(', ')}`);
-    }
-    return lines.join('\n');
-}
 
 export async function OPTIONS() {
     return new NextResponse(null, { status: 200, headers: corsHeaders });
@@ -244,9 +220,15 @@ ${itemSummary || '  (no items yet)'}`;
             // Persona not available, continue without it
         }
 
-        // Build block schemas from registry (hardcoded block definitions)
-        const registrySchemas = buildRegistryBlockSchemas();
-        const blockSchemas = registrySchemas || RELAY_BLOCK_SCHEMAS;
+        // Build block schemas from Firestore (cached, respects admin toggles)
+        let blockSchemas: string;
+        try {
+            const activeBlocks = await getActiveBlocksForPartner(partnerId);
+            blockSchemas = buildBlockSchemasFromConfigs(activeBlocks);
+        } catch {
+            console.warn('Failed to load block configs from Firestore, falling back to hardcoded schemas');
+            blockSchemas = RELAY_BLOCK_SCHEMAS;
+        }
 
         // Build system prompt
         const flowContext = flowDecision?.contextForAI
