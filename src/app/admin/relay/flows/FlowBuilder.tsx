@@ -4,7 +4,9 @@ import { useState, useMemo, useEffect, useCallback } from 'react';
 import FlowSidebar from './FlowSidebar';
 import FlowChat from './FlowChat';
 import FlowBento from './FlowBento';
-import { generateConversation } from './flow-conversation';
+import { generateConversation, generateConversationFromScenario } from './flow-conversation';
+import { useFlowTemplate } from './useFlowTemplate';
+import { useScenario } from './useScenario';
 import { T, VERTICALS } from './flow-helpers';
 import { getSubVertical } from '../blocks/previews/registry';
 import { Radio, ArrowUp, Layers } from 'lucide-react';
@@ -22,12 +24,19 @@ export default function RelayFlowMockup() {
   const [visibleCount, setVisibleCount] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
 
-  const messages = useMemo(() => (selectedId ? generateConversation(selectedId) : []), [selectedId]);
+  const { template, source } = useFlowTemplate(selectedId);
+  const { scenario, generating, regenerate } = useScenario(selectedId);
+
+  const messages = useMemo(() => {
+    if (!selectedId) return [];
+    if (scenario) return generateConversationFromScenario(selectedId, scenario, template);
+    return generateConversation(selectedId, template);
+  }, [selectedId, template, scenario]);
+
   const info = useMemo(() => (selectedId ? getSubVertical(selectedId) : null), [selectedId]);
   const accentColor = info?.vertical.accentColor || T.accent;
   const subName = info?.subVertical.name || '';
 
-  // Current stage from last visible stage-divider
   const currentStage = useMemo(() => {
     for (let i = visibleCount - 1; i >= 0; i--) {
       if (messages[i]?.type === 'stage-divider') return messages[i].stage || '';
@@ -35,7 +44,6 @@ export default function RelayFlowMockup() {
     return '';
   }, [messages, visibleCount]);
 
-  // Auto-play timer
   useEffect(() => {
     if (!isPlaying || visibleCount >= messages.length) {
       if (visibleCount >= messages.length) setIsPlaying(false);
@@ -48,24 +56,10 @@ export default function RelayFlowMockup() {
   }, [isPlaying, visibleCount, messages]);
 
   const handleSelect = useCallback((id: string) => {
-    setSelectedId(id);
-    setShowChat(false);
-    setVisibleCount(0);
-    setIsPlaying(false);
+    setSelectedId(id); setShowChat(false); setVisibleCount(0); setIsPlaying(false);
   }, []);
-
-  const handleStartChat = useCallback(() => {
-    setShowChat(true);
-    setVisibleCount(0);
-    setIsPlaying(true);
-  }, []);
-
-  const handleReset = useCallback(() => {
-    setShowChat(false);
-    setVisibleCount(0);
-    setIsPlaying(false);
-  }, []);
-
+  const handleStartChat = useCallback(() => { setShowChat(true); setVisibleCount(0); setIsPlaying(true); }, []);
+  const handleReset = useCallback(() => { setShowChat(false); setVisibleCount(0); setIsPlaying(false); }, []);
   const handleTogglePlay = useCallback(() => {
     if (!showChat) { handleStartChat(); return; }
     setIsPlaying(p => !p);
@@ -78,17 +72,16 @@ export default function RelayFlowMockup() {
     <div style={{ display: 'flex', height: '100vh', background: T.bg, fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" }}>
       <style>{`@keyframes flowpulse { 0%,100%{opacity:1} 50%{opacity:.3} } button:active { transform: scale(0.98); } ::-webkit-scrollbar { display: none; }`}</style>
 
-      <FlowSidebar selectedId={selectedId} onSelect={handleSelect} isPlaying={isPlaying} onTogglePlay={handleTogglePlay} onReset={handleReset} />
+      <FlowSidebar selectedId={selectedId} onSelect={handleSelect} isPlaying={isPlaying} onTogglePlay={handleTogglePlay} onReset={handleReset}
+        onRegenerate={regenerate} generating={generating} hasScenario={!!scenario} templateSource={source} />
 
       <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
         {selectedId ? (
           <div style={{ width: 375, height: 720, borderRadius: 32, border: '6px solid #1c1917', overflow: 'hidden', position: 'relative', boxShadow: '0 20px 50px rgba(28,25,23,0.15)' }}>
-            {/* Notch */}
             <div style={{ position: 'absolute', top: 0, left: '50%', transform: 'translateX(-50%)', width: 110, height: 24, background: '#1c1917', borderRadius: '0 0 14px 14px', zIndex: 30 }} />
             <div style={{ width: '100%', height: '100%', borderRadius: 26, overflow: 'hidden', background: T.surface, display: 'flex', flexDirection: 'column' }}>
               {showChat ? (
                 <>
-                  {/* Chat header */}
                   <div style={{ padding: '10px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: T.surface, flexShrink: 0 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                       <div style={{ width: 30, height: 30, borderRadius: 8, background: accentColor, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff' }}>
@@ -104,7 +97,6 @@ export default function RelayFlowMockup() {
                     )}
                   </div>
                   <FlowChat messages={messages.slice(0, visibleCount)} isTyping={isTyping} accentColor={accentColor} onSuggestionTap={() => setIsPlaying(true)} />
-                  {/* Input bar */}
                   <div style={{ padding: '10px 14px', borderTop: `1px solid ${T.bdrL}`, background: T.surface, flexShrink: 0 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                       <div style={{ flex: 1, padding: '10px 14px', background: T.bg, borderRadius: 10, border: `1px solid ${T.bdrL}` }}>
@@ -117,7 +109,7 @@ export default function RelayFlowMockup() {
                   </div>
                 </>
               ) : (
-                <FlowBento subVerticalName={subName} accentColor={accentColor} onStartChat={handleStartChat} />
+                <FlowBento functionId={selectedId} subVerticalName={subName} accentColor={accentColor} onStartChat={handleStartChat} />
               )}
             </div>
           </div>
@@ -127,9 +119,7 @@ export default function RelayFlowMockup() {
               <Layers size={24} />
             </div>
             <div style={{ fontSize: 16, fontWeight: 700, color: T.t1, marginBottom: 6 }}>Select a Sub-Vertical</div>
-            <div style={{ fontSize: 13, color: T.t3, lineHeight: 1.6 }}>
-              Choose a sub-vertical from the sidebar to simulate its conversation flow inside an interactive phone mockup.
-            </div>
+            <div style={{ fontSize: 13, color: T.t3, lineHeight: 1.6 }}>Choose a sub-vertical from the sidebar to simulate its conversation flow.</div>
             <div style={{ display: 'flex', justifyContent: 'center', gap: 16, marginTop: 20 }}>
               {[{ label: 'Verticals', value: VERTICALS.length }, { label: 'Sub-verticals', value: VERTICALS.reduce((n, v) => n + v.subVerticals.length, 0) }].map(s => (
                 <div key={s.label}>

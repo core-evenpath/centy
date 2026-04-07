@@ -120,6 +120,18 @@ export interface SystemFlowTemplate {
   description: string;
 }
 
+export interface ScenarioScript {
+  functionId: string;
+  functionName: string;
+  stages: Record<string, {
+    userMessage: string;
+    botMessage: string;
+    chipLabels: string[];
+  }>;
+  generatedAt: string;
+  modelUsed: string;
+}
+
 export interface SystemFlowTemplateRecord extends SystemFlowTemplate {
   createdAt: string;
   updatedAt: string;

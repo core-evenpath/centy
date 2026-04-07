@@ -1,24 +1,29 @@
 'use client';
 
+import { useMemo } from 'react';
 import { T } from './flow-helpers';
-import { Radio, Search, BarChart3, Star, ShoppingBag, Tag, Phone, ChevronRight, Sparkles } from 'lucide-react';
+import { buildBentoTiles } from './bento-tiles';
+import {
+  Radio, Search, Eye, BarChart3, Star, ShoppingBag, Shield, Phone, Clock,
+  MessageCircle, Layers, ChevronRight, Sparkles,
+} from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
+
+const ICON_MAP: Record<string, LucideIcon> = {
+  Search, Eye, BarChart3, Star, ShoppingBag, Shield, Phone, Clock,
+  MessageCircle, Layers,
+};
 
 interface Props {
+  functionId: string;
   subVerticalName: string;
   accentColor: string;
   onStartChat: () => void;
 }
 
-const TILES = [
-  { id: 'browse', label: 'Browse', sub: 'See what we offer', icon: Search, size: 'large' as const },
-  { id: 'compare', label: 'Compare', sub: 'Side by side', icon: BarChart3, size: 'medium' as const },
-  { id: 'reviews', label: 'Reviews', sub: 'What customers say', icon: Star, size: 'medium' as const },
-  { id: 'book', label: 'Book / Buy', sub: 'Get started', icon: ShoppingBag, size: 'small' as const },
-  { id: 'offers', label: 'Offers', sub: 'Current deals', icon: Tag, size: 'small' as const },
-  { id: 'contact', label: 'Contact', sub: 'Talk to us', icon: Phone, size: 'small' as const },
-];
+export default function FlowBento({ functionId, subVerticalName, accentColor, onStartChat }: Props) {
+  const tiles = useMemo(() => buildBentoTiles(functionId), [functionId]);
 
-export default function FlowBento({ subVerticalName, accentColor, onStartChat }: Props) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: T.surface }}>
       {/* Header */}
@@ -40,28 +45,27 @@ export default function FlowBento({ subVerticalName, accentColor, onStartChat }:
       {/* Tiles */}
       <div style={{
         padding: 12, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8,
-        flex: 1, overflow: 'auto', alignContent: 'start',
-        scrollbarWidth: 'none',
+        flex: 1, overflow: 'auto', alignContent: 'start', scrollbarWidth: 'none',
       }}>
-        {TILES.map(tile => {
-          const Icon = tile.icon;
+        {tiles.map(tile => {
+          const Icon = ICON_MAP[tile.iconName] || Layers;
+          const tileColor = tile.familyColor || accentColor;
+          const isLarge = tile.size === 'large';
           return (
             <div key={tile.id} onClick={onStartChat} style={{
-              gridColumn: tile.size === 'large' ? '1 / -1' : 'auto',
+              gridColumn: isLarge ? '1 / -1' : 'auto',
               background: T.bg, border: `1px solid ${T.bdrL}`, borderRadius: 12,
-              padding: tile.size === 'large' ? 16 : 14, cursor: 'pointer',
-              display: 'flex',
-              flexDirection: tile.size === 'large' ? 'row' : 'column',
-              alignItems: tile.size === 'large' ? 'center' : 'flex-start',
-              gap: tile.size === 'large' ? 14 : 8,
+              padding: isLarge ? 16 : 14, cursor: 'pointer',
+              display: 'flex', flexDirection: isLarge ? 'row' : 'column',
+              alignItems: isLarge ? 'center' : 'flex-start', gap: isLarge ? 14 : 8,
             }}>
               <div style={{
-                width: tile.size === 'large' ? 36 : 28, height: tile.size === 'large' ? 36 : 28,
-                borderRadius: tile.size === 'large' ? 10 : 7,
-                background: `${accentColor}18`, display: 'flex', alignItems: 'center', justifyContent: 'center',
-                color: accentColor, flexShrink: 0,
+                width: isLarge ? 36 : 28, height: isLarge ? 36 : 28,
+                borderRadius: isLarge ? 10 : 7,
+                background: `${tileColor}18`, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                color: tileColor, flexShrink: 0,
               }}>
-                <Icon size={Math.round((tile.size === 'large' ? 36 : 28) * 0.48)} strokeWidth={2} />
+                <Icon size={Math.round((isLarge ? 36 : 28) * 0.48)} strokeWidth={2} />
               </div>
               <div style={{ flex: 1 }}>
                 <div style={{ fontSize: 13, fontWeight: 600, color: T.t1 }}>{tile.label}</div>
