@@ -31,11 +31,12 @@ interface FlowBuilderProps {
 
 // ── Helpers ─────────────────────────────────────────────────────────
 
-function mapTemplateToBuilder(t: { id: string; name: string; status?: string; stages: Array<{ id: string; label?: string; name?: string; type: string; blockTypes?: string[]; blockIds?: string[]; intentTriggers?: unknown[]; leadScoreImpact?: number; isEntry?: boolean; isExit?: boolean }>; transitions: Array<{ from: string; to: string; trigger: string | unknown; priority?: number }> }): FlowBuilderTemplate {
+function mapTemplateToBuilder(t: { id: string; name: string; status?: string; functionId?: string; stages: Array<{ id: string; label?: string; name?: string; type: string; blockTypes?: string[]; blockIds?: string[]; intentTriggers?: unknown[]; leadScoreImpact?: number; isEntry?: boolean; isExit?: boolean }>; transitions: Array<{ from: string; to: string; trigger: string | unknown; priority?: number }> }): FlowBuilderTemplate {
   return {
     id: t.id,
     name: t.name,
     status: t.status || 'draft',
+    functionId: t.functionId,
     stages: (t.stages || []).map(s => ({
       id: s.id,
       name: s.label || s.name || s.id,
@@ -73,6 +74,16 @@ export default function FlowBuilder({ initialTemplates, verticalGroups, subVerti
   const [sidebarSearch, setSidebarSearch] = useState('');
   const [templateSource, setTemplateSource] = useState<'db' | 'custom' | 'generated' | null>(null);
 
+  // Track which functionIds have DB templates (updated client-side after seeding/saving)
+  const dbFunctionIds = useMemo(() => {
+    const s = new Set<string>();
+    for (const t of templates) {
+      if (t.functionId) s.add(t.functionId);
+      else if (t.id.startsWith('tpl_')) s.add(t.id.slice(4));
+    }
+    return s;
+  }, [templates]);
+
   // Build a lookup from functionId → summary
   const summaryMap = useMemo(() => {
     const m = new Map<string, SubVerticalFlowSummary>();
@@ -84,9 +95,13 @@ export default function FlowBuilder({ initialTemplates, verticalGroups, subVerti
   const dbTemplateMap = useMemo(() => {
     const m = new Map<string, FlowBuilderTemplate>();
     for (const t of templates) {
-      // Match by functionId embedded in template id (tpl_{functionId})
-      const fnId = t.id.startsWith('tpl_') ? t.id.slice(4) : null;
-      if (fnId) m.set(fnId, t);
+      if (t.functionId) {
+        m.set(t.functionId, t);
+      } else {
+        // Fallback: match by tpl_{functionId} convention
+        const fnId = t.id.startsWith('tpl_') ? t.id.slice(4) : null;
+        if (fnId) m.set(fnId, t);
+      }
     }
     return m;
   }, [templates]);
@@ -196,7 +211,6 @@ export default function FlowBuilder({ initialTemplates, verticalGroups, subVerti
         // Create new DB template from generated/custom flow
         const summary = summaryMap.get(selectedFunctionId);
         await createSystemFlowTemplateAction({
-          id: selectedTemplateId,
           name: summary?.name ? `${summary.name} Flow` : selectedTemplateId,
           industryId: summary?.industryId || '',
           functionId: selectedFunctionId,
@@ -205,8 +219,21 @@ export default function FlowBuilder({ initialTemplates, verticalGroups, subVerti
           description: `Flow template for ${summary?.name || selectedFunctionId}`,
           stages: firestoreStages,
           transitions: firestoreTransitions,
+          settings: {
+            handoffThreshold: 15,
+            maxTurnsBeforeHandoff: 12,
+            enableLeadCapture: true,
+            leadCaptureFields: ['name', 'phone', 'email'],
+            showTestimonials: true,
+            showPromos: true,
+            leadCaptureAfterTurn: 3,
+            fallbackBehavior: 'quick_actions',
+          },
+          status: 'active',
         } as Record<string, unknown>, 'admin');
         setTemplateSource('db');
+        // Reload to pick up new template in client state
+        await reloadTemplates();
       }
       setDirty(false);
     } catch (e) {
@@ -214,7 +241,7 @@ export default function FlowBuilder({ initialTemplates, verticalGroups, subVerti
     } finally {
       setSaving(false);
     }
-  }, [selectedTemplateId, dirty, editedStages, editedTransitions, templateSource, selectedFunctionId, summaryMap]);
+  }, [selectedTemplateId, dirty, editedStages, editedTransitions, templateSource, selectedFunctionId, summaryMap, reloadTemplates]);
 
   const reloadTemplates = useCallback(async () => {
     const res = await getSystemFlowTemplatesFromDB();
@@ -270,7 +297,7 @@ export default function FlowBuilder({ initialTemplates, verticalGroups, subVerti
   // Count stats for header
   const totalSubVerticals = subVerticalSummaries.length;
   const coveredCount = subVerticalSummaries.filter(
-    sv => sv.hasDbTemplate || sv.hasCustomTemplate,
+    sv => dbFunctionIds.has(sv.functionId) || sv.hasCustomTemplate,
   ).length;
 
   return (
@@ -330,7 +357,7 @@ export default function FlowBuilder({ initialTemplates, verticalGroups, subVerti
             {filteredVerticalGroups.map(vg => {
               const isExpanded = expandedVerticals.has(vg.id) || sidebarSearch.trim().length > 0;
               const svCount = vg.subVerticalIds.length;
-              const dbCount = vg.subVerticalIds.filter(id => summaryMap.get(id)?.hasDbTemplate).length;
+              const dbCount = vg.subVerticalIds.filter(id => dbFunctionIds.has(id)).length;
 
               return (
                 <div key={vg.id}>
@@ -370,7 +397,7 @@ export default function FlowBuilder({ initialTemplates, verticalGroups, subVerti
                         const sv = summaryMap.get(svId);
                         if (!sv) return null;
                         const isSelected = selectedFunctionId === svId;
-                        const dotColor = sv.hasDbTemplate ? T.green : sv.hasCustomTemplate ? T.amber : T.t4;
+                        const dotColor = dbFunctionIds.has(svId) ? T.green : sv.hasCustomTemplate ? T.amber : T.t4;
 
                         return (
                           <button

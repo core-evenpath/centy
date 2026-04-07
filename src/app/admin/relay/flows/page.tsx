@@ -17,6 +17,7 @@ export default async function FlowsPage() {
         id: t.id,
         name: t.name,
         status: t.status || 'draft',
+        functionId: t.functionId || undefined,
         stages: (t.stages || []).map(s => ({
           id: s.id,
           name: s.label || s.id,

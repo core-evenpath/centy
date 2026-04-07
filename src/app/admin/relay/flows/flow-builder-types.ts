@@ -59,6 +59,7 @@ export interface FlowBuilderTemplate {
   id: string;
   name: string;
   status: string;
+  functionId?: string;
   stages: FlowBuilderStage[];
   transitions: FlowBuilderTransition[];
 }
