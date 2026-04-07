@@ -19,13 +19,18 @@ const INTENT_TO_BLOCK: Record<IntentType, string | null> = {
   compare: 'ecom_compare',
   price_check: 'ecom_product_detail',
   cart_view: 'ecom_cart',
-  cart_add: null,
+  cart_add: 'ecom_cart',
   checkout: 'ecom_cart',
   order_status: 'ecom_order_tracker',
-  return_request: null,
+  return_request: 'shared_contact',
   promo_inquiry: 'ecom_promo',
   contact: 'shared_contact',
   support: 'shared_contact',
+  bundle_inquiry: 'ecom_product_card',
+  booking: 'ecom_cart',
+  subscribe: 'ecom_product_detail',
+  loyalty_inquiry: 'shared_nudge',
+  quiz: 'shared_suggestions',
   general: null,
 };
 
@@ -329,6 +334,143 @@ function resolveCart(): BlockResolution {
   };
 }
 
+function resolveBundle(
+  intent: Intent,
+  cache: RelaySessionCache
+): BlockResolution {
+  const filters = intent.filters;
+  let items: SessionModuleItem[];
+
+  if (filters?.keywords && filters.keywords.length > 0) {
+    const searchResults = cache.searchItems(filters.keywords.join(' '), 6);
+    items = searchResults.map((r) => r.item);
+  } else {
+    items = cache.filterItems({ limit: 4 });
+  }
+
+  if (items.length === 0) {
+    return { blockId: null, data: {}, confidence: 0.3, source: 'none', itemsUsed: 0 };
+  }
+
+  const mappedItems = items.slice(0, 4).map(mapItemToProductData);
+  const totalPrice = mappedItems.reduce((sum, i) => sum + (i.price || 0), 0);
+
+  return {
+    blockId: 'ecom_product_card',
+    data: {
+      items: mappedItems,
+      bundlePrice: Math.round(totalPrice * 0.9),
+      originalPrice: totalPrice,
+    },
+    confidence: 0.75,
+    source: 'intent_match',
+    itemsUsed: mappedItems.length,
+  };
+}
+
+function resolveBooking(cache: RelaySessionCache): BlockResolution {
+  const brand = cache.getBrand();
+  const contact = cache.getContact();
+
+  return {
+    blockId: 'ecom_cart',
+    data: {
+      items: [],
+      brandName: brand.name,
+      whatsapp: contact.whatsapp,
+      phone: contact.phone,
+      email: contact.email,
+    },
+    variant: 'booking',
+    confidence: 0.75,
+    source: 'intent_match',
+    itemsUsed: 0,
+  };
+}
+
+function resolveSubscription(
+  intent: Intent,
+  cache: RelaySessionCache
+): BlockResolution {
+  let item: SessionModuleItem | undefined;
+
+  if (intent.productRef) {
+    item = cache.getItem(intent.productRef);
+  }
+  if (!item && intent.filters?.productRef) {
+    item = cache.getItem(intent.filters.productRef);
+  }
+  if (!item) {
+    const results = cache.searchItems(intent.rawMessage, 1);
+    if (results.length > 0 && results[0].score >= 3) {
+      item = results[0].item;
+    }
+  }
+
+  if (!item) {
+    return { blockId: null, data: {}, confidence: 0.3, source: 'none', itemsUsed: 0 };
+  }
+
+  return {
+    blockId: 'ecom_product_detail',
+    data: {
+      ...mapItemToProductData(item),
+      subscriptionAvailable: true,
+    },
+    confidence: 0.7,
+    source: 'intent_match',
+    itemsUsed: 1,
+  };
+}
+
+function resolveLoyalty(cache: RelaySessionCache): BlockResolution {
+  const brand = cache.getBrand();
+  return {
+    blockId: 'shared_nudge',
+    data: {
+      message: `${brand.name} rewards program`,
+      ctaLabel: 'View Rewards',
+    },
+    confidence: 0.7,
+    source: 'intent_match',
+    itemsUsed: 0,
+  };
+}
+
+function resolveQuiz(cache: RelaySessionCache): BlockResolution {
+  const categories = cache.getCategories();
+  const suggestions = categories.length > 0
+    ? categories.slice(0, 4)
+    : ['Show me options', 'What\'s popular?', 'Help me choose'];
+
+  return {
+    blockId: 'shared_suggestions',
+    data: { items: suggestions },
+    confidence: 0.7,
+    source: 'intent_match',
+    itemsUsed: 0,
+  };
+}
+
+function resolveReturnRequest(cache: RelaySessionCache): BlockResolution {
+  const contact = cache.getContact();
+  if (!contact.phone && !contact.email && !contact.whatsapp) {
+    return { blockId: null, data: {}, confidence: 0.3, source: 'none', itemsUsed: 0 };
+  }
+
+  return {
+    blockId: 'shared_contact',
+    data: {
+      whatsapp: contact.whatsapp,
+      phone: contact.phone,
+      email: contact.email,
+    },
+    confidence: 0.8,
+    source: 'intent_match',
+    itemsUsed: 0,
+  };
+}
+
 export function resolveBlock(
   intent: Intent,
   cache: RelaySessionCache
@@ -363,7 +505,26 @@ export function resolveBlock(
       return resolveContact(cache);
 
     case 'cart_add':
+      return resolveCart();
+
     case 'return_request':
+      return resolveReturnRequest(cache);
+
+    case 'bundle_inquiry':
+      return resolveBundle(intent, cache);
+
+    case 'booking':
+      return resolveBooking(cache);
+
+    case 'subscribe':
+      return resolveSubscription(intent, cache);
+
+    case 'loyalty_inquiry':
+      return resolveLoyalty(cache);
+
+    case 'quiz':
+      return resolveQuiz(cache);
+
     case 'general':
     default:
       return {
