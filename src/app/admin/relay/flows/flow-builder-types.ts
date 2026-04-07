@@ -63,6 +63,27 @@ export interface FlowBuilderTemplate {
   transitions: FlowBuilderTransition[];
 }
 
+// ── Sub-Vertical Flow Summary ───────────────────────────────────────
+
+export interface SubVerticalFlowSummary {
+  functionId: string;
+  name: string;
+  industryId: string;
+  verticalName: string;
+  blockCount: number;
+  hasCustomTemplate: boolean;
+  hasDbTemplate: boolean;
+}
+
+export interface VerticalGroup {
+  id: string;
+  industryId: string;
+  name: string;
+  iconName: string;
+  accentColor: string;
+  subVerticalIds: string[];
+}
+
 // ── Registry Helper ──────────────────────────────────────────────────
 
 export interface RegistryBlockSummary {

@@ -9,6 +9,8 @@ import type {
   FlowBuilderTemplate,
   FlowBuilderStage,
   FlowBuilderTransition,
+  SubVerticalFlowSummary,
+  VerticalGroup,
 } from './flow-builder-types';
 import {
   updateSystemFlowTemplateAction,
@@ -20,11 +22,13 @@ import {
 
 interface FlowBuilderProps {
   initialTemplates: FlowBuilderTemplate[];
+  verticalGroups: VerticalGroup[];
+  subVerticalSummaries: SubVerticalFlowSummary[];
 }
 
 // ── Component ────────────────────────────────────────────────────────
 
-export default function FlowBuilder({ initialTemplates }: FlowBuilderProps) {
+export default function FlowBuilder({ initialTemplates, verticalGroups, subVerticalSummaries }: FlowBuilderProps) {
   const [templates, setTemplates] = useState(initialTemplates);
   const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(
     initialTemplates[0]?.id ?? null,
