@@ -16,6 +16,7 @@ import {
   updateSystemFlowTemplateAction,
   createSystemFlowTemplateAction,
   seedSystemFlowTemplatesToDB,
+  seedAllSubVerticalFlowsAction,
   getSystemFlowTemplatesFromDB,
 } from '@/actions/flow-engine-actions';
 import { generateFlowForSubVertical } from '@/lib/flow-templates';
@@ -215,21 +216,42 @@ export default function FlowBuilder({ initialTemplates, verticalGroups, subVerti
     }
   }, [selectedTemplateId, dirty, editedStages, editedTransitions, templateSource, selectedFunctionId, summaryMap]);
 
+  const reloadTemplates = useCallback(async () => {
+    const res = await getSystemFlowTemplatesFromDB();
+    if (res.success && res.templates) {
+      setTemplates(res.templates.map(t => mapTemplateToBuilder(t)));
+    }
+  }, []);
+
   const handleSeed = useCallback(async () => {
     setSeeding(true);
     try {
       await seedSystemFlowTemplatesToDB('admin');
-      const res = await getSystemFlowTemplatesFromDB();
-      if (res.success && res.templates) {
-        const mapped: FlowBuilderTemplate[] = res.templates.map(t => mapTemplateToBuilder(t));
-        setTemplates(mapped);
-      }
+      await reloadTemplates();
     } catch (e) {
       console.error('Seed failed:', e);
     } finally {
       setSeeding(false);
     }
-  }, []);
+  }, [reloadTemplates]);
+
+  const handleSeedAll = useCallback(async () => {
+    if (!confirm(`Seed flow templates for all ${totalSubVerticals} sub-verticals? This will skip any that already have templates.`)) return;
+    setSeeding(true);
+    try {
+      const result = await seedAllSubVerticalFlowsAction('admin');
+      if (result.success) {
+        await reloadTemplates();
+        alert(`Seeded ${result.seeded} templates, skipped ${result.skipped}.`);
+      } else {
+        alert(`Seed failed: ${result.error}`);
+      }
+    } catch (e) {
+      console.error('Seed all failed:', e);
+    } finally {
+      setSeeding(false);
+    }
+  }, [reloadTemplates, totalSubVerticals]);
 
   function toggleVertical(id: string) {
     setExpandedVerticals(prev => {
@@ -269,6 +291,9 @@ export default function FlowBuilder({ initialTemplates, verticalGroups, subVerti
           <div style={{ display: 'flex', gap: 8 }}>
             <button onClick={handleSeed} disabled={seeding} style={{ padding: '7px 14px', borderRadius: 8, border: `1px solid ${T.bdr}`, background: T.surface, color: T.t2, fontSize: 11, fontWeight: 600, cursor: 'pointer', opacity: seeding ? 0.6 : 1 }}>
               {seeding ? 'Seeding...' : 'Seed Defaults'}
+            </button>
+            <button onClick={handleSeedAll} disabled={seeding} style={{ padding: '7px 14px', borderRadius: 8, border: `1px solid ${T.bdr}`, background: T.surface, color: T.acc, fontSize: 11, fontWeight: 600, cursor: 'pointer', opacity: seeding ? 0.6 : 1 }}>
+              Seed All Sub-verticals
             </button>
             <button onClick={handleSave} disabled={!dirty || saving} style={{ padding: '7px 14px', borderRadius: 8, border: 'none', background: dirty ? T.pri : T.bdrM, color: '#fff', fontSize: 11, fontWeight: 600, cursor: dirty ? 'pointer' : 'default', opacity: saving ? 0.6 : 1 }}>
               {saving ? 'Saving...' : 'Save'}
