@@ -2,6 +2,7 @@ import type { ComponentType } from 'react';
 import { getBlocksForFunction, getSubVertical } from '../blocks/previews/registry';
 import { buildFlowSync, STAGE_ORDER } from './flow-helpers';
 import type { VerticalBlockDef } from '../blocks/previews/_types';
+import type { SystemFlowTemplate, ScenarioScript } from '@/lib/types-flow-engine';
 
 export interface FlowMessage {
   id: string;
@@ -50,13 +51,13 @@ const CHIP_LABELS: Record<string, string> = {
   schedule: 'Check schedule',
 };
 
-export function generateConversation(functionId: string): FlowMessage[] {
+export function generateConversation(functionId: string, template?: SystemFlowTemplate | null): FlowMessage[] {
   const result = getSubVertical(functionId);
   if (!result) return [];
 
   const { subVertical } = result;
   const blocks = getBlocksForFunction(functionId);
-  const flow = buildFlowSync(functionId);
+  const flow = template || buildFlowSync(functionId);
   if (!flow) return [];
 
   const blocksByStage: Record<string, VerticalBlockDef[]> = {};
@@ -111,6 +112,65 @@ export function generateConversation(functionId: string): FlowMessage[] {
         text: 'And more options:',
         blockPreviews: extraPreviews,
         stage: stageType,
+      });
+    }
+  }
+
+  return messages;
+}
+
+export function generateConversationFromScenario(
+  functionId: string, scenario: ScenarioScript, template?: SystemFlowTemplate | null,
+): FlowMessage[] {
+  const result = getSubVertical(functionId);
+  if (!result) return [];
+
+  const blocks = getBlocksForFunction(functionId);
+  const flow = template || buildFlowSync(functionId);
+  if (!flow) return [];
+
+  const blocksByStage: Record<string, VerticalBlockDef[]> = {};
+  for (const b of blocks) {
+    if (!blocksByStage[b.stage]) blocksByStage[b.stage] = [];
+    blocksByStage[b.stage].push(b);
+  }
+
+  const messages: FlowMessage[] = [];
+  let idx = 0;
+
+  for (const stageType of STAGE_ORDER) {
+    const stageBlocks = blocksByStage[stageType];
+    if (!stageBlocks?.length) continue;
+
+    const sc = scenario.stages[stageType];
+
+    messages.push({ id: `m${idx++}`, type: 'stage-divider', stage: stageType, text: stageType.replace(/_/g, ' ') });
+
+    if (stageType !== 'greeting') {
+      const userText = sc?.userMessage || USER_MSG[stageType] || `Tell me about ${stageType.replace(/_/g, ' ')}`;
+      messages.push({ id: `m${idx++}`, type: 'user', text: userText, stage: stageType });
+    }
+
+    const previews = stageBlocks.slice(0, 2).map(b => b.preview);
+    const botText = sc?.botMessage || BOT_MSG[stageType] || `Here's what we have:`;
+
+    // Chips: prefer scenario chips, fall back to transition-based
+    let chips = sc?.chipLabels?.slice(0, 3) || [];
+    if (chips.length === 0) {
+      const stageObj = flow.stages.find(s => s.type === stageType);
+      const outgoing = stageObj ? flow.transitions.filter(t => t.from === stageObj.id) : [];
+      chips = outgoing.map(t => CHIP_LABELS[t.trigger]).filter((v, i, a) => v && a.indexOf(v) === i).slice(0, 3);
+    }
+
+    messages.push({
+      id: `m${idx++}`, type: 'bot', text: botText, blockPreviews: previews, stage: stageType,
+      suggestions: chips.length > 0 ? chips : undefined,
+    });
+
+    if (stageBlocks.length > 2) {
+      messages.push({
+        id: `m${idx++}`, type: 'bot', text: 'And more options:',
+        blockPreviews: stageBlocks.slice(2, 4).map(b => b.preview), stage: stageType,
       });
     }
   }
