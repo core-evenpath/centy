@@ -656,7 +656,7 @@ export async function seedAllSubVerticalFlowsAction(
         continue;
       }
 
-      const tpl = generateFlowForSubVertical(sv.id);
+      const tpl = await generateFlowForSubVertical(sv.id);
       if (!tpl) {
         skipped++;
         continue;

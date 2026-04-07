@@ -137,26 +137,29 @@ export default function FlowBuilder({ initialTemplates, verticalGroups, subVerti
       return;
     }
 
-    // 2. Generate from registry (includes hand-crafted check internally)
-    const generated = generateFlowForSubVertical(selectedFunctionId);
-    if (generated) {
-      const mapped = mapTemplateToBuilder(generated);
-      setEditedStages(mapped.stages);
-      setEditedTransitions(mapped.transitions);
-      setSelectedTemplateId(mapped.id);
-      setTemplateSource(generated.description?.startsWith('Auto-generated') ? 'generated' : 'custom');
-      setDirty(false);
-      setSelectedStageId(null);
-      return;
-    }
-
-    // 3. No flow available
-    setEditedStages([]);
-    setEditedTransitions([]);
-    setSelectedTemplateId(null);
-    setTemplateSource(null);
-    setDirty(false);
-    setSelectedStageId(null);
+    // 2. Generate from registry (async — includes hand-crafted check internally)
+    let cancelled = false;
+    generateFlowForSubVertical(selectedFunctionId).then(generated => {
+      if (cancelled) return;
+      if (generated) {
+        const mapped = mapTemplateToBuilder(generated);
+        setEditedStages(mapped.stages);
+        setEditedTransitions(mapped.transitions);
+        setSelectedTemplateId(mapped.id);
+        setTemplateSource(generated.description?.startsWith('Auto-generated') ? 'generated' : 'custom');
+        setDirty(false);
+        setSelectedStageId(null);
+      } else {
+        // 3. No flow available
+        setEditedStages([]);
+        setEditedTransitions([]);
+        setSelectedTemplateId(null);
+        setTemplateSource(null);
+        setDirty(false);
+        setSelectedStageId(null);
+      }
+    });
+    return () => { cancelled = true; };
   }, [selectedFunctionId, dbTemplateMap]);
 
   // Legacy: populate from template pills (when no sub-vertical selected)

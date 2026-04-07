@@ -1,10 +1,12 @@
 import { getSystemFlowTemplatesFromDB } from '@/actions/flow-engine-actions';
 import FlowBuilder from './FlowBuilder';
 import type { FlowBuilderTemplate, SubVerticalFlowSummary, VerticalGroup } from './flow-builder-types';
-import { VERTICALS, ALL_SUB_VERTICALS } from '../blocks/previews/registry';
 import { SYSTEM_FLOW_TEMPLATES } from '@/lib/flow-templates';
 
 export default async function FlowsPage() {
+  // Dynamic import to avoid pulling client-side React component previews into server bundle
+  const { VERTICALS, ALL_SUB_VERTICALS } = await import('../blocks/previews/registry');
+
   const res = await getSystemFlowTemplatesFromDB();
 
   let templates: FlowBuilderTemplate[] = [];
