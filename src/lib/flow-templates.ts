@@ -3,7 +3,7 @@ import type { FlowSettings, FlowStage, FlowTransition, SystemFlowTemplate, FlowS
 // ---------------------------------------------------------------------------
 // Shared defaults
 // ---------------------------------------------------------------------------
-function defaultSettings(overrides?: Partial<FlowSettings>): FlowSettings {
+export function defaultSettings(overrides?: Partial<FlowSettings>): FlowSettings {
   return {
     handoffThreshold: 15,
     maxTurnsBeforeHandoff: 12,
@@ -638,7 +638,7 @@ export function getDefaultFlowForIndustry(industryId: string): SystemFlowTemplat
 // Auto-generation helpers for sub-vertical flows
 // ---------------------------------------------------------------------------
 
-const STAGE_LABELS: Record<string, string> = {
+export const STAGE_LABELS: Record<string, string> = {
   greeting: 'Welcome',
   discovery: 'Browse',
   showcase: 'Details',
@@ -649,7 +649,7 @@ const STAGE_LABELS: Record<string, string> = {
   handoff: 'Contact',
 };
 
-const STAGE_INTENTS: Record<string, IntentSignal[]> = {
+export const STAGE_INTENTS: Record<string, IntentSignal[]> = {
   greeting: ['browsing'],
   discovery: ['browsing', 'returning'],
   showcase: ['pricing', 'inquiry'],
@@ -660,7 +660,7 @@ const STAGE_INTENTS: Record<string, IntentSignal[]> = {
   handoff: ['contact', 'complaint', 'urgent'],
 };
 
-const STAGE_SCORES: Record<string, number> = {
+export const STAGE_SCORES: Record<string, number> = {
   greeting: 1,
   discovery: 2,
   showcase: 3,
@@ -671,12 +671,12 @@ const STAGE_SCORES: Record<string, number> = {
   handoff: 0,
 };
 
-const STAGE_ORDER: FlowStageType[] = [
+export const STAGE_ORDER: FlowStageType[] = [
   'greeting', 'discovery', 'showcase', 'comparison',
   'social_proof', 'conversion', 'objection', 'handoff',
 ];
 
-function buildStandardTransitions(stages: FlowStage[]): FlowTransition[] {
+export function buildStandardTransitions(stages: FlowStage[]): FlowTransition[] {
   const transitions: FlowTransition[] = [];
   const stageIds = new Map(stages.map(s => [s.type, s.id]));
   const handoffId = stageIds.get('handoff');
