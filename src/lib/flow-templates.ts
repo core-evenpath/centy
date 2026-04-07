@@ -1,5 +1,4 @@
 import type { FlowSettings, FlowStage, FlowTransition, SystemFlowTemplate, FlowStageType, IntentSignal } from './types-flow-engine';
-import { getSubVertical, getBlocksForFunction } from '@/app/admin/relay/blocks/previews/registry';
 
 // ---------------------------------------------------------------------------
 // Shared defaults
@@ -757,11 +756,14 @@ function buildStandardTransitions(stages: FlowStage[]): FlowTransition[] {
 /**
  * Auto-generates a SystemFlowTemplate for any sub-vertical using its block registry data.
  * Returns hand-crafted template if one exists, otherwise builds from block stages.
+ * Uses dynamic import to avoid pulling client-side React components into server bundles.
  */
-export function generateFlowForSubVertical(functionId: string): SystemFlowTemplate | null {
+export async function generateFlowForSubVertical(functionId: string): Promise<SystemFlowTemplate | null> {
   // Prefer hand-crafted template if available
   const existing = getFlowTemplateForFunction(functionId);
   if (existing) return existing;
+
+  const { getSubVertical, getBlocksForFunction } = await import('@/app/admin/relay/blocks/previews/registry');
 
   const result = getSubVertical(functionId);
   if (!result) return null;
