@@ -75,20 +75,22 @@ export function getBlockMap(functionId: string): Map<string, VerticalBlockDef> {
   return new Map(blocks.map(b => [b.id, b]));
 }
 
+const ACCENT = '#c2410c';
 export const T = {
-  bg: '#f8f8f6',
+  accent: ACCENT,
+  accentHi: '#ea580c',
+  accentDk: '#9a3412',
+  accentBg: 'rgba(194,65,12,0.05)',
+  accentBg2: 'rgba(194,65,12,0.10)',
+  bg: '#faf8f5',
   surface: '#ffffff',
-  accent: '#4f46e5',
-  accentBg: 'rgba(79,70,229,0.06)',
-  accentBg2: 'rgba(79,70,229,0.12)',
   t1: '#1c1917',
   t2: '#44403c',
   t3: '#78716c',
   t4: '#a8a29e',
-  bdr: '#e7e5e4',
-  green: '#16a34a',
-  greenBg: 'rgba(22,163,74,0.08)',
+  bdrL: '#e7e5e4',
+  bdrM: '#d6d3d1',
 } as const;
 
-export { VERTICALS };
+export { VERTICALS, STAGE_ORDER };
 export type { SystemFlowTemplate, VerticalBlockDef };
