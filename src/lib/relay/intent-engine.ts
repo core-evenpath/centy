@@ -17,6 +17,11 @@ export type IntentType =
   | 'promo_inquiry'
   | 'contact'
   | 'support'
+  | 'bundle_inquiry'
+  | 'booking'
+  | 'subscribe'
+  | 'loyalty_inquiry'
+  | 'quiz'
   | 'general';
 
 export interface Intent {
@@ -121,6 +126,38 @@ const INTENT_PATTERNS: IntentPattern[] = [
     keywords: ['add to cart', 'add to bag', 'add to basket', 'buy this', 'i want this', "i'll take", 'order this'],
     patterns: [/add\s*(?:this|it)?\s*(?:to\s*)?(?:cart|bag|basket)/i, /(?:i.ll|i will|gonna|want to)\s*(?:take|buy|order|get)\s+(?:this|it|that)/i],
     confidence: 0.85,
+  },
+  {
+    type: 'booking',
+    keywords: ['book', 'appointment', 'schedule', 'reserve', 'reservation', 'slot', 'time slot', 'consultation'],
+    patterns: [/(?:book|schedule|reserve)\s+(?:a|an|my)?\s*(?:appointment|consultation|session|slot|table|room|visit)/i, /(?:available|open)\s*(?:slots?|times?|appointments?)/i],
+    confidence: 0.85,
+  },
+  {
+    type: 'subscribe',
+    keywords: ['subscribe', 'subscription', 'auto-replenish', 'recurring', 'replenish', 'subscribe and save', 'auto refill'],
+    patterns: [/(?:subscribe|subscription)\s*(?:to|for|option|plan)/i, /auto[-\s]*(?:replenish|refill|renew|ship)/i],
+    confidence: 0.85,
+    requiresData: 'hasProducts',
+  },
+  {
+    type: 'bundle_inquiry',
+    keywords: ['bundle', 'combo', 'package deal', 'set deal', 'buy together', 'combo offer', 'gift set', 'value pack'],
+    patterns: [/(?:bundle|combo|package|set)\s*(?:deal|offer|price|discount)?/i, /(?:buy|purchase|get)\s*(?:together|as a set|combo)/i],
+    confidence: 0.8,
+    requiresData: 'hasProducts',
+  },
+  {
+    type: 'loyalty_inquiry',
+    keywords: ['points', 'rewards', 'loyalty', 'tier', 'reward points', 'my points', 'loyalty program', 'membership'],
+    patterns: [/(?:my|check|view|see)\s*(?:points?|rewards?|loyalty|membership)/i, /(?:loyalty|rewards?)\s*(?:program|status|balance|tier)/i],
+    confidence: 0.8,
+  },
+  {
+    type: 'quiz',
+    keywords: ['quiz', 'recommend', 'help me find', 'help me choose', 'what should i', 'which one for me', 'skin type', 'find the right'],
+    patterns: [/(?:help|assist)\s*(?:me)?\s*(?:find|choose|pick|decide|select)/i, /(?:what|which)\s*(?:should|would|do you)\s*(?:i|you)\s*(?:recommend|suggest|choose)/i, /(?:quiz|assessment|survey|test)\s*(?:for|about)?/i],
+    confidence: 0.75,
   },
   {
     type: 'browse',
