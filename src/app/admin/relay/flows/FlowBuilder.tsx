@@ -19,14 +19,14 @@ import {
   seedAllSubVerticalFlowsAction,
   getSystemFlowTemplatesFromDB,
 } from '@/actions/flow-engine-actions';
-import { generateFlowForSubVertical } from '@/lib/flow-templates';
+import { generateFlowForSubVertical, SYSTEM_FLOW_TEMPLATES } from '@/lib/flow-templates';
+// Safe in 'use client' — the registry contains React components which are fine client-side
+import { VERTICALS, ALL_SUB_VERTICALS } from '../blocks/previews/registry';
 
 // ── Props ────────────────────────────────────────────────────────────
 
 interface FlowBuilderProps {
   initialTemplates: FlowBuilderTemplate[];
-  verticalGroups: VerticalGroup[];
-  subVerticalSummaries: SubVerticalFlowSummary[];
 }
 
 // ── Helpers ─────────────────────────────────────────────────────────
@@ -56,9 +56,37 @@ function mapTemplateToBuilder(t: { id: string; name: string; status?: string; fu
   };
 }
 
+// ── Compute vertical/sub-vertical data from registry (client-side only) ──
+
+const VERTICAL_GROUPS: VerticalGroup[] = VERTICALS.map(v => ({
+  id: v.id,
+  industryId: v.industryId,
+  name: v.name,
+  iconName: v.iconName,
+  accentColor: v.accentColor,
+  subVerticalIds: v.subVerticals.map(sv => sv.id),
+}));
+
+const CUSTOM_FUNCTION_IDS = new Set(SYSTEM_FLOW_TEMPLATES.map(t => t.functionId));
+
+function buildSubVerticalSummaries(dbFnIds: Set<string>): SubVerticalFlowSummary[] {
+  return ALL_SUB_VERTICALS.map(sv => {
+    const vertical = VERTICALS.find(v => v.subVerticals.some(s => s.id === sv.id));
+    return {
+      functionId: sv.id,
+      name: sv.name,
+      industryId: sv.industryId,
+      verticalName: vertical?.name || '',
+      blockCount: sv.blocks.length + 6,
+      hasCustomTemplate: CUSTOM_FUNCTION_IDS.has(sv.id),
+      hasDbTemplate: dbFnIds.has(sv.id),
+    };
+  });
+}
+
 // ── Component ────────────────────────────────────────────────────────
 
-export default function FlowBuilder({ initialTemplates, verticalGroups, subVerticalSummaries }: FlowBuilderProps) {
+export default function FlowBuilder({ initialTemplates }: FlowBuilderProps) {
   const [templates, setTemplates] = useState(initialTemplates);
   const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null);
   const [selectedStageId, setSelectedStageId] = useState<string | null>(null);
@@ -84,6 +112,12 @@ export default function FlowBuilder({ initialTemplates, verticalGroups, subVerti
     return s;
   }, [templates]);
 
+  // Compute sub-vertical summaries from registry + DB state
+  const subVerticalSummaries = useMemo(
+    () => buildSubVerticalSummaries(dbFunctionIds),
+    [dbFunctionIds],
+  );
+
   // Build a lookup from functionId → summary
   const summaryMap = useMemo(() => {
     const m = new Map<string, SubVerticalFlowSummary>();
@@ -98,7 +132,6 @@ export default function FlowBuilder({ initialTemplates, verticalGroups, subVerti
       if (t.functionId) {
         m.set(t.functionId, t);
       } else {
-        // Fallback: match by tpl_{functionId} convention
         const fnId = t.id.startsWith('tpl_') ? t.id.slice(4) : null;
         if (fnId) m.set(fnId, t);
       }
@@ -108,9 +141,9 @@ export default function FlowBuilder({ initialTemplates, verticalGroups, subVerti
 
   // Filter sub-verticals by sidebar search
   const filteredVerticalGroups = useMemo(() => {
-    if (!sidebarSearch.trim()) return verticalGroups;
+    if (!sidebarSearch.trim()) return VERTICAL_GROUPS;
     const q = sidebarSearch.toLowerCase();
-    return verticalGroups
+    return VERTICAL_GROUPS
       .map(vg => ({
         ...vg,
         subVerticalIds: vg.subVerticalIds.filter(svId => {
@@ -119,7 +152,7 @@ export default function FlowBuilder({ initialTemplates, verticalGroups, subVerti
         }),
       }))
       .filter(vg => vg.subVerticalIds.length > 0);
-  }, [verticalGroups, sidebarSearch, summaryMap]);
+  }, [sidebarSearch, summaryMap]);
 
   // Load flow when a sub-vertical is selected
   useEffect(() => {
@@ -150,7 +183,6 @@ export default function FlowBuilder({ initialTemplates, verticalGroups, subVerti
         setDirty(false);
         setSelectedStageId(null);
       } else {
-        // 3. No flow available
         setEditedStages([]);
         setEditedTransitions([]);
         setSelectedTemplateId(null);
@@ -164,7 +196,7 @@ export default function FlowBuilder({ initialTemplates, verticalGroups, subVerti
 
   // Legacy: populate from template pills (when no sub-vertical selected)
   useEffect(() => {
-    if (selectedFunctionId) return; // sub-vertical mode takes precedence
+    if (selectedFunctionId) return;
     const tpl = templates.find(t => t.id === selectedTemplateId);
     if (tpl) {
       setEditedStages(tpl.stages);
@@ -180,6 +212,13 @@ export default function FlowBuilder({ initialTemplates, verticalGroups, subVerti
   const handleUpdateStage = useCallback((updated: FlowBuilderStage) => {
     setEditedStages(prev => prev.map(s => (s.id === updated.id ? updated : s)));
     setDirty(true);
+  }, []);
+
+  const reloadTemplates = useCallback(async () => {
+    const res = await getSystemFlowTemplatesFromDB();
+    if (res.success && res.templates) {
+      setTemplates(res.templates.map(t => mapTemplateToBuilder(t)));
+    }
   }, []);
 
   const handleSave = useCallback(async () => {
@@ -204,14 +243,12 @@ export default function FlowBuilder({ initialTemplates, verticalGroups, subVerti
       }));
 
       if (templateSource === 'db') {
-        // Update existing DB template
         await updateSystemFlowTemplateAction(
           selectedTemplateId,
           { stages: firestoreStages, transitions: firestoreTransitions } as Record<string, unknown>,
           'admin',
         );
       } else if (selectedFunctionId) {
-        // Create new DB template from generated/custom flow
         const summary = summaryMap.get(selectedFunctionId);
         await createSystemFlowTemplateAction({
           name: summary?.name ? `${summary.name} Flow` : selectedTemplateId,
@@ -235,7 +272,6 @@ export default function FlowBuilder({ initialTemplates, verticalGroups, subVerti
           status: 'active',
         } as Record<string, unknown>, 'admin');
         setTemplateSource('db');
-        // Reload to pick up new template in client state
         await reloadTemplates();
       }
       setDirty(false);
@@ -245,13 +281,6 @@ export default function FlowBuilder({ initialTemplates, verticalGroups, subVerti
       setSaving(false);
     }
   }, [selectedTemplateId, dirty, editedStages, editedTransitions, templateSource, selectedFunctionId, summaryMap, reloadTemplates]);
-
-  const reloadTemplates = useCallback(async () => {
-    const res = await getSystemFlowTemplatesFromDB();
-    if (res.success && res.templates) {
-      setTemplates(res.templates.map(t => mapTemplateToBuilder(t)));
-    }
-  }, []);
 
   const handleSeed = useCallback(async () => {
     setSeeding(true);
@@ -264,6 +293,8 @@ export default function FlowBuilder({ initialTemplates, verticalGroups, subVerti
       setSeeding(false);
     }
   }, [reloadTemplates]);
+
+  const totalSubVerticals = subVerticalSummaries.length;
 
   const handleSeedAll = useCallback(async () => {
     if (!confirm(`Seed flow templates for all ${totalSubVerticals} sub-verticals? This will skip any that already have templates.`)) return;
@@ -297,8 +328,6 @@ export default function FlowBuilder({ initialTemplates, verticalGroups, subVerti
     setSelectedStageId(null);
   }
 
-  // Count stats for header
-  const totalSubVerticals = subVerticalSummaries.length;
   const coveredCount = subVerticalSummaries.filter(
     sv => dbFunctionIds.has(sv.functionId) || sv.hasCustomTemplate,
   ).length;
