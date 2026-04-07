@@ -573,3 +573,38 @@ export async function getFlowTemplatesListAction(): Promise<{
     return { success: false, templates: [] };
   }
 }
+
+export async function bulkToggleBlockStatusAction(
+  blockIds: string[],
+  enabled: boolean
+): Promise<{ success: boolean; updated: number; error?: string }> {
+  try {
+    if (!blockIds.length) return { success: true, updated: 0 };
+
+    const status = enabled ? 'active' : 'disabled';
+    const now = new Date().toISOString();
+    const batchSize = 500; // Firestore batch limit
+    let updated = 0;
+
+    for (let i = 0; i < blockIds.length; i += batchSize) {
+      const chunk = blockIds.slice(i, i + batchSize);
+      const batch = adminDb.batch();
+      for (const id of chunk) {
+        batch.set(
+          adminDb.collection('relayBlockConfigs').doc(id),
+          { status, updatedAt: now },
+          { merge: true }
+        );
+      }
+      await batch.commit();
+      updated += chunk.length;
+    }
+
+    invalidateBlockConfigCache();
+    revalidatePath('/admin/relay/blocks');
+
+    return { success: true, updated };
+  } catch (err: unknown) {
+    return { success: false, updated: 0, error: err instanceof Error ? err.message : 'Unknown error' };
+  }
+}
