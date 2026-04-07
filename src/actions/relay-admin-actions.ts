@@ -601,6 +601,7 @@ export async function bulkToggleBlockStatusAction(
     }
 
     invalidateBlockConfigCache();
+    revalidatePath('/admin/relay');
     revalidatePath('/admin/relay/blocks');
 
     return { success: true, updated };
