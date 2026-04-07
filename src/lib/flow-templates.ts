@@ -1,4 +1,5 @@
-import type { FlowSettings, FlowStage, FlowTransition, SystemFlowTemplate } from './types-flow-engine';
+import type { FlowSettings, FlowStage, FlowTransition, SystemFlowTemplate, FlowStageType, IntentSignal } from './types-flow-engine';
+import { getSubVertical, getBlocksForFunction } from '@/app/admin/relay/blocks/previews/registry';
 
 // ---------------------------------------------------------------------------
 // Shared defaults
@@ -632,4 +633,179 @@ export function getFlowTemplateForFunction(functionId: string): SystemFlowTempla
 
 export function getDefaultFlowForIndustry(industryId: string): SystemFlowTemplate | null {
   return SYSTEM_FLOW_TEMPLATES.find((t) => t.industryId === industryId) ?? null;
+}
+
+// ---------------------------------------------------------------------------
+// Auto-generation helpers for sub-vertical flows
+// ---------------------------------------------------------------------------
+
+const STAGE_LABELS: Record<string, string> = {
+  greeting: 'Welcome',
+  discovery: 'Browse',
+  showcase: 'Details',
+  comparison: 'Compare',
+  social_proof: 'Reviews',
+  conversion: 'Book / Buy',
+  objection: 'Concerns',
+  handoff: 'Contact',
+};
+
+const STAGE_INTENTS: Record<string, IntentSignal[]> = {
+  greeting: ['browsing'],
+  discovery: ['browsing', 'returning'],
+  showcase: ['pricing', 'inquiry'],
+  comparison: ['comparing'],
+  social_proof: ['comparing'],
+  conversion: ['booking', 'schedule'],
+  objection: ['complaint'],
+  handoff: ['contact', 'complaint', 'urgent'],
+};
+
+const STAGE_SCORES: Record<string, number> = {
+  greeting: 1,
+  discovery: 2,
+  showcase: 3,
+  comparison: 4,
+  social_proof: 3,
+  conversion: 5,
+  objection: 2,
+  handoff: 0,
+};
+
+const STAGE_ORDER: FlowStageType[] = [
+  'greeting', 'discovery', 'showcase', 'comparison',
+  'social_proof', 'conversion', 'objection', 'handoff',
+];
+
+function buildStandardTransitions(stages: FlowStage[]): FlowTransition[] {
+  const transitions: FlowTransition[] = [];
+  const stageIds = new Map(stages.map(s => [s.type, s.id]));
+  const handoffId = stageIds.get('handoff');
+  const discoveryId = stageIds.get('discovery');
+  const conversionId = stageIds.get('conversion');
+  const greetingId = stageIds.get('greeting');
+
+  // greeting → discovery (browsing)
+  if (greetingId && discoveryId) {
+    transitions.push({ from: greetingId, to: discoveryId, trigger: 'browsing' });
+  }
+  // greeting → conversion (booking, high priority)
+  if (greetingId && conversionId) {
+    transitions.push({ from: greetingId, to: conversionId, trigger: 'booking', priority: 1 });
+  }
+  // greeting → handoff (contact)
+  if (greetingId && handoffId) {
+    transitions.push({ from: greetingId, to: handoffId, trigger: 'contact' });
+  }
+
+  // discovery → showcase/comparison/conversion
+  if (discoveryId) {
+    const showcaseId = stageIds.get('showcase');
+    const comparisonId = stageIds.get('comparison');
+    if (showcaseId) transitions.push({ from: discoveryId, to: showcaseId, trigger: 'pricing' });
+    if (comparisonId) transitions.push({ from: discoveryId, to: comparisonId, trigger: 'comparing' });
+    if (conversionId) transitions.push({ from: discoveryId, to: conversionId, trigger: 'booking', priority: 1 });
+    if (handoffId) transitions.push({ from: discoveryId, to: handoffId, trigger: 'contact' });
+  }
+
+  // showcase → conversion, comparison, handoff
+  const showcaseId = stageIds.get('showcase');
+  if (showcaseId) {
+    if (conversionId) transitions.push({ from: showcaseId, to: conversionId, trigger: 'booking', priority: 1 });
+    if (discoveryId) transitions.push({ from: showcaseId, to: discoveryId, trigger: 'browsing' });
+    if (handoffId) transitions.push({ from: showcaseId, to: handoffId, trigger: 'contact' });
+  }
+
+  // comparison → conversion, discovery, handoff
+  const comparisonId = stageIds.get('comparison');
+  if (comparisonId) {
+    if (conversionId) transitions.push({ from: comparisonId, to: conversionId, trigger: 'booking', priority: 1 });
+    if (discoveryId) transitions.push({ from: comparisonId, to: discoveryId, trigger: 'browsing' });
+    if (handoffId) transitions.push({ from: comparisonId, to: handoffId, trigger: 'contact' });
+  }
+
+  // social_proof → conversion, discovery, handoff
+  const socialProofId = stageIds.get('social_proof');
+  if (socialProofId) {
+    if (conversionId) transitions.push({ from: socialProofId, to: conversionId, trigger: 'booking', priority: 1 });
+    if (discoveryId) transitions.push({ from: socialProofId, to: discoveryId, trigger: 'browsing' });
+    if (handoffId) transitions.push({ from: socialProofId, to: handoffId, trigger: 'contact' });
+  }
+
+  // conversion → handoff
+  if (conversionId && handoffId) {
+    transitions.push({ from: conversionId, to: handoffId, trigger: 'contact' });
+  }
+
+  // complaint escalation: every non-handoff stage → handoff
+  if (handoffId) {
+    for (const s of stages) {
+      if (s.type !== 'handoff' && s.type !== 'greeting') {
+        const alreadyHasComplaint = transitions.some(
+          t => t.from === s.id && t.to === handoffId && t.trigger === 'complaint',
+        );
+        if (!alreadyHasComplaint) {
+          transitions.push({ from: s.id, to: handoffId, trigger: 'complaint' });
+        }
+      }
+    }
+  }
+
+  return transitions;
+}
+
+/**
+ * Auto-generates a SystemFlowTemplate for any sub-vertical using its block registry data.
+ * Returns hand-crafted template if one exists, otherwise builds from block stages.
+ */
+export function generateFlowForSubVertical(functionId: string): SystemFlowTemplate | null {
+  // Prefer hand-crafted template if available
+  const existing = getFlowTemplateForFunction(functionId);
+  if (existing) return existing;
+
+  const result = getSubVertical(functionId);
+  if (!result) return null;
+  const { vertical, subVertical } = result;
+  const blocks = getBlocksForFunction(functionId);
+
+  // Group block IDs by their stage
+  const blocksByStage: Record<string, string[]> = {};
+  for (const b of blocks) {
+    if (!blocksByStage[b.stage]) blocksByStage[b.stage] = [];
+    blocksByStage[b.stage].push(b.id);
+  }
+
+  // Create a short prefix for stage IDs from the functionId
+  const prefix = functionId.replace(/[^a-z0-9]/g, '_').substring(0, 10);
+
+  // Build stages only for stage types that have blocks
+  const stages: FlowStage[] = STAGE_ORDER
+    .filter(stageType => blocksByStage[stageType]?.length > 0)
+    .map(stageType => ({
+      id: `${prefix}_${stageType}`,
+      type: stageType,
+      label: STAGE_LABELS[stageType] || stageType,
+      blockTypes: blocksByStage[stageType],
+      intentTriggers: STAGE_INTENTS[stageType] || ['browsing'],
+      leadScoreImpact: STAGE_SCORES[stageType] || 1,
+      ...(stageType === 'greeting' ? { isEntry: true } : {}),
+      ...(stageType === 'handoff' ? { isExit: true } : {}),
+    }));
+
+  if (stages.length === 0) return null;
+
+  const transitions = buildStandardTransitions(stages);
+
+  return {
+    id: `tpl_${functionId}`,
+    name: `${subVertical.name} Flow`,
+    industryId: vertical.industryId,
+    functionId,
+    industryName: vertical.name,
+    functionName: subVertical.name,
+    description: `Auto-generated flow for ${subVertical.name}`,
+    settings: defaultSettings(),
+    stages,
+    transitions,
+  };
 }

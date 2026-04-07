@@ -1,7 +1,7 @@
 'use server';
 
 import { db as adminDb } from '@/lib/firebase-admin';
-import { SYSTEM_FLOW_TEMPLATES } from '@/lib/flow-templates';
+import { SYSTEM_FLOW_TEMPLATES, generateFlowForSubVertical } from '@/lib/flow-templates';
 import type {
   FlowDefinition,
   ConversationFlowState,
@@ -627,6 +627,59 @@ export async function seedSystemFlowTemplatesToDB(
     return { success: true, seeded, skipped };
   } catch (e: any) {
     console.error('Failed to seed system flow templates:', e);
+    return { success: false, seeded: 0, skipped: 0, error: e.message };
+  }
+}
+
+/**
+ * Seeds flow templates for ALL sub-verticals that don't already have a DB template.
+ * Uses generateFlowForSubVertical() to auto-generate from the block registry.
+ */
+export async function seedAllSubVerticalFlowsAction(
+  userId: string
+): Promise<{ success: boolean; seeded: number; skipped: number; error?: string }> {
+  try {
+    const { ALL_SUB_VERTICALS } = await import('@/app/admin/relay/blocks/previews/registry');
+
+    const snap = await adminDb.collection('systemFlowTemplates').get();
+    const existingFunctionIds = new Set(
+      snap.docs.map((d) => d.data()?.functionId).filter(Boolean)
+    );
+
+    const now = new Date().toISOString();
+    let seeded = 0;
+    let skipped = 0;
+
+    for (const sv of ALL_SUB_VERTICALS) {
+      if (existingFunctionIds.has(sv.id)) {
+        skipped++;
+        continue;
+      }
+
+      const tpl = generateFlowForSubVertical(sv.id);
+      if (!tpl) {
+        skipped++;
+        continue;
+      }
+
+      const record: SystemFlowTemplateRecord = {
+        ...tpl,
+        createdAt: now,
+        updatedAt: now,
+        createdBy: userId,
+        status: 'active',
+      };
+
+      await adminDb.collection('systemFlowTemplates').doc(tpl.id).set(record);
+      seeded++;
+    }
+
+    const { revalidatePath } = await import('next/cache');
+    revalidatePath('/admin/relay/flows');
+
+    return { success: true, seeded, skipped };
+  } catch (e: any) {
+    console.error('Failed to seed all sub-vertical flows:', e);
     return { success: false, seeded: 0, skipped: 0, error: e.message };
   }
 }
