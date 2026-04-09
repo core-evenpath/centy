@@ -1,16 +1,14 @@
-// @ts-nocheck
 'use client';
 
-import { useState, useMemo, useEffect, useCallback } from 'react';
+import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import FlowSidebar from './FlowSidebar';
-import FlowScenarioPanel from './FlowScenarioPanel';
 import FlowChat from './FlowChat';
 import FlowBento from './FlowBento';
 import { generateConversation, generateConversationFromScenario } from './flow-conversation';
 import { useFlowTemplate } from './useFlowTemplate';
-import { useScenario } from './useScenario';
+import { useScenarios } from './useScenarios';
 import { T, VERTICALS } from './flow-helpers';
-import { getSubVertical, getBlocksForFunction } from '../blocks/previews/registry';
+import { getSubVertical } from '../blocks/previews/registry';
 import { Radio, ArrowUp, Layers } from 'lucide-react';
 import { FLOW_STAGE_STYLES } from '../blocks/previews/_types';
 
@@ -25,23 +23,30 @@ export default function RelayFlowMockup() {
   const [showChat, setShowChat] = useState(false);
   const [visibleCount, setVisibleCount] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
-  const [selectedScenarioIdx, setSelectedScenarioIdx] = useState<number | null>(0);
 
   const { template, source } = useFlowTemplate(selectedId);
-  const { scenario, generating, regenerate } = useScenario(selectedId);
+  const { scenarios, selected: selectedScenario, selectedIdx, setSelectedIdx, generating, regenerate } = useScenarios(selectedId);
 
+  // Generate messages: scenario-driven or default (always works synchronously via buildFlowSync fallback)
   const messages = useMemo(() => {
     if (!selectedId) return [];
-    if (selectedScenarioIdx === 1 && scenario)
-      return generateConversationFromScenario(selectedId, scenario, template);
+    if (selectedScenario) return generateConversationFromScenario(selectedId, selectedScenario, template);
     return generateConversation(selectedId, template);
-  }, [selectedId, template, scenario, selectedScenarioIdx]);
+  }, [selectedId, template, selectedScenario]);
+
+  // Reset playback when messages change (e.g. template loads or scenario switches)
+  const prevMsgLen = useRef(messages.length);
+  useEffect(() => {
+    if (prevMsgLen.current !== messages.length && showChat) {
+      setVisibleCount(0);
+      setIsPlaying(true);
+    }
+    prevMsgLen.current = messages.length;
+  }, [messages.length, showChat]);
 
   const info = useMemo(() => (selectedId ? getSubVertical(selectedId) : null), [selectedId]);
   const accentColor = info?.vertical.accentColor || T.accent;
   const subName = info?.subVertical.name || '';
-  const blocks = useMemo(() => selectedId ? getBlocksForFunction(selectedId) : [], [selectedId]);
-  const flowStageCount = template?.stages?.length || 0;
 
   const currentStage = useMemo(() => {
     for (let i = visibleCount - 1; i >= 0; i--) {
@@ -50,9 +55,10 @@ export default function RelayFlowMockup() {
     return '';
   }, [messages, visibleCount]);
 
+  // Auto-play timer
   useEffect(() => {
     if (!isPlaying || visibleCount >= messages.length) {
-      if (visibleCount >= messages.length) setIsPlaying(false);
+      if (visibleCount >= messages.length && visibleCount > 0) setIsPlaying(false);
       return;
     }
     const next = messages[visibleCount];
@@ -62,7 +68,7 @@ export default function RelayFlowMockup() {
   }, [isPlaying, visibleCount, messages]);
 
   const handleSelect = useCallback((id: string) => {
-    setSelectedId(id); setShowChat(false); setVisibleCount(0); setIsPlaying(false); setSelectedScenarioIdx(0);
+    setSelectedId(id); setShowChat(false); setVisibleCount(0); setIsPlaying(false);
   }, []);
   const handleStartChat = useCallback(() => { setShowChat(true); setVisibleCount(0); setIsPlaying(true); }, []);
   const handleReset = useCallback(() => { setShowChat(false); setVisibleCount(0); setIsPlaying(false); }, []);
@@ -70,32 +76,21 @@ export default function RelayFlowMockup() {
     if (!showChat) { handleStartChat(); return; }
     setIsPlaying(p => !p);
   }, [showChat, handleStartChat]);
+  const handleSelectScenario = useCallback((idx: number) => {
+    setSelectedIdx(idx); setShowChat(false); setVisibleCount(0); setIsPlaying(false);
+  }, [setSelectedIdx]);
 
   const isTyping = isPlaying && visibleCount < messages.length;
   const stageStyle = FLOW_STAGE_STYLES[currentStage] || { color: T.accentBg, textColor: T.accent };
+  const scenarioName = selectedScenario?.name;
 
   return (
     <div style={{ display: 'flex', height: '100vh', background: T.bg, fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" }}>
       <style>{`@keyframes flowpulse { 0%,100%{opacity:1} 50%{opacity:.3} } button:active { transform: scale(0.98); } ::-webkit-scrollbar { display: none; }`}</style>
 
-      <FlowSidebar selectedId={selectedId} onSelect={handleSelect} />
-
-      <FlowScenarioPanel
-        functionId={selectedId}
-        subVerticalName={subName}
-        industryName={info?.vertical.name || ''}
-        accentColor={accentColor}
-        blockCount={blocks.length}
-        stageCount={flowStageCount}
-        selectedScenarioIdx={selectedScenarioIdx}
-        onSelectScenario={setSelectedScenarioIdx}
-        onPlay={handleTogglePlay}
-        onReset={handleReset}
-        onRegenerate={regenerate}
-        generating={generating}
-        scenario={scenario}
-        messages={messages}
-      />
+      <FlowSidebar selectedId={selectedId} onSelect={handleSelect} isPlaying={isPlaying} onTogglePlay={handleTogglePlay} onReset={handleReset}
+        scenarios={scenarios} selectedScenarioIdx={selectedIdx} onSelectScenario={handleSelectScenario}
+        onRegenerate={regenerate} generating={generating} templateSource={source} />
 
       <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
         {selectedId ? (
@@ -109,7 +104,10 @@ export default function RelayFlowMockup() {
                       <div style={{ width: 30, height: 30, borderRadius: 8, background: accentColor, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff' }}>
                         <Radio size={14} strokeWidth={2.5} />
                       </div>
-                      <span style={{ fontSize: 14, fontWeight: 700, color: T.t1 }}>{subName}</span>
+                      <div>
+                        <span style={{ fontSize: 14, fontWeight: 700, color: T.t1 }}>{subName}</span>
+                        {scenarioName && <div style={{ fontSize: 10, color: T.t3 }}>{scenarioName}</div>}
+                      </div>
                     </div>
                     {currentStage && (
                       <div style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '4px 10px', background: stageStyle.color, borderRadius: 9999, fontSize: 10, color: stageStyle.textColor, fontWeight: 600 }}>

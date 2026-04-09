@@ -1,129 +1,130 @@
 'use server';
 
+import { GoogleGenAI } from '@google/genai';
 import { db as adminDb } from '@/lib/firebase-admin';
-import type { ScenarioScript } from '@/lib/types-flow-engine';
+import type { FlowScenario, ScenariosResult, GenerateScenariosResult } from '@/lib/types-flow-scenarios';
+import { buildScenariosPrompt } from './flow-scenario-prompt';
 
 const COLLECTION = 'flowScenarios';
+const genAI = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || '' });
+const MODEL = 'gemini-3.1-pro-preview';
 
 // ---------------------------------------------------------------------------
-// 1. Get cached scenario from Firestore
+// 1. Get all scenarios for a sub-vertical
 // ---------------------------------------------------------------------------
-export async function getScenarioAction(
-  functionId: string
-): Promise<{ success: boolean; scenario: ScenarioScript | null; error?: string }> {
+export async function getScenariosAction(functionId: string): Promise<ScenariosResult> {
   try {
-    const doc = await adminDb.collection(COLLECTION).doc(functionId).get();
-    if (!doc.exists) return { success: true, scenario: null };
-    return { success: true, scenario: doc.data() as ScenarioScript };
+    const snap = await adminDb
+      .collection(COLLECTION).doc(functionId).collection('scenarios')
+      .orderBy('priority', 'asc').get();
+    const scenarios = snap.docs.map(d => ({ ...d.data(), id: d.id }) as FlowScenario);
+    return { success: true, scenarios };
   } catch (e: any) {
-    console.error('Failed to get scenario:', e);
+    console.error('Failed to get scenarios:', e);
+    return { success: false, scenarios: [], error: e.message };
+  }
+}
+
+// ---------------------------------------------------------------------------
+// 2. Get a single scenario by ID (for RAG retrieval)
+// ---------------------------------------------------------------------------
+export async function getScenarioByIdAction(
+  functionId: string, scenarioId: string,
+): Promise<{ success: boolean; scenario: FlowScenario | null; error?: string }> {
+  try {
+    const doc = await adminDb
+      .collection(COLLECTION).doc(functionId).collection('scenarios').doc(scenarioId).get();
+    if (!doc.exists) return { success: true, scenario: null };
+    return { success: true, scenario: { ...doc.data(), id: doc.id } as FlowScenario };
+  } catch (e: any) {
     return { success: false, scenario: null, error: e.message };
   }
 }
 
 // ---------------------------------------------------------------------------
-// 2. Generate scenario using Gemini, save to Firestore
+// 3. Generate 10 scenarios for a sub-vertical via Gemini
 // ---------------------------------------------------------------------------
-export async function generateScenarioAction(
-  functionId: string
-): Promise<{ success: boolean; scenario: ScenarioScript | null; error?: string }> {
+export async function generateScenariosAction(functionId: string): Promise<GenerateScenariosResult> {
   try {
     const { getSubVertical, getBlocksForFunction } = await import(
       '@/app/admin/relay/blocks/previews/registry'
     );
     const result = getSubVertical(functionId);
-    if (!result) return { success: false, scenario: null, error: 'Sub-vertical not found' };
+    if (!result) return { success: false, count: 0, error: 'Sub-vertical not found' };
 
     const { vertical, subVertical } = result;
     const blocks = getBlocksForFunction(functionId);
 
     // Group block labels by stage
-    const stageBlocks: Record<string, string[]> = {};
+    const stageMap: Record<string, string[]> = {};
     for (const b of blocks) {
-      if (!stageBlocks[b.stage]) stageBlocks[b.stage] = [];
-      stageBlocks[b.stage].push(b.label);
+      if (!stageMap[b.stage]) stageMap[b.stage] = [];
+      stageMap[b.stage].push(b.label);
     }
+    const stageBlocks = Object.entries(stageMap).map(([stage, blockLabels]) => ({ stage, blockLabels }));
+    const availableStages = Object.keys(stageMap);
 
-    const stageList = Object.entries(stageBlocks)
-      .map(([stage, labels]) => `- ${stage}: ${labels.join(', ')}`)
-      .join('\n');
+    const prompt = buildScenariosPrompt(subVertical.name, vertical.name, stageBlocks, availableStages);
 
-    const prompt = `You are generating a realistic customer conversation script for a "${subVertical.name}" business in the "${vertical.name}" industry.
-
-Available conversation stages and their blocks:
-${stageList}
-
-For each stage that has blocks, generate:
-1. userMessage: A natural customer message (1-2 sentences) that a real person would type
-2. botMessage: A friendly, professional AI assistant response (1-2 sentences) introducing the blocks
-3. chipLabels: 2-3 short suggestion button labels (2-4 words each)
-
-IMPORTANT: Make messages specific to ${subVertical.name}, not generic. Use industry terminology.
-Skip the "greeting" stage for userMessage (the bot speaks first).
-
-Return ONLY valid JSON matching this exact structure:
-{
-  "stages": {
-    "stage_name": { "userMessage": "...", "botMessage": "...", "chipLabels": ["...", "..."] }
-  }
-}`;
-
-    const { GoogleGenAI } = await import('@google/genai');
-    const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_GENAI_API_KEY;
-    if (!apiKey) return { success: false, scenario: null, error: 'GEMINI_API_KEY not configured' };
-
-    const ai = new GoogleGenAI({ apiKey });
-    const res = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
-      contents: { parts: [{ text: prompt }] },
-      config: { responseMimeType: 'application/json', temperature: 0.7 },
+    const res = await genAI.models.generateContent({
+      model: MODEL,
+      contents: prompt,
+      config: {
+        responseMimeType: 'application/json',
+        temperature: 0.8,
+        maxOutputTokens: 8192,
+      },
     });
 
-    const parsed = JSON.parse(res.text || '{}');
-    if (!parsed.stages) return { success: false, scenario: null, error: 'Invalid AI response' };
-
-    const scenario: ScenarioScript = {
-      functionId,
-      functionName: subVertical.name,
-      stages: parsed.stages,
-      generatedAt: new Date().toISOString(),
-      modelUsed: 'gemini-2.5-flash',
-    };
-
-    await adminDb.collection(COLLECTION).doc(functionId).set(scenario);
-    return { success: true, scenario };
-  } catch (e: any) {
-    console.error('Failed to generate scenario:', e);
-    return { success: false, scenario: null, error: e.message };
-  }
-}
-
-// ---------------------------------------------------------------------------
-// 3. Seed scenarios for all sub-verticals
-// ---------------------------------------------------------------------------
-export async function seedAllScenariosAction(): Promise<{
-  success: boolean; generated: number; skipped: number; error?: string;
-}> {
-  try {
-    const { ALL_SUB_VERTICALS } = await import('@/app/admin/relay/blocks/previews/registry');
-    const snap = await adminDb.collection(COLLECTION).get();
-    const existing = new Set(snap.docs.map(d => d.id));
-
-    let generated = 0;
-    let skipped = 0;
-
-    for (const sv of ALL_SUB_VERTICALS) {
-      if (existing.has(sv.id)) { skipped++; continue; }
-      const result = await generateScenarioAction(sv.id);
-      if (result.success) generated++;
-      else skipped++;
-      // Rate limit: wait 1s between calls
-      await new Promise(r => setTimeout(r, 1000));
+    const text = res.text?.trim() || '{}';
+    const parsed = JSON.parse(text);
+    if (!parsed.scenarios?.length) {
+      return { success: false, count: 0, error: 'Invalid AI response: no scenarios array' };
     }
 
-    return { success: true, generated, skipped };
+    const now = new Date().toISOString();
+    const batch = adminDb.batch();
+    const parentRef = adminDb.collection(COLLECTION).doc(functionId);
+
+    // Ensure parent doc exists (for querying)
+    batch.set(parentRef, {
+      functionId, functionName: subVertical.name,
+      industryId: vertical.industryId, updatedAt: now,
+    }, { merge: true });
+
+    // Delete existing scenarios first
+    const existingSnap = await parentRef.collection('scenarios').get();
+    for (const doc of existingSnap.docs) batch.delete(doc.ref);
+
+    // Write new scenarios
+    let count = 0;
+    for (const raw of parsed.scenarios) {
+      const slug = (raw.name || `scenario_${count}`)
+        .toLowerCase().replace(/[^a-z0-9]+/g, '_').substring(0, 40);
+      const id = `${functionId}__${slug}`;
+
+      const scenario: FlowScenario = {
+        id,
+        functionId,
+        name: raw.name || `Scenario ${count + 1}`,
+        description: raw.description || '',
+        customerProfile: raw.customerProfile || '',
+        tags: Array.isArray(raw.tags) ? raw.tags : [],
+        activeStages: Array.isArray(raw.activeStages) ? raw.activeStages : availableStages,
+        stageMessages: raw.stageMessages || {},
+        priority: raw.priority || count + 1,
+        generatedAt: now,
+        modelUsed: MODEL,
+      };
+
+      batch.set(parentRef.collection('scenarios').doc(id), scenario);
+      count++;
+    }
+
+    await batch.commit();
+    return { success: true, count };
   } catch (e: any) {
-    console.error('Failed to seed scenarios:', e);
-    return { success: false, generated: 0, skipped: 0, error: e.message };
+    console.error('Failed to generate scenarios:', e);
+    return { success: false, count: 0, error: e.message };
   }
 }
