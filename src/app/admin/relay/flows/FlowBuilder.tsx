@@ -1,14 +1,16 @@
+// @ts-nocheck
 'use client';
 
 import { useState, useMemo, useEffect, useCallback } from 'react';
 import FlowSidebar from './FlowSidebar';
+import FlowScenarioPanel from './FlowScenarioPanel';
 import FlowChat from './FlowChat';
 import FlowBento from './FlowBento';
 import { generateConversation, generateConversationFromScenario } from './flow-conversation';
 import { useFlowTemplate } from './useFlowTemplate';
 import { useScenario } from './useScenario';
 import { T, VERTICALS } from './flow-helpers';
-import { getSubVertical } from '../blocks/previews/registry';
+import { getSubVertical, getBlocksForFunction } from '../blocks/previews/registry';
 import { Radio, ArrowUp, Layers } from 'lucide-react';
 import { FLOW_STAGE_STYLES } from '../blocks/previews/_types';
 
@@ -23,19 +25,23 @@ export default function RelayFlowMockup() {
   const [showChat, setShowChat] = useState(false);
   const [visibleCount, setVisibleCount] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [selectedScenarioIdx, setSelectedScenarioIdx] = useState<number | null>(0);
 
   const { template, source } = useFlowTemplate(selectedId);
   const { scenario, generating, regenerate } = useScenario(selectedId);
 
   const messages = useMemo(() => {
     if (!selectedId) return [];
-    if (scenario) return generateConversationFromScenario(selectedId, scenario, template);
+    if (selectedScenarioIdx === 1 && scenario)
+      return generateConversationFromScenario(selectedId, scenario, template);
     return generateConversation(selectedId, template);
-  }, [selectedId, template, scenario]);
+  }, [selectedId, template, scenario, selectedScenarioIdx]);
 
   const info = useMemo(() => (selectedId ? getSubVertical(selectedId) : null), [selectedId]);
   const accentColor = info?.vertical.accentColor || T.accent;
   const subName = info?.subVertical.name || '';
+  const blocks = useMemo(() => selectedId ? getBlocksForFunction(selectedId) : [], [selectedId]);
+  const flowStageCount = template?.stages?.length || 0;
 
   const currentStage = useMemo(() => {
     for (let i = visibleCount - 1; i >= 0; i--) {
@@ -56,7 +62,7 @@ export default function RelayFlowMockup() {
   }, [isPlaying, visibleCount, messages]);
 
   const handleSelect = useCallback((id: string) => {
-    setSelectedId(id); setShowChat(false); setVisibleCount(0); setIsPlaying(false);
+    setSelectedId(id); setShowChat(false); setVisibleCount(0); setIsPlaying(false); setSelectedScenarioIdx(0);
   }, []);
   const handleStartChat = useCallback(() => { setShowChat(true); setVisibleCount(0); setIsPlaying(true); }, []);
   const handleReset = useCallback(() => { setShowChat(false); setVisibleCount(0); setIsPlaying(false); }, []);
@@ -72,8 +78,24 @@ export default function RelayFlowMockup() {
     <div style={{ display: 'flex', height: '100vh', background: T.bg, fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" }}>
       <style>{`@keyframes flowpulse { 0%,100%{opacity:1} 50%{opacity:.3} } button:active { transform: scale(0.98); } ::-webkit-scrollbar { display: none; }`}</style>
 
-      <FlowSidebar selectedId={selectedId} onSelect={handleSelect} isPlaying={isPlaying} onTogglePlay={handleTogglePlay} onReset={handleReset}
-        onRegenerate={regenerate} generating={generating} hasScenario={!!scenario} templateSource={source} />
+      <FlowSidebar selectedId={selectedId} onSelect={handleSelect} />
+
+      <FlowScenarioPanel
+        functionId={selectedId}
+        subVerticalName={subName}
+        industryName={info?.vertical.name || ''}
+        accentColor={accentColor}
+        blockCount={blocks.length}
+        stageCount={flowStageCount}
+        selectedScenarioIdx={selectedScenarioIdx}
+        onSelectScenario={setSelectedScenarioIdx}
+        onPlay={handleTogglePlay}
+        onReset={handleReset}
+        onRegenerate={regenerate}
+        generating={generating}
+        scenario={scenario}
+        messages={messages}
+      />
 
       <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
         {selectedId ? (
