@@ -2,10 +2,30 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { getScenariosAction, generateScenariosAction } from '@/actions/flow-scenario-actions';
+import type { GenerateContext } from '@/actions/flow-scenario-actions';
+import { getSubVertical, getBlocksForFunction } from '../blocks/previews/registry';
 import type { FlowScenario } from '@/lib/types-flow-scenarios';
 
 // Module-level cache: functionId → scenarios[]
 const cache = new Map<string, FlowScenario[]>();
+
+/** Build generation context from the client-side block registry. */
+function buildContext(functionId: string): GenerateContext | null {
+  const result = getSubVertical(functionId);
+  if (!result) return null;
+  const blocks = getBlocksForFunction(functionId);
+  const stageMap: Record<string, string[]> = {};
+  for (const b of blocks) {
+    if (!stageMap[b.stage]) stageMap[b.stage] = [];
+    stageMap[b.stage].push(b.label);
+  }
+  return {
+    subVerticalName: result.subVertical.name,
+    verticalName: result.vertical.name,
+    industryId: result.vertical.industryId,
+    stageBlocks: Object.entries(stageMap).map(([stage, blockLabels]) => ({ stage, blockLabels })),
+  };
+}
 
 export interface ScenariosHookResult {
   scenarios: FlowScenario[];
@@ -64,10 +84,14 @@ export function useScenarios(functionId: string): ScenariosHookResult {
 
   const regenerate = useCallback(() => {
     if (!functionId || generating) return;
+
+    const ctx = buildContext(functionId);
+    if (!ctx) { setError('Sub-vertical not found'); return; }
+
     setGenerating(true);
     setError(null);
 
-    generateScenariosAction(functionId).then(result => {
+    generateScenariosAction(functionId, ctx).then(result => {
       if (result.success && result.count > 0) {
         getScenariosAction(functionId).then(r => {
           if (r.success) {

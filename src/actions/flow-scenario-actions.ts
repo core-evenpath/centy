@@ -9,6 +9,14 @@ const COLLECTION = 'flowScenarios';
 const genAI = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || '' });
 const MODEL = 'gemini-2.5-flash';
 
+/** Context computed client-side from the block registry (avoids server-side registry import). */
+export interface GenerateContext {
+  subVerticalName: string;
+  verticalName: string;
+  industryId: string;
+  stageBlocks: { stage: string; blockLabels: string[] }[];
+}
+
 // ---------------------------------------------------------------------------
 // 1. Get all scenarios for a sub-vertical
 // ---------------------------------------------------------------------------
@@ -42,34 +50,14 @@ export async function getScenarioByIdAction(
 }
 
 // ---------------------------------------------------------------------------
-// 3. Generate 10 scenarios via Gemini
+// 3. Generate 10 scenarios via Gemini (context passed from client)
 // ---------------------------------------------------------------------------
-export async function generateScenariosAction(functionId: string): Promise<GenerateScenariosResult> {
+export async function generateScenariosAction(
+  functionId: string, ctx: GenerateContext,
+): Promise<GenerateScenariosResult> {
   try {
-    console.log('[scenarios] STEP1 importing registry');
-    const { getSubVertical, getBlocksForFunction } = await import(
-      '@/app/admin/relay/blocks/previews/registry'
-    );
-
-    console.log('[scenarios] STEP2 getting sub-vertical:', functionId);
-    const result = getSubVertical(functionId);
-    if (!result) return { success: false, count: 0, error: `Sub-vertical not found: ${functionId}` };
-
-    const { vertical, subVertical } = result;
-    const blocks = getBlocksForFunction(functionId);
-
-    const stageMap: Record<string, string[]> = {};
-    for (const b of blocks) {
-      if (!stageMap[b.stage]) stageMap[b.stage] = [];
-      stageMap[b.stage].push(b.label);
-    }
-    const stageBlocks = Object.entries(stageMap).map(([stage, blockLabels]) => ({ stage, blockLabels }));
-    const availableStages = Object.keys(stageMap);
-
-    const prompt = buildScenariosPrompt(subVertical.name, vertical.name, stageBlocks, availableStages);
-
-    const hasKey = !!(process.env.GEMINI_API_KEY);
-    console.log(`[scenarios] STEP3 calling Gemini model=${MODEL} hasKey=${hasKey} stages=${availableStages.length}`);
+    const availableStages = ctx.stageBlocks.map(s => s.stage);
+    const prompt = buildScenariosPrompt(ctx.subVerticalName, ctx.verticalName, ctx.stageBlocks, availableStages);
 
     const res = await genAI.models.generateContent({
       model: MODEL,
@@ -82,7 +70,6 @@ export async function generateScenariosAction(functionId: string): Promise<Gener
     });
 
     const raw = res.text?.trim() || '';
-    console.log(`[scenarios] STEP4 response length=${raw.length}`);
     if (!raw) return { success: false, count: 0, error: 'Empty response from Gemini' };
 
     // Robust JSON extraction
@@ -98,21 +85,20 @@ export async function generateScenariosAction(functionId: string): Promise<Gener
 
     let parsed: any;
     try { parsed = JSON.parse(jsonText); } catch (parseErr: any) {
-      console.error('[scenarios] STEP4-ERR JSON parse:', raw.substring(0, 200));
       return { success: false, count: 0, error: `JSON parse error: ${parseErr.message}` };
     }
 
-    if (!parsed.scenarios?.length) {
-      console.error('[scenarios] STEP4-ERR no scenarios array. Keys:', Object.keys(parsed).join(','));
-      return { success: false, count: 0, error: 'No scenarios in AI response' };
-    }
+    if (!parsed.scenarios?.length) return { success: false, count: 0, error: 'No scenarios in AI response' };
 
-    console.log(`[scenarios] STEP5 writing ${parsed.scenarios.length} scenarios to Firestore`);
     const now = new Date().toISOString();
     const batch = adminDb.batch();
     const parentRef = adminDb.collection(COLLECTION).doc(functionId);
 
-    batch.set(parentRef, { functionId, functionName: subVertical.name, industryId: vertical.industryId, updatedAt: now }, { merge: true });
+    batch.set(parentRef, {
+      functionId, functionName: ctx.subVerticalName,
+      industryId: ctx.industryId, updatedAt: now,
+    }, { merge: true });
+
     const existingSnap = await parentRef.collection('scenarios').get();
     for (const doc of existingSnap.docs) batch.delete(doc.ref);
 
@@ -132,10 +118,9 @@ export async function generateScenariosAction(functionId: string): Promise<Gener
     }
 
     await batch.commit();
-    console.log(`[scenarios] STEP6 done. ${count} scenarios saved`);
     return { success: true, count };
   } catch (e: any) {
-    console.error('[scenarios] FAILED at:', e?.message || String(e));
+    console.error('[scenarios] generation failed:', e?.message);
     return { success: false, count: 0, error: e?.message || 'Unknown generation error' };
   }
 }
