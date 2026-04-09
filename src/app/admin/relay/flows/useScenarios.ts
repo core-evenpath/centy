@@ -14,6 +14,7 @@ export interface ScenariosHookResult {
   setSelectedIdx: (idx: number) => void;
   loading: boolean;
   generating: boolean;
+  error: string | null;
   regenerate: () => void;
 }
 
@@ -24,10 +25,11 @@ export function useScenarios(functionId: string): ScenariosHookResult {
   const [selectedIdx, setSelectedIdx] = useState(0);
   const [loading, setLoading] = useState(false);
   const [generating, setGenerating] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!functionId) {
-      setScenarios([]); setSelectedIdx(0); setLoading(false);
+      setScenarios([]); setSelectedIdx(0); setLoading(false); setError(null);
       return;
     }
 
@@ -39,8 +41,8 @@ export function useScenarios(functionId: string): ScenariosHookResult {
 
     let cancelled = false;
     setLoading(true);
+    setError(null);
 
-    // Fetch with 5s timeout — don't block UI if Firestore is slow
     const timer = setTimeout(() => { if (!cancelled) setLoading(false); }, 5000);
 
     getScenariosAction(functionId).then(result => {
@@ -63,10 +65,10 @@ export function useScenarios(functionId: string): ScenariosHookResult {
   const regenerate = useCallback(() => {
     if (!functionId || generating) return;
     setGenerating(true);
+    setError(null);
 
     generateScenariosAction(functionId).then(result => {
       if (result.success && result.count > 0) {
-        // Refetch from Firestore to get the full objects
         getScenariosAction(functionId).then(r => {
           if (r.success) {
             cache.set(functionId, r.scenarios);
@@ -76,12 +78,16 @@ export function useScenarios(functionId: string): ScenariosHookResult {
           setGenerating(false);
         }).catch(() => setGenerating(false));
       } else {
+        setError(result.error || 'Generation failed — no scenarios returned');
         setGenerating(false);
       }
-    }).catch(() => setGenerating(false));
+    }).catch(e => {
+      setError(e?.message || 'Network error during generation');
+      setGenerating(false);
+    });
   }, [functionId, generating]);
 
   const selected = scenarios[selectedIdx] || null;
 
-  return { scenarios, selected, selectedIdx, setSelectedIdx, loading, generating, regenerate };
+  return { scenarios, selected, selectedIdx, setSelectedIdx, loading, generating, error, regenerate };
 }

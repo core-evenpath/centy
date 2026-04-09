@@ -26,7 +26,7 @@ export default function RelayFlowMockup() {
   const [isPlaying, setIsPlaying] = useState(false);
 
   const { template, source } = useFlowTemplate(selectedId);
-  const { scenarios, selected: selectedScenario, selectedIdx, setSelectedIdx, generating, regenerate } = useScenarios(selectedId);
+  const { scenarios, selected: selectedScenario, selectedIdx, setSelectedIdx, generating, error: scenarioError, regenerate } = useScenarios(selectedId);
 
   const messages = useMemo(() => {
     if (!selectedId) return [];
@@ -88,8 +88,8 @@ export default function RelayFlowMockup() {
       <FlowSidebar selectedId={selectedId} onSelect={handleSelect} isPlaying={isPlaying} onTogglePlay={handleTogglePlay} onReset={handleReset} templateSource={source} />
 
       {selectedId && (
-        <FlowScenarioPicker scenarios={scenarios} selectedIdx={selectedIdx} onSelect={handleSelectScenario}
-          onRegenerate={regenerate} generating={generating} subVerticalName={subName} />
+        <FlowScenarioPicker functionId={selectedId} scenarios={scenarios} selectedIdx={selectedIdx} onSelect={handleSelectScenario}
+          onRegenerate={regenerate} generating={generating} error={scenarioError} accentColor={accentColor} />
       )}
 
       <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
