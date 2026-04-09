@@ -69,7 +69,7 @@ export async function generateScenariosAction(functionId: string): Promise<Gener
 
     const ai = new GoogleGenAI({ apiKey });
     const res = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
+      model: 'gemini-3.1-pro-preview',
       contents: { parts: [{ text: prompt }] },
       config: { responseMimeType: 'application/json', temperature: 0.8 },
     });
@@ -106,7 +106,7 @@ export async function generateScenariosAction(functionId: string): Promise<Gener
         stageMessages: raw.stageMessages || {},
         priority: raw.priority || count + 1,
         generatedAt: now,
-        modelUsed: 'gemini-2.5-flash',
+        modelUsed: 'gemini-3.1-pro-preview',
       };
 
       batch.set(parentRef.collection('scenarios').doc(id), scenario);
