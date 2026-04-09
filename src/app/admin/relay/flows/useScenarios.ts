@@ -22,7 +22,7 @@ export function useScenarios(functionId: string): ScenariosHookResult {
     functionId ? cache.get(functionId) || [] : [],
   );
   const [selectedIdx, setSelectedIdx] = useState(0);
-  const [loading, setLoading] = useState(!scenarios.length && !!functionId);
+  const [loading, setLoading] = useState(false);
   const [generating, setGenerating] = useState(false);
 
   useEffect(() => {
@@ -40,7 +40,11 @@ export function useScenarios(functionId: string): ScenariosHookResult {
     let cancelled = false;
     setLoading(true);
 
+    // Fetch with 5s timeout — don't block UI if Firestore is slow
+    const timer = setTimeout(() => { if (!cancelled) setLoading(false); }, 5000);
+
     getScenariosAction(functionId).then(result => {
+      clearTimeout(timer);
       if (cancelled) return;
       if (result.success && result.scenarios.length > 0) {
         cache.set(functionId, result.scenarios);
@@ -49,10 +53,11 @@ export function useScenarios(functionId: string): ScenariosHookResult {
       setSelectedIdx(0);
       setLoading(false);
     }).catch(() => {
+      clearTimeout(timer);
       if (!cancelled) setLoading(false);
     });
 
-    return () => { cancelled = true; };
+    return () => { cancelled = true; clearTimeout(timer); };
   }, [functionId]);
 
   const regenerate = useCallback(() => {
@@ -69,7 +74,7 @@ export function useScenarios(functionId: string): ScenariosHookResult {
             setSelectedIdx(0);
           }
           setGenerating(false);
-        });
+        }).catch(() => setGenerating(false));
       } else {
         setGenerating(false);
       }

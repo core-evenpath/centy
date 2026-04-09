@@ -1,10 +1,13 @@
 'use server';
 
+import { GoogleGenAI } from '@google/genai';
 import { db as adminDb } from '@/lib/firebase-admin';
 import type { FlowScenario, ScenariosResult, GenerateScenariosResult } from '@/lib/types-flow-scenarios';
 import { buildScenariosPrompt } from './flow-scenario-prompt';
 
 const COLLECTION = 'flowScenarios';
+const genAI = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || '' });
+const MODEL = 'gemini-3.1-pro-preview';
 
 // ---------------------------------------------------------------------------
 // 1. Get all scenarios for a sub-vertical
@@ -63,26 +66,31 @@ export async function generateScenariosAction(functionId: string): Promise<Gener
 
     const prompt = buildScenariosPrompt(subVertical.name, vertical.name, stageBlocks, availableStages);
 
-    const { GoogleGenAI } = await import('@google/genai');
-    const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_GENAI_API_KEY;
-    if (!apiKey) return { success: false, count: 0, error: 'GEMINI_API_KEY not configured' };
-
-    const ai = new GoogleGenAI({ apiKey });
-    const res = await ai.models.generateContent({
-      model: 'gemini-3.1-pro-preview',
-      contents: { parts: [{ text: prompt }] },
-      config: { responseMimeType: 'application/json', temperature: 0.8 },
+    const res = await genAI.models.generateContent({
+      model: MODEL,
+      contents: prompt,
+      config: {
+        responseMimeType: 'application/json',
+        temperature: 0.8,
+        maxOutputTokens: 8192,
+      },
     });
 
-    const parsed = JSON.parse(res.text || '{}');
-    if (!parsed.scenarios?.length) return { success: false, count: 0, error: 'Invalid AI response' };
+    const text = res.text?.trim() || '{}';
+    const parsed = JSON.parse(text);
+    if (!parsed.scenarios?.length) {
+      return { success: false, count: 0, error: 'Invalid AI response: no scenarios array' };
+    }
 
     const now = new Date().toISOString();
     const batch = adminDb.batch();
     const parentRef = adminDb.collection(COLLECTION).doc(functionId);
 
     // Ensure parent doc exists (for querying)
-    batch.set(parentRef, { functionId, functionName: subVertical.name, industryId: vertical.industryId, updatedAt: now }, { merge: true });
+    batch.set(parentRef, {
+      functionId, functionName: subVertical.name,
+      industryId: vertical.industryId, updatedAt: now,
+    }, { merge: true });
 
     // Delete existing scenarios first
     const existingSnap = await parentRef.collection('scenarios').get();
@@ -106,7 +114,7 @@ export async function generateScenariosAction(functionId: string): Promise<Gener
         stageMessages: raw.stageMessages || {},
         priority: raw.priority || count + 1,
         generatedAt: now,
-        modelUsed: 'gemini-3.1-pro-preview',
+        modelUsed: MODEL,
       };
 
       batch.set(parentRef.collection('scenarios').doc(id), scenario);

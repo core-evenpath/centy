@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useEffect, useCallback } from 'react';
+import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import FlowSidebar from './FlowSidebar';
 import FlowChat from './FlowChat';
 import FlowBento from './FlowBento';
@@ -27,11 +27,22 @@ export default function RelayFlowMockup() {
   const { template, source } = useFlowTemplate(selectedId);
   const { scenarios, selected: selectedScenario, selectedIdx, setSelectedIdx, generating, regenerate } = useScenarios(selectedId);
 
+  // Generate messages: scenario-driven or default (always works synchronously via buildFlowSync fallback)
   const messages = useMemo(() => {
     if (!selectedId) return [];
     if (selectedScenario) return generateConversationFromScenario(selectedId, selectedScenario, template);
     return generateConversation(selectedId, template);
   }, [selectedId, template, selectedScenario]);
+
+  // Reset playback when messages change (e.g. template loads or scenario switches)
+  const prevMsgLen = useRef(messages.length);
+  useEffect(() => {
+    if (prevMsgLen.current !== messages.length && showChat) {
+      setVisibleCount(0);
+      setIsPlaying(true);
+    }
+    prevMsgLen.current = messages.length;
+  }, [messages.length, showChat]);
 
   const info = useMemo(() => (selectedId ? getSubVertical(selectedId) : null), [selectedId]);
   const accentColor = info?.vertical.accentColor || T.accent;
@@ -44,9 +55,10 @@ export default function RelayFlowMockup() {
     return '';
   }, [messages, visibleCount]);
 
+  // Auto-play timer
   useEffect(() => {
     if (!isPlaying || visibleCount >= messages.length) {
-      if (visibleCount >= messages.length) setIsPlaying(false);
+      if (visibleCount >= messages.length && visibleCount > 0) setIsPlaying(false);
       return;
     }
     const next = messages[visibleCount];

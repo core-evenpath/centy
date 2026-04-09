@@ -15,11 +15,14 @@ interface FlowTemplateResult {
 }
 
 export function useFlowTemplate(functionId: string): FlowTemplateResult {
+  // Start with local template immediately (synchronous, always works)
   const [state, setState] = useState<FlowTemplateResult>(() => {
     if (!functionId) return { template: null, loading: false, source: null };
     const cached = cache.get(functionId);
     if (cached) return { template: cached.template, loading: false, source: cached.source };
-    return { template: null, loading: true, source: null };
+    // Provide local template immediately so default flows always work
+    const local = buildFlowSync(functionId);
+    return { template: local, loading: !!local, source: local ? 'local' : null };
   });
 
   useEffect(() => {
@@ -28,46 +31,53 @@ export function useFlowTemplate(functionId: string): FlowTemplateResult {
       return;
     }
 
-    // Check cache first
     const cached = cache.get(functionId);
     if (cached) {
       setState({ template: cached.template, loading: false, source: cached.source });
       return;
     }
 
+    // Set local template immediately so chat works while Firestore loads
+    const local = buildFlowSync(functionId);
+    if (local) {
+      setState({ template: local, loading: true, source: 'local' });
+    }
+
     let cancelled = false;
 
-    async function fetchTemplate() {
-      try {
-        const result = await getFlowTemplatesAction(functionId);
-        if (cancelled) return;
+    // Try Firestore in background with 5s timeout
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 5000);
 
-        if (result.success && result.templates.length > 0) {
-          const tpl = result.templates[0];
-          cache.set(functionId, { template: tpl, source: 'firestore' });
-          setState({ template: tpl, loading: false, source: 'firestore' });
-          return;
-        }
-      } catch {
-        // Firestore unavailable, fall through to local
-      }
-
+    getFlowTemplatesAction(functionId).then(result => {
+      clearTimeout(timeout);
       if (cancelled) return;
 
-      // Local fallback
-      const local = buildFlowSync(functionId);
+      if (result.success && result.templates.length > 0) {
+        const tpl = result.templates[0];
+        cache.set(functionId, { template: tpl, source: 'firestore' });
+        setState({ template: tpl, loading: false, source: 'firestore' });
+        return;
+      }
+
+      // Firestore empty — cache & use local
       if (local) {
         cache.set(functionId, { template: local, source: 'local' });
         setState({ template: local, loading: false, source: 'local' });
       } else {
         setState({ template: null, loading: false, source: null });
       }
-    }
+    }).catch(() => {
+      clearTimeout(timeout);
+      if (cancelled) return;
+      // Firestore failed — keep local template
+      if (local) {
+        cache.set(functionId, { template: local, source: 'local' });
+      }
+      setState(prev => ({ ...prev, loading: false }));
+    });
 
-    setState(prev => ({ ...prev, loading: true }));
-    fetchTemplate();
-
-    return () => { cancelled = true; };
+    return () => { cancelled = true; clearTimeout(timeout); };
   }, [functionId]);
 
   return state;
