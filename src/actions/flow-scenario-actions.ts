@@ -20,7 +20,7 @@ export async function getScenariosAction(functionId: string): Promise<ScenariosR
     const scenarios = snap.docs.map(d => ({ ...d.data(), id: d.id }) as FlowScenario);
     return { success: true, scenarios };
   } catch (e: any) {
-    console.error('Failed to get scenarios:', e);
+    console.error('[scenarios] fetch error:', e?.message);
     return { success: false, scenarios: [], error: e.message };
   }
 }
@@ -46,9 +46,12 @@ export async function getScenarioByIdAction(
 // ---------------------------------------------------------------------------
 export async function generateScenariosAction(functionId: string): Promise<GenerateScenariosResult> {
   try {
+    console.log('[scenarios] STEP1 importing registry');
     const { getSubVertical, getBlocksForFunction } = await import(
       '@/app/admin/relay/blocks/previews/registry'
     );
+
+    console.log('[scenarios] STEP2 getting sub-vertical:', functionId);
     const result = getSubVertical(functionId);
     if (!result) return { success: false, count: 0, error: `Sub-vertical not found: ${functionId}` };
 
@@ -64,13 +67,25 @@ export async function generateScenariosAction(functionId: string): Promise<Gener
     const availableStages = Object.keys(stageMap);
 
     const prompt = buildScenariosPrompt(subVertical.name, vertical.name, stageBlocks, availableStages);
-    console.log(`🎯 Generating scenarios for ${subVertical.name} (${functionId}), ${availableStages.length} stages`);
 
-    const res = await genAI.models.generateContent({ model: MODEL, contents: prompt, config: { temperature: 0.4, maxOutputTokens: 8192 } });
+    const hasKey = !!(process.env.GEMINI_API_KEY);
+    console.log(`[scenarios] STEP3 calling Gemini model=${MODEL} hasKey=${hasKey} stages=${availableStages.length}`);
+
+    const res = await genAI.models.generateContent({
+      model: MODEL,
+      contents: prompt,
+      config: {
+        systemInstruction: 'You are a market research AI. Output ONLY valid JSON. No markdown, no explanation, no code fences. Raw JSON only.',
+        temperature: 0.4,
+        maxOutputTokens: 8192,
+      },
+    });
+
     const raw = res.text?.trim() || '';
+    console.log(`[scenarios] STEP4 response length=${raw.length}`);
     if (!raw) return { success: false, count: 0, error: 'Empty response from Gemini' };
 
-    // Robust JSON extraction (matches tag-extraction.ts pattern)
+    // Robust JSON extraction
     let jsonText = raw;
     const fenceMatch = raw.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
     if (fenceMatch) {
@@ -83,12 +98,16 @@ export async function generateScenariosAction(functionId: string): Promise<Gener
 
     let parsed: any;
     try { parsed = JSON.parse(jsonText); } catch (parseErr: any) {
-      console.error('JSON parse failed. Raw:', raw.substring(0, 500));
+      console.error('[scenarios] STEP4-ERR JSON parse:', raw.substring(0, 200));
       return { success: false, count: 0, error: `JSON parse error: ${parseErr.message}` };
     }
 
-    if (!parsed.scenarios?.length) return { success: false, count: 0, error: 'No scenarios in AI response' };
+    if (!parsed.scenarios?.length) {
+      console.error('[scenarios] STEP4-ERR no scenarios array. Keys:', Object.keys(parsed).join(','));
+      return { success: false, count: 0, error: 'No scenarios in AI response' };
+    }
 
+    console.log(`[scenarios] STEP5 writing ${parsed.scenarios.length} scenarios to Firestore`);
     const now = new Date().toISOString();
     const batch = adminDb.batch();
     const parentRef = adminDb.collection(COLLECTION).doc(functionId);
@@ -113,10 +132,10 @@ export async function generateScenariosAction(functionId: string): Promise<Gener
     }
 
     await batch.commit();
-    console.log(`✅ Generated ${count} scenarios for ${subVertical.name}`);
+    console.log(`[scenarios] STEP6 done. ${count} scenarios saved`);
     return { success: true, count };
   } catch (e: any) {
-    console.error('Failed to generate scenarios:', e);
-    return { success: false, count: 0, error: e.message };
+    console.error('[scenarios] FAILED at:', e?.message || String(e));
+    return { success: false, count: 0, error: e?.message || 'Unknown generation error' };
   }
 }
