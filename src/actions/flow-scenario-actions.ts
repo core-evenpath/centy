@@ -70,13 +70,14 @@ export async function generateScenariosAction(functionId: string): Promise<Gener
       model: MODEL,
       contents: prompt,
       config: {
-        responseMimeType: 'application/json',
         temperature: 0.8,
         maxOutputTokens: 8192,
       },
     });
 
-    const text = res.text?.trim() || '{}';
+    const raw = res.text?.trim() || '{}';
+    // Strip markdown code fences if present
+    const text = raw.replace(/^```(?:json)?\s*\n?/i, '').replace(/\n?```\s*$/i, '').trim();
     const parsed = JSON.parse(text);
     if (!parsed.scenarios?.length) {
       return { success: false, count: 0, error: 'Invalid AI response: no scenarios array' };

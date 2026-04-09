@@ -4,6 +4,7 @@ import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import FlowSidebar from './FlowSidebar';
 import FlowChat from './FlowChat';
 import FlowBento from './FlowBento';
+import FlowScenarioPicker from './FlowScenarioPicker';
 import { generateConversation, generateConversationFromScenario } from './flow-conversation';
 import { useFlowTemplate } from './useFlowTemplate';
 import { useScenarios } from './useScenarios';
@@ -27,19 +28,16 @@ export default function RelayFlowMockup() {
   const { template, source } = useFlowTemplate(selectedId);
   const { scenarios, selected: selectedScenario, selectedIdx, setSelectedIdx, generating, regenerate } = useScenarios(selectedId);
 
-  // Generate messages: scenario-driven or default (always works synchronously via buildFlowSync fallback)
   const messages = useMemo(() => {
     if (!selectedId) return [];
     if (selectedScenario) return generateConversationFromScenario(selectedId, selectedScenario, template);
     return generateConversation(selectedId, template);
   }, [selectedId, template, selectedScenario]);
 
-  // Reset playback when messages change (e.g. template loads or scenario switches)
   const prevMsgLen = useRef(messages.length);
   useEffect(() => {
     if (prevMsgLen.current !== messages.length && showChat) {
-      setVisibleCount(0);
-      setIsPlaying(true);
+      setVisibleCount(0); setIsPlaying(true);
     }
     prevMsgLen.current = messages.length;
   }, [messages.length, showChat]);
@@ -55,7 +53,6 @@ export default function RelayFlowMockup() {
     return '';
   }, [messages, visibleCount]);
 
-  // Auto-play timer
   useEffect(() => {
     if (!isPlaying || visibleCount >= messages.length) {
       if (visibleCount >= messages.length && visibleCount > 0) setIsPlaying(false);
@@ -88,9 +85,12 @@ export default function RelayFlowMockup() {
     <div style={{ display: 'flex', height: '100vh', background: T.bg, fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" }}>
       <style>{`@keyframes flowpulse { 0%,100%{opacity:1} 50%{opacity:.3} } button:active { transform: scale(0.98); } ::-webkit-scrollbar { display: none; }`}</style>
 
-      <FlowSidebar selectedId={selectedId} onSelect={handleSelect} isPlaying={isPlaying} onTogglePlay={handleTogglePlay} onReset={handleReset}
-        scenarios={scenarios} selectedScenarioIdx={selectedIdx} onSelectScenario={handleSelectScenario}
-        onRegenerate={regenerate} generating={generating} templateSource={source} />
+      <FlowSidebar selectedId={selectedId} onSelect={handleSelect} isPlaying={isPlaying} onTogglePlay={handleTogglePlay} onReset={handleReset} templateSource={source} />
+
+      {selectedId && (
+        <FlowScenarioPicker scenarios={scenarios} selectedIdx={selectedIdx} onSelect={handleSelectScenario}
+          onRegenerate={regenerate} generating={generating} subVerticalName={subName} />
+      )}
 
       <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
         {selectedId ? (
