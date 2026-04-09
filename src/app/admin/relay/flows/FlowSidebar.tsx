@@ -2,7 +2,9 @@
 
 import { useState } from 'react';
 import { VERTICALS, CURATED_IDS, T } from './flow-helpers';
+import FlowScenarioPicker from './FlowScenarioPicker';
 import { ChevronDown, ChevronRight, Search, Layers, Play, Pause, RotateCcw, Sparkles, Loader2 } from 'lucide-react';
+import type { FlowScenario } from '@/lib/types-flow-scenarios';
 
 interface Props {
   selectedId: string;
@@ -10,13 +12,15 @@ interface Props {
   isPlaying: boolean;
   onTogglePlay: () => void;
   onReset: () => void;
-  onRegenerate?: () => void;
-  generating?: boolean;
-  hasScenario?: boolean;
+  scenarios: FlowScenario[];
+  selectedScenarioIdx: number;
+  onSelectScenario: (idx: number) => void;
+  onRegenerate: () => void;
+  generating: boolean;
   templateSource?: 'firestore' | 'local' | null;
 }
 
-export default function FlowSidebar({ selectedId, onSelect, isPlaying, onTogglePlay, onReset, onRegenerate, generating, hasScenario, templateSource }: Props) {
+export default function FlowSidebar({ selectedId, onSelect, isPlaying, onTogglePlay, onReset, scenarios, selectedScenarioIdx, onSelectScenario, onRegenerate, generating, templateSource }: Props) {
   const [search, setSearch] = useState('');
   const [expanded, setExpanded] = useState<Set<string>>(new Set([VERTICALS[0]?.id]));
   const q = search.toLowerCase().trim();
@@ -27,6 +31,7 @@ export default function FlowSidebar({ selectedId, onSelect, isPlaying, onToggleP
   };
 
   const selectedSub = selectedId ? VERTICALS.flatMap(v => v.subVerticals).find(s => s.id === selectedId) : null;
+  const hasScenarios = scenarios.length > 0;
 
   return (
     <div style={{ width: 300, borderRight: `1px solid ${T.bdrL}`, background: T.surface, display: 'flex', flexDirection: 'column', height: '100vh', flexShrink: 0 }}>
@@ -84,9 +89,12 @@ export default function FlowSidebar({ selectedId, onSelect, isPlaying, onToggleP
             <div style={{ fontSize: 12, fontWeight: 600, color: T.t1 }}>{selectedSub.name}</div>
             {templateSource && <span style={{ fontSize: 9, color: T.t4, background: T.bg, padding: '1px 6px', borderRadius: 4 }}>{templateSource}</span>}
           </div>
-          <div style={{ fontSize: 10, color: T.t4, marginBottom: 10 }}>
-            {selectedSub.blocks.length} blocks{hasScenario ? ' · AI script' : ''}
+          <div style={{ fontSize: 10, color: T.t4, marginBottom: 8 }}>
+            {selectedSub.blocks.length} blocks{hasScenarios ? ` · ${scenarios.length} scenarios` : ''}
           </div>
+
+          <FlowScenarioPicker scenarios={scenarios} selectedIdx={selectedScenarioIdx} onSelect={onSelectScenario} />
+
           <div style={{ display: 'flex', gap: 6 }}>
             <button onClick={onTogglePlay} style={{
               flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
@@ -99,16 +107,14 @@ export default function FlowSidebar({ selectedId, onSelect, isPlaying, onToggleP
               <RotateCcw size={12} />
             </button>
           </div>
-          {onRegenerate && (
-            <button onClick={onRegenerate} disabled={generating} style={{
-              width: '100%', marginTop: 6, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
-              padding: 8, borderRadius: 8, border: `1px solid ${T.bdrL}`, background: T.bg,
-              cursor: generating ? 'wait' : 'pointer', color: T.t2, fontSize: 11, fontWeight: 500, opacity: generating ? 0.6 : 1,
-            }}>
-              {generating ? <Loader2 size={12} style={{ animation: 'spin 1s linear infinite' }} /> : <Sparkles size={12} />}
-              {generating ? 'Generating...' : hasScenario ? 'Regenerate AI Script' : 'Generate AI Script'}
-            </button>
-          )}
+          <button onClick={onRegenerate} disabled={generating} style={{
+            width: '100%', marginTop: 6, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+            padding: 8, borderRadius: 8, border: `1px solid ${T.bdrL}`, background: T.bg,
+            cursor: generating ? 'wait' : 'pointer', color: T.t2, fontSize: 11, fontWeight: 500, opacity: generating ? 0.6 : 1,
+          }}>
+            {generating ? <Loader2 size={12} style={{ animation: 'spin 1s linear infinite' }} /> : <Sparkles size={12} />}
+            {generating ? 'Generating 10 scenarios...' : hasScenarios ? 'Regenerate AI Scenarios' : 'Generate 10 AI Scenarios'}
+          </button>
         </div>
       )}
       <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>

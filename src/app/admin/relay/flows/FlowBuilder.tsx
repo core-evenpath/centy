@@ -6,7 +6,7 @@ import FlowChat from './FlowChat';
 import FlowBento from './FlowBento';
 import { generateConversation, generateConversationFromScenario } from './flow-conversation';
 import { useFlowTemplate } from './useFlowTemplate';
-import { useScenario } from './useScenario';
+import { useScenarios } from './useScenarios';
 import { T, VERTICALS } from './flow-helpers';
 import { getSubVertical } from '../blocks/previews/registry';
 import { Radio, ArrowUp, Layers } from 'lucide-react';
@@ -25,13 +25,13 @@ export default function RelayFlowMockup() {
   const [isPlaying, setIsPlaying] = useState(false);
 
   const { template, source } = useFlowTemplate(selectedId);
-  const { scenario, generating, regenerate } = useScenario(selectedId);
+  const { scenarios, selected: selectedScenario, selectedIdx, setSelectedIdx, generating, regenerate } = useScenarios(selectedId);
 
   const messages = useMemo(() => {
     if (!selectedId) return [];
-    if (scenario) return generateConversationFromScenario(selectedId, scenario, template);
+    if (selectedScenario) return generateConversationFromScenario(selectedId, selectedScenario, template);
     return generateConversation(selectedId, template);
-  }, [selectedId, template, scenario]);
+  }, [selectedId, template, selectedScenario]);
 
   const info = useMemo(() => (selectedId ? getSubVertical(selectedId) : null), [selectedId]);
   const accentColor = info?.vertical.accentColor || T.accent;
@@ -64,16 +64,21 @@ export default function RelayFlowMockup() {
     if (!showChat) { handleStartChat(); return; }
     setIsPlaying(p => !p);
   }, [showChat, handleStartChat]);
+  const handleSelectScenario = useCallback((idx: number) => {
+    setSelectedIdx(idx); setShowChat(false); setVisibleCount(0); setIsPlaying(false);
+  }, [setSelectedIdx]);
 
   const isTyping = isPlaying && visibleCount < messages.length;
   const stageStyle = FLOW_STAGE_STYLES[currentStage] || { color: T.accentBg, textColor: T.accent };
+  const scenarioName = selectedScenario?.name;
 
   return (
     <div style={{ display: 'flex', height: '100vh', background: T.bg, fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" }}>
       <style>{`@keyframes flowpulse { 0%,100%{opacity:1} 50%{opacity:.3} } button:active { transform: scale(0.98); } ::-webkit-scrollbar { display: none; }`}</style>
 
       <FlowSidebar selectedId={selectedId} onSelect={handleSelect} isPlaying={isPlaying} onTogglePlay={handleTogglePlay} onReset={handleReset}
-        onRegenerate={regenerate} generating={generating} hasScenario={!!scenario} templateSource={source} />
+        scenarios={scenarios} selectedScenarioIdx={selectedIdx} onSelectScenario={handleSelectScenario}
+        onRegenerate={regenerate} generating={generating} templateSource={source} />
 
       <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
         {selectedId ? (
@@ -87,7 +92,10 @@ export default function RelayFlowMockup() {
                       <div style={{ width: 30, height: 30, borderRadius: 8, background: accentColor, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff' }}>
                         <Radio size={14} strokeWidth={2.5} />
                       </div>
-                      <span style={{ fontSize: 14, fontWeight: 700, color: T.t1 }}>{subName}</span>
+                      <div>
+                        <span style={{ fontSize: 14, fontWeight: 700, color: T.t1 }}>{subName}</span>
+                        {scenarioName && <div style={{ fontSize: 10, color: T.t3 }}>{scenarioName}</div>}
+                      </div>
                     </div>
                     {currentStage && (
                       <div style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '4px 10px', background: stageStyle.color, borderRadius: 9999, fontSize: 10, color: stageStyle.textColor, fontWeight: 600 }}>
