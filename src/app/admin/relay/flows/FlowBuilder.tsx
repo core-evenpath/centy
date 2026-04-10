@@ -74,8 +74,19 @@ export default function RelayFlowMockup() {
     setIsPlaying(p => !p);
   }, [showChat, handleStartChat]);
   const handleSelectScenario = useCallback((idx: number) => {
-    setSelectedIdx(idx); setShowChat(false); setVisibleCount(0); setIsPlaying(false);
-  }, [setSelectedIdx]);
+    setSelectedIdx(idx);
+    setVisibleCount(0);
+    const sc = scenarios[idx];
+    if (sc?.modelUsed) {
+      // AI scenario: skip bento, auto-play immediately
+      setShowChat(true);
+      setIsPlaying(true);
+    } else {
+      // Default flow: show bento homescreen
+      setShowChat(false);
+      setIsPlaying(false);
+    }
+  }, [setSelectedIdx, scenarios]);
 
   const isTyping = isPlaying && visibleCount < messages.length;
   const stageStyle = FLOW_STAGE_STYLES[currentStage] || { color: T.accentBg, textColor: T.accent };
