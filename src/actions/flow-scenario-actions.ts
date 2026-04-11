@@ -23,6 +23,12 @@ export interface GenerateContext {
   verticalName: string;
   industryId: string;
   stageBlocks: { stage: string; blocks: BlockInfo[] }[];
+  /** Sibling sub-verticals in the same vertical (for differentiation). */
+  siblings: string[];
+  /** Block labels unique to this sub-vertical (no sibling has them). */
+  uniqueBlocks: string[];
+  /** Block labels siblings have but this sub-vertical lacks. */
+  missingBlocks: string[];
 }
 
 // ---------------------------------------------------------------------------
@@ -65,7 +71,7 @@ export async function generateScenariosAction(
 ): Promise<GenerateScenariosResult> {
   try {
     const availableStages = ctx.stageBlocks.map(s => s.stage);
-    const prompt = buildScenariosPrompt(ctx.subVerticalName, ctx.verticalName, ctx.industryId, ctx.stageBlocks, availableStages);
+    const prompt = buildScenariosPrompt(ctx);
 
     const res = await genAI.models.generateContent({
       model: MODEL,

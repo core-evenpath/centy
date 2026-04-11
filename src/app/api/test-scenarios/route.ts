@@ -31,6 +31,13 @@ const TEST_CTX = {
       { label: 'Contact Card', desc: 'Business contact info with click-to-call, email, WhatsApp', intents: ['contact', 'phone', 'email'], isShared: true },
     ] },
   ],
+  siblings: [
+    'Budget Accommodation', 'Boutique Hotels & B&Bs', 'Serviced Apartments',
+    'Shared & Hostels', 'Vacation Rentals & Villas', 'Guest Houses',
+    'Camping & Glamping', 'Corporate Housing', 'Event & Wedding Venues',
+  ],
+  uniqueBlocks: [],
+  missingBlocks: ['Camping / Glamping'],
 };
 
 export async function GET(request: NextRequest) {

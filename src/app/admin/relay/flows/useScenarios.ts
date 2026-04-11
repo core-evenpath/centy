@@ -10,10 +10,13 @@ import type { BlockInfo } from '@/actions/flow-scenario-actions';
 // Module-level cache: functionId → scenarios[]
 const cache = new Map<string, FlowScenario[]>();
 
-/** Build generation context from the client-side block registry with rich block data. */
+/** Build generation context with sibling differentiation data. */
 function buildContext(functionId: string): GenerateContext | null {
   const result = getSubVertical(functionId);
   if (!result) return null;
+  const { vertical, subVertical } = result;
+
+  // Build stage→blocks map with rich info
   const blocks = getBlocksForFunction(functionId);
   const sharedIds = new Set(SHARED_BLOCK_IDS);
   const stageMap: Record<string, BlockInfo[]> = {};
@@ -24,11 +27,42 @@ function buildContext(functionId: string): GenerateContext | null {
       intents: b.intents, isShared: sharedIds.has(b.id),
     });
   }
+
+  // Compute sibling names and block differentiation
+  const myBlockIds = new Set(subVertical.blocks);
+  const siblings: string[] = [];
+  const allSiblingBlockIds = new Set<string>();
+
+  for (const sib of vertical.subVerticals) {
+    if (sib.id === functionId) continue;
+    siblings.push(sib.name);
+    for (const bid of sib.blocks) allSiblingBlockIds.add(bid);
+  }
+
+  // Blocks only this sub-vertical has (no sibling shares them)
+  const uniqueBlocks: string[] = [];
+  for (const bid of subVertical.blocks) {
+    if (!allSiblingBlockIds.has(bid)) {
+      const def = vertical.blocks.find(b => b.id === bid);
+      if (def) uniqueBlocks.push(def.label);
+    }
+  }
+
+  // Blocks siblings have but this sub-vertical lacks
+  const missingBlocks: string[] = [];
+  for (const bid of allSiblingBlockIds) {
+    if (!myBlockIds.has(bid) && !sharedIds.has(bid)) {
+      const def = vertical.blocks.find(b => b.id === bid);
+      if (def) missingBlocks.push(def.label);
+    }
+  }
+
   return {
-    subVerticalName: result.subVertical.name,
-    verticalName: result.vertical.name,
-    industryId: result.vertical.industryId,
+    subVerticalName: subVertical.name,
+    verticalName: vertical.name,
+    industryId: vertical.industryId,
     stageBlocks: Object.entries(stageMap).map(([stage, blocks]) => ({ stage, blocks })),
+    siblings, uniqueBlocks, missingBlocks,
   };
 }
 
