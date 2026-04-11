@@ -79,7 +79,8 @@ export async function generateScenariosAction(
       config: {
         systemInstruction: 'You are a market research AI. Output ONLY valid JSON. No markdown, no explanation, no code fences. Raw JSON only.',
         temperature: 0.4,
-        maxOutputTokens: 16384,
+        maxOutputTokens: 32768,
+        thinkingConfig: { thinkingBudget: 0 },
       },
     });
 
@@ -101,19 +102,18 @@ export async function generateScenariosAction(
     try {
       parsed = JSON.parse(jsonText);
     } catch {
-      // Truncated response — try to salvage complete scenarios
-      const arrayStart = jsonText.indexOf('[');
+      // Truncated response — progressively trim until valid JSON
+      const arrayStart = jsonText.indexOf('"scenarios"');
       if (arrayStart !== -1) {
-        // Find the last complete object in the scenarios array
-        let lastGoodClose = -1;
-        let depth = 0;
-        for (let i = arrayStart + 1; i < jsonText.length; i++) {
-          if (jsonText[i] === '{') depth++;
-          else if (jsonText[i] === '}') { depth--; if (depth === 0) lastGoodClose = i; }
-        }
-        if (lastGoodClose > arrayStart) {
-          const repaired = jsonText.substring(0, arrayStart) + jsonText.substring(arrayStart, lastGoodClose + 1) + ']}';
-          try { parsed = JSON.parse(repaired); } catch { /* fall through */ }
+        // Find each },{ boundary at the scenario level and try closing there
+        const regex = /\}\s*,\s*\{/g;
+        const boundaries: number[] = [];
+        let m: RegExpExecArray | null;
+        while ((m = regex.exec(jsonText)) !== null) boundaries.push(m.index + 1);
+
+        for (let i = boundaries.length - 1; i >= 0; i--) {
+          const attempt = jsonText.substring(0, boundaries[i]) + ']}';
+          try { parsed = JSON.parse(attempt); break; } catch { /* try next */ }
         }
       }
       if (!parsed) return { success: false, count: 0, error: 'JSON parse error — response may have been truncated' };
