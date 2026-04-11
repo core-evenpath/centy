@@ -3,27 +3,32 @@
 import { useState, useEffect, useCallback } from 'react';
 import { getScenariosAction, generateScenariosAction } from '@/actions/flow-scenario-actions';
 import type { GenerateContext } from '@/actions/flow-scenario-actions';
-import { getSubVertical, getBlocksForFunction } from '../blocks/previews/registry';
+import { getSubVertical, getBlocksForFunction, SHARED_BLOCK_IDS } from '../blocks/previews/registry';
 import type { FlowScenario } from '@/lib/types-flow-scenarios';
+import type { BlockInfo } from '@/actions/flow-scenario-actions';
 
 // Module-level cache: functionId → scenarios[]
 const cache = new Map<string, FlowScenario[]>();
 
-/** Build generation context from the client-side block registry. */
+/** Build generation context from the client-side block registry with rich block data. */
 function buildContext(functionId: string): GenerateContext | null {
   const result = getSubVertical(functionId);
   if (!result) return null;
   const blocks = getBlocksForFunction(functionId);
-  const stageMap: Record<string, string[]> = {};
+  const sharedIds = new Set(SHARED_BLOCK_IDS);
+  const stageMap: Record<string, BlockInfo[]> = {};
   for (const b of blocks) {
     if (!stageMap[b.stage]) stageMap[b.stage] = [];
-    stageMap[b.stage].push(b.label);
+    stageMap[b.stage].push({
+      label: b.label, desc: b.desc,
+      intents: b.intents, isShared: sharedIds.has(b.id),
+    });
   }
   return {
     subVerticalName: result.subVertical.name,
     verticalName: result.vertical.name,
     industryId: result.vertical.industryId,
-    stageBlocks: Object.entries(stageMap).map(([stage, blockLabels]) => ({ stage, blockLabels })),
+    stageBlocks: Object.entries(stageMap).map(([stage, blocks]) => ({ stage, blocks })),
   };
 }
 

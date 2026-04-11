@@ -9,12 +9,20 @@ const COLLECTION = 'flowScenarios';
 const genAI = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || '' });
 const MODEL = 'gemini-2.5-flash';
 
+/** Block info passed from client for richer prompt generation. */
+export interface BlockInfo {
+  label: string;
+  desc: string;
+  intents: string[];
+  isShared: boolean;
+}
+
 /** Context computed client-side from the block registry (avoids server-side registry import). */
 export interface GenerateContext {
   subVerticalName: string;
   verticalName: string;
   industryId: string;
-  stageBlocks: { stage: string; blockLabels: string[] }[];
+  stageBlocks: { stage: string; blocks: BlockInfo[] }[];
 }
 
 // ---------------------------------------------------------------------------
@@ -57,7 +65,7 @@ export async function generateScenariosAction(
 ): Promise<GenerateScenariosResult> {
   try {
     const availableStages = ctx.stageBlocks.map(s => s.stage);
-    const prompt = buildScenariosPrompt(ctx.subVerticalName, ctx.verticalName, ctx.stageBlocks, availableStages);
+    const prompt = buildScenariosPrompt(ctx.subVerticalName, ctx.verticalName, ctx.industryId, ctx.stageBlocks, availableStages);
 
     const res = await genAI.models.generateContent({
       model: MODEL,

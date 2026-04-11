@@ -7,12 +7,29 @@ const TEST_CTX = {
   verticalName: 'Hospitality',
   industryId: 'hospitality',
   stageBlocks: [
-    { stage: 'discovery', blockLabels: ['Room Browser', 'Amenity Explorer'] },
-    { stage: 'showcase', blockLabels: ['Room Detail', 'Virtual Tour'] },
-    { stage: 'comparison', blockLabels: ['Rate Compare'] },
-    { stage: 'conversion', blockLabels: ['Booking Form', 'Date Picker'] },
-    { stage: 'social_proof', blockLabels: ['Guest Reviews'] },
-    { stage: 'handoff', blockLabels: ['Front Desk Connect'] },
+    { stage: 'greeting', blocks: [
+      { label: 'Greeting', desc: 'Welcome message with brand identity and quick action buttons', intents: ['hello', 'hi', 'start'], isShared: true },
+    ] },
+    { stage: 'discovery', blocks: [
+      { label: 'Room Browser', desc: 'Browsable room cards with rates, amenities, and availability', intents: ['rooms', 'browse', 'availability'], isShared: false },
+      { label: 'Amenity Explorer', desc: 'Visual amenity showcase with categories', intents: ['amenities', 'pool', 'spa', 'gym'], isShared: false },
+    ] },
+    { stage: 'showcase', blocks: [
+      { label: 'Room Detail', desc: 'Full room view with photos, amenities, and booking CTA', intents: ['details', 'room info'], isShared: false },
+    ] },
+    { stage: 'comparison', blocks: [
+      { label: 'Rate Compare', desc: 'Side-by-side rate comparison for room types', intents: ['compare', 'rates', 'prices'], isShared: false },
+    ] },
+    { stage: 'conversion', blocks: [
+      { label: 'Booking Form', desc: 'Reservation form with dates, guests, and room selection', intents: ['book', 'reserve'], isShared: false },
+    ] },
+    { stage: 'social_proof', blocks: [
+      { label: 'Guest Reviews', desc: 'Guest ratings and reviews with verified stay badges', intents: ['reviews', 'ratings'], isShared: false },
+    ] },
+    { stage: 'handoff', blocks: [
+      { label: 'Front Desk Connect', desc: 'Direct connection to front desk with context transfer', intents: ['front desk', 'reception'], isShared: false },
+      { label: 'Contact Card', desc: 'Business contact info with click-to-call, email, WhatsApp', intents: ['contact', 'phone', 'email'], isShared: true },
+    ] },
   ],
 };
 
