@@ -12,7 +12,8 @@ export type BlockFamily =
   | 'tracking'
   | 'engagement'
   | 'support'
-  | 'shared';
+  | 'shared'
+  | string; // Allow vertical-specific families
 
 export interface FieldSpec {
   field: string;

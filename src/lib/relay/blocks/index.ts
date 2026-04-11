@@ -1,4 +1,5 @@
 import { registerBlock } from '../registry';
+import { registerHospitalityBlocks } from './hospitality';
 
 import GreetingBlock, { definition as greetingDef } from './ecommerce/greeting';
 import ProductCardBlock, { definition as productCardDef } from './ecommerce/product-card';
@@ -13,6 +14,7 @@ import SuggestionsBlock, { definition as suggestionsDef } from './shared/suggest
 import ContactBlock, { definition as contactDef } from './shared/contact';
 
 export function registerAllBlocks(): void {
+  // Ecommerce
   registerBlock(greetingDef, GreetingBlock);
   registerBlock(productCardDef, ProductCardBlock);
   registerBlock(productDetailDef, ProductDetailBlock);
@@ -21,9 +23,12 @@ export function registerAllBlocks(): void {
   registerBlock(orderConfirmationDef, OrderConfirmationBlock);
   registerBlock(orderTrackerDef, OrderTrackerBlock);
   registerBlock(promoDef, PromoBlock);
+  // Shared
   registerBlock(nudgeDef, NudgeBlock);
   registerBlock(suggestionsDef, SuggestionsBlock);
   registerBlock(contactDef, ContactBlock);
+  // Hospitality
+  registerHospitalityBlocks();
 }
 
 export {
