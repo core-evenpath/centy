@@ -1,6 +1,7 @@
 import type { RelaySessionCache } from './session-cache';
 import type { Intent, IntentType } from './intent-engine';
 import type { SessionModuleItem } from './types';
+import { getBlockIdForIntent } from './vertical-map';
 
 export interface BlockResolution {
   blockId: string | null;
@@ -10,29 +11,6 @@ export interface BlockResolution {
   source: 'intent_match' | 'registry_match' | 'fallback' | 'none';
   itemsUsed: number;
 }
-
-const INTENT_TO_BLOCK: Record<IntentType, string | null> = {
-  greeting: 'ecom_greeting',
-  browse: 'ecom_product_card',
-  search: 'ecom_product_card',
-  product_detail: 'ecom_product_detail',
-  compare: 'ecom_compare',
-  price_check: 'ecom_product_detail',
-  cart_view: 'ecom_cart',
-  cart_add: 'ecom_cart',
-  checkout: 'ecom_cart',
-  order_status: 'ecom_order_tracker',
-  return_request: 'shared_contact',
-  promo_inquiry: 'ecom_promo',
-  contact: 'shared_contact',
-  support: 'shared_contact',
-  bundle_inquiry: 'ecom_product_card',
-  booking: 'ecom_cart',
-  subscribe: 'ecom_product_detail',
-  loyalty_inquiry: 'shared_nudge',
-  quiz: 'shared_suggestions',
-  general: null,
-};
 
 function mapItemToProductData(item: SessionModuleItem): Record<string, any> {
   const raw = item.raw || {};
@@ -62,8 +40,9 @@ function mapItemToProductData(item: SessionModuleItem): Record<string, any> {
 
 function resolveGreeting(cache: RelaySessionCache): BlockResolution {
   const brand = cache.getBrand();
+  const blockId = getBlockIdForIntent('greeting', cache.getCategory());
   return {
-    blockId: 'ecom_greeting',
+    blockId,
     data: {
       brandName: brand.name,
       tagline: brand.tagline,
@@ -137,8 +116,9 @@ function resolveBrowse(
     };
   }
 
+  const blockId = getBlockIdForIntent('browse', cache.getCategory());
   return {
-    blockId: 'ecom_product_card',
+    blockId,
     data: {
       items: items.slice(0, 6).map(mapItemToProductData),
     },
@@ -180,9 +160,10 @@ function resolveProductDetail(
   }
 
   const productData = mapItemToProductData(item);
+  const blockId = getBlockIdForIntent('product_detail', cache.getCategory());
 
   return {
-    blockId: 'ecom_product_detail',
+    blockId,
     data: productData,
     confidence: 0.85,
     source: 'intent_match',
@@ -248,8 +229,9 @@ function resolveCompare(
     ]);
   }
 
+  const blockId = getBlockIdForIntent('compare', cache.getCategory());
   return {
-    blockId: 'ecom_compare',
+    blockId: blockId || 'ecom_compare',
     data: {
       itemLabels: [itemA.name, itemB.name],
       rows,
@@ -263,8 +245,9 @@ function resolveCompare(
 }
 
 function resolvePromo(cache: RelaySessionCache): BlockResolution {
+  const blockId = getBlockIdForIntent('promo_inquiry', cache.getCategory());
   return {
-    blockId: 'ecom_promo',
+    blockId,
     data: {
       title: 'Current Offers',
       subtitle: `Shop at ${cache.getBrand().name}`,
@@ -302,9 +285,10 @@ function resolveContact(cache: RelaySessionCache): BlockResolution {
   };
 }
 
-function resolveOrderTracker(intent: Intent): BlockResolution {
+function resolveOrderTracker(intent: Intent, cache: RelaySessionCache): BlockResolution {
+  const blockId = getBlockIdForIntent('order_status', cache.getCategory());
   return {
-    blockId: 'ecom_order_tracker',
+    blockId,
     data: {
       orderId: intent.orderId || '',
       status: 'Confirmed',
@@ -317,9 +301,10 @@ function resolveOrderTracker(intent: Intent): BlockResolution {
   };
 }
 
-function resolveCart(): BlockResolution {
+function resolveCart(cache: RelaySessionCache): BlockResolution {
+  const blockId = getBlockIdForIntent('cart_view', cache.getCategory());
   return {
-    blockId: 'ecom_cart',
+    blockId,
     data: {
       items: [],
       couponCode: '',
@@ -354,9 +339,10 @@ function resolveBundle(
 
   const mappedItems = items.slice(0, 4).map(mapItemToProductData);
   const totalPrice = mappedItems.reduce((sum, i) => sum + (i.price || 0), 0);
+  const blockId = getBlockIdForIntent('bundle_inquiry', cache.getCategory());
 
   return {
-    blockId: 'ecom_product_card',
+    blockId: blockId || getBlockIdForIntent('browse', cache.getCategory()),
     data: {
       items: mappedItems,
       bundlePrice: Math.round(totalPrice * 0.9),
@@ -371,9 +357,10 @@ function resolveBundle(
 function resolveBooking(cache: RelaySessionCache): BlockResolution {
   const brand = cache.getBrand();
   const contact = cache.getContact();
+  const blockId = getBlockIdForIntent('booking', cache.getCategory());
 
   return {
-    blockId: 'ecom_cart',
+    blockId,
     data: {
       items: [],
       brandName: brand.name,
@@ -411,8 +398,9 @@ function resolveSubscription(
     return { blockId: null, data: {}, confidence: 0.3, source: 'none', itemsUsed: 0 };
   }
 
+  const blockId = getBlockIdForIntent('subscribe', cache.getCategory());
   return {
-    blockId: 'ecom_product_detail',
+    blockId: blockId || getBlockIdForIntent('product_detail', cache.getCategory()),
     data: {
       ...mapItemToProductData(item),
       subscriptionAvailable: true,
@@ -425,8 +413,9 @@ function resolveSubscription(
 
 function resolveLoyalty(cache: RelaySessionCache): BlockResolution {
   const brand = cache.getBrand();
+  const blockId = getBlockIdForIntent('loyalty_inquiry', cache.getCategory());
   return {
-    blockId: 'shared_nudge',
+    blockId,
     data: {
       message: `${brand.name} rewards program`,
       ctaLabel: 'View Rewards',
@@ -492,10 +481,10 @@ export function resolveBlock(
 
     case 'cart_view':
     case 'checkout':
-      return resolveCart();
+      return resolveCart(cache);
 
     case 'order_status':
-      return resolveOrderTracker(intent);
+      return resolveOrderTracker(intent, cache);
 
     case 'promo_inquiry':
       return resolvePromo(cache);
@@ -505,7 +494,7 @@ export function resolveBlock(
       return resolveContact(cache);
 
     case 'cart_add':
-      return resolveCart();
+      return resolveCart(cache);
 
     case 'return_request':
       return resolveReturnRequest(cache);

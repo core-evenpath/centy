@@ -328,7 +328,7 @@ export default function PartnerRelayPage() {
             const data = await res.json();
 
             if (data.success && data.response) {
-                const mapped = mapGeminiToRegistryBlock(data.response);
+                const mapped = mapGeminiToRegistryBlock(data.response, data.category);
                 const assistantMsg: ChatMessage = {
                     role: 'assistant',
                     content: data.response.text || '',

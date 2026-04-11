@@ -393,6 +393,7 @@ Respond with ONLY valid JSON. No markdown, no code fences.`;
         return NextResponse.json({
             success: true,
             response: parsed,
+            category: partnerData?.businessPersona?.identity?.businessCategories?.[0]?.functionId || 'general',
             conversationId: conversationId || `conv_${Date.now()}`,
             ...(flowDecision && {
                 flowMeta: {

@@ -1,26 +1,11 @@
 'use client';
 
+import { getBlockIdForGeminiType } from '@/lib/relay/vertical-map';
+
 export interface MappedBlock {
   blockId: string;
   data: Record<string, any>;
 }
-
-const TYPE_TO_BLOCK: Record<string, string> = {
-  catalog: 'ecom_product_card',
-  products: 'ecom_product_card',
-  rooms: 'ecom_product_card',
-  menu: 'ecom_product_card',
-  services: 'ecom_product_card',
-  listings: 'ecom_product_card',
-  compare: 'ecom_compare',
-  greeting: 'ecom_greeting',
-  welcome: 'ecom_greeting',
-  contact: 'shared_contact',
-  promo: 'ecom_promo',
-  offer: 'ecom_promo',
-  deal: 'ecom_promo',
-  text: 'shared_suggestions',
-};
 
 function mapCatalogItems(geminiItems: any[]): any[] {
   return geminiItems.map(item => ({
@@ -100,39 +85,50 @@ function mapSuggestions(gemini: any): Record<string, any> | null {
   return { items: suggestions };
 }
 
-export function mapGeminiToRegistryBlock(geminiResponse: any): MappedBlock | null {
+// Catalog-family blocks all accept the same { items } data shape
+const CATALOG_BLOCKS = new Set([
+  'ecom_product_card', 'hosp_room_card', 'hc_service_card', 'fb_menu_item',
+  'biz_service_package', 'edu_course_card', 'pw_service_card', 'auto_vehicle_card',
+  'tl_tour_package', 'evt_service_card', 'fin_product_card', 'hp_service_card',
+  'fs_product_card', 'pu_service_directory',
+]);
+
+const GREETING_BLOCKS = new Set(['ecom_greeting']);
+const PROMO_BLOCKS = new Set([
+  'ecom_promo', 'fb_daily_specials', 'pw_spa_package',
+]);
+
+export function mapGeminiToRegistryBlock(geminiResponse: any, category?: string): MappedBlock | null {
   const type = geminiResponse?.type;
   if (!type) return null;
 
-  const blockId = TYPE_TO_BLOCK[type];
+  const blockId = getBlockIdForGeminiType(type, category || 'general');
   if (!blockId) return null;
 
   let data: Record<string, any> | null = null;
 
-  switch (blockId) {
-    case 'ecom_product_card': {
-      const items = mapCatalogItems(geminiResponse.items || []);
-      if (items.length === 0) return null;
-      data = { items };
-      break;
+  if (CATALOG_BLOCKS.has(blockId)) {
+    const items = mapCatalogItems(geminiResponse.items || []);
+    if (items.length === 0) return null;
+    data = { items };
+  } else if (GREETING_BLOCKS.has(blockId)) {
+    data = mapGreeting(geminiResponse);
+  } else if (blockId === 'ecom_compare') {
+    data = mapCompare(geminiResponse);
+  } else if (blockId === 'shared_contact') {
+    data = mapContact(geminiResponse);
+  } else if (PROMO_BLOCKS.has(blockId)) {
+    data = mapPromo(geminiResponse);
+  } else if (blockId === 'shared_suggestions') {
+    data = mapSuggestions(geminiResponse);
+  } else {
+    // For any other vertical block, pass through items or raw data
+    const items = geminiResponse.items;
+    if (items && Array.isArray(items) && items.length > 0) {
+      data = { items: mapCatalogItems(items) };
+    } else {
+      data = { text: geminiResponse.text || '' };
     }
-    case 'ecom_greeting':
-      data = mapGreeting(geminiResponse);
-      break;
-    case 'ecom_compare':
-      data = mapCompare(geminiResponse);
-      break;
-    case 'shared_contact':
-      data = mapContact(geminiResponse);
-      break;
-    case 'ecom_promo':
-      data = mapPromo(geminiResponse);
-      break;
-    case 'shared_suggestions':
-      data = mapSuggestions(geminiResponse);
-      break;
-    default:
-      return null;
   }
 
   if (!data) return null;
