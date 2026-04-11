@@ -1,85 +1,64 @@
-// @ts-nocheck
 'use client';
 
 import { T } from './flow-helpers';
 import { FLOW_STAGE_STYLES } from '../blocks/previews/_types';
+import type { FlowScenario } from '@/lib/types-flow-scenarios';
 
-interface ScenarioCardProps {
-  name: string;
-  badgeType: 'ai' | 'manual';
-  description: string;
-  stages: string[];
-  stageCount: number;
-  messageCount: number;
-  blockCount: number;
-  isActive: boolean;
+interface Props {
+  scenario: FlowScenario;
+  isSelected: boolean;
+  onSelect: () => void;
   accentColor: string;
-  onClick: () => void;
+  stageBlockCounts: Record<string, number>;
 }
 
-export default function FlowScenarioCard({
-  name, badgeType, description, stages, stageCount, messageCount, blockCount,
-  isActive, accentColor, onClick,
-}: ScenarioCardProps) {
-  const badgeAI = badgeType === 'ai';
+export default function FlowScenarioCard({ scenario, isSelected, onSelect, accentColor, stageBlockCounts }: Props) {
+  const sc = scenario;
+  const isAI = !!sc.modelUsed;
+  const stages = sc.activeStages || [];
+  const msgCount = stages.reduce((n, s) => n + (s === 'greeting' ? 1 : 2), 0);
+  const blockCount = stages.reduce((n, s) => n + (stageBlockCounts[s] || 0), 0);
 
   return (
-    <button
-      onClick={onClick}
-      style={{
-        width: '100%',
-        border: `1px solid ${isActive ? accentColor : T.bdrL}`,
-        borderRadius: 10,
-        padding: '10px 12px',
-        cursor: 'pointer',
-        background: isActive ? `rgba(194,65,12,0.04)` : T.surface,
-        textAlign: 'left',
-        display: 'flex',
-        flexDirection: 'column',
-        gap: 0,
-        transition: 'all 0.12s',
-      }}
-    >
-      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 6 }}>
-        <div style={{ fontSize: 12, fontWeight: 600, color: T.t1, lineHeight: 1.3 }}>{name}</div>
+    <button onClick={onSelect} style={{
+      width: '100%', display: 'flex', flexDirection: 'column', gap: 8,
+      padding: '14px 16px', border: `1.5px solid ${isSelected ? accentColor : T.bdrL}`,
+      borderRadius: 12, textAlign: 'left', cursor: 'pointer', marginBottom: 8,
+      background: isSelected ? `${accentColor}06` : T.surface,
+    }}>
+      {/* Name + badge */}
+      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 6 }}>
+        <span style={{ flex: 1, fontSize: 13, fontWeight: 700, color: T.t1, lineHeight: 1.3 }}>{sc.name}</span>
         <span style={{
-          fontSize: 8, fontWeight: 700, padding: '2px 6px', borderRadius: 4,
-          whiteSpace: 'nowrap', flexShrink: 0, textTransform: 'uppercase', letterSpacing: 0.3,
-          background: badgeAI ? 'rgba(124,58,237,0.08)' : T.bg,
-          color: badgeAI ? '#7c3aed' : T.t3,
-        }}>
-          {badgeAI ? 'AI' : 'manual'}
-        </span>
+          fontSize: 9, fontWeight: 700, color: isAI ? '#7c3aed' : T.t4, letterSpacing: 0.5,
+          background: isAI ? '#f3f0ff' : T.bg, padding: '2px 7px', borderRadius: 4, flexShrink: 0,
+        }}>{isAI ? 'AI' : 'MANUAL'}</span>
       </div>
 
-      <div style={{ fontSize: 10, color: T.t3, marginTop: 3, lineHeight: 1.4 }}>{description}</div>
+      {/* Description */}
+      <div style={{ fontSize: 11, color: T.t3, lineHeight: 1.5 }}>{sc.description}</div>
 
-      <div style={{ display: 'flex', alignItems: 'center', gap: 0, marginTop: 7, flexWrap: 'wrap' }}>
+      {/* Stage flow pills */}
+      <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', alignItems: 'center' }}>
         {stages.map((stage, i) => {
-          const style = FLOW_STAGE_STYLES[stage] || { color: T.accentBg, textColor: T.accent };
+          const style = FLOW_STAGE_STYLES[stage] || { color: T.bg, textColor: T.t3 };
           return (
-            <span key={`${stage}-${i}`} style={{ display: 'inline-flex', alignItems: 'center', gap: 0 }}>
+            <span key={stage} style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
               <span style={{
-                fontSize: 9, fontWeight: 500, padding: '2px 6px', borderRadius: 4,
-                whiteSpace: 'nowrap', background: style.color, color: style.textColor,
-              }}>
-                {stage}
-              </span>
-              {i < stages.length - 1 && (
-                <span style={{ fontSize: 8, color: T.bdrM, margin: '0 2px' }}>{'\u2192'}</span>
-              )}
+                fontSize: 10, fontWeight: 600, color: style.textColor,
+                background: style.color, padding: '2px 8px', borderRadius: 4,
+              }}>{stage}</span>
+              {i < stages.length - 1 && <span style={{ fontSize: 10, color: T.t4 }}>&rarr;</span>}
             </span>
           );
         })}
       </div>
 
-      <div style={{
-        display: 'flex', alignItems: 'center', gap: 10, marginTop: 7,
-        paddingTop: 7, borderTop: `1px solid #f5f3f0`,
-      }}>
-        <span style={{ fontSize: 9, color: T.t4 }}><strong style={{ fontWeight: 600, color: T.t3 }}>{stageCount}</strong> stages</span>
-        <span style={{ fontSize: 9, color: T.t4 }}><strong style={{ fontWeight: 600, color: T.t3 }}>{messageCount}</strong> messages</span>
-        <span style={{ fontSize: 9, color: T.t4 }}><strong style={{ fontWeight: 600, color: T.t3 }}>{blockCount}</strong> blocks</span>
+      {/* Stats */}
+      <div style={{ fontSize: 10, color: T.t4, display: 'flex', gap: 12 }}>
+        <span>{stages.length} stages</span>
+        <span>{msgCount} messages</span>
+        <span>{blockCount} blocks</span>
       </div>
     </button>
   );

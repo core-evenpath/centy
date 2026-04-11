@@ -1,4 +1,17 @@
 import { registerBlock } from '../registry';
+import { registerHospitalityBlocks } from './hospitality';
+import { registerHealthcareBlocks } from './healthcare';
+import { registerFoodBeverageBlocks } from './food_beverage';
+import { registerBusinessBlocks } from './business';
+import { registerEducationBlocks } from './education';
+import { registerPersonalWellnessBlocks } from './personal_wellness';
+import { registerAutomotiveBlocks } from './automotive';
+import { registerTravelTransportBlocks } from './travel_transport';
+import { registerEventsEntertainmentBlocks } from './events_entertainment';
+import { registerFinancialServicesBlocks } from './financial_services';
+import { registerHomePropertyBlocks } from './home_property';
+import { registerFoodSupplyBlocks } from './food_supply';
+import { registerPublicNonprofitBlocks } from './public_nonprofit';
 
 import GreetingBlock, { definition as greetingDef } from './ecommerce/greeting';
 import ProductCardBlock, { definition as productCardDef } from './ecommerce/product-card';
@@ -13,6 +26,7 @@ import SuggestionsBlock, { definition as suggestionsDef } from './shared/suggest
 import ContactBlock, { definition as contactDef } from './shared/contact';
 
 export function registerAllBlocks(): void {
+  // Ecommerce
   registerBlock(greetingDef, GreetingBlock);
   registerBlock(productCardDef, ProductCardBlock);
   registerBlock(productDetailDef, ProductDetailBlock);
@@ -21,9 +35,24 @@ export function registerAllBlocks(): void {
   registerBlock(orderConfirmationDef, OrderConfirmationBlock);
   registerBlock(orderTrackerDef, OrderTrackerBlock);
   registerBlock(promoDef, PromoBlock);
+  // Shared
   registerBlock(nudgeDef, NudgeBlock);
   registerBlock(suggestionsDef, SuggestionsBlock);
   registerBlock(contactDef, ContactBlock);
+  // Verticals
+  registerHospitalityBlocks();
+  registerHealthcareBlocks();
+  registerFoodBeverageBlocks();
+  registerBusinessBlocks();
+  registerEducationBlocks();
+  registerPersonalWellnessBlocks();
+  registerAutomotiveBlocks();
+  registerTravelTransportBlocks();
+  registerEventsEntertainmentBlocks();
+  registerFinancialServicesBlocks();
+  registerHomePropertyBlocks();
+  registerFoodSupplyBlocks();
+  registerPublicNonprofitBlocks();
 }
 
 export {

@@ -2,15 +2,17 @@
 
 import { db as adminDb } from '@/lib/firebase-admin';
 import { generateScenariosAction } from './flow-scenario-actions';
+import type { GenerateContext } from './flow-scenario-actions';
 
 const COLLECTION = 'flowScenarios';
 
 /**
- * Seed scenarios for ALL sub-verticals that don't already have scenarios.
- * Uses Gemini to generate 10 scenarios per sub-vertical.
- * Rate-limited to 1 call per 2 seconds to respect API quotas.
+ * Seed scenarios for a batch of sub-verticals.
+ * Context must be computed client-side (registry can't be imported server-side).
  */
-export async function seedAllScenariosAction(): Promise<{
+export async function seedScenariosAction(
+  items: { functionId: string; ctx: GenerateContext }[],
+): Promise<{
   success: boolean;
   generated: number;
   skipped: number;
@@ -18,9 +20,6 @@ export async function seedAllScenariosAction(): Promise<{
   error?: string;
 }> {
   try {
-    const { ALL_SUB_VERTICALS } = await import('@/app/admin/relay/blocks/previews/registry');
-
-    // Check which sub-verticals already have scenarios
     const parentSnap = await adminDb.collection(COLLECTION).get();
     const existingIds = new Set<string>();
 
@@ -33,28 +32,24 @@ export async function seedAllScenariosAction(): Promise<{
     let skipped = 0;
     const failed: string[] = [];
 
-    for (const sv of ALL_SUB_VERTICALS) {
-      if (existingIds.has(sv.id)) {
+    for (const { functionId, ctx } of items) {
+      if (existingIds.has(functionId)) {
         skipped++;
         continue;
       }
 
-      const result = await generateScenariosAction(sv.id);
+      const result = await generateScenariosAction(functionId, ctx);
       if (result.success && result.count > 0) {
         generated++;
-        console.log(`Generated ${result.count} scenarios for ${sv.id}`);
       } else {
-        failed.push(sv.id);
-        console.error(`Failed to generate for ${sv.id}: ${result.error}`);
+        failed.push(functionId);
       }
 
-      // Rate limit: 2s between Gemini calls
       await new Promise(r => setTimeout(r, 2000));
     }
 
     return { success: true, generated, skipped, failed };
   } catch (e: any) {
-    console.error('Failed to seed all scenarios:', e);
     return { success: false, generated: 0, skipped: 0, failed: [], error: e.message };
   }
 }

@@ -1,62 +1,104 @@
 /**
- * Builds the Gemini prompt for generating 10 distinct customer journey
- * scenarios for a given sub-vertical. Runs server-side only.
+ * Builds a deeply sub-vertical-specific Gemini prompt for generating
+ * 10 distinct customer journey scenarios. Uses block-level differentiation
+ * and sibling awareness to ensure no two sub-verticals produce similar output.
  */
 
-interface StageBlockInfo {
-  stage: string;
-  blockLabels: string[];
-}
+import type { GenerateContext } from './flow-scenario-actions';
 
-export function buildScenariosPrompt(
-  subVerticalName: string,
-  industryName: string,
-  stageBlocks: StageBlockInfo[],
-  availableStages: string[],
-): string {
-  const stageList = stageBlocks
-    .map(s => `  - ${s.stage}: ${s.blockLabels.join(', ')}`)
+export function buildScenariosPrompt(ctx: GenerateContext): string {
+  const { subVerticalName, verticalName, industryId, stageBlocks, siblings, uniqueBlocks, missingBlocks } = ctx;
+  const availableStages = stageBlocks.map(s => s.stage);
+
+  // Separate unique (vertical-specific) blocks from shared/generic ones
+  const unique = stageBlocks.flatMap(s => s.blocks.filter(b => !b.isShared).map(b => ({ ...b, stage: s.stage })));
+  const shared = stageBlocks.flatMap(s => s.blocks.filter(b => b.isShared).map(b => ({ ...b, stage: s.stage })));
+
+  const uniqueList = unique
+    .map(b => `  • [${b.stage}] ${b.label} — ${b.desc}\n    Customer says: "${b.intents.slice(0, 3).join('", "')}"`)
     .join('\n');
 
-  return `You are a market research expert generating realistic customer interaction scenarios for a "${subVerticalName}" business in the "${industryName}" industry.
+  const sharedList = shared.map(b => `  • [${b.stage}] ${b.label}`).join('\n');
 
-AVAILABLE CONVERSATION STAGES AND THEIR UI BLOCKS:
-${stageList}
+  // Sibling differentiation section
+  let diffSection = '';
+  if (siblings.length > 0) {
+    diffSection += `\n═══ COMPETITIVE DIFFERENTIATION ═══\n`;
+    diffSection += `"${subVerticalName}" sits alongside these siblings in ${verticalName}:\n`;
+    diffSection += siblings.map(s => `  • ${s}`).join('\n');
+    diffSection += `\n\nYour scenarios must be CLEARLY DIFFERENT from what these siblings would produce.\n`;
+
+    if (uniqueBlocks.length > 0) {
+      diffSection += `\n"${subVerticalName}" has these EXCLUSIVE capabilities (no sibling has them):\n`;
+      diffSection += uniqueBlocks.map(b => `  ★ ${b}`).join('\n');
+      diffSection += `\n→ At least 3 scenarios MUST heavily feature these unique capabilities.\n`;
+    }
+
+    if (missingBlocks.length > 0) {
+      diffSection += `\n"${subVerticalName}" intentionally LACKS (siblings have, but this doesn't):\n`;
+      diffSection += missingBlocks.map(b => `  ✗ ${b}`).join('\n');
+      diffSection += `\n→ This tells you what this business model does NOT do. Never reference these.\n`;
+    }
+  }
+
+  return `You are generating customer journey scenarios for a "${subVerticalName}" business.
+Industry: ${verticalName} | Sector: ${industryId}
+
+CRITICAL: Every scenario name, message, and chip label must use terminology ONLY a real "${subVerticalName}" would use. If swapping the business name with a sibling (like "${siblings[0] || 'another business'}") still makes the scenario work, it's too generic. Rewrite it.
+
+═══ THIS BUSINESS'S UI CAPABILITIES ═══
+${uniqueList}
+
+═══ GENERIC / SHARED BLOCKS ═══
+${sharedList}
 
 AVAILABLE STAGES: ${availableStages.join(', ')}
+${diffSection}
+═══ SCENARIO REQUIREMENTS ═══
 
-Generate exactly 10 DISTINCT customer journey scenarios. Each scenario represents a different real-world customer need or situation. Examples of what makes scenarios distinct:
-- Different customer intents (browsing vs urgent need vs returning customer)
-- Different entry points (price inquiry vs product question vs complaint)
-- Different journey lengths (quick 2-stage vs full 6-stage journey)
-- Different personas (first-timer, budget-conscious, premium, business buyer, etc.)
+Generate exactly 10 scenarios. Each must pass the "would this ONLY happen at a ${subVerticalName}?" test:
 
-RULES:
-1. Each scenario must have a unique, descriptive name (e.g., "Emergency Repair Request", "Price-Conscious First Timer")
-2. Each scenario should only use a SUBSET of available stages (2-6 stages, not all stages every time)
-3. "greeting" stage must always be included as the first active stage
-4. customerProfile should be a realistic persona (age range, motivation, context)
-5. tags should include 3-6 searchable keywords useful for RAG retrieval
-6. stageMessages: only include entries for stages listed in activeStages
-7. For greeting stage, only botMessage (the bot speaks first, no userMessage needed)
-8. Messages must use industry-specific terminology for ${subVerticalName}
-9. priority: 1 = most common scenario, 10 = least common
-10. description: 1-2 sentences summarizing the customer journey
+NAMING: Use ${subVerticalName}-specific nouns and verbs. Bad: "Premium Customer Inquiry". Good examples by type:
+  - Hotel: "Honeymoon Suite Upgrade Request", "Late Night Room Service Craving"
+  - Dental: "Wisdom Tooth Extraction Consult", "Kids' First Cavity Filling"
+  - Gym: "Post-Injury Rehab Program", "6AM HIIT Class Waitlist"
 
-Return ONLY valid JSON matching this exact structure:
+MESSAGES: Reference specific products, prices, features of a ${subVerticalName}:
+  - userMessage: What the customer actually types (colloquial, not formal)
+  - botMessage: How the business responds (with specific offerings, not vague platitudes)
+  - chipLabels: Next actions specific to this business (2-4 per stage)
+
+STAGES: Each scenario uses 2-6 of the available stages. "greeting" is always first.
+  - Vary stage combinations across scenarios (don't repeat the same pattern)
+  - Short journeys (2-3 stages) for quick transactions
+  - Longer journeys (5-6 stages) for complex decisions
+
+PERSONAS: Include age, occupation, and a SPECIFIC ${subVerticalName} motivation:
+  - Bad: "35yo professional looking for services"
+  - Good: "28yo bride-to-be comparing garden ceremony vs ballroom reception for 120 guests"
+
+VARIETY across the 10 scenarios:
+  - 2 high-urgency / time-sensitive scenarios
+  - 2 casual browsing / research-phase scenarios
+  - 2 price-sensitive / budget-conscious scenarios
+  - 2 premium / high-value scenarios
+  - 2 returning customer / loyalty scenarios
+
+TAGS: 3-6 keywords that are RAG-searchable and ${subVerticalName}-specific.
+
+Return ONLY valid JSON:
 {
   "scenarios": [
     {
-      "name": "Scenario Name",
-      "description": "Brief journey summary",
-      "customerProfile": "Persona description",
-      "tags": ["tag1", "tag2", "tag3"],
-      "activeStages": ["greeting", "discovery", "conversion"],
+      "name": "Specific ${subVerticalName} Scenario",
+      "description": "1-2 sentences with ${subVerticalName} specifics",
+      "customerProfile": "Age, job, specific motivation for visiting a ${subVerticalName}",
+      "tags": ["specific-keyword-1", "keyword-2", "keyword-3"],
+      "activeStages": ["greeting", "discovery", ...],
       "priority": 1,
       "stageMessages": {
-        "greeting": { "userMessage": "", "botMessage": "Welcome message", "chipLabels": ["Browse", "Quick help"] },
-        "discovery": { "userMessage": "Customer asks...", "botMessage": "Bot responds...", "chipLabels": ["Option A", "Option B"] },
-        "conversion": { "userMessage": "Customer decides...", "botMessage": "Bot helps...", "chipLabels": ["Confirm", "Edit"] }
+        "greeting": { "userMessage": "", "botMessage": "Contextual welcome", "chipLabels": ["Action 1", "Action 2"] },
+        "discovery": { "userMessage": "Real customer question", "botMessage": "Specific response", "chipLabels": ["CTA 1", "CTA 2"] }
       }
     }
   ]
