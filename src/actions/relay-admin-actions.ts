@@ -285,12 +285,33 @@ const DEFAULT_TRANSITIONS = [
   { from: 'followup', to: 'handoff', trigger: 'complaint' },
 ];
 
+/**
+ * Build a map of blockId → array of sub-vertical functionIds that use this block.
+ * Shared blocks (present in SHARED_BLOCK_IDS) map to [] meaning "applies to all".
+ */
+function buildApplicableCategoriesMap(
+  subVerticals: Array<{ id: string; blocks: string[] }>,
+  sharedIds: string[]
+): Map<string, string[]> {
+  const map = new Map<string, string[]>();
+  for (const sub of subVerticals) {
+    for (const blockId of sub.blocks) {
+      if (!map.has(blockId)) map.set(blockId, []);
+      map.get(blockId)!.push(sub.id);
+    }
+  }
+  // Shared blocks: empty array (semantic "all categories")
+  for (const id of sharedIds) map.set(id, []);
+  return map;
+}
+
 export async function seedDefaultBlocksAction(): Promise<{ success: boolean; seeded: number; skipped: number; error?: string }> {
   let seeded = 0;
   let skipped = 0;
 
   try {
-    const { ALL_BLOCKS } = await import('@/app/admin/relay/blocks/previews/registry');
+    const { ALL_BLOCKS, ALL_SUB_VERTICALS, SHARED_BLOCK_IDS } = await import('@/app/admin/relay/blocks/previews/registry');
+    const categoriesMap = buildApplicableCategoriesMap(ALL_SUB_VERTICALS, SHARED_BLOCK_IDS);
 
     // Read existing docs — skip blocks that already exist (preserves admin toggles)
     const existingSnap = await adminDb.collection('relayBlockConfigs').get();
@@ -324,7 +345,7 @@ export async function seedDefaultBlocksAction(): Promise<{ success: boolean; see
         streamable: false,
         cacheDuration: 300,
         variants: [],
-        applicableCategories: [],
+        applicableCategories: categoriesMap.get(block.id) ?? [],
         createdAt: now,
         updatedAt: now,
       });
@@ -348,7 +369,8 @@ export async function syncRegistryToFirestoreAction(): Promise<{
   let unchanged = 0;
 
   try {
-    const { ALL_BLOCKS } = await import('@/app/admin/relay/blocks/previews/registry');
+    const { ALL_BLOCKS, ALL_SUB_VERTICALS, SHARED_BLOCK_IDS } = await import('@/app/admin/relay/blocks/previews/registry');
+    const categoriesMap = buildApplicableCategoriesMap(ALL_SUB_VERTICALS, SHARED_BLOCK_IDS);
     const registryIds = new Set(ALL_BLOCKS.map(b => b.id));
 
     const existingSnap = await adminDb.collection('relayBlockConfigs').get();
@@ -357,7 +379,20 @@ export async function syncRegistryToFirestoreAction(): Promise<{
     const now = new Date().toISOString();
 
     for (const block of ALL_BLOCKS) {
+      const applicableCategories = categoriesMap.get(block.id) ?? [];
+
       if (existingMap.has(block.id)) {
+        // Keep existing doc but refresh applicableCategories so filter keeps working
+        // after registry changes without blowing away admin-managed fields.
+        const existing = existingMap.get(block.id)!.data();
+        const needsUpdate =
+          JSON.stringify(existing.applicableCategories ?? []) !== JSON.stringify(applicableCategories);
+        if (needsUpdate) {
+          await adminDb.collection('relayBlockConfigs').doc(block.id).update({
+            applicableCategories,
+            updatedAt: now,
+          });
+        }
         unchanged++;
         continue;
       }
@@ -382,7 +417,7 @@ export async function syncRegistryToFirestoreAction(): Promise<{
         streamable: false,
         cacheDuration: 300,
         variants: [],
-        applicableCategories: [],
+        applicableCategories,
         createdAt: now,
         updatedAt: now,
       });

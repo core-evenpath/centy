@@ -155,6 +155,7 @@ export default function PartnerRelayPage() {
     const [blockConfigs, setBlockConfigs] = useState<BlockListItem[]>([]);
     const [blocksLoading, setBlocksLoading] = useState(false);
     const [blocksError, setBlocksError] = useState<string | null>(null);
+    const [blocksCategory, setBlocksCategory] = useState<string | null>(null);
 
     // Chat test state
     const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
@@ -288,9 +289,10 @@ export default function PartnerRelayPage() {
         setBlocksLoading(true);
         (async () => {
             try {
-                const result = await getRegisteredBlocksAction();
+                const result = await getRegisteredBlocksAction({ partnerId });
                 if (result.success) {
                     setBlockConfigs(result.blocks || []);
+                    setBlocksCategory(result.category || null);
                 } else {
                     setBlocksError(result.error || 'Failed to load blocks');
                 }
@@ -851,9 +853,18 @@ export default function PartnerRelayPage() {
                 <TabsContent value="blocks" className="space-y-6">
                     <Card>
                         <CardHeader>
-                            <CardTitle>Block Configurations</CardTitle>
+                            <CardTitle>
+                                Block Configurations
+                                {blocksCategory && (
+                                    <Badge variant="secondary" className="ml-2 font-normal text-xs">
+                                        {blocksCategory}
+                                    </Badge>
+                                )}
+                            </CardTitle>
                             <CardDescription>
-                                Available block types that the AI assistant can use when responding to visitors
+                                {blocksCategory
+                                    ? `Block types available to the AI assistant for your business category (${blocksCategory}).`
+                                    : 'Available block types that the AI assistant can use when responding to visitors.'}
                             </CardDescription>
                         </CardHeader>
                         <CardContent>
@@ -872,7 +883,9 @@ export default function PartnerRelayPage() {
                                     <Layers className="h-10 w-10 text-muted-foreground mx-auto mb-3" />
                                     <p className="font-medium">No block configurations</p>
                                     <p className="text-sm text-muted-foreground mt-1">
-                                        Block configs are generated when modules are created in the admin area.
+                                        {blocksCategory
+                                            ? `No blocks are registered for your business category yet. An admin can sync the registry from /admin/relay/blocks.`
+                                            : 'Block configs are generated when modules are created in the admin area.'}
                                     </p>
                                 </div>
                             ) : (
