@@ -19,6 +19,7 @@ import type { RelayBlock } from '@/components/relay/blocks/BlockRenderer';
 import RegistryBlockRenderer from '@/components/relay/RegistryBlockRenderer';
 import type { BlockTheme } from '@/lib/relay/types';
 import { mapGeminiToRegistryBlock } from './gemini-block-mapper';
+import RelayBlockExplorer from './RelayBlockExplorer';
 import { DEFAULT_THEME } from '@/components/relay/blocks/types';
 import type { RelayTheme, BlockCallbacks } from '@/components/relay/blocks/types';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -878,47 +879,11 @@ export default function PartnerRelayPage() {
                                     <p className="font-medium">Failed to load block configs</p>
                                     <p className="text-sm text-muted-foreground mt-1">{blocksError}</p>
                                 </div>
-                            ) : (blockConfigs || []).length === 0 ? (
-                                <div className="text-center py-12">
-                                    <Layers className="h-10 w-10 text-muted-foreground mx-auto mb-3" />
-                                    <p className="font-medium">No block configurations</p>
-                                    <p className="text-sm text-muted-foreground mt-1">
-                                        {blocksCategory
-                                            ? `No blocks are registered for your business category yet. An admin can sync the registry from /admin/relay/blocks.`
-                                            : 'Block configs are generated when modules are created in the admin area.'}
-                                    </p>
-                                </div>
                             ) : (
-                                <div className="grid gap-4 sm:grid-cols-2">
-                                    {(blockConfigs || []).map(cfg => (
-                                        <div key={cfg.id} className="p-4 rounded-lg border hover:bg-muted/50 transition-colors">
-                                            <div className="flex items-center gap-2 mb-2">
-                                                <Badge variant="secondary">{cfg.family}</Badge>
-                                                {(cfg.variants || []).length > 1 && (
-                                                    <Badge variant="outline" className="text-[10px]">
-                                                        {cfg.variants.length} variants
-                                                    </Badge>
-                                                )}
-                                            </div>
-                                            <p className="font-medium text-sm">{cfg.label}</p>
-                                            {cfg.description && (
-                                                <p className="text-xs text-muted-foreground mt-1">{cfg.description}</p>
-                                            )}
-                                            {(cfg.intentKeywords || []).length > 0 && (
-                                                <div className="flex gap-1 flex-wrap mt-2">
-                                                    {(cfg.intentKeywords || []).map(kw => (
-                                                        <Badge key={kw} variant="outline" className="text-[10px]">{kw}</Badge>
-                                                    ))}
-                                                </div>
-                                            )}
-                                            {(cfg.applicableCategories || []).length > 0 && (
-                                                <p className="text-xs text-muted-foreground mt-1">
-                                                    Categories: {(cfg.applicableCategories || []).join(', ')}
-                                                </p>
-                                            )}
-                                        </div>
-                                    ))}
-                                </div>
+                                <RelayBlockExplorer
+                                    partnerId={partnerId!}
+                                    defaultFunctionId={blocksCategory}
+                                />
                             )}
                         </CardContent>
                     </Card>
