@@ -363,10 +363,23 @@ Respond with ONLY valid JSON. No markdown, no code fences.`;
             console.log('[Relay Block Pipeline] Cache stats:', JSON.stringify({ itemCount: cache.getItemCount(), hasRag: cache.hasRag() }));
 
             if (resolution.blockId && resolution.confidence >= 0.6) {
-                parsed.blockId = resolution.blockId;
-                parsed.blockData = resolution.data;
-                if (resolution.variant) parsed.blockVariant = resolution.variant;
-                console.log('[Relay Block Pipeline] ✅ Using resolved block:', resolution.blockId);
+                // Gate against partner's enabled blocks (short IDs from admin registry).
+                // Strip the vertical prefix to compare against the short IDs stored in Firestore.
+                const PREFIXES = ['ecom_', 'hosp_', 'hc_', 'fb_', 'biz_', 'edu_', 'pw_', 'auto_', 'tl_', 'evt_', 'fin_', 'hp_', 'fs_', 'pu_', 'shared_'];
+                const toShortId = (id: string) => {
+                    for (const p of PREFIXES) if (id.startsWith(p)) return id.slice(p.length);
+                    return id;
+                };
+                const shortId = toShortId(resolution.blockId);
+                const isAllowed = allowedBlockIds.length === 0 || allowedBlockIds.includes(shortId);
+                if (isAllowed) {
+                    parsed.blockId = resolution.blockId;
+                    parsed.blockData = resolution.data;
+                    if (resolution.variant) parsed.blockVariant = resolution.variant;
+                    console.log('[Relay Block Pipeline] ✅ Using resolved block:', resolution.blockId);
+                } else {
+                    console.log('[Relay Block Pipeline] ⛔ Blocked by partner override:', resolution.blockId, '(short:', shortId, ')');
+                }
             } else {
                 console.log('[Relay Block Pipeline] ⚠️ Skipped (blockId:', resolution.blockId, 'confidence:', resolution.confidence, ')');
             }

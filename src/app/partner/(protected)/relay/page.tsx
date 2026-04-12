@@ -334,10 +334,14 @@ export default function PartnerRelayPage() {
                 const allowed: string[] = Array.isArray(data.allowedBlockIds) ? data.allowedBlockIds : [];
                 const mapped = mapGeminiToRegistryBlock(data.response, data.category, allowed);
                 const geminiType = data.response.type;
-                // Registry block wins; else if gemini returned plain text (always allowed) use
-                // the legacy renderer; else the partner has disabled this block type, so fall
-                // back to showing just the text + suggestions as a neutral reply.
-                const useLegacyBlock = !mapped && geminiType === 'text';
+                // Server-side block resolution (already gated by allowedBlockIds) wins;
+                // else try the client mapper; else fall back to plain text + suggestions.
+                const serverBlockId: string | undefined = data.response.blockId;
+                const serverBlockData = data.response.blockData;
+                const resolvedBlockId = serverBlockId || mapped?.blockId;
+                const resolvedBlockData = serverBlockData || mapped?.data;
+
+                const useLegacyBlock = !resolvedBlockId && geminiType === 'text';
                 const fallbackBlock: RelayBlock = {
                     type: 'text',
                     text: data.response.text || '',
@@ -346,10 +350,12 @@ export default function PartnerRelayPage() {
                 const assistantMsg: ChatMessage = {
                     role: 'assistant',
                     content: data.response.text || '',
-                    block: mapped ? (data.response as RelayBlock) : (useLegacyBlock ? (data.response as RelayBlock) : fallbackBlock),
-                    type: mapped ? geminiType : (useLegacyBlock ? geminiType : 'text'),
-                    blockId: mapped?.blockId || undefined,
-                    blockData: mapped?.data || undefined,
+                    block: resolvedBlockId
+                        ? (data.response as RelayBlock)
+                        : (useLegacyBlock ? (data.response as RelayBlock) : fallbackBlock),
+                    type: resolvedBlockId ? geminiType : (useLegacyBlock ? geminiType : 'text'),
+                    blockId: resolvedBlockId,
+                    blockData: resolvedBlockData,
                 };
                 setChatMessages(prev => [...prev, assistantMsg]);
             } else {
