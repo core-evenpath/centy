@@ -3,7 +3,7 @@
 import { revalidatePath } from 'next/cache';
 import { db as adminDb } from '@/lib/firebase-admin';
 import { GoogleGenAI } from '@google/genai';
-import { getGlobalBlockConfigs, getBlockConfig } from '@/lib/relay/block-config-service';
+import { getGlobalBlockConfigs, getBlockConfig, invalidatePartnerBlockCache } from '@/lib/relay/block-config-service';
 
 export interface PartnerBlockOverride {
   enabled: boolean;
@@ -135,6 +135,7 @@ export async function toggleBlockAction(
       { merge: true }
     );
 
+    invalidatePartnerBlockCache(partnerId);
     revalidatePath('/partner/relay');
 
     return { success: true };

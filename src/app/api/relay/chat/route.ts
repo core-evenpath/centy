@@ -7,7 +7,7 @@ import {
     getModuleItemsAction,
 } from '@/actions/modules-actions';
 import type { ModuleAgentConfig } from '@/lib/modules/types';
-import { getActiveBlocksForPartner, buildBlockSchemasFromConfigs } from '@/lib/relay/block-config-service';
+import { getActiveBlocksForPartner, buildBlockSchemasFromConfigs, getGlobalBlockConfigs } from '@/lib/relay/block-config-service';
 import { createInitialFlowState, detectIntent, runFlowEngine } from '@/lib/flow-engine';
 import { getFlowTemplateForFunction } from '@/lib/flow-templates';
 import type { ConversationFlowState, FlowDefinition, FlowEngineDecision } from '@/lib/types-flow-engine';
@@ -223,11 +223,19 @@ ${itemSummary || '  (no items yet)'}`;
             // Persona not available, continue without it
         }
 
-        // Build block schemas from Firestore (cached, respects admin toggles)
+        // Build block schemas from Firestore (cached, respects admin toggles
+        // + partner sub-category filter + partner per-block enable/disable).
         let blockSchemas: string;
+        let allowedBlockIds: string[] = [];
         try {
-            const activeBlocks = await getActiveBlocksForPartner(partnerId);
-            blockSchemas = buildBlockSchemasFromConfigs(activeBlocks);
+            const [activeBlocks, globalConfigs] = await Promise.all([
+                getActiveBlocksForPartner(partnerId),
+                getGlobalBlockConfigs(),
+            ]);
+            allowedBlockIds = activeBlocks.map(b => b.id);
+            blockSchemas = buildBlockSchemasFromConfigs(activeBlocks, {
+                globalEmpty: globalConfigs.length === 0,
+            });
         } catch {
             console.warn('Failed to load block configs from Firestore, proceeding without block schemas');
             blockSchemas = '';
@@ -394,6 +402,7 @@ Respond with ONLY valid JSON. No markdown, no code fences.`;
             success: true,
             response: parsed,
             category: partnerData?.businessPersona?.identity?.businessCategories?.[0]?.functionId || 'general',
+            allowedBlockIds,
             conversationId: conversationId || `conv_${Date.now()}`,
             ...(flowDecision && {
                 flowMeta: {

@@ -331,14 +331,25 @@ export default function PartnerRelayPage() {
             const data = await res.json();
 
             if (data.success && data.response) {
-                const mapped = mapGeminiToRegistryBlock(data.response, data.category);
+                const allowed: string[] = Array.isArray(data.allowedBlockIds) ? data.allowedBlockIds : [];
+                const mapped = mapGeminiToRegistryBlock(data.response, data.category, allowed);
+                const geminiType = data.response.type;
+                // Registry block wins; else if gemini returned plain text (always allowed) use
+                // the legacy renderer; else the partner has disabled this block type, so fall
+                // back to showing just the text + suggestions as a neutral reply.
+                const useLegacyBlock = !mapped && geminiType === 'text';
+                const fallbackBlock: RelayBlock = {
+                    type: 'text',
+                    text: data.response.text || '',
+                    suggestions: data.response.suggestions || [],
+                };
                 const assistantMsg: ChatMessage = {
                     role: 'assistant',
                     content: data.response.text || '',
-                    block: data.response as RelayBlock,
-                    type: data.response.type,
-                    blockId: mapped?.blockId || data.response.blockId || undefined,
-                    blockData: mapped?.data || data.response.blockData || undefined,
+                    block: mapped ? (data.response as RelayBlock) : (useLegacyBlock ? (data.response as RelayBlock) : fallbackBlock),
+                    type: mapped ? geminiType : (useLegacyBlock ? geminiType : 'text'),
+                    blockId: mapped?.blockId || undefined,
+                    blockData: mapped?.data || undefined,
                 };
                 setChatMessages(prev => [...prev, assistantMsg]);
             } else {

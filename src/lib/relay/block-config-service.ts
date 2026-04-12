@@ -84,28 +84,60 @@ async function getPartnerBlockOverrides(partnerId: string): Promise<Array<{ id: 
     return cached.blocks;
   }
 
+  const merged = new Map<string, boolean>();
+
+  // Legacy path: partners/{id}/relayConfig/blocks subcollection
   try {
     const snap = await adminDb
       .collection(`partners/${partnerId}/relayConfig/blocks`)
       .select('isVisible')
       .get();
-
-    const overrides = snap.docs.map(doc => ({
-      id: doc.id,
-      isVisible: doc.data().isVisible !== false,
-    }));
-
-    partnerCache.set(partnerId, { blocks: overrides, fetchedAt: now });
-    return overrides;
+    for (const doc of snap.docs) {
+      merged.set(doc.id, doc.data().isVisible !== false);
+    }
   } catch {
-    return cached?.blocks ?? [];
+    // Ignore — will still try the doc path
+  }
+
+  // Current path: partners/{id}/relayConfig/blockOverrides doc with map
+  try {
+    const doc = await adminDb
+      .collection(`partners/${partnerId}/relayConfig`)
+      .doc('blockOverrides')
+      .get();
+    if (doc.exists) {
+      const data = doc.data() || {};
+      const blockOverrides = (data.blockOverrides || {}) as Record<string, { enabled?: boolean }>;
+      for (const [id, v] of Object.entries(blockOverrides)) {
+        // Doc path wins over legacy subcollection (newer source)
+        merged.set(id, v?.enabled !== false);
+      }
+    }
+  } catch {
+    // Ignore — return whatever we got from the legacy path
+  }
+
+  const overrides = Array.from(merged, ([id, isVisible]) => ({ id, isVisible }));
+  partnerCache.set(partnerId, { blocks: overrides, fetchedAt: now });
+  return overrides;
+}
+
+async function getPartnerCategory(partnerId: string): Promise<string | null> {
+  try {
+    const partnerDoc = await adminDb.collection('partners').doc(partnerId).get();
+    if (!partnerDoc.exists) return null;
+    const data = partnerDoc.data() as Record<string, any> | undefined;
+    return data?.businessPersona?.identity?.businessCategories?.[0]?.functionId ?? null;
+  } catch {
+    return null;
   }
 }
 
 export async function getActiveBlocksForPartner(partnerId: string): Promise<UnifiedBlockConfig[]> {
-  const [allConfigs, overrides] = await Promise.all([
+  const [allConfigs, overrides, category] = await Promise.all([
     getGlobalBlockConfigs(),
     getPartnerBlockOverrides(partnerId),
+    getPartnerCategory(partnerId),
   ]);
 
   const overrideMap = new Map(overrides.map(o => [o.id, o.isVisible]));
@@ -113,6 +145,11 @@ export async function getActiveBlocksForPartner(partnerId: string): Promise<Unif
   return allConfigs.filter(config => {
     // Must be globally active
     if (config.status !== 'active') return false;
+    // Filter by partner's sub-category: empty applicableCategories = shared/universal
+    if (category && config.applicableCategories?.length
+      && !config.applicableCategories.includes(category)) {
+      return false;
+    }
     // If tenant has an override, respect it; otherwise visible by default
     const tenantVisible = overrideMap.get(config.id);
     return tenantVisible !== false;
@@ -139,12 +176,21 @@ export function computeFieldsFromConfigs(blockIds: string[], configs: UnifiedBlo
 
 // ── AI prompt generation ─────────────────────────────────────────────
 
-export function buildBlockSchemasFromConfigs(blocks: UnifiedBlockConfig[]): string {
+export function buildBlockSchemasFromConfigs(
+  blocks: UnifiedBlockConfig[],
+  opts: { globalEmpty?: boolean } = {}
+): string {
   const blocksWithSchemas = blocks.filter(b => b.promptSchema);
   if (blocksWithSchemas.length === 0) {
-    // Fallback to hardcoded schemas if no blocks have promptSchema yet
-    console.warn('No block promptSchemas found in Firestore, falling back to RELAY_BLOCK_SCHEMAS');
-    return RELAY_BLOCK_SCHEMAS;
+    // Only fall back to the full hardcoded schema list when the global
+    // registry in Firestore is genuinely empty (not yet seeded). When it
+    // has configs but the partner filter narrowed them to zero, respect
+    // that — serve a minimal safe schema rather than leaking every block.
+    if (opts.globalEmpty !== false) {
+      console.warn('No block promptSchemas found in Firestore, falling back to RELAY_BLOCK_SCHEMAS');
+      return RELAY_BLOCK_SCHEMAS;
+    }
+    return 'RESPOND ONLY IN JSON of shape { "type": "text", "text": "...", "suggestions": ["...", "..."] }';
   }
 
   const lines: string[] = ['RESPOND ONLY IN JSON. Choose the most appropriate block type:'];

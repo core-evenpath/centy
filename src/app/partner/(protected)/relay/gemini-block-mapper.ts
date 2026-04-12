@@ -98,12 +98,31 @@ const PROMO_BLOCKS = new Set([
   'ecom_promo', 'fb_daily_specials', 'pw_spa_package',
 ]);
 
-export function mapGeminiToRegistryBlock(geminiResponse: any, category?: string): MappedBlock | null {
+// Strip the vertical prefix from a lib/relay/blocks ID (e.g. "hosp_room_card")
+// to get the short ID used in the admin preview registry (e.g. "room_card").
+const PREFIXES = ['ecom_', 'hosp_', 'hc_', 'fb_', 'biz_', 'edu_', 'pw_', 'auto_', 'tl_', 'evt_', 'fin_', 'hp_', 'fs_', 'pu_', 'shared_'];
+function toShortId(prefixedId: string): string {
+  for (const p of PREFIXES) {
+    if (prefixedId.startsWith(p)) return prefixedId.slice(p.length);
+  }
+  return prefixedId;
+}
+
+export function mapGeminiToRegistryBlock(
+  geminiResponse: any,
+  category?: string,
+  allowedBlockIds?: string[]
+): MappedBlock | null {
   const type = geminiResponse?.type;
   if (!type) return null;
 
   const blockId = getBlockIdForGeminiType(type, category || 'general');
   if (!blockId) return null;
+
+  // Gate against partner's enabled blocks (short IDs from admin registry).
+  if (allowedBlockIds && allowedBlockIds.length > 0) {
+    if (!allowedBlockIds.includes(toShortId(blockId))) return null;
+  }
 
   let data: Record<string, any> | null = null;
 
