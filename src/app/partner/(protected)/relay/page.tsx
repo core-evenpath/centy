@@ -10,8 +10,8 @@ import {
     getRelayConversationsAction,
 } from '@/actions/relay-actions';
 import type { RelayConfig, DiagnosticCheck, RelayConversation } from '@/actions/relay-actions';
-import { getRegisteredBlocksAction } from '@/actions/block-builder-actions';
-import type { BlockListItem } from '@/actions/block-builder-actions';
+import { fetchBlocksDesign } from '@/lib/relay/fetch-blocks-design';
+import type { MergedBlockDesign } from '@/lib/relay/types';
 import RelayChatSetup from '@/components/partner/relay/RelayChatSetup';
 import RelayStorefrontManager from '@/components/partner/relay/RelayStorefrontManager';
 import BlockRenderer from '@/components/relay/blocks/BlockRenderer';
@@ -152,7 +152,7 @@ export default function PartnerRelayPage() {
     const [convoLoading, setConvoLoading] = useState(true);
 
     // Block configs state
-    const [blockConfigs, setBlockConfigs] = useState<BlockListItem[]>([]);
+    const [blockConfigs, setBlockConfigs] = useState<MergedBlockDesign[]>([]);
     const [blocksLoading, setBlocksLoading] = useState(false);
     const [blocksError, setBlocksError] = useState<string | null>(null);
 
@@ -281,25 +281,35 @@ export default function PartnerRelayPage() {
         })();
     }, [partnerId]);
 
-    // ── Load block configs ────────────────────────────────────────────
+    // ── Load block configs from /api/relay/blocks (merged design + overrides) ─
 
     useEffect(() => {
         if (!partnerId) return;
+        const controller = new AbortController();
         setBlocksLoading(true);
+        setBlocksError(null);
         (async () => {
             try {
-                const result = await getRegisteredBlocksAction();
-                if (result.success) {
-                    setBlockConfigs(result.blocks || []);
-                } else {
-                    setBlocksError(result.error || 'Failed to load blocks');
+                const { getAuth, getIdToken } = await import('firebase/auth');
+                const currentUser = getAuth().currentUser;
+                if (!currentUser) {
+                    throw new Error('Not authenticated');
                 }
+                const idToken = await getIdToken(currentUser);
+                const result = await fetchBlocksDesign({
+                    partnerId,
+                    idToken,
+                    signal: controller.signal,
+                });
+                setBlockConfigs(result.blocks || []);
             } catch (e: any) {
+                if (e?.name === 'AbortError') return;
                 setBlocksError(e.message || 'Unknown error');
             } finally {
                 setBlocksLoading(false);
             }
         })();
+        return () => controller.abort();
     }, [partnerId]);
 
     // ── Chat test ────────────────────────────────────────────────────
@@ -877,34 +887,57 @@ export default function PartnerRelayPage() {
                                 </div>
                             ) : (
                                 <div className="grid gap-4 sm:grid-cols-2">
-                                    {(blockConfigs || []).map(cfg => (
-                                        <div key={cfg.id} className="p-4 rounded-lg border hover:bg-muted/50 transition-colors">
-                                            <div className="flex items-center gap-2 mb-2">
-                                                <Badge variant="secondary">{cfg.family}</Badge>
-                                                {(cfg.variants || []).length > 1 && (
-                                                    <Badge variant="outline" className="text-[10px]">
-                                                        {cfg.variants.length} variants
-                                                    </Badge>
+                                    {(blockConfigs || []).map(cfg => {
+                                        const intentKeywords = (cfg.intents || []).slice(0, 5);
+                                        const hidden = cfg.isVisible === false;
+                                        return (
+                                            <div
+                                                key={cfg.id}
+                                                className={`p-4 rounded-lg border transition-colors ${
+                                                    hidden
+                                                        ? 'opacity-60 bg-muted/30'
+                                                        : 'hover:bg-muted/50'
+                                                }`}
+                                            >
+                                                <div className="flex items-center gap-2 mb-2 flex-wrap">
+                                                    <Badge variant="secondary">{cfg.family}</Badge>
+                                                    {(cfg.variants || []).length > 1 && (
+                                                        <Badge variant="outline" className="text-[10px]">
+                                                            {cfg.variants.length} variants
+                                                        </Badge>
+                                                    )}
+                                                    {cfg.hasPartnerOverride && (
+                                                        <Badge variant="outline" className="text-[10px] border-indigo-400 text-indigo-600">
+                                                            Customized
+                                                        </Badge>
+                                                    )}
+                                                    {hidden && (
+                                                        <Badge variant="outline" className="text-[10px] border-amber-400 text-amber-600">
+                                                            Hidden
+                                                        </Badge>
+                                                    )}
+                                                </div>
+                                                <p className={`font-medium text-sm ${hidden ? 'line-through' : ''}`}>
+                                                    {cfg.label}
+                                                </p>
+                                                {cfg.description && (
+                                                    <p className="text-xs text-muted-foreground mt-1">{cfg.description}</p>
+                                                )}
+                                                {intentKeywords.length > 0 && (
+                                                    <div className="flex gap-1 flex-wrap mt-2">
+                                                        {intentKeywords.map(kw => (
+                                                            <Badge key={kw} variant="outline" className="text-[10px]">{kw}</Badge>
+                                                        ))}
+                                                    </div>
+                                                )}
+                                                {(cfg.applicableCategories || []).length > 0 && (
+                                                    <p className="text-xs text-muted-foreground mt-1">
+                                                        Categories: {(cfg.applicableCategories || []).join(', ')}
+                                                    </p>
                                                 )}
                                             </div>
-                                            <p className="font-medium text-sm">{cfg.label}</p>
-                                            {cfg.description && (
-                                                <p className="text-xs text-muted-foreground mt-1">{cfg.description}</p>
-                                            )}
-                                            {(cfg.intentKeywords || []).length > 0 && (
-                                                <div className="flex gap-1 flex-wrap mt-2">
-                                                    {(cfg.intentKeywords || []).map(kw => (
-                                                        <Badge key={kw} variant="outline" className="text-[10px]">{kw}</Badge>
-                                                    ))}
-                                                </div>
-                                            )}
-                                            {(cfg.applicableCategories || []).length > 0 && (
-                                                <p className="text-xs text-muted-foreground mt-1">
-                                                    Categories: {(cfg.applicableCategories || []).join(', ')}
-                                                </p>
-                                            )}
-                                        </div>
-                                    ))}
+                                        );
+                                    })}
                                 </div>
                             )}
                         </CardContent>
