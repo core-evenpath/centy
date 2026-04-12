@@ -147,6 +147,38 @@ export interface UnifiedBlockConfig {
   updatedAt: string;
 }
 
+// ── Blocks design fetch (GET /api/relay/blocks) ───────────────────────
+
+export interface MergedBlockDesign {
+  // Global design (from UnifiedBlockConfig)
+  id: string;
+  family: string;
+  label: string;
+  description: string;
+  applicableCategories: string[];
+  intents: string[];
+  fields_req: string[];
+  fields_opt: string[];
+  variants: string[];
+  sampleData: Record<string, any>;
+  preloadable: boolean;
+  streamable: boolean;
+  cacheDuration: number;
+  // Partner overrides (defaults applied when no override exists)
+  isVisible: boolean;
+  sortOrder: number;
+  hasPartnerOverride: boolean;
+  customLabel?: string;
+  customDescription?: string;
+}
+
+export interface BlocksDesignResponse {
+  partnerId: string;
+  blocks: MergedBlockDesign[];
+  families: string[];
+  totalCount: number;
+}
+
 // ── Session types ─────────────────────────────────────────────────────
 
 export interface SessionModuleItem {
