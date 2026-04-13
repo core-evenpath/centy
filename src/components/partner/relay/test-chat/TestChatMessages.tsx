@@ -83,12 +83,21 @@ export default function TestChatMessages({
                 ? ((block as { suggestions?: string[] }).suggestions as string[])
                 : undefined;
 
+            // Guard: if the assistant text looks like stringified JSON
+            // (upstream parse or token-truncation miss), hide it rather
+            // than dumping a JSON blob into the bubble.
+            const safeText = looksLikeJson(msg.content) ? '' : msg.content;
+
             return (
               <div key={i}>
                 {isTextOnly ? (
-                  <BotBubble text={msg.content} emoji={brandEmoji} theme={theme} />
+                  <BotBubble
+                    text={safeText || "I'm here to help — what would you like to know?"}
+                    emoji={brandEmoji}
+                    theme={theme}
+                  />
                 ) : (
-                  <BotBubble text={msg.content || undefined} emoji={brandEmoji} theme={theme}>
+                  <BotBubble text={safeText || undefined} emoji={brandEmoji} theme={theme}>
                     <BlockRenderer block={block as RelayBlock} theme={theme} callbacks={callbacks} />
                   </BotBubble>
                 )}
@@ -104,4 +113,16 @@ export default function TestChatMessages({
       )}
     </div>
   );
+}
+
+// Heuristic: treat anything that starts with `{` / `[` (after trimming)
+// as stringified JSON we should not display verbatim. The server should
+// have parsed it already, so a raw blob here means parsing failed
+// upstream.
+function looksLikeJson(text: string | undefined): boolean {
+  if (!text) return false;
+  const t = text.trim();
+  if (!t) return false;
+  const first = t[0];
+  return first === '{' || first === '[';
 }

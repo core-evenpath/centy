@@ -167,17 +167,11 @@ Respond with ONLY valid JSON. No markdown, no code fences.`;
                 ...priorMessages,
                 { role: 'user', parts: [{ text: lastUserMessage?.parts?.[0]?.text || '' }] },
             ],
-            config: { systemInstruction: systemPrompt, maxOutputTokens: 1024, temperature: 0.3 },
+            config: { systemInstruction: systemPrompt, maxOutputTokens: 2048, temperature: 0.3 },
         });
 
         const text = response.text?.trim() || '';
-        let parsed: any;
-        try {
-            const cleaned = text.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim();
-            parsed = JSON.parse(cleaned);
-        } catch {
-            parsed = { type: 'text', text, suggestions: [] };
-        }
+        const parsed: any = parseGeminiBlockResponse(text);
 
         // ── SERVER-SIDE block population from Modules + Core ─────────────
         try {
@@ -243,6 +237,81 @@ Respond with ONLY valid JSON. No markdown, no code fences.`;
             { status: 500, headers: corsHeaders }
         );
     }
+}
+
+// ── Tolerant Gemini response parser ──────────────────────────────────
+//
+// Gemini occasionally wraps JSON in ```json fences, prefixes it with a
+// natural-language preamble, or — with a tight `maxOutputTokens` — cuts
+// off mid-string. We try several recovery strategies before giving up.
+// If nothing parses, return a safe user-facing message rather than
+// leaking the raw model output (which would display as a JSON blob in
+// the chat bubble).
+
+function parseGeminiBlockResponse(rawText: string): Record<string, any> {
+    const text = rawText.trim();
+    if (!text) return genericFallback();
+
+    // Strategy 1: strip code fences, try direct parse.
+    const stripped = text
+        .replace(/```json\s*/gi, '')
+        .replace(/```\s*/g, '')
+        .trim();
+    const direct = safeJsonParse(stripped);
+    if (direct) return direct;
+
+    // Strategy 2: isolate the first balanced {...} block and parse it.
+    const extracted = extractFirstJsonObject(stripped);
+    if (extracted) {
+        const parsed = safeJsonParse(extracted);
+        if (parsed) return parsed;
+    }
+
+    // Strategy 3: everything failed — Gemini likely truncated mid-token
+    // or emitted prose. Don't dump raw output to the user.
+    console.warn('[Relay chat] Gemini response did not parse as JSON:', text.slice(0, 200));
+    return genericFallback();
+}
+
+function safeJsonParse(s: string): Record<string, any> | null {
+    try {
+        const v = JSON.parse(s);
+        return v && typeof v === 'object' ? v : null;
+    } catch {
+        return null;
+    }
+}
+
+// Walk the string tracking brace depth and string-state; return the
+// first complete top-level {...} object. Handles escape sequences so
+// that `"hello \"world\""` doesn't confuse the scanner.
+function extractFirstJsonObject(s: string): string | null {
+    const start = s.indexOf('{');
+    if (start === -1) return null;
+    let depth = 0;
+    let inString = false;
+    let escape = false;
+    for (let i = start; i < s.length; i++) {
+        const c = s[i];
+        if (escape) { escape = false; continue; }
+        if (c === '\\') { escape = true; continue; }
+        if (c === '"') { inString = !inString; continue; }
+        if (inString) continue;
+        if (c === '{') depth++;
+        else if (c === '}') {
+            depth--;
+            if (depth === 0) return s.slice(start, i + 1);
+        }
+    }
+    return null;
+}
+
+function genericFallback(): Record<string, any> {
+    return {
+        type: 'text',
+        text: "I didn't quite catch that — could you rephrase your question?",
+        suggestions: ['What do you offer?', 'Contact support', 'Learn more'],
+    };
 }
 
 function buildPersonaContext(partnerData: Record<string, any> | null): string {
