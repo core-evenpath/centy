@@ -6,6 +6,31 @@ import { invalidateBlockConfigCache } from '@/lib/relay/block-config-service';
 import { VERTICAL_MANIFEST } from '@/app/admin/relay/blocks/previews/_manifest';
 import type { UnifiedBlockConfig } from '@/lib/relay/types';
 
+// ── Code-registry ID alignment ───────────────────────────────────────
+// The client block components in `src/lib/relay/blocks/**` register
+// themselves with prefixed IDs (`ecom_*`, `shared_*`). Historically the
+// admin seeders wrote Firestore docs with the short IDs. Map short → prefixed
+// at write time so `getActiveBlocksForPartner()` returns IDs the client
+// `RegistryBlockRenderer` can resolve.
+
+const CODE_REGISTRY_ID_MAP: Record<string, string> = {
+  greeting: 'ecom_greeting',
+  product_card: 'ecom_product_card',
+  product_detail: 'ecom_product_detail',
+  compare: 'ecom_compare',
+  cart: 'ecom_cart',
+  order_confirmation: 'ecom_order_confirmation',
+  order_tracker: 'ecom_order_tracker',
+  promo: 'ecom_promo',
+  nudge: 'shared_nudge',
+  suggestions: 'shared_suggestions',
+  contact: 'shared_contact',
+};
+
+function mapToRegistryId(id: string): string {
+  return CODE_REGISTRY_ID_MAP[id] ?? id;
+}
+
 // ── Prompt schema templates by block type ────────────────────────────
 // One promptSchema per block type. Each entry is written into Firestore
 // `relayBlockConfigs` so the chat route can read it dynamically.
@@ -32,7 +57,7 @@ const PROMPT_SCHEMAS: Record<string, string> = {
 
 // Maps block stage/family to the closest prompt schema type
 function resolvePromptSchemaType(block: { family: string; stage: string; id: string }): string {
-  // Direct ID matches
+  // Direct ID matches (short + prefixed code-registry IDs)
   const idMap: Record<string, string> = {
     greeting: 'greeting', suggestions: 'quick_actions', contact: 'contact',
     promo: 'promo', cart: 'catalog', compare: 'compare',
@@ -40,6 +65,11 @@ function resolvePromptSchemaType(block: { family: string; stage: string; id: str
     nudge: 'info', loyalty: 'info', booking: 'book',
     order_tracker: 'info', order_confirmation: 'info',
     subscription: 'pricing', bundle: 'catalog', skin_quiz: 'lead_capture',
+    // Prefixed code-registry IDs
+    ecom_greeting: 'greeting', ecom_product_card: 'catalog', ecom_product_detail: 'catalog',
+    ecom_compare: 'compare', ecom_cart: 'catalog', ecom_order_confirmation: 'info',
+    ecom_order_tracker: 'info', ecom_promo: 'promo',
+    shared_suggestions: 'quick_actions', shared_contact: 'contact', shared_nudge: 'info',
   };
   if (idMap[block.id]) return idMap[block.id];
 
@@ -69,7 +99,7 @@ function resolvePromptSchemaType(block: { family: string; stage: string; id: str
 
 const CORE_BLOCKS: Array<Omit<UnifiedBlockConfig, 'createdAt' | 'updatedAt' | 'sampleData' | 'promptSchema'>> = [
   {
-    id: 'greeting', verticalId: 'shared', family: 'entry', label: 'Greeting', description: 'Welcome message with brand identity and quick action buttons',
+    id: 'ecom_greeting', verticalId: 'shared', family: 'entry', label: 'Greeting', description: 'Welcome message with brand identity and quick action buttons',
     stage: 'greeting', status: 'active',
     fields_req: ['brandName', 'tagline', 'welcomeMessage'], fields_opt: ['quickActions', 'brandEmoji', 'logoUrl'],
     intents: ['hello', 'hi', 'start', 'hey'], module: null,
@@ -85,7 +115,7 @@ const CORE_BLOCKS: Array<Omit<UnifiedBlockConfig, 'createdAt' | 'updatedAt' | 's
     moduleBinding: null,
   },
   {
-    id: 'product_card', verticalId: 'ecommerce', family: 'catalog', label: 'Product Card', description: 'Browsable item card with price, image, rating, and add-to-cart',
+    id: 'ecom_product_card', verticalId: 'ecommerce', family: 'catalog', label: 'Product Card', description: 'Browsable item card with price, image, rating, and add-to-cart',
     stage: 'discovery', status: 'active',
     fields_req: ['name', 'price', 'currency'], fields_opt: ['image', 'rating', 'badges', 'subtitle', 'specs', 'reviewCount'],
     intents: ['show', 'browse', 'products', 'menu', 'catalog'], module: 'moduleItems',
@@ -93,7 +123,7 @@ const CORE_BLOCKS: Array<Omit<UnifiedBlockConfig, 'createdAt' | 'updatedAt' | 's
     moduleBinding: { sourceCollection: 'items', titleField: 'name', priceField: 'price', imageField: 'image', sortBy: 'popular', maxItems: 10 },
   },
   {
-    id: 'product_detail', verticalId: 'ecommerce', family: 'catalog', label: 'Product Detail', description: 'Full item view with images, variants, specs, and actions',
+    id: 'ecom_product_detail', verticalId: 'ecommerce', family: 'catalog', label: 'Product Detail', description: 'Full item view with images, variants, specs, and actions',
     stage: 'showcase', status: 'active',
     fields_req: ['name', 'price', 'description'], fields_opt: ['images', 'variants', 'specs', 'reviews', 'sizes'],
     intents: ['details', 'tell me more', 'specs', 'about'], module: 'moduleItems',
@@ -101,7 +131,7 @@ const CORE_BLOCKS: Array<Omit<UnifiedBlockConfig, 'createdAt' | 'updatedAt' | 's
     moduleBinding: { sourceCollection: 'items', titleField: 'name', priceField: 'price', imageField: 'image', sortBy: 'popular', maxItems: 1 },
   },
   {
-    id: 'compare', verticalId: 'shared', family: 'catalog', label: 'Compare', description: 'Side-by-side comparison table for 2-4 items',
+    id: 'ecom_compare', verticalId: 'shared', family: 'catalog', label: 'Compare', description: 'Side-by-side comparison table for 2-4 items',
     stage: 'comparison', status: 'active',
     fields_req: ['items', 'comparisonFields'], fields_opt: ['highlightWinner', 'recommendation'],
     intents: ['compare', 'difference', 'vs', 'which one'], module: 'moduleItems',
@@ -109,7 +139,7 @@ const CORE_BLOCKS: Array<Omit<UnifiedBlockConfig, 'createdAt' | 'updatedAt' | 's
     moduleBinding: { sourceCollection: 'items', titleField: 'name', priceField: 'price', imageField: 'image', sortBy: 'popular', maxItems: 4 },
   },
   {
-    id: 'promo', verticalId: 'shared', family: 'marketing', label: 'Promo Banner', description: 'Promotional offer with discount code, countdown, or sale info',
+    id: 'ecom_promo', verticalId: 'shared', family: 'marketing', label: 'Promo Banner', description: 'Promotional offer with discount code, countdown, or sale info',
     stage: 'showcase', status: 'active',
     fields_req: ['title', 'description'], fields_opt: ['code', 'expiresAt', 'discountPercent', 'ctaLabel'],
     intents: ['offer', 'deal', 'discount', 'promo', 'sale'], module: null,
@@ -125,7 +155,7 @@ const CORE_BLOCKS: Array<Omit<UnifiedBlockConfig, 'createdAt' | 'updatedAt' | 's
     moduleBinding: { sourceCollection: 'items', titleField: 'name', priceField: 'price', imageField: 'image', sortBy: 'popular', maxItems: 5 },
   },
   {
-    id: 'cart', verticalId: 'shared', family: 'commerce', label: 'Cart', description: 'Shopping cart with line items, discounts, and checkout CTA',
+    id: 'ecom_cart', verticalId: 'shared', family: 'commerce', label: 'Cart', description: 'Shopping cart with line items, discounts, and checkout CTA',
     stage: 'conversion', status: 'active',
     fields_req: ['items', 'total', 'currency'], fields_opt: ['discount', 'deliveryFee', 'tax', 'promoCode'],
     intents: ['cart', 'checkout', 'order', 'buy', 'bag'], module: null,
@@ -133,7 +163,7 @@ const CORE_BLOCKS: Array<Omit<UnifiedBlockConfig, 'createdAt' | 'updatedAt' | 's
     moduleBinding: null,
   },
   {
-    id: 'order_confirmation', verticalId: 'shared', family: 'commerce', label: 'Order Confirmation', description: 'Post-purchase confirmation with order ID and delivery info',
+    id: 'ecom_order_confirmation', verticalId: 'shared', family: 'commerce', label: 'Order Confirmation', description: 'Post-purchase confirmation with order ID and delivery info',
     stage: 'followup', status: 'active',
     fields_req: ['orderId', 'items', 'total'], fields_opt: ['estimatedDelivery', 'trackingUrl'],
     intents: ['confirm', 'receipt', 'thank'], module: null,
@@ -141,7 +171,7 @@ const CORE_BLOCKS: Array<Omit<UnifiedBlockConfig, 'createdAt' | 'updatedAt' | 's
     moduleBinding: null,
   },
   {
-    id: 'order_tracker', verticalId: 'shared', family: 'commerce', label: 'Order Tracker', description: 'Live order status with timeline steps and tracking link',
+    id: 'ecom_order_tracker', verticalId: 'shared', family: 'commerce', label: 'Order Tracker', description: 'Live order status with timeline steps and tracking link',
     stage: 'followup', status: 'active',
     fields_req: ['orderId', 'status', 'steps'], fields_opt: ['estimatedArrival', 'carrier'],
     intents: ['track', 'status', 'where is', 'delivery'], module: null,
@@ -173,7 +203,7 @@ const CORE_BLOCKS: Array<Omit<UnifiedBlockConfig, 'createdAt' | 'updatedAt' | 's
     moduleBinding: null,
   },
   {
-    id: 'nudge', verticalId: 'shared', family: 'engagement', label: 'Smart Nudge', description: 'Non-blocking contextual suggestion, upsell, or info tip',
+    id: 'shared_nudge', verticalId: 'shared', family: 'engagement', label: 'Smart Nudge', description: 'Non-blocking contextual suggestion, upsell, or info tip',
     stage: 'social_proof', status: 'active',
     fields_req: ['message'], fields_opt: ['ctaLabel', 'ctaAction', 'icon', 'variant'],
     intents: [], module: null,
@@ -181,7 +211,7 @@ const CORE_BLOCKS: Array<Omit<UnifiedBlockConfig, 'createdAt' | 'updatedAt' | 's
     moduleBinding: null,
   },
   {
-    id: 'suggestions', verticalId: 'shared', family: 'shared', label: 'Quick Replies', description: 'Tappable suggestion chips for guided conversation flow',
+    id: 'shared_suggestions', verticalId: 'shared', family: 'shared', label: 'Quick Replies', description: 'Tappable suggestion chips for guided conversation flow',
     stage: 'greeting', status: 'active',
     fields_req: ['items'], fields_opt: ['title'],
     intents: [], module: null,
@@ -189,7 +219,7 @@ const CORE_BLOCKS: Array<Omit<UnifiedBlockConfig, 'createdAt' | 'updatedAt' | 's
     moduleBinding: null,
   },
   {
-    id: 'contact', verticalId: 'shared', family: 'support', label: 'Contact Card', description: 'Business contact info with click-to-call, email, WhatsApp',
+    id: 'shared_contact', verticalId: 'shared', family: 'support', label: 'Contact Card', description: 'Business contact info with click-to-call, email, WhatsApp',
     stage: 'handoff', status: 'active',
     fields_req: ['businessName'], fields_opt: ['phone', 'email', 'whatsapp', 'address', 'hours'],
     intents: ['contact', 'phone', 'email', 'reach', 'call'], module: null,
@@ -206,23 +236,29 @@ function buildAllBlockConfigs(): Array<Omit<UnifiedBlockConfig, 'createdAt' | 'u
 
   // 1. Core blocks (shared + ecommerce)
   for (const block of CORE_BLOCKS) {
+    const id = mapToRegistryId(block.id);
     const schemaType = resolvePromptSchemaType(block);
     allBlocks.push({
       ...block,
+      id,
       sampleData: {},
       promptSchema: PROMPT_SCHEMAS[schemaType] || PROMPT_SCHEMAS.text,
     });
-    seenIds.add(block.id);
+    seenIds.add(id);
   }
 
   // 2. Vertical blocks from manifest
   for (const vertical of VERTICAL_MANIFEST) {
     for (const mb of vertical.blocks) {
-      if (seenIds.has(mb.id)) continue;
-      seenIds.add(mb.id);
+      // Prefix bare vertical IDs with their vertical slug so they match
+      // the code registry (e.g. `room_card` → `hosp_room_card`).
+      const rawId = mb.id.includes('_') ? mb.id : `${vertical.id}_${mb.id}`;
+      const id = mapToRegistryId(rawId);
+      if (seenIds.has(id)) continue;
+      seenIds.add(id);
 
       const stub: Omit<UnifiedBlockConfig, 'createdAt' | 'updatedAt' | 'sampleData' | 'promptSchema'> = {
-        id: mb.id,
+        id,
         verticalId: vertical.id,
         family: mb.family,
         label: mb.label,
@@ -256,14 +292,14 @@ function buildAllBlockConfigs(): Array<Omit<UnifiedBlockConfig, 'createdAt' | 'u
 }
 
 const DEFAULT_STAGES = [
-  { id: 'greeting', label: 'Greeting', type: 'greeting', blockIds: ['greeting', 'suggestions'], intentTriggers: ['browsing'], leadScoreImpact: 1, isEntry: true },
-  { id: 'discovery', label: 'Discovery', type: 'discovery', blockIds: ['product_card', 'suggestions', 'skin_quiz'], intentTriggers: ['browsing', 'returning'], leadScoreImpact: 2 },
-  { id: 'showcase', label: 'Showcase', type: 'showcase', blockIds: ['product_detail', 'promo', 'bundle'], intentTriggers: ['pricing', 'promo'], leadScoreImpact: 3 },
-  { id: 'comparison', label: 'Comparison', type: 'comparison', blockIds: ['compare'], intentTriggers: ['comparing'], leadScoreImpact: 2 },
-  { id: 'social_proof', label: 'Social Proof', type: 'social_proof', blockIds: ['nudge', 'loyalty'], intentTriggers: ['inquiry'], leadScoreImpact: 1 },
-  { id: 'conversion', label: 'Conversion', type: 'conversion', blockIds: ['cart', 'booking', 'subscription', 'order_confirmation'], intentTriggers: ['booking', 'schedule'], leadScoreImpact: 5 },
-  { id: 'handoff', label: 'Handoff', type: 'handoff', blockIds: ['contact'], intentTriggers: ['contact', 'complaint', 'urgent'], leadScoreImpact: 0, isExit: true },
-  { id: 'followup', label: 'Follow-up', type: 'followup', blockIds: ['order_tracker', 'nudge'], intentTriggers: ['returning'], leadScoreImpact: 1 },
+  { id: 'greeting', label: 'Greeting', type: 'greeting', blockIds: ['ecom_greeting', 'shared_suggestions'], intentTriggers: ['browsing'], leadScoreImpact: 1, isEntry: true },
+  { id: 'discovery', label: 'Discovery', type: 'discovery', blockIds: ['ecom_product_card', 'shared_suggestions', 'skin_quiz'], intentTriggers: ['browsing', 'returning'], leadScoreImpact: 2 },
+  { id: 'showcase', label: 'Showcase', type: 'showcase', blockIds: ['ecom_product_detail', 'ecom_promo', 'bundle'], intentTriggers: ['pricing', 'promo'], leadScoreImpact: 3 },
+  { id: 'comparison', label: 'Comparison', type: 'comparison', blockIds: ['ecom_compare'], intentTriggers: ['comparing'], leadScoreImpact: 2 },
+  { id: 'social_proof', label: 'Social Proof', type: 'social_proof', blockIds: ['shared_nudge', 'loyalty'], intentTriggers: ['inquiry'], leadScoreImpact: 1 },
+  { id: 'conversion', label: 'Conversion', type: 'conversion', blockIds: ['ecom_cart', 'booking', 'subscription', 'ecom_order_confirmation'], intentTriggers: ['booking', 'schedule'], leadScoreImpact: 5 },
+  { id: 'handoff', label: 'Handoff', type: 'handoff', blockIds: ['shared_contact'], intentTriggers: ['contact', 'complaint', 'urgent'], leadScoreImpact: 0, isExit: true },
+  { id: 'followup', label: 'Follow-up', type: 'followup', blockIds: ['ecom_order_tracker', 'shared_nudge'], intentTriggers: ['returning'], leadScoreImpact: 1 },
 ];
 
 const DEFAULT_TRANSITIONS = [
@@ -313,7 +349,11 @@ export async function seedDefaultBlocksAction(): Promise<{ success: boolean; see
   try {
     const { ALL_BLOCKS_DATA, ALL_SUB_VERTICALS_DATA, SHARED_BLOCK_IDS_DATA } =
       await import('@/app/admin/relay/blocks/previews/_registry-data');
-    const categoriesMap = buildApplicableCategoriesMap(ALL_SUB_VERTICALS_DATA, SHARED_BLOCK_IDS_DATA);
+    const rawCategoriesMap = buildApplicableCategoriesMap(ALL_SUB_VERTICALS_DATA, SHARED_BLOCK_IDS_DATA);
+    // Remap applicableCategories keys so lookups by the prefixed doc ID work.
+    const categoriesMap = new Map<string, string[]>(
+      Array.from(rawCategoriesMap, ([k, v]) => [mapToRegistryId(k), v])
+    );
 
     // Read existing docs — skip blocks that already exist (preserves admin toggles)
     const existingSnap = await adminDb.collection('relayBlockConfigs').get();
@@ -322,14 +362,15 @@ export async function seedDefaultBlocksAction(): Promise<{ success: boolean; see
     const now = new Date().toISOString();
 
     for (const block of ALL_BLOCKS_DATA) {
-      if (existingIds.has(block.id)) {
+      const docId = mapToRegistryId(block.id);
+      if (existingIds.has(docId)) {
         skipped++;
         continue;
       }
 
       const schemaType = resolvePromptSchemaType(block);
-      await adminDb.collection('relayBlockConfigs').doc(block.id).set({
-        id: block.id,
+      await adminDb.collection('relayBlockConfigs').doc(docId).set({
+        id: docId,
         verticalId: '',
         family: block.family,
         label: block.label,
@@ -347,7 +388,7 @@ export async function seedDefaultBlocksAction(): Promise<{ success: boolean; see
         streamable: false,
         cacheDuration: 300,
         variants: [],
-        applicableCategories: categoriesMap.get(block.id) ?? [],
+        applicableCategories: categoriesMap.get(docId) ?? [],
         createdAt: now,
         updatedAt: now,
       });
@@ -373,8 +414,12 @@ export async function syncRegistryToFirestoreAction(): Promise<{
   try {
     const { ALL_BLOCKS_DATA, ALL_SUB_VERTICALS_DATA, SHARED_BLOCK_IDS_DATA } =
       await import('@/app/admin/relay/blocks/previews/_registry-data');
-    const categoriesMap = buildApplicableCategoriesMap(ALL_SUB_VERTICALS_DATA, SHARED_BLOCK_IDS_DATA);
-    const registryIds = new Set(ALL_BLOCKS_DATA.map(b => b.id));
+    const rawCategoriesMap = buildApplicableCategoriesMap(ALL_SUB_VERTICALS_DATA, SHARED_BLOCK_IDS_DATA);
+    // Remap applicableCategories keys so lookups by the prefixed doc ID work.
+    const categoriesMap = new Map<string, string[]>(
+      Array.from(rawCategoriesMap, ([k, v]) => [mapToRegistryId(k), v])
+    );
+    const registryIds = new Set(ALL_BLOCKS_DATA.map(b => mapToRegistryId(b.id)));
 
     const existingSnap = await adminDb.collection('relayBlockConfigs').get();
     const existingMap = new Map(existingSnap.docs.map(d => [d.id, d]));
@@ -382,16 +427,17 @@ export async function syncRegistryToFirestoreAction(): Promise<{
     const now = new Date().toISOString();
 
     for (const block of ALL_BLOCKS_DATA) {
-      const applicableCategories = categoriesMap.get(block.id) ?? [];
+      const docId = mapToRegistryId(block.id);
+      const applicableCategories = categoriesMap.get(docId) ?? [];
 
-      if (existingMap.has(block.id)) {
+      if (existingMap.has(docId)) {
         // Keep existing doc but refresh applicableCategories so filter keeps working
         // after registry changes without blowing away admin-managed fields.
-        const existing = existingMap.get(block.id)!.data();
+        const existing = existingMap.get(docId)!.data();
         const needsUpdate =
           JSON.stringify(existing.applicableCategories ?? []) !== JSON.stringify(applicableCategories);
         if (needsUpdate) {
-          await adminDb.collection('relayBlockConfigs').doc(block.id).update({
+          await adminDb.collection('relayBlockConfigs').doc(docId).update({
             applicableCategories,
             updatedAt: now,
           });
@@ -401,8 +447,8 @@ export async function syncRegistryToFirestoreAction(): Promise<{
       }
 
       const schemaType = resolvePromptSchemaType(block);
-      await adminDb.collection('relayBlockConfigs').doc(block.id).set({
-        id: block.id,
+      await adminDb.collection('relayBlockConfigs').doc(docId).set({
+        id: docId,
         verticalId: '',
         family: block.family,
         label: block.label,
@@ -440,6 +486,7 @@ export async function syncRegistryToFirestoreAction(): Promise<{
     invalidateBlockConfigCache();
     revalidatePath('/admin/relay');
     revalidatePath('/admin/relay/blocks');
+    console.log('[syncRegistry] wrote', { added, deprecated, unchanged });
     return { success: true, added, deprecated, unchanged };
   } catch (err: unknown) {
     return { success: false, added, deprecated, unchanged, error: err instanceof Error ? err.message : 'Unknown error' };

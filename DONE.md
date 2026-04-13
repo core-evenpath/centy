@@ -907,3 +907,14 @@ RelayWidget (container)
 - Validation: grep "mapItemToProductData|RELAY_BLOCK_SCHEMAS|relay-chat-schemas" → 0 hits. tsc --noEmit: no new errors introduced (only pre-existing missing-deps + TS5101 baseUrl noise).
 
 Code execution completed
+
+## Relay Block Rendering Pipeline Fix — 2026-04-13
+- Gap 1: src/components/relay/RegistryBlockRenderer.tsx now primes the registry at module load (top-level ensureRegistry() call) AND as the first statement of the component body; Component state uses a lazy useState initializer so getBlock() resolves synchronously on first paint — eliminates the Loading... flash.
+- Gap 2: Aligned Firestore relayBlockConfigs doc IDs to the code registry IDs. Added CODE_REGISTRY_ID_MAP + mapToRegistryId() in src/actions/relay-admin-actions.ts. syncRegistryToFirestoreAction and seedDefaultBlocksAction now write prefixed IDs (ecom_*, shared_*) for greeting / product_card / product_detail / compare / cart / order_confirmation / order_tracker / promo / nudge / suggestions / contact. buildAllBlockConfigs also prefixes bare VERTICAL_MANIFEST IDs with their vertical slug (e.g. room_card → hosp_room_card) before remapping.
+- Also updated dead-code CORE_BLOCKS + DEFAULT_STAGES in src/actions/relay-admin-actions.ts for spec consistency, and expanded resolvePromptSchemaType idMap with prefixed keys so the schema type stays correct after remap.
+- Updated scripts/extract-block-registry-data.js SHARED_BLOCKS_DATA to use prefixed IDs so future regenerations of _registry-data.ts stay aligned.
+- Gap 3: Verified /api/relay/chat wiring — getActiveBlocksForPartner + buildBlockSchemasFromConfigs imported and used, blockSchemas inlined into Gemini systemPrompt, agentConfigMap threaded to buildSessionData + populateBlock. No changes needed.
+- Follow-up: a one-off admin sweep can migrate admin-managed fields (e.g. applicableCategories, status) from any short-id relayBlockConfigs docs to their prefixed counterparts and delete the dangling short-id docs. Not included in this PR for safety.
+- Validation: tsc diff vs baseline shows only line-number shifts; zero new errors. Greps confirm prefixed IDs in CORE_BLOCKS / CODE_REGISTRY_ID_MAP / DEFAULT_STAGES and ensureRegistry() at both module and component scope.
+
+Code execution completed

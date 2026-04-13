@@ -127,12 +127,12 @@ export interface ServerSubVerticalData {
 }
 
 const SHARED_BLOCKS_DATA: ServerBlockData[] = [
-  { id: 'greeting', family: 'shared', label: 'Greeting', stage: 'greeting', desc: 'Welcome message with brand identity and quick action buttons', intents: ['hello', 'hi', 'start', 'hey'], module: null, status: 'active' },
-  { id: 'suggestions', family: 'shared', label: 'Quick Replies', stage: 'greeting', desc: 'Tappable suggestion chips for guided conversation flow', intents: [], module: null, status: 'active' },
-  { id: 'nudge', family: 'shared', label: 'Smart Nudge', stage: 'social_proof', desc: 'Non-blocking contextual suggestion, upsell, or info tip', intents: [], module: null, status: 'active' },
-  { id: 'promo', family: 'shared', label: 'Promo Banner', stage: 'showcase', desc: 'Promotional offer with discount code, countdown, or sale info', intents: ['offer', 'deal', 'discount', 'promo', 'sale'], module: null, status: 'active' },
-  { id: 'cart', family: 'shared', label: 'Cart', stage: 'conversion', desc: 'Shopping cart with line items, discounts, and checkout CTA', intents: ['cart', 'checkout', 'order', 'buy'], module: null, status: 'active' },
-  { id: 'contact', family: 'shared', label: 'Contact Card', stage: 'handoff', desc: 'Business contact info with click-to-call, email, WhatsApp', intents: ['contact', 'phone', 'email', 'reach', 'call'], module: null, status: 'active' },
+  { id: 'ecom_greeting', family: 'shared', label: 'Greeting', stage: 'greeting', desc: 'Welcome message with brand identity and quick action buttons', intents: ['hello', 'hi', 'start', 'hey'], module: null, status: 'active' },
+  { id: 'shared_suggestions', family: 'shared', label: 'Quick Replies', stage: 'greeting', desc: 'Tappable suggestion chips for guided conversation flow', intents: [], module: null, status: 'active' },
+  { id: 'shared_nudge', family: 'shared', label: 'Smart Nudge', stage: 'social_proof', desc: 'Non-blocking contextual suggestion, upsell, or info tip', intents: [], module: null, status: 'active' },
+  { id: 'ecom_promo', family: 'shared', label: 'Promo Banner', stage: 'showcase', desc: 'Promotional offer with discount code, countdown, or sale info', intents: ['offer', 'deal', 'discount', 'promo', 'sale'], module: null, status: 'active' },
+  { id: 'ecom_cart', family: 'shared', label: 'Cart', stage: 'conversion', desc: 'Shopping cart with line items, discounts, and checkout CTA', intents: ['cart', 'checkout', 'order', 'buy'], module: null, status: 'active' },
+  { id: 'shared_contact', family: 'shared', label: 'Contact Card', stage: 'handoff', desc: 'Business contact info with click-to-call, email, WhatsApp', intents: ['contact', 'phone', 'email', 'reach', 'call'], module: null, status: 'active' },
 ];
 
 export const SHARED_BLOCK_IDS_DATA: string[] = SHARED_BLOCKS_DATA.map(b => b.id);
