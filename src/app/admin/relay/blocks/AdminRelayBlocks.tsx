@@ -153,24 +153,53 @@ export default function AdminRelayBlocks({ initialBlocks }: Props) {
 
   const handleSeed = async () => {
     setSeeding(true);
-    await seedDefaultBlocksAction();
-    setSeeding(false);
-    window.location.reload();
+    try {
+      const res = await seedDefaultBlocksAction();
+      if (!res.success) {
+        window.alert(`Seed failed: ${res.error || 'unknown error'}`);
+        setSeeding(false);
+        return;
+      }
+      window.alert(`Seeded ${res.seeded} block(s), skipped ${res.skipped}.`);
+      window.location.reload();
+    } catch (e: any) {
+      window.alert(`Seed threw: ${e?.message || e}`);
+      setSeeding(false);
+    }
   };
 
   const handleReset = async () => {
     if (!window.confirm('Are you sure you want to reset all block configs? This cannot be undone.')) return;
     setResetting(true);
-    await resetAllBlockConfigsAction();
-    setResetting(false);
-    window.location.reload();
+    try {
+      const res = await resetAllBlockConfigsAction();
+      if (!res.success) {
+        window.alert(`Reset failed: ${res.error || 'unknown error'}`);
+        setResetting(false);
+        return;
+      }
+      window.location.reload();
+    } catch (e: any) {
+      window.alert(`Reset threw: ${e?.message || e}`);
+      setResetting(false);
+    }
   };
 
   const handleSync = async () => {
     setSyncing(true);
-    await syncRegistryToFirestoreAction();
-    setSyncing(false);
-    window.location.reload();
+    try {
+      const res = await syncRegistryToFirestoreAction();
+      if (!res.success) {
+        window.alert(`Sync failed: ${res.error || 'unknown error'}`);
+        setSyncing(false);
+        return;
+      }
+      window.alert(`Sync complete — added ${res.added}, unchanged ${res.unchanged}, deprecated ${res.deprecated}.`);
+      window.location.reload();
+    } catch (e: any) {
+      window.alert(`Sync threw: ${e?.message || e}`);
+      setSyncing(false);
+    }
   };
 
   const handleBulkToggle = async (enabled: boolean) => {

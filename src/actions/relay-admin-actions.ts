@@ -310,8 +310,9 @@ export async function seedDefaultBlocksAction(): Promise<{ success: boolean; see
   let skipped = 0;
 
   try {
-    const { ALL_BLOCKS, ALL_SUB_VERTICALS, SHARED_BLOCK_IDS } = await import('@/app/admin/relay/blocks/previews/registry');
-    const categoriesMap = buildApplicableCategoriesMap(ALL_SUB_VERTICALS, SHARED_BLOCK_IDS);
+    const { ALL_BLOCKS_DATA, ALL_SUB_VERTICALS_DATA, SHARED_BLOCK_IDS_DATA } =
+      await import('@/app/admin/relay/blocks/previews/_registry-data');
+    const categoriesMap = buildApplicableCategoriesMap(ALL_SUB_VERTICALS_DATA, SHARED_BLOCK_IDS_DATA);
 
     // Read existing docs — skip blocks that already exist (preserves admin toggles)
     const existingSnap = await adminDb.collection('relayBlockConfigs').get();
@@ -319,7 +320,7 @@ export async function seedDefaultBlocksAction(): Promise<{ success: boolean; see
 
     const now = new Date().toISOString();
 
-    for (const block of ALL_BLOCKS) {
+    for (const block of ALL_BLOCKS_DATA) {
       if (existingIds.has(block.id)) {
         skipped++;
         continue;
@@ -369,16 +370,17 @@ export async function syncRegistryToFirestoreAction(): Promise<{
   let unchanged = 0;
 
   try {
-    const { ALL_BLOCKS, ALL_SUB_VERTICALS, SHARED_BLOCK_IDS } = await import('@/app/admin/relay/blocks/previews/registry');
-    const categoriesMap = buildApplicableCategoriesMap(ALL_SUB_VERTICALS, SHARED_BLOCK_IDS);
-    const registryIds = new Set(ALL_BLOCKS.map(b => b.id));
+    const { ALL_BLOCKS_DATA, ALL_SUB_VERTICALS_DATA, SHARED_BLOCK_IDS_DATA } =
+      await import('@/app/admin/relay/blocks/previews/_registry-data');
+    const categoriesMap = buildApplicableCategoriesMap(ALL_SUB_VERTICALS_DATA, SHARED_BLOCK_IDS_DATA);
+    const registryIds = new Set(ALL_BLOCKS_DATA.map(b => b.id));
 
     const existingSnap = await adminDb.collection('relayBlockConfigs').get();
     const existingMap = new Map(existingSnap.docs.map(d => [d.id, d]));
 
     const now = new Date().toISOString();
 
-    for (const block of ALL_BLOCKS) {
+    for (const block of ALL_BLOCKS_DATA) {
       const applicableCategories = categoriesMap.get(block.id) ?? [];
 
       if (existingMap.has(block.id)) {
