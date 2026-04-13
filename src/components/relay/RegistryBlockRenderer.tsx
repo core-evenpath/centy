@@ -14,6 +14,10 @@ function ensureRegistry(): void {
   }
 }
 
+// Prime the registry at module load so the first render can resolve
+// getBlock() synchronously without a Loading... flash.
+ensureRegistry();
+
 interface RegistryBlockRendererProps {
   blockId: string;
   data: Record<string, any>;
@@ -30,11 +34,19 @@ export default function RegistryBlockRenderer({
   variant,
   overrides,
 }: RegistryBlockRendererProps) {
-  const [Component, setComponent] = useState<React.ComponentType<BlockComponentProps> | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  // Belt-and-braces: also ensure the registry is primed before any getBlock()
+  // call, in case a lazy/SSR entry point imports the component without running
+  // the module-level initializer.
+  ensureRegistry();
+
+  const [Component, setComponent] = useState<React.ComponentType<BlockComponentProps> | null>(
+    () => getBlock(blockId)?.component ?? null
+  );
+  const [error, setError] = useState<string | null>(
+    () => (getBlock(blockId) ? null : `Block "${blockId}" not found`)
+  );
 
   useEffect(() => {
-    ensureRegistry();
     const entry = getBlock(blockId);
     if (entry) {
       setComponent(() => entry.component);
