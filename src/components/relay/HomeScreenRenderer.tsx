@@ -1,19 +1,19 @@
 'use client';
 
-import RegistryBlockRenderer from './RegistryBlockRenderer';
-import type { BlockTheme } from '@/lib/relay/types';
+import BlockRenderer from './blocks/BlockRenderer';
+import type { RelayBlock } from './blocks/BlockRenderer';
+import type { RelayTheme } from './blocks/types';
 import type { PreloadedBlock } from '@/lib/relay/preloader';
 
 interface HomeScreenRendererProps {
   preloadedBlocks: PreloadedBlock[];
-  theme: BlockTheme;
+  theme: RelayTheme;
   onSuggestionTap?: (text: string) => void;
 }
 
 export default function HomeScreenRenderer({
   preloadedBlocks,
   theme,
-  onSuggestionTap,
 }: HomeScreenRendererProps) {
   if (preloadedBlocks.length === 0) {
     return (
@@ -27,9 +27,8 @@ export default function HomeScreenRenderer({
     <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
       {preloadedBlocks.map((block) => (
         <div key={block.blockId}>
-          <RegistryBlockRenderer
-            blockId={block.blockId}
-            data={block.data}
+          <BlockRenderer
+            block={{ type: block.blockId, ...(block.data || {}) } as RelayBlock}
             theme={theme}
           />
         </div>

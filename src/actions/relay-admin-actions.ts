@@ -7,11 +7,11 @@ import { VERTICAL_MANIFEST } from '@/app/admin/relay/blocks/previews/_manifest';
 import type { UnifiedBlockConfig } from '@/lib/relay/types';
 
 // ── Code-registry ID alignment ───────────────────────────────────────
-// The client block components in `src/lib/relay/blocks/**` register
-// themselves with prefixed IDs (`ecom_*`, `shared_*`). Historically the
-// admin seeders wrote Firestore docs with the short IDs. Map short → prefixed
-// at write time so `getActiveBlocksForPartner()` returns IDs the client
-// `RegistryBlockRenderer` can resolve.
+// Legacy seed IDs (short: `greeting`, `product_card`, …) are remapped to
+// the prefixed IDs (`ecom_*`, `shared_*`) used by `src/lib/relay/blocks/**`
+// at write time. BlockRenderer dispatches on `block.type` (gemini response
+// type) so this alignment is a backstop for any consumer that still reads
+// the Firestore block IDs directly.
 
 const CODE_REGISTRY_ID_MAP: Record<string, string> = {
   greeting: 'ecom_greeting',

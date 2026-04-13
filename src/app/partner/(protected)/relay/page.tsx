@@ -16,8 +16,6 @@ import RelayChatSetup from '@/components/partner/relay/RelayChatSetup';
 import RelayStorefrontManager from '@/components/partner/relay/RelayStorefrontManager';
 import BlockRenderer from '@/components/relay/blocks/BlockRenderer';
 import type { RelayBlock } from '@/components/relay/blocks/BlockRenderer';
-import RegistryBlockRenderer from '@/components/relay/RegistryBlockRenderer';
-import type { BlockTheme } from '@/lib/relay/types';
 import RelayBlockExplorer from './RelayBlockExplorer';
 import { DEFAULT_THEME } from '@/components/relay/blocks/types';
 import type { RelayTheme, BlockCallbacks } from '@/components/relay/blocks/types';
@@ -103,29 +101,6 @@ function buildThemeFromAccent(accent: string): RelayTheme {
     };
 }
 
-function relayThemeToBlockTheme(rt: RelayTheme): BlockTheme {
-    return {
-        accent: rt.accent,
-        accentBg: rt.accentBg,
-        accentBg2: rt.accentBg2,
-        bg: rt.bg,
-        surface: rt.surface,
-        t1: rt.text,
-        t2: rt.t2,
-        t3: rt.t3,
-        t4: rt.t4,
-        bdr: rt.bdr,
-        bdrM: rt.bdrL,
-        green: rt.green,
-        greenBg: rt.greenBg,
-        greenBdr: rt.greenBdr,
-        red: rt.red,
-        redBg: 'rgba(220,38,38,0.05)',
-        amber: '#d97706',
-        amberBg: 'rgba(217,119,6,0.06)',
-    };
-}
-
 // ── Chat message type ────────────────────────────────────────────────
 
 interface ChatMessage {
@@ -133,8 +108,6 @@ interface ChatMessage {
     content: string;
     block?: RelayBlock;
     type?: string;
-    blockId?: string;
-    blockData?: Record<string, any>;
 }
 
 export default function PartnerRelayPage() {
@@ -330,25 +303,17 @@ export default function PartnerRelayPage() {
             const data = await res.json();
 
             if (data.success && data.response) {
-                // Server populates blockId + blockData from Modules/Core. The
-                // client is a dumb renderer: if blockId is set, render it; else
-                // fall back to plain text + suggestions.
-                const serverBlockId: string | undefined = data.response.blockId;
-                const serverBlockData = data.response.blockData;
-                const geminiType = data.response.type;
-
-                const fallbackBlock: RelayBlock = {
-                    type: 'text',
-                    text: data.response.text || '',
-                    suggestions: data.response.suggestions || [],
-                };
+                // Render everything through BlockRenderer — it dispatches on
+                // `block.type` (catalog / greeting / contact / compare / promo / …).
+                // The server response is already in RelayBlock shape.
+                const block: RelayBlock = data.response.type
+                    ? (data.response as RelayBlock)
+                    : { type: 'text', text: data.response.text || '', suggestions: data.response.suggestions || [] };
                 const assistantMsg: ChatMessage = {
                     role: 'assistant',
                     content: data.response.text || '',
-                    block: serverBlockId ? (data.response as RelayBlock) : fallbackBlock,
-                    type: serverBlockId ? geminiType : 'text',
-                    blockId: serverBlockId,
-                    blockData: serverBlockData,
+                    block,
+                    type: block.type,
                 };
                 setChatMessages(prev => [...prev, assistantMsg]);
             } else {
@@ -498,25 +463,7 @@ export default function PartnerRelayPage() {
                                                     {config.brandEmoji || '🤖'}
                                                 </div>
                                                 <div className="max-w-[90%] space-y-2">
-                                                    {msg.blockId && msg.blockData ? (
-                                                        <>
-                                                            <RegistryBlockRenderer
-                                                                blockId={msg.blockId}
-                                                                data={msg.blockData}
-                                                                theme={relayThemeToBlockTheme(relayTheme)}
-                                                            />
-                                                            {msg.block?.suggestions && msg.block.suggestions.length > 0 && (
-                                                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginTop: '8px' }}>
-                                                                    {msg.block.suggestions.map((s: string, j: number) => (
-                                                                        <button key={j} onClick={() => sendChatMessage(s)}
-                                                                            style={{ padding: '5px 12px', borderRadius: '99px', border: `1px solid ${relayTheme.bdrL}`, background: relayTheme.surface, fontSize: '11px', color: relayTheme.accent, cursor: 'pointer', fontWeight: 500 }}>
-                                                                            {s}
-                                                                        </button>
-                                                                    ))}
-                                                                </div>
-                                                            )}
-                                                        </>
-                                                    ) : msg.block ? (
+                                                    {msg.block ? (
                                                         <BlockRenderer
                                                             block={msg.block}
                                                             theme={relayTheme}
@@ -532,11 +479,6 @@ export default function PartnerRelayPage() {
                                                     {msg.type && msg.type !== 'text' && (
                                                         <Badge variant="outline" className="text-[10px]">
                                                             {msg.type}
-                                                        </Badge>
-                                                    )}
-                                                    {msg.blockId && (
-                                                        <Badge variant="outline" className="text-[10px] ml-1">
-                                                            {msg.blockId}
                                                         </Badge>
                                                     )}
                                                 </div>
