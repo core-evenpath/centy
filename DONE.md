@@ -1,3 +1,47 @@
+## Partner Relay Test Chat — iPhone-frame UX redesign — 2026-04-13
+
+Replicated the `/admin/relay/flows` phone-simulator experience in the
+`/partner/relay` Test Chat tab. Split into modular files so each can be
+reviewed and type-checked independently.
+
+New files under `src/components/partner/relay/test-chat/`:
+
+- `TestChatBubbles.tsx` — themed `BotAvatar`, `BotBubble`, `UserBubble`,
+  `TypingIndicator`, `SuggestionChips`, `EmptyChat` primitives
+  (`RelayTheme`-driven, 28px avatars, 12px bot bubble radius, asymmetric
+  16/4 user bubble, `testChatPulse` typing animation, 36px-indented chip
+  row).
+- `TestChatPhoneFrame.tsx` — 375×720 iPhone chrome (6px bezel, 32px
+  outer radius, notch).
+- `TestChatHeader.tsx` — brand avatar + name + "Test Chat" sub-label,
+  optional pill Clear button.
+- `TestChatMessages.tsx` — scrollable list composing bubbles,
+  `BlockRenderer`, suggestion chips, typing indicator, empty state.
+- `TestChatInput.tsx` — pill input + circular accent send FAB, owns
+  local input state and submits on Enter.
+- `TestChatPanel.tsx` — top-level composition (`Frame → Header →
+  Messages → Input`), stateless wrapper.
+
+Partner page integration (`src/app/partner/(protected)/relay/page.tsx`):
+
+- Replaced the ~120-line Test Chat `<Card>` with a single
+  `<TestChatPanel ... />` call.
+- Dropped welcome-message auto-injection + `welcomeShown` state — the
+  welcome is now surfaced through `EmptyChat` as tagline until the
+  visitor sends their first message.
+- Removed `chatInput` state, `chatEndRef`, and `useRef` import (input
+  state lives in `TestChatInput`; scroll lives in `TestChatMessages`).
+- Simplified `sendChatMessage` to take a required string argument.
+- Trimmed now-unused icon imports (`Send`, `Bot`, `User`, `Trash2`) and
+  the direct `BlockRenderer` import.
+
+Verified: remaining TS errors in new files are environmental (React
+types unavailable in sandbox) and mirror identical false positives in
+the already-shipping `admin/relay/flows` tree. No regressions in pre-
+existing `BadgeProps` errors (2 remain; 2 removed by the swap).
+
+---
+
 ## Navigation, Brand & SEO — Done
 
 ### Navigation

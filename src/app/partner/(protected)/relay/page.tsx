@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useCallback, useRef, useMemo } from 'react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
 import { useMultiWorkspaceAuth } from '@/hooks/use-multi-workspace-auth';
 import Link from 'next/link';
 import {
@@ -14,8 +14,8 @@ import { getRegisteredBlocksAction } from '@/actions/block-builder-actions';
 import type { BlockListItem } from '@/actions/block-builder-actions';
 import RelayChatSetup from '@/components/partner/relay/RelayChatSetup';
 import RelayStorefrontManager from '@/components/partner/relay/RelayStorefrontManager';
-import BlockRenderer from '@/components/relay/blocks/BlockRenderer';
 import type { RelayBlock } from '@/components/relay/blocks/BlockRenderer';
+import TestChatPanel from '@/components/partner/relay/test-chat/TestChatPanel';
 import RelayBlockExplorer from './RelayBlockExplorer';
 import { DEFAULT_THEME } from '@/components/relay/blocks/types';
 import type { RelayTheme, BlockCallbacks } from '@/components/relay/blocks/types';
@@ -38,12 +38,8 @@ import {
     XCircle,
     Loader2,
     Save,
-    Send,
-    Bot,
-    User,
     ExternalLink,
     Play,
-    Trash2,
     GitBranch,
     Layers,
 } from 'lucide-react';
@@ -132,11 +128,8 @@ export default function PartnerRelayPage() {
 
     // Chat test state
     const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
-    const [chatInput, setChatInput] = useState('');
     const [chatSending, setChatSending] = useState(false);
     const [conversationId] = useState(() => `test_${Date.now()}`);
-    const chatEndRef = useRef<HTMLDivElement>(null);
-    const [welcomeShown, setWelcomeShown] = useState(false);
 
     // Compute relay theme from accent color
     const relayTheme = useMemo(() => buildThemeFromAccent(config.accentColor), [config.accentColor]);
@@ -158,23 +151,6 @@ export default function PartnerRelayPage() {
             }
         })();
     }, [partnerId]);
-
-    // ── Show welcome message ─────────────────────────────────────────
-
-    useEffect(() => {
-        if (!configLoading && config.welcomeMessage && !welcomeShown) {
-            setWelcomeShown(true);
-            setChatMessages([{
-                role: 'assistant',
-                content: config.welcomeMessage,
-                block: {
-                    type: 'text',
-                    text: config.welcomeMessage,
-                    suggestions: ['What do you offer?', 'Show me your services', 'How to reach you?'],
-                },
-            }]);
-        }
-    }, [configLoading, config.welcomeMessage, welcomeShown]);
 
     // ── BlockRenderer callbacks ───────────────────────────────────────
 
@@ -279,14 +255,13 @@ export default function PartnerRelayPage() {
 
     // ── Chat test ────────────────────────────────────────────────────
 
-    const sendChatMessage = async (messageText?: string) => {
-        const text = messageText || chatInput.trim();
+    const sendChatMessage = async (messageText: string) => {
+        const text = messageText.trim();
         if (!text || !partnerId || chatSending) return;
 
         const userMsg: ChatMessage = { role: 'user', content: text };
         const updatedMessages = [...chatMessages, userMsg];
         setChatMessages(updatedMessages);
-        setChatInput('');
         setChatSending(true);
 
         try {
@@ -331,10 +306,6 @@ export default function PartnerRelayPage() {
             setChatSending(false);
         }
     };
-
-    useEffect(() => {
-        chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-    }, [chatMessages]);
 
     // ── Loading / auth guard ─────────────────────────────────────────
 
@@ -407,126 +378,17 @@ export default function PartnerRelayPage() {
 
                 {/* ── Section 0: Test Chat ──────────────────────────── */}
                 <TabsContent value="test" className="space-y-6">
-                    <Card className="flex flex-col" style={{ height: '680px' }}>
-                        <CardHeader className="pb-3 flex-row items-center justify-between space-y-0">
-                            <div>
-                                <CardTitle className="text-base flex items-center gap-2">
-                                    {config.brandName || 'Relay'} <Badge variant="secondary" className="text-[10px]">Test Chat</Badge>
-                                </CardTitle>
-                                <CardDescription className="mt-1">
-                                    Chat as a visitor would. Responses render through BlockRenderer.
-                                </CardDescription>
-                            </div>
-                            {chatMessages.length > 1 && (
-                                <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    className="text-xs"
-                                    onClick={() => { setChatMessages([]); setWelcomeShown(false); }}
-                                >
-                                    <Trash2 className="h-3.5 w-3.5 mr-1" /> Clear
-                                </Button>
-                            )}
-                        </CardHeader>
-                        <CardContent className="flex-1 flex flex-col min-h-0 pb-4">
-                            {/* Messages area */}
-                            <div
-                                className="flex-1 overflow-y-auto space-y-4 mb-4 p-4 rounded-lg"
-                                style={{ backgroundColor: relayTheme.bg }}
-                            >
-                                {chatMessages.length === 0 && (
-                                    <div className="flex flex-col items-center justify-center h-full text-center text-muted-foreground">
-                                        <Bot className="h-10 w-10 mb-3 opacity-50" />
-                                        <p className="text-sm font-medium">Start a conversation</p>
-                                        <p className="text-xs mt-1">Try asking about your products, services, or pricing</p>
-                                    </div>
-                                )}
-
-                                {chatMessages.map((msg, i) => (
-                                    <div key={i}>
-                                        {msg.role === 'user' ? (
-                                            /* User message — right-aligned accent bubble */
-                                            <div className="flex gap-2 justify-end">
-                                                <div
-                                                    className="max-w-[80%] rounded-2xl rounded-br-sm px-4 py-2.5 text-sm text-white"
-                                                    style={{ backgroundColor: relayTheme.accent }}
-                                                >
-                                                    <p className="whitespace-pre-wrap">{msg.content}</p>
-                                                </div>
-                                            </div>
-                                        ) : (
-                                            /* Bot message — rendered through BlockRenderer */
-                                            <div className="flex gap-2 justify-start">
-                                                <div className="w-7 h-7 rounded-full flex items-center justify-center shrink-0 mt-0.5 text-sm"
-                                                    style={{ backgroundColor: relayTheme.accentBg2 }}
-                                                >
-                                                    {config.brandEmoji || '🤖'}
-                                                </div>
-                                                <div className="max-w-[90%] space-y-2">
-                                                    {msg.block ? (
-                                                        <BlockRenderer
-                                                            block={msg.block}
-                                                            theme={relayTheme}
-                                                            callbacks={blockCallbacks}
-                                                        />
-                                                    ) : (
-                                                        <div className="rounded-lg px-3 py-2 text-sm bg-white border"
-                                                            style={{ borderColor: relayTheme.bdrL }}
-                                                        >
-                                                            <p className="whitespace-pre-wrap">{msg.content}</p>
-                                                        </div>
-                                                    )}
-                                                    {msg.type && msg.type !== 'text' && (
-                                                        <Badge variant="outline" className="text-[10px]">
-                                                            {msg.type}
-                                                        </Badge>
-                                                    )}
-                                                </div>
-                                            </div>
-                                        )}
-                                    </div>
-                                ))}
-
-                                {chatSending && (
-                                    <div className="flex gap-2">
-                                        <div className="w-7 h-7 rounded-full flex items-center justify-center shrink-0 text-sm"
-                                            style={{ backgroundColor: relayTheme.accentBg2 }}
-                                        >
-                                            {config.brandEmoji || '🤖'}
-                                        </div>
-                                        <div className="rounded-lg px-4 py-3 bg-white border" style={{ borderColor: relayTheme.bdrL }}>
-                                            <div className="flex gap-1">
-                                                <span className="w-2 h-2 rounded-full animate-bounce" style={{ backgroundColor: relayTheme.t4, animationDelay: '0ms' }} />
-                                                <span className="w-2 h-2 rounded-full animate-bounce" style={{ backgroundColor: relayTheme.t4, animationDelay: '150ms' }} />
-                                                <span className="w-2 h-2 rounded-full animate-bounce" style={{ backgroundColor: relayTheme.t4, animationDelay: '300ms' }} />
-                                            </div>
-                                        </div>
-                                    </div>
-                                )}
-                                <div ref={chatEndRef} />
-                            </div>
-
-                            {/* Input area */}
-                            <div className="flex gap-2">
-                                <Input
-                                    value={chatInput}
-                                    onChange={e => setChatInput(e.target.value)}
-                                    onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendChatMessage(); } }}
-                                    placeholder="Type a message..."
-                                    disabled={chatSending}
-                                    className="flex-1"
-                                />
-                                <Button
-                                    onClick={() => sendChatMessage()}
-                                    disabled={!chatInput.trim() || chatSending}
-                                    size="icon"
-                                    style={{ backgroundColor: relayTheme.accent }}
-                                >
-                                    <Send className="h-4 w-4" />
-                                </Button>
-                            </div>
-                        </CardContent>
-                    </Card>
+                    <TestChatPanel
+                        brandName={config.brandName || 'Relay'}
+                        brandEmoji={config.brandEmoji}
+                        tagline={config.welcomeMessage || config.tagline}
+                        theme={relayTheme}
+                        messages={chatMessages}
+                        sending={chatSending}
+                        onSend={sendChatMessage}
+                        onClear={() => setChatMessages([])}
+                        callbacks={blockCallbacks}
+                    />
                 </TabsContent>
 
                 {/* ── Section 1: Setup ──────────────────────────────── */}
