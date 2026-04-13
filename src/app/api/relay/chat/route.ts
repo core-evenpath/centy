@@ -11,6 +11,7 @@ import { createInitialFlowState, detectIntent, runFlowEngine } from '@/lib/flow-
 import { getFlowTemplateForFunction } from '@/lib/flow-templates';
 import type { ConversationFlowState, FlowDefinition, FlowEngineDecision } from '@/lib/types-flow-engine';
 import { buildSessionData, populateBlock } from '@/lib/relay/rag-populator';
+import type { ModuleAgentConfig } from '@/lib/modules/types';
 
 const genAI = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || '' });
 const RELAY_CHAT_MODEL = 'gemini-3.1-pro-preview';
@@ -89,12 +90,16 @@ export async function POST(request: NextRequest) {
 
         // ── MODULES: enabled modules + items (no details to Gemini) ──────
         const moduleConfigs: Array<{ slug: string; name: string; items: any[]; summary: string }> = [];
+        const agentConfigMap = new Map<string, ModuleAgentConfig>();
         const partnerModulesResult = await getPartnerModulesAction(partnerId);
         const partnerModules = partnerModulesResult.success ? partnerModulesResult.data || [] : [];
 
         for (const pm of partnerModules.slice(0, 10)) {
             const systemResult = await getSystemModuleAction(pm.moduleSlug);
             if (!systemResult.success || !systemResult.data) continue;
+            if (systemResult.data.agentConfig) {
+                agentConfigMap.set(pm.moduleSlug, systemResult.data.agentConfig);
+            }
             const itemsResult = await getModuleItemsAction(partnerId, pm.id, {
                 isActive: true,
                 pageSize: 20,
@@ -176,9 +181,9 @@ Respond with ONLY valid JSON. No markdown, no code fences.`;
 
         // ── SERVER-SIDE block population from Modules + Core ─────────────
         try {
-            const sessionData = buildSessionData(partnerId, partnerData, moduleConfigs);
+            const sessionData = buildSessionData(partnerId, partnerData, moduleConfigs, agentConfigMap);
             const userMsg = messages[messages.length - 1]?.content || '';
-            const populated = populateBlock(userMsg, parsed.type, sessionData, allowedShortIds);
+            const populated = populateBlock(userMsg, parsed.type, sessionData, allowedShortIds, agentConfigMap);
 
             console.log('[Relay RAG] Gemini type:', parsed.type, '| cache items:', sessionData.items.length);
             console.log('[Relay RAG] Populated:', JSON.stringify({ blockId: populated.blockId, source: populated.source, itemsUsed: populated.itemsUsed }));

@@ -1,7 +1,7 @@
 import type { IntentType } from './intent-engine';
 import { classifyIntent } from './intent-engine';
 import { RelaySessionCache } from './session-cache';
-import { resolveBlock } from './block-resolver';
+import { resolveBlock, resolveTemplate } from './block-resolver';
 import type { BlockResolution } from './block-resolver';
 import type {
   RelaySessionData,
@@ -9,6 +9,7 @@ import type {
   SessionContact,
   SessionModuleItem,
 } from './types';
+import type { ModuleAgentConfig } from '@/lib/modules/types';
 
 // ── Build session data from partner doc + module items ──────────────
 //
@@ -25,7 +26,8 @@ interface PartnerModuleConfig {
 export function buildSessionData(
   partnerId: string,
   partnerData: Record<string, any> | null,
-  moduleConfigs: PartnerModuleConfig[]
+  moduleConfigs: PartnerModuleConfig[],
+  agentConfigs: Map<string, ModuleAgentConfig>
 ): RelaySessionData {
   const identity = partnerData?.businessPersona?.identity || {};
   const relayConfig = partnerData?.relayConfig || {};
@@ -45,20 +47,41 @@ export function buildSessionData(
     email: identity.email || undefined,
   };
 
-  const items: SessionModuleItem[] = moduleConfigs.flatMap(mc =>
-    (mc.items || []).map(raw => ({
-      id: raw.id,
-      moduleSlug: mc.slug,
-      name: raw.name || raw.fields?.name || '',
-      description: raw.description || raw.fields?.description || undefined,
-      price: raw.price ?? raw.fields?.price ?? undefined,
-      currency: raw.currency || 'INR',
-      imageUrl: raw.imageUrl || raw.fields?.imageUrl || undefined,
-      tags: raw.tags || raw.fields?.tags || [],
-      status: raw.isActive !== false ? 'active' : 'inactive',
-      raw: raw.fields || raw,
-    }))
-  );
+  const items: SessionModuleItem[] = moduleConfigs.flatMap(mc => {
+    const ac = agentConfigs.get(mc.slug);
+    return (mc.items || []).map(raw => {
+      const rawSrc = raw.fields || raw;
+      const resolvedName = ac ? resolveTemplate(ac.cardTitle, raw) : undefined;
+      const resolvedDesc = ac?.cardSubtitle ? resolveTemplate(ac.cardSubtitle, raw) : undefined;
+      const resolvedPrice = ac?.cardPrice ? resolveTemplate(ac.cardPrice, raw) : undefined;
+      const resolvedImage = ac?.cardImage ? resolveTemplate(ac.cardImage, raw) : undefined;
+
+      return {
+        id: raw.id,
+        moduleSlug: mc.slug,
+        name: (resolvedName as string) || raw.name || raw.fields?.name || '',
+        description:
+          (resolvedDesc as string | undefined) ||
+          raw.description ||
+          raw.fields?.description ||
+          undefined,
+        price:
+          (typeof resolvedPrice === 'number' ? resolvedPrice : undefined) ??
+          raw.price ??
+          raw.fields?.price ??
+          undefined,
+        currency: raw.currency || 'INR',
+        imageUrl:
+          (resolvedImage as string | undefined) ||
+          raw.imageUrl ||
+          raw.fields?.imageUrl ||
+          undefined,
+        tags: raw.tags || raw.fields?.tags || [],
+        status: raw.isActive !== false ? 'active' : 'inactive',
+        raw: rawSrc,
+      };
+    });
+  });
 
   return {
     partnerId,
@@ -147,7 +170,8 @@ export function populateBlock(
   userMessage: string,
   geminiType: string | undefined,
   sessionData: RelaySessionData,
-  allowedShortBlockIds: string[]
+  allowedShortBlockIds: string[],
+  agentConfigMap: Map<string, ModuleAgentConfig>
 ): PopulatedBlock {
   const cache = new RelaySessionCache(sessionData);
   const regexIntent = classifyIntent(userMessage, cache);
@@ -161,7 +185,7 @@ export function populateBlock(
       ? { ...regexIntent, type: hintedType, confidence: 0.75 }
       : regexIntent;
 
-  const resolution = resolveBlock(intent, cache);
+  const resolution = resolveBlock(intent, cache, agentConfigMap);
 
   if (!resolution.blockId) {
     return { blockId: null, blockData: {}, source: resolution.source, itemsUsed: 0 };

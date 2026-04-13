@@ -1,6 +1,7 @@
 import type { RelaySessionCache } from './session-cache';
 import type { Intent, IntentType } from './intent-engine';
 import type { SessionModuleItem } from './types';
+import type { ModuleAgentConfig } from '@/lib/modules/types';
 import { getBlockIdForIntent } from './vertical-map';
 
 export interface BlockResolution {
@@ -12,30 +13,84 @@ export interface BlockResolution {
   itemsUsed: number;
 }
 
-function mapItemToProductData(item: SessionModuleItem): Record<string, any> {
+/**
+ * Resolve a field name or template string against a raw item payload.
+ * - Empty/undefined template → undefined
+ * - Bare field name (no `{}`)→ raw[name] ?? raw.fields?.[name]
+ * - Template "{a} - {b}" → interpolated string using raw (then raw.fields) as source
+ */
+export function resolveTemplate(
+  template: string | undefined,
+  raw: Record<string, any> | null | undefined
+): any {
+  if (!template) return undefined;
+  const src = raw || {};
+  if (!template.includes('{')) {
+    return src[template] ?? src.fields?.[template];
+  }
+  return template.replace(/\{(\w+)\}/g, (_, key) => {
+    const v = src[key] ?? src.fields?.[key];
+    return v === undefined || v === null ? '' : String(v);
+  });
+}
+
+/**
+ * Map a SessionModuleItem to a flat block-data record using the module's
+ * agentConfig when available. Falls back to raw item fields when agentConfig
+ * is null — preserving behavior for client callers that have no server-side
+ * agentConfig lookup.
+ */
+export function mapItemWithAgentConfig(
+  item: SessionModuleItem,
+  agentConfig: ModuleAgentConfig | null
+): Record<string, any> {
   const raw = item.raw || {};
-  return {
+
+  if (!agentConfig) {
+    return {
+      id: item.id,
+      moduleSlug: item.moduleSlug,
+      name: item.name,
+      description: item.description,
+      price: item.price,
+      imageUrl: item.imageUrl,
+      currency: item.currency || 'INR',
+      tags: item.tags,
+      status: item.status,
+      ...raw,
+    };
+  }
+
+  const out: Record<string, any> = {
     id: item.id,
-    name: item.name,
-    description: item.description,
-    price: item.price,
-    mrp: raw.compareAtPrice || raw.comparePrice || raw.compare_price || null,
-    brand: raw.vendor || raw.brand || undefined,
-    badge: raw.isFeatured ? 'Bestseller' : undefined,
-    stock: raw.stock !== undefined
-      ? raw.stock === 0
-        ? 'Out of Stock'
-        : raw.stock <= 5
-          ? 'Low Stock'
-          : 'In Stock'
-      : undefined,
-    rating: raw.rating || raw.averageRating || undefined,
-    reviews: raw.reviewCount || raw.reviews || undefined,
-    tags: item.tags?.slice(0, 4) || undefined,
-    imageUrl: raw.thumbnail || raw.images?.[0] || raw.imageUrl || item.imageUrl || undefined,
-    category: item.moduleSlug,
+    moduleSlug: item.moduleSlug,
     currency: item.currency || 'INR',
+    status: item.status,
   };
+
+  const title = resolveTemplate(agentConfig.cardTitle, raw);
+  if (title !== undefined) out.name = title;
+
+  const subtitle = resolveTemplate(agentConfig.cardSubtitle, raw);
+  if (subtitle !== undefined) out.description = subtitle;
+
+  const price = resolveTemplate(agentConfig.cardPrice, raw);
+  out.price = price !== undefined ? price : item.price;
+
+  const imageUrl = resolveTemplate(agentConfig.cardImage, raw);
+  out.imageUrl = imageUrl !== undefined ? imageUrl : item.imageUrl;
+
+  if (item.tags && item.tags.length > 0) out.tags = item.tags;
+
+  if (Array.isArray(agentConfig.displayFields)) {
+    for (const field of agentConfig.displayFields) {
+      if (!field || field in out) continue;
+      const v = raw[field] ?? raw.fields?.[field];
+      if (v !== undefined) out[field] = v;
+    }
+  }
+
+  return out;
 }
 
 function resolveGreeting(cache: RelaySessionCache): BlockResolution {
@@ -58,7 +113,8 @@ function resolveGreeting(cache: RelaySessionCache): BlockResolution {
 
 function resolveBrowse(
   intent: Intent,
-  cache: RelaySessionCache
+  cache: RelaySessionCache,
+  agentConfigMap: Map<string, ModuleAgentConfig>
 ): BlockResolution {
   const filters = intent.filters;
   let items: SessionModuleItem[];
@@ -120,7 +176,9 @@ function resolveBrowse(
   return {
     blockId,
     data: {
-      items: items.slice(0, 6).map(mapItemToProductData),
+      items: items
+        .slice(0, 6)
+        .map((it) => mapItemWithAgentConfig(it, agentConfigMap.get(it.moduleSlug) ?? null)),
     },
     confidence: items.length >= 3 ? 0.9 : 0.7,
     source: 'intent_match',
@@ -130,7 +188,8 @@ function resolveBrowse(
 
 function resolveProductDetail(
   intent: Intent,
-  cache: RelaySessionCache
+  cache: RelaySessionCache,
+  agentConfigMap: Map<string, ModuleAgentConfig>
 ): BlockResolution {
   let item: SessionModuleItem | undefined;
 
@@ -159,7 +218,10 @@ function resolveProductDetail(
     };
   }
 
-  const productData = mapItemToProductData(item);
+  const productData = mapItemWithAgentConfig(
+    item,
+    agentConfigMap.get(item.moduleSlug) ?? null
+  );
   const blockId = getBlockIdForIntent('product_detail', cache.getCategory());
 
   return {
@@ -321,7 +383,8 @@ function resolveCart(cache: RelaySessionCache): BlockResolution {
 
 function resolveBundle(
   intent: Intent,
-  cache: RelaySessionCache
+  cache: RelaySessionCache,
+  agentConfigMap: Map<string, ModuleAgentConfig>
 ): BlockResolution {
   const filters = intent.filters;
   let items: SessionModuleItem[];
@@ -337,7 +400,9 @@ function resolveBundle(
     return { blockId: null, data: {}, confidence: 0.3, source: 'none', itemsUsed: 0 };
   }
 
-  const mappedItems = items.slice(0, 4).map(mapItemToProductData);
+  const mappedItems = items
+    .slice(0, 4)
+    .map((it) => mapItemWithAgentConfig(it, agentConfigMap.get(it.moduleSlug) ?? null));
   const totalPrice = mappedItems.reduce((sum, i) => sum + (i.price || 0), 0);
   const blockId = getBlockIdForIntent('bundle_inquiry', cache.getCategory());
 
@@ -377,7 +442,8 @@ function resolveBooking(cache: RelaySessionCache): BlockResolution {
 
 function resolveSubscription(
   intent: Intent,
-  cache: RelaySessionCache
+  cache: RelaySessionCache,
+  agentConfigMap: Map<string, ModuleAgentConfig>
 ): BlockResolution {
   let item: SessionModuleItem | undefined;
 
@@ -402,7 +468,7 @@ function resolveSubscription(
   return {
     blockId: blockId || getBlockIdForIntent('product_detail', cache.getCategory()),
     data: {
-      ...mapItemToProductData(item),
+      ...mapItemWithAgentConfig(item, agentConfigMap.get(item.moduleSlug) ?? null),
       subscriptionAvailable: true,
     },
     confidence: 0.7,
@@ -462,7 +528,8 @@ function resolveReturnRequest(cache: RelaySessionCache): BlockResolution {
 
 export function resolveBlock(
   intent: Intent,
-  cache: RelaySessionCache
+  cache: RelaySessionCache,
+  agentConfigMap: Map<string, ModuleAgentConfig> = new Map()
 ): BlockResolution {
   switch (intent.type) {
     case 'greeting':
@@ -470,11 +537,11 @@ export function resolveBlock(
 
     case 'browse':
     case 'search':
-      return resolveBrowse(intent, cache);
+      return resolveBrowse(intent, cache, agentConfigMap);
 
     case 'product_detail':
     case 'price_check':
-      return resolveProductDetail(intent, cache);
+      return resolveProductDetail(intent, cache, agentConfigMap);
 
     case 'compare':
       return resolveCompare(intent, cache);
@@ -500,13 +567,13 @@ export function resolveBlock(
       return resolveReturnRequest(cache);
 
     case 'bundle_inquiry':
-      return resolveBundle(intent, cache);
+      return resolveBundle(intent, cache, agentConfigMap);
 
     case 'booking':
       return resolveBooking(cache);
 
     case 'subscribe':
-      return resolveSubscription(intent, cache);
+      return resolveSubscription(intent, cache, agentConfigMap);
 
     case 'loyalty_inquiry':
       return resolveLoyalty(cache);
@@ -529,8 +596,9 @@ export function resolveBlock(
 export function resolveBlockFromMessage(
   message: string,
   cache: RelaySessionCache,
-  classifyFn: (msg: string, c: RelaySessionCache) => Intent
+  classifyFn: (msg: string, c: RelaySessionCache) => Intent,
+  agentConfigMap: Map<string, ModuleAgentConfig> = new Map()
 ): BlockResolution {
   const intent = classifyFn(message, cache);
-  return resolveBlock(intent, cache);
+  return resolveBlock(intent, cache, agentConfigMap);
 }
