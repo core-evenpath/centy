@@ -4,6 +4,7 @@ import { GoogleGenAI } from '@google/genai';
 import { registerAllBlocks } from '@/lib/relay/blocks/index';
 import { getBlock, computeDataContract, getRegistrySize } from '@/lib/relay/registry';
 import { getGlobalBlockConfigs } from '@/lib/relay/block-config-service';
+import { db as adminDb } from '@/lib/firebase-admin';
 import type { BlockDefinition, DataContract, UnifiedBlockConfig } from '@/lib/relay/types';
 
 let registryReady = false;
@@ -49,14 +50,27 @@ export interface GeneratedBlockResult {
   sampleData: Record<string, any>;
 }
 
+async function resolvePartnerCategory(partnerId: string): Promise<string | null> {
+  try {
+    const partnerDoc = await adminDb.collection('partners').doc(partnerId).get();
+    if (!partnerDoc.exists) return null;
+    const data = partnerDoc.data() as Record<string, any> | undefined;
+    return data?.businessPersona?.identity?.businessCategories?.[0]?.functionId ?? null;
+  } catch {
+    return null;
+  }
+}
+
 export async function getRegisteredBlocksAction(filters?: {
   family?: string;
   category?: string;
+  partnerId?: string;
 }): Promise<{
   success: boolean;
   blocks: BlockListItem[];
   totalCount: number;
   families: string[];
+  category?: string;
   error?: string;
 }> {
   try {
@@ -65,8 +79,18 @@ export async function getRegisteredBlocksAction(filters?: {
     if (filters?.family) {
       allConfigs = allConfigs.filter(b => b.family === filters.family);
     }
-    if (filters?.category) {
-      allConfigs = allConfigs.filter(b => b.applicableCategories.includes(filters.category!));
+
+    // Resolve category: explicit filter wins, else derive from partner
+    let category = filters?.category ?? null;
+    if (!category && filters?.partnerId) {
+      category = await resolvePartnerCategory(filters.partnerId);
+    }
+
+    if (category) {
+      // Empty applicableCategories = shared/universal block, always include.
+      allConfigs = allConfigs.filter(b =>
+        !b.applicableCategories?.length || b.applicableCategories.includes(category!)
+      );
     }
 
     const blocks: BlockListItem[] = allConfigs.map((d) => ({
@@ -91,6 +115,7 @@ export async function getRegisteredBlocksAction(filters?: {
       blocks,
       totalCount: allBlocksForFamilies.length,
       families: Array.from(familySet).sort(),
+      category: category ?? undefined,
     };
   } catch (error: any) {
     console.error('[BlockBuilder] Failed to list blocks:', error);

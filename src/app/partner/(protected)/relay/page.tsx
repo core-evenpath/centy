@@ -10,15 +10,15 @@ import {
     getRelayConversationsAction,
 } from '@/actions/relay-actions';
 import type { RelayConfig, DiagnosticCheck, RelayConversation } from '@/actions/relay-actions';
-import { fetchBlocksDesign } from '@/lib/relay/fetch-blocks-design';
-import type { MergedBlockDesign } from '@/lib/relay/types';
+import { getRegisteredBlocksAction } from '@/actions/block-builder-actions';
+import type { BlockListItem } from '@/actions/block-builder-actions';
 import RelayChatSetup from '@/components/partner/relay/RelayChatSetup';
 import RelayStorefrontManager from '@/components/partner/relay/RelayStorefrontManager';
 import BlockRenderer from '@/components/relay/blocks/BlockRenderer';
 import type { RelayBlock } from '@/components/relay/blocks/BlockRenderer';
 import RegistryBlockRenderer from '@/components/relay/RegistryBlockRenderer';
 import type { BlockTheme } from '@/lib/relay/types';
-import { mapGeminiToRegistryBlock } from './gemini-block-mapper';
+import RelayBlockExplorer from './RelayBlockExplorer';
 import { DEFAULT_THEME } from '@/components/relay/blocks/types';
 import type { RelayTheme, BlockCallbacks } from '@/components/relay/blocks/types';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -152,9 +152,10 @@ export default function PartnerRelayPage() {
     const [convoLoading, setConvoLoading] = useState(true);
 
     // Block configs state
-    const [blockConfigs, setBlockConfigs] = useState<MergedBlockDesign[]>([]);
+    const [blockConfigs, setBlockConfigs] = useState<BlockListItem[]>([]);
     const [blocksLoading, setBlocksLoading] = useState(false);
     const [blocksError, setBlocksError] = useState<string | null>(null);
+    const [blocksCategory, setBlocksCategory] = useState<string | null>(null);
 
     // Chat test state
     const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
@@ -281,35 +282,26 @@ export default function PartnerRelayPage() {
         })();
     }, [partnerId]);
 
-    // ── Load block configs from /api/relay/blocks (merged design + overrides) ─
+    // ── Load block configs ────────────────────────────────────────────
 
     useEffect(() => {
         if (!partnerId) return;
-        const controller = new AbortController();
         setBlocksLoading(true);
-        setBlocksError(null);
         (async () => {
             try {
-                const { getAuth, getIdToken } = await import('firebase/auth');
-                const currentUser = getAuth().currentUser;
-                if (!currentUser) {
-                    throw new Error('Not authenticated');
+                const result = await getRegisteredBlocksAction({ partnerId });
+                if (result.success) {
+                    setBlockConfigs(result.blocks || []);
+                    setBlocksCategory(result.category || null);
+                } else {
+                    setBlocksError(result.error || 'Failed to load blocks');
                 }
-                const idToken = await getIdToken(currentUser);
-                const result = await fetchBlocksDesign({
-                    partnerId,
-                    idToken,
-                    signal: controller.signal,
-                });
-                setBlockConfigs(result.blocks || []);
             } catch (e: any) {
-                if (e?.name === 'AbortError') return;
                 setBlocksError(e.message || 'Unknown error');
             } finally {
                 setBlocksLoading(false);
             }
         })();
-        return () => controller.abort();
     }, [partnerId]);
 
     // ── Chat test ────────────────────────────────────────────────────
@@ -338,14 +330,25 @@ export default function PartnerRelayPage() {
             const data = await res.json();
 
             if (data.success && data.response) {
-                const mapped = mapGeminiToRegistryBlock(data.response);
+                // Server populates blockId + blockData from Modules/Core. The
+                // client is a dumb renderer: if blockId is set, render it; else
+                // fall back to plain text + suggestions.
+                const serverBlockId: string | undefined = data.response.blockId;
+                const serverBlockData = data.response.blockData;
+                const geminiType = data.response.type;
+
+                const fallbackBlock: RelayBlock = {
+                    type: 'text',
+                    text: data.response.text || '',
+                    suggestions: data.response.suggestions || [],
+                };
                 const assistantMsg: ChatMessage = {
                     role: 'assistant',
                     content: data.response.text || '',
-                    block: data.response as RelayBlock,
-                    type: data.response.type,
-                    blockId: mapped?.blockId || data.response.blockId || undefined,
-                    blockData: mapped?.data || data.response.blockData || undefined,
+                    block: serverBlockId ? (data.response as RelayBlock) : fallbackBlock,
+                    type: serverBlockId ? geminiType : 'text',
+                    blockId: serverBlockId,
+                    blockData: serverBlockData,
                 };
                 setChatMessages(prev => [...prev, assistantMsg]);
             } else {
@@ -861,9 +864,18 @@ export default function PartnerRelayPage() {
                 <TabsContent value="blocks" className="space-y-6">
                     <Card>
                         <CardHeader>
-                            <CardTitle>Block Configurations</CardTitle>
+                            <CardTitle>
+                                Block Configurations
+                                {blocksCategory && (
+                                    <Badge variant="secondary" className="ml-2 font-normal text-xs">
+                                        {blocksCategory}
+                                    </Badge>
+                                )}
+                            </CardTitle>
                             <CardDescription>
-                                Available block types that the AI assistant can use when responding to visitors
+                                {blocksCategory
+                                    ? `Block types available to the AI assistant for your business category (${blocksCategory}).`
+                                    : 'Available block types that the AI assistant can use when responding to visitors.'}
                             </CardDescription>
                         </CardHeader>
                         <CardContent>
@@ -877,68 +889,11 @@ export default function PartnerRelayPage() {
                                     <p className="font-medium">Failed to load block configs</p>
                                     <p className="text-sm text-muted-foreground mt-1">{blocksError}</p>
                                 </div>
-                            ) : (blockConfigs || []).length === 0 ? (
-                                <div className="text-center py-12">
-                                    <Layers className="h-10 w-10 text-muted-foreground mx-auto mb-3" />
-                                    <p className="font-medium">No block configurations</p>
-                                    <p className="text-sm text-muted-foreground mt-1">
-                                        Block configs are generated when modules are created in the admin area.
-                                    </p>
-                                </div>
                             ) : (
-                                <div className="grid gap-4 sm:grid-cols-2">
-                                    {(blockConfigs || []).map(cfg => {
-                                        const intentKeywords = (cfg.intents || []).slice(0, 5);
-                                        const hidden = cfg.isVisible === false;
-                                        return (
-                                            <div
-                                                key={cfg.id}
-                                                className={`p-4 rounded-lg border transition-colors ${
-                                                    hidden
-                                                        ? 'opacity-60 bg-muted/30'
-                                                        : 'hover:bg-muted/50'
-                                                }`}
-                                            >
-                                                <div className="flex items-center gap-2 mb-2 flex-wrap">
-                                                    <Badge variant="secondary">{cfg.family}</Badge>
-                                                    {(cfg.variants || []).length > 1 && (
-                                                        <Badge variant="outline" className="text-[10px]">
-                                                            {cfg.variants.length} variants
-                                                        </Badge>
-                                                    )}
-                                                    {cfg.hasPartnerOverride && (
-                                                        <Badge variant="outline" className="text-[10px] border-indigo-400 text-indigo-600">
-                                                            Customized
-                                                        </Badge>
-                                                    )}
-                                                    {hidden && (
-                                                        <Badge variant="outline" className="text-[10px] border-amber-400 text-amber-600">
-                                                            Hidden
-                                                        </Badge>
-                                                    )}
-                                                </div>
-                                                <p className={`font-medium text-sm ${hidden ? 'line-through' : ''}`}>
-                                                    {cfg.label}
-                                                </p>
-                                                {cfg.description && (
-                                                    <p className="text-xs text-muted-foreground mt-1">{cfg.description}</p>
-                                                )}
-                                                {intentKeywords.length > 0 && (
-                                                    <div className="flex gap-1 flex-wrap mt-2">
-                                                        {intentKeywords.map(kw => (
-                                                            <Badge key={kw} variant="outline" className="text-[10px]">{kw}</Badge>
-                                                        ))}
-                                                    </div>
-                                                )}
-                                                {(cfg.applicableCategories || []).length > 0 && (
-                                                    <p className="text-xs text-muted-foreground mt-1">
-                                                        Categories: {(cfg.applicableCategories || []).join(', ')}
-                                                    </p>
-                                                )}
-                                            </div>
-                                        );
-                                    })}
-                                </div>
+                                <RelayBlockExplorer
+                                    partnerId={partnerId!}
+                                    defaultFunctionId={blocksCategory}
+                                />
                             )}
                         </CardContent>
                     </Card>
