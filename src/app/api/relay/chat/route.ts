@@ -6,15 +6,11 @@ import {
     getSystemModuleAction,
     getModuleItemsAction,
 } from '@/actions/modules-actions';
-import type { ModuleAgentConfig } from '@/lib/modules/types';
 import { getActiveBlocksForPartner, buildBlockSchemasFromConfigs, getGlobalBlockConfigs } from '@/lib/relay/block-config-service';
 import { createInitialFlowState, detectIntent, runFlowEngine } from '@/lib/flow-engine';
 import { getFlowTemplateForFunction } from '@/lib/flow-templates';
 import type { ConversationFlowState, FlowDefinition, FlowEngineDecision } from '@/lib/types-flow-engine';
-import { RelaySessionCache } from '@/lib/relay/session-cache';
-import { classifyIntent } from '@/lib/relay/intent-engine';
-import { resolveBlock } from '@/lib/relay/block-resolver';
-import type { RelaySessionData, SessionModuleItem, SessionBrand, SessionContact } from '@/lib/relay/types';
+import { buildSessionData, populateBlock } from '@/lib/relay/rag-populator';
 
 const genAI = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || '' });
 const RELAY_CHAT_MODEL = 'gemini-3.1-pro-preview';
@@ -42,41 +38,31 @@ export async function POST(request: NextRequest) {
         let partnerId = directPartnerId;
         if (!partnerId && widgetId) {
             const widgetDoc = await adminDb.collection('relayWidgets').doc(widgetId).get();
-            if (widgetDoc.exists) {
-                partnerId = widgetDoc.data()?.partnerId;
-            }
+            if (widgetDoc.exists) partnerId = widgetDoc.data()?.partnerId;
         }
-
         if (!partnerId) {
             return NextResponse.json({ error: 'Could not resolve partner' }, { status: 400, headers: corsHeaders });
         }
 
-        // Fetch partner doc early — used by both flow engine and persona context
+        // ── CORE: partner doc (brand, persona, contact, hours, FAQs) ──────
         let partnerData: Record<string, any> | null = null;
         try {
             const partnerDoc = await adminDb.collection('partners').doc(partnerId).get();
             partnerData = partnerDoc.exists ? (partnerDoc.data() as Record<string, any>) : null;
-        } catch {
-            // Partner doc not available, continue without it
-        }
+        } catch { /* continue */ }
 
         // ── Flow Engine ──────────────────────────────────────────────────
         let flowDecision: FlowEngineDecision | null = null;
         try {
-            // 1. Load or create flow state
             let flowState: ConversationFlowState | null = null;
             if (conversationId) {
                 const convDoc = await adminDb.collection('relayConversations').doc(conversationId).get();
                 flowState = (convDoc.data()?.flowState as ConversationFlowState) || null;
             }
             if (!flowState) {
-                flowState = createInitialFlowState(
-                    conversationId || `conv_${Date.now()}`,
-                    partnerId
-                );
+                flowState = createInitialFlowState(conversationId || `conv_${Date.now()}`, partnerId);
             }
 
-            // 2. Detect intent from last user message
             const lastMsg = messages[messages.length - 1]?.content || '';
             const priorHistory = messages.slice(0, -1).map((m: any) => ({
                 role: m.role as string,
@@ -84,199 +70,89 @@ export async function POST(request: NextRequest) {
             }));
             const intent = detectIntent(lastMsg, priorHistory);
 
-            // 3. Resolve flow definition
             let flowDef: FlowDefinition | null = null;
-
-            // Try custom partner flow first
             const flowDoc = await adminDb
                 .collection('partners').doc(partnerId)
                 .collection('relayConfig').doc('flowDefinition')
                 .get();
-            if (flowDoc.exists) {
-                flowDef = flowDoc.data() as FlowDefinition;
-            }
+            if (flowDoc.exists) flowDef = flowDoc.data() as FlowDefinition;
 
-            // Resolve functionId for template fallback or intent-only mode
-            const functionId = partnerData
-                ?.businessPersona?.identity?.businessCategories?.[0]?.functionId
-                || 'general';
-
-            // If no custom flow, try system template
+            const functionId = partnerData?.businessPersona?.identity?.businessCategories?.[0]?.functionId || 'general';
             if (!flowDef) {
                 const template = getFlowTemplateForFunction(functionId);
-                if (template) {
-                    flowDef = template as unknown as FlowDefinition;
-                }
+                if (template) flowDef = template as unknown as FlowDefinition;
             }
-
-            // 4. Run engine
             flowDecision = runFlowEngine(flowState, intent, flowDef, functionId);
         } catch (flowErr) {
             console.error('Flow engine error (non-fatal):', flowErr);
-            // flowDecision stays null — chat continues without flow features
         }
 
-        // Fetch partner's enabled modules with agentConfig and items
-        const moduleConfigs: Array<{
-            name: string;
-            slug: string;
-            priceType: string;
-            agentConfig: ModuleAgentConfig;
-            items: any[];
-        }> = [];
-
+        // ── MODULES: enabled modules + items (no details to Gemini) ──────
+        const moduleConfigs: Array<{ slug: string; name: string; items: any[]; summary: string }> = [];
         const partnerModulesResult = await getPartnerModulesAction(partnerId);
         const partnerModules = partnerModulesResult.success ? partnerModulesResult.data || [] : [];
 
         for (const pm of partnerModules.slice(0, 10)) {
             const systemResult = await getSystemModuleAction(pm.moduleSlug);
-            if (systemResult.success && systemResult.data?.agentConfig) {
-                const itemsResult = await getModuleItemsAction(partnerId, pm.id, {
-                    isActive: true,
-                    pageSize: 20,
-                    sortBy: 'sortOrder',
-                    sortOrder: 'asc',
-                });
-                moduleConfigs.push({
-                    name: systemResult.data.name,
-                    slug: pm.moduleSlug,
-                    priceType: systemResult.data.priceType,
-                    agentConfig: systemResult.data.agentConfig,
-                    items: itemsResult.success ? (itemsResult.data?.items || []) : [],
-                });
-            }
+            if (!systemResult.success || !systemResult.data) continue;
+            const itemsResult = await getModuleItemsAction(partnerId, pm.id, {
+                isActive: true,
+                pageSize: 20,
+                sortBy: 'sortOrder',
+                sortOrder: 'asc',
+            });
+            const items = itemsResult.success ? itemsResult.data?.items || [] : [];
+            moduleConfigs.push({
+                slug: pm.moduleSlug,
+                name: systemResult.data.name,
+                items,
+                summary: `${systemResult.data.name} (${items.length} items available)`,
+            });
         }
 
-        // Fetch correct block types from relayBlockConfigs
-        const relayBlockTypes = new Map<string, string>();
-        if (moduleConfigs.length > 0) {
-            try {
-                const slugs = moduleConfigs.map(mc => `module_${mc.slug}`);
-                const chunkSize = 10;
-                for (let i = 0; i < slugs.length; i += chunkSize) {
-                    const chunk = slugs.slice(i, i + chunkSize);
-                    const snap = await adminDb.collection('relayBlockConfigs')
-                        .where('__name__', 'in', chunk)
-                        .get();
-                    snap.docs.forEach(doc => {
-                        const data = doc.data();
-                        if (data.moduleSlug && data.blockType) {
-                            relayBlockTypes.set(data.moduleSlug, data.blockType);
-                        }
-                    });
-                }
-            } catch {
-                // relayBlockConfigs not available — will fall back to module slug-based inference
-            }
-        }
-
-        // Build dynamic block instructions from agentConfig
-        const blockInstructions = moduleConfigs.map(mc => {
-            const ac = mc.agentConfig;
-            const itemSummary = mc.items.slice(0, 10).map(item => {
-                const fields = ac.displayFields
-                    .map(f => `${f}: ${item.fields?.[f] || item[f] || 'N/A'}`)
-                    .join(', ');
-                return `  - ${item.name} (${item.price ? `${item.currency || 'INR'} ${item.price}` : 'No price'}): ${fields}`;
-            }).join('\n');
-
-            return `MODULE: ${mc.name} (slug: ${mc.slug})
-Block type: "${relayBlockTypes.get(mc.slug) || 'catalog'}"
-Price type: ${mc.priceType}
-When visitor asks about: ${ac.inboxContext}
-Display fields: ${ac.displayFields.join(', ')}
-Card: title=${ac.cardTitle}, subtitle=${ac.cardSubtitle || 'N/A'}, price=${ac.cardPrice || 'N/A'}, image=${ac.cardImage || 'N/A'}
-Comparison fields: ${ac.comparisonFields.join(', ') || 'N/A'}
-Available items (${mc.items.length} total):
-${itemSummary || '  (no items yet)'}`;
-        }).join('\n\n');
-
-        const moduleContext = moduleConfigs.length > 0
-            ? `\n\nBUSINESS DATA (from partner's modules — use ONLY this data to answer):\n${blockInstructions}`
-            : '\n\nNo business data modules configured yet. Answer general questions only.';
-
-        // Load business persona for richer context (using already-fetched partnerData)
-        let personaContext = '';
-        try {
-            const persona = partnerData?.businessPersona;
-            if (persona) {
-                const identity = persona.identity || {};
-                const knowledge = persona.knowledge || {};
-                const parts: string[] = [];
-                if (identity.name) parts.push(`Business: ${identity.name}`);
-                if (identity.phone) parts.push(`Phone: ${identity.phone}`);
-                if (identity.email) parts.push(`Email: ${identity.email}`);
-                if (identity.website) parts.push(`Website: ${identity.website}`);
-                if (identity.address) {
-                    const a = identity.address;
-                    parts.push(`Address: ${[a.street, a.city, a.state, a.country].filter(Boolean).join(', ')}`);
-                }
-                if (identity.operatingHours?.formatted) parts.push(`Hours: ${identity.operatingHours.formatted}`);
-                if (knowledge?.faqs?.length) {
-                    parts.push('FAQs:\n' + knowledge.faqs.slice(0, 10).map((f: any) => `  Q: ${f.question}\n  A: ${f.answer}`).join('\n'));
-                }
-                if (parts.length > 0) {
-                    personaContext = `\n\nBUSINESS PROFILE:\n${parts.join('\n')}`;
-                }
-            }
-        } catch {
-            // Persona not available, continue without it
-        }
-
-        // Build block schemas from Firestore (cached, respects admin toggles
-        // + partner sub-category filter + partner per-block enable/disable).
-        let blockSchemas: string;
-        let allowedBlockIds: string[] = [];
+        // ── Build block schemas (gated by admin + partner + sub-category) ──
+        let blockSchemas = '';
+        let allowedShortIds: string[] = [];
         try {
             const [activeBlocks, globalConfigs] = await Promise.all([
                 getActiveBlocksForPartner(partnerId),
                 getGlobalBlockConfigs(),
             ]);
-            allowedBlockIds = activeBlocks.map(b => b.id);
+            allowedShortIds = activeBlocks.map(b => b.id);
             blockSchemas = buildBlockSchemasFromConfigs(activeBlocks, {
                 globalEmpty: globalConfigs.length === 0,
             });
         } catch {
-            console.warn('Failed to load block configs from Firestore, proceeding without block schemas');
-            blockSchemas = '';
+            console.warn('Failed to load block configs from Firestore');
         }
 
-        // Build system prompt
-        const flowContext = flowDecision?.contextForAI
-            ? `\n${flowDecision.contextForAI}\n\n`
+        // ── CORE context for Gemini (persona + FAQs, NO item data) ───────
+        const personaContext = buildPersonaContext(partnerData);
+        const moduleSummary = moduleConfigs.length > 0
+            ? `\n\nAVAILABLE DATA SOURCES (actual items will be injected by the UI):\n${moduleConfigs.map(m => `- ${m.summary}`).join('\n')}`
             : '';
 
-        const systemPrompt = `You are a helpful business assistant for this company. You help visitors find information, browse products/services, and take action (book, inquire, etc.).
+        const flowContext = flowDecision?.contextForAI ? `\n${flowDecision.contextForAI}\n\n` : '';
+
+        const systemPrompt = `You are a helpful business assistant. Classify the visitor's request into a block type and reply with a short warm message.
 ${flowContext}
 ${blockSchemas}
 
 RULES:
 - Only valid JSON, no markdown, no backticks
-- "text" field: 1-3 warm, concise sentences
-- ALWAYS include a "suggestions" array with 2-3 follow-up suggestions
-- Use real business data when available
+- "text": 1-3 warm, concise sentences. DO NOT list product names or prices — the UI will show real items.
+- ALWAYS include "suggestions" (2-3 short follow-ups)
+- Pick the MOST SPECIFIC "type" for the query (catalog/pricing/greeting/contact/promo/booking/etc.)
 - Match the visitor's language
-- For catalog/activities items, include id, name, price, currency at minimum
-- Use "pricing" type (not "catalog") when visitor asks about prices, rates, or plans
-- Use "greeting" type when conversation starts or visitor says hello/hi
-- Use "quick_actions" when visitor seems unsure or asks "what can you help with"
-- Use "handoff" when you cannot resolve the query or visitor asks for a human
-- Use "schedule" when visitor asks about available times or slots
-- Use "testimonials" when visitor asks about reviews, ratings, or experiences
-- Use "lead_capture" when visitor wants a callback, quote, or to submit an inquiry
-- Use "promo" when visitor asks about offers, deals, or discounts
-- Choose the MOST SPECIFIC block type for the query — prefer "pricing" over "catalog" for price questions, prefer "schedule" over "info" for availability questions
-${personaContext}${moduleContext}
+${personaContext}${moduleSummary}
 
 Respond with ONLY valid JSON. No markdown, no code fences.`;
 
-        // Format conversation history for Gemini
+        // ── Call Gemini (classifier + text only, no item data) ───────────
         const conversationHistory = messages.map((m: any) => ({
             role: m.role === 'user' ? 'user' : 'model',
             parts: [{ text: m.content }],
         }));
-
-        // Build the full contents array: system instruction as first user turn context + conversation
         const lastUserMessage = conversationHistory[conversationHistory.length - 1];
         const priorMessages = conversationHistory.slice(0, -1);
 
@@ -284,127 +160,54 @@ Respond with ONLY valid JSON. No markdown, no code fences.`;
             model: RELAY_CHAT_MODEL,
             contents: [
                 ...priorMessages,
-                {
-                    role: 'user',
-                    parts: [{ text: lastUserMessage?.parts?.[0]?.text || '' }],
-                },
+                { role: 'user', parts: [{ text: lastUserMessage?.parts?.[0]?.text || '' }] },
             ],
-            config: {
-                systemInstruction: systemPrompt,
-                maxOutputTokens: 2048,
-                temperature: 0.3,
-            },
+            config: { systemInstruction: systemPrompt, maxOutputTokens: 1024, temperature: 0.3 },
         });
 
         const text = response.text?.trim() || '';
-
-        // Try to parse as JSON block response
         let parsed: any;
         try {
             const cleaned = text.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim();
             parsed = JSON.parse(cleaned);
         } catch {
-            // If not valid JSON, wrap as text response
             parsed = { type: 'text', text, suggestions: [] };
         }
 
-        // ── New block system: intent classification + block resolution ───
+        // ── SERVER-SIDE block population from Modules + Core ─────────────
         try {
-            const persona = partnerData?.businessPersona?.identity || {};
+            const sessionData = buildSessionData(partnerId, partnerData, moduleConfigs);
+            const userMsg = messages[messages.length - 1]?.content || '';
+            const populated = populateBlock(userMsg, parsed.type, sessionData, allowedShortIds);
 
-            const brand: SessionBrand = {
-                name: persona.name || partnerData?.name || '',
-                tagline: persona.tagline || '',
-                emoji: partnerData?.relayConfig?.brandEmoji || '💬',
-                accentColor: partnerData?.relayConfig?.accentColor || '#6366f1',
-                logoUrl: persona.logoUrl || undefined,
-                welcomeMessage: partnerData?.relayConfig?.welcomeMessage || undefined,
-            };
+            console.log('[Relay RAG] Gemini type:', parsed.type, '| cache items:', sessionData.items.length);
+            console.log('[Relay RAG] Populated:', JSON.stringify({ blockId: populated.blockId, source: populated.source, itemsUsed: populated.itemsUsed }));
 
-            const contact: SessionContact = {
-                whatsapp: persona.whatsapp || persona.phone || undefined,
-                phone: persona.phone || undefined,
-                email: persona.email || undefined,
-            };
-
-            const sessionItems: SessionModuleItem[] = moduleConfigs.flatMap(mc =>
-                mc.items.map(item => ({
-                    id: item.id,
-                    moduleSlug: mc.slug,
-                    name: item.name || '',
-                    description: item.description || item.fields?.description || undefined,
-                    price: item.price ?? item.fields?.price ?? undefined,
-                    currency: item.currency || 'INR',
-                    imageUrl: item.imageUrl || item.fields?.imageUrl || undefined,
-                    tags: item.tags || [],
-                    status: item.isActive !== false ? 'active' : 'inactive',
-                    raw: item.fields || item,
-                }))
-            );
-
-            const sessionData: RelaySessionData = {
-                partnerId,
-                category: partnerData?.businessPersona?.identity?.businessCategories?.[0]?.functionId || 'general',
-                brand,
-                contact,
-                items: sessionItems,
-                blocks: [],
-                blockOverrides: [],
-                cachedAt: Date.now(),
-            };
-
-            const cache = new RelaySessionCache(sessionData);
-            const lastMsg = messages[messages.length - 1]?.content || '';
-            const intent = classifyIntent(lastMsg, cache);
-            const resolution = resolveBlock(intent, cache);
-
-            console.log('[Relay Block Pipeline] Intent:', JSON.stringify({ type: intent.type, confidence: intent.confidence }));
-            console.log('[Relay Block Pipeline] Resolution:', JSON.stringify({ blockId: resolution.blockId, confidence: resolution.confidence, source: resolution.source, itemsUsed: resolution.itemsUsed }));
-            console.log('[Relay Block Pipeline] Cache stats:', JSON.stringify({ itemCount: cache.getItemCount(), hasRag: cache.hasRag() }));
-
-            if (resolution.blockId && resolution.confidence >= 0.6) {
-                // Gate against partner's enabled blocks (short IDs from admin registry).
-                // Strip the vertical prefix to compare against the short IDs stored in Firestore.
-                const PREFIXES = ['ecom_', 'hosp_', 'hc_', 'fb_', 'biz_', 'edu_', 'pw_', 'auto_', 'tl_', 'evt_', 'fin_', 'hp_', 'fs_', 'pu_', 'shared_'];
-                const toShortId = (id: string) => {
-                    for (const p of PREFIXES) if (id.startsWith(p)) return id.slice(p.length);
-                    return id;
-                };
-                const shortId = toShortId(resolution.blockId);
-                const isAllowed = allowedBlockIds.length === 0 || allowedBlockIds.includes(shortId);
-                if (isAllowed) {
-                    parsed.blockId = resolution.blockId;
-                    parsed.blockData = resolution.data;
-                    if (resolution.variant) parsed.blockVariant = resolution.variant;
-                    console.log('[Relay Block Pipeline] ✅ Using resolved block:', resolution.blockId);
-                } else {
-                    console.log('[Relay Block Pipeline] ⛔ Blocked by partner override:', resolution.blockId, '(short:', shortId, ')');
-                }
-            } else {
-                console.log('[Relay Block Pipeline] ⚠️ Skipped (blockId:', resolution.blockId, 'confidence:', resolution.confidence, ')');
+            if (populated.blockId) {
+                parsed.blockId = populated.blockId;
+                parsed.blockData = populated.blockData;
+                if (populated.variant) parsed.blockVariant = populated.variant;
             }
         } catch (blockErr) {
-            console.error('Block resolution error (non-fatal):', blockErr);
+            console.error('Block population error (non-fatal):', blockErr);
         }
 
-        // Store conversation turn if conversationId provided
+        // Store conversation turn
         if (conversationId) {
             try {
-                const turnData = {
-                    conversationId,
-                    partnerId,
-                    userMessage: messages[messages.length - 1]?.content || '',
-                    assistantResponse: parsed,
-                    createdAt: new Date().toISOString(),
-                };
                 await adminDb.collection('relayConversations').doc(conversationId)
-                    .collection('turns').add(turnData);
+                    .collection('turns').add({
+                        conversationId,
+                        partnerId,
+                        userMessage: messages[messages.length - 1]?.content || '',
+                        assistantResponse: parsed,
+                        createdAt: new Date().toISOString(),
+                    });
             } catch (e) {
                 console.error('Failed to store conversation turn:', e);
             }
         }
 
-        // Persist flow state (fire-and-forget)
         if (conversationId && flowDecision) {
             adminDb.collection('relayConversations').doc(conversationId)
                 .set({ flowState: flowDecision.updatedState }, { merge: true })
@@ -415,7 +218,7 @@ Respond with ONLY valid JSON. No markdown, no code fences.`;
             success: true,
             response: parsed,
             category: partnerData?.businessPersona?.identity?.businessCategories?.[0]?.functionId || 'general',
-            allowedBlockIds,
+            allowedBlockIds: allowedShortIds,
             conversationId: conversationId || `conv_${Date.now()}`,
             ...(flowDecision && {
                 flowMeta: {
@@ -435,4 +238,25 @@ Respond with ONLY valid JSON. No markdown, no code fences.`;
             { status: 500, headers: corsHeaders }
         );
     }
+}
+
+function buildPersonaContext(partnerData: Record<string, any> | null): string {
+    const persona = partnerData?.businessPersona;
+    if (!persona) return '';
+    const identity = persona.identity || {};
+    const knowledge = persona.knowledge || {};
+    const parts: string[] = [];
+    if (identity.name) parts.push(`Business: ${identity.name}`);
+    if (identity.phone) parts.push(`Phone: ${identity.phone}`);
+    if (identity.email) parts.push(`Email: ${identity.email}`);
+    if (identity.website) parts.push(`Website: ${identity.website}`);
+    if (identity.address) {
+        const a = identity.address;
+        parts.push(`Address: ${[a.street, a.city, a.state, a.country].filter(Boolean).join(', ')}`);
+    }
+    if (identity.operatingHours?.formatted) parts.push(`Hours: ${identity.operatingHours.formatted}`);
+    if (knowledge?.faqs?.length) {
+        parts.push('FAQs:\n' + knowledge.faqs.slice(0, 10).map((f: any) => `  Q: ${f.question}\n  A: ${f.answer}`).join('\n'));
+    }
+    return parts.length > 0 ? `\n\nBUSINESS PROFILE:\n${parts.join('\n')}` : '';
 }

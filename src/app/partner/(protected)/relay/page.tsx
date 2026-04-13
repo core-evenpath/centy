@@ -18,7 +18,6 @@ import BlockRenderer from '@/components/relay/blocks/BlockRenderer';
 import type { RelayBlock } from '@/components/relay/blocks/BlockRenderer';
 import RegistryBlockRenderer from '@/components/relay/RegistryBlockRenderer';
 import type { BlockTheme } from '@/lib/relay/types';
-import { mapGeminiToRegistryBlock } from './gemini-block-mapper';
 import RelayBlockExplorer from './RelayBlockExplorer';
 import { DEFAULT_THEME } from '@/components/relay/blocks/types';
 import type { RelayTheme, BlockCallbacks } from '@/components/relay/blocks/types';
@@ -331,17 +330,13 @@ export default function PartnerRelayPage() {
             const data = await res.json();
 
             if (data.success && data.response) {
-                const allowed: string[] = Array.isArray(data.allowedBlockIds) ? data.allowedBlockIds : [];
-                const mapped = mapGeminiToRegistryBlock(data.response, data.category, allowed);
-                const geminiType = data.response.type;
-                // Server-side block resolution (already gated by allowedBlockIds) wins;
-                // else try the client mapper; else fall back to plain text + suggestions.
+                // Server populates blockId + blockData from Modules/Core. The
+                // client is a dumb renderer: if blockId is set, render it; else
+                // fall back to plain text + suggestions.
                 const serverBlockId: string | undefined = data.response.blockId;
                 const serverBlockData = data.response.blockData;
-                const resolvedBlockId = serverBlockId || mapped?.blockId;
-                const resolvedBlockData = serverBlockData || mapped?.data;
+                const geminiType = data.response.type;
 
-                const useLegacyBlock = !resolvedBlockId && geminiType === 'text';
                 const fallbackBlock: RelayBlock = {
                     type: 'text',
                     text: data.response.text || '',
@@ -350,12 +345,10 @@ export default function PartnerRelayPage() {
                 const assistantMsg: ChatMessage = {
                     role: 'assistant',
                     content: data.response.text || '',
-                    block: resolvedBlockId
-                        ? (data.response as RelayBlock)
-                        : (useLegacyBlock ? (data.response as RelayBlock) : fallbackBlock),
-                    type: resolvedBlockId ? geminiType : (useLegacyBlock ? geminiType : 'text'),
-                    blockId: resolvedBlockId,
-                    blockData: resolvedBlockData,
+                    block: serverBlockId ? (data.response as RelayBlock) : fallbackBlock,
+                    type: serverBlockId ? geminiType : 'text',
+                    blockId: serverBlockId,
+                    blockData: serverBlockData,
                 };
                 setChatMessages(prev => [...prev, assistantMsg]);
             } else {
