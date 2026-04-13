@@ -2,7 +2,6 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { Send, Loader2 } from 'lucide-react';
-import RegistryBlockRenderer from './RegistryBlockRenderer';
 import type { BlockTheme } from '@/lib/relay/types';
 import type { RelaySessionCache } from '@/lib/relay/session-cache';
 import type { BlockResolution } from '@/lib/relay/block-resolver';
@@ -160,16 +159,9 @@ export default function ChatInterface({
 
           return (
             <div key={msg.id} style={S.assistantBubble}>
-              {msg.block?.blockId && (
-                <div style={{ marginBottom: msg.text ? '6px' : '0' }}>
-                  <RegistryBlockRenderer
-                    blockId={msg.block.blockId}
-                    data={msg.block.data}
-                    theme={theme}
-                    variant={msg.block.variant}
-                  />
-                </div>
-              )}
+              {/* Block render removed — /partner/relay now uses BlockRenderer
+                  driven by the server `type` field. This component retained
+                  for legacy RelayWidget and falls back to text + suggestions. */}
               {msg.text && <div style={S.assistantText}>{msg.text}</div>}
               {msg.followUps && msg.followUps.length > 0 && (
                 <div style={S.chipRow}>
