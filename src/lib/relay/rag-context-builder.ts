@@ -29,63 +29,29 @@ function summarizeBlockContext(resolution: BlockResolution | null): string {
 
   const { blockId, data, itemsUsed } = resolution;
 
-  switch (blockId) {
-    case 'ecom_product_card': {
-      const items = data.items || [];
-      if (items.length === 0) return 'A product catalog block is displayed but has no items.';
-      const names = items.slice(0, 4).map((i: any) => i.name).join(', ');
-      const priceRange = items
-        .filter((i: any) => i.price)
-        .map((i: any) => i.price);
-      const minP = priceRange.length > 0 ? Math.min(...priceRange) : null;
-      const maxP = priceRange.length > 0 ? Math.max(...priceRange) : null;
-      const range = minP !== null && maxP !== null && minP !== maxP
-        ? ` (${formatCurrency(minP)} - ${formatCurrency(maxP)})`
-        : minP !== null
-          ? ` (${formatCurrency(minP)})`
-          : '';
-      return `The customer sees ${items.length} products: ${names}${range}. They can tap to view details or add to bag.`;
-    }
-
-    case 'ecom_product_detail': {
-      const name = data.name || 'a product';
-      const price = data.price ? ` at ${formatCurrency(data.price)}` : '';
-      const rating = data.rating ? `, rated ${data.rating}/5` : '';
-      return `The customer sees the detail view of "${name}"${price}${rating}. Size/color selectors and Add to Bag button are visible.`;
-    }
-
-    case 'ecom_compare': {
-      const labels = data.itemLabels || [];
-      return `The customer sees a comparison table: ${labels.join(' vs ')}. Key specs are displayed side by side.`;
-    }
-
-    case 'ecom_cart': {
-      const items = data.items || [];
-      if (items.length === 0) return 'The shopping cart is displayed but empty.';
-      const total = items.reduce((s: number, i: any) => s + (i.price || 0) * (i.quantity || 1), 0);
-      return `The cart shows ${items.length} item(s) totaling ${formatCurrency(total)}. Checkout button is visible.`;
-    }
-
-    case 'ecom_order_tracker': {
-      const status = data.status || 'unknown';
-      const orderId = data.orderId || '';
-      return `Order tracker is displayed for ${orderId}. Current status: ${status}.`;
-    }
-
-    case 'ecom_promo': {
-      const title = data.title || 'a promotion';
-      return `A promotional offer is displayed: "${title}". The customer can see the deal details.`;
-    }
-
-    case 'ecom_greeting':
-      return 'The welcome screen is displayed with quick action buttons. The customer just arrived.';
-
-    case 'shared_contact':
-      return 'Contact information is displayed. The customer can see phone, email, and WhatsApp options.';
-
-    default:
-      return `A "${blockId}" block is displayed with ${itemsUsed} item(s).`;
+  if (Array.isArray(data?.items) && data.items.length > 0) {
+    const names = data.items
+      .slice(0, 4)
+      .map((i: any) => i.name || i.title || 'item')
+      .join(', ');
+    return `The customer sees ${data.items.length} item(s): ${names}. They can tap to view details.`;
   }
+
+  if (data?.name || data?.title) {
+    const label = data.name || data.title;
+    const price = typeof data.price === 'number' ? ` priced at ${formatCurrency(data.price)}` : '';
+    return `The customer sees details for "${label}"${price}.`;
+  }
+
+  if (data?.brandName || data?.welcomeMessage) {
+    return 'The welcome screen is displayed. The customer just arrived.';
+  }
+
+  if (data?.whatsapp || data?.phone || data?.email) {
+    return 'Contact information is displayed.';
+  }
+
+  return `A "${blockId}" block is displayed with ${itemsUsed} item(s).`;
 }
 
 function formatCurrency(amount: number): string {
@@ -148,31 +114,17 @@ ${blockContext}`;
 
 export function buildFollowUpPrompt(
   blockResolution: BlockResolution | null,
-  intentType: string
+  _intentType: string
 ): string[] {
-  const defaults = ['Tell me more', 'What else do you have?', 'Help me choose'];
-
-  switch (intentType) {
-    case 'browse':
-    case 'search':
-      return ['Filter by price', 'Show bestsellers', 'Compare two products'];
-    case 'product_detail':
-      return ['Is this in stock?', 'Size guide', 'Similar products'];
-    case 'compare':
-      return ['Which one do you recommend?', 'Add the better one to bag', 'Show me more options'];
-    case 'cart_view':
-    case 'checkout':
-      return ['Apply coupon', 'Change quantity', 'Continue shopping'];
-    case 'order_status':
-      return ['When will it arrive?', 'Contact support', 'Order something else'];
-    case 'promo_inquiry':
-      return ['Show me products on sale', 'Apply this code', 'When does it expire?'];
-    case 'greeting':
-      return ['Show me bestsellers', 'New arrivals', 'I need help choosing'];
-    case 'contact':
-    case 'support':
-      return ['Shipping policy', 'Return policy', 'Track my order'];
-    default:
-      return defaults;
+  if (!blockResolution?.blockId) {
+    return ['What do you offer?', 'Help me choose', 'Contact info'];
   }
+  const data = blockResolution.data || {};
+  if (Array.isArray(data.items) && data.items.length > 0) {
+    return ['Tell me more about one of these', 'Filter by price', 'Compare options'];
+  }
+  if (data.name || data.title) {
+    return ['Is this available?', 'Show similar options', 'How do I book?'];
+  }
+  return ['Show me options', 'What else do you have?', 'Help me choose'];
 }

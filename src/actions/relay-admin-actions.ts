@@ -7,7 +7,8 @@ import { VERTICAL_MANIFEST } from '@/app/admin/relay/blocks/previews/_manifest';
 import type { UnifiedBlockConfig } from '@/lib/relay/types';
 
 // ── Prompt schema templates by block type ────────────────────────────
-// Decomposed from the monolithic RELAY_BLOCK_SCHEMAS string into per-type entries.
+// One promptSchema per block type. Each entry is written into Firestore
+// `relayBlockConfigs` so the chat route can read it dynamically.
 
 const PROMPT_SCHEMAS: Record<string, string> = {
   catalog: '{"type":"catalog","text":"...","items":[{"id":"...","name":"...","price":0,"currency":"INR","subtitle":"...","emoji":"...","color":"#...","rating":4.5,"reviewCount":100,"features":["..."],"specs":[{"label":"...","value":"..."}]}],"suggestions":["..."]}',

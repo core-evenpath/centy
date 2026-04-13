@@ -1,6 +1,8 @@
 import { db as adminDb } from '@/lib/firebase-admin';
-import { RELAY_BLOCK_SCHEMAS } from '@/lib/relay-chat-schemas';
 import type { UnifiedBlockConfig } from './types';
+
+const MINIMAL_FALLBACK_SCHEMA =
+  'RESPOND ONLY IN JSON of shape { "type": "text", "text": "...", "suggestions": ["...", "..."] }';
 
 // ── In-process cache ─────────────────────────────────────────────────
 
@@ -182,15 +184,13 @@ export function buildBlockSchemasFromConfigs(
 ): string {
   const blocksWithSchemas = blocks.filter(b => b.promptSchema);
   if (blocksWithSchemas.length === 0) {
-    // Only fall back to the full hardcoded schema list when the global
-    // registry in Firestore is genuinely empty (not yet seeded). When it
-    // has configs but the partner filter narrowed them to zero, respect
-    // that — serve a minimal safe schema rather than leaking every block.
+    // No hardcoded fallback any more — Firestore is the source of truth.
+    // If the global registry is empty (not yet seeded) or the partner filter
+    // narrows to zero, serve the same minimal text-only schema either way.
     if (opts.globalEmpty !== false) {
-      console.warn('No block promptSchemas found in Firestore, falling back to RELAY_BLOCK_SCHEMAS');
-      return RELAY_BLOCK_SCHEMAS;
+      console.warn('No block promptSchemas found in Firestore');
     }
-    return 'RESPOND ONLY IN JSON of shape { "type": "text", "text": "...", "suggestions": ["...", "..."] }';
+    return MINIMAL_FALLBACK_SCHEMA;
   }
 
   const lines: string[] = ['RESPOND ONLY IN JSON. Choose the most appropriate block type:'];

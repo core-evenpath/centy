@@ -893,3 +893,17 @@ RelayWidget (container)
 - Unmapped types (fall through to old BlockRenderer): activities, book, location, gallery, info, pricing, testimonials, quick_actions, schedule, lead_capture, handoff
 - Returns null (→ old BlockRenderer fallback) when: unknown type, no items for catalog, no rows for compare, no contact data
 - tsc --noEmit: PASS (only pre-existing TS5101 baseUrl deprecation warning)
+
+## Relay Pipeline Unification — 2026-04-13
+- Removed mapItemToProductData() hardcoded field mapper from src/lib/relay/block-resolver.ts
+- Replaced with mapItemWithAgentConfig() + resolveTemplate() that reads module agentConfig dynamically (cardTitle / cardSubtitle / cardPrice / cardImage / displayFields, with `{token}` interpolation)
+- Threaded agentConfigMap through resolveBlock() → resolveBrowse / resolveProductDetail / resolveBundle / resolveSubscription. Third arg defaulted to empty Map so client component (src/components/relay/ChatInterface.tsx) keeps compiling.
+- Updated src/lib/relay/rag-populator.ts buildSessionData() and populateBlock() to require agentConfigs map and use it for name / description / price / imageUrl resolution
+- Updated src/app/api/relay/chat/route.ts to capture agentConfig from the existing getSystemModuleAction loop and pass agentConfigMap into buildSessionData and populateBlock
+- Replaced hardcoded blockId switch in src/lib/relay/rag-context-builder.ts summarizeBlockContext() with shape-based detection (items array / name|title / brandName|welcomeMessage / contact). buildFollowUpPrompt() also de-hardcoded.
+- Deleted src/lib/relay-chat-schemas.ts (hardcoded RELAY_BLOCK_SCHEMAS); inlined a minimal text-only fallback string in src/lib/relay/block-config-service.ts so Firestore is now the only source for block schemas.
+- Added relayPipelineDiagnosticsAction() in src/actions/relay-actions.ts with 9 end-to-end checks (partner exists / business category / modules enabled / module items / system modules linked / agent configs / per-module relayBlockConfigs / active block schemas / relay config saved). Integrated into runRelayDiagnosticsAction so the admin Diagnostics tab shows pipeline health.
+- Single pipeline: admin → systemModules → relayBlockConfigs → partner/businessModules → agentConfig → Relay chat
+- Validation: grep "mapItemToProductData|RELAY_BLOCK_SCHEMAS|relay-chat-schemas" → 0 hits. tsc --noEmit: no new errors introduced (only pre-existing missing-deps + TS5101 baseUrl noise).
+
+Code execution completed
