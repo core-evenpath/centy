@@ -1,6 +1,11 @@
 'use client';
 
 import React from 'react';
+import type {
+  GreetingPreviewData,
+  ProductCardPreviewData,
+  ContactPreviewData,
+} from './previews/_preview-props';
 
 export const T = {
   pri: "#2d4a3e", priLt: "#3d6354", priBg: "rgba(45,74,62,0.06)", priBg2: "rgba(45,74,62,0.12)",
@@ -29,21 +34,33 @@ function Stars({ r }: { r: number }) {
   return <div style={{ display: "flex", gap: "1px" }}>{[1,2,3,4,5].map(i => <span key={i} style={{ fontSize: "8px", color: i <= Math.round(r) ? "#d97706" : T.bdr }}>★</span>)}</div>;
 }
 
-function MiniGreeting() {
+function MiniGreeting({ data }: { data?: GreetingPreviewData } = {}) {
+  const brandName = data?.brandName || "Brand Name";
+  const initial = (data?.initial || brandName.charAt(0) || "B").toUpperCase();
+  const tagline = data?.tagline ?? "Your tagline here";
+  const welcome = data?.welcomeMessage ?? "Welcome! How can we help you today?";
+  const actions = data?.quickActions && data.quickActions.length > 0
+    ? data.quickActions.slice(0, 4)
+    : [
+        { label: "Browse Products", icon: "◎" },
+        { label: "Get Help", icon: "◇" },
+        { label: "Track Order", icon: "▤" },
+        { label: "Contact Us", icon: "☎" },
+      ];
   return (
     <div style={{ background: T.surface, border: `1px solid ${T.bdr}`, borderRadius: "10px", overflow: "hidden" }}>
       <div style={{ padding: "10px", borderBottom: `1px solid ${T.bdr}` }}>
         <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-          <div style={{ width: 28, height: 28, borderRadius: "50%", background: T.pri, display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontSize: "11px", fontWeight: 600 }}>B</div>
-          <div><div style={{ fontSize: "12px", fontWeight: 600, color: T.t1 }}>Brand Name</div><div style={{ fontSize: "8px", color: T.t4 }}>Your tagline here</div></div>
+          <div style={{ width: 28, height: 28, borderRadius: "50%", background: T.pri, display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontSize: "11px", fontWeight: 600 }}>{initial}</div>
+          <div><div style={{ fontSize: "12px", fontWeight: 600, color: T.t1 }}>{brandName}</div>{tagline && <div style={{ fontSize: "8px", color: T.t4 }}>{tagline}</div>}</div>
         </div>
-        <div style={{ fontSize: "10px", color: T.t2, marginTop: "6px", lineHeight: 1.4 }}>Welcome! How can we help you today?</div>
+        {welcome && <div style={{ fontSize: "10px", color: T.t2, marginTop: "6px", lineHeight: 1.4 }}>{welcome}</div>}
       </div>
       <div style={{ padding: "6px", display: "grid", gridTemplateColumns: "1fr 1fr", gap: "4px" }}>
-        {[{ l: "Browse Products", i: "◎" }, { l: "Get Help", i: "◇" }, { l: "Track Order", i: "▤" }, { l: "Contact Us", i: "☎" }].map(a => (
-          <div key={a.l} style={{ display: "flex", alignItems: "center", gap: "5px", padding: "7px 6px", background: T.bg, borderRadius: "6px", border: `1px solid ${T.bdr}` }}>
-            <div style={{ width: 18, height: 18, borderRadius: "50%", background: T.priBg2, display: "flex", alignItems: "center", justifyContent: "center", fontSize: "8px", color: T.pri }}>{a.i}</div>
-            <span style={{ fontSize: "9px", fontWeight: 500, color: T.t1 }}>{a.l}</span>
+        {actions.map(a => (
+          <div key={a.label} style={{ display: "flex", alignItems: "center", gap: "5px", padding: "7px 6px", background: T.bg, borderRadius: "6px", border: `1px solid ${T.bdr}` }}>
+            <div style={{ width: 18, height: 18, borderRadius: "50%", background: T.priBg2, display: "flex", alignItems: "center", justifyContent: "center", fontSize: "8px", color: T.pri }}>{a.icon || "◆"}</div>
+            <span style={{ fontSize: "9px", fontWeight: 500, color: T.t1 }}>{a.label}</span>
           </div>
         ))}
       </div>
@@ -51,32 +68,46 @@ function MiniGreeting() {
   );
 }
 
-function MiniProductCard() {
+const PRODUCT_FALLBACK_BGS = [
+  "linear-gradient(135deg, #e8e0d4, #c8bfaf)",
+  "linear-gradient(135deg, #fef3c7, #fbbf24)",
+  "linear-gradient(135deg, #dbeafe, #60a5fa)",
+  "linear-gradient(135deg, #fce7f3, #f472b6)",
+];
+
+function MiniProductCard({ data }: { data?: ProductCardPreviewData } = {}) {
+  const items = data?.items && data.items.length > 0
+    ? data.items.slice(0, 4)
+    : [
+        { name: "Item Name", desc: "Description · Detail", price: 48, badge: "Popular", bg: PRODUCT_FALLBACK_BGS[0], rating: 4.8, reviews: 2847 },
+        { name: "Another Item", desc: "Variant info · Size", price: 62, bg: PRODUCT_FALLBACK_BGS[1], rating: 4.7, reviews: 4210 },
+      ];
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
-      {[
-        { name: "Item Name", desc: "Description · Detail", price: 48, badge: "Popular", bg: "linear-gradient(135deg, #e8e0d4, #c8bfaf)", rating: 4.8, reviews: 2847 },
-        { name: "Another Item", desc: "Variant info · Size", price: 62, bg: "linear-gradient(135deg, #fef3c7, #fbbf24)", rating: 4.7, reviews: 4210 },
-      ].map((p, i) => (
-        <div key={i} style={{ background: T.surface, border: `1px solid ${T.bdr}`, borderRadius: "8px", display: "flex", gap: "8px", padding: "8px" }}>
-          <div style={{ width: 44, height: 44, borderRadius: 6, background: p.bg, flexShrink: 0 }} />
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ display: "flex", justifyContent: "space-between", gap: "3px" }}>
-              <span style={{ fontSize: "11px", fontWeight: 500, color: T.t1 }}>{p.name}</span>
-              {p.badge && <Badge>{p.badge}</Badge>}
-            </div>
-            <div style={{ fontSize: "8px", color: T.t4, marginTop: "1px" }}>{p.desc}</div>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: "4px" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
-                <span style={{ fontSize: "12px", fontWeight: 600, color: T.pri }}>{fmt(p.price)}</span>
-                <Stars r={p.rating} />
-                <span style={{ fontSize: "7px", color: T.t4 }}>({p.reviews})</span>
+      {items.map((p, i) => {
+        const bg = p.bg || PRODUCT_FALLBACK_BGS[i % PRODUCT_FALLBACK_BGS.length];
+        const priceLabel = p.priceLabel ?? (typeof p.price === "number" ? fmt(p.price) : undefined);
+        return (
+          <div key={i} style={{ background: T.surface, border: `1px solid ${T.bdr}`, borderRadius: "8px", display: "flex", gap: "8px", padding: "8px" }}>
+            <div style={{ width: 44, height: 44, borderRadius: 6, background: bg, flexShrink: 0 }} />
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", gap: "3px" }}>
+                <span style={{ fontSize: "11px", fontWeight: 500, color: T.t1 }}>{p.name}</span>
+                {p.badge && <Badge>{p.badge}</Badge>}
               </div>
-              <button style={{ fontSize: "8px", fontWeight: 600, color: "#fff", background: T.pri, border: "none", padding: "3px 8px", borderRadius: "5px", cursor: "pointer" }}>Add</button>
+              {p.desc && <div style={{ fontSize: "8px", color: T.t4, marginTop: "1px" }}>{p.desc}</div>}
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: "4px" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+                  {priceLabel && <span style={{ fontSize: "12px", fontWeight: 600, color: T.pri }}>{priceLabel}</span>}
+                  {typeof p.rating === "number" && <Stars r={p.rating} />}
+                  {typeof p.reviews === "number" && <span style={{ fontSize: "7px", color: T.t4 }}>({p.reviews})</span>}
+                </div>
+                <button style={{ fontSize: "8px", fontWeight: 600, color: "#fff", background: T.pri, border: "none", padding: "3px 8px", borderRadius: "5px", cursor: "pointer" }}>Add</button>
+              </div>
             </div>
           </div>
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 }
@@ -227,14 +258,21 @@ function MiniSuggestions() {
   );
 }
 
-function MiniContact() {
+function MiniContact({ data }: { data?: ContactPreviewData } = {}) {
+  const items = data?.items && data.items.length > 0
+    ? data.items
+    : [
+        { label: "Phone", value: "+1 (555) 123-4567", icon: "☎" },
+        { label: "Email", value: "hello@brand.com", icon: "✉" },
+        { label: "WhatsApp", value: "Chat now", icon: "◎" },
+      ];
   return (
     <div style={{ background: T.surface, border: `1px solid ${T.bdr}`, borderRadius: "10px", padding: "8px" }}>
       <div style={{ fontSize: "10px", fontWeight: 600, color: T.t1, marginBottom: "5px" }}>Contact Us</div>
-      {[{ l: "Phone", v: "+1 (555) 123-4567", i: "☎" }, { l: "Email", v: "hello@brand.com", i: "✉" }, { l: "WhatsApp", v: "Chat now", i: "◎" }].map((c, i) => (
-        <div key={i} style={{ display: "flex", alignItems: "center", gap: "6px", padding: "4px 0", borderBottom: i < 2 ? `1px solid ${T.bdr}` : "none" }}>
-          <span style={{ fontSize: "10px", width: 16, textAlign: "center" }}>{c.i}</span>
-          <div style={{ flex: 1 }}><div style={{ fontSize: "8px", color: T.t4 }}>{c.l}</div><div style={{ fontSize: "9px", fontWeight: 500, color: T.pri }}>{c.v}</div></div>
+      {items.map((c, i) => (
+        <div key={i} style={{ display: "flex", alignItems: "center", gap: "6px", padding: "4px 0", borderBottom: i < items.length - 1 ? `1px solid ${T.bdr}` : "none" }}>
+          <span style={{ fontSize: "10px", width: 16, textAlign: "center" }}>{c.icon || "•"}</span>
+          <div style={{ flex: 1 }}><div style={{ fontSize: "8px", color: T.t4 }}>{c.label}</div><div style={{ fontSize: "9px", fontWeight: 500, color: T.pri }}>{c.value}</div></div>
         </div>
       ))}
     </div>

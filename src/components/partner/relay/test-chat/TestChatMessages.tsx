@@ -15,6 +15,7 @@ export interface TestChatMessage {
   role: 'user' | 'assistant';
   content: string;
   blockId?: string;
+  blockData?: Record<string, unknown>;
   suggestions?: string[];
 }
 
@@ -88,7 +89,7 @@ export default function TestChatMessages({
               <div key={i}>
                 {hasBlock ? (
                   <BotBubble text={safeText || undefined} emoji={brandEmoji} theme={theme}>
-                    <TestChatBlockPreview blockId={msg.blockId!} />
+                    <TestChatBlockPreview blockId={msg.blockId!} blockData={msg.blockData} />
                   </BotBubble>
                 ) : (
                   <BotBubble

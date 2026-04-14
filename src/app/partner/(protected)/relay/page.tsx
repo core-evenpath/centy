@@ -102,6 +102,7 @@ interface ChatMessage {
     role: 'user' | 'assistant';
     content: string;
     blockId?: string;
+    blockData?: Record<string, unknown>;
     suggestions?: string[];
 }
 
@@ -279,6 +280,9 @@ export default function PartnerRelayPage() {
                     role: 'assistant',
                     content: data.response.text || '',
                     blockId: typeof data.response.blockId === 'string' ? data.response.blockId : undefined,
+                    blockData: data.response.blockData && typeof data.response.blockData === 'object'
+                        ? data.response.blockData
+                        : undefined,
                     suggestions: Array.isArray(data.response.suggestions) ? data.response.suggestions : undefined,
                 };
                 setChatMessages(prev => [...prev, assistantMsg]);

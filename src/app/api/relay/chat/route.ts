@@ -5,6 +5,12 @@ import {
     getAllowedBlocksForFunction,
     buildBlockCatalogPrompt,
 } from '@/lib/relay/admin-block-registry';
+import { buildBlockData } from '@/lib/relay/admin-block-data';
+import {
+    getPartnerModulesAction,
+    getSystemModuleAction,
+    getModuleItemsAction,
+} from '@/actions/modules-actions';
 import { createInitialFlowState, detectIntent, runFlowEngine } from '@/lib/flow-engine';
 import { getFlowTemplateForFunction } from '@/lib/flow-templates';
 import type { ConversationFlowState, FlowDefinition, FlowEngineDecision } from '@/lib/types-flow-engine';
@@ -96,6 +102,27 @@ export async function POST(request: NextRequest) {
             console.error('Flow engine error (non-fatal):', flowErr);
         }
 
+        // ── Partner modules + items (for data-driven block previews) ─────
+        const modules: Array<{ slug: string; name: string; items: any[] }> = [];
+        try {
+            const partnerModulesResult = await getPartnerModulesAction(partnerId);
+            const partnerModules = partnerModulesResult.success ? partnerModulesResult.data || [] : [];
+            for (const pm of partnerModules.slice(0, 10)) {
+                const systemResult = await getSystemModuleAction(pm.moduleSlug);
+                if (!systemResult.success || !systemResult.data) continue;
+                const itemsResult = await getModuleItemsAction(partnerId, pm.id, {
+                    isActive: true,
+                    pageSize: 20,
+                    sortBy: 'sortOrder',
+                    sortOrder: 'asc',
+                });
+                const items = itemsResult.success ? itemsResult.data?.items || [] : [];
+                modules.push({ slug: pm.moduleSlug, name: systemResult.data.name, items });
+            }
+        } catch (modErr) {
+            console.error('Module load error (non-fatal):', modErr);
+        }
+
         // ── Allowed admin-preview blocks for this partner's sub-vertical ─
         const allowedBlocks = getAllowedBlocksForFunction(functionId);
         const allowedBlockIds = allowedBlocks.map(b => b.id);
@@ -150,17 +177,26 @@ ${personaContext}`;
             ? parsed.suggestions.filter((s: any) => typeof s === 'string').slice(0, 4)
             : [];
 
+        // Build real `blockData` for the chosen preview (greeting,
+        // product_card, contact, …). Previews fall back to their design
+        // sample when `blockData` is undefined.
+        const blockData = blockId
+            ? buildBlockData({ blockId, partnerData, modules })
+            : undefined;
+
         // Backward-compat payload: `type: 'text'` keeps the legacy widget
         // happy (it just renders text + suggestions); the new Test Chat
-        // UI keys off `blockId` to render the admin preview.
+        // UI keys off `blockId` + `blockData` to render the admin preview
+        // with real partner data.
         const responsePayload = {
             type: 'text' as const,
             blockId,
+            blockData,
             text: assistantText,
             suggestions,
         };
 
-        console.log('[Relay chat] blockId:', blockId, '| allowed:', allowedBlockIds.length);
+        console.log('[Relay chat] blockId:', blockId, '| hasData:', !!blockData, '| modules:', modules.length);
 
         // Store conversation turn
         if (conversationId) {
