@@ -26,6 +26,7 @@ import {
   type BlockDiagnostic,
 } from '@/actions/relay-block-sources-actions';
 import ActiveBlockCard from './ActiveBlockCard';
+import BlueprintAssistant from './BlueprintAssistant';
 
 interface Props {
   partnerId: string;
@@ -46,6 +47,11 @@ export default function RelayBlockExplorer({ partnerId, defaultFunctionId }: Pro
 
   const [previewData, setPreviewData] = useState<Record<string, Record<string, unknown> | undefined>>({});
   const [previewLoading, setPreviewLoading] = useState<Record<string, boolean>>({});
+
+  // Bumped whenever the blueprint agent applies a plan so downstream
+  // effects (diagnostics, sources, preview cache) re-run against the
+  // freshly-written bindings / modules.
+  const [refreshTick, setRefreshTick] = useState(0);
 
   // Initial load: overrides + partner data sources.
   useEffect(() => {
@@ -77,7 +83,7 @@ export default function RelayBlockExplorer({ partnerId, defaultFunctionId }: Pro
         setLoading(false);
       }
     })();
-  }, [partnerId]);
+  }, [partnerId, refreshTick]);
 
   useEffect(() => {
     if (defaultFunctionId && !selectedId) setSelectedId(defaultFunctionId);
@@ -123,7 +129,7 @@ export default function RelayBlockExplorer({ partnerId, defaultFunctionId }: Pro
       }
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [partnerId, loading, activeIdsKey]);
+  }, [partnerId, loading, activeIdsKey, refreshTick]);
 
   // Lazily fetch preview data per active block.
   useEffect(() => {
@@ -143,7 +149,7 @@ export default function RelayBlockExplorer({ partnerId, defaultFunctionId }: Pro
         });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeIdsKey, partnerId, loading, overrides]);
+  }, [activeIdsKey, partnerId, loading, overrides, refreshTick]);
 
   const handleToggle = async (blockId: string) => {
     if (pendingBlockId) return;
@@ -191,6 +197,12 @@ export default function RelayBlockExplorer({ partnerId, defaultFunctionId }: Pro
         [blockId]: { ...(prev[blockId] || { enabled: true }), dataSource: prior },
       }));
     }
+  };
+
+  const handleBlueprintApplied = () => {
+    // Drop cached previews so they re-fetch against the new bindings.
+    setPreviewData({});
+    setRefreshTick(t => t + 1);
   };
 
   const handleCustomized = (blockId: string) => {
@@ -242,6 +254,11 @@ export default function RelayBlockExplorer({ partnerId, defaultFunctionId }: Pro
         </div>
       ) : (
         <>
+          <BlueprintAssistant
+            partnerId={partnerId}
+            activeBlockIds={activeBlocks.map(b => b.id)}
+            onApplied={handleBlueprintApplied}
+          />
           <Section
             title="Active"
             count={activeBlocks.length}

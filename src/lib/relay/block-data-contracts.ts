@@ -54,6 +54,10 @@ export interface BlockField {
   required: boolean;
   source: FieldSource;
   description?: string;
+  // Shared vocabulary id across contracts. Multiple blocks consuming
+  // the same `canonicalId` share a single binding — the partner
+  // configures it once and every block that needs it picks it up.
+  canonicalId?: string;
 }
 
 export interface SuggestedModule {
@@ -84,6 +88,7 @@ const F_BRAND_NAME: BlockField = {
   id: 'brandName',
   label: 'Brand name',
   required: true,
+  canonicalId: 'business.name',
   source: {
     kind: 'partner_profile',
     path: 'businessPersona.identity.name',
@@ -96,6 +101,7 @@ const F_TAGLINE: BlockField = {
   id: 'tagline',
   label: 'Tagline',
   required: false,
+  canonicalId: 'business.tagline',
   source: {
     kind: 'partner_profile',
     path: 'businessPersona.personality.tagline',
@@ -108,6 +114,7 @@ const F_PHONE: BlockField = {
   id: 'phone',
   label: 'Phone',
   required: false,
+  canonicalId: 'business.phone',
   source: {
     kind: 'partner_profile',
     path: 'businessPersona.identity.phone',
@@ -120,6 +127,7 @@ const F_EMAIL: BlockField = {
   id: 'email',
   label: 'Email',
   required: false,
+  canonicalId: 'business.email',
   source: {
     kind: 'partner_profile',
     path: 'businessPersona.identity.email',
@@ -132,6 +140,7 @@ const F_WHATSAPP: BlockField = {
   id: 'whatsapp',
   label: 'WhatsApp',
   required: false,
+  canonicalId: 'business.whatsapp',
   source: {
     kind: 'partner_profile',
     path: 'businessPersona.identity.whatsAppNumber',
@@ -144,6 +153,7 @@ const F_WEBSITE: BlockField = {
   id: 'website',
   label: 'Website',
   required: false,
+  canonicalId: 'business.website',
   source: {
     kind: 'partner_profile',
     path: 'businessPersona.identity.website',
@@ -323,4 +333,23 @@ export function isModuleDriven(contract: BlockDataContract): boolean {
 
 export function isProfileDriven(contract: BlockDataContract): boolean {
   return contract.fields.some(f => f.source.kind === 'partner_profile');
+}
+
+// Collect every canonical field id referenced by the given blocks.
+// Used by the Blueprint agent to know which bindings need to exist.
+export function canonicalIdsForBlocks(blockIds: string[]): string[] {
+  const ids = new Set<string>();
+  for (const bid of blockIds) {
+    const c = getContractFor(bid);
+    for (const f of c.fields) {
+      if (f.canonicalId) ids.add(f.canonicalId);
+    }
+    // Module-driven blocks share an implicit collection canonical id
+    // keyed off the first suggested module slug. Lets blueprint rows
+    // talk about "products.items" once instead of per-field.
+    if (isModuleDriven(c) && c.suggestedModules?.[0]) {
+      ids.add(`${c.suggestedModules[0].slug}.items`);
+    }
+  }
+  return Array.from(ids);
 }
