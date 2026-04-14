@@ -2,10 +2,9 @@
 
 import { useState, useEffect, useRef, useMemo } from 'react';
 import type { RelayConfig } from '@/actions/relay-actions';
-import BlockRenderer from '@/components/relay/blocks/BlockRenderer';
-import type { RelayBlock } from '@/components/relay/blocks/BlockRenderer';
+import TestChatBlockPreview from '@/components/partner/relay/test-chat/TestChatBlockPreview';
 import { DEFAULT_THEME } from '@/components/relay/blocks/types';
-import type { RelayTheme, BlockCallbacks } from '@/components/relay/blocks/types';
+import type { RelayTheme } from '@/components/relay/blocks/types';
 import { Send, Loader2 } from 'lucide-react';
 
 interface RelayFullPageProps {
@@ -16,7 +15,8 @@ interface RelayFullPageProps {
 interface ChatMessage {
   role: 'user' | 'assistant';
   content: string;
-  block?: RelayBlock;
+  blockId?: string;
+  suggestions?: string[];
 }
 
 function hexToRgb(hex: string): [number, number, number] {
@@ -60,19 +60,10 @@ export default function RelayFullPage({ partnerId, config }: RelayFullPageProps)
       setMessages([{
         role: 'assistant',
         content: config.welcomeMessage,
-        block: {
-          type: 'text',
-          text: config.welcomeMessage,
-          suggestions: ['What do you offer?', 'Show me your services', 'How to reach you?'],
-        },
+        suggestions: ['What do you offer?', 'Show me your services', 'How to reach you?'],
       }]);
     }
   }, [config.welcomeMessage]);
-
-  const callbacks: BlockCallbacks = useMemo(() => ({
-    onSendMessage: (text: string) => sendMessage(text),
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }), [partnerId, sending]);
 
   const sendMessage = async (messageText?: string) => {
     const text = messageText || input.trim();
@@ -101,7 +92,8 @@ export default function RelayFullPage({ partnerId, config }: RelayFullPageProps)
         setMessages(prev => [...prev, {
           role: 'assistant',
           content: data.response.text || '',
-          block: data.response as RelayBlock,
+          blockId: typeof data.response.blockId === 'string' ? data.response.blockId : undefined,
+          suggestions: Array.isArray(data.response.suggestions) ? data.response.suggestions : undefined,
         }]);
       } else {
         setMessages(prev => [...prev, {
@@ -168,14 +160,31 @@ export default function RelayFullPage({ partnerId, config }: RelayFullPageProps)
                   {config.brandEmoji || '💬'}
                 </div>
                 <div className="max-w-[90%] space-y-2">
-                  {msg.block ? (
-                    <BlockRenderer block={msg.block} theme={theme} callbacks={callbacks} />
-                  ) : (
+                  {msg.content && (
                     <div
                       className="rounded-lg px-3 py-2 text-sm bg-white border"
                       style={{ borderColor: theme.bdrL }}
                     >
                       <p className="whitespace-pre-wrap">{msg.content}</p>
+                    </div>
+                  )}
+                  {msg.blockId && <TestChatBlockPreview blockId={msg.blockId} />}
+                  {msg.suggestions && msg.suggestions.length > 0 && (
+                    <div className="flex gap-2 flex-wrap">
+                      {msg.suggestions.map((s, j) => (
+                        <button
+                          key={j}
+                          onClick={() => sendMessage(s)}
+                          className="text-xs px-3 py-1.5 rounded-full border transition-colors"
+                          style={{
+                            borderColor: theme.accent,
+                            color: theme.accent,
+                            backgroundColor: '#fff',
+                          }}
+                        >
+                          {s}
+                        </button>
+                      ))}
                     </div>
                   )}
                 </div>

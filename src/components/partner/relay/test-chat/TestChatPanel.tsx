@@ -1,6 +1,6 @@
 'use client';
 
-import type { RelayTheme, BlockCallbacks } from '@/components/relay/blocks/types';
+import type { RelayTheme } from '@/components/relay/blocks/types';
 import TestChatPhoneFrame from './TestChatPhoneFrame';
 import TestChatHeader from './TestChatHeader';
 import TestChatMessages, { type TestChatMessage } from './TestChatMessages';
@@ -21,7 +21,6 @@ export default function TestChatPanel({
   sending,
   onSend,
   onClear,
-  callbacks,
 }: {
   brandName: string;
   brandEmoji?: string;
@@ -31,7 +30,6 @@ export default function TestChatPanel({
   sending: boolean;
   onSend: (text: string) => void;
   onClear: () => void;
-  callbacks: BlockCallbacks;
 }) {
   return (
     <div
@@ -62,7 +60,6 @@ export default function TestChatPanel({
           brandName={brandName}
           brandEmoji={brandEmoji}
           tagline={tagline}
-          callbacks={callbacks}
           onSend={onSend}
         />
         <TestChatInput theme={theme} disabled={sending} onSend={onSend} />

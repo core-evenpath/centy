@@ -1,9 +1,8 @@
 'use client';
 
 import { useEffect, useRef } from 'react';
-import BlockRenderer from '@/components/relay/blocks/BlockRenderer';
-import type { RelayBlock } from '@/components/relay/blocks/BlockRenderer';
-import type { RelayTheme, BlockCallbacks } from '@/components/relay/blocks/types';
+import type { RelayTheme } from '@/components/relay/blocks/types';
+import TestChatBlockPreview from './TestChatBlockPreview';
 import {
   BotBubble,
   UserBubble,
@@ -15,14 +14,19 @@ import {
 export interface TestChatMessage {
   role: 'user' | 'assistant';
   content: string;
-  block?: RelayBlock;
-  type?: string;
+  blockId?: string;
+  suggestions?: string[];
 }
 
 // ── Scrollable message list ──────────────────────────────────────────
 //
-// Composes BotBubble + BlockRenderer + UserBubble + SuggestionChips +
-// TypingIndicator + EmptyChat.
+// Composes BotBubble + TestChatBlockPreview (admin preview dispatcher)
+// + UserBubble + SuggestionChips + TypingIndicator + EmptyChat.
+//
+// The assistant's response has an optional `blockId` pointing at an
+// admin preview component (e.g. `ecom_cart`, `greeting`). If present we
+// render the preview inside the bot bubble; otherwise the bubble shows
+// plain text only.
 
 export default function TestChatMessages({
   messages,
@@ -31,7 +35,6 @@ export default function TestChatMessages({
   brandName,
   brandEmoji,
   tagline,
-  callbacks,
   onSend,
 }: {
   messages: TestChatMessage[];
@@ -40,7 +43,6 @@ export default function TestChatMessages({
   brandName: string;
   brandEmoji?: string;
   tagline?: string;
-  callbacks: BlockCallbacks;
   onSend: (text: string) => void;
 }) {
   const endRef = useRef<HTMLDivElement>(null);
@@ -76,33 +78,27 @@ export default function TestChatMessages({
               return <UserBubble key={i} text={msg.content} theme={theme} />;
             }
 
-            const block = msg.block;
-            const isTextOnly = !block || block.type === 'text';
-            const followUps =
-              block && 'suggestions' in block && Array.isArray((block as { suggestions?: unknown }).suggestions)
-                ? ((block as { suggestions?: string[] }).suggestions as string[])
-                : undefined;
-
             // Guard: if the assistant text looks like stringified JSON
-            // (upstream parse or token-truncation miss), hide it rather
-            // than dumping a JSON blob into the bubble.
+            // (upstream parse miss), hide it rather than dumping a JSON
+            // blob into the bubble.
             const safeText = looksLikeJson(msg.content) ? '' : msg.content;
+            const hasBlock = !!msg.blockId;
 
             return (
               <div key={i}>
-                {isTextOnly ? (
+                {hasBlock ? (
+                  <BotBubble text={safeText || undefined} emoji={brandEmoji} theme={theme}>
+                    <TestChatBlockPreview blockId={msg.blockId!} />
+                  </BotBubble>
+                ) : (
                   <BotBubble
                     text={safeText || "I'm here to help — what would you like to know?"}
                     emoji={brandEmoji}
                     theme={theme}
                   />
-                ) : (
-                  <BotBubble text={safeText || undefined} emoji={brandEmoji} theme={theme}>
-                    <BlockRenderer block={block as RelayBlock} theme={theme} callbacks={callbacks} />
-                  </BotBubble>
                 )}
-                {followUps && followUps.length > 0 && (
-                  <SuggestionChips chips={followUps} onTap={onSend} theme={theme} />
+                {msg.suggestions && msg.suggestions.length > 0 && (
+                  <SuggestionChips chips={msg.suggestions} onTap={onSend} theme={theme} />
                 )}
               </div>
             );
@@ -116,9 +112,7 @@ export default function TestChatMessages({
 }
 
 // Heuristic: treat anything that starts with `{` / `[` (after trimming)
-// as stringified JSON we should not display verbatim. The server should
-// have parsed it already, so a raw blob here means parsing failed
-// upstream.
+// as stringified JSON we should not display verbatim.
 function looksLikeJson(text: string | undefined): boolean {
   if (!text) return false;
   const t = text.trim();

@@ -14,11 +14,10 @@ import { getRegisteredBlocksAction } from '@/actions/block-builder-actions';
 import type { BlockListItem } from '@/actions/block-builder-actions';
 import RelayChatSetup from '@/components/partner/relay/RelayChatSetup';
 import RelayStorefrontManager from '@/components/partner/relay/RelayStorefrontManager';
-import type { RelayBlock } from '@/components/relay/blocks/BlockRenderer';
 import TestChatPanel from '@/components/partner/relay/test-chat/TestChatPanel';
 import RelayBlockExplorer from './RelayBlockExplorer';
 import { DEFAULT_THEME } from '@/components/relay/blocks/types';
-import type { RelayTheme, BlockCallbacks } from '@/components/relay/blocks/types';
+import type { RelayTheme } from '@/components/relay/blocks/types';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -102,8 +101,8 @@ function buildThemeFromAccent(accent: string): RelayTheme {
 interface ChatMessage {
     role: 'user' | 'assistant';
     content: string;
-    block?: RelayBlock;
-    type?: string;
+    blockId?: string;
+    suggestions?: string[];
 }
 
 export default function PartnerRelayPage() {
@@ -151,13 +150,6 @@ export default function PartnerRelayPage() {
             }
         })();
     }, [partnerId]);
-
-    // ── BlockRenderer callbacks ───────────────────────────────────────
-
-    const blockCallbacks: BlockCallbacks = useMemo(() => ({
-        onSendMessage: (text: string) => sendChatMessage(text),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    }), [partnerId, chatSending]);
 
     // ── Save config via server action ────────────────────────────────
 
@@ -278,17 +270,16 @@ export default function PartnerRelayPage() {
             const data = await res.json();
 
             if (data.success && data.response) {
-                // Render everything through BlockRenderer — it dispatches on
-                // `block.type` (catalog / greeting / contact / compare / promo / …).
-                // The server response is already in RelayBlock shape.
-                const block: RelayBlock = data.response.type
-                    ? (data.response as RelayBlock)
-                    : { type: 'text', text: data.response.text || '', suggestions: data.response.suggestions || [] };
+                // The server response is now admin-registry-first:
+                //   { type: 'text', blockId?, text, suggestions? }
+                // `blockId` (when present) maps to a preview component in
+                // src/app/admin/relay/blocks/previews/**. No partner-data
+                // payload — the preview is a self-contained design.
                 const assistantMsg: ChatMessage = {
                     role: 'assistant',
                     content: data.response.text || '',
-                    block,
-                    type: block.type,
+                    blockId: typeof data.response.blockId === 'string' ? data.response.blockId : undefined,
+                    suggestions: Array.isArray(data.response.suggestions) ? data.response.suggestions : undefined,
                 };
                 setChatMessages(prev => [...prev, assistantMsg]);
             } else {
@@ -387,7 +378,6 @@ export default function PartnerRelayPage() {
                         sending={chatSending}
                         onSend={sendChatMessage}
                         onClear={() => setChatMessages([])}
-                        callbacks={blockCallbacks}
                     />
                 </TabsContent>
 

@@ -2,16 +2,12 @@ import { NextRequest, NextResponse } from 'next/server';
 import { GoogleGenAI } from '@google/genai';
 import { db as adminDb } from '@/lib/firebase-admin';
 import {
-    getPartnerModulesAction,
-    getSystemModuleAction,
-    getModuleItemsAction,
-} from '@/actions/modules-actions';
-import { getActiveBlocksForPartner, buildBlockSchemasFromConfigs, getGlobalBlockConfigs } from '@/lib/relay/block-config-service';
+    getAllowedBlocksForFunction,
+    buildBlockCatalogPrompt,
+} from '@/lib/relay/admin-block-registry';
 import { createInitialFlowState, detectIntent, runFlowEngine } from '@/lib/flow-engine';
 import { getFlowTemplateForFunction } from '@/lib/flow-templates';
 import type { ConversationFlowState, FlowDefinition, FlowEngineDecision } from '@/lib/types-flow-engine';
-import { buildSessionData, populateBlock } from '@/lib/relay/rag-populator';
-import type { ModuleAgentConfig } from '@/lib/modules/types';
 
 const genAI = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || '' });
 const RELAY_CHAT_MODEL = 'gemini-3.1-pro-preview';
@@ -25,6 +21,16 @@ const corsHeaders = {
 export async function OPTIONS() {
     return new NextResponse(null, { status: 200, headers: corsHeaders });
 }
+
+// ── Relay chat route ─────────────────────────────────────────────────
+//
+// Gemini is used as a classifier + short copywriter. Given the visitor's
+// conversation and a menu of admin-preview block IDs valid for this
+// partner's sub-vertical, it returns `{ blockId?, text, suggestions }`.
+// The UI then renders the admin preview component (self-contained,
+// zero-prop design from `src/app/admin/relay/blocks/previews/**`). No
+// RAG population, no partner data flowing into the chat card — the
+// preview is a pure design primitive.
 
 export async function POST(request: NextRequest) {
     try {
@@ -52,6 +58,9 @@ export async function POST(request: NextRequest) {
             partnerData = partnerDoc.exists ? (partnerDoc.data() as Record<string, any>) : null;
         } catch { /* continue */ }
 
+        const functionId: string =
+            partnerData?.businessPersona?.identity?.businessCategories?.[0]?.functionId || 'general';
+
         // ── Flow Engine ──────────────────────────────────────────────────
         let flowDecision: FlowEngineDecision | null = null;
         try {
@@ -78,7 +87,6 @@ export async function POST(request: NextRequest) {
                 .get();
             if (flowDoc.exists) flowDef = flowDoc.data() as FlowDefinition;
 
-            const functionId = partnerData?.businessPersona?.identity?.businessCategories?.[0]?.functionId || 'general';
             if (!flowDef) {
                 const template = getFlowTemplateForFunction(functionId);
                 if (template) flowDef = template as unknown as FlowDefinition;
@@ -88,108 +96,71 @@ export async function POST(request: NextRequest) {
             console.error('Flow engine error (non-fatal):', flowErr);
         }
 
-        // ── MODULES: enabled modules + items (no details to Gemini) ──────
-        const moduleConfigs: Array<{ slug: string; name: string; items: any[]; summary: string }> = [];
-        const agentConfigMap = new Map<string, ModuleAgentConfig>();
-        const partnerModulesResult = await getPartnerModulesAction(partnerId);
-        const partnerModules = partnerModulesResult.success ? partnerModulesResult.data || [] : [];
+        // ── Allowed admin-preview blocks for this partner's sub-vertical ─
+        const allowedBlocks = getAllowedBlocksForFunction(functionId);
+        const allowedBlockIds = allowedBlocks.map(b => b.id);
+        const blockCatalog = buildBlockCatalogPrompt(allowedBlocks);
 
-        for (const pm of partnerModules.slice(0, 10)) {
-            const systemResult = await getSystemModuleAction(pm.moduleSlug);
-            if (!systemResult.success || !systemResult.data) continue;
-            if (systemResult.data.agentConfig) {
-                agentConfigMap.set(pm.moduleSlug, systemResult.data.agentConfig);
-            }
-            const itemsResult = await getModuleItemsAction(partnerId, pm.id, {
-                isActive: true,
-                pageSize: 20,
-                sortBy: 'sortOrder',
-                sortOrder: 'asc',
-            });
-            const items = itemsResult.success ? itemsResult.data?.items || [] : [];
-            moduleConfigs.push({
-                slug: pm.moduleSlug,
-                name: systemResult.data.name,
-                items,
-                summary: `${systemResult.data.name} (${items.length} items available)`,
-            });
-        }
-
-        // ── Build block schemas (gated by admin + partner + sub-category) ──
-        let blockSchemas = '';
-        let allowedShortIds: string[] = [];
-        try {
-            const [activeBlocks, globalConfigs] = await Promise.all([
-                getActiveBlocksForPartner(partnerId),
-                getGlobalBlockConfigs(),
-            ]);
-            allowedShortIds = activeBlocks.map(b => b.id);
-            blockSchemas = buildBlockSchemasFromConfigs(activeBlocks, {
-                globalEmpty: globalConfigs.length === 0,
-            });
-        } catch {
-            console.warn('Failed to load block configs from Firestore');
-        }
-
-        // ── CORE context for Gemini (persona + FAQs, NO item data) ───────
+        // ── CORE context for Gemini (persona + FAQs; NO item data) ───────
         const personaContext = buildPersonaContext(partnerData);
-        const moduleSummary = moduleConfigs.length > 0
-            ? `\n\nAVAILABLE DATA SOURCES (actual items will be injected by the UI):\n${moduleConfigs.map(m => `- ${m.summary}`).join('\n')}`
-            : '';
-
         const flowContext = flowDecision?.contextForAI ? `\n${flowDecision.contextForAI}\n\n` : '';
 
-        const systemPrompt = `You are a helpful business assistant. Classify the visitor's request into a block type and reply with a short warm message.
+        const systemPrompt = `You are a helpful business assistant for a chat widget.
 ${flowContext}
-${blockSchemas}
+${blockCatalog}
+
+RESPONSE FORMAT — reply with ONLY valid JSON, no markdown, no backticks:
+{
+  "blockId": "<one id from the BLOCK CATALOG above, or omit if none fits>",
+  "text": "1–3 warm, concise sentences that answer the visitor. Do NOT list product names, prices, or enumerate items — the chosen block design already shows sample content.",
+  "suggestions": ["short follow-up 1", "short follow-up 2", "short follow-up 3"]
+}
 
 RULES:
-- Only valid JSON, no markdown, no backticks
-- "text": 1-3 warm, concise sentences. DO NOT list product names or prices — the UI will show real items.
-- ALWAYS include "suggestions" (2-3 short follow-ups)
-- Pick the MOST SPECIFIC "type" for the query (catalog/pricing/greeting/contact/promo/booking/etc.)
-- Match the visitor's language
-${personaContext}${moduleSummary}
+- Pick the single most relevant \`blockId\` for the visitor's latest message. If nothing fits, omit it and answer with text only.
+- \`text\` must be plain prose, never JSON.
+- Always include 2–3 short \`suggestions\` the visitor could tap next.
+- Match the visitor's language and tone.
+${personaContext}`;
 
-Respond with ONLY valid JSON. No markdown, no code fences.`;
-
-        // ── Call Gemini (classifier + text only, no item data) ───────────
+        // ── Call Gemini (classifier + short reply) ───────────────────────
         const conversationHistory = messages.map((m: any) => ({
             role: m.role === 'user' ? 'user' : 'model',
             parts: [{ text: m.content }],
         }));
-        const lastUserMessage = conversationHistory[conversationHistory.length - 1];
-        const priorMessages = conversationHistory.slice(0, -1);
 
         const response = await genAI.models.generateContent({
             model: RELAY_CHAT_MODEL,
-            contents: [
-                ...priorMessages,
-                { role: 'user', parts: [{ text: lastUserMessage?.parts?.[0]?.text || '' }] },
-            ],
+            contents: conversationHistory,
             config: { systemInstruction: systemPrompt, maxOutputTokens: 2048, temperature: 0.3 },
         });
 
         const text = response.text?.trim() || '';
-        const parsed: any = parseGeminiBlockResponse(text);
+        const parsed = parseGeminiBlockResponse(text);
 
-        // ── SERVER-SIDE block population from Modules + Core ─────────────
-        try {
-            const sessionData = buildSessionData(partnerId, partnerData, moduleConfigs, agentConfigMap);
-            const userMsg = messages[messages.length - 1]?.content || '';
-            const populated = populateBlock(userMsg, parsed.type, sessionData, allowedShortIds, agentConfigMap);
+        // ── Validate blockId against allowed set ────────────────────────
+        const rawBlockId = typeof parsed.blockId === 'string' ? parsed.blockId : undefined;
+        const blockId = rawBlockId && allowedBlockIds.includes(rawBlockId) ? rawBlockId : undefined;
 
-            console.log('[Relay RAG] Gemini type:', parsed.type, '| cache items:', sessionData.items.length);
-            console.log('[Relay RAG] Populated:', JSON.stringify({ blockId: populated.blockId, source: populated.source, itemsUsed: populated.itemsUsed }));
+        const assistantText = typeof parsed.text === 'string' && parsed.text.trim()
+            ? parsed.text.trim()
+            : "I'm here to help — what would you like to know?";
 
-            if (populated.blockId) {
-                parsed.blockId = populated.blockId;
-                parsed.blockData = populated.blockData;
-                if (populated.variant) parsed.blockVariant = populated.variant;
-            }
-        } catch (blockErr) {
-            console.error('Block population error (non-fatal):', blockErr);
-        }
+        const suggestions = Array.isArray(parsed.suggestions)
+            ? parsed.suggestions.filter((s: any) => typeof s === 'string').slice(0, 4)
+            : [];
+
+        // Backward-compat payload: `type: 'text'` keeps the legacy widget
+        // happy (it just renders text + suggestions); the new Test Chat
+        // UI keys off `blockId` to render the admin preview.
+        const responsePayload = {
+            type: 'text' as const,
+            blockId,
+            text: assistantText,
+            suggestions,
+        };
+
+        console.log('[Relay chat] blockId:', blockId, '| allowed:', allowedBlockIds.length);
 
         // Store conversation turn
         if (conversationId) {
@@ -199,7 +170,7 @@ Respond with ONLY valid JSON. No markdown, no code fences.`;
                         conversationId,
                         partnerId,
                         userMessage: messages[messages.length - 1]?.content || '',
-                        assistantResponse: parsed,
+                        assistantResponse: responsePayload,
                         createdAt: new Date().toISOString(),
                     });
             } catch (e) {
@@ -215,9 +186,9 @@ Respond with ONLY valid JSON. No markdown, no code fences.`;
 
         return NextResponse.json({
             success: true,
-            response: parsed,
-            category: partnerData?.businessPersona?.identity?.businessCategories?.[0]?.functionId || 'general',
-            allowedBlockIds: allowedShortIds,
+            response: responsePayload,
+            category: functionId,
+            allowedBlockIds,
             conversationId: conversationId || `conv_${Date.now()}`,
             ...(flowDecision && {
                 flowMeta: {
@@ -242,11 +213,10 @@ Respond with ONLY valid JSON. No markdown, no code fences.`;
 // ── Tolerant Gemini response parser ──────────────────────────────────
 //
 // Gemini occasionally wraps JSON in ```json fences, prefixes it with a
-// natural-language preamble, or — with a tight `maxOutputTokens` — cuts
-// off mid-string. We try several recovery strategies before giving up.
-// If nothing parses, return a safe user-facing message rather than
-// leaking the raw model output (which would display as a JSON blob in
-// the chat bubble).
+// natural-language preamble, or cuts off mid-string under a tight
+// `maxOutputTokens`. We try several recovery strategies before giving
+// up; if nothing parses we return a safe user-facing message rather
+// than leaking raw model output into the chat bubble.
 
 function parseGeminiBlockResponse(rawText: string): Record<string, any> {
     const text = rawText.trim();
@@ -308,7 +278,6 @@ function extractFirstJsonObject(s: string): string | null {
 
 function genericFallback(): Record<string, any> {
     return {
-        type: 'text',
         text: "I didn't quite catch that — could you rephrase your question?",
         suggestions: ['What do you offer?', 'Contact support', 'Learn more'],
     };
