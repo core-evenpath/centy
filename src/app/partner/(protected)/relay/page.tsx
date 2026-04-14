@@ -10,12 +10,9 @@ import {
     getRelayConversationsAction,
 } from '@/actions/relay-actions';
 import type { RelayConfig, DiagnosticCheck, RelayConversation } from '@/actions/relay-actions';
-import { getRegisteredBlocksAction } from '@/actions/block-builder-actions';
-import type { BlockListItem } from '@/actions/block-builder-actions';
 import RelayChatSetup from '@/components/partner/relay/RelayChatSetup';
 import RelayStorefrontManager from '@/components/partner/relay/RelayStorefrontManager';
 import TestChatPanel from '@/components/partner/relay/test-chat/TestChatPanel';
-import RelayBlockExplorer from './RelayBlockExplorer';
 import { DEFAULT_THEME } from '@/components/relay/blocks/types';
 import type { RelayTheme } from '@/components/relay/blocks/types';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -120,12 +117,6 @@ export default function PartnerRelayPage() {
     const [conversations, setConversations] = useState<RelayConversation[]>([]);
     const [convoLoading, setConvoLoading] = useState(true);
 
-    // Block configs state
-    const [blockConfigs, setBlockConfigs] = useState<BlockListItem[]>([]);
-    const [blocksLoading, setBlocksLoading] = useState(false);
-    const [blocksError, setBlocksError] = useState<string | null>(null);
-    const [blocksCategory, setBlocksCategory] = useState<string | null>(null);
-
     // Chat test state
     const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
     const [chatSending, setChatSending] = useState(false);
@@ -220,28 +211,6 @@ export default function PartnerRelayPage() {
                 // Collection may not exist yet
             } finally {
                 setConvoLoading(false);
-            }
-        })();
-    }, [partnerId]);
-
-    // ── Load block configs ────────────────────────────────────────────
-
-    useEffect(() => {
-        if (!partnerId) return;
-        setBlocksLoading(true);
-        (async () => {
-            try {
-                const result = await getRegisteredBlocksAction({ partnerId });
-                if (result.success) {
-                    setBlockConfigs(result.blocks || []);
-                    setBlocksCategory(result.category || null);
-                } else {
-                    setBlocksError(result.error || 'Failed to load blocks');
-                }
-            } catch (e: any) {
-                setBlocksError(e.message || 'Unknown error');
-            } finally {
-                setBlocksLoading(false);
             }
         })();
     }, [partnerId]);
@@ -364,9 +333,6 @@ export default function PartnerRelayPage() {
                     </TabsTrigger>
                     <TabsTrigger value="flows" className="gap-2">
                         <GitBranch className="h-4 w-4" /> Flows
-                    </TabsTrigger>
-                    <TabsTrigger value="blocks" className="gap-2">
-                        <Layers className="h-4 w-4" /> Blocks
                     </TabsTrigger>
                     <TabsTrigger value="storefront">Storefront</TabsTrigger>
                 </TabsList>
@@ -656,43 +622,21 @@ export default function PartnerRelayPage() {
                             </Button>
                         </CardContent>
                     </Card>
-                </TabsContent>
 
-                {/* ── Section 6: Blocks ─────────────────────────── */}
-                <TabsContent value="blocks" className="space-y-6">
                     <Card>
                         <CardHeader>
-                            <CardTitle>
-                                Block Configurations
-                                {blocksCategory && (
-                                    <Badge variant="secondary" className="ml-2 font-normal text-xs">
-                                        {blocksCategory}
-                                    </Badge>
-                                )}
-                            </CardTitle>
+                            <CardTitle>Block Configurations</CardTitle>
                             <CardDescription>
-                                {blocksCategory
-                                    ? `Block types available to the AI assistant for your business category (${blocksCategory}).`
-                                    : 'Available block types that the AI assistant can use when responding to visitors.'}
+                                Browse and toggle the block designs the AI assistant can use when replying to visitors.
                             </CardDescription>
                         </CardHeader>
                         <CardContent>
-                            {blocksLoading ? (
-                                <div className="flex justify-center py-8">
-                                    <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-                                </div>
-                            ) : blocksError ? (
-                                <div className="text-center py-12">
-                                    <AlertTriangle className="h-10 w-10 text-yellow-500 mx-auto mb-3" />
-                                    <p className="font-medium">Failed to load block configs</p>
-                                    <p className="text-sm text-muted-foreground mt-1">{blocksError}</p>
-                                </div>
-                            ) : (
-                                <RelayBlockExplorer
-                                    partnerId={partnerId!}
-                                    defaultFunctionId={blocksCategory}
-                                />
-                            )}
+                            <Button asChild variant="outline">
+                                <Link href="/partner/relay/blocks">
+                                    <Layers className="h-4 w-4 mr-2" />
+                                    Open Block Configurations
+                                </Link>
+                            </Button>
                         </CardContent>
                     </Card>
                 </TabsContent>
