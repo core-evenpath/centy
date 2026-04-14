@@ -65,7 +65,9 @@ function buildGreeting(
 
   const brandName = typeof identity.name === 'string' ? identity.name : undefined;
   const tagline =
-    typeof partnerData?.businessPersona?.knowledge?.tagline === 'string'
+    typeof partnerData?.businessPersona?.personality?.tagline === 'string'
+      ? partnerData.businessPersona.personality.tagline
+      : typeof partnerData?.businessPersona?.knowledge?.tagline === 'string'
       ? partnerData.businessPersona.knowledge.tagline
       : typeof identity.tagline === 'string'
       ? identity.tagline
@@ -128,7 +130,8 @@ function buildContact(
 
   const rows: NonNullable<ContactPreviewData['items']> = [];
   if (identity.phone) rows.push({ label: 'Phone', value: String(identity.phone), icon: '☎' });
-  if (identity.whatsapp) rows.push({ label: 'WhatsApp', value: String(identity.whatsapp), icon: '◎' });
+  const wa = identity.whatsAppNumber || identity.whatsapp;
+  if (wa) rows.push({ label: 'WhatsApp', value: String(wa), icon: '◎' });
   if (identity.email) rows.push({ label: 'Email', value: String(identity.email), icon: '✉' });
   if (identity.website) rows.push({ label: 'Website', value: String(identity.website), icon: '◧' });
 

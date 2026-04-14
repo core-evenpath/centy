@@ -17,6 +17,12 @@ import {
     getModuleItemsAction,
 } from '@/actions/modules-actions';
 import { getPartnerCustomizationAction, type BlockDataSource } from '@/actions/relay-customization-actions';
+import {
+    getContractFor,
+    isModuleDriven,
+    isProfileDriven,
+    type BlockDataContract,
+} from '@/lib/relay/block-data-contracts';
 
 export interface PartnerModuleSource {
     id: string;        // PartnerModule doc id
@@ -159,3 +165,174 @@ export async function getBlockPreviewDataAction(
         return { success: false, error: error.message };
     }
 }
+
+// ── Diagnostics: one-shot readiness + contract summary per block ─────
+
+export interface BlockFieldDiagnosticEntry {
+    id: string;
+    label: string;
+    required: boolean;
+    sourceKind: 'partner_profile' | 'module_item' | 'document' | 'static';
+    sourceLabel: string;          // e.g. "Business Profile › Phone"
+    settingsHref?: string;        // deep link when source is profile
+    value?: string;               // current value if known
+    resolved: boolean;            // true when a value exists / source is reachable
+}
+
+export interface BlockDiagnostic {
+    blockId: string;
+    summary: string;
+    designOnly: boolean;
+    driver: 'profile' | 'module' | 'document' | 'static';
+    fields: BlockFieldDiagnosticEntry[];
+    // Modules this block could use that the partner actually has (by slug).
+    compatibleModules: PartnerModuleSource[];
+    // Suggested modules the partner hasn't connected yet. Each entry
+    // links to /partner/modules where the partner can enable/create it.
+    missingModules: Array<{ slug: string; name: string; reason: string; href: string }>;
+    // Summary of the block's readiness.
+    ready: boolean;
+    readySummary: string;
+}
+
+export async function getBlockDiagnosticsAction(
+    partnerId: string,
+    blockIds: string[]
+): Promise<{ success: boolean; diagnostics?: BlockDiagnostic[]; error?: string }> {
+    try {
+        if (!adminDb) return { success: false, error: 'Database not available' };
+
+        const [partnerDocSnap, sourcesRes] = await Promise.all([
+            adminDb.collection('partners').doc(partnerId).get(),
+            listPartnerDataSourcesAction(partnerId),
+        ]);
+
+        const partnerData = partnerDocSnap.exists ? (partnerDocSnap.data() as Record<string, any>) : null;
+        const partnerModules: PartnerModuleSource[] = sourcesRes.success ? sourcesRes.modules || [] : [];
+
+        const diagnostics: BlockDiagnostic[] = blockIds.map(blockId => {
+            const contract = getContractFor(blockId);
+            const driver: BlockDiagnostic['driver'] = contract.designOnly
+                ? 'static'
+                : isModuleDriven(contract)
+                ? 'module'
+                : isProfileDriven(contract)
+                ? 'profile'
+                : 'static';
+
+            const fields: BlockFieldDiagnosticEntry[] = contract.fields.map(f => {
+                if (f.source.kind === 'partner_profile') {
+                    const value = readPath(partnerData, f.source.path);
+                    return {
+                        id: f.id,
+                        label: f.label,
+                        required: f.required,
+                        sourceKind: 'partner_profile',
+                        sourceLabel: f.source.label,
+                        settingsHref: f.source.settingsHref,
+                        value: typeof value === 'string' ? value : undefined,
+                        resolved: typeof value === 'string' && !!value.trim(),
+                    };
+                }
+                if (f.source.kind === 'module_item') {
+                    const match = partnerModules.find(m =>
+                        f.source.kind === 'module_item' && f.source.moduleSlugs.includes(m.slug)
+                    );
+                    return {
+                        id: f.id,
+                        label: f.label,
+                        required: f.required,
+                        sourceKind: 'module_item',
+                        sourceLabel: match
+                            ? `${match.name} › ${f.source.itemFields[0]}`
+                            : `Module (${f.source.moduleSlugs.join(' / ')}) › ${f.source.itemFields[0]}`,
+                        resolved: !!match && match.itemCount > 0,
+                    };
+                }
+                if (f.source.kind === 'document') {
+                    return {
+                        id: f.id,
+                        label: f.label,
+                        required: f.required,
+                        sourceKind: 'document',
+                        sourceLabel: `Uploaded document · ${f.source.hint}`,
+                        resolved: false,
+                    };
+                }
+                return {
+                    id: f.id,
+                    label: f.label,
+                    required: f.required,
+                    sourceKind: 'static',
+                    sourceLabel: f.source.note,
+                    resolved: true,
+                };
+            });
+
+            const compatibleModules = (contract.suggestedModules || []).flatMap(sm =>
+                partnerModules.filter(m => m.slug === sm.slug)
+            );
+
+            const missingModules = (contract.suggestedModules || [])
+                .filter(sm => !partnerModules.some(m => m.slug === sm.slug))
+                .map(sm => ({
+                    slug: sm.slug,
+                    name: sm.name,
+                    reason: sm.reason,
+                    href: `/partner/modules?add=${encodeURIComponent(sm.slug)}`,
+                }));
+
+            const requiredFields = fields.filter(f => f.required);
+            const requiredResolved = requiredFields.every(f => f.resolved);
+            const ready = contract.designOnly ? true : requiredResolved && (driver !== 'module' || compatibleModules.length > 0);
+
+            let readySummary = '';
+            if (contract.designOnly) {
+                readySummary = 'Design-only block — no data required.';
+            } else if (!ready) {
+                if (driver === 'module' && compatibleModules.length === 0) {
+                    readySummary = `Needs a ${contract.suggestedModules?.[0]?.name || 'module'} to show real data.`;
+                } else {
+                    const missing = requiredFields.filter(f => !f.resolved).map(f => f.label);
+                    readySummary = missing.length
+                        ? `Missing ${missing.join(', ')}.`
+                        : 'Data source not connected.';
+                }
+            } else {
+                readySummary = driver === 'profile'
+                    ? 'All fields resolved from your Business Profile.'
+                    : `Connected to ${compatibleModules[0]?.name || 'module'}.`;
+            }
+
+            return {
+                blockId,
+                summary: contract.summary,
+                designOnly: !!contract.designOnly,
+                driver,
+                fields,
+                compatibleModules,
+                missingModules,
+                ready,
+                readySummary,
+            };
+        });
+
+        return { success: true, diagnostics };
+    } catch (error: any) {
+        console.error('[blocks] getBlockDiagnosticsAction failed:', error);
+        return { success: false, error: error.message };
+    }
+}
+
+function readPath(obj: Record<string, any> | null, path: string): unknown {
+    if (!obj) return undefined;
+    let cur: any = obj;
+    for (const k of path.split('.')) {
+        if (cur == null) return undefined;
+        cur = cur[k];
+    }
+    return cur;
+}
+
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+function _ensureContractHelpers(c: BlockDataContract) { return c; }
