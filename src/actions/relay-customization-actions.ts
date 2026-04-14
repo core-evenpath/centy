@@ -5,11 +5,22 @@ import { db as adminDb } from '@/lib/firebase-admin';
 import { GoogleGenAI } from '@google/genai';
 import { getGlobalBlockConfigs, getBlockConfig, invalidatePartnerBlockCache } from '@/lib/relay/block-config-service';
 
+export interface BlockDataSource {
+  // 'auto' = route picks the best fit (partner profile for greeting/contact,
+  // first module with items for product_card, etc).
+  // 'module' = use the partner's module with `id` (PartnerModule doc id).
+  // 'document' = use the vault file with `id`.
+  // 'none' = render design sample only.
+  type: 'auto' | 'module' | 'document' | 'none';
+  id?: string;
+}
+
 export interface PartnerBlockOverride {
   enabled: boolean;
   fieldPriority?: string[];
   labelOverrides?: Record<string, string>;
   customConfig?: Record<string, any>;
+  dataSource?: BlockDataSource;
 }
 
 export interface PartnerHomeScreenOverride {
@@ -137,6 +148,47 @@ export async function toggleBlockAction(
 
     invalidatePartnerBlockCache(partnerId);
     revalidatePath('/partner/relay');
+
+    return { success: true };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+}
+
+export async function setBlockDataSourceAction(
+  partnerId: string,
+  blockId: string,
+  dataSource: BlockDataSource
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    if (!adminDb) {
+      return { success: false, error: 'Database not available' };
+    }
+
+    const docRef = adminDb
+      .collection(`partners/${partnerId}/relayConfig`)
+      .doc('blockOverrides');
+
+    const doc = await docRef.get();
+    const data = doc.exists ? doc.data() || {} : {};
+    const overrides: Record<string, PartnerBlockOverride> = data.blockOverrides || {};
+
+    if (!overrides[blockId]) {
+      overrides[blockId] = { enabled: true };
+    }
+    overrides[blockId].dataSource = dataSource;
+
+    await docRef.set(
+      {
+        blockOverrides: overrides,
+        updatedAt: new Date().toISOString(),
+      },
+      { merge: true }
+    );
+
+    invalidatePartnerBlockCache(partnerId);
+    revalidatePath('/partner/relay');
+    revalidatePath('/partner/relay/blocks');
 
     return { success: true };
   } catch (error: any) {
