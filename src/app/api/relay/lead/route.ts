@@ -2,24 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/firebase-admin';
 import { getRelayCORSHeaders, relayOptionsResponse } from '@/lib/relay-cors';
 import { calculateLeadScore } from '@/lib/relay-ai';
+import { resolveWidgetId } from '@/actions/relay-partner-actions';
 import type { RelayConversation } from '@/lib/types-relay';
-
-async function resolveWidgetId(widgetId: string): Promise<string | null> {
-  if (!db) return null;
-
-  try {
-    const snapshot = await db
-      .collectionGroup('relayConfig')
-      .where('widgetId', '==', widgetId)
-      .limit(1)
-      .get();
-
-    if (snapshot.empty) return null;
-    return snapshot.docs[0].data().partnerId as string;
-  } catch {
-    return null;
-  }
-}
 
 export async function OPTIONS(request: NextRequest) {
   const origin = request.headers.get('origin') || undefined;
@@ -48,13 +32,14 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const partnerId = await resolveWidgetId(widgetId);
-    if (!partnerId) {
+    const resolved = await resolveWidgetId(widgetId);
+    if (!resolved) {
       return NextResponse.json(
         { error: 'Widget not found' },
         { status: 404, headers: corsHeaders }
       );
     }
+    const { partnerId } = resolved;
 
     if (!db) {
       return NextResponse.json({ success: true }, { headers: corsHeaders });
