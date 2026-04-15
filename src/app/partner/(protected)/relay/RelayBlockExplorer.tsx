@@ -2,20 +2,10 @@
 
 // ── RelayBlockExplorer ───────────────────────────────────────────────
 //
-// The data workbench for /partner/relay/blocks. Two-pane layout on
-// desktop:
-//
-//   ┌─────────────────────────────────────────────────────────────┐
-//   │ Sub-vertical selector · active/inactive counts              │
-//   ├─────────────────────────────────────────────────────────────┤
-//   │ Blueprint Assistant banner                                  │
-//   ├───────────────────────────┬─────────────────────────────────┤
-//   │ Data Map (left sidebar)   │ Active / Inactive block cards   │
-//   └───────────────────────────┴─────────────────────────────────┘
-//
-// BindingsProvider owns binding state; resolveFieldValuesAction drives
-// both the Data Map rows and the per-card FieldHealthStrip, so a
-// binding edit on the left pulses the affected cards on the right.
+// Simple enable/disable UI for the blocks this partner's AI assistant
+// is allowed to render. Data mapping is handled elsewhere — this page
+// only shows which blocks are active and lets the partner flip them
+// on or off.
 
 import { useEffect, useMemo, useState, useCallback } from 'react';
 import { Loader2, ChevronDown, EyeOff } from 'lucide-react';
@@ -32,26 +22,8 @@ import {
   getPartnerCustomizationAction,
   toggleBlockAction,
 } from '@/actions/relay-customization-actions';
-import {
-  listPartnerDataSourcesAction,
-  getBlockPreviewDataAction,
-  type PartnerModuleSource,
-  type PartnerDocumentSource,
-} from '@/actions/relay-block-sources-actions';
-import {
-  getDataBindingsAction,
-} from '@/actions/relay-data-bindings-actions';
-import {
-  resolveFieldValuesAction,
-  type ResolvedFieldMap,
-} from '@/actions/relay-field-resolver-actions';
-import { canonicalIdsForBlocks } from '@/lib/relay/block-data-contracts';
-import { isEmpty } from '@/lib/relay/binding-health';
-import type { BindingMap } from '@/lib/relay/data-bindings';
+import { getBlockPreviewDataAction } from '@/actions/relay-block-sources-actions';
 import ActiveBlockCard from './ActiveBlockCard';
-import BlueprintAssistant from './BlueprintAssistant';
-import { BindingsProvider, useBindings } from './bindings-store/BindingsProvider';
-import DataMapPanel from './data-map/DataMapPanel';
 
 interface Props {
   partnerId: string;
@@ -60,60 +32,21 @@ interface Props {
 
 type OverrideMap = Record<string, { enabled: boolean }>;
 
-export default function RelayBlockExplorer(props: Props) {
-  const [initialBindings, setInitialBindings] = useState<BindingMap | null>(null);
-
-  useEffect(() => {
-    if (!props.partnerId) return;
-    getDataBindingsAction(props.partnerId).then(res => {
-      setInitialBindings(res.success ? res.bindings || {} : {});
-    });
-  }, [props.partnerId]);
-
-  if (initialBindings === null) {
-    return (
-      <div className="flex justify-center py-12">
-        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-      </div>
-    );
-  }
-
-  return (
-    <BindingsProvider partnerId={props.partnerId} initialBindings={initialBindings}>
-      <ExplorerInner {...props} />
-    </BindingsProvider>
-  );
-}
-
-function ExplorerInner({ partnerId, defaultFunctionId }: Props) {
-  const { version, bump } = useBindings();
-
+export default function RelayBlockExplorer({ partnerId, defaultFunctionId }: Props) {
   const [selectedId, setSelectedId] = useState<string>(defaultFunctionId || '');
   const [overrides, setOverrides] = useState<OverrideMap>({});
   const [loading, setLoading] = useState(true);
   const [pendingBlockId, setPendingBlockId] = useState<string | null>(null);
 
-  const [modules, setModules] = useState<PartnerModuleSource[]>([]);
-  const [documents, setDocuments] = useState<PartnerDocumentSource[]>([]);
-
   const [previewData, setPreviewData] = useState<Record<string, Record<string, unknown> | undefined>>({});
   const [previewLoading, setPreviewLoading] = useState<Record<string, boolean>>({});
 
-  // Shared resolved-values map → feeds both DataMapPanel's consumers
-  // and each ActiveBlockCard's FieldHealthStrip via resolvedMap.
-  const [resolved, setResolved] = useState<ResolvedFieldMap>({});
-
-  // Initial load: overrides + partner data sources.
   useEffect(() => {
     if (!partnerId) return;
     setLoading(true);
     (async () => {
       try {
-        const [custRes, srcRes] = await Promise.all([
-          getPartnerCustomizationAction(partnerId),
-          listPartnerDataSourcesAction(partnerId),
-        ]);
-
+        const custRes = await getPartnerCustomizationAction(partnerId);
         if (custRes.success && custRes.customization) {
           const norm: OverrideMap = {};
           for (const [id, v] of Object.entries(custRes.customization.blockOverrides || {})) {
@@ -122,15 +55,11 @@ function ExplorerInner({ partnerId, defaultFunctionId }: Props) {
           }
           setOverrides(norm);
         }
-        if (srcRes.success) {
-          setModules(srcRes.modules || []);
-          setDocuments(srcRes.documents || []);
-        }
       } finally {
         setLoading(false);
       }
     })();
-  }, [partnerId, version]);
+  }, [partnerId]);
 
   useEffect(() => {
     if (defaultFunctionId && !selectedId) setSelectedId(defaultFunctionId);
@@ -162,39 +91,8 @@ function ExplorerInner({ partnerId, defaultFunctionId }: Props) {
 
   const activeIdsKey = activeBlocks.map(b => b.id).join('|');
 
-  // Fetch live resolved values for every canonical id the active blocks
-  // reference. Re-runs when active set or bindings change.
-  useEffect(() => {
-    if (!partnerId || loading || activeBlocks.length === 0) {
-      setResolved({});
-      return;
-    }
-    const canonicalIds = canonicalIdsForBlocks(activeBlocks.map(b => b.id));
-    if (canonicalIds.length === 0) {
-      setResolved({});
-      return;
-    }
-    let cancelled = false;
-    resolveFieldValuesAction(partnerId, canonicalIds).then(res => {
-      if (cancelled) return;
-      setResolved(res.success ? res.resolved || {} : {});
-    });
-    return () => { cancelled = true; };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [partnerId, loading, activeIdsKey, version]);
-
-  // Derived: for each canonicalId, did it resolve to a non-empty value?
-  // Used by FieldHealthStrip to draw green/amber/rose dots.
-  const resolvedBoolMap = useMemo(() => {
-    const out: Record<string, boolean> = {};
-    for (const cid of Object.keys(resolved)) {
-      const rf = resolved[cid];
-      out[cid] = !isEmpty(rf.value) && !rf.error;
-    }
-    return out;
-  }, [resolved]);
-
-  // Block previews (same as before — per-block fetch).
+  // Fetch preview data per active block so the card shows what the
+  // assistant would actually render.
   useEffect(() => {
     if (!partnerId || loading) return;
     for (const b of activeBlocks) {
@@ -212,15 +110,7 @@ function ExplorerInner({ partnerId, defaultFunctionId }: Props) {
         });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeIdsKey, partnerId, loading, version]);
-
-  // Invalidate previews when bindings change so cards update in sync
-  // with the Data Map edits.
-  useEffect(() => {
-    if (version === 0) return;
-    setPreviewData({});
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [version]);
+  }, [activeIdsKey, partnerId, loading]);
 
   const handleToggle = async (blockId: string) => {
     if (pendingBlockId) return;
@@ -239,19 +129,6 @@ function ExplorerInner({ partnerId, defaultFunctionId }: Props) {
     } finally {
       setPendingBlockId(null);
     }
-  };
-
-  const handleCustomized = (blockId: string) => {
-    setPreviewData(prev => {
-      const next = { ...prev };
-      delete next[blockId];
-      return next;
-    });
-  };
-
-  const handleBlueprintApplied = () => {
-    setPreviewData({});
-    bump();
   };
 
   return (
@@ -282,7 +159,6 @@ function ExplorerInner({ partnerId, defaultFunctionId }: Props) {
       {selectedSub && (
         <div className="text-xs text-muted-foreground">
           Showing blocks for <span className="font-medium text-foreground">{selectedSub.name}</span>.
-          Edit sources in the Data Map on the left — changes flow into every card that uses that field.
         </div>
       )}
 
@@ -291,74 +167,51 @@ function ExplorerInner({ partnerId, defaultFunctionId }: Props) {
           <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
         </div>
       ) : (
-        <>
-          <BlueprintAssistant
-            partnerId={partnerId}
-            activeBlockIds={activeBlocks.map(b => b.id)}
-            onApplied={handleBlueprintApplied}
-          />
+        <div className="space-y-6">
+          <Section
+            title="Active"
+            count={activeBlocks.length}
+            description="Blocks your AI assistant is allowed to render."
+          >
+            {activeBlocks.length === 0 ? (
+              <EmptyState text="No active blocks — enable some from the inactive list below." />
+            ) : (
+              <div className="grid gap-4 md:grid-cols-2">
+                {activeBlocks.map(b => (
+                  <ActiveBlockCard
+                    key={b.id}
+                    block={b}
+                    previewData={previewData[b.id]}
+                    previewLoading={!!previewLoading[b.id]}
+                    togglePending={pendingBlockId === b.id}
+                    onToggle={() => handleToggle(b.id)}
+                  />
+                ))}
+              </div>
+            )}
+          </Section>
 
-          <div className="grid gap-6 lg:grid-cols-[22rem_1fr] items-start">
-            {/* Left pane: Data Map */}
-            <div className="lg:sticky lg:top-4 lg:self-start">
-              <DataMapPanel
-                activeBlockIds={activeBlocks.map(b => b.id)}
-                modules={modules}
-                documents={documents}
-              />
-            </div>
-
-            {/* Right pane: block cards */}
-            <div className="space-y-6 min-w-0">
-              <Section
-                title="Active"
-                count={activeBlocks.length}
-                description="Blocks your AI assistant is allowed to render. Health dots under each card's title link back to the data map."
-              >
-                {activeBlocks.length === 0 ? (
-                  <EmptyState text="No active blocks — enable some from the inactive list below." />
-                ) : (
-                  <div className="grid gap-4 md:grid-cols-2">
-                    {activeBlocks.map(b => (
-                      <ActiveBlockCard
-                        key={b.id}
-                        partnerId={partnerId}
-                        block={b}
-                        previewData={previewData[b.id]}
-                        previewLoading={!!previewLoading[b.id]}
-                        togglePending={pendingBlockId === b.id}
-                        resolvedMap={resolvedBoolMap}
-                        onToggle={() => handleToggle(b.id)}
-                        onCustomized={() => handleCustomized(b.id)}
-                      />
-                    ))}
-                  </div>
-                )}
-              </Section>
-
-              <Section
-                title="Inactive"
-                count={inactiveBlocks.length}
-                description="Blocks the AI assistant will skip. Enable a block to start showing it to visitors."
-              >
-                {inactiveBlocks.length === 0 ? (
-                  <EmptyState text="All blocks for this category are active." />
-                ) : (
-                  <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                    {inactiveBlocks.map(b => (
-                      <InactiveBlockCard
-                        key={b.id}
-                        block={b}
-                        onEnable={() => handleToggle(b.id)}
-                        pending={pendingBlockId === b.id}
-                      />
-                    ))}
-                  </div>
-                )}
-              </Section>
-            </div>
-          </div>
-        </>
+          <Section
+            title="Inactive"
+            count={inactiveBlocks.length}
+            description="Blocks the AI assistant will skip. Enable a block to start showing it to visitors."
+          >
+            {inactiveBlocks.length === 0 ? (
+              <EmptyState text="All blocks for this category are active." />
+            ) : (
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                {inactiveBlocks.map(b => (
+                  <InactiveBlockCard
+                    key={b.id}
+                    block={b}
+                    onEnable={() => handleToggle(b.id)}
+                    pending={pendingBlockId === b.id}
+                  />
+                ))}
+              </div>
+            )}
+          </Section>
+        </div>
       )}
     </div>
   );
