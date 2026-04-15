@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Icon } from "./icon";
+import { Icon } from "./ic";
 import { ACCENT, theme } from "../constants";
 import type { MappedFeature } from "../types";
 

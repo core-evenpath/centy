@@ -20,7 +20,7 @@ import {
 } from '@/actions/content-studio-actions';
 import { refreshPartnerContentStudioStateAction } from '@/actions/content-studio-refresh-actions';
 
-import { Icon } from './components/icon';
+import { Icon } from './components/ic';
 import { ProgressRing } from './components/progress-ring';
 import { PhonePreview } from './components/phone-preview';
 import { DataInputPanel } from './components/data-input-panel';

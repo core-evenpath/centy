@@ -1,6 +1,6 @@
 "use client";
 
-import { Icon } from "./icon";
+import { Icon } from "./ic";
 import { ACCENT, theme, getPreviewForVertical } from "../constants";
 import type { MappedFeature } from "../types";
 
