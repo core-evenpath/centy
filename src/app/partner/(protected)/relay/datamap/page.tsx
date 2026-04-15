@@ -27,8 +27,9 @@ import {
     getContentStudioConfigAction,
     getPartnerContentStudioStateAction,
     getEnabledApiIntegrationsForPartnerAction,
-    getPartnerVerticalIdAction,
+    getPartnerSubVerticalsAction,
     regenerateContentStudioConfigAction,
+    type PartnerSubVerticalOption,
 } from '@/actions/content-studio-actions';
 import { refreshPartnerContentStudioStateAction } from '@/actions/content-studio-refresh-actions';
 
@@ -906,6 +907,10 @@ export default function ContentStudioPage() {
     const [refreshing, setRefreshing] = useState(false);
     const [lastRefresh, setLastRefresh] = useState<string | null>(null);
     const [expanded, setExpanded] = useState<string | null>(null);
+    const [subVerticals, setSubVerticals] = useState<PartnerSubVerticalOption[]>(
+        []
+    );
+    const [selectedSubKey, setSelectedSubKey] = useState<string | null>(null);
 
     // ── Reload partner state helper ──────────────────────────────────
 
@@ -952,21 +957,40 @@ export default function ContentStudioPage() {
             setError(null);
 
             try {
-                // 1. Resolve vertical
-                const vRes = await getPartnerVerticalIdAction(partnerId);
+                // 1. List all sub-verticals from the partner's Business
+                //    Categories so the tester can switch between them.
+                const subRes = await getPartnerSubVerticalsAction(partnerId);
                 if (cancelled) return;
-                if (!vRes.success || !vRes.verticalId) {
+                if (!subRes.success || !subRes.options || subRes.options.length === 0) {
                     setError(
-                        vRes.error ||
-                            'Could not resolve your business vertical.'
+                        subRes.error ||
+                            'Your business profile is missing an industry. Complete onboarding and try again.'
                     );
+                    setLoading(false);
+                    return;
+                }
+                setSubVerticals(subRes.options);
+
+                // Respect an existing selection if still valid, else use default
+                const activeKey =
+                    (selectedSubKey &&
+                        subRes.options.find(o => o.key === selectedSubKey)?.key) ||
+                    subRes.defaultKey ||
+                    subRes.options[0].key;
+                if (activeKey !== selectedSubKey) setSelectedSubKey(activeKey);
+
+                const active = subRes.options.find(o => o.key === activeKey);
+                if (!active || !active.verticalId) {
+                    setConfig(null);
+                    setPartnerState(null);
+                    setEnabledIntegrations([]);
                     setLoading(false);
                     return;
                 }
 
                 // 2. Load config + state + integrations in parallel
                 const [cfgRes, stateRes, apiRes] = await Promise.all([
-                    getContentStudioConfigAction(vRes.verticalId),
+                    getContentStudioConfigAction(active.verticalId),
                     getPartnerContentStudioStateAction(partnerId),
                     getEnabledApiIntegrationsForPartnerAction(partnerId),
                 ]);
@@ -987,7 +1011,7 @@ export default function ContentStudioPage() {
                     // regeneration now so the partner doesn't get stuck on
                     // the "not available yet" screen.
                     const regen = await regenerateContentStudioConfigAction(
-                        vRes.verticalId
+                        active.verticalId
                     );
                     if (cancelled) return;
                     if (regen.success && regen.config) {
@@ -1039,7 +1063,66 @@ export default function ContentStudioPage() {
         return () => {
             cancelled = true;
         };
-    }, [partnerId]);
+    }, [partnerId, selectedSubKey]);
+
+    // ── Sub-vertical picker (manual selector) ────────────────────────
+
+    const renderSubVerticalPicker = () => {
+        if (subVerticals.length <= 1) return null;
+        return (
+            <div
+                style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 8,
+                    padding: '8px 20px',
+                    borderBottom: `1px solid ${TH.bdrL}`,
+                    background: TH.accentBg,
+                    fontFamily:
+                        "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
+                }}
+            >
+                <span
+                    style={{
+                        fontSize: 10,
+                        fontWeight: 700,
+                        color: A,
+                        letterSpacing: 0.5,
+                    }}
+                >
+                    SUB-VERTICAL
+                </span>
+                <select
+                    value={selectedSubKey || ''}
+                    onChange={e => setSelectedSubKey(e.target.value)}
+                    style={{
+                        fontSize: 12,
+                        padding: '4px 8px',
+                        borderRadius: 6,
+                        border: `1px solid ${TH.bdrM}`,
+                        background: '#fff',
+                        color: TH.t1,
+                        cursor: 'pointer',
+                        minWidth: 200,
+                    }}
+                >
+                    {subVerticals.map(o => (
+                        <option
+                            key={o.key}
+                            value={o.key}
+                            disabled={!o.verticalId}
+                        >
+                            {o.label}
+                            {o.verticalId ? ` · ${o.verticalId}` : ' · (no config)'}
+                        </option>
+                    ))}
+                </select>
+                <span style={{ fontSize: 10, color: TH.t4 }}>
+                    Pick which Business Category to load Content Studio for.
+                </span>
+            </div>
+        );
+    };
 
     // ── Loading / Error / No-workspace states ────────────────────────
 
@@ -1148,12 +1231,14 @@ export default function ContentStudioPage() {
 
     if (!config || config.blocks.length === 0) {
         return (
-            <div
-                style={{
-                    maxWidth: 560,
-                    margin: '0 auto',
-                    padding: '48px 20px',
-                    textAlign: 'center',
+            <>
+                {renderSubVerticalPicker()}
+                <div
+                    style={{
+                        maxWidth: 560,
+                        margin: '0 auto',
+                        padding: '48px 20px',
+                        textAlign: 'center',
                     fontFamily:
                         "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
                 }}
@@ -1189,7 +1274,8 @@ export default function ContentStudioPage() {
                     We&apos;re rolling it out vertical by vertical — check back
                     soon.
                 </div>
-            </div>
+                </div>
+            </>
         );
     }
 
@@ -1234,6 +1320,8 @@ export default function ContentStudioPage() {
             <h2 className="sr-only">
                 Content Studio for {verticalName}
             </h2>
+
+            {renderSubVerticalPicker()}
 
             {/* ── Header bar ──────────────────────────────────────── */}
             <div
