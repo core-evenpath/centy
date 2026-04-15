@@ -295,7 +295,7 @@ export async function generateContentStudioConfig(
             autoConfigured,
             sourceType: ai?.sourceType || fallback.sourceType,
             dependsOn: null,
-            subVerticals: block.subVerticals.length > 0 ? block.subVerticals : 'all',
+            subVerticals: Array.isArray(block.subVerticals) && block.subVerticals.length > 0 ? block.subVerticals : 'all',
         };
     });
 

@@ -28,8 +28,11 @@ function configDocRef(verticalId: string) {
  * `subVerticals` normalizer landed — some legacy docs had `subVerticals`
  * stored as plain objects (e.g. `{}`) which caused
  * "b.subVerticals is not iterable" in the partner renderer.
+ *
+ * v3 (2026-04-15): added defensive Array.isArray guards in registry-reader
+ * and generator; bumped to force re-generation of any corrupted docs.
  */
-const CONFIG_SCHEMA_VERSION = 2;
+const CONFIG_SCHEMA_VERSION = 3;
 
 type CachedConfig = ContentStudioConfig & { schemaVersion?: number };
 

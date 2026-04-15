@@ -6,16 +6,25 @@
  * Exposes the block registry (vertical configs + per-block data contracts)
  * in a server-friendly shape, stripped of React component references.
  *
- * Coverage: of the 15 known verticals, only `ecommerce` and `education`
- * currently have preview configs at
- * `src/app/admin/relay/blocks/previews/{vertical}/index.ts`. The rest
- * return a stub with `blocks: []` and render an empty state on the
- * partner page. New verticals gain support by adding an entry to
- * `VERTICAL_CONFIG_MAP` and `BLOCK_DATA_CONTRACTS`.
+ * All 14 verticals with preview configs are registered in
+ * `VERTICAL_CONFIG_MAP`. Verticals without a matching key fall back to a
+ * stub with `blocks: []` on the partner page.
  */
 
 import { ECOM_CONFIG } from '@/app/admin/relay/blocks/previews/ecommerce';
 import { EDU_CONFIG } from '@/app/admin/relay/blocks/previews/education';
+import { HOSP_CONFIG } from '@/app/admin/relay/blocks/previews/hospitality';
+import { HC_CONFIG } from '@/app/admin/relay/blocks/previews/healthcare';
+import { BIZ_CONFIG } from '@/app/admin/relay/blocks/previews/business';
+import { FB_CONFIG } from '@/app/admin/relay/blocks/previews/food_beverage';
+import { FS_CONFIG } from '@/app/admin/relay/blocks/previews/food_supply';
+import { PW_CONFIG } from '@/app/admin/relay/blocks/previews/personal_wellness';
+import { AUTO_CONFIG } from '@/app/admin/relay/blocks/previews/automotive';
+import { TL_CONFIG } from '@/app/admin/relay/blocks/previews/travel_transport';
+import { EVT_CONFIG } from '@/app/admin/relay/blocks/previews/events_entertainment';
+import { PU_CONFIG } from '@/app/admin/relay/blocks/previews/public_nonprofit';
+import { HP_CONFIG } from '@/app/admin/relay/blocks/previews/home_property';
+import { FIN_CONFIG } from '@/app/admin/relay/blocks/previews/financial_services';
 import type { VerticalConfig } from '@/app/admin/relay/blocks/previews/_types';
 
 // ── Ecommerce block definitions (data contracts) ─────────────────────
@@ -50,6 +59,18 @@ import { VERTICAL_IDS, type VerticalId } from './verticals';
 const VERTICAL_CONFIG_MAP: Partial<Record<VerticalId, VerticalConfig>> = {
     ecommerce: ECOM_CONFIG,
     education: EDU_CONFIG,
+    hospitality: HOSP_CONFIG,
+    healthcare: HC_CONFIG,
+    business: BIZ_CONFIG,
+    food_beverage: FB_CONFIG,
+    food_supply: FS_CONFIG,
+    personal_wellness: PW_CONFIG,
+    automotive: AUTO_CONFIG,
+    travel_transport: TL_CONFIG,
+    events_entertainment: EVT_CONFIG,
+    public_nonprofit: PU_CONFIG,
+    home_property: HP_CONFIG,
+    financial_services: FIN_CONFIG,
 };
 
 /**
@@ -178,7 +199,9 @@ export async function getVerticalRegistryData(
     // Invert sub-vertical membership so each block knows which sub-verticals
     // it belongs to (surfaces in the partner UI filter).
     const blockSubVerticals: Record<string, string[]> = {};
-    for (const sv of cfg.subVerticals) {
+    const safeSubs = Array.isArray(cfg.subVerticals) ? cfg.subVerticals : [];
+    for (const sv of safeSubs) {
+        if (!sv || !Array.isArray(sv.blocks)) continue;
         for (const blockId of sv.blocks) {
             if (!blockSubVerticals[blockId]) blockSubVerticals[blockId] = [];
             blockSubVerticals[blockId].push(sv.id);
@@ -193,21 +216,23 @@ export async function getVerticalRegistryData(
             iconName: cfg.iconName,
             accentColor: cfg.accentColor,
         },
-        blocks: cfg.blocks.map(b => ({
+        blocks: (Array.isArray(cfg.blocks) ? cfg.blocks : []).map(b => ({
             id: b.id,
             family: b.family,
             label: b.label,
             stage: b.stage,
             status: b.status || 'active',
             desc: b.desc,
-            intents: b.intents,
-            module: b.module,
+            intents: Array.isArray(b.intents) ? b.intents : [],
+            module: b.module ?? null,
             subVerticals: blockSubVerticals[b.id] || [],
         })),
-        families: Object.fromEntries(
-            Object.entries(cfg.families).map(([k, v]) => [k, { label: v.label, color: v.color }])
-        ),
-        subVerticals: cfg.subVerticals.map(sv => ({
+        families: cfg.families
+            ? Object.fromEntries(
+                Object.entries(cfg.families).map(([k, v]) => [k, { label: v.label, color: v.color }])
+            )
+            : {},
+        subVerticals: safeSubs.map(sv => ({
             id: sv.id,
             name: sv.name,
             blockIds: sv.blocks,
