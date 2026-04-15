@@ -22,6 +22,7 @@ import type {
     ContentStudioConfig,
     ContentStudioBlockEntry,
     PartnerContentStudioState,
+    PartnerSubVerticalOption,
 } from '@/lib/types-content-studio';
 import {
     getContentStudioConfigAction,
@@ -29,7 +30,6 @@ import {
     getEnabledApiIntegrationsForPartnerAction,
     getPartnerSubVerticalsAction,
     regenerateContentStudioConfigAction,
-    type PartnerSubVerticalOption,
 } from '@/actions/content-studio-actions';
 import { refreshPartnerContentStudioStateAction } from '@/actions/content-studio-refresh-actions';
 

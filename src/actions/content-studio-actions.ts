@@ -5,6 +5,7 @@ import { db as adminDb } from '@/lib/firebase-admin';
 import type {
     ContentStudioConfig,
     PartnerContentStudioState,
+    PartnerSubVerticalOption,
 } from '@/lib/types-content-studio';
 import { generateContentStudioConfig } from '@/lib/content-studio/generator';
 import { getAllVerticalIds, resolveVerticalFromSlug } from '@/lib/content-studio/registry-reader';
@@ -389,17 +390,6 @@ export async function getEnabledApiIntegrationsForPartnerAction(
         console.error('[content-studio] enabled APIs for partner failed:', error);
         return { success: false, error: error?.message || 'Failed to load enabled APIs' };
     }
-}
-
-export interface PartnerSubVerticalOption {
-    /** Stable identifier for the option (functionId when available, else raw slug). */
-    key: string;
-    /** Raw slug from the partner doc (what was fed to the resolver). */
-    slug: string;
-    /** Human-readable label for the dropdown. */
-    label: string;
-    /** Resolved Content Studio verticalId, or null if no config maps to it. */
-    verticalId: string | null;
 }
 
 /**

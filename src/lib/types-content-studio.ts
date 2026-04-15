@@ -5,6 +5,17 @@
  * and client components. Keep fields serializable (no functions, no React refs).
  */
 
+/**
+ * One entry in the partner's Business Categories list, with its
+ * resolved Content Studio verticalId (null if no config maps to it).
+ */
+export interface PartnerSubVerticalOption {
+  key: string;
+  slug: string;
+  label: string;
+  verticalId: string | null;
+}
+
 export interface ContentStudioBlockEntry {
   blockId: string;
   registryId: string;
