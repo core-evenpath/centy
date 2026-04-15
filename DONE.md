@@ -962,3 +962,45 @@ Code execution completed
 - Validation: tsc diff vs baseline shows only line-number shifts; zero new errors. Greps confirm prefixed IDs in CORE_BLOCKS / CODE_REGISTRY_ID_MAP / DEFAULT_STAGES and ensureRegistry() at both module and component scope.
 
 Code execution completed
+
+## Content Studio — 2026-04-15
+
+Partner-facing page at `/partner/relay/datamap` that translates the Relay block registry for a partner's vertical into plain-English "what your AI can do / what data it needs / how to provide it" copy, plus an admin toggle page at `/admin/relay/api-config` controlling which third-party integrations (Shopify, Stripe, etc.) partners see as API data-source options.
+
+Phase 1 — Types (`src/lib/types-content-studio.ts`)
+- `ContentStudioBlockEntry`, `ContentStudioConfig`, `ApiIntegrationConfig`, `PartnerContentStudioState`, `DATA_SOURCE_OPTIONS` const.
+
+Phase 2 — Admin API integrations
+- `src/actions/admin-api-config-actions.ts` — `getApiIntegrationsAction`, `toggleApiIntegrationAction`, `seedApiIntegrationsAction`. Single Firestore doc `platformConfig/apiIntegrations` with a `configs` map.
+- Seed list: Shopify, WooCommerce, Stripe, Razorpay, Google Calendar, Cal.com, Custom REST — all `enabled: false` by default.
+- `src/app/admin/relay/api-config/page.tsx` — shadcn card grid with per-integration Switch, category Badge, optimistic toggle, seed-defaults button. Auth handled by existing `/admin` layout (`AdminAuthWrapper`).
+
+Phase 3 — Registry reader + Gemini generator
+- `src/lib/content-studio/verticals.ts` — canonical 15-vertical id list exported as a plain const (`'use server'` files can only export async fns in Next 15).
+- `src/lib/content-studio/registry-reader.ts` — server module that imports `ECOM_CONFIG` / `EDU_CONFIG` (the only vertical preview configs that exist today) plus 8 ecommerce + 14 education `definition` exports for data contracts. Missing verticals return a stub `{ blocks: [] }` so the partner page can render a graceful empty state.
+- `src/lib/content-studio/generator.ts` — calls Gemini (`gemini-2.5-flash`, temp 0.3, 4k tokens) with a UX-copywriter system prompt to produce `customerLabel` / `partnerAction` / `missReason` / `icon` / `templateColumns` / `priority` / `sourceType` / `autoConfigured` for each block. Falls back to deterministic copy (truncated desc, family-based icon/priority) on any Gemini failure or missing API key.
+
+Phase 4 — Storage + retrieval (`src/actions/content-studio-actions.ts`)
+- `getContentStudioConfigAction(verticalId)` — reads cache at `contentStudioConfigs/{verticalId}`; lazy-generates + writes on first read.
+- `regenerateContentStudioConfigAction(verticalId)` — force-regen + version bump, revalidates `/partner/relay/datamap`.
+- `regenerateAllContentStudioConfigsAction()` — iterates every vertical id.
+- `getPartnerContentStudioStateAction(partnerId)` — reads `partners/{pid}/contentStudio/state`, returns empty shell on miss.
+- `updatePartnerBlockStateAction(partnerId, blockId, update)` — merge-updates per-block provision state with `lastUpdatedAt`.
+- `getEnabledApiIntegrationsForPartnerAction(partnerId)` — fetches partner doc, resolves vertical from `industry.id` / `businessPersona.identity.industry` / `verticalId` / `functionId` with a `retail_commerce → ecommerce` alias map, filters integrations by `enabled && (applicableVerticals === 'all' || includes partner vertical)`.
+- `getPartnerVerticalIdAction(partnerId)` — companion helper used by the partner page to know which config to load.
+
+Phase 5 — Partner page (`src/app/partner/(protected)/relay/datamap/{page,layout}.tsx`)
+- Loads config + partner state + enabled integrations in parallel after resolving the partner's vertical.
+- Header with vertical icon, readiness percentage (non-auto blocks with `dataProvided`), sub-vertical pill filter, family-grouped expandable block cards.
+- Expanded card: customerLabel / partnerAction, amber miss-reason box, data contract table (red dot for required, gray for optional), "How to provide this data" grid with Upload / Core Memory / API / Manual tiles. API tile only renders when the partner has at least one enabled integration; Upload tile shows "Download template" when `templateColumns` exist (generates CSV client-side).
+- Empty state renders for stub verticals (13 of 15) until their preview configs are authored.
+
+Phase 6 — Navigation
+- `src/app/partner/(protected)/relay/layout.tsx` — sticky horizontal sub-nav: Overview / Content Studio / Cards / Conversations. Exact-match for `/partner/relay`, prefix-match for children.
+- `src/components/navigation/UnifiedPartnerSidebar.tsx` — added `Map` icon + "Content Studio" entry pointing at `/partner/relay/datamap`, plus a special-case in `isActiveRoute` so the existing Relay entry no longer highlights on the Content Studio sub-route.
+
+Validation
+- `npx tsc --noEmit` passes after every phase (only pre-existing TS5101 `baseUrl` warning remains).
+- Routes added: `/partner/relay/datamap`, `/admin/relay/api-config`.
+- Firestore collections touched: `platformConfig/apiIntegrations`, `contentStudioConfigs/{vid}`, `partners/{pid}/contentStudio/state`.
+

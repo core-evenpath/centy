@@ -16,6 +16,7 @@ import {
   Package,
   Link as LinkIcon,
   Zap,
+  Map,
 } from 'lucide-react';
 import { Button } from '../ui/button';
 import { cn } from '@/lib/utils';
@@ -63,6 +64,11 @@ export default function UnifiedPartnerSidebar() {
     if (href === '/partner/broadcast') {
       return pathname === '/partner/broadcast' || pathname.startsWith('/partner/broadcast/') || pathname.startsWith('/partner/campaigns');
     }
+    // Relay has a sibling "Content Studio" entry at /partner/relay/datamap —
+    // exact-match so the two sidebar items never highlight simultaneously.
+    if (href === '/partner/relay') {
+      return pathname === '/partner/relay';
+    }
     return pathname === href || pathname.startsWith(href + '/');
   };
 
@@ -107,6 +113,11 @@ export default function UnifiedPartnerSidebar() {
       icon: Zap,
       label: 'Relay',
       href: '/partner/relay'
+    },
+    {
+      icon: Map,
+      label: 'Content Studio',
+      href: '/partner/relay/datamap'
     },
     {
       icon: Settings,
