@@ -54,6 +54,8 @@ export default function ContentStudioPage() {
     // ── UI state ────────────────────────────────────────────────
     const [refreshing, setRefreshing] = useState(false);
     const [lastSync, setLastSync] = useState<string | null>(null);
+    const [regenerating, setRegenerating] = useState(false);
+    const [regenError, setRegenError] = useState<string | null>(null);
 
     // BUG 6 FIX — track whether the initial load has happened so
     // setting selectedSV from inside the effect doesn't re-fetch.
@@ -109,6 +111,37 @@ export default function ContentStudioPage() {
         // TODO: open service connection flow
         console.log(`[Content Studio] Connect service for ${featureId}`);
     }, []);
+
+    // Force a fresh Gemini-backed regenerate for the current vertical.
+    const handleRegenerate = useCallback(async () => {
+        const svOption = subVerticals.find(o => o.key === selectedSV);
+        const verticalId = svOption?.verticalId;
+        if (!verticalId) {
+            setRegenError(
+                'No vertical resolved for this sub-vertical — finish your business profile first.'
+            );
+            return;
+        }
+        setRegenerating(true);
+        setRegenError(null);
+        try {
+            const res = await regenerateContentStudioConfigAction(verticalId);
+            if (res.success && res.config) {
+                setConfig(res.config);
+                if (res.config.blocks.length === 0) {
+                    setRegenError(
+                        'AI returned no blocks for this vertical. Try again in a moment.'
+                    );
+                }
+            } else {
+                setRegenError(res.error || 'Regeneration failed — try again shortly.');
+            }
+        } catch (err: any) {
+            setRegenError(err?.message || 'Unexpected error during regeneration.');
+        } finally {
+            setRegenerating(false);
+        }
+    }, [selectedSV, subVerticals]);
 
     // ── Main data loading effect ────────────────────────────────
     useEffect(() => {
@@ -229,8 +262,33 @@ export default function ContentStudioPage() {
     }, [partnerId, selectedSV]);
 
     // ── Derived data ────────────────────────────────────────────
-    const features = config?.blocks
-        ? mapAllFeatures(config.blocks, state ?? undefined)
+    // Resolve the sub-vertical slug we should filter blocks by. The
+    // `key` on SubVerticalOption is the partner's raw business-category
+    // slug (e.g. `ecommerce_d2c`); that's the id that appears in each
+    // block's `subVerticals` array inside the generated config.
+    const selectedSVSlug =
+        subVerticals.find(o => o.key === selectedSV)?.slug || selectedSV || null;
+
+    // Only apply sub-vertical filtering if we can confirm the partner's
+    // slug is one the config actually knows about — otherwise fall back
+    // to showing all blocks so a mismatched slug never produces a blank
+    // page for an otherwise-valid vertical.
+    const configSubVerticalIds = new Set(
+        (config?.subVerticals || []).map(sv => sv.id)
+    );
+    const shouldFilterBySV =
+        !!selectedSVSlug && configSubVerticalIds.has(selectedSVSlug);
+
+    const visibleBlocks = (config?.blocks || []).filter(b => {
+        if (!shouldFilterBySV) return true;
+        if (b.subVerticals === 'all') return true;
+        if (!Array.isArray(b.subVerticals) || b.subVerticals.length === 0)
+            return true;
+        return b.subVerticals.includes(selectedSVSlug!);
+    });
+
+    const features = visibleBlocks.length
+        ? mapAllFeatures(visibleBlocks, state ?? undefined)
         : [];
 
     const {
@@ -344,7 +402,18 @@ export default function ContentStudioPage() {
         );
     }
 
-    if (!config || config.blocks.length === 0) {
+    // Empty state — either the config is missing entirely, has zero
+    // blocks, or the sub-vertical filter produced no matches. In every
+    // case we let the partner trigger a fresh Gemini generation.
+    const configHasNoBlocks = !config || config.blocks.length === 0;
+    const filterProducedNoBlocks =
+        !!config && config.blocks.length > 0 && visibleBlocks.length === 0;
+    if (configHasNoBlocks || filterProducedNoBlocks) {
+        const svLabel =
+            subVerticals.find(o => o.key === selectedSV)?.label ||
+            config?.verticalName ||
+            'your vertical';
+        const canRegen = !!subVerticals.find(o => o.key === selectedSV)?.verticalId;
         return (
             <>
                 <SubVerticalBar
@@ -356,7 +425,7 @@ export default function ContentStudioPage() {
                     style={{
                         maxWidth: 560,
                         margin: '0 auto',
-                        padding: '48px 20px',
+                        padding: '40px 20px',
                         textAlign: 'center',
                         fontFamily:
                             "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
@@ -377,21 +446,80 @@ export default function ContentStudioPage() {
                         <Icon name={config?.iconName || 'box'} size={26} color={ACCENT} />
                     </div>
                     <div style={{ fontSize: 20, fontWeight: 700, color: theme.t1 }}>
-                        {config?.verticalName || 'Content Studio'}
+                        {svLabel}
                     </div>
                     <div
                         style={{
                             fontSize: 13,
                             color: theme.t3,
                             marginTop: 8,
-                            maxWidth: 400,
+                            maxWidth: 440,
                             margin: '8px auto 0',
                             lineHeight: 1.5,
                         }}
                     >
-                        Content Studio isn&apos;t available for your vertical yet.
-                        We&apos;re rolling it out vertical by vertical — check back soon.
+                        Content Studio for {svLabel} is empty. We tried to
+                        regenerate it — click below to retry, or try again in a moment.
                     </div>
+                    {regenError && (
+                        <div
+                            style={{
+                                marginTop: 14,
+                                padding: '10px 14px',
+                                borderRadius: 8,
+                                background: theme.redBg,
+                                border: `1px solid ${theme.red}33`,
+                                color: theme.red,
+                                fontSize: 12,
+                                maxWidth: 440,
+                                margin: '14px auto 0',
+                                textAlign: 'left',
+                            }}
+                        >
+                            {regenError}
+                        </div>
+                    )}
+                    <button
+                        onClick={handleRegenerate}
+                        disabled={regenerating || !canRegen}
+                        style={{
+                            marginTop: 20,
+                            padding: '10px 18px',
+                            borderRadius: 8,
+                            border: `1px solid ${ACCENT}`,
+                            background: regenerating ? theme.accentBg : ACCENT,
+                            color: regenerating ? ACCENT : '#fff',
+                            fontSize: 13,
+                            fontWeight: 600,
+                            cursor:
+                                regenerating || !canRegen ? 'not-allowed' : 'pointer',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: 8,
+                            opacity: canRegen ? 1 : 0.6,
+                        }}
+                    >
+                        <Icon
+                            name="refresh"
+                            size={13}
+                            color={regenerating ? ACCENT : '#fff'}
+                        />
+                        {regenerating ? 'Regenerating with AI…' : 'Regenerate config'}
+                    </button>
+                    {!canRegen && (
+                        <div
+                            style={{
+                                marginTop: 10,
+                                fontSize: 11,
+                                color: theme.t4,
+                                maxWidth: 420,
+                                margin: '10px auto 0',
+                            }}
+                        >
+                            Finish your business profile (industry &amp; category) so we
+                            can match a Content Studio template.
+                        </div>
+                    )}
                 </div>
             </>
         );
