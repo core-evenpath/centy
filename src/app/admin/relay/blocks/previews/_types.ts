@@ -1,4 +1,5 @@
 import type { ComponentType } from 'react';
+import type { BlockPreviewProps } from './_preview-props';
 
 export interface VerticalBlockDef {
   id: string;
@@ -6,7 +7,7 @@ export interface VerticalBlockDef {
   label: string;
   stage: string;
   desc: string;
-  preview: ComponentType;
+  preview: ComponentType<BlockPreviewProps>;
   intents: string[];
   module: string | null;
   status?: 'active' | 'new' | 'planned';

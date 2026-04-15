@@ -5,11 +5,22 @@ import { db as adminDb } from '@/lib/firebase-admin';
 import { GoogleGenAI } from '@google/genai';
 import { getGlobalBlockConfigs, getBlockConfig, invalidatePartnerBlockCache } from '@/lib/relay/block-config-service';
 
+export interface BlockDataSource {
+  // 'auto' = route picks the best fit (partner profile for greeting/contact,
+  // first module with items for product_card, etc).
+  // 'module' = use the partner's module with `id` (PartnerModule doc id).
+  // 'document' = use the vault file with `id`.
+  // 'none' = render design sample only.
+  type: 'auto' | 'module' | 'document' | 'none';
+  id?: string;
+}
+
 export interface PartnerBlockOverride {
   enabled: boolean;
   fieldPriority?: string[];
   labelOverrides?: Record<string, string>;
   customConfig?: Record<string, any>;
+  dataSource?: BlockDataSource;
 }
 
 export interface PartnerHomeScreenOverride {
@@ -137,6 +148,47 @@ export async function toggleBlockAction(
 
     invalidatePartnerBlockCache(partnerId);
     revalidatePath('/partner/relay');
+
+    return { success: true };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+}
+
+export async function setBlockDataSourceAction(
+  partnerId: string,
+  blockId: string,
+  dataSource: BlockDataSource
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    if (!adminDb) {
+      return { success: false, error: 'Database not available' };
+    }
+
+    const docRef = adminDb
+      .collection(`partners/${partnerId}/relayConfig`)
+      .doc('blockOverrides');
+
+    const doc = await docRef.get();
+    const data = doc.exists ? doc.data() || {} : {};
+    const overrides: Record<string, PartnerBlockOverride> = data.blockOverrides || {};
+
+    if (!overrides[blockId]) {
+      overrides[blockId] = { enabled: true };
+    }
+    overrides[blockId].dataSource = dataSource;
+
+    await docRef.set(
+      {
+        blockOverrides: overrides,
+        updatedAt: new Date().toISOString(),
+      },
+      { merge: true }
+    );
+
+    invalidatePartnerBlockCache(partnerId);
+    revalidatePath('/partner/relay');
+    revalidatePath('/partner/relay/blocks');
 
     return { success: true };
   } catch (error: any) {
@@ -459,6 +511,126 @@ Respond with JSON:
     return { success: true, changes: appliedChanges };
   } catch (error: any) {
     console.error('[Customization] Prompt application failed:', error);
+    return { success: false, error: error.message };
+  }
+}
+
+// Per-block AI customization: same Gemini interpreter as
+// applyPartnerPromptAction, but scoped to a single blockId so the
+// partner can tweak labels / field priority from within that block's
+// card without touching unrelated blocks.
+export async function applyBlockPromptAction(
+  partnerId: string,
+  blockId: string,
+  prompt: string
+): Promise<{
+  success: boolean;
+  changes?: Array<{
+    changeType: 'field_priority' | 'label_override' | 'toggle' | 'config';
+    description: string;
+  }>;
+  error?: string;
+}> {
+  if (!adminDb) return { success: false, error: 'Database not available' };
+
+  const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_GENAI_API_KEY;
+  if (!apiKey) return { success: false, error: 'AI service not configured' };
+
+  try {
+    const block = await getBlockConfig(blockId);
+    if (!block) return { success: false, error: `Block "${blockId}" not found` };
+
+    const fieldList = [...(block.fields_req || []), ...(block.fields_opt || [])];
+
+    const ai = new GoogleGenAI({ apiKey });
+    const systemInstruction = `You interpret natural-language tweaks for a single chat widget block. Respond ONLY with valid JSON.
+
+Block: ${block.id} (${block.label})
+Fields: ${fieldList.join(', ')}
+
+Change types you may emit:
+- field_priority: reorder which fields show first (array of field IDs, subset of the list above)
+- label_override: change a display label ({ "key": "<fieldId>", "value": "<new label>" })
+- config: set a custom config value ({ "key": "<configKey>", "value": <anything> })
+
+JSON shape:
+{"changes": [{"changeType": "...", "key": "...", "value": ...}]}
+
+Return {"changes": []} if nothing reasonable applies.`;
+
+    const result = await ai.models.generateContent({
+      model: process.env.RELAY_AI_MODEL || 'gemini-2.5-flash',
+      contents: `Partner request for block "${blockId}": "${prompt}"`,
+      config: {
+        systemInstruction,
+        temperature: 0.2,
+        maxOutputTokens: 400,
+        responseMimeType: 'application/json',
+      },
+    });
+
+    const responseText = (result.text || '').trim();
+    let parsed: any;
+    try {
+      const jsonMatch = responseText.match(/\{[\s\S]*\}/);
+      parsed = jsonMatch ? JSON.parse(jsonMatch[0]) : null;
+    } catch {
+      return { success: false, error: 'AI returned invalid JSON' };
+    }
+    if (!parsed || !Array.isArray(parsed.changes)) {
+      return { success: false, error: 'AI did not return valid changes' };
+    }
+
+    const docRef = adminDb
+      .collection(`partners/${partnerId}/relayConfig`)
+      .doc('blockOverrides');
+    const doc = await docRef.get();
+    const data = doc.exists ? doc.data() || {} : {};
+    const overrides: Record<string, PartnerBlockOverride> = data.blockOverrides || {};
+    if (!overrides[blockId]) overrides[blockId] = { enabled: true };
+
+    const applied: Array<{ changeType: 'field_priority' | 'label_override' | 'toggle' | 'config'; description: string }> = [];
+
+    for (const change of parsed.changes) {
+      switch (change.changeType) {
+        case 'field_priority':
+          if (Array.isArray(change.value)) {
+            overrides[blockId].fieldPriority = change.value;
+            applied.push({ changeType: 'field_priority', description: `Reordered fields: ${change.value.join(', ')}` });
+          }
+          break;
+        case 'label_override': {
+          const k = typeof change.key === 'string' ? change.key : '';
+          if (!k) break;
+          overrides[blockId].labelOverrides = overrides[blockId].labelOverrides || {};
+          overrides[blockId].labelOverrides![k] = String(change.value || '');
+          applied.push({ changeType: 'label_override', description: `Changed "${k}" label to "${change.value}"` });
+          break;
+        }
+        case 'config': {
+          const k = typeof change.key === 'string' ? change.key : '';
+          if (!k) break;
+          overrides[blockId].customConfig = overrides[blockId].customConfig || {};
+          overrides[blockId].customConfig![k] = change.value;
+          applied.push({ changeType: 'config', description: `Set ${k} = ${JSON.stringify(change.value)}` });
+          break;
+        }
+      }
+    }
+
+    if (applied.length > 0) {
+      await docRef.set(
+        { blockOverrides: overrides, updatedAt: new Date().toISOString() },
+        { merge: true }
+      );
+      invalidatePartnerBlockCache(partnerId);
+      revalidatePath('/partner/relay');
+      revalidatePath('/partner/relay/blocks');
+    }
+
+    return { success: true, changes: applied };
+  } catch (error: any) {
+    console.error('[Customization] applyBlockPromptAction failed:', error);
     return { success: false, error: error.message };
   }
 }

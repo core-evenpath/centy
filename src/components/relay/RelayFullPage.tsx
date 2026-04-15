@@ -16,6 +16,7 @@ interface ChatMessage {
   role: 'user' | 'assistant';
   content: string;
   blockId?: string;
+  blockData?: Record<string, unknown>;
   suggestions?: string[];
 }
 
@@ -93,6 +94,9 @@ export default function RelayFullPage({ partnerId, config }: RelayFullPageProps)
           role: 'assistant',
           content: data.response.text || '',
           blockId: typeof data.response.blockId === 'string' ? data.response.blockId : undefined,
+          blockData: data.response.blockData && typeof data.response.blockData === 'object'
+            ? data.response.blockData
+            : undefined,
           suggestions: Array.isArray(data.response.suggestions) ? data.response.suggestions : undefined,
         }]);
       } else {
@@ -168,7 +172,7 @@ export default function RelayFullPage({ partnerId, config }: RelayFullPageProps)
                       <p className="whitespace-pre-wrap">{msg.content}</p>
                     </div>
                   )}
-                  {msg.blockId && <TestChatBlockPreview blockId={msg.blockId} />}
+                  {msg.blockId && <TestChatBlockPreview blockId={msg.blockId} blockData={msg.blockData} />}
                   {msg.suggestions && msg.suggestions.length > 0 && (
                     <div className="flex gap-2 flex-wrap">
                       {msg.suggestions.map((s, j) => (

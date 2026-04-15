@@ -1,8 +1,16 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
-import { Loader2, ChevronDown, Eye, EyeOff } from 'lucide-react';
+// ── RelayBlockExplorer ───────────────────────────────────────────────
+//
+// Simple enable/disable UI for the blocks this partner's AI assistant
+// is allowed to render. Data mapping is handled elsewhere — this page
+// only shows which blocks are active and lets the partner flip them
+// on or off.
+
+import { useEffect, useMemo, useState, useCallback } from 'react';
+import { Loader2, ChevronDown, EyeOff } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import {
   ALL_SUB_VERTICALS,
   SHARED_BLOCKS,
@@ -14,28 +22,36 @@ import {
   getPartnerCustomizationAction,
   toggleBlockAction,
 } from '@/actions/relay-customization-actions';
+import { getBlockPreviewDataAction } from '@/actions/relay-block-sources-actions';
+import ActiveBlockCard from './ActiveBlockCard';
 
 interface Props {
   partnerId: string;
   defaultFunctionId: string | null;
 }
 
+type OverrideMap = Record<string, { enabled: boolean }>;
+
 export default function RelayBlockExplorer({ partnerId, defaultFunctionId }: Props) {
   const [selectedId, setSelectedId] = useState<string>(defaultFunctionId || '');
-  const [overrides, setOverrides] = useState<Record<string, { enabled: boolean }>>({});
+  const [overrides, setOverrides] = useState<OverrideMap>({});
   const [loading, setLoading] = useState(true);
   const [pendingBlockId, setPendingBlockId] = useState<string | null>(null);
+
+  const [previewData, setPreviewData] = useState<Record<string, Record<string, unknown> | undefined>>({});
+  const [previewLoading, setPreviewLoading] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     if (!partnerId) return;
     setLoading(true);
     (async () => {
       try {
-        const res = await getPartnerCustomizationAction(partnerId);
-        if (res.success && res.customization) {
-          const norm: Record<string, { enabled: boolean }> = {};
-          for (const [id, v] of Object.entries(res.customization.blockOverrides || {})) {
-            norm[id] = { enabled: (v as any)?.enabled !== false };
+        const custRes = await getPartnerCustomizationAction(partnerId);
+        if (custRes.success && custRes.customization) {
+          const norm: OverrideMap = {};
+          for (const [id, v] of Object.entries(custRes.customization.blockOverrides || {})) {
+            const raw = v as any;
+            norm[id] = { enabled: raw?.enabled !== false };
           }
           setOverrides(norm);
         }
@@ -59,33 +75,64 @@ export default function RelayBlockExplorer({ partnerId, defaultFunctionId }: Pro
     [selectedId]
   );
 
-  const isEnabled = (blockId: string): boolean => {
-    // Default: enabled unless explicitly disabled by partner
+  const isEnabled = useCallback((blockId: string): boolean => {
     const o = overrides[blockId];
     return o ? o.enabled : true;
-  };
+  }, [overrides]);
+
+  const activeBlocks = useMemo(
+    () => blocks.filter(b => isEnabled(b.id)),
+    [blocks, isEnabled]
+  );
+  const inactiveBlocks = useMemo(
+    () => blocks.filter(b => !isEnabled(b.id)),
+    [blocks, isEnabled]
+  );
+
+  const activeIdsKey = activeBlocks.map(b => b.id).join('|');
+
+  // Fetch preview data per active block so the card shows what the
+  // assistant would actually render.
+  useEffect(() => {
+    if (!partnerId || loading) return;
+    for (const b of activeBlocks) {
+      const key = b.id;
+      if (previewData[key] !== undefined || previewLoading[key]) continue;
+      setPreviewLoading(prev => ({ ...prev, [key]: true }));
+      getBlockPreviewDataAction(partnerId, b.id)
+        .then(res => {
+          if (res.success) {
+            setPreviewData(prev => ({ ...prev, [key]: res.data }));
+          }
+        })
+        .finally(() => {
+          setPreviewLoading(prev => ({ ...prev, [key]: false }));
+        });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeIdsKey, partnerId, loading]);
 
   const handleToggle = async (blockId: string) => {
     if (pendingBlockId) return;
     const next = !isEnabled(blockId);
     setPendingBlockId(blockId);
-    // Optimistic update
-    setOverrides(prev => ({ ...prev, [blockId]: { enabled: next } }));
+    const prior = overrides[blockId];
+    setOverrides(prev => ({
+      ...prev,
+      [blockId]: { enabled: next },
+    }));
     try {
       const res = await toggleBlockAction(partnerId, blockId, next);
       if (!res.success) {
-        // Revert on failure
-        setOverrides(prev => ({ ...prev, [blockId]: { enabled: !next } }));
+        setOverrides(prev => ({ ...prev, [blockId]: prior || { enabled: !next } }));
       }
     } finally {
       setPendingBlockId(null);
     }
   };
 
-  const enabledCount = blocks.filter(b => isEnabled(b.id)).length;
-
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
       {/* Sub-vertical selector */}
       <div className="flex flex-col sm:flex-row sm:items-center gap-3">
         <label className="text-sm font-medium whitespace-nowrap">Sub-category:</label>
@@ -105,14 +152,13 @@ export default function RelayBlockExplorer({ partnerId, defaultFunctionId }: Pro
           <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
         </div>
         <div className="text-xs text-muted-foreground">
-          {enabledCount} of {blocks.length} active
+          {activeBlocks.length} active · {inactiveBlocks.length} inactive
         </div>
       </div>
 
       {selectedSub && (
         <div className="text-xs text-muted-foreground">
-          Showing blocks for <span className="font-medium text-foreground">{selectedSub.name}</span>
-          {' '}— toggle each one to control whether your AI assistant may render it.
+          Showing blocks for <span className="font-medium text-foreground">{selectedSub.name}</span>.
         </div>
       )}
 
@@ -121,70 +167,130 @@ export default function RelayBlockExplorer({ partnerId, defaultFunctionId }: Pro
           <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
         </div>
       ) : (
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-          {blocks.map(b => {
-            const on = isEnabled(b.id);
-            const Preview = b.preview;
-            const stageStyle = FLOW_STAGE_STYLES[b.stage] || { color: '#eee', textColor: '#555' };
-            const pending = pendingBlockId === b.id;
-            return (
-              <div
-                key={b.id}
-                className={`rounded-lg border bg-card transition-all ${on ? '' : 'opacity-60'}`}
-              >
-                <div className="flex items-center justify-between gap-2 p-3 border-b">
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2 mb-1">
-                      <Badge variant="secondary" className="text-[10px]">{b.family}</Badge>
-                      <span
-                        className="text-[10px] font-medium px-1.5 py-0.5 rounded"
-                        style={{ background: stageStyle.color, color: stageStyle.textColor }}
-                      >
-                        {b.stage}
-                      </span>
-                    </div>
-                    <p className="font-medium text-sm truncate">{b.label}</p>
-                    <p className="text-xs text-muted-foreground line-clamp-2 mt-0.5">{b.desc}</p>
-                  </div>
-                  <button
-                    onClick={() => handleToggle(b.id)}
-                    disabled={pending}
-                    className={`relative shrink-0 h-6 w-11 rounded-full transition-colors ${
-                      on ? 'bg-primary' : 'bg-muted'
-                    } ${pending ? 'opacity-50 cursor-wait' : 'cursor-pointer'}`}
-                    aria-label={on ? 'Disable block' : 'Enable block'}
-                    title={on ? 'Click to disable' : 'Click to enable'}
-                  >
-                    <span
-                      className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform ${
-                        on ? 'translate-x-5' : 'translate-x-0.5'
-                      }`}
-                    />
-                  </button>
-                </div>
-                <div className="p-3 bg-muted/30 min-h-[180px] flex items-start justify-center overflow-hidden">
-                  <div className="w-full max-w-[320px] pointer-events-none">
-                    <Preview />
-                  </div>
-                </div>
-                <div className="px-3 py-2 text-[11px] text-muted-foreground flex items-center gap-1.5 border-t">
-                  {on ? (
-                    <>
-                      <Eye className="h-3 w-3" />
-                      <span>Active — AI can render this block</span>
-                    </>
-                  ) : (
-                    <>
-                      <EyeOff className="h-3 w-3" />
-                      <span>Hidden — AI will skip this block</span>
-                    </>
-                  )}
-                </div>
+        <div className="space-y-6">
+          <Section
+            title="Active"
+            count={activeBlocks.length}
+            description="Blocks your AI assistant is allowed to render."
+          >
+            {activeBlocks.length === 0 ? (
+              <EmptyState text="No active blocks — enable some from the inactive list below." />
+            ) : (
+              <div className="grid gap-4 md:grid-cols-2">
+                {activeBlocks.map(b => (
+                  <ActiveBlockCard
+                    key={b.id}
+                    block={b}
+                    previewData={previewData[b.id]}
+                    previewLoading={!!previewLoading[b.id]}
+                    togglePending={pendingBlockId === b.id}
+                    onToggle={() => handleToggle(b.id)}
+                  />
+                ))}
               </div>
-            );
-          })}
+            )}
+          </Section>
+
+          <Section
+            title="Inactive"
+            count={inactiveBlocks.length}
+            description="Blocks the AI assistant will skip. Enable a block to start showing it to visitors."
+          >
+            {inactiveBlocks.length === 0 ? (
+              <EmptyState text="All blocks for this category are active." />
+            ) : (
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                {inactiveBlocks.map(b => (
+                  <InactiveBlockCard
+                    key={b.id}
+                    block={b}
+                    onEnable={() => handleToggle(b.id)}
+                    pending={pendingBlockId === b.id}
+                  />
+                ))}
+              </div>
+            )}
+          </Section>
         </div>
       )}
+    </div>
+  );
+}
+
+// ── Section shell ────────────────────────────────────────────────────
+
+function Section({
+  title,
+  count,
+  description,
+  children,
+}: {
+  title: string;
+  count: number;
+  description: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <section className="space-y-3">
+      <header className="flex items-baseline gap-2 flex-wrap">
+        <h2 className="text-base font-semibold">{title}</h2>
+        <span className="text-xs text-muted-foreground">({count})</span>
+        <p className="text-xs text-muted-foreground basis-full sm:basis-auto sm:ml-2">
+          {description}
+        </p>
+      </header>
+      {children}
+    </section>
+  );
+}
+
+function EmptyState({ text }: { text: string }) {
+  return (
+    <div className="rounded-lg border border-dashed bg-muted/30 py-6 text-center text-xs text-muted-foreground">
+      {text}
+    </div>
+  );
+}
+
+// ── Inactive block card ─────────────────────────────────────────────
+
+function InactiveBlockCard({
+  block,
+  onEnable,
+  pending,
+}: {
+  block: VerticalBlockDef;
+  onEnable: () => void;
+  pending: boolean;
+}) {
+  const stageStyle = FLOW_STAGE_STYLES[block.stage] || { color: '#eee', textColor: '#555' };
+  return (
+    <div className="rounded-lg border bg-card p-3 opacity-80 hover:opacity-100 transition-opacity">
+      <div className="flex items-center gap-2 mb-1 flex-wrap">
+        <Badge variant="secondary" className="text-[10px]">{block.family}</Badge>
+        <span
+          className="text-[10px] font-medium px-1.5 py-0.5 rounded"
+          style={{ background: stageStyle.color, color: stageStyle.textColor }}
+        >
+          {block.stage}
+        </span>
+      </div>
+      <p className="font-medium text-sm truncate">{block.label}</p>
+      <p className="text-xs text-muted-foreground line-clamp-2 mt-0.5 mb-3">{block.desc}</p>
+      <Button
+        size="sm"
+        variant="outline"
+        className="w-full h-7 text-xs"
+        onClick={onEnable}
+        disabled={pending}
+      >
+        {pending ? <Loader2 className="h-3 w-3 animate-spin" /> : (
+          <>
+            <EyeOff className="h-3 w-3 mr-1" />
+            Enable block
+          </>
+        )}
+      </Button>
     </div>
   );
 }
