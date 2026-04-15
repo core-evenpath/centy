@@ -369,7 +369,7 @@ export default function ContentStudioPage() {
             </div>
 
             {/* Sub-vertical filter */}
-            {config.subVerticals.length > 0 && (
+            {Array.isArray(config.subVerticals) && config.subVerticals.length > 0 && (
                 <div className="flex gap-2 overflow-x-auto pb-3 mb-6 -mx-6 px-6 scrollbar-thin">
                     {config.subVerticals.map(sv => {
                         const active = sv.id === activeSubVertical;

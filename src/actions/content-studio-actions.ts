@@ -18,6 +18,22 @@ function configDocRef(verticalId: string) {
 }
 
 /**
+ * Schema version for cached Content Studio configs. Bump this when a
+ * storage-shape change requires invalidating every cached doc. Any doc
+ * with `schemaVersion < CONFIG_SCHEMA_VERSION` is re-generated on the
+ * next read and overwritten in place. This is the backstop for cases
+ * where individual fields can't be cleanly normalized at read time.
+ *
+ * v2 (2026-04-15): forces regeneration of docs persisted before the
+ * `subVerticals` normalizer landed — some legacy docs had `subVerticals`
+ * stored as plain objects (e.g. `{}`) which caused
+ * "b.subVerticals is not iterable" in the partner renderer.
+ */
+const CONFIG_SCHEMA_VERSION = 2;
+
+type CachedConfig = ContentStudioConfig & { schemaVersion?: number };
+
+/**
  * Normalize a Content Studio config loaded from Firestore so the UI can
  * make shape assumptions without defensive checks. Older cached configs
  * may have `subVerticals` missing or stored as non-array shapes (empty
@@ -27,17 +43,26 @@ function configDocRef(verticalId: string) {
  */
 function normalizeCachedConfig(cfg: ContentStudioConfig): ContentStudioConfig {
     const blocks = Array.isArray(cfg.blocks)
-        ? cfg.blocks.map(b => ({
-              ...b,
-              subVerticals:
-                  b.subVerticals === 'all'
-                      ? ('all' as const)
-                      : Array.isArray(b.subVerticals)
-                        ? b.subVerticals
-                        : ('all' as const),
-          }))
+        ? cfg.blocks.map(b => {
+              const sv = (b as any)?.subVerticals;
+              const normalizedSv: string[] | 'all' =
+                  sv === 'all'
+                      ? 'all'
+                      : Array.isArray(sv)
+                        ? sv.filter((x: unknown): x is string => typeof x === 'string')
+                        : 'all';
+              return { ...b, subVerticals: normalizedSv };
+          })
         : [];
-    const subVerticals = Array.isArray(cfg.subVerticals) ? cfg.subVerticals : [];
+    const subVerticals = Array.isArray(cfg.subVerticals)
+        ? cfg.subVerticals.filter(
+              (x: any) =>
+                  x &&
+                  typeof x === 'object' &&
+                  typeof x.id === 'string' &&
+                  typeof x.name === 'string'
+          )
+        : [];
     return { ...cfg, blocks, subVerticals };
 }
 
@@ -52,7 +77,26 @@ export async function getContentStudioConfigAction(verticalId: string): Promise<
         const ref = configDocRef(verticalId);
         const snap = await ref.get();
         if (snap.exists) {
-            const raw = snap.data() as ContentStudioConfig;
+            const raw = snap.data() as CachedConfig;
+            const storedSchema = typeof raw?.schemaVersion === 'number' ? raw.schemaVersion : 0;
+            // Cached doc is current — serve a normalized view.
+            if (storedSchema >= CONFIG_SCHEMA_VERSION) {
+                return { success: true, config: normalizeCachedConfig(raw) };
+            }
+            // Stale schema: regenerate in place so every partner picks
+            // up a clean doc on their next visit.
+            const regenerated = await generateContentStudioConfig(verticalId);
+            if (regenerated) {
+                const toWrite: CachedConfig = {
+                    ...regenerated,
+                    version: (raw.version || 0) + 1,
+                    schemaVersion: CONFIG_SCHEMA_VERSION,
+                };
+                await ref.set(toWrite);
+                return { success: true, config: normalizeCachedConfig(toWrite) };
+            }
+            // Regeneration failed (e.g. registry missing): fall through
+            // to the normalizer on the old doc so the UI at least loads.
             return { success: true, config: normalizeCachedConfig(raw) };
         }
 
@@ -61,8 +105,9 @@ export async function getContentStudioConfigAction(verticalId: string): Promise<
             return { success: false, error: `Unknown vertical: ${verticalId}` };
         }
 
-        await ref.set(generated);
-        return { success: true, config: normalizeCachedConfig(generated) };
+        const toWrite: CachedConfig = { ...generated, schemaVersion: CONFIG_SCHEMA_VERSION };
+        await ref.set(toWrite);
+        return { success: true, config: normalizeCachedConfig(toWrite) };
     } catch (error: any) {
         console.error('[content-studio] get failed:', error);
         return { success: false, error: error?.message || 'Failed to load config' };
@@ -88,11 +133,12 @@ export async function regenerateContentStudioConfigAction(verticalId: string): P
             return { success: false, error: `Unknown vertical: ${verticalId}` };
         }
         generated.version = existingVersion + 1;
+        const toWrite: CachedConfig = { ...generated, schemaVersion: CONFIG_SCHEMA_VERSION };
 
-        await ref.set(generated);
+        await ref.set(toWrite);
         revalidatePath('/partner/relay/datamap');
         revalidatePath('/admin/relay/api-config');
-        return { success: true, config: generated };
+        return { success: true, config: normalizeCachedConfig(toWrite) };
     } catch (error: any) {
         console.error('[content-studio] regenerate failed:', error);
         return { success: false, error: error?.message || 'Failed to regenerate config' };
