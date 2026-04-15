@@ -1,16 +1,5 @@
 'use server';
 
-/**
- * Content Studio — storage and retrieval.
- *
- * Firestore layout:
- *   contentStudioConfigs/{verticalId}                         — generated config cache
- *   partners/{partnerId}/contentStudio/state                  — per-partner block state
- *
- * The config cache is generated lazily on first read and can be
- * regenerated explicitly (single vertical or all) by admins.
- */
-
 import { revalidatePath } from 'next/cache';
 import { db as adminDb } from '@/lib/firebase-admin';
 import type {
@@ -22,8 +11,6 @@ import { getAllVerticalIds, resolveVerticalFromSlug } from '@/lib/content-studio
 import { getVerticalForCategory, hasVerticalForCategory } from '@/lib/relay/vertical-map';
 import { VERTICAL_IDS } from '@/lib/content-studio/verticals';
 import { getApiIntegrationsAction } from '@/actions/admin-api-config-actions';
-
-// ── Config cache ─────────────────────────────────────────────────────
 
 function configDocRef(verticalId: string) {
     if (!adminDb) throw new Error('Database not available');
@@ -106,8 +93,6 @@ export async function regenerateAllContentStudioConfigsAction(): Promise<{
     }
 }
 
-// ── Partner state ────────────────────────────────────────────────────
-
 function partnerStateRef(partnerId: string) {
     if (!adminDb) throw new Error('Database not available');
     return adminDb.collection(`partners/${partnerId}/contentStudio`).doc('state');
@@ -189,65 +174,56 @@ export async function updatePartnerBlockStateAction(
     }
 }
 
-// ── API integrations filtered for a partner ──────────────────────────
-
 /**
  * Pull every plausible vertical/function/industry slug off a partner doc.
- * The partner data model stores this information in several places
- * (persona identity, businessCategories, synced top-level fields, plus an
- * `industry` object) — we collect all of them so `normalizeVerticalForPartner`
- * can try each against our vertical taxonomy in order.
+ *
+ * FIX: `identity.industry.category` is stored as a string OR an array of
+ * strings by the settings page (multi-select business type picker). The
+ * previous implementation used a string-only `push` helper so array values
+ * were silently dropped, leaving `candidates` empty and causing vertical
+ * resolution to always fail with "Could not resolve your business vertical."
  */
 function collectPartnerVerticalCandidates(
     partnerData: Record<string, any> | undefined
 ): string[] {
     if (!partnerData) return [];
     const candidates: string[] = [];
-    const push = (v: unknown) => {
+
+    const pushOne = (v: unknown) => {
         if (typeof v === 'string' && v.length > 0) candidates.push(v);
+    };
+
+    const pushAll = (v: unknown) => {
+        if (Array.isArray(v)) {
+            for (const item of v) pushOne(item);
+        } else {
+            pushOne(v);
+        }
     };
 
     const persona = partnerData.businessPersona;
     const identity = persona?.identity;
 
-    // Sub-vertical slugs (functionId) — same pattern used in
-    // relay-partner-actions.ts + block-builder-actions.ts.
-    push(identity?.functionId);
+    pushOne(identity?.functionId);
     const cats = identity?.businessCategories;
     if (Array.isArray(cats)) {
-        for (const c of cats) push(c?.functionId);
+        for (const c of cats) pushOne(c?.functionId);
     }
-    push(partnerData.functionId);
+    pushOne(partnerData.functionId);
 
-    // Industry slugs.
-    push(identity?.industryId);
-    push(partnerData.industryId);
+    pushOne(identity?.industryId);
+    pushOne(partnerData.industryId);
 
-    // BusinessIndustry object: `{ id, name, category, ... }` — id is often a
-    // slug like `ecommerce_d2c`, category is a broad bucket like `retail`.
-    push(identity?.industry?.id);
-    push(identity?.industry?.category);
-    push(partnerData.industry?.id);
-    push(partnerData.industry?.category);
+    pushOne(identity?.industry?.id);
+    pushAll(identity?.industry?.category);
+    pushOne(partnerData.industry?.id);
+    pushAll(partnerData.industry?.category);
 
-    // Last-ditch direct vertical fields.
-    push(partnerData.verticalId);
+    pushOne(partnerData.verticalId);
 
     return candidates;
 }
 
-/**
- * Map any of the partner's slug candidates to a Content Studio vertical id.
- * Order of attempts per candidate:
- *   1. Exact match against `VERTICAL_IDS` (e.g. `ecommerce`).
- *   2. Static alias for canonical industry slugs (`retail_commerce → ecommerce`).
- *   3. Shared `getVerticalForCategory` map (sub-verticals → vertical; the
- *      canonical lookup used elsewhere in the app, e.g. relay-actions.ts).
- *   4. Registry lookup for anything we loaded a `VerticalConfig` for.
- *   5. Category-bucket alias (`retail` / `education` / etc.) from the
- *      BusinessIndustry.category enum.
- * Returns the first resolution that hits.
- */
 async function normalizeVerticalForPartner(
     candidates: string[]
 ): Promise<string | null> {
@@ -259,7 +235,7 @@ async function normalizeVerticalForPartner(
         automotive_mobility: 'automotive',
         business_professional: 'business',
         healthcare_medical: 'healthcare',
-        // BusinessIndustry.category bucket → vertical.
+        real_estate: 'home_property',
         food_beverage: 'food_beverage',
         healthcare: 'healthcare',
         education: 'education',
@@ -270,9 +246,6 @@ async function normalizeVerticalForPartner(
     for (const raw of candidates) {
         if ((VERTICAL_IDS as readonly string[]).includes(raw)) return raw;
         if (STATIC_ALIASES[raw]) return STATIC_ALIASES[raw];
-        // Shared function→vertical map used across the codebase — only
-        // trust it when the slug has an explicit mapping (otherwise it
-        // silently defaults to 'ecommerce').
         if (hasVerticalForCategory(raw)) {
             const fromShared = getVerticalForCategory(raw);
             if ((VERTICAL_IDS as readonly string[]).includes(fromShared)) {
@@ -331,10 +304,6 @@ export async function getEnabledApiIntegrationsForPartnerAction(
     }
 }
 
-/**
- * Resolves a partner's Content Studio vertical id (used by the partner page
- * to know which config to fetch).
- */
 export async function getPartnerVerticalIdAction(
     partnerId: string
 ): Promise<{ success: boolean; verticalId?: string; error?: string }> {
