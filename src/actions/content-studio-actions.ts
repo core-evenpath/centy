@@ -391,6 +391,86 @@ export async function getEnabledApiIntegrationsForPartnerAction(
     }
 }
 
+export interface PartnerSubVerticalOption {
+    /** Stable identifier for the option (functionId when available, else raw slug). */
+    key: string;
+    /** Raw slug from the partner doc (what was fed to the resolver). */
+    slug: string;
+    /** Human-readable label for the dropdown. */
+    label: string;
+    /** Resolved Content Studio verticalId, or null if no config maps to it. */
+    verticalId: string | null;
+}
+
+/**
+ * List every Business Category attached to the partner, with each one
+ * resolved to a Content Studio `verticalId` (or null when unresolvable).
+ *
+ * Powers the manual sub-vertical picker on `/partner/relay/datamap`.
+ */
+export async function getPartnerSubVerticalsAction(
+    partnerId: string
+): Promise<{
+    success: boolean;
+    options?: PartnerSubVerticalOption[];
+    defaultKey?: string;
+    error?: string;
+}> {
+    try {
+        if (!adminDb) return { success: false, error: 'Database not available' };
+        const partnerDoc = await adminDb.collection('partners').doc(partnerId).get();
+        if (!partnerDoc.exists) return { success: false, error: 'Partner not found' };
+        const data = partnerDoc.data() || {};
+
+        const seen = new Set<string>();
+        const entries: Array<{ key: string; slug: string; label: string }> = [];
+
+        const pushEntry = (slug: unknown, label?: unknown, key?: unknown) => {
+            if (typeof slug !== 'string' || !slug) return;
+            const k = typeof key === 'string' && key ? key : slug;
+            if (seen.has(k)) return;
+            seen.add(k);
+            const lbl =
+                typeof label === 'string' && label.trim()
+                    ? label.trim()
+                    : slug
+                          .split(/[_-]/)
+                          .map(s => s.charAt(0).toUpperCase() + s.slice(1))
+                          .join(' ');
+            entries.push({ key: k, slug, label: lbl });
+        };
+
+        const identity = data.businessPersona?.identity;
+        const cats = identity?.businessCategories;
+        if (Array.isArray(cats)) {
+            for (const c of cats) {
+                if (!c) continue;
+                pushEntry(c.functionId, c.label, c.functionId);
+            }
+        }
+
+        // Fall back to raw fields if no structured categories
+        if (entries.length === 0) {
+            const fallback = collectPartnerVerticalCandidates(data);
+            for (const slug of fallback) pushEntry(slug);
+        }
+
+        const options: PartnerSubVerticalOption[] = [];
+        for (const e of entries) {
+            const verticalId = await normalizeVerticalForPartner([e.slug]);
+            options.push({ ...e, verticalId });
+        }
+
+        const defaultKey =
+            options.find(o => o.verticalId)?.key || options[0]?.key;
+
+        return { success: true, options, defaultKey };
+    } catch (error: any) {
+        console.error('[content-studio] partner sub-verticals lookup failed:', error);
+        return { success: false, error: error?.message || 'Failed to list sub-verticals' };
+    }
+}
+
 export async function getPartnerVerticalIdAction(
     partnerId: string
 ): Promise<{ success: boolean; verticalId?: string; error?: string }> {
