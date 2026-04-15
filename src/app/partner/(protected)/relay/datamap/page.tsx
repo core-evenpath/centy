@@ -20,13 +20,13 @@ import {
 } from '@/actions/content-studio-actions';
 import { refreshPartnerContentStudioStateAction } from '@/actions/content-studio-refresh-actions';
 
-import { Icon } from './components/icon';
-import { ProgressRing } from './components/progress-ring';
-import { PhonePreview } from './components/phone-preview';
-import { DataInputPanel } from './components/data-input-panel';
-import { FeatureList } from './components/feature-list';
-import { SubVerticalBar } from './components/sub-vertical-bar';
-import { DependentFeatures } from './components/dependent-features';
+import { Icon } from './_components/icon';
+import { ProgressRing } from './_components/progress-ring';
+import { PhonePreview } from './_components/phone-preview';
+import { DataInputPanel } from './_components/data-input-panel';
+import { FeatureList } from './_components/feature-list';
+import { SubVerticalBar } from './_components/sub-vertical-bar';
+import { DependentFeatures } from './_components/dependent-features';
 
 import { ACCENT, theme } from './constants';
 import { mapAllFeatures, partitionFeatures } from './feature-mapper';
