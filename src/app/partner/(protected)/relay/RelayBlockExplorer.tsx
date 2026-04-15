@@ -8,9 +8,9 @@
 // on or off.
 
 import { useEffect, useMemo, useState, useCallback } from 'react';
-import { Loader2, ChevronDown, EyeOff } from 'lucide-react';
+import { Loader2, ChevronDown } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
+import { Switch } from '@/components/ui/switch';
 import {
   ALL_SUB_VERTICALS,
   SHARED_BLOCKS,
@@ -266,31 +266,32 @@ function InactiveBlockCard({
   const stageStyle = FLOW_STAGE_STYLES[block.stage] || { color: '#eee', textColor: '#555' };
   return (
     <div className="rounded-lg border bg-card p-3 opacity-80 hover:opacity-100 transition-opacity">
-      <div className="flex items-center gap-2 mb-1 flex-wrap">
-        <Badge variant="secondary" className="text-[10px]">{block.family}</Badge>
-        <span
-          className="text-[10px] font-medium px-1.5 py-0.5 rounded"
-          style={{ background: stageStyle.color, color: stageStyle.textColor }}
-        >
-          {block.stage}
-        </span>
-      </div>
-      <p className="font-medium text-sm truncate">{block.label}</p>
-      <p className="text-xs text-muted-foreground line-clamp-2 mt-0.5 mb-3">{block.desc}</p>
-      <Button
-        size="sm"
-        variant="outline"
-        className="w-full h-7 text-xs"
-        onClick={onEnable}
-        disabled={pending}
-      >
-        {pending ? <Loader2 className="h-3 w-3 animate-spin" /> : (
-          <>
-            <EyeOff className="h-3 w-3 mr-1" />
-            Enable block
-          </>
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2 mb-1 flex-wrap">
+            <Badge variant="secondary" className="text-[10px]">{block.family}</Badge>
+            <span
+              className="text-[10px] font-medium px-1.5 py-0.5 rounded"
+              style={{ background: stageStyle.color, color: stageStyle.textColor }}
+            >
+              {block.stage}
+            </span>
+          </div>
+          <p className="font-medium text-sm truncate">{block.label}</p>
+          <p className="text-xs text-muted-foreground line-clamp-2 mt-0.5">{block.desc}</p>
+        </div>
+        {pending ? (
+          <Loader2 className="h-4 w-4 mt-0.5 shrink-0 animate-spin text-muted-foreground" />
+        ) : (
+          <Switch
+            checked={false}
+            onCheckedChange={onEnable}
+            aria-label="Enable block"
+            title="Click to enable"
+            className="mt-0.5"
+          />
         )}
-      </Button>
+      </div>
     </div>
   );
 }

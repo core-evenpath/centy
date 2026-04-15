@@ -8,6 +8,7 @@
 
 import { Loader2, Eye } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
+import { Switch } from '@/components/ui/switch';
 import { FLOW_STAGE_STYLES } from '@/app/admin/relay/blocks/previews/_types';
 import type { VerticalBlockDef } from '@/app/admin/relay/blocks/previews/_types';
 
@@ -46,17 +47,14 @@ export default function ActiveBlockCard({
             {block.desc}
           </p>
         </div>
-        <button
-          onClick={onToggle}
+        <Switch
+          checked
+          onCheckedChange={onToggle}
           disabled={togglePending}
-          className={`relative shrink-0 h-6 w-11 rounded-full transition-colors bg-primary ${
-            togglePending ? 'opacity-50 cursor-wait' : 'cursor-pointer'
-          }`}
           aria-label="Disable block"
           title="Click to disable"
-        >
-          <span className="absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform translate-x-5" />
-        </button>
+          className="mt-0.5"
+        />
       </div>
 
       {/* Live preview */}
