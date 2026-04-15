@@ -97,7 +97,7 @@ export default function UnifiedPartnerSidebar() {
     {
       icon: Package,
       label: 'Modules',
-      href: '/partner/modules'
+      href: '/partner/relay/modules'
     },
     {
       icon: Megaphone,

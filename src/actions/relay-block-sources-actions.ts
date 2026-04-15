@@ -188,7 +188,7 @@ export interface BlockDiagnostic {
     // Modules this block could use that the partner actually has (by slug).
     compatibleModules: PartnerModuleSource[];
     // Suggested modules the partner hasn't connected yet. Each entry
-    // links to /partner/modules where the partner can enable/create it.
+    // links to /partner/relay/modules where the partner can enable/create it.
     missingModules: Array<{ slug: string; name: string; reason: string; href: string }>;
     // Summary of the block's readiness.
     ready: boolean;
@@ -279,7 +279,7 @@ export async function getBlockDiagnosticsAction(
                     slug: sm.slug,
                     name: sm.name,
                     reason: sm.reason,
-                    href: `/partner/modules?add=${encodeURIComponent(sm.slug)}`,
+                    href: `/partner/relay/modules?add=${encodeURIComponent(sm.slug)}`,
                 }));
 
             const requiredFields = fields.filter(f => f.required);

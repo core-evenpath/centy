@@ -62,7 +62,7 @@ const DIAG_LINKS: Record<string, string> = {
     'Widget Configuration': '/partner/relay',
     'RAG Store': '/partner/core',
     'Knowledge Documents': '/partner/core',
-    'Module Data': '/partner/modules',
+    'Module Data': '/partner/relay/modules',
     'Relay Block Configs': '/admin/modules/new',
 };
 

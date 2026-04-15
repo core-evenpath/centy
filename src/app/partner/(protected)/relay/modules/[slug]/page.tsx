@@ -126,7 +126,7 @@ export default function ModuleManagePage({ params }: PageProps) {
         return (
             <div className="container mx-auto py-8">
                 <Button variant="ghost" className="mb-4 pl-0 hover:pl-0 hover:bg-transparent" asChild>
-                    <Link href="/partner/modules">
+                    <Link href="/partner/relay/modules">
                         <ArrowLeft className="mr-2 h-4 w-4" />
                         Back to Modules
                     </Link>
@@ -148,7 +148,7 @@ export default function ModuleManagePage({ params }: PageProps) {
                         }, null, 2)}
                     </pre>
                     <Button asChild className="mt-4">
-                        <Link href="/partner/modules">Browse Available Modules</Link>
+                        <Link href="/partner/relay/modules">Browse Available Modules</Link>
                     </Button>
                 </div>
             </div>
@@ -281,7 +281,7 @@ export default function ModuleManagePage({ params }: PageProps) {
         <div className="container mx-auto py-8">
             <div className="mb-8">
                 <Button variant="ghost" className="mb-4 pl-0 hover:pl-0 hover:bg-transparent" asChild>
-                    <Link href="/partner/modules">
+                    <Link href="/partner/relay/modules">
                         <ArrowLeft className="mr-2 h-4 w-4" />
                         Back to Modules
                     </Link>

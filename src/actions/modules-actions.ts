@@ -692,7 +692,7 @@ export async function enablePartnerModuleAction(
 
         await categoriesBatch.commit();
 
-        revalidatePath(`/partner/modules`);
+        revalidatePath(`/partner/relay/modules`);
         return { success: true, data: { moduleId } };
     } catch (error) {
         console.error('Error enabling partner module:', error);
@@ -726,7 +726,7 @@ export async function disablePartnerModuleAction(
             });
         }
 
-        revalidatePath(`/partner/modules`);
+        revalidatePath(`/partner/relay/modules`);
         return { success: true };
     } catch (error) {
         console.error('Error disabling partner module:', error);
@@ -878,7 +878,7 @@ export async function createModuleItemAction(
             }
         }
 
-        revalidatePath(`/partner/modules/${partnerModule.moduleSlug}`);
+        revalidatePath(`/partner/relay/modules/${partnerModule.moduleSlug}`);
         triggerCoreHubSync(partnerId, `item created in ${moduleId}`);
         return { success: true, data: { itemId } };
     } catch (error) {
@@ -969,7 +969,7 @@ export async function updateModuleItemAction(
             await batch.commit();
         }
 
-        revalidatePath(`/partner/modules`);
+        revalidatePath(`/partner/relay/modules`);
         triggerCoreHubSync(partnerId, `item updated in ${moduleId}`);
         return { success: true };
     } catch (error) {
@@ -999,7 +999,7 @@ export async function reorderItemsAction(
         }
 
         await batch.commit();
-        revalidatePath(`/partner/modules`);
+        revalidatePath(`/partner/relay/modules`);
         return { success: true };
     } catch (error) {
         console.error('Error reordering items:', error);
@@ -1050,7 +1050,7 @@ export async function deleteModuleItemAction(
             }
         }
 
-        revalidatePath(`/partner/modules`);
+        revalidatePath(`/partner/relay/modules`);
         triggerCoreHubSync(partnerId, `item deleted from ${moduleId}`);
         return { success: true };
     } catch (error) {
@@ -1090,7 +1090,7 @@ export async function bulkUpdateModuleItemsAction(
 
         await batch.commit();
 
-        revalidatePath(`/partner/modules`);
+        revalidatePath(`/partner/relay/modules`);
         triggerCoreHubSync(partnerId, `bulk update in ${moduleId}`);
         return { success: true, data: { updated, failed } };
     } catch (error) {
@@ -1296,8 +1296,8 @@ export async function executeModuleMigrationAction(
 
         const completedAt = new Date().toISOString();
 
-        revalidatePath(`/partner/modules`);
-        revalidatePath(`/partner/modules/${partnerModule.moduleSlug}`);
+        revalidatePath(`/partner/relay/modules`);
+        revalidatePath(`/partner/relay/modules/${partnerModule.moduleSlug}`);
 
         return {
             success: itemsFailed === 0,
@@ -1449,7 +1449,7 @@ export async function bulkCreateModuleItemsAction(
                 updatedAt: now,
             });
 
-        revalidatePath(`/partner/modules/${partnerModule.moduleSlug}`);
+        revalidatePath(`/partner/relay/modules/${partnerModule.moduleSlug}`);
         triggerCoreHubSync(partnerId, `bulk create in ${moduleId}`);
         return { success: true, data: { created, failed } };
     } catch (error) {
@@ -1503,9 +1503,9 @@ export async function deleteAllModuleItemsAction(
 
         const moduleSlug = partnerModuleDoc.data()?.moduleSlug;
         if (moduleSlug) {
-            revalidatePath(`/partner/modules/${moduleSlug}`);
+            revalidatePath(`/partner/relay/modules/${moduleSlug}`);
         }
-        revalidatePath(`/partner/modules`);
+        revalidatePath(`/partner/relay/modules`);
         triggerCoreHubSync(partnerId, `all items deleted from ${moduleId}`);
 
         return { success: true, data: { deleted } };
@@ -1688,7 +1688,7 @@ export async function resetPartnerModulesAction(
             await batch.commit();
         }
 
-        revalidatePath('/partner/modules');
+        revalidatePath('/partner/relay/modules');
         return { success: true, data: { deleted } };
 
     } catch (error) {
@@ -1733,7 +1733,7 @@ export async function addPartnerCustomFieldAction(
             updatedAt: new Date().toISOString(),
         });
 
-        revalidatePath('/partner/modules');
+        revalidatePath('/partner/relay/modules');
         return { success: true, data: { fieldId: field.id } };
     } catch (error) {
         console.error('Error adding custom field:', error);
@@ -1771,7 +1771,7 @@ export async function updatePartnerCustomFieldAction(
             updatedAt: new Date().toISOString(),
         });
 
-        revalidatePath('/partner/modules');
+        revalidatePath('/partner/relay/modules');
         return { success: true };
     } catch (error) {
         console.error('Error updating custom field:', error);
@@ -1801,7 +1801,7 @@ export async function removePartnerCustomFieldAction(
             updatedAt: new Date().toISOString(),
         });
 
-        revalidatePath('/partner/modules');
+        revalidatePath('/partner/relay/modules');
         return { success: true };
     } catch (error) {
         console.error('Error removing custom field:', error);

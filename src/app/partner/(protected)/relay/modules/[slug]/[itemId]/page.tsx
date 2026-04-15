@@ -35,7 +35,7 @@ export default function ItemDetailPage({ params }: PageProps) {
     return (
         <div className="container mx-auto py-8">
             <Button variant="ghost" className="mb-4 pl-0" asChild>
-                <Link href={`/partner/modules/${slug}`}>
+                <Link href={`/partner/relay/modules/${slug}`}>
                     <ArrowLeft className="mr-2 h-4 w-4" />
                     Back to Items
                 </Link>

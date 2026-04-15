@@ -42,7 +42,7 @@ export function EnableModuleDialog({ open, onOpenChange, availableModules, partn
                 toast.success(`${selectedModule.name} enabled successfully`);
                 onEnable();
                 onOpenChange(false);
-                router.push(`/partner/modules/${selectedModule.slug}`);
+                router.push(`/partner/relay/modules/${selectedModule.slug}`);
             } else {
                 toast.error(result.error || 'Failed to enable module');
             }

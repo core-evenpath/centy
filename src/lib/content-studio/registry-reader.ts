@@ -145,7 +145,8 @@ export async function resolveVerticalFromSlug(slug: string): Promise<string | nu
     if ((VERTICAL_IDS as readonly string[]).includes(slug)) return slug;
     for (const [vId, cfg] of Object.entries(VERTICAL_CONFIG_MAP)) {
         if (!cfg) continue;
-        if (cfg.subVerticals.some(sv => sv.id === slug)) return vId;
+        const subs = Array.isArray(cfg.subVerticals) ? cfg.subVerticals : [];
+        if (subs.some(sv => sv?.id === slug)) return vId;
         if (cfg.industryId === slug) return vId;
     }
     return null;
