@@ -31,6 +31,13 @@ function configDocRef(verticalId: string) {
  *
  * v3 (2026-04-15): added defensive Array.isArray guards in registry-reader
  * and generator; bumped to force re-generation of any corrupted docs.
+ *
+ * Note: as of 2026-04-15, cached docs with `blocks: []` are always treated
+ * as suspect and re-run through the generator on read, regardless of
+ * schemaVersion. Every vertical now ships a preview config with blocks,
+ * so an empty blocks array in Firestore is almost always a stale stub
+ * cached from before the preview config landed. Re-generating is cheap
+ * and a no-op for verticals that genuinely are still stubs.
  */
 const CONFIG_SCHEMA_VERSION = 3;
 
@@ -82,12 +89,18 @@ export async function getContentStudioConfigAction(verticalId: string): Promise<
         if (snap.exists) {
             const raw = snap.data() as CachedConfig;
             const storedSchema = typeof raw?.schemaVersion === 'number' ? raw.schemaVersion : 0;
-            // Cached doc is current — serve a normalized view.
-            if (storedSchema >= CONFIG_SCHEMA_VERSION) {
+            const cachedBlocks = Array.isArray(raw?.blocks) ? raw.blocks : [];
+            // A cached doc with zero blocks is either a legitimate stub
+            // (vertical has no preview config yet) or a poisoned cache
+            // from when the vertical was still stubbed. Attempt to
+            // regenerate — if the registry now has blocks, we'll overwrite
+            // the stub; if it's still a stub, the regenerator returns the
+            // same empty shape and we persist it with the current schema.
+            const cacheIsEmptyStub = cachedBlocks.length === 0;
+            const schemaIsStale = storedSchema < CONFIG_SCHEMA_VERSION;
+            if (!schemaIsStale && !cacheIsEmptyStub) {
                 return { success: true, config: normalizeCachedConfig(raw) };
             }
-            // Stale schema: regenerate in place so every partner picks
-            // up a clean doc on their next visit.
             const regenerated = await generateContentStudioConfig(verticalId);
             if (regenerated) {
                 const toWrite: CachedConfig = {
