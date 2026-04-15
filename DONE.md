@@ -1004,3 +1004,13 @@ Validation
 - Routes added: `/partner/relay/datamap`, `/admin/relay/api-config`.
 - Firestore collections touched: `platformConfig/apiIntegrations`, `contentStudioConfigs/{vid}`, `partners/{pid}/contentStudio/state`.
 
+## Content Studio — refresh from existing partner data — 2026-04-15
+
+Addendum: partners who set up before Content Studio shipped already had modules with items and populated profiles, but no `partners/{pid}/contentStudio/state` doc — so they saw 0% readiness on first visit. Added a refresh path that backfills block readiness by scanning existing modules + profile, wired to run automatically on first visit and exposed as a manual "Refresh status" button in the header. Split into two small modules to keep the AI/registry code paths untouched.
+
+- `src/lib/content-studio/detect-readiness.ts` — pure (no I/O) detection: given a `PartnerDataSnapshot` ({ hasProfile, moduleItemCounts }) and the Content Studio blocks, returns the block-state map that should be persisted. Handles auto-configured (always ready), profile-sourced (ready when any identity field is populated), and module-dependent (ready when any enabled module has items) blocks.
+- `src/actions/content-studio-refresh-actions.ts` — `refreshPartnerContentStudioStateAction(partnerId)`: resolves vertical, loads config (lazy-generates if needed), fetches partner doc + `getPartnerModulesAction` in parallel, runs `detectAllBlockReadiness`, merge-writes to `partners/{pid}/contentStudio/state` with `refreshedAt` timestamp, revalidates the page.
+- `src/app/partner/(protected)/relay/datamap/page.tsx` — added `RefreshCw` import, `refreshing` state, `reloadPartnerState` + `runRefresh` callbacks, a "Refresh status" button next to the readiness ring, and an auto-refresh branch in the initial loader that fires when `blockStates` is empty but the config has blocks (so existing partners see their real readiness without needing to click anything).
+
+Validation: `npx tsc --noEmit` clean.
+

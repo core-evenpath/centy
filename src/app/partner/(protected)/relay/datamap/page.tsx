@@ -57,6 +57,7 @@ import {
     HelpCircle,
     MessageSquare,
     RotateCcw,
+    RefreshCw,
     type LucideIcon,
 } from 'lucide-react';
 
@@ -77,6 +78,7 @@ import {
     getEnabledApiIntegrationsForPartnerAction,
     getPartnerVerticalIdAction,
 } from '@/actions/content-studio-actions';
+import { refreshPartnerContentStudioStateAction } from '@/actions/content-studio-refresh-actions';
 
 // ── Icon resolution ──────────────────────────────────────────────────
 
@@ -146,6 +148,27 @@ export default function ContentStudioPage() {
     const [enabledIntegrations, setEnabledIntegrations] = React.useState<EnabledIntegration[]>([]);
     const [activeSubVertical, setActiveSubVertical] = React.useState<string | null>(null);
     const [expandedBlockId, setExpandedBlockId] = React.useState<string | null>(null);
+    const [refreshing, setRefreshing] = React.useState(false);
+
+    const reloadPartnerState = React.useCallback(async (pid: string) => {
+        const stateRes = await getPartnerContentStudioStateAction(pid);
+        if (stateRes.success && stateRes.state) setPartnerState(stateRes.state);
+    }, []);
+
+    const runRefresh = React.useCallback(
+        async (pid: string) => {
+            setRefreshing(true);
+            try {
+                const res = await refreshPartnerContentStudioStateAction(pid);
+                if (res.success) {
+                    await reloadPartnerState(pid);
+                }
+            } finally {
+                setRefreshing(false);
+            }
+        },
+        [reloadPartnerState]
+    );
 
     React.useEffect(() => {
         if (!partnerId) return;
@@ -183,6 +206,28 @@ export default function ContentStudioPage() {
                 }
                 if (stateRes.success && stateRes.state) setPartnerState(stateRes.state);
                 if (apiRes.success && apiRes.integrations) setEnabledIntegrations(apiRes.integrations);
+
+                // First visit: if the state doc is empty but the config has
+                // blocks, auto-refresh from existing partner data so partners
+                // who set up before Content Studio launched don't see 0%.
+                const stateIsEmpty =
+                    !stateRes.state ||
+                    !stateRes.state.blockStates ||
+                    Object.keys(stateRes.state.blockStates).length === 0;
+                const configHasBlocks = cfgRes.success && (cfgRes.config?.blocks.length || 0) > 0;
+                if (stateIsEmpty && configHasBlocks && !cancelled) {
+                    // Fire and forget from inside the loader; the reload is
+                    // awaited so the page renders the refreshed state.
+                    const refreshRes = await refreshPartnerContentStudioStateAction(partnerId);
+                    if (cancelled) return;
+                    if (refreshRes.success) {
+                        const freshState = await getPartnerContentStudioStateAction(partnerId);
+                        if (cancelled) return;
+                        if (freshState.success && freshState.state) {
+                            setPartnerState(freshState.state);
+                        }
+                    }
+                }
             } catch (e: any) {
                 if (!cancelled) setError(e?.message || 'Unexpected error');
             } finally {
@@ -299,12 +344,24 @@ export default function ContentStudioPage() {
                             </p>
                         </div>
                     </div>
-                    <ReadinessRing
-                        pct={readinessPct}
-                        color={config.accentColor}
-                        provided={providedCount}
-                        total={nonAutoBlocks.length}
-                    />
+                    <div className="flex items-center gap-3">
+                        <button
+                            type="button"
+                            onClick={() => partnerId && runRefresh(partnerId)}
+                            disabled={refreshing}
+                            className="text-xs flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-border text-muted-foreground hover:text-foreground hover:bg-muted transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                            title="Re-scan your modules and profile to update block readiness"
+                        >
+                            <RefreshCw className={`h-3.5 w-3.5 ${refreshing ? 'animate-spin' : ''}`} />
+                            {refreshing ? 'Refreshing…' : 'Refresh status'}
+                        </button>
+                        <ReadinessRing
+                            pct={readinessPct}
+                            color={config.accentColor}
+                            provided={providedCount}
+                            total={nonAutoBlocks.length}
+                        />
+                    </div>
                 </div>
             </div>
 
