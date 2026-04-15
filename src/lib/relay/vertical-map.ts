@@ -73,6 +73,15 @@ export function getVerticalForCategory(category: string): string {
   return FUNCTION_TO_VERTICAL[category] || 'ecommerce';
 }
 
+/**
+ * True when the given sub-vertical slug has an explicit vertical mapping.
+ * Callers that need to distinguish "mapped to ecommerce" from "unmapped,
+ * falling back to ecommerce" should use this first.
+ */
+export function hasVerticalForCategory(category: string): boolean {
+  return Object.prototype.hasOwnProperty.call(FUNCTION_TO_VERTICAL, category);
+}
+
 // ── Per-vertical intent → block ID mapping ───────────────────────────
 
 type IntentBlockMap = Partial<Record<IntentType, string | null>>;

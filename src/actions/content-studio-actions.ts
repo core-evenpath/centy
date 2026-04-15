@@ -19,6 +19,7 @@ import type {
 } from '@/lib/types-content-studio';
 import { generateContentStudioConfig } from '@/lib/content-studio/generator';
 import { getAllVerticalIds, resolveVerticalFromSlug } from '@/lib/content-studio/registry-reader';
+import { getVerticalForCategory, hasVerticalForCategory } from '@/lib/relay/vertical-map';
 import { VERTICAL_IDS } from '@/lib/content-studio/verticals';
 import { getApiIntegrationsAction } from '@/actions/admin-api-config-actions';
 
@@ -190,60 +191,98 @@ export async function updatePartnerBlockStateAction(
 
 // ── API integrations filtered for a partner ──────────────────────────
 
-function resolvePartnerVertical(partnerData: Record<string, any> | undefined): string | null {
-    if (!partnerData) return null;
-    // Preferred: businessPersona.identity.industryId — this is where the
-    // onboarding flow writes the canonical industry slug (matches the pattern
-    // used in src/actions/relay-partner-actions.ts).
-    const personaIndustryId = partnerData.businessPersona?.identity?.industryId;
-    if (typeof personaIndustryId === 'string' && personaIndustryId.length > 0) {
-        return personaIndustryId;
+/**
+ * Pull every plausible vertical/function/industry slug off a partner doc.
+ * The partner data model stores this information in several places
+ * (persona identity, businessCategories, synced top-level fields, plus an
+ * `industry` object) — we collect all of them so `normalizeVerticalForPartner`
+ * can try each against our vertical taxonomy in order.
+ */
+function collectPartnerVerticalCandidates(
+    partnerData: Record<string, any> | undefined
+): string[] {
+    if (!partnerData) return [];
+    const candidates: string[] = [];
+    const push = (v: unknown) => {
+        if (typeof v === 'string' && v.length > 0) candidates.push(v);
+    };
+
+    const persona = partnerData.businessPersona;
+    const identity = persona?.identity;
+
+    // Sub-vertical slugs (functionId) — same pattern used in
+    // relay-partner-actions.ts + block-builder-actions.ts.
+    push(identity?.functionId);
+    const cats = identity?.businessCategories;
+    if (Array.isArray(cats)) {
+        for (const c of cats) push(c?.functionId);
     }
-    // Secondary: first businessCategory's functionId (sub-vertical slug — some
-    // partners have this populated even without a top-level industryId).
-    const firstCategoryFn =
-        partnerData.businessPersona?.identity?.businessCategories?.[0]?.functionId;
-    if (typeof firstCategoryFn === 'string' && firstCategoryFn.length > 0) {
-        return firstCategoryFn;
-    }
-    // Fallbacks for legacy/partial docs.
-    if (typeof partnerData.industryId === 'string' && partnerData.industryId.length > 0) {
-        return partnerData.industryId;
-    }
-    if (typeof partnerData.functionId === 'string' && partnerData.functionId.length > 0) {
-        return partnerData.functionId;
-    }
-    const industryObjectId = partnerData.industry?.id;
-    if (typeof industryObjectId === 'string' && industryObjectId.length > 0) {
-        return industryObjectId;
-    }
-    if (typeof partnerData.verticalId === 'string' && partnerData.verticalId.length > 0) {
-        return partnerData.verticalId;
-    }
-    return null;
+    push(partnerData.functionId);
+
+    // Industry slugs.
+    push(identity?.industryId);
+    push(partnerData.industryId);
+
+    // BusinessIndustry object: `{ id, name, category, ... }` — id is often a
+    // slug like `ecommerce_d2c`, category is a broad bucket like `retail`.
+    push(identity?.industry?.id);
+    push(identity?.industry?.category);
+    push(partnerData.industry?.id);
+    push(partnerData.industry?.category);
+
+    // Last-ditch direct vertical fields.
+    push(partnerData.verticalId);
+
+    return candidates;
 }
 
 /**
- * Map an arbitrary slug (vertical id, sub-vertical id, or canonical
- * industry slug) to a Content Studio vertical id. Tries a static alias map
- * first (cheap, covers the common `retail_commerce → ecommerce` case),
- * then falls back to the registry-driven lookup which handles
- * sub-verticals like `ecommerce_d2c → ecommerce`.
+ * Map any of the partner's slug candidates to a Content Studio vertical id.
+ * Order of attempts per candidate:
+ *   1. Exact match against `VERTICAL_IDS` (e.g. `ecommerce`).
+ *   2. Static alias for canonical industry slugs (`retail_commerce → ecommerce`).
+ *   3. Shared `getVerticalForCategory` map (sub-verticals → vertical; the
+ *      canonical lookup used elsewhere in the app, e.g. relay-actions.ts).
+ *   4. Registry lookup for anything we loaded a `VerticalConfig` for.
+ *   5. Category-bucket alias (`retail` / `education` / etc.) from the
+ *      BusinessIndustry.category enum.
+ * Returns the first resolution that hits.
  */
-async function normalizeVerticalForPartner(raw: string | null): Promise<string | null> {
-    if (!raw) return null;
-    if ((VERTICAL_IDS as readonly string[]).includes(raw)) return raw;
-    const ALIASES: Record<string, string> = {
+async function normalizeVerticalForPartner(
+    candidates: string[]
+): Promise<string | null> {
+    const STATIC_ALIASES: Record<string, string> = {
         retail_commerce: 'ecommerce',
         retail: 'ecommerce',
         education_learning: 'education',
+        education_training: 'education',
         automotive_mobility: 'automotive',
         business_professional: 'business',
         healthcare_medical: 'healthcare',
+        // BusinessIndustry.category bucket → vertical.
+        food_beverage: 'food_beverage',
+        healthcare: 'healthcare',
+        education: 'education',
+        hospitality: 'hospitality',
+        automotive: 'automotive',
     };
-    if (ALIASES[raw]) return ALIASES[raw];
-    const resolved = await resolveVerticalFromSlug(raw);
-    return resolved;
+
+    for (const raw of candidates) {
+        if ((VERTICAL_IDS as readonly string[]).includes(raw)) return raw;
+        if (STATIC_ALIASES[raw]) return STATIC_ALIASES[raw];
+        // Shared function→vertical map used across the codebase — only
+        // trust it when the slug has an explicit mapping (otherwise it
+        // silently defaults to 'ecommerce').
+        if (hasVerticalForCategory(raw)) {
+            const fromShared = getVerticalForCategory(raw);
+            if ((VERTICAL_IDS as readonly string[]).includes(fromShared)) {
+                return fromShared;
+            }
+        }
+        const fromRegistry = await resolveVerticalFromSlug(raw);
+        if (fromRegistry) return fromRegistry;
+    }
+    return null;
 }
 
 export async function getEnabledApiIntegrationsForPartnerAction(
@@ -261,8 +300,8 @@ export async function getEnabledApiIntegrationsForPartnerAction(
         if (!partnerDoc.exists) {
             return { success: false, error: 'Partner not found' };
         }
-        const raw = resolvePartnerVertical(partnerDoc.data());
-        const verticalId = await normalizeVerticalForPartner(raw);
+        const candidates = collectPartnerVerticalCandidates(partnerDoc.data());
+        const verticalId = await normalizeVerticalForPartner(candidates);
 
         const apiRes = await getApiIntegrationsAction();
         if (!apiRes.success || !apiRes.configs) {
@@ -303,9 +342,24 @@ export async function getPartnerVerticalIdAction(
         if (!adminDb) return { success: false, error: 'Database not available' };
         const partnerDoc = await adminDb.collection('partners').doc(partnerId).get();
         if (!partnerDoc.exists) return { success: false, error: 'Partner not found' };
-        const raw = resolvePartnerVertical(partnerDoc.data());
-        const verticalId = await normalizeVerticalForPartner(raw);
-        return { success: true, verticalId: verticalId || undefined };
+        const candidates = collectPartnerVerticalCandidates(partnerDoc.data());
+        const verticalId = await normalizeVerticalForPartner(candidates);
+        if (!verticalId) {
+            console.warn(
+                '[content-studio] no vertical match for partner',
+                partnerId,
+                'candidates:',
+                candidates
+            );
+            return {
+                success: false,
+                error:
+                    candidates.length === 0
+                        ? 'Your business profile is missing an industry. Complete onboarding and try again.'
+                        : `Could not resolve your business vertical (tried: ${candidates.join(', ')}).`,
+            };
+        }
+        return { success: true, verticalId };
     } catch (error: any) {
         console.error('[content-studio] partner vertical lookup failed:', error);
         return { success: false, error: error?.message || 'Failed to resolve vertical' };
