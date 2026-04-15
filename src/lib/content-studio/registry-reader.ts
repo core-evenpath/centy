@@ -131,6 +131,26 @@ export async function getAllVerticalIds(): Promise<string[]> {
     return [...VERTICAL_IDS];
 }
 
+/**
+ * Given an arbitrary slug from a partner doc (vertical id, sub-vertical id,
+ * or industry id), resolve it to a Content Studio vertical id — or null if
+ * no match. Checks, in order:
+ *   1. exact match against `VERTICAL_IDS`
+ *   2. sub-vertical membership across loaded preview configs
+ *      (e.g. `ecommerce_d2c` → `ecommerce`)
+ *   3. industryId match (e.g. `retail_commerce` → `ecommerce`)
+ */
+export async function resolveVerticalFromSlug(slug: string): Promise<string | null> {
+    if (!slug) return null;
+    if ((VERTICAL_IDS as readonly string[]).includes(slug)) return slug;
+    for (const [vId, cfg] of Object.entries(VERTICAL_CONFIG_MAP)) {
+        if (!cfg) continue;
+        if (cfg.subVerticals.some(sv => sv.id === slug)) return vId;
+        if (cfg.industryId === slug) return vId;
+    }
+    return null;
+}
+
 export async function getVerticalRegistryData(
     verticalId: string
 ): Promise<VerticalRegistryData | null> {

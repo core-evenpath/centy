@@ -72,7 +72,7 @@ export interface PartnerContentStudioState {
     string,
     {
       dataProvided: boolean;
-      sourceType: 'upload' | 'api' | 'core_memory' | 'manual' | 'profile' | null;
+      sourceType: 'upload' | 'api' | 'core_memory' | 'manual' | 'profile' | 'module' | null;
       sourceRef: string | null;
       itemCount: number;
       lastUpdatedAt: string | null;

@@ -18,7 +18,7 @@ import type {
     PartnerContentStudioState,
 } from '@/lib/types-content-studio';
 import { generateContentStudioConfig } from '@/lib/content-studio/generator';
-import { getAllVerticalIds } from '@/lib/content-studio/registry-reader';
+import { getAllVerticalIds, resolveVerticalFromSlug } from '@/lib/content-studio/registry-reader';
 import { VERTICAL_IDS } from '@/lib/content-studio/verticals';
 import { getApiIntegrationsAction } from '@/actions/admin-api-config-actions';
 
@@ -224,16 +224,15 @@ function resolvePartnerVertical(partnerData: Record<string, any> | undefined): s
 }
 
 /**
- * Map the resolved partner industry to one of our VERTICAL_IDS. Partners
- * store canonical industry slugs like `retail_commerce` or
- * `education_learning` while the Content Studio vertical ids are shorter
- * (`ecommerce`, `education`). Accept either form.
+ * Map an arbitrary slug (vertical id, sub-vertical id, or canonical
+ * industry slug) to a Content Studio vertical id. Tries a static alias map
+ * first (cheap, covers the common `retail_commerce → ecommerce` case),
+ * then falls back to the registry-driven lookup which handles
+ * sub-verticals like `ecommerce_d2c → ecommerce`.
  */
-function normalizeVerticalForPartner(raw: string | null): string | null {
+async function normalizeVerticalForPartner(raw: string | null): Promise<string | null> {
     if (!raw) return null;
     if ((VERTICAL_IDS as readonly string[]).includes(raw)) return raw;
-    // Canonical industry slug → Content Studio vertical id. Slugs come from
-    // src/lib/business-taxonomy/industries.ts.
     const ALIASES: Record<string, string> = {
         retail_commerce: 'ecommerce',
         retail: 'ecommerce',
@@ -242,7 +241,9 @@ function normalizeVerticalForPartner(raw: string | null): string | null {
         business_professional: 'business',
         healthcare_medical: 'healthcare',
     };
-    return ALIASES[raw] || raw;
+    if (ALIASES[raw]) return ALIASES[raw];
+    const resolved = await resolveVerticalFromSlug(raw);
+    return resolved;
 }
 
 export async function getEnabledApiIntegrationsForPartnerAction(
@@ -261,7 +262,7 @@ export async function getEnabledApiIntegrationsForPartnerAction(
             return { success: false, error: 'Partner not found' };
         }
         const raw = resolvePartnerVertical(partnerDoc.data());
-        const verticalId = normalizeVerticalForPartner(raw);
+        const verticalId = await normalizeVerticalForPartner(raw);
 
         const apiRes = await getApiIntegrationsAction();
         if (!apiRes.success || !apiRes.configs) {
@@ -303,7 +304,7 @@ export async function getPartnerVerticalIdAction(
         const partnerDoc = await adminDb.collection('partners').doc(partnerId).get();
         if (!partnerDoc.exists) return { success: false, error: 'Partner not found' };
         const raw = resolvePartnerVertical(partnerDoc.data());
-        const verticalId = normalizeVerticalForPartner(raw);
+        const verticalId = await normalizeVerticalForPartner(raw);
         return { success: true, verticalId: verticalId || undefined };
     } catch (error: any) {
         console.error('[content-studio] partner vertical lookup failed:', error);
