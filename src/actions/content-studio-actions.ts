@@ -192,33 +192,55 @@ export async function updatePartnerBlockStateAction(
 
 function resolvePartnerVertical(partnerData: Record<string, any> | undefined): string | null {
     if (!partnerData) return null;
-    // Preferred: partner.industry.id (Industry object on the partner doc).
-    const industryId = partnerData.industry?.id;
-    if (typeof industryId === 'string' && industryId.length > 0) return industryId;
-    // Fallback: businessPersona.identity.industry (string slug).
-    const persona = partnerData.businessPersona;
-    const personaIndustry = persona?.identity?.industry;
-    if (typeof personaIndustry === 'string' && personaIndustry.length > 0) return personaIndustry;
-    // Last resort: direct vertical/function fields some onboarding flows set.
-    if (typeof partnerData.verticalId === 'string') return partnerData.verticalId;
-    if (typeof partnerData.functionId === 'string') return partnerData.functionId;
+    // Preferred: businessPersona.identity.industryId — this is where the
+    // onboarding flow writes the canonical industry slug (matches the pattern
+    // used in src/actions/relay-partner-actions.ts).
+    const personaIndustryId = partnerData.businessPersona?.identity?.industryId;
+    if (typeof personaIndustryId === 'string' && personaIndustryId.length > 0) {
+        return personaIndustryId;
+    }
+    // Secondary: first businessCategory's functionId (sub-vertical slug — some
+    // partners have this populated even without a top-level industryId).
+    const firstCategoryFn =
+        partnerData.businessPersona?.identity?.businessCategories?.[0]?.functionId;
+    if (typeof firstCategoryFn === 'string' && firstCategoryFn.length > 0) {
+        return firstCategoryFn;
+    }
+    // Fallbacks for legacy/partial docs.
+    if (typeof partnerData.industryId === 'string' && partnerData.industryId.length > 0) {
+        return partnerData.industryId;
+    }
+    if (typeof partnerData.functionId === 'string' && partnerData.functionId.length > 0) {
+        return partnerData.functionId;
+    }
+    const industryObjectId = partnerData.industry?.id;
+    if (typeof industryObjectId === 'string' && industryObjectId.length > 0) {
+        return industryObjectId;
+    }
+    if (typeof partnerData.verticalId === 'string' && partnerData.verticalId.length > 0) {
+        return partnerData.verticalId;
+    }
     return null;
 }
 
 /**
- * Map the resolved partner industry to one of our VERTICAL_IDS. A partner's
- * stored `industry.id` might be `retail_commerce` while our vertical id is
- * `ecommerce`. We accept a match on either the vertical id or its industryId.
+ * Map the resolved partner industry to one of our VERTICAL_IDS. Partners
+ * store canonical industry slugs like `retail_commerce` or
+ * `education_learning` while the Content Studio vertical ids are shorter
+ * (`ecommerce`, `education`). Accept either form.
  */
 function normalizeVerticalForPartner(raw: string | null): string | null {
     if (!raw) return null;
     if ((VERTICAL_IDS as readonly string[]).includes(raw)) return raw;
-    // Minimal industry → vertical alias map. Extend as more verticals gain
-    // preview configs.
+    // Canonical industry slug → Content Studio vertical id. Slugs come from
+    // src/lib/business-taxonomy/industries.ts.
     const ALIASES: Record<string, string> = {
         retail_commerce: 'ecommerce',
         retail: 'ecommerce',
-        education_training: 'education',
+        education_learning: 'education',
+        automotive_mobility: 'automotive',
+        business_professional: 'business',
+        healthcare_medical: 'healthcare',
     };
     return ALIASES[raw] || raw;
 }
