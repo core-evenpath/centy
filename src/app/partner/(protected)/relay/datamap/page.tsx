@@ -28,6 +28,7 @@ import {
     getPartnerContentStudioStateAction,
     getEnabledApiIntegrationsForPartnerAction,
     getPartnerVerticalIdAction,
+    regenerateContentStudioConfigAction,
 } from '@/actions/content-studio-actions';
 import { refreshPartnerContentStudioStateAction } from '@/actions/content-studio-refresh-actions';
 
@@ -976,6 +977,24 @@ export default function ContentStudioPage() {
                         cfgRes.error ||
                             'Failed to load Content Studio config.'
                     );
+                } else if (
+                    !cfgRes.config.blocks ||
+                    cfgRes.config.blocks.length === 0
+                ) {
+                    // Cached config has zero blocks but the resolved vertical
+                    // is known — this is almost always a stale stub from when
+                    // the vertical lacked a preview config. Force a
+                    // regeneration now so the partner doesn't get stuck on
+                    // the "not available yet" screen.
+                    const regen = await regenerateContentStudioConfigAction(
+                        vRes.verticalId
+                    );
+                    if (cancelled) return;
+                    if (regen.success && regen.config) {
+                        setConfig(regen.config);
+                    } else {
+                        setConfig(cfgRes.config);
+                    }
                 } else {
                     setConfig(cfgRes.config);
                 }
