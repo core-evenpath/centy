@@ -17,6 +17,30 @@ function configDocRef(verticalId: string) {
     return adminDb.collection('contentStudioConfigs').doc(verticalId);
 }
 
+/**
+ * Normalize a Content Studio config loaded from Firestore so the UI can
+ * make shape assumptions without defensive checks. Older cached configs
+ * may have `subVerticals` missing or stored as non-array shapes (empty
+ * objects from accidental object-literal rehydration, null from partial
+ * writes); left unguarded these throw `is not iterable` / `includes is
+ * not a function` in the partner renderer.
+ */
+function normalizeCachedConfig(cfg: ContentStudioConfig): ContentStudioConfig {
+    const blocks = Array.isArray(cfg.blocks)
+        ? cfg.blocks.map(b => ({
+              ...b,
+              subVerticals:
+                  b.subVerticals === 'all'
+                      ? ('all' as const)
+                      : Array.isArray(b.subVerticals)
+                        ? b.subVerticals
+                        : ('all' as const),
+          }))
+        : [];
+    const subVerticals = Array.isArray(cfg.subVerticals) ? cfg.subVerticals : [];
+    return { ...cfg, blocks, subVerticals };
+}
+
 export async function getContentStudioConfigAction(verticalId: string): Promise<{
     success: boolean;
     config?: ContentStudioConfig;
@@ -28,7 +52,8 @@ export async function getContentStudioConfigAction(verticalId: string): Promise<
         const ref = configDocRef(verticalId);
         const snap = await ref.get();
         if (snap.exists) {
-            return { success: true, config: snap.data() as ContentStudioConfig };
+            const raw = snap.data() as ContentStudioConfig;
+            return { success: true, config: normalizeCachedConfig(raw) };
         }
 
         const generated = await generateContentStudioConfig(verticalId);
@@ -37,7 +62,7 @@ export async function getContentStudioConfigAction(verticalId: string): Promise<
         }
 
         await ref.set(generated);
-        return { success: true, config: generated };
+        return { success: true, config: normalizeCachedConfig(generated) };
     } catch (error: any) {
         console.error('[content-studio] get failed:', error);
         return { success: false, error: error?.message || 'Failed to load config' };

@@ -200,8 +200,11 @@ export default function ContentStudioPage() {
                     setError(cfgRes.error || 'Failed to load Content Studio config.');
                 } else {
                     setConfig(cfgRes.config);
-                    if (cfgRes.config.subVerticals.length > 0) {
-                        setActiveSubVertical(cfgRes.config.subVerticals[0].id);
+                    const svs = Array.isArray(cfgRes.config.subVerticals)
+                        ? cfgRes.config.subVerticals
+                        : [];
+                    if (svs.length > 0) {
+                        setActiveSubVertical(svs[0].id);
                     }
                 }
                 if (stateRes.success && stateRes.state) setPartnerState(stateRes.state);
@@ -694,8 +697,12 @@ function filterBlocks(
 ): ContentStudioBlockEntry[] {
     if (!activeSubVertical) return blocks;
     return blocks.filter(b => {
-        if (b.subVerticals === 'all') return true;
-        return b.subVerticals.includes(activeSubVertical);
+        // Defensive: cached Firestore configs predating the current schema
+        // may have subVerticals missing or stored in a non-iterable shape.
+        const sv = b.subVerticals;
+        if (sv === 'all' || sv == null) return true;
+        if (!Array.isArray(sv)) return true;
+        return sv.includes(activeSubVertical);
     });
 }
 
