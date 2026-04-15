@@ -165,3 +165,74 @@ export function getPreviewForVertical(verticalId: string): VerticalPreview {
     }
     return defaultPreview;
 }
+
+/** Vertical-appropriate copy for the welcome-state primary CTA (Bug 1 follow-up). */
+export function getCtaCopyForVertical(verticalId: string): {
+    title: string;
+    body: string;
+} {
+    const lower = (verticalId || '').toLowerCase();
+    if (
+        lower.includes('hospitality') ||
+        lower.includes('hotel') ||
+        lower.includes('resort')
+    ) {
+        return {
+            title: 'Start with your rooms',
+            body: 'Add your room types first — pricing, amenities, and bookings build on top of them.',
+        };
+    }
+    if (
+        lower.includes('food') ||
+        lower.includes('restaurant') ||
+        lower.includes('cafe') ||
+        lower.includes('catering')
+    ) {
+        return {
+            title: 'Start with your menu',
+            body: 'Add your menu items first — orders, offers, and delivery info build on top of them.',
+        };
+    }
+    if (
+        lower.includes('healthcare') ||
+        lower.includes('medical') ||
+        lower.includes('dental') ||
+        lower.includes('clinic')
+    ) {
+        return {
+            title: 'Start with your services',
+            body: 'Add the services you offer first — appointments and pricing build on top of them.',
+        };
+    }
+    if (
+        lower.includes('automotive') ||
+        lower.includes('garage') ||
+        lower.includes('mechanic')
+    ) {
+        return {
+            title: 'Start with your services',
+            body: 'Add your service catalog first — pricing and bookings build on top of them.',
+        };
+    }
+    if (lower.includes('travel') || lower.includes('tourism') || lower.includes('tour')) {
+        return {
+            title: 'Start with your packages',
+            body: 'Add your tour packages first — pricing and itineraries build on top of them.',
+        };
+    }
+    if (
+        lower.includes('financial') ||
+        lower.includes('investment') ||
+        lower.includes('advisory') ||
+        lower.includes('insurance')
+    ) {
+        return {
+            title: 'Start with your services',
+            body: 'Add the advisory services you offer first — everything else builds on top of them.',
+        };
+    }
+    return {
+        title: 'Start with your products',
+        body: 'Add your products first — everything else builds on top of them.',
+    };
+}

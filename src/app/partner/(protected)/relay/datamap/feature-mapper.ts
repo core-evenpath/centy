@@ -53,11 +53,15 @@ export function partitionFeatures(features: MappedFeature[]) {
 
     const total = independent.length;
     const readyCount = ready.length;
-    const pct = total > 0 ? Math.round((readyCount / total) * 100) : 100;
+    const pct = total > 0 ? Math.round((readyCount / total) * 100) : 0;
 
     const hasAnyManualData = ready.some(f => !f.auto);
-    const isEmpty = readyCount === 0 || (!hasAnyManualData && notReady.length > 0);
-    const isComplete = pct === 100;
+    const isEmpty =
+        total === 0 ||
+        readyCount === 0 ||
+        (!hasAnyManualData && notReady.length > 0);
+    // Only "complete" when there is something to be complete about.
+    const isComplete = total > 0 && pct === 100;
 
     return {
         all: features,

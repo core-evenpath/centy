@@ -20,15 +20,15 @@ import {
 } from '@/actions/content-studio-actions';
 import { refreshPartnerContentStudioStateAction } from '@/actions/content-studio-refresh-actions';
 
-import { Icon } from './components/icon';
-import { ProgressRing } from './components/progress-ring';
-import { PhonePreview } from './components/phone-preview';
-import { DataInputPanel } from './components/data-input-panel';
-import { FeatureList } from './components/feature-list';
-import { SubVerticalBar } from './components/sub-vertical-bar';
-import { DependentFeatures } from './components/dependent-features';
+import { Icon } from './_components/icon';
+import { ProgressRing } from './_components/progress-ring';
+import { PhonePreview } from './_components/phone-preview';
+import { DataInputPanel } from './_components/data-input-panel';
+import { FeatureList } from './_components/feature-list';
+import { SubVerticalBar } from './_components/sub-vertical-bar';
+import { DependentFeatures } from './_components/dependent-features';
 
-import { ACCENT, theme } from './constants';
+import { ACCENT, theme, getCtaCopyForVertical } from './constants';
 import { mapAllFeatures, partitionFeatures } from './feature-mapper';
 import type {
     SubVerticalOption,
@@ -55,9 +55,12 @@ export default function ContentStudioPage() {
     const [refreshing, setRefreshing] = useState(false);
     const [lastSync, setLastSync] = useState<string | null>(null);
 
-    // BUG 6 FIX — track whether the initial load has happened so
-    // setting selectedSV from inside the effect doesn't re-fetch.
-    const initialLoadDone = useRef(false);
+    // Track sub-verticals/initial-load separately from per-selection
+    // loads so we don't re-fetch the whole tree when the effect re-runs.
+    const subVerticalsLoadedFor = useRef<string | null>(null);
+    // BUG 6 FIX — guards the second effect run that fires after the
+    // first run sets selectedSV from the resolved defaultKey.
+    const autoSelectedKey = useRef<string | null>(null);
 
     // ── Helpers ─────────────────────────────────────────────────
     const fetchState = useCallback(async (pid: string) => {
@@ -83,6 +86,29 @@ export default function ContentStudioPage() {
         },
         [fetchState]
     );
+
+    /** Force a regenerate of the active vertical's config, then reload everything. */
+    const handleRegenerate = useCallback(async () => {
+        if (!partnerId || !selectedSV) return;
+        const sv = subVerticals.find(o => o.key === selectedSV);
+        if (!sv?.verticalId) return;
+        setRefreshing(true);
+        try {
+            const regen = await regenerateContentStudioConfigAction(sv.verticalId);
+            if (regen.success && regen.config) {
+                setConfig(regen.config);
+            }
+            await fetchState(partnerId);
+            setLastSync(
+                new Date().toLocaleTimeString([], {
+                    hour: '2-digit',
+                    minute: '2-digit',
+                })
+            );
+        } finally {
+            setRefreshing(false);
+        }
+    }, [partnerId, selectedSV, subVerticals, fetchState]);
 
     // ── Data input handlers (placeholders — wire to real logic) ─
     const handleFileUpload = useCallback((featureId: string, file: File) => {
@@ -110,17 +136,14 @@ export default function ContentStudioPage() {
         console.log(`[Content Studio] Connect service for ${featureId}`);
     }, []);
 
-    // ── Main data loading effect ────────────────────────────────
+    // ── Sub-verticals loader (runs once per partner) ────────────
     useEffect(() => {
         if (!partnerId) return;
+        if (subVerticalsLoadedFor.current === partnerId) return;
+
         let cancelled = false;
-
         (async () => {
-            setLoading(true);
-            setError(null);
-
             try {
-                // Step 1 — sub-verticals
                 const svRes = await getPartnerSubVerticalsAction(partnerId);
                 if (cancelled) return;
 
@@ -130,37 +153,48 @@ export default function ContentStudioPage() {
                             'Your business profile is missing an industry. Complete onboarding and try again.'
                     );
                     setLoading(false);
+                    subVerticalsLoadedFor.current = partnerId;
                     return;
                 }
 
+                subVerticalsLoadedFor.current = partnerId;
                 setSubVerticals(svRes.options);
 
-                const targetKey =
-                    (selectedSV && svRes.options.find(o => o.key === selectedSV)?.key) ||
-                    svRes.defaultKey ||
-                    svRes.options[0].key;
-
-                // BUG 6 FIX — if we'd be changing selectedSV from inside the
-                // effect for the first time, just set it and let the second
-                // run handle the actual fetch. Avoids the double-fetch.
-                if (targetKey !== selectedSV) {
-                    setSelectedSV(targetKey);
-                    if (initialLoadDone.current) {
-                        return;
-                    }
+                const initialKey = svRes.defaultKey || svRes.options[0].key;
+                autoSelectedKey.current = initialKey;
+                setSelectedSV(initialKey);
+            } catch (err: any) {
+                if (!cancelled) {
+                    setError(err?.message || 'Unexpected error');
+                    setLoading(false);
                 }
+            }
+        })();
 
-                const svOption = svRes.options.find(o => o.key === targetKey);
+        return () => {
+            cancelled = true;
+        };
+    }, [partnerId]);
+
+    // ── Per-selection loader (config + state + integrations) ────
+    useEffect(() => {
+        if (!partnerId || !selectedSV || subVerticals.length === 0) return;
+
+        let cancelled = false;
+        (async () => {
+            setLoading(true);
+            setError(null);
+
+            try {
+                const svOption = subVerticals.find(o => o.key === selectedSV);
                 if (!svOption?.verticalId) {
                     setConfig(null);
                     setState(null);
                     setEnabledApis([]);
                     setLoading(false);
-                    initialLoadDone.current = true;
                     return;
                 }
 
-                // Step 2 — config + state + integrations in parallel
                 const [configRes, stateRes, apiRes] = await Promise.all([
                     getContentStudioConfigAction(svOption.verticalId),
                     getPartnerContentStudioStateAction(partnerId),
@@ -216,17 +250,14 @@ export default function ContentStudioPage() {
             } catch (err: any) {
                 if (!cancelled) setError(err?.message || 'Unexpected error');
             } finally {
-                if (!cancelled) {
-                    setLoading(false);
-                    initialLoadDone.current = true;
-                }
+                if (!cancelled) setLoading(false);
             }
         })();
 
         return () => {
             cancelled = true;
         };
-    }, [partnerId, selectedSV]);
+    }, [partnerId, selectedSV, subVerticals]);
 
     // ── Derived data ────────────────────────────────────────────
     const features = config?.blocks
@@ -345,6 +376,10 @@ export default function ContentStudioPage() {
     }
 
     if (!config || config.blocks.length === 0) {
+        const activeSv = subVerticals.find(o => o.key === selectedSV);
+        const reasonNoVerticalId = !!activeSv && !activeSv.verticalId;
+        const reasonEmptyConfig = !!activeSv?.verticalId && (!config || config.blocks.length === 0);
+
         return (
             <>
                 <SubVerticalBar
@@ -377,21 +412,72 @@ export default function ContentStudioPage() {
                         <Icon name={config?.iconName || 'box'} size={26} color={ACCENT} />
                     </div>
                     <div style={{ fontSize: 20, fontWeight: 700, color: theme.t1 }}>
-                        {config?.verticalName || 'Content Studio'}
+                        {config?.verticalName || activeSv?.label || 'Content Studio'}
                     </div>
                     <div
                         style={{
                             fontSize: 13,
                             color: theme.t3,
                             marginTop: 8,
-                            maxWidth: 400,
+                            maxWidth: 440,
                             margin: '8px auto 0',
                             lineHeight: 1.5,
                         }}
                     >
-                        Content Studio isn&apos;t available for your vertical yet.
-                        We&apos;re rolling it out vertical by vertical — check back soon.
+                        {reasonNoVerticalId ? (
+                            <>
+                                Your Business Category{' '}
+                                <strong style={{ color: theme.t1 }}>
+                                    {activeSv?.label}
+                                </strong>{' '}
+                                doesn&apos;t map to a Content Studio vertical yet. Pick a
+                                different category above, or update your business profile.
+                            </>
+                        ) : reasonEmptyConfig ? (
+                            <>
+                                Content Studio for{' '}
+                                <strong style={{ color: theme.t1 }}>
+                                    {activeSv?.label}
+                                </strong>{' '}
+                                is empty. We tried to regenerate it — click below to retry,
+                                or try again in a moment.
+                            </>
+                        ) : (
+                            <>
+                                Content Studio isn&apos;t available for your vertical yet.
+                                Check back soon.
+                            </>
+                        )}
                     </div>
+                    {(reasonEmptyConfig || reasonNoVerticalId) && (
+                        <button
+                            onClick={handleRegenerate}
+                            disabled={refreshing || !activeSv?.verticalId}
+                            style={{
+                                marginTop: 18,
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: 6,
+                                padding: '8px 14px',
+                                borderRadius: 8,
+                                border: `1px solid ${ACCENT}`,
+                                background: refreshing ? theme.accentBg : ACCENT,
+                                color: refreshing ? ACCENT : '#fff',
+                                fontSize: 12,
+                                fontWeight: 600,
+                                cursor:
+                                    refreshing || !activeSv?.verticalId ? 'not-allowed' : 'pointer',
+                                opacity: !activeSv?.verticalId ? 0.5 : 1,
+                            }}
+                        >
+                            <Icon
+                                name="refresh"
+                                size={12}
+                                color={refreshing ? ACCENT : '#fff'}
+                            />
+                            {refreshing ? 'Regenerating…' : 'Regenerate config'}
+                        </button>
+                    )}
                 </div>
             </>
         );
@@ -657,7 +743,7 @@ export default function ContentStudioPage() {
                                         marginBottom: 3,
                                     }}
                                 >
-                                    Start with your products
+                                    {getCtaCopyForVertical(config.verticalId).title}
                                 </div>
                                 <div
                                     style={{
@@ -667,8 +753,7 @@ export default function ContentStudioPage() {
                                         marginBottom: 12,
                                     }}
                                 >
-                                    Add your products first — everything else builds on top
-                                    of them.
+                                    {getCtaCopyForVertical(config.verticalId).body}
                                 </div>
                                 <DataInputPanel
                                     feature={primaryFeature}
