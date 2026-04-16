@@ -209,6 +209,50 @@ export default function ContentStudioPage() {
         [partnerId],
     );
 
+    // ── Handler bundles for the feature list + legacy data-input panel ──
+    //
+    // Must sit above the early returns below so hook order stays stable
+    // across loading / error / ready renders (React error #310 otherwise).
+    const featureListHandlers = useMemo(
+        () => ({
+            onUpload: handleUpload,
+            onUseMemory: handleUseMemory,
+            onConnectModule: handleConnectModule,
+            onActivateAICollection: handleActivateAICollection,
+        }),
+        [
+            handleUpload,
+            handleUseMemory,
+            handleConnectModule,
+            handleActivateAICollection,
+        ],
+    );
+
+    // Legacy shape still consumed by `DataInputPanel` on the empty-state
+    // screen. The three "legacy-only" handlers (onFetchApi,
+    // onManualEntry, onConnectService) are no-op stubs — the new AI
+    // ingest flow replaces them in the `NeedsInputItem` cards below.
+    const legacyInputHandlers = useMemo(
+        () => ({
+            onFileUpload: (featureId: string, _file: File) => {
+                void handleUpload(featureId);
+            },
+            onUseMemory: (featureId: string) => {
+                void handleUseMemory(featureId);
+            },
+            onFetchApi: (_featureId: string, _apiName: string) => {
+                /* no-op: API-integration path not wired in this PR */
+            },
+            onManualEntry: (_featureId: string) => {
+                /* no-op: manual-entry opens the module editor via a future PR */
+            },
+            onConnectService: (_featureId: string) => {
+                /* no-op: service-connect flow deferred */
+            },
+        }),
+        [handleUpload, handleUseMemory],
+    );
+
     // ── Main data loading effect ────────────────────────────────
     useEffect(() => {
         if (!partnerId) return;
@@ -495,46 +539,6 @@ export default function ContentStudioPage() {
             </>
         );
     }
-
-    const featureListHandlers = useMemo(
-        () => ({
-            onUpload: handleUpload,
-            onUseMemory: handleUseMemory,
-            onConnectModule: handleConnectModule,
-            onActivateAICollection: handleActivateAICollection,
-        }),
-        [
-            handleUpload,
-            handleUseMemory,
-            handleConnectModule,
-            handleActivateAICollection,
-        ],
-    );
-
-    // Legacy shape still consumed by `DataInputPanel` on the empty-state
-    // screen. The three "legacy-only" handlers (onFetchApi,
-    // onManualEntry, onConnectService) are no-op stubs — the new AI
-    // ingest flow replaces them in the `NeedsInputItem` cards below.
-    const legacyInputHandlers = useMemo(
-        () => ({
-            onFileUpload: (featureId: string, _file: File) => {
-                void handleUpload(featureId);
-            },
-            onUseMemory: (featureId: string) => {
-                void handleUseMemory(featureId);
-            },
-            onFetchApi: (_featureId: string, _apiName: string) => {
-                /* no-op: API-integration path not wired in this PR */
-            },
-            onManualEntry: (_featureId: string) => {
-                /* no-op: manual-entry opens the module editor via a future PR */
-            },
-            onConnectService: (_featureId: string) => {
-                /* no-op: service-connect flow deferred */
-            },
-        }),
-        [handleUpload, handleUseMemory],
-    );
 
     return (
         <div
