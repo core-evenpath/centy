@@ -19,6 +19,7 @@ import ScheduleView from "./ScheduleView";
 import PromoCard from "./PromoCard";
 import LeadCapture from "./LeadCapture";
 import HandoffCard from "./HandoffCard";
+import CartBlock from "./CartBlock";
 
 export interface RelayBlock {
   type: string;
@@ -73,12 +74,37 @@ export default function BlockRenderer({
         <CatalogCards
           items={block.items || []}
           theme={theme}
-          onBook={(id) => callbacks?.onSendMessage?.(`I'd like to book ${id}`)}
+          onBook={(id) => {
+            // When session-aware callbacks are present, treat the primary
+            // CTA as "add to cart" for product-style catalogs; otherwise
+            // fall back to the legacy "book this" message intent.
+            if (callbacks?.onAddToCart) {
+              const it = (block.items || []).find((i: any) => i.id === id);
+              if (it) {
+                void callbacks.onAddToCart({
+                  itemId: it.id,
+                  moduleSlug: it.moduleSlug || (block as any).moduleSlug || 'products',
+                  name: it.name,
+                  price: typeof it.price === 'number' ? it.price : Number(it.price) || 0,
+                  quantity: 1,
+                  variant: it.variant,
+                  image: it.imageUrl || it.image,
+                });
+                return;
+              }
+            }
+            callbacks?.onSendMessage?.(`I'd like to book ${id}`);
+          }}
           layout={block.layout}
           showBookButton={block.showBookButton}
-          bookButtonLabel={block.bookButtonLabel}
+          bookButtonLabel={
+            block.bookButtonLabel ?? (callbacks?.onAddToCart ? 'Add to cart' : undefined)
+          }
         />
       );
+
+    case "cart":
+      return <CartBlock theme={theme} callbacks={callbacks} title={block.title} />;
 
     case "compare":
       return (

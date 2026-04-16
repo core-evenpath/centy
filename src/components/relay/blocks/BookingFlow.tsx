@@ -370,7 +370,26 @@ export default function BookingFlow({
                   </div>
                 )}
                 <button
-                  onClick={() => setStep(2)}
+                  onClick={() => {
+                    // Tentatively reserve the chosen item before moving to
+                    // conversion-path selection. No-op when the host hasn't
+                    // wired session callbacks (e.g. design previews).
+                    if (selectedItem && callbacks?.onReserveSlot) {
+                      const dateStr =
+                        dateMode === "single" ? singleDate : checkIn;
+                      const slotId = `${selectedItem.id}_${dateStr || "any"}`;
+                      void callbacks.onReserveSlot({
+                        slotId,
+                        serviceId: selectedItem.id,
+                        serviceName: selectedItem.name,
+                        date: dateStr || new Date().toISOString().slice(0, 10),
+                        time: "00:00",
+                        duration: 60,
+                        price: selectedItem.price,
+                      });
+                    }
+                    setStep(2);
+                  }}
                   style={{
                     width: "100%",
                     padding: "10px 14px",

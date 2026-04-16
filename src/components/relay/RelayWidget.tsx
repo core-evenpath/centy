@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { MessageSquare, LayoutGrid } from 'lucide-react';
 import { loadRelaySessionAction } from '@/actions/relay-session-actions';
 import { buildRelaySession, resolvePreloadData } from '@/lib/relay/preloader';
@@ -10,6 +10,8 @@ import type { BlockTheme } from '@/lib/relay/types';
 import type { PreloadedBlock } from '@/lib/relay/preloader';
 import HomeScreenRenderer from './HomeScreenRenderer';
 import ChatInterface from './ChatInterface';
+import { useRelaySession } from '@/hooks/useRelaySession';
+import type { BlockCallbacks } from './blocks/types';
 
 interface RelayWidgetProps {
   partnerId: string;
@@ -24,6 +26,62 @@ export default function RelayWidget({ partnerId }: RelayWidgetProps) {
   const [preloadedBlocks, setPreloadedBlocks] = useState<PreloadedBlock[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // Stable per-mount conversation id so the runtime session document
+  // ({partnerId}_{conversationId}) survives view tab switches.
+  const [conversationId] = useState(
+    () => `relay_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+  );
+
+  const {
+    cart,
+    addToCart,
+    updateCartItem,
+    removeFromCart,
+    clearCart,
+    applyDiscount,
+    reserveSlot,
+    cancelSlot,
+    confirmBooking,
+  } = useRelaySession({ conversationId, partnerId });
+
+  const sessionCallbacks: BlockCallbacks = useMemo(
+    () => ({
+      onAddToCart: addToCart,
+      onUpdateCartItem: updateCartItem,
+      onRemoveFromCart: removeFromCart,
+      onClearCart: clearCart,
+      onApplyDiscount: applyDiscount,
+      onReserveSlot: reserveSlot,
+      onCancelSlot: cancelSlot,
+      onConfirmBooking: confirmBooking,
+      cart: {
+        items: cart.items.map((i) => ({
+          itemId: i.itemId,
+          name: i.name,
+          price: i.price,
+          quantity: i.quantity,
+          variant: i.variant,
+          image: i.image,
+        })),
+        subtotal: cart.subtotal,
+        total: cart.total,
+        discountCode: cart.discountCode,
+        discountAmount: cart.discountAmount,
+      },
+    }),
+    [
+      cart,
+      addToCart,
+      updateCartItem,
+      removeFromCart,
+      clearCart,
+      applyDiscount,
+      reserveSlot,
+      cancelSlot,
+      confirmBooking,
+    ],
+  );
 
   useEffect(() => {
     initSession();
@@ -124,6 +182,7 @@ export default function RelayWidget({ partnerId }: RelayWidgetProps) {
               preloadedBlocks={preloadedBlocks}
               theme={theme}
               onSuggestionTap={() => { setView('chat'); }}
+              callbacks={sessionCallbacks}
             />
           </div>
         ) : (
@@ -131,6 +190,8 @@ export default function RelayWidget({ partnerId }: RelayWidgetProps) {
             cache={cache}
             theme={theme}
             partnerId={partnerId}
+            conversationId={conversationId}
+            callbacks={sessionCallbacks}
           />
         )}
       </div>

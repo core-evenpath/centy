@@ -6,6 +6,7 @@ import TestChatBlockPreview from '@/components/partner/relay/test-chat/TestChatB
 import { DEFAULT_THEME } from '@/components/relay/blocks/types';
 import type { RelayTheme } from '@/components/relay/blocks/types';
 import { Send, Loader2 } from 'lucide-react';
+import { useRelaySession } from '@/hooks/useRelaySession';
 
 interface RelayFullPageProps {
   partnerId: string;
@@ -55,6 +56,13 @@ export default function RelayFullPage({ partnerId, config }: RelayFullPageProps)
   const chatEndRef = useRef<HTMLDivElement>(null);
 
   const theme = useMemo(() => buildTheme(config.accentColor || '#6366f1'), [config.accentColor]);
+
+  // Instantiate the runtime cart/booking session for this conversation.
+  // The admin-preview blocks rendered by `TestChatBlockPreview` don't yet
+  // accept callbacks, so cart mutations are not wired through them — but
+  // the session document is live, ready for the production widget that
+  // does drive `BlockRenderer` directly (see RelayWidget).
+  useRelaySession({ conversationId, partnerId });
 
   useEffect(() => {
     if (config.welcomeMessage) {

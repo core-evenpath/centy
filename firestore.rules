@@ -761,6 +761,28 @@ service cloud.firestore {
     }
 
     // ============================================================================
+    // RELAY RUNTIME SESSIONS (Cart & Booking state per chat conversation)
+    // ============================================================================
+    //
+    // Document id format: `{partnerId}_{conversationId}`. The widget is
+    // un-authenticated (cross-origin embed) so reads / creates / updates
+    // are open, gated only by shape: identity fields are immutable and
+    // partnerId / conversationId must be strings on create. Server-side
+    // mutations go through the Admin SDK which bypasses these rules.
+
+    match /relaySessions/{sessionId} {
+      allow read: if true;
+      allow create: if request.resource.data.partnerId is string &&
+                       request.resource.data.partnerId.size() > 0 &&
+                       request.resource.data.conversationId is string &&
+                       request.resource.data.conversationId.size() > 0;
+      allow update: if resource.data.partnerId == request.resource.data.partnerId &&
+                       resource.data.conversationId == request.resource.data.conversationId &&
+                       resource.data.createdAt == request.resource.data.createdAt;
+      allow delete: if false;
+    }
+
+    // ============================================================================
     // SECURITY: EXPLICIT DENY FOR UNDEFINED COLLECTIONS
     // ============================================================================
 

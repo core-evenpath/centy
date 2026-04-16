@@ -9,6 +9,7 @@ import { classifyIntent } from '@/lib/relay/intent-engine';
 import { resolveBlock } from '@/lib/relay/block-resolver';
 import { generateRelayResponseAction, generateRelayResponseWithDocsAction } from '@/actions/relay-rag-actions';
 import type { ConversationMessage } from '@/lib/relay/rag-context-builder';
+import type { BlockCallbacks } from './blocks/types';
 
 interface ChatMessage {
   id: string;
@@ -23,6 +24,8 @@ interface ChatInterfaceProps {
   cache: RelaySessionCache;
   theme: BlockTheme;
   partnerId: string;
+  conversationId?: string;
+  callbacks?: BlockCallbacks;
   onSendMessage?: (message: string) => void;
 }
 
@@ -31,6 +34,10 @@ export default function ChatInterface({
   theme,
   partnerId,
 }: ChatInterfaceProps) {
+  // `conversationId` and `callbacks` are accepted for parent-driven
+  // session wiring; this widget renders messages as plain text bubbles
+  // (block previews removed) so they're not consumed locally yet —
+  // forwarded by the parent (RelayWidget) to the home-screen renderer.
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);

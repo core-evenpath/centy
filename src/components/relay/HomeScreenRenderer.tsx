@@ -2,18 +2,20 @@
 
 import BlockRenderer from './blocks/BlockRenderer';
 import type { RelayBlock } from './blocks/BlockRenderer';
-import type { RelayTheme } from './blocks/types';
+import type { BlockCallbacks, RelayTheme } from './blocks/types';
 import type { PreloadedBlock } from '@/lib/relay/preloader';
 
 interface HomeScreenRendererProps {
   preloadedBlocks: PreloadedBlock[];
   theme: RelayTheme;
   onSuggestionTap?: (text: string) => void;
+  callbacks?: BlockCallbacks;
 }
 
 export default function HomeScreenRenderer({
   preloadedBlocks,
   theme,
+  callbacks,
 }: HomeScreenRendererProps) {
   if (preloadedBlocks.length === 0) {
     return (
@@ -30,6 +32,7 @@ export default function HomeScreenRenderer({
           <BlockRenderer
             block={{ type: block.blockId, ...(block.data || {}) } as RelayBlock}
             theme={theme}
+            callbacks={callbacks}
           />
         </div>
       ))}

@@ -128,6 +128,45 @@ export interface LocationData {
   actions?: string[];
 }
 
+export interface BlockCartItemRef {
+  itemId: string;
+  name: string;
+  price: number;
+  quantity: number;
+  variant?: string;
+  image?: string;
+}
+
+export interface BlockCartContext {
+  items: BlockCartItemRef[];
+  subtotal: number;
+  total: number;
+  discountCode?: string;
+  discountAmount?: number;
+}
+
+export interface BlockAddToCartArgs {
+  itemId: string;
+  moduleSlug: string;
+  name: string;
+  price: number;
+  quantity?: number;
+  variant?: string;
+  image?: string;
+}
+
+export interface BlockReserveSlotArgs {
+  slotId: string;
+  serviceId: string;
+  serviceName: string;
+  date: string;
+  time: string;
+  duration: number;
+  price: number;
+  staffId?: string;
+  staffName?: string;
+}
+
 export interface BlockCallbacks {
   onSendMessage?: (text: string) => void;
   onCaptureContact?: (data: {
@@ -142,6 +181,21 @@ export interface BlockCallbacks {
   onHandoff?: (option: { type: string; value?: string }) => void;
   onPromoClick?: (promoId: string) => void;
   onScheduleBook?: (slotId: string) => void;
+
+  // ── Session-aware actions (Phase 2) ──
+  // Implementations should resolve once the server has accepted the
+  // mutation. Callers may show optimistic UI before the promise settles.
+  onAddToCart?: (item: BlockAddToCartArgs) => Promise<unknown> | void;
+  onUpdateCartItem?: (itemId: string, quantity: number) => Promise<unknown> | void;
+  onRemoveFromCart?: (itemId: string) => Promise<unknown> | void;
+  onClearCart?: () => Promise<unknown> | void;
+  onApplyDiscount?: (code: string) => Promise<unknown> | void;
+  onReserveSlot?: (slot: BlockReserveSlotArgs) => Promise<unknown> | void;
+  onCancelSlot?: (slotId: string) => Promise<unknown> | void;
+  onConfirmBooking?: () => Promise<unknown> | void;
+
+  // Live cart snapshot for blocks that need to render it (e.g. CartBlock).
+  cart?: BlockCartContext;
 }
 
 export interface PricingTier {
