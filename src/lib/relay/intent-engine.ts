@@ -1,6 +1,7 @@
 import type { RelaySessionCache } from './session-cache';
 import { parseQuery } from './query-parser';
 import type { ParsedFilters } from './query-parser';
+import { extractOrderId } from './order-id-parser';
 
 export type IntentType =
   | 'greeting'
@@ -185,8 +186,7 @@ function detectCompareItems(message: string, cache: RelaySessionCache): string[]
 }
 
 function detectOrderId(message: string): string | null {
-  const match = message.match(/#?([A-Z]{2,5}[-_]?\d{4,})/i);
-  return match ? match[1] : null;
+  return extractOrderId(message);
 }
 
 function isBrowseQuery(message: string, filters: ParsedFilters): boolean {

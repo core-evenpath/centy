@@ -265,3 +265,55 @@ Behavior notes:
 - Order detail page with per-order edit (addresses, add tracking info) — the dashboard detail panel intentionally stays read-only for addresses in this pass.
 - Customer-facing "where is my order" intent in the chat still returns the design sample until `OrderTrackerLive` is triggered by an explicit `orderId` in the intent parse.
 - Partner-side test chat (`TestChatBlockPreview`) still doesn't thread callbacks through admin preview blocks — unchanged from Phase 2.
+
+---
+
+# Commerce Engine Completion
+
+Two focused tasks on top of Phase 3 + Option A that close the "orders can be tracked end-to-end" story. Split across many small files so no single write is dangerous.
+
+## Task 1 — Tracking editor on the order detail panel
+
+Partners can now add / edit tracking info from the `/partner/orders` detail pane. The server action (`addTrackingInfoAction`) already existed; this wires a UI around it and auto-flips the order to `shipped` status with a timeline entry.
+
+| File | Action | Purpose |
+|---|---|---|
+| `src/app/partner/(protected)/orders/tracking-carriers.ts` | NEW | Pure data module: 10-carrier list, per-carrier URL builders (Delhivery / BlueDart / DTDC / FedEx / UPS), `carrierLabel()` + `carrierValueFromLabel()` helpers. |
+| `src/app/partner/(protected)/orders/TrackingFormDialog.tsx` | NEW | Controlled form in a shadcn `Dialog`: carrier select (with a free-text fallback for "Other"), AWB, optional tracking URL (auto-filled on carrier/number change), optional ETA date. Validates shape before enabling the submit button. |
+| `src/app/partner/(protected)/orders/OrderDetailPanel.tsx` | MODIFY | Accepts new `partnerId` + `onTrackingUpdated` props. The Tracking section now renders for any confirmed/processing/shipped/out-for-delivery order, with an inline "Add tracking" or "Edit" button that opens the dialog. On save it calls `addTrackingInfoAction` and shows a `sonner` toast. |
+| `src/app/partner/(protected)/orders/OrdersDashboard.tsx` | MODIFY | Threads `partnerId` into the detail panel and passes `loadOrders` as `onTrackingUpdated` so the row reflects the new status after a save. |
+
+### Behavior notes
+
+- Carrier select pre-populates from the stored `carrier` string via `carrierValueFromLabel()` — round-trip works even though we store the human label, not the value.
+- The dialog blocks interaction (can't close) while `savingTracking` is true, preventing double-submits.
+- `addTrackingInfoAction` itself flips the order to `shipped` and appends a `"Shipped via <carrier> (<awb>)"` timeline entry — the dialog doesn't do this itself, so the behavior stays centralized in the server action.
+
+## Task 2 — "Where is my order" intent → real tracker
+
+Chat visitors can now trigger the live order tracker from a free-form message. The intent engine already had an `order_status` type and a `resolveOrderTracker` that hands the orderId into `ecom_order_tracker`; this PR tightens the id regex and makes the tracker gracefully prompt for an id when none is quoted.
+
+| File | Action | Purpose |
+|---|---|---|
+| `src/lib/relay/order-id-parser.ts` | NEW | Shared regex + helpers: `ORDER_ID_REGEX` (matches canonical `ORD-XXXXXX` *and* the legacy `#PBX-NNNNNN` design-sample shape), `extractOrderId()`, `isCanonicalOrderId()`, `normalizeOrderIdInput()` (lenient — tolerates leading `#`, lowercase, bare 6-char suffix). |
+| `src/lib/relay/intent-engine.ts` | MODIFY | `detectOrderId()` now delegates to the shared `extractOrderId()`. The old ad-hoc regex required 4+ digits, which failed against the actual `generateOrderId()` output (letter-heavy alphabet `ABCDEFGHJKLMNPQRSTUVWXYZ23456789`) — real `ORD-ABC234` ids weren't matching. |
+| `src/lib/relay/blocks/ecommerce/order-tracker-input.tsx` | NEW | Small inline form rendered by `OrderTrackerLive` when no orderId is provided. Normalizes input through `normalizeOrderIdInput()` so users typing just `ABC234` get promoted to `ORD-ABC234`. |
+| `src/lib/relay/blocks/ecommerce/order-tracker-live.tsx` | MODIFY | Now maintains its own `pendingOrderId` state. `activeOrderId = data.orderId ?? pendingOrderId`. When neither is set it renders `<OrderTrackerInput>`; on submit the fetch kicks off and the component transitions into the normal loading/error/result flow. |
+
+### Behavior notes
+
+- No change needed in `block-resolver.ts` — the existing `resolveOrderTracker()` already routes `order_status` intent (with or without `intent.orderId`) to `ecom_order_tracker`. The input-form fallback handles the "empty id" path.
+- The canonical regex is deliberately lenient (4–10 chars suffix) in case future id generators change length — `CANONICAL_ORDER_ID_REGEX` keeps the strict 6-char shape for input validation.
+- The input component is client-only (styled via inline `BlockTheme` tokens to match the rest of the block gallery) — no shadcn deps to avoid pulling the widget bundle into tailwind territory.
+
+## Verification
+
+- `npm run typecheck`: 400 errors — identical to the pre-change baseline. Two `intent-engine.ts` TS2322 warnings about `string | null` vs `string | undefined` on `intent.orderId` already existed before this PR and weren't introduced here.
+- File sizes: largest new file is `TrackingFormDialog.tsx` (~170 lines); everything else is 50–120 lines.
+
+## What's still open
+
+- **Timeline notes:** the detail panel doesn't expose a "Add note" control yet.
+- **Partner-side test chat** still uses `TestChatBlockPreview`, which doesn't thread callbacks through admin preview blocks.
+- **Customer order history:** no "show all my orders" surface yet — customers need to know their order id.
+- **Email / SMS notifications:** order status changes don't trigger outbound messages.

@@ -6,9 +6,14 @@
 // (optionally supplied by the chat block data), fetches via
 // `/api/relay/order`, and forwards the real status + tracking info to
 // the visual block.
+//
+// When no `orderId` is present (e.g. the intent engine resolved
+// `order_status` from "track my order" without a quoted id) we render
+// `OrderTrackerInput` so the visitor can type their id inline.
 
 import { useEffect, useState } from 'react';
 import OrderTrackerBlock from './order-tracker';
+import OrderTrackerInput from './order-tracker-input';
 import type { BlockComponentProps } from '../../types';
 import { orderStatusToStepLabel } from '../../order-helpers';
 import type { OrderLookupResult } from '../../order-types';
@@ -23,19 +28,26 @@ function formatDate(iso: string | undefined): string | undefined {
 }
 
 export default function OrderTrackerLive(props: BlockComponentProps) {
-  const orderIdFromData = (props.data?.orderId as string | undefined) || undefined;
-  const [loading, setLoading] = useState(!!orderIdFromData);
+  const orderIdFromData =
+    (props.data?.orderId as string | undefined) || undefined;
+  const [pendingOrderId, setPendingOrderId] = useState<string | null>(null);
+  const activeOrderId = orderIdFromData ?? pendingOrderId;
+
+  const [loading, setLoading] = useState(!!activeOrderId);
   const [live, setLive] = useState<LivePayload | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!orderIdFromData) {
+    if (!activeOrderId) {
       setLoading(false);
+      setLive(null);
+      setError(null);
       return;
     }
     let cancelled = false;
     setLoading(true);
-    fetch(`/api/relay/order?orderId=${encodeURIComponent(orderIdFromData)}`)
+    setError(null);
+    fetch(`/api/relay/order?orderId=${encodeURIComponent(activeOrderId)}`)
       .then((r) => r.json())
       .then((data) => {
         if (cancelled) return;
@@ -47,10 +59,16 @@ export default function OrderTrackerLive(props: BlockComponentProps) {
     return () => {
       cancelled = true;
     };
-  }, [orderIdFromData]);
+  }, [activeOrderId]);
 
-  // No order id at all → render the existing design sample, unchanged.
-  if (!orderIdFromData) return <OrderTrackerBlock {...props} />;
+  // No order id yet — ask for one inline instead of showing the static
+  // design sample. The intent engine may route here without an id when
+  // the visitor says "track my order" without quoting the id.
+  if (!activeOrderId) {
+    return (
+      <OrderTrackerInput theme={props.theme} onSubmit={setPendingOrderId} />
+    );
+  }
 
   if (loading) {
     return (
@@ -64,7 +82,7 @@ export default function OrderTrackerLive(props: BlockComponentProps) {
           background: props.theme.surface,
         }}
       >
-        Loading order {orderIdFromData}…
+        Loading order {activeOrderId}…
       </div>
     );
   }
@@ -81,7 +99,7 @@ export default function OrderTrackerLive(props: BlockComponentProps) {
           background: props.theme.surface,
         }}
       >
-        Couldn&apos;t find order {orderIdFromData}. {error ?? ''}
+        Couldn&apos;t find order {activeOrderId}. {error ?? ''}
       </div>
     );
   }
