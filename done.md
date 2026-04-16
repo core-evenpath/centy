@@ -317,3 +317,103 @@ Chat visitors can now trigger the live order tracker from a free-form message. T
 - **Partner-side test chat** still uses `TestChatBlockPreview`, which doesn't thread callbacks through admin preview blocks.
 - **Customer order history:** no "show all my orders" surface yet — customers need to know their order id.
 - **Email / SMS notifications:** order status changes don't trigger outbound messages.
+
+---
+
+# AI Data Collection — "Let AI collect it for you"
+
+Backend + UI for the new onboarding accelerator: partner clicks **Let AI collect for you** on an empty module, picks a source (website / PDF / pasted text / AI-generated), reviews the extracted items, approves → items land in the module.
+
+Split across many small files so each concern stays reviewable in isolation. 17 new files, 1 modified page.
+
+## Module layout
+
+```
+src/lib/relay/ai-ingest/
+├── types.ts                    dep-free shapes (IngestInput, ExtractedItem, IngestResult)
+├── schema-builder.ts           ModuleSchema → Zod schema for `ai.generate({ output })`
+├── prompt-builder.ts           Extraction prompt (schema description + rules + content)
+├── engine.ts                   `ai.generate()` wrapper (Gemini 2.5 Flash, temp 0.3)
+└── sources/
+    ├── types.ts                `SourceExtractionResult`
+    ├── website.ts              scrapeWebsiteAction → knowledge.{packages,services,products,menuItems,faqs,pricingTiers,offerings}
+    ├── pdf.ts                  base64 → tmp file → `extractPageTextFromPdf`
+    ├── core-memory.ts          `partners/{pid}/hubDocuments/{id}.extractedText`
+    ├── text.ts                 raw text + AI-generate wrapper
+    └── index.ts                barrel
+
+src/actions/ai-ingest/
+├── ingest.ts                   Orchestrator: loads partner+system module, merges schema, runs source adapter, calls engine
+├── save.ts                     `bulkCreateModuleItemsAction` wrapper; stashes provenance under `fields.__ingest`
+└── index.ts                    barrel
+
+src/app/api/relay/ai-ingest/
+└── route.ts                    POST dispatcher — `action: 'ingest' | 'save'`, `maxDuration = 60`
+
+src/hooks/
+└── useAIIngest.ts              State machine: pickerOpen / reviewOpen / loading / saving / result
+
+src/components/relay/ai-ingest/
+├── source-options.ts           Static catalogue of the 4 pickable sources
+├── SourcePickerModal.tsx       Two-stage modal (pick → source-specific form)
+├── ReviewItemRow.tsx           Single extracted item w/ inline name edit + remove
+├── ReviewModal.tsx             Owns the local edit state, seeds from ingest result
+└── IngestMount.tsx             Convenience wrapper mounting both modals with a shared hook
+```
+
+## Flow
+
+```
+(1) User opens empty module → Empty-state shows "Let AI collect for you" CTA
+    → `ingest.startIngest()`
+
+(2) SourcePickerModal opens
+    • User picks: website URL / PDF upload / paste text / AI-describe
+    • onSubmit → POST /api/relay/ai-ingest { action: 'ingest', … }
+
+(3) ingestContentAction:
+    • getPartnerModuleByIdAction → { partnerModule, systemModule }
+    • effectiveSchema = systemModule.schema.fields ⧺ partnerModule.customFields
+    • getBusinessPersonaAction → industry blurb for prompt context
+    • runSourceAdapter → raw text content
+    • extractItemsFromContent (Gemini 2.5 Flash w/ Zod-schema output)
+    → IngestResult { items, warnings, sourceLabel, processingTimeMs }
+
+(4) ReviewModal opens with the extracted items
+    • Users can inline-edit name and remove rows
+    • Confidence badge + low-confidence warning
+    • Approve → POST /api/relay/ai-ingest { action: 'save', items, … }
+
+(5) saveIngestedItemsAction:
+    • maps ExtractedItem → Partial<ModuleItem> (provenance under fields.__ingest)
+    • bulkCreateModuleItemsAction writes the batch
+    • revalidates /partner/relay/datamap + /partner/relay/modules
+```
+
+## Wired surfaces
+
+- `src/app/partner/(protected)/relay/modules/[slug]/page.tsx` —
+  empty-state CTA row now shows two buttons: **Let AI collect for you** (primary) and **Add manually** (outline). Instantiates `useAIIngest`; the module + item list refetch on successful save. `<IngestMount>` sits at the bottom of the JSX.
+
+Datamap integration (`/partner/relay/datamap`) intentionally stays in a follow-up PR — feature → module resolution logic there is non-trivial and this PR already touches 17 files.
+
+## Tradeoffs / adjustments from the spec
+
+- **ModuleFieldType** union is narrower than the spec assumed (`'radio'`, `'boolean'` don't exist). Schema-builder maps only the real types; unknowns degrade to `z.string()`.
+- **`extractPageTextFromPdf`** takes a **file path**, not a Buffer, and returns `{ success, text }`. PDF adapter writes to a `tmp` file and cleans up in `finally`.
+- **`scrapeWebsiteAction`** returns an `AutoFilledProfile` — the website adapter flattens the `knowledge.*` sub-trees into a labeled text blob rather than raw page content.
+- **Genkit `output`** is a property getter, not a method (the legacy `result.output()` in an older flow file is a pre-existing TS error). Engine reads `result.output` directly.
+- **`ModuleItem`** has no generic `metadata` slot; ingest provenance goes under `fields.__ingest` with `{ source, confidence, importedAt, preview }`. Consumers ignore it; the review modal hides any `__`-prefixed field from its preview row.
+- **Core Memory** docs live at `partners/{pid}/hubDocuments/{id}.extractedText` (not `documents` as the spec guessed). Confirmed by grepping `partnerhub-actions.ts`.
+
+## Verification
+
+- `npm run typecheck` — 400 errors, **identical** to the pre-change baseline. Zero new errors across all 17 new files.
+- Largest new file: `SourcePickerModal.tsx` (~260 lines). Everything else is 40–180 lines.
+
+## What remains open
+
+- **Datamap wire-in** — the `/partner/relay/datamap` page still has stub `onFileUpload` / `onUseMemory` / `onFetchApi` handlers. Future PR: compute the target module from the `mappedFeatures` entry + the block's `module` binding, then reuse the same hook.
+- **Images** — items don't yet get images. The website adapter has the page URLs but we don't parse `<img>`s or surface them into the review modal.
+- **Dedup** — no "item looks similar to an existing one" detection.
+- **Streaming** — extraction is single-shot (`ai.generate`). Gemini supports streaming; follow-up could surface items as they arrive.
