@@ -31,3 +31,30 @@ export interface MappedFeature {
     backend?: boolean;
     templateCols?: string[];
 }
+
+// ── AI collection flow ──────────────────────────────────────────────────
+//
+// Used by the "needs your input" expandable card to walk the partner
+// through the "Let AI collect for you" option.
+
+export type AIFlowState =
+    | 'idle'
+    | 'checking'
+    | 'found'
+    | 'not_found';
+
+export interface MatchedModule {
+    moduleId: string;
+    moduleSlug: string;
+    moduleName: string;
+    itemCount: number;
+    createdAt: string;
+    updatedAt: string;
+    fields: string[];
+}
+
+export interface GeneratedPrompt {
+    id: string;
+    question: string;
+    editable: boolean;
+}

@@ -16,11 +16,13 @@ export const theme = {
     green: '#16a34a',
     greenBg: 'rgba(22,163,74,0.06)',
     greenBdr: 'rgba(22,163,74,0.14)',
+    greenBdr2: 'rgba(22,163,74,0.35)',
     red: '#dc2626',
     redBg: 'rgba(220,38,38,0.05)',
     amber: '#d97706',
     amberBg: 'rgba(217,119,6,0.06)',
     amberBdr: 'rgba(217,119,6,0.14)',
+    amberBdr2: 'rgba(217,119,6,0.35)',
 } as const;
 
 // ─── Vertical preview content (Bug 1 fix) ───────────────────────
