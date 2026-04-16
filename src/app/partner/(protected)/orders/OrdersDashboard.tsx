@@ -249,9 +249,11 @@ export default function OrdersDashboard() {
           {selectedOrder ? (
             <OrderDetailPanel
               order={selectedOrder}
+              partnerId={partnerId}
               nextStatus={nextStatusAfter(selectedOrder.status)}
               updating={updating === selectedOrder.id}
               onStatusUpdate={handleStatusUpdate}
+              onTrackingUpdated={loadOrders}
             />
           ) : (
             <Card>

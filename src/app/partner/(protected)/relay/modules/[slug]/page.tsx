@@ -15,8 +15,10 @@ import {
     exportModuleItemsAction,
 } from '@/actions/modules-actions';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Plus, Settings, Package, Trash2, Loader2, AlertTriangle, Upload, Download, ChevronDown } from 'lucide-react';
+import { ArrowLeft, Plus, Settings, Package, Trash2, Loader2, AlertTriangle, Upload, Download, ChevronDown, Sparkles } from 'lucide-react';
 import { ImportDialog } from '@/components/partner/modules/ImportDialog';
+import IngestMount from '@/components/relay/ai-ingest/IngestMount';
+import { useAIIngest } from '@/hooks/useAIIngest';
 import Link from 'next/link';
 import { Skeleton } from '@/components/ui/skeleton';
 import { toast } from 'sonner';
@@ -158,6 +160,17 @@ export default function ModuleManagePage({ params }: PageProps) {
     const schema = systemModule.schema;
     const itemLabel = systemModule.itemLabel || 'Item';
     const itemLabelPlural = systemModule.itemLabelPlural || 'Items';
+
+    const ingest = useAIIngest({
+        partnerId: partnerId || '',
+        moduleId: moduleId,
+        moduleSlug: slug,
+        userId: user?.uid || 'unknown',
+        onSaveComplete: () => {
+            refetch();
+            refetchModule();
+        },
+    });
 
     const handleCreate = () => {
         setEditingItem(undefined);
@@ -360,19 +373,29 @@ export default function ModuleManagePage({ params }: PageProps) {
                     <Skeleton className="h-24 w-full" />
                 </div>
             ) : items.length === 0 ? (
-                <div className="border-2 border-dashed border-slate-200 rounded-xl p-12 text-center bg-slate-50/50">
-                    <Package className="w-12 h-12 text-slate-300 mx-auto mb-4" />
-                    <h3 className="font-medium text-slate-900 mb-1">No {itemLabelPlural.toLowerCase()} yet</h3>
-                    <p className="text-sm text-slate-500 mb-4">
-                        Add your first {itemLabel.toLowerCase()} to get started
+                <div className="border-2 border-dashed border-slate-200 rounded-xl p-12 text-center bg-gradient-to-br from-slate-50 to-amber-50/30">
+                    <div className="w-16 h-16 rounded-full bg-amber-100 flex items-center justify-center mx-auto mb-4">
+                        <Sparkles className="w-8 h-8 text-amber-500" />
+                    </div>
+                    <h3 className="font-semibold text-lg text-slate-900 mb-2">
+                        No {itemLabelPlural.toLowerCase()} yet
+                    </h3>
+                    <p className="text-sm text-slate-600 mb-6 max-w-md mx-auto">
+                        Don&apos;t add {itemLabelPlural.toLowerCase()} one by one — let AI collect them from your website, a PDF, pasted text, or generate starter items from a description.
                     </p>
                     {iError && (
                         <p className="text-red-500 text-sm mb-4">Error loading items: {iError}</p>
                     )}
-                    <Button onClick={handleCreate}>
-                        <Plus className="mr-2 h-4 w-4" />
-                        Add {itemLabel}
-                    </Button>
+                    <div className="flex items-center justify-center gap-3">
+                        <Button onClick={ingest.startIngest} size="lg">
+                            <Sparkles className="h-4 w-4 mr-2" />
+                            Let AI collect for you
+                        </Button>
+                        <Button onClick={handleCreate} variant="outline" size="lg">
+                            <Plus className="mr-2 h-4 w-4" />
+                            Add manually
+                        </Button>
+                    </div>
                 </div>
             ) : (
                 <ItemsList
@@ -465,6 +488,8 @@ export default function ModuleManagePage({ params }: PageProps) {
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
+
+            <IngestMount ingest={ingest} moduleName={itemLabelPlural} />
         </div>
     );
 }
