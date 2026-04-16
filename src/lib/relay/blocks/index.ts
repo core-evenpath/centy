@@ -19,7 +19,9 @@ import ProductDetailBlock, { definition as productDetailDef } from './ecommerce/
 import CompareBlock, { definition as compareDef } from './ecommerce/compare';
 import CartBlock, { definition as cartDef } from './ecommerce/cart';
 import OrderConfirmationBlock, { definition as orderConfirmationDef } from './ecommerce/order-confirmation';
+import OrderConfirmationLive from './ecommerce/order-confirmation-live';
 import OrderTrackerBlock, { definition as orderTrackerDef } from './ecommerce/order-tracker';
+import OrderTrackerLive from './ecommerce/order-tracker-live';
 import PromoBlock, { definition as promoDef } from './ecommerce/promo';
 import NudgeBlock, { definition as nudgeDef } from './shared/nudge';
 import SuggestionsBlock, { definition as suggestionsDef } from './shared/suggestions';
@@ -32,8 +34,11 @@ export function registerAllBlocks(): void {
   registerBlock(productDetailDef, ProductDetailBlock);
   registerBlock(compareDef, CompareBlock);
   registerBlock(cartDef, CartBlock);
-  registerBlock(orderConfirmationDef, OrderConfirmationBlock);
-  registerBlock(orderTrackerDef, OrderTrackerBlock);
+  // Live wrappers: same definitions, but the render components fetch
+  // real order data from `/api/relay/order` when an `orderId` /
+  // `order` prop is supplied. Falls back to the design sample otherwise.
+  registerBlock(orderConfirmationDef, OrderConfirmationLive);
+  registerBlock(orderTrackerDef, OrderTrackerLive);
   registerBlock(promoDef, PromoBlock);
   // Shared
   registerBlock(nudgeDef, NudgeBlock);

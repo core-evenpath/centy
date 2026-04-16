@@ -194,6 +194,10 @@ export interface BlockCallbacks {
   onCancelSlot?: (slotId: string) => Promise<unknown> | void;
   onConfirmBooking?: () => Promise<unknown> | void;
 
+  // Checkout — opens the host's checkout flow (address form + payment).
+  // Resolved when the order is created or the user cancels.
+  onCheckout?: () => Promise<unknown> | void;
+
   // Live cart snapshot for blocks that need to render it (e.g. CartBlock).
   cart?: BlockCartContext;
 }

@@ -761,6 +761,30 @@ service cloud.firestore {
     }
 
     // ============================================================================
+    // PARTNER ORDERS (Relay checkout persisted under partners/{pid}/orders)
+    // ============================================================================
+    //
+    // Orders are created server-side via the Admin SDK (rules bypassed);
+    // partners can read / update their own orders, and the widget reads
+    // via a collectionGroup lookup that's gated below. Identity fields,
+    // items, and createdAt are immutable once the doc exists.
+
+    match /partners/{partnerId}/orders/{orderId} {
+      allow read: if isSignedIn() && canAccessPartner(partnerId);
+      allow create: if false;
+      allow update: if isSignedIn() &&
+                       canModifyPartner(partnerId) &&
+                       !request.resource.data.diff(resource.data).affectedKeys()
+                         .hasAny(['id', 'partnerId', 'conversationId', 'items', 'createdAt']);
+      allow delete: if false;
+    }
+
+    // The widget's order lookup uses `lookupOrderAction` on the server
+    // (Admin SDK bypasses these rules), so no open collection-group
+    // read rule is needed here — keeping the raw order document
+    // (addresses, phone, payment method) partner-scoped.
+
+    // ============================================================================
     // RELAY RUNTIME SESSIONS (Cart & Booking state per chat conversation)
     // ============================================================================
     //

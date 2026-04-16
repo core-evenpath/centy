@@ -104,7 +104,20 @@ export default function BlockRenderer({
       );
 
     case "cart":
-      return <CartBlock theme={theme} callbacks={callbacks} title={block.title} />;
+      return (
+        <CartBlock
+          theme={theme}
+          callbacks={callbacks}
+          title={block.title}
+          onCheckout={
+            callbacks?.onCheckout
+              ? () => {
+                  void callbacks.onCheckout?.();
+                }
+              : undefined
+          }
+        />
+      );
 
     case "compare":
       return (

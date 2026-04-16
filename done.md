@@ -96,3 +96,111 @@ is created. Production-style rendering via `BlockRenderer` (used by
 - `tsc --noEmit` passes (run via the package's `typecheck` script).
 - Files created can each be opened independently — no single file
   exceeded ~170 lines.
+
+---
+
+# Relay Commerce Phase 3 — Orders + Admin Modules View
+
+Status: implementation complete on the same branch
+(`claude/relay-session-actions-Ak9zl`), stacked on top of Phase 2.
+Split into many small files so no single write had to carry the whole
+feature.
+
+## Phase 3a — Orders system
+
+### Shared types & helpers (no `'use server'`, safe from client)
+
+| File | Purpose |
+|---|---|
+| `src/lib/relay/order-types.ts` | `OrderStatus`, `OrderItem`, `OrderAddress`, `OrderTracking`, `OrderTimeline`, `RelayOrder`, `CreateOrderInput`, `OrderSummary`, `OrderLookupResult` |
+| `src/lib/relay/order-helpers.ts` | `generateOrderId` (6-char unambiguous alphabet), `getStatusLabel`, `computeOrderPricing` (free shipping ≥ ₹500 + 18% GST), `orderToSummary`, `orderStatusToStepLabel`, `ORDER_TRACKER_STEPS` |
+| `src/lib/relay/order-store.ts` | Firestore refs + `loadOrder` / `saveOrder` for `partners/{pid}/orders/{oid}` |
+
+### Server actions (one file per concern)
+
+| File | Exports |
+|---|---|
+| `src/actions/relay-orders/create-order.ts` | `createOrderFromCartAction` — loads the runtime session, snapshots cart into order doc, drains cart, revalidates `/partner/orders` |
+| `src/actions/relay-orders/get-order.ts` | `getOrderAction`, `getOrdersForConversationAction`, `getPartnerOrdersAction` |
+| `src/actions/relay-orders/update-order.ts` | `updateOrderStatusAction` (appends timeline + milestone timestamp), `addTrackingInfoAction` |
+| `src/actions/relay-orders/lookup-order.ts` | `lookupOrderAction` — cross-partner `collectionGroup('orders')` query for the widget tracker, returns sanitized `OrderLookupResult` |
+| `src/actions/relay-orders/index.ts` | Barrel re-export |
+
+### API + client hook
+
+| File | Purpose |
+|---|---|
+| `src/app/api/relay/order/route.ts` | CORS-open POST dispatcher (`create` / `lookup` / `list`) + GET shortcut (`?orderId=…`) |
+| `src/hooks/useRelayCheckout.ts` | Client hook with `checkout`, `lookupOrder`, `listOrders`, + `loading` / `error` / `order` state |
+
+### Block layer
+
+| File | Change |
+|---|---|
+| `src/lib/relay/blocks/ecommerce/order-tracker-live.tsx` | Wraps the existing `OrderTrackerBlock` — when `data.orderId` is present, fetches `/api/relay/order?orderId=…` and projects the live `OrderStatus` into the 5-step UI |
+| `src/lib/relay/blocks/ecommerce/order-confirmation-live.tsx` | Wraps `OrderConfirmationBlock` — when `data.order` is a real `RelayOrder`, maps it into the card's expected shape |
+| `src/lib/relay/blocks/index.ts` | Registers the live wrappers against the existing block definitions so preview fallback still works |
+| `src/components/relay/blocks/types.ts` | Added `onCheckout?: () => Promise<unknown> | void` to `BlockCallbacks` |
+| `src/components/relay/blocks/BlockRenderer.tsx` | Wires `callbacks.onCheckout` into `CartBlock`'s `onCheckout` prop |
+| `src/components/relay/checkout/address-form-fields.ts` | Declarative address-field schema |
+| `src/components/relay/checkout/CheckoutAddressForm.tsx` | Controlled address form + payment method pills |
+| `src/components/relay/checkout/CheckoutFlow.tsx` | Overlay modal: owns `useRelayCheckout`, submits, closes on success |
+| `src/components/relay/RelayWidget.tsx` | Instantiates the checkout flow, exposes `onCheckout` in `sessionCallbacks`, mounts `<CheckoutFlow>` alongside the widget |
+
+### Firestore rules
+
+`firestore.rules` gained a `partners/{pid}/orders/{orderId}` match — read/update gated by `canAccessPartner` / `canModifyPartner`; create/delete denied (server-side only). Identity + items + createdAt are immutable on update. The widget's cross-partner lookup runs through Admin SDK (rules bypassed) so no public collection-group read rule is needed — keeping raw addresses / phone / payment method partner-scoped.
+
+### Checkout loop end-to-end
+
+1. Cart block's checkout button → `callbacks.onCheckout` → `RelayWidget` opens `<CheckoutFlow>`.
+2. Form submit → `useRelayCheckout.checkout(address, method)` → `POST /api/relay/order` `{ action: 'create' }`.
+3. Server loads session, snapshots cart, writes order doc, clears cart.
+4. Response returns the full `RelayOrder`; the hook folds it into local state and the overlay closes.
+5. The next time the `ecom_order_confirmation` block renders with `data.order = <RelayOrder>`, `OrderConfirmationLive` maps it into the visual card.
+6. Tracking lookup: `ecom_order_tracker` with `data.orderId = "ORD-XXXX"` triggers `OrderTrackerLive` → `GET /api/relay/order?orderId=…` → real status + carrier.
+
+## Phase 3b — Admin Relay Modules view (`/admin/relay/modules`)
+
+### Shared types / derivation
+
+| File | Purpose |
+|---|---|
+| `src/lib/relay/module-analytics-types.ts` | `BlockModuleBinding`, `ModuleBlockUsage`, `RelayModuleAnalytics`, `SimpleBlockRef` — consumed by both server action and client view |
+| `src/lib/relay/module-analytics-derive.ts` | `buildBlockVerticalMap` (inverts `sub.industryId` → `block.verticals[]`), `resolveBlockVerticals` — pure, no I/O |
+
+### Server actions
+
+| File | Exports |
+|---|---|
+| `src/actions/relay-module-analytics/analytics.ts` | `getRelayModuleAnalyticsAction` — joins `ALL_BLOCKS_DATA` with `systemModules`, `relayBlockConfigs`, and partner `businessModules` (collection-group) to produce `{ connectedBlocks, darkBlocks, modules, …counts }` |
+| `src/actions/relay-module-analytics/lookups.ts` | `getBlocksForModuleAction`, `getModuleForBlockAction` |
+| `src/actions/relay-module-analytics/index.ts` | Barrel |
+
+### Page + view components
+
+| File | Purpose |
+|---|---|
+| `src/app/admin/relay/modules/page.tsx` | Server component: runs the action once, renders the view |
+| `src/app/admin/relay/modules/RelayModulesView.tsx` | Client orchestrator: vertical filter + tabs for dark / connected / modules |
+| `src/app/admin/relay/modules/SummaryCards.tsx` | 4-card summary row (total blocks, module-dependent, dark, modules) |
+| `src/app/admin/relay/modules/VerticalFilter.tsx` | "All / automotive / ecommerce / …" pill filter |
+| `src/app/admin/relay/modules/DarkBlockCard.tsx` | Amber card with "View Module" / "Create Module" deep links |
+| `src/app/admin/relay/modules/ConnectedBlockCard.tsx` | Neutral card showing module slug + item count |
+| `src/app/admin/relay/modules/ModuleCard.tsx` | Module row listing every block it powers + item/partner totals |
+
+### Navigation
+
+`src/app/admin/relay/RelayDashboard.tsx` gained a "Modules ↔ Blocks" link next to Block Registry / Flow Editor.
+
+## Verification
+
+- `tsc --noEmit`: net zero new errors vs baseline (same 400-class of pre-existing env-only errors — missing React types / module stubs).
+- Every new file stays comfortably small (~40–200 lines each); the biggest file in the diff is `analytics.ts` at ~170 lines and it's composed of 4 small named helpers.
+
+## Known gaps / follow-ups
+
+- **Chat assistant doesn't auto-surface `order_confirmation` on success.** The overlay closes silently; a future change should post a system-style chat message referencing the new order id so the `OrderConfirmationLive` block picks up `{ order }` on its next render. The hook surface already supports this via `onOrderCreated`.
+- **No partner-facing orders dashboard yet.** `revalidatePath('/partner/orders')` is a placeholder — the route itself is a follow-up PR.
+- **Discount codes still built-in.** `applyDiscountCodeAction` (from Phase 2) stays with its two-code test list; real partner-owned codes deserve their own config layer.
+- **Collection-group indexes.** The first deploy of this branch needs a composite index for `orders` (`id asc`) and another for `businessModules` (`moduleSlug asc`) so the two `collectionGroup` queries in `lookupOrderAction` / `loadModuleItemCounts` run without fallback errors.

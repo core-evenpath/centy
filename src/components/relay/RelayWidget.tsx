@@ -10,8 +10,10 @@ import type { BlockTheme } from '@/lib/relay/types';
 import type { PreloadedBlock } from '@/lib/relay/preloader';
 import HomeScreenRenderer from './HomeScreenRenderer';
 import ChatInterface from './ChatInterface';
+import CheckoutFlow from './checkout/CheckoutFlow';
 import { useRelaySession } from '@/hooks/useRelaySession';
 import type { BlockCallbacks } from './blocks/types';
+import { DEFAULT_THEME as RELAY_DEFAULT_THEME } from './blocks/types';
 
 interface RelayWidgetProps {
   partnerId: string;
@@ -45,6 +47,8 @@ export default function RelayWidget({ partnerId }: RelayWidgetProps) {
     confirmBooking,
   } = useRelaySession({ conversationId, partnerId });
 
+  const [checkoutOpen, setCheckoutOpen] = useState(false);
+
   const sessionCallbacks: BlockCallbacks = useMemo(
     () => ({
       onAddToCart: addToCart,
@@ -55,6 +59,9 @@ export default function RelayWidget({ partnerId }: RelayWidgetProps) {
       onReserveSlot: reserveSlot,
       onCancelSlot: cancelSlot,
       onConfirmBooking: confirmBooking,
+      onCheckout: () => {
+        setCheckoutOpen(true);
+      },
       cart: {
         items: cart.items.map((i) => ({
           itemId: i.itemId,
@@ -195,6 +202,20 @@ export default function RelayWidget({ partnerId }: RelayWidgetProps) {
           />
         )}
       </div>
+
+      <CheckoutFlow
+        partnerId={partnerId}
+        conversationId={conversationId}
+        theme={{ ...RELAY_DEFAULT_THEME, accent: theme.accent }}
+        open={checkoutOpen}
+        onClose={() => setCheckoutOpen(false)}
+        onOrderCreated={() => {
+          // Parent doesn't have direct access to the chat message list
+          // from here; the ChatInterface will pick up the cart drain on
+          // its next load. A richer hook (e.g. posting a system message)
+          // can be added once the chat message list is hoisted.
+        }}
+      />
     </div>
   );
 }

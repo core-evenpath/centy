@@ -188,6 +188,7 @@ export default function AdminRelayDashboard({ initialStats, initialDiagnostics, 
             <div style={{ fontSize: "13px", color: T.t3, marginTop: "2px" }}>Manage conversation flows, block registry, and widget configuration</div>
           </div>
           <div style={{ display: "flex", gap: "8px" }}>
+            <Link href="/admin/relay/modules" style={{ padding: "8px 16px", borderRadius: "8px", border: `1px solid ${T.bdr}`, background: T.surface, color: T.t1, fontSize: "12px", fontWeight: 600, cursor: "pointer", textDecoration: "none", display: "inline-block" }}>Modules ↔ Blocks</Link>
             <Link href="/admin/relay/blocks" style={{ padding: "8px 16px", borderRadius: "8px", border: `1px solid ${T.bdr}`, background: T.surface, color: T.t1, fontSize: "12px", fontWeight: 600, cursor: "pointer", textDecoration: "none", display: "inline-block" }}>Block Registry</Link>
             <Link href="/admin/relay/flows" style={{ padding: "8px 16px", borderRadius: "8px", border: "none", background: T.pri, color: "#fff", fontSize: "12px", fontWeight: 600, cursor: "pointer", textDecoration: "none", display: "inline-block" }}>Flow Editor</Link>
           </div>
