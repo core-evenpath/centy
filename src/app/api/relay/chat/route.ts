@@ -13,6 +13,10 @@ import {
 } from '@/actions/modules-actions';
 import { createInitialFlowState, detectIntent, runFlowEngine } from '@/lib/flow-engine';
 import { getFlowTemplateForFunction } from '@/lib/flow-templates';
+import {
+    allowedBlocksFromFlow,
+    findStageById,
+} from '@/lib/relay/flow-to-blocks';
 import type { ConversationFlowState, FlowDefinition, FlowEngineDecision } from '@/lib/types-flow-engine';
 
 const genAI = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || '' });
@@ -69,6 +73,9 @@ export async function POST(request: NextRequest) {
 
         // ── Flow Engine ──────────────────────────────────────────────────
         let flowDecision: FlowEngineDecision | null = null;
+        // Hoisted so the block-catalog filter + the flowMeta response
+        // can read the resolved flow definition outside the try block.
+        let flowDef: FlowDefinition | null = null;
         try {
             let flowState: ConversationFlowState | null = null;
             if (conversationId) {
@@ -85,8 +92,6 @@ export async function POST(request: NextRequest) {
                 content: m.content as string,
             }));
             const intent = detectIntent(lastMsg, priorHistory);
-
-            let flowDef: FlowDefinition | null = null;
             const flowDoc = await adminDb
                 .collection('partners').doc(partnerId)
                 .collection('relayConfig').doc('flowDefinition')
@@ -123,10 +128,33 @@ export async function POST(request: NextRequest) {
             console.error('Module load error (non-fatal):', modErr);
         }
 
-        // ── Allowed admin-preview blocks for this partner's sub-vertical ─
-        const allowedBlocks = getAllowedBlocksForFunction(functionId);
-        const allowedBlockIds = allowedBlocks.map(b => b.id);
+        // ── Allowed blocks: flow-authoritative, fallback to function ─────
+        //
+        // The flow decision (from `runFlowEngine` above) is the source
+        // of truth for which blocks fit the visitor's current stage.
+        // If the engine couldn't produce a decision (no flow saved and
+        // no template matched), we fall back to the function-level
+        // catalog so pre-flow partners keep working.
+        const functionAllowedBlocks = getAllowedBlocksForFunction(functionId);
+        const flowAllowedIds = allowedBlocksFromFlow(flowDecision, flowDef);
+        const allowedBlocks =
+            flowAllowedIds.length > 0
+                ? functionAllowedBlocks.filter((b) =>
+                      flowAllowedIds.includes(b.id),
+                  )
+                : functionAllowedBlocks;
+        const allowedBlockIds = allowedBlocks.map((b) => b.id);
         const blockCatalog = buildBlockCatalogPrompt(allowedBlocks);
+
+        console.log(
+            '[Relay chat] Block selection:',
+            flowAllowedIds.length > 0 ? 'flow-driven' : 'function-catalog',
+            '| stage:',
+            flowDecision?.suggestedStageType ?? 'none',
+            '| allowed:',
+            allowedBlockIds.length,
+            'blocks',
+        );
 
         // ── CORE context for Gemini (persona + FAQs; NO item data) ───────
         const personaContext = buildPersonaContext(partnerData);
@@ -229,6 +257,11 @@ ${personaContext}`;
             ...(flowDecision && {
                 flowMeta: {
                     stageType: flowDecision.suggestedStageType,
+                    stageId: flowDecision.updatedState.currentStageId,
+                    stageLabel: findStageById(
+                        flowDef,
+                        flowDecision.updatedState.currentStageId,
+                    )?.label,
                     leadTemperature: flowDecision.leadTemperature,
                     leadScore: flowDecision.leadScore,
                     suggestedBlockTypes: flowDecision.suggestedBlockTypes,

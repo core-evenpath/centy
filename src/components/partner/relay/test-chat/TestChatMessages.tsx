@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef } from 'react';
-import type { RelayTheme } from '@/components/relay/blocks/types';
+import type { BlockCallbacks, RelayTheme } from '@/components/relay/blocks/types';
 import TestChatBlockPreview from './TestChatBlockPreview';
 import {
   BotBubble,
@@ -17,6 +17,8 @@ export interface TestChatMessage {
   blockId?: string;
   blockData?: Record<string, unknown>;
   suggestions?: string[];
+  /** Flow stage that produced this message (surfaced for debugging). */
+  stageId?: string;
 }
 
 // ── Scrollable message list ──────────────────────────────────────────
@@ -37,6 +39,7 @@ export default function TestChatMessages({
   brandEmoji,
   tagline,
   onSend,
+  callbacks,
 }: {
   messages: TestChatMessage[];
   sending: boolean;
@@ -45,6 +48,12 @@ export default function TestChatMessages({
   brandEmoji?: string;
   tagline?: string;
   onSend: (text: string) => void;
+  /**
+   * Passed straight into `TestChatBlockPreview` — commerce blocks fire
+   * these when users interact. Undefined falls through to the
+   * admin-preview (design-only) path.
+   */
+  callbacks?: BlockCallbacks;
 }) {
   const endRef = useRef<HTMLDivElement>(null);
 
@@ -89,7 +98,12 @@ export default function TestChatMessages({
               <div key={i}>
                 {hasBlock ? (
                   <BotBubble text={safeText || undefined} emoji={brandEmoji} theme={theme}>
-                    <TestChatBlockPreview blockId={msg.blockId!} blockData={msg.blockData} />
+                    <TestChatBlockPreview
+                      blockId={msg.blockId!}
+                      blockData={msg.blockData}
+                      theme={theme}
+                      callbacks={callbacks}
+                    />
                   </BotBubble>
                 ) : (
                   <BotBubble

@@ -1,6 +1,6 @@
 'use client';
 
-import type { RelayTheme } from '@/components/relay/blocks/types';
+import type { BlockCallbacks, RelayTheme } from '@/components/relay/blocks/types';
 import TestChatPhoneFrame from './TestChatPhoneFrame';
 import TestChatHeader from './TestChatHeader';
 import TestChatMessages, { type TestChatMessage } from './TestChatMessages';
@@ -21,6 +21,8 @@ export default function TestChatPanel({
   sending,
   onSend,
   onClear,
+  callbacks,
+  currentStageLabel,
 }: {
   brandName: string;
   brandEmoji?: string;
@@ -30,6 +32,10 @@ export default function TestChatPanel({
   sending: boolean;
   onSend: (text: string) => void;
   onClear: () => void;
+  /** Passed down to `TestChatMessages` → commerce blocks. */
+  callbacks?: BlockCallbacks;
+  /** Surfaced in the header while the flow engine is running. */
+  currentStageLabel?: string;
 }) {
   return (
     <div
@@ -52,6 +58,7 @@ export default function TestChatPanel({
           theme={theme}
           canClear={messages.length > 0}
           onClear={onClear}
+          stageLabel={currentStageLabel}
         />
         <TestChatMessages
           messages={messages}
@@ -61,6 +68,7 @@ export default function TestChatPanel({
           brandEmoji={brandEmoji}
           tagline={tagline}
           onSend={onSend}
+          callbacks={callbacks}
         />
         <TestChatInput theme={theme} disabled={sending} onSend={onSend} />
       </TestChatPhoneFrame>

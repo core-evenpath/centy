@@ -13,8 +13,15 @@ import type { RelayConfig, DiagnosticCheck, RelayConversation } from '@/actions/
 import RelayChatSetup from '@/components/partner/relay/RelayChatSetup';
 import RelayStorefrontManager from '@/components/partner/relay/RelayStorefrontManager';
 import TestChatPanel from '@/components/partner/relay/test-chat/TestChatPanel';
+import TestChatFlowPanel, {
+    type TestChatFlowMeta,
+} from '@/components/partner/relay/test-chat/TestChatFlowPanel';
+import CheckoutFlow from '@/components/relay/checkout/CheckoutFlow';
+import { useRelaySession } from '@/hooks/useRelaySession';
+import { useRelayCheckout } from '@/hooks/useRelayCheckout';
 import { DEFAULT_THEME } from '@/components/relay/blocks/types';
-import type { RelayTheme } from '@/components/relay/blocks/types';
+import type { BlockCallbacks, RelayTheme } from '@/components/relay/blocks/types';
+import type { RelayOrder } from '@/lib/relay/order-types';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -101,6 +108,8 @@ interface ChatMessage {
     blockId?: string;
     blockData?: Record<string, unknown>;
     suggestions?: string[];
+    /** Stage id from the flow engine that produced this message. */
+    stageId?: string;
 }
 
 export default function PartnerRelayPage() {
@@ -121,9 +130,78 @@ export default function PartnerRelayPage() {
     const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
     const [chatSending, setChatSending] = useState(false);
     const [conversationId] = useState(() => `test_${Date.now()}`);
+    const [flowMeta, setFlowMeta] = useState<TestChatFlowMeta | null>(null);
+    const [seeded, setSeeded] = useState(false);
+    const [checkoutOpen, setCheckoutOpen] = useState(false);
 
     // Compute relay theme from accent color
     const relayTheme = useMemo(() => buildThemeFromAccent(config.accentColor), [config.accentColor]);
+
+    // ── Session + checkout wiring (Test Chat = production widget fidelity) ──
+    //
+    // The test chat now drives the same runtime session the production
+    // widget uses, so "Add to cart" / "Checkout" / order-tracker blocks
+    // all produce real Firestore writes under
+    // `relaySessions/{partnerId}_{conversationId}` and
+    // `partners/{pid}/orders/{orderId}`.
+    const session = useRelaySession({
+        conversationId,
+        partnerId: partnerId || '',
+    });
+
+    const handleOrderCreated = useCallback((order: RelayOrder) => {
+        setCheckoutOpen(false);
+        setChatMessages((prev) => [
+            ...prev,
+            {
+                role: 'assistant',
+                content: `Your order ${order.id} has been confirmed.`,
+                blockId: 'ecom_order_confirmation',
+                blockData: { order },
+            },
+        ]);
+    }, []);
+
+    const checkout = useRelayCheckout({
+        partnerId: partnerId || '',
+        conversationId,
+        onOrderCreated: handleOrderCreated,
+    });
+    // `checkout` is instantiated so the CheckoutFlow overlay below has
+    // its dependencies ready; the overlay itself calls the hook again
+    // internally — re-using the instance is fine either way.
+    void checkout;
+
+    const sessionCallbacks: BlockCallbacks = useMemo(
+        () => ({
+            onAddToCart: session.addToCart,
+            onUpdateCartItem: session.updateCartItem,
+            onRemoveFromCart: session.removeFromCart,
+            onClearCart: session.clearCart,
+            onApplyDiscount: session.applyDiscount,
+            onReserveSlot: session.reserveSlot,
+            onCancelSlot: session.cancelSlot,
+            onConfirmBooking: session.confirmBooking,
+            onCheckout: () => {
+                setCheckoutOpen(true);
+            },
+            cart: {
+                items: session.cart.items.map((i) => ({
+                    itemId: i.itemId,
+                    name: i.name,
+                    price: i.price,
+                    quantity: i.quantity,
+                    variant: i.variant,
+                    image: i.image,
+                })),
+                subtotal: session.cart.subtotal,
+                total: session.cart.total,
+                discountCode: session.cart.discountCode,
+                discountAmount: session.cart.discountAmount,
+            },
+        }),
+        [session],
+    );
 
     // ── Load config via server action ────────────────────────────────
 
@@ -215,6 +293,60 @@ export default function PartnerRelayPage() {
         })();
     }, [partnerId]);
 
+    // ── Seed: pull entry-stage blocks on Test Chat open ──────────────
+    //
+    // Mirrors the live widget's first impression. Re-runs whenever the
+    // partner clicks Clear (we flip `seeded` back to false there).
+    useEffect(() => {
+        if (!partnerId || seeded) return;
+        if (chatMessages.length > 0) {
+            setSeeded(true);
+            return;
+        }
+        let cancelled = false;
+        (async () => {
+            try {
+                const res = await fetch('/api/relay/chat/seed', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ partnerId }),
+                });
+                const data = await res.json();
+                if (cancelled) return;
+                if (data.success && Array.isArray(data.seedMessages)) {
+                    const seeds: ChatMessage[] = data.seedMessages.map(
+                        (sm: {
+                            blockId?: string;
+                            blockData?: Record<string, unknown>;
+                            stageId?: string;
+                        }) => ({
+                            role: 'assistant' as const,
+                            content: '',
+                            blockId: sm.blockId,
+                            blockData: sm.blockData,
+                            stageId: sm.stageId,
+                        }),
+                    );
+                    if (seeds.length > 0) setChatMessages(seeds);
+                    if (data.entryStage) {
+                        setFlowMeta({
+                            stageId: data.entryStage.id,
+                            stageLabel: data.entryStage.label,
+                            stageType: data.entryStage.type,
+                        });
+                    }
+                }
+            } catch (err) {
+                console.error('[relay] seed failed:', err);
+            } finally {
+                if (!cancelled) setSeeded(true);
+            }
+        })();
+        return () => {
+            cancelled = true;
+        };
+    }, [partnerId, seeded, chatMessages.length]);
+
     // ── Chat test ────────────────────────────────────────────────────
 
     const sendChatMessage = async (messageText: string) => {
@@ -253,8 +385,20 @@ export default function PartnerRelayPage() {
                         ? data.response.blockData
                         : undefined,
                     suggestions: Array.isArray(data.response.suggestions) ? data.response.suggestions : undefined,
+                    stageId: data.flowMeta?.stageId,
                 };
                 setChatMessages(prev => [...prev, assistantMsg]);
+
+                if (data.flowMeta) {
+                    setFlowMeta({
+                        stageId: data.flowMeta.stageId,
+                        stageLabel: data.flowMeta.stageLabel,
+                        stageType: data.flowMeta.stageType,
+                        suggestedBlockTypes: data.flowMeta.suggestedBlockTypes,
+                        leadTemperature: data.flowMeta.leadTemperature,
+                        interactionCount: data.flowMeta.interactionCount,
+                    });
+                }
             } else {
                 setChatMessages(prev => [...prev, {
                     role: 'assistant',
@@ -347,8 +491,17 @@ export default function PartnerRelayPage() {
                         messages={chatMessages}
                         sending={chatSending}
                         onSend={sendChatMessage}
-                        onClear={() => setChatMessages([])}
+                        onClear={() => {
+                            setChatMessages([]);
+                            setFlowMeta(null);
+                            setSeeded(false);
+                        }}
+                        callbacks={sessionCallbacks}
+                        currentStageLabel={flowMeta?.stageLabel}
                     />
+                    <div style={{ maxWidth: 420, margin: '0 auto' }}>
+                        <TestChatFlowPanel flowMeta={flowMeta} theme={relayTheme} />
+                    </div>
                 </TabsContent>
 
                 {/* ── Section 1: Setup ──────────────────────────────── */}
@@ -645,6 +798,17 @@ export default function PartnerRelayPage() {
                     <RelayStorefrontManager partnerId={partnerId!} accentColor={config.accentColor} />
                 </TabsContent>
             </Tabs>
+
+            {partnerId && (
+                <CheckoutFlow
+                    partnerId={partnerId}
+                    conversationId={conversationId}
+                    theme={relayTheme}
+                    open={checkoutOpen}
+                    onClose={() => setCheckoutOpen(false)}
+                    onOrderCreated={handleOrderCreated}
+                />
+            )}
         </div>
     );
 }

@@ -487,3 +487,70 @@ Replaces the flat "needs your input" + separate `DataInputPanel` pattern with ex
 - **UI preview placeholder** on `LiveNowPreview` currently says "Preview available in Test Chat →". A later PR can render a mini `RegisteredBlock` in that slot once the test-chat-preview wiring lands.
 - **Prompt answer handling in chat** — activating an AI collection writes the config, but the chat route doesn't yet pick it up to actually ask the prompts. Needs a handler inside `/api/relay/chat/route.ts` that checks `relayConfig/aiCollectionPrompts` when the matching feature intent fires.
 - **Dedupe on activation** — re-running activation on the same feature currently creates a second custom module. Future PR should check `featureId` on the existing config doc and update in place.
+
+---
+
+# Flow-driven Test Chat wiring
+
+Makes `/partner/relay` Test Chat render what's actually configured in `/admin/relay/flows`, with real interaction callbacks. Closes three distinct gaps that PR #124 / #127 left open.
+
+## What changed
+
+### The three root causes
+
+1. **`TestChatBlockPreview` always routed to the admin preview registry.** Interactive blocks (`cart`, `product_card`, `ecom_checkout`, …) came through but `onAddToCart` / `onCheckout` etc. were dropped because the admin preview components don't accept `BlockCallbacks`.
+2. **`/api/relay/chat` ignored `flowDecision.suggestedBlockTypes`.** Gemini's catalog was always the function-level list, so it could emit blocks the admin-configured flow explicitly excluded for the current stage.
+3. **Test Chat opened empty.** The live widget's `greeting`-stage blocks never auto-rendered, so partner testing missed the actual first impression.
+
+### Fixes
+
+| File | Change |
+|---|---|
+| `src/lib/relay/flow-to-blocks.ts` (NEW) | `allowedBlocksFromFlow` / `isBlockAllowedByFlow` / `getEntryStage` / `findStageById` — pure helpers. The engine's `suggestedBlockTypes` win; union-of-all-stages is the second preference; empty allow-list means "use the function catalog". |
+| `src/app/api/relay/chat/route.ts` | Hoisted `flowDef` out of the inner try block so it's visible to both the catalog filter and the response builder. Gemini's catalog is now filtered through `allowedBlocksFromFlow(flowDecision, flowDef)`. Response `flowMeta` now carries `stageId` + `stageLabel` so the UI can track transitions. |
+| `src/app/api/relay/chat/seed/route.ts` (NEW) | POST `{ partnerId }` → returns the entry stage's blocks as `seedMessages[]`. Reuses the same module-loading loop the chat route uses so `buildBlockData` gets real partner data. |
+| `src/components/partner/relay/test-chat/TestChatBlockPreview.tsx` | REWRITE. Interactive blocks (cart / product / booking / order-confirmation / order-tracker) route through the production `BlockRenderer` with live `BlockCallbacks`. Design-only blocks continue through the admin preview registry. `RENDERER_TYPE_MAP` translates admin-registry ids (`ecom_cart`, `product_card`, …) to the `type` union `BlockRenderer` switches on. |
+| `TestChatMessages.tsx` | Accepts `callbacks` + threads it into every `<TestChatBlockPreview>`. `TestChatMessage` gains optional `stageId`. |
+| `TestChatPanel.tsx` | Accepts `callbacks` + `currentStageLabel`, passes through. |
+| `TestChatHeader.tsx` | Displays `Stage · <label>` in the subtitle when a stage is known; keeps the static "Test Chat" otherwise. |
+| `TestChatFlowPanel.tsx` (NEW) | Debug panel shown below the phone frame — stage / lead temp / interaction count / first five suggested block ids + a link back to `/admin/relay/flows`. |
+| `src/app/partner/(protected)/relay/page.tsx` | Mounts `useRelaySession` + `useRelayCheckout`; builds a `sessionCallbacks` object exposing every cart / booking / checkout handler plus the live cart snapshot. A new `useEffect` calls `/api/relay/chat/seed` on mount (and again after Clear) and feeds the returned blocks into `chatMessages`. `sendChatMessage` stores `data.flowMeta` so the header + debug panel reflect the current stage. `<CheckoutFlow>` is mounted at the root and opens when any block triggers `onCheckout`. |
+
+## Runtime loop after this PR
+
+```
+Test Chat opens
+  ↓ POST /api/relay/chat/seed
+Entry stage blocks (greeting / suggestions) render via
+  TestChatBlockPreview → BlockRenderer for interactive, admin preview otherwise
+
+User sends "show me products"
+  ↓ POST /api/relay/chat
+  ↓ runFlowEngine → { currentStageId: 'discovery',
+                       suggestedBlockTypes: ['product_card', 'suggestions'] }
+  ↓ Gemini catalog = function catalog ∩ suggestedBlockTypes
+  ↓ blockId validated against that intersection
+Response { blockId: 'product_card', blockData, flowMeta }
+  ↓
+Bubble mounts BlockRenderer with sessionCallbacks
+  ↓
+"Add to cart" → onAddToCart → useRelaySession → Firestore write under
+  relaySessions/{partnerId}_{conversationId}
+  ↓
+Cart block renders with live items; clicking Checkout opens CheckoutFlow overlay
+  ↓
+Order created → handleOrderCreated injects an ecom_order_confirmation
+  message into chat with the real order.
+```
+
+## Verification
+
+- `npm run typecheck` — 400 errors, identical to baseline. Zero new errors across 3 new files + 6 modifications.
+- File sizes stay modest; largest new file is `TestChatFlowPanel.tsx` at ~130 lines.
+
+## Still intentionally out of scope
+
+- **Live widget seeding.** The public `/r/[partnerId]` widget already mounts `useRelaySession`; applying the same flow-entry seed to it is a follow-up PR.
+- **Per-bubble stage overlay.** Messages carry `stageId` but no per-bubble debug marker yet.
+- **Flow-aware validation on the client.** We rely on the server to enforce `allowedBlocksFromFlow`; the client trusts whatever `blockId` comes back.
+- **Admin preview component callbacks.** Design-only admin previews stay static — they're for design review, not interaction.
