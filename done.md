@@ -204,3 +204,64 @@ feature.
 - **No partner-facing orders dashboard yet.** `revalidatePath('/partner/orders')` is a placeholder — the route itself is a follow-up PR.
 - **Discount codes still built-in.** `applyDiscountCodeAction` (from Phase 2) stays with its two-code test list; real partner-owned codes deserve their own config layer.
 - **Collection-group indexes.** The first deploy of this branch needs a composite index for `orders` (`id asc`) and another for `businessModules` (`moduleSlug asc`) so the two `collectionGroup` queries in `lookupOrderAction` / `loadModuleItemCounts` run without fallback errors.
+
+---
+
+# Option A — Quick wins on top of Phase 3
+
+Closes out the three Phase-3 gaps flagged in the section above. Split
+into many small files so each write stays modest.
+
+## Task 1 — Order confirmation surfaces in chat
+
+After checkout, the widget now switches to the chat view and injects
+a system-style `ecom_order_confirmation` block carrying the real
+`RelayOrder`.
+
+| File | Change |
+|---|---|
+| `src/components/relay/RegisteredBlock.tsx` | New — thin wrapper around the block registry: calls `registerAllBlocks()` once, then renders the component returned by `getBlock(blockId)`. Returns null for unknown ids. |
+| `src/components/relay/chat-message-types.ts` | New — shared `RelayChatMessage` shape with optional `blockId` / `blockData`. |
+| `src/components/relay/ChatInterface.tsx` | Extended local `ChatMessage` to the shared type, accepts a new `injectMessage` prop (dedup'd by id via a ref-held `Set`), renders `<RegisteredBlock>` above the text bubble when `blockId` is present. |
+| `src/components/relay/RelayWidget.tsx` | New `handleOrderCreated(order)` — closes the overlay, builds an injected message (`blockId: 'ecom_order_confirmation'`, `blockData: { order }`), and switches `view` to `'chat'` so the confirmation is visible regardless of which tab the user came from. `OrderConfirmationLive` already knows how to project `data.order` into the visual card. |
+
+## Task 2 — Firestore composite indexes
+
+`firestore.indexes.json` gained four entries (existing entries
+untouched):
+
+- `orders` collection-group, `id asc` → `lookupOrderAction`
+- `orders` collection, `conversationId asc + createdAt desc` → `getOrdersForConversationAction`
+- `orders` collection, `status asc + createdAt desc` → `getPartnerOrdersAction` status filter
+- `businessModules` collection-group, `moduleSlug asc` → `loadModuleItemCounts` in `/admin/relay/modules`
+
+Deploy with `firebase deploy --only firestore:indexes`.
+
+## Task 3 — Partner orders dashboard (`/partner/orders`)
+
+| File | Purpose |
+|---|---|
+| `src/app/partner/(protected)/orders/page.tsx` | Tiny server wrapper; renders the client dashboard inside the standard partner container. |
+| `src/app/partner/(protected)/orders/OrdersDashboard.tsx` | Client orchestrator. Resolves `partnerId` via `useMultiWorkspaceAuth`, loads via `getPartnerOrdersAction`, owns filter + selection state, wires status updates to `updateOrderStatusAction`. |
+| `src/app/partner/(protected)/orders/orders-constants.ts` | Status-tab definitions, tailwind badge color map, linear status flow + `nextStatusAfter()` helper. |
+| `src/app/partner/(protected)/orders/StatsCard.tsx` | 5 summary tiles (total / pending / processing / shipped / delivered). |
+| `src/app/partner/(protected)/orders/OrderRow.tsx` | Row in the left-hand list (id, status badge, item count, total, relative createdAt via `date-fns`). |
+| `src/app/partner/(protected)/orders/OrderDetailPanel.tsx` | Right-hand detail: items, totals (subtotal / discount / shipping / tax / total), shipping address, payment, tracking, "Mark as <next status>" action + conditional Cancel button. |
+| `src/components/navigation/UnifiedPartnerSidebar.tsx` | Added `ShoppingBag`-iconed "Orders" link at `/partner/orders`. |
+
+Behavior notes:
+- Selection survives list reload (if the selected order is still in the filtered set it gets updated in place; otherwise cleared).
+- Status updates short-circuit: on success, the single row is patched locally without re-fetching the full list, keeping scroll + selection stable.
+- Currency formatting is INR-aware (₹ symbol); everything else prints the raw code. Matches the format used in `OrderConfirmationLive`.
+- Uses the existing `sonner` toast system (also used elsewhere in partner settings).
+
+## Verification
+
+- `npm run typecheck`: no new errors introduced; same 400-class of pre-existing env/stub issues as the baseline.
+- File sizes stay modest: biggest new file is `OrdersDashboard.tsx` (~220 lines) since it orchestrates a few hooks; every other new file is comfortably under 140 lines.
+
+## Follow-ups that remain
+
+- Order detail page with per-order edit (addresses, add tracking info) — the dashboard detail panel intentionally stays read-only for addresses in this pass.
+- Customer-facing "where is my order" intent in the chat still returns the design sample until `OrderTrackerLive` is triggered by an explicit `orderId` in the intent parse.
+- Partner-side test chat (`TestChatBlockPreview`) still doesn't thread callbacks through admin preview blocks — unchanged from Phase 2.

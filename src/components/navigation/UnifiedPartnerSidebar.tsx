@@ -17,6 +17,7 @@ import {
   Link as LinkIcon,
   Zap,
   Map,
+  ShoppingBag,
 } from 'lucide-react';
 import { Button } from '../ui/button';
 import { cn } from '@/lib/utils';
@@ -118,6 +119,11 @@ export default function UnifiedPartnerSidebar() {
       icon: Map,
       label: 'Content Studio',
       href: '/partner/relay/datamap'
+    },
+    {
+      icon: ShoppingBag,
+      label: 'Orders',
+      href: '/partner/orders'
     },
     {
       icon: Settings,

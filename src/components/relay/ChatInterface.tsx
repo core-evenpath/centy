@@ -4,21 +4,15 @@ import { useState, useRef, useEffect } from 'react';
 import { Send, Loader2 } from 'lucide-react';
 import type { BlockTheme } from '@/lib/relay/types';
 import type { RelaySessionCache } from '@/lib/relay/session-cache';
-import type { BlockResolution } from '@/lib/relay/block-resolver';
 import { classifyIntent } from '@/lib/relay/intent-engine';
 import { resolveBlock } from '@/lib/relay/block-resolver';
 import { generateRelayResponseAction, generateRelayResponseWithDocsAction } from '@/actions/relay-rag-actions';
 import type { ConversationMessage } from '@/lib/relay/rag-context-builder';
 import type { BlockCallbacks } from './blocks/types';
+import type { RelayChatMessage } from './chat-message-types';
+import RegisteredBlock from './RegisteredBlock';
 
-interface ChatMessage {
-  id: string;
-  role: 'customer' | 'assistant';
-  text: string;
-  block?: BlockResolution;
-  followUps?: string[];
-  timestamp: number;
-}
+type ChatMessage = RelayChatMessage;
 
 interface ChatInterfaceProps {
   cache: RelaySessionCache;
@@ -27,12 +21,19 @@ interface ChatInterfaceProps {
   conversationId?: string;
   callbacks?: BlockCallbacks;
   onSendMessage?: (message: string) => void;
+  /**
+   * Optional parent-injected message. Each time the `id` changes (and
+   * hasn't been seen before) it's appended to the local message list —
+   * used by the checkout flow to surface order confirmations.
+   */
+  injectMessage?: ChatMessage | null;
 }
 
 export default function ChatInterface({
   cache,
   theme,
   partnerId,
+  injectMessage,
 }: ChatInterfaceProps) {
   // `conversationId` and `callbacks` are accepted for parent-driven
   // session wiring; this widget renders messages as plain text bubbles
@@ -42,10 +43,21 @@ export default function ChatInterface({
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const seenInjectedIds = useRef<Set<string>>(new Set());
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
+
+  // Parent-driven message injection (e.g. order confirmation after
+  // checkout). Dedup by id so the same message can't accidentally be
+  // appended twice if the parent re-renders.
+  useEffect(() => {
+    if (!injectMessage) return;
+    if (seenInjectedIds.current.has(injectMessage.id)) return;
+    seenInjectedIds.current.add(injectMessage.id);
+    setMessages((prev) => [...prev, injectMessage]);
+  }, [injectMessage]);
 
   async function handleSend(text?: string) {
     const messageText = (text || input).trim();
@@ -166,9 +178,19 @@ export default function ChatInterface({
 
           return (
             <div key={msg.id} style={S.assistantBubble}>
-              {/* Block render removed — /partner/relay now uses BlockRenderer
-                  driven by the server `type` field. This component retained
-                  for legacy RelayWidget and falls back to text + suggestions. */}
+              {/* Registry-driven block render (e.g. order confirmation
+                  injected by the parent widget after checkout). Falls
+                  back silently to text + suggestions when no block id
+                  is supplied on the message. */}
+              {msg.blockId && (
+                <div style={{ marginBottom: 6 }}>
+                  <RegisteredBlock
+                    blockId={msg.blockId}
+                    data={msg.blockData}
+                    theme={theme}
+                  />
+                </div>
+              )}
               {msg.text && <div style={S.assistantText}>{msg.text}</div>}
               {msg.followUps && msg.followUps.length > 0 && (
                 <div style={S.chipRow}>

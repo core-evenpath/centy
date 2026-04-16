@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { MessageSquare, LayoutGrid } from 'lucide-react';
 import { loadRelaySessionAction } from '@/actions/relay-session-actions';
 import { buildRelaySession, resolvePreloadData } from '@/lib/relay/preloader';
@@ -13,6 +13,8 @@ import ChatInterface from './ChatInterface';
 import CheckoutFlow from './checkout/CheckoutFlow';
 import { useRelaySession } from '@/hooks/useRelaySession';
 import type { BlockCallbacks } from './blocks/types';
+import type { RelayChatMessage } from './chat-message-types';
+import type { RelayOrder } from '@/lib/relay/order-types';
 import { DEFAULT_THEME as RELAY_DEFAULT_THEME } from './blocks/types';
 
 interface RelayWidgetProps {
@@ -48,6 +50,25 @@ export default function RelayWidget({ partnerId }: RelayWidgetProps) {
   } = useRelaySession({ conversationId, partnerId });
 
   const [checkoutOpen, setCheckoutOpen] = useState(false);
+  const [injectedMessage, setInjectedMessage] =
+    useState<RelayChatMessage | null>(null);
+
+  // Surface the freshly-created order in the chat as a system message
+  // with the `ecom_order_confirmation` block. Switching to the chat
+  // view makes the confirmation visible even if the user was on the
+  // Browse tab when they checked out.
+  const handleOrderCreated = useCallback((order: RelayOrder) => {
+    setCheckoutOpen(false);
+    setInjectedMessage({
+      id: `order_${order.id}`,
+      role: 'assistant',
+      text: `Order ${order.id} placed successfully.`,
+      timestamp: Date.now(),
+      blockId: 'ecom_order_confirmation',
+      blockData: { order },
+    });
+    setView('chat');
+  }, []);
 
   const sessionCallbacks: BlockCallbacks = useMemo(
     () => ({
@@ -199,6 +220,7 @@ export default function RelayWidget({ partnerId }: RelayWidgetProps) {
             partnerId={partnerId}
             conversationId={conversationId}
             callbacks={sessionCallbacks}
+            injectMessage={injectedMessage}
           />
         )}
       </div>
@@ -209,12 +231,7 @@ export default function RelayWidget({ partnerId }: RelayWidgetProps) {
         theme={{ ...RELAY_DEFAULT_THEME, accent: theme.accent }}
         open={checkoutOpen}
         onClose={() => setCheckoutOpen(false)}
-        onOrderCreated={() => {
-          // Parent doesn't have direct access to the chat message list
-          // from here; the ChatInterface will pick up the cart drain on
-          // its next load. A richer hook (e.g. posting a system message)
-          // can be added once the chat message list is hoisted.
-        }}
+        onOrderCreated={handleOrderCreated}
       />
     </div>
   );
