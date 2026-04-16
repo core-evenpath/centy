@@ -14,12 +14,15 @@ export default function TestChatHeader({
   theme,
   canClear,
   onClear,
+  stageLabel,
 }: {
   brandName: string;
   brandEmoji?: string;
   theme: RelayTheme;
   canClear: boolean;
   onClear: () => void;
+  /** When set, replaces the static "Test Chat" subtitle. */
+  stageLabel?: string;
 }) {
   return (
     <div
@@ -53,7 +56,9 @@ export default function TestChatHeader({
           <div style={{ fontSize: 14, fontWeight: 700, color: theme.text, lineHeight: 1.2 }}>
             {brandName || 'Relay'}
           </div>
-          <div style={{ fontSize: 10, color: theme.t3, marginTop: 2 }}>Test Chat</div>
+          <div style={{ fontSize: 10, color: theme.t3, marginTop: 2 }}>
+            {stageLabel ? `Stage · ${stageLabel}` : 'Test Chat'}
+          </div>
         </div>
       </div>
       {canClear && (
