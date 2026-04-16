@@ -8,7 +8,8 @@
  * Block → feature mapping lives in ./feature-mapper.
  */
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { toast } from 'sonner';
 
 import { useMultiWorkspaceAuth } from '@/hooks/use-multi-workspace-auth';
 import {
@@ -19,6 +20,10 @@ import {
     regenerateContentStudioConfigAction,
 } from '@/actions/content-studio-actions';
 import { refreshPartnerContentStudioStateAction } from '@/actions/content-studio-refresh-actions';
+import { getPartnerModulesAction } from '@/actions/modules-actions';
+import { activateAICollectionAction } from '@/actions/content-studio-activate-collection';
+import { useAIIngest } from '@/hooks/useAIIngest';
+import IngestMount from '@/components/relay/ai-ingest/IngestMount';
 
 import { Icon } from './components/inline-icon';
 import { ProgressRing } from './components/progress-ring';
@@ -34,10 +39,12 @@ import type {
     SubVerticalOption,
     ContentStudioConfig,
     ContentStudioState,
+    GeneratedPrompt,
+    MappedFeature,
 } from './types';
 
 export default function ContentStudioPage() {
-    const { currentWorkspace, loading: wsLoading } = useMultiWorkspaceAuth();
+    const { user, currentWorkspace, loading: wsLoading } = useMultiWorkspaceAuth();
     const partnerId = currentWorkspace?.partnerId;
 
     // ── Core state ──────────────────────────────────────────────
@@ -84,31 +91,123 @@ export default function ContentStudioPage() {
         [fetchState]
     );
 
-    // ── Data input handlers (placeholders — wire to real logic) ─
-    const handleFileUpload = useCallback((featureId: string, file: File) => {
-        // TODO: call a server action to process the uploaded file
-        console.log(`[Content Studio] Upload file for ${featureId}:`, file.name);
-    }, []);
+    // ── AI ingest wiring ────────────────────────────────────────
+    //
+    // A single `useAIIngest` instance is shared between all feature
+    // cards; `ingestTarget` decides which module the next run should
+    // populate. Handlers below resolve a feature's moduleSlug into a
+    // partner module id before calling `startIngest`.
+    const [ingestTarget, setIngestTarget] = useState<{
+        featureId: string;
+        moduleId: string;
+        moduleSlug: string;
+        moduleName: string;
+    } | null>(null);
 
-    const handleUseMemory = useCallback((featureId: string) => {
-        // TODO: navigate to document picker
-        console.log(`[Content Studio] Use Core Memory for ${featureId}`);
-    }, []);
+    const ingest = useAIIngest({
+        partnerId: partnerId || '',
+        moduleId: ingestTarget?.moduleId || '',
+        moduleSlug: ingestTarget?.moduleSlug || 'moduleItems',
+        userId: user?.uid || 'unknown',
+        onSaveComplete: () => {
+            setIngestTarget(null);
+            if (partnerId) void fetchState(partnerId);
+        },
+    });
 
-    const handleFetchApi = useCallback((featureId: string, apiName: string) => {
-        // TODO: trigger API integration fetch
-        console.log(`[Content Studio] Fetch API ${apiName} for ${featureId}`);
-    }, []);
+    const resolveFeatureModule = useCallback(
+        async (
+            featureId: string,
+        ): Promise<{
+            featureId: string;
+            moduleId: string;
+            moduleSlug: string;
+            moduleName: string;
+        } | null> => {
+            if (!partnerId) return null;
+            const feature = (config?.blocks
+                ? mapAllFeatures(config.blocks, state ?? undefined)
+                : []
+            ).find((f: MappedFeature) => f.id === featureId);
+            if (!feature) return null;
+            const moduleSlug = feature.source?.startsWith('module:')
+                ? feature.source.slice('module:'.length)
+                : 'moduleItems';
 
-    const handleManualEntry = useCallback((featureId: string) => {
-        // TODO: open inline form / navigate to editor
-        console.log(`[Content Studio] Manual entry for ${featureId}`);
-    }, []);
+            const pmRes = await getPartnerModulesAction(partnerId);
+            if (!pmRes.success) {
+                toast.error(pmRes.error || 'Could not load your modules');
+                return null;
+            }
+            const pm = pmRes.data?.find((m) => m.moduleSlug === moduleSlug);
+            if (!pm) {
+                toast.error(
+                    `Module "${moduleSlug}" not set up — visit Modules first`,
+                );
+                return null;
+            }
+            return {
+                featureId,
+                moduleId: pm.id,
+                moduleSlug,
+                moduleName: feature.customer,
+            };
+        },
+        [partnerId, config, state],
+    );
 
-    const handleConnectService = useCallback((featureId: string) => {
-        // TODO: open service connection flow
-        console.log(`[Content Studio] Connect service for ${featureId}`);
-    }, []);
+    const handleUpload = useCallback(
+        async (featureId: string) => {
+            const target = await resolveFeatureModule(featureId);
+            if (!target) return;
+            setIngestTarget(target);
+            ingest.startIngest();
+        },
+        [resolveFeatureModule, ingest],
+    );
+
+    const handleUseMemory = useCallback(
+        async (featureId: string) => {
+            const target = await resolveFeatureModule(featureId);
+            if (!target) return;
+            setIngestTarget(target);
+            ingest.startIngest();
+        },
+        [resolveFeatureModule, ingest],
+    );
+
+    const handleConnectModule = useCallback(
+        async (_featureId: string, _moduleId: string) => {
+            toast.success('Module connected — data will flow into this feature');
+            if (partnerId) void fetchState(partnerId);
+        },
+        [partnerId],
+    );
+
+    const handleActivateAICollection = useCallback(
+        async (
+            featureId: string,
+            prompts: GeneratedPrompt[],
+            suggestedModuleName: string,
+        ) => {
+            if (!partnerId) return;
+            const res = await activateAICollectionAction(
+                partnerId,
+                featureId,
+                prompts,
+                suggestedModuleName,
+            );
+            if (res.success) {
+                toast.success(
+                    'AI collection activated — customers will be asked these questions',
+                );
+                void fetchState(partnerId);
+            } else {
+                toast.error(res.error || 'Failed to activate');
+            }
+        },
+        [partnerId],
+    );
 
     // ── Main data loading effect ────────────────────────────────
     useEffect(() => {
@@ -397,13 +496,45 @@ export default function ContentStudioPage() {
         );
     }
 
-    const inputHandlers = {
-        onFileUpload: handleFileUpload,
-        onUseMemory: handleUseMemory,
-        onFetchApi: handleFetchApi,
-        onManualEntry: handleManualEntry,
-        onConnectService: handleConnectService,
-    };
+    const featureListHandlers = useMemo(
+        () => ({
+            onUpload: handleUpload,
+            onUseMemory: handleUseMemory,
+            onConnectModule: handleConnectModule,
+            onActivateAICollection: handleActivateAICollection,
+        }),
+        [
+            handleUpload,
+            handleUseMemory,
+            handleConnectModule,
+            handleActivateAICollection,
+        ],
+    );
+
+    // Legacy shape still consumed by `DataInputPanel` on the empty-state
+    // screen. The three "legacy-only" handlers (onFetchApi,
+    // onManualEntry, onConnectService) are no-op stubs — the new AI
+    // ingest flow replaces them in the `NeedsInputItem` cards below.
+    const legacyInputHandlers = useMemo(
+        () => ({
+            onFileUpload: (featureId: string, _file: File) => {
+                void handleUpload(featureId);
+            },
+            onUseMemory: (featureId: string) => {
+                void handleUseMemory(featureId);
+            },
+            onFetchApi: (_featureId: string, _apiName: string) => {
+                /* no-op: API-integration path not wired in this PR */
+            },
+            onManualEntry: (_featureId: string) => {
+                /* no-op: manual-entry opens the module editor via a future PR */
+            },
+            onConnectService: (_featureId: string) => {
+                /* no-op: service-connect flow deferred */
+            },
+        }),
+        [handleUpload, handleUseMemory],
+    );
 
     return (
         <div
@@ -673,7 +804,7 @@ export default function ContentStudioPage() {
                                 <DataInputPanel
                                     feature={primaryFeature}
                                     enabledApis={enabledApis}
-                                    {...inputHandlers}
+                                    {...legacyInputHandlers}
                                 />
                             </div>
                         )}
@@ -718,8 +849,8 @@ export default function ContentStudioPage() {
                                 <FeatureList
                                     notReady={[]}
                                     ready={ready}
-                                    enabledApis={enabledApis}
-                                    {...inputHandlers}
+                                    partnerId={partnerId}
+                                    {...featureListHandlers}
                                 />
                                 <DependentFeatures
                                     dependent={dependent}
@@ -771,8 +902,8 @@ export default function ContentStudioPage() {
                                 <FeatureList
                                     notReady={notReady}
                                     ready={ready}
-                                    enabledApis={enabledApis}
-                                    {...inputHandlers}
+                                    partnerId={partnerId}
+                                    {...featureListHandlers}
                                 />
                                 <DependentFeatures
                                     dependent={dependent}
@@ -834,6 +965,10 @@ export default function ContentStudioPage() {
                     </div>
                 )}
             </div>
+
+            {ingestTarget && (
+                <IngestMount ingest={ingest} moduleName={ingestTarget.moduleName} />
+            )}
         </div>
     );
 }

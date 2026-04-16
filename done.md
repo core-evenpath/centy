@@ -417,3 +417,73 @@ Datamap integration (`/partner/relay/datamap`) intentionally stays in a follow-u
 - **Images** — items don't yet get images. The website adapter has the page URLs but we don't parse `<img>`s or surface them into the review modal.
 - **Dedup** — no "item looks similar to an existing one" detection.
 - **Streaming** — extraction is single-shot (`ai.generate`). Gemini supports streaming; follow-up could surface items as they arrive.
+
+---
+
+# Datamap Design Upgrade — expandable items + inline AI flow
+
+Replaces the flat "needs your input" + separate `DataInputPanel` pattern with expandable cards that surface three choices (Upload / Core Memory / Let AI collect). Picking the AI option runs an inline state machine: `checking` → `found` (offer to connect an existing module) or `not_found` (generate prompts, let partner edit, then activate an AI-driven data-collection module). "Live now" rows are also expandable now, with a data-source / items-synced summary + a placeholder slot for a future UI preview.
+
+## Files (split for reviewability)
+
+### Types + theme + icons
+
+| File | Change |
+|---|---|
+| `src/app/partner/(protected)/relay/datamap/types.ts` | Appended `AIFlowState`, `MatchedModule`, `GeneratedPrompt`. |
+| `src/app/partner/(protected)/relay/datamap/constants.ts` | Added `greenBdr2` + `amberBdr2` darker-border tokens. |
+| `src/app/partner/(protected)/relay/datamap/components/inline-icon.tsx` | Added `chevronUp` / `chevronDown` / `edit` path data. |
+
+### Server actions (new)
+
+| File | Exports |
+|---|---|
+| `src/actions/content-studio-module-match.ts` | `matchExistingModuleAction(partnerId, moduleSlug)` — looks up `partners/{pid}/businessModules` by slug and returns a `MatchedModule` (name / itemCount / timestamps / first 5 field labels) if one already exists with items. |
+| `src/actions/content-studio-generate-prompts.ts` | `generateDataCollectionPromptsAction(partnerId, featureLabel, moduleSlug, partnerActionDescription)` — Gemini 2.5 Flash generates 2–5 short conversational prompts + a suggested module name derived from the feature label. |
+| `src/actions/content-studio-activate-collection.ts` | `activateAICollectionAction(partnerId, featureId, prompts, suggestedModuleName)` — creates a custom partner module under `businessModules` with `customFields` built from the prompts + writes a pointer at `partners/{pid}/relayConfig/aiCollectionPrompts[featureId]` so the chat agent can pick the prompts up later. |
+
+### UI components (new)
+
+| File | Purpose |
+|---|---|
+| `components/needs-input/format-relative.ts` | Pure "X days ago" helper. |
+| `components/needs-input/prompt-item.tsx` | One editable prompt row (edit-in-place / remove). |
+| `components/needs-input/ai-flow-panel.tsx` | The state machine. Kicks off the match + prompt-generation calls in parallel with the initial check; renders the matching-module card or the prompt builder depending on the result. |
+| `components/needs-input/needs-input-item.tsx` | Expandable amber card with the 3 option buttons + swap-in for the AI flow. |
+| `components/live-now/live-now-preview.tsx` | Two-card summary + source row + profile-fields list + "Displays in UI as" placeholder. |
+| `components/live-now/live-now-item.tsx` | Expandable green row rendering `LiveNowPreview` in the expanded state. |
+
+### UI components (rewritten)
+
+| File | Change |
+|---|---|
+| `components/feature-list.tsx` | Now a thin orchestrator — iterates `notReady` through `NeedsInputItem` and `ready` through `LiveNowItem`, holds only the single "active live row" selection. API changed from 5 legacy handlers to 4 new ones (`onUpload`, `onUseMemory`, `onConnectModule`, `onActivateAICollection`). |
+
+### Page wiring
+
+| File | Change |
+|---|---|
+| `src/app/partner/(protected)/relay/datamap/page.tsx` | New `ingestTarget` state + single `useAIIngest` instance; `resolveFeatureModule()` resolves a feature's `moduleSlug` to the partner module id via `getPartnerModulesAction`. New handlers `handleUpload`, `handleUseMemory`, `handleConnectModule`, `handleActivateAICollection` replace the stubs. `DataInputPanel` (still used on the empty-state screen) keeps its old 5-handler API via a `legacyInputHandlers` adapter. `<IngestMount>` mounts at the bottom of the page so the picker + review modals share a single instance. |
+
+## Behavior
+
+1. Partner clicks a "Needs your input" card → expands inline with 3 options.
+2. Option "Let AI collect for you" → AI flow panel takes over:
+   - Spinner while `matchExistingModuleAction` + `generateDataCollectionPromptsAction` race.
+   - If a matching module exists with items → **found**: card shows `{name, itemCount, updatedAt, first 5 fields}` + Connect / Create-new buttons.
+   - Otherwise → **not_found**: renders the generated prompts, each editable in place + a "Suggested module name" banner that links to `/partner/relay/modules`.
+3. "Connect this module" → parent `onConnectModule` callback fires, page refetches state.
+4. "Activate AI collection" → `activateAICollectionAction` writes the new custom module + registers the prompts, page refetches state.
+5. "Upload a document" and "Use Core Memory" routes reuse the existing `useAIIngest` picker/review modals from PR #126 (AI data collection).
+
+## Verification
+
+- `npm run typecheck`: 400 errors — identical to the pre-change baseline. No new errors across 10 new files + 4 modified files.
+- File sizes stay modest: biggest new file is `ai-flow-panel.tsx` at ~310 lines; everything else 40–220 lines.
+
+## Deliberately out of scope (follow-up PR)
+
+- **Test Chat wiring** (Tasks 4 + 5 from the original prompt). Threading `BlockCallbacks` through `TestChatBlockPreview` + wiring `useRelaySession` / `useRelayCheckout` into `/partner/relay` so the phone preview drives the production commerce flow. Kept separate because it touches 4 different files across the test-chat surface and would make this PR non-reviewable.
+- **UI preview placeholder** on `LiveNowPreview` currently says "Preview available in Test Chat →". A later PR can render a mini `RegisteredBlock` in that slot once the test-chat-preview wiring lands.
+- **Prompt answer handling in chat** — activating an AI collection writes the config, but the chat route doesn't yet pick it up to actually ask the prompts. Needs a handler inside `/api/relay/chat/route.ts` that checks `relayConfig/aiCollectionPrompts` when the matching feature intent fires.
+- **Dedupe on activation** — re-running activation on the same feature currently creates a second custom module. Future PR should check `featureId` on the existing config doc and update in place.
