@@ -313,3 +313,75 @@ predates the scope decision to build Phase 1 first; see session history).
 - Notes: The multi-turn test is the pattern tests for future engines
   should reuse. Sticky + weak-never-switch + strong-forces-switch-only-
   if-in-partner produces the conservative switching behavior specified.
+
+---
+
+## Session-end note — 2026-04-17 (resume session, M04 → M11 data/logic layer)
+
+**Last milestone completed:** M11 (session sticky activeEngine).
+
+**Next milestone to start:** M08 (Admin UI: engine tabs in
+`/admin/relay/blocks`). Alternatively, a future session may prefer to
+start at M12 (orchestrator engine-scoped policy) since M12 is the
+highest-risk remaining milestone and completing it unlocks all the
+runtime behavior the admin UI reflects.
+
+**What's committed + pushed on branch `claude/booking-pilot-m04-m15`
+(PR #134, draft):**
+
+| Commit | Milestone | Highlights |
+|---|---|---|
+| `7fa2ed18` | M04 | Tagged 31 booking + 6 shared blocks; generator drift reconciled (Q2) |
+| `e42f6d64` | M05 | 5 booking flow templates + 51 functionId mappings |
+| `9baf6067` | M06 | Pure Health checker (6 modules) + Vitest (Q1 resolved) + 32 tests |
+| `6f25b12c` | M07 | Shadow-mode Health writes + in-process Firestore stub + 12 tests |
+| `52c86738` | M10 | engineHint + 6-engine lexicon + 24 word-boundary tests |
+| `846f5190` | M11 | selectActiveEngine + sticky logic + 14 tests incl. multi-turn |
+
+**Test suite: 82/82 pass across 6 test files.** tsc error delta: 0
+across every commit (548 pre-existing errors are unrelated codebase
+drift; documented in Q4).
+
+**Remaining to ship Phase 1:**
+
+- **M08** — Admin engine tabs UI in `/admin/relay/blocks`. First
+  user-facing change. Screenshot before/after per spec. Booking tab
+  full; other engine tabs placeholder.
+- **M09** — `/admin/relay/health` matrix page + Apply-fix flows. Needs
+  at least `bind-field` working end-to-end.
+- **M12** — Orchestrator engine-scoped policy. Highest-risk milestone.
+  Must emit per-turn telemetry (`activeEngine`, `catalogSize`,
+  `selectionReason`). Degraded mode for red Health. Legacy-shape
+  partners (no `partner.engines`) must continue working via M03
+  derivation shim.
+- **M13** — Preview Copilot: 40 scripts (8 per sub-vertical × 5).
+  Sandbox isolation is critical.
+- **M14** — Onboarding 3-question recipe picker. Wire into existing
+  onboarding flow; starter blocks per sub-vertical.
+- **M15** — Seed templates (≥5 booking modules) + generic CSV import.
+- **Phase C** — C1 unit (add), C2 integration, C3 smoke (3 partners),
+  C4 regression (3 non-booking partners), C5 performance baseline.
+- **`BOOKING_PILOT_SUMMARY.md`** — only if Phase C all-green.
+
+**Open questions tracked in `BOOKING_PILOT_QUESTIONS.md`:**
+
+- Q1 resolved (test runner installed at M06)
+- Q2 resolved (shared-block drift reconciled at M04)
+- Q3 partial (carry-forward: extended-mapping block-tag gap for home
+  services / automotive service / restaurant reservations; preview
+  sub-vertical id drift for travel/automotive/food-beverage)
+- Q4 logged (pre-existing 548 tsc errors in unrelated files;
+  zero-delta protocol adopted)
+- Q5 open (full save-hook wiring — mechanical, non-blocking)
+
+**Branch state:** clean. Every commit is a working build. The PR #134
+is draft and ready to receive the remaining milestones.
+
+**Branch strategy recommendation for next session:** continue on
+`claude/booking-pilot-m04-m15` — it's the session's running PR. Do
+NOT merge to main until Phase C passes (per playbook: "resume-safe
+commits... never push a mid-milestone partial state to main"). The
+merge to main happens once Phase 1 is done AND the summary doc is
+written.
+
+Session halt at clean boundary. No mid-milestone work stranded.
