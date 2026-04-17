@@ -554,3 +554,75 @@ Order created → handleOrderCreated injects an ecom_order_confirmation
 - **Per-bubble stage overlay.** Messages carry `stageId` but no per-bubble debug marker yet.
 - **Flow-aware validation on the client.** We rely on the server to enforce `allowedBlocksFromFlow`; the client trusts whatever `blockId` comes back.
 - **Admin preview component callbacks.** Design-only admin previews stay static — they're for design review, not interaction.
+
+---
+
+# Relay Orchestrator — unified intelligence stack
+
+Folds all five intelligence signals (flow, partner block prefs, datamap readiness, commerce session, RAG) into a single composable layer under `src/lib/relay/orchestrator/`. Gemini becomes a copywriter + classifier inside a tight policy box — the orchestrator owns the allow-list.
+
+## 12 new files + 2 modifications
+
+### Orchestrator core (`src/lib/relay/orchestrator/`)
+
+| File | Role |
+|---|---|
+| `types.ts` | Shared shapes: `OrchestratorContext` / `SignalBundle` / `PolicyDecision` / `OrchestratorResponse`. No I/O. |
+| `signals/partner.ts` | Partner doc + top-10 modules + items — reused by `buildBlockData`. |
+| `signals/flow.ts` | Loads saved flow state or creates one; resolves `FlowDefinition` (partner override → function template); runs `detectIntent` + `runFlowEngine`; returns stage + `suggestedBlockIds`. |
+| `signals/blocks.ts` | Loads partner block prefs from `partners/{pid}/relayConfig/*`. Empty subcollection ⇒ permissive downstream. |
+| `signals/datamap.ts` | Reads `partners/{pid}/contentStudio/state` and buckets `blockStates` into `ready` vs `dark`. |
+| `signals/session.ts` | Live cart / booking holds from `relaySessions/{pid}_{cid}` + recent orders via `getOrdersForConversationAction`. |
+| `signals/rag.ts` | Top-k Firestore retrieval via `firestoreRetriever(RAGINDEX_COLLECTION_NAME)` with `where: { partnerId }`. Only fires on factual intents (`inquiry` / `complaint` / `returning` / `location` / `contact`) or hard cue keywords; transactional intents skip to save tokens. |
+| `signals/index.ts` | Barrel. |
+| `policy.ts` | Pure — `resolveAllowedBlocks` (flow ∩ partner-visible ∩ ¬dark), `applyCommerceBias` (cart / booking / order boosts), `decidePath` (`rag_only` / `block_only` / `block_with_rag` / `fallback`), `buildPolicyDecision`. |
+| `prompt.ts` | Assembles system prompt from persona + flow stage + session state + RAG chunks + filtered block catalog (via existing `buildBlockCatalogPrompt`) + response contract. |
+| `index.ts` | `orchestrate(ctx)` entry point. Partner signal first → four signals in parallel → RAG (needs intent from flow) → policy → prompt → Gemini → validate → blockData. |
+
+### Chat route + UI
+
+| File | Change |
+|---|---|
+| `src/app/api/relay/chat/route.ts` | REWRITE as ~130-line HTTP adapter. Resolves `partnerId` from the widget, calls `orchestrate()`, persists the turn + updated flow state non-blocking, returns the legacy response shape plus an additive `signals` field. |
+| `src/components/partner/relay/test-chat/TestChatSignalsPanel.tsx` (NEW) | Debug panel below the phone frame showing flow + RAG + session + allowed/rejected blocks + composition path. Links back to `/admin/relay/flows`, `/partner/relay/blocks`, `/partner/relay/datamap`. |
+| `src/app/partner/(protected)/relay/page.tsx` | Tracks `signals` on every response; passes through to `<TestChatSignalsPanel>`; clears on Clear. |
+
+## Runtime loop
+
+```
+POST /api/relay/chat
+  ↓ loadPartnerSignal (sequential — needed for functionId)
+  ↓ Promise.all(loadFlowSignal, loadBlocksSignal, loadDatamapSignal, loadSessionSignal)
+  ↓ loadRagSignal (needs intent from flow)
+  ↓ buildPolicyDecision
+    • allowed = flow.suggested ∩ partner-visible ∩ ¬datamap.dark
+    • boost cart/checkout if cart has items, tracker if orders, booking-confirm if hold
+    • decide compositionPath
+  ↓ buildSystemPrompt
+    • persona · stage · session state · RAG · filtered catalog · contract
+  ↓ Gemini (classifier + copywriter)
+  ↓ validate blockId ∈ allowed, build blockData
+  ↓ { blockId, blockData, text, suggestions, flowMeta, signals, updatedFlowState }
+```
+
+## Spec-vs-reality adjustments
+
+- **Paths**: partner block prefs live at `partners/{pid}/relayConfig/*` (used by `relay-block-actions.ts`), not `partners/{pid}/partnerModules/...` or a nested `blocks/entries`. Datamap state is `partners/{pid}/contentStudio/state` (not `relayConfig/contentStudioState`).
+- **RAG retriever**: `firestoreRetriever(RAGINDEX_COLLECTION_NAME)` is a function returning a retriever, options use `where` (not `filter`).
+- **`IntentSignal` union** is 12 literals: `browsing` / `comparing` / `pricing` / `booking` / `inquiry` / `complaint` / `returning` / `urgent` / `location` / `contact` / `promo` / `schedule`. The spec used `support` / `objection` / `purchase_ready` which don't exist — remapped to the real enum.
+- **`detectIntent`** returns an `IntentSignal` directly (string), not an object with `.type`.
+- **`buildBlockCatalogPrompt`** takes `ServerBlockData[]`, not string ids — the prompt resolves the full entries before calling it.
+- **Session booking hold** check: `session.booking.slots[]` with `status: 'tentative' | 'confirmed'`, not `session.booking.reservedSlot` as the spec assumed.
+
+## Verification
+
+- `npm run typecheck`: 400 errors — identical to the pre-change baseline. Zero new errors across 12 new files + 2 modifications.
+- Largest file: `orchestrator/index.ts` at ~200 lines; every signal loader is 40–95 lines.
+
+## Still out of scope (follow-ups)
+
+- **Streaming responses** — single shot today; Gemini streaming + signal-progress stream to UI is a follow-up.
+- **RAG chunk dedup** — adjacent chunks from the same doc both land in the prompt.
+- **Per-turn analytics writes** — signals are visible in Test Chat but not persisted to `partners/{pid}/relayAnalytics`.
+- **Partner-facing "why did you pick this block?"** — the debug panel exists for the partner surface; customer-facing chat gets only the block + text.
+- **Live widget signals UI** — the public `/r/[partnerId]` page uses the same endpoint so the orchestrator benefits apply, but the debug overlay is Test-Chat-only.

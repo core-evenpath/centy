@@ -16,6 +16,9 @@ import TestChatPanel from '@/components/partner/relay/test-chat/TestChatPanel';
 import TestChatFlowPanel, {
     type TestChatFlowMeta,
 } from '@/components/partner/relay/test-chat/TestChatFlowPanel';
+import TestChatSignalsPanel, {
+    type TestChatSignalsDebug,
+} from '@/components/partner/relay/test-chat/TestChatSignalsPanel';
 import CheckoutFlow from '@/components/relay/checkout/CheckoutFlow';
 import { useRelaySession } from '@/hooks/useRelaySession';
 import { useRelayCheckout } from '@/hooks/useRelayCheckout';
@@ -131,6 +134,7 @@ export default function PartnerRelayPage() {
     const [chatSending, setChatSending] = useState(false);
     const [conversationId] = useState(() => `test_${Date.now()}`);
     const [flowMeta, setFlowMeta] = useState<TestChatFlowMeta | null>(null);
+    const [signals, setSignals] = useState<TestChatSignalsDebug | null>(null);
     const [seeded, setSeeded] = useState(false);
     const [checkoutOpen, setCheckoutOpen] = useState(false);
 
@@ -399,6 +403,10 @@ export default function PartnerRelayPage() {
                         interactionCount: data.flowMeta.interactionCount,
                     });
                 }
+
+                if (data.signals) {
+                    setSignals(data.signals as TestChatSignalsDebug);
+                }
             } else {
                 setChatMessages(prev => [...prev, {
                     role: 'assistant',
@@ -494,6 +502,7 @@ export default function PartnerRelayPage() {
                         onClear={() => {
                             setChatMessages([]);
                             setFlowMeta(null);
+                            setSignals(null);
                             setSeeded(false);
                         }}
                         callbacks={sessionCallbacks}
@@ -501,6 +510,11 @@ export default function PartnerRelayPage() {
                     />
                     <div style={{ maxWidth: 420, margin: '0 auto' }}>
                         <TestChatFlowPanel flowMeta={flowMeta} theme={relayTheme} />
+                        <TestChatSignalsPanel
+                            signals={signals}
+                            flowStage={flowMeta?.stageLabel}
+                            theme={relayTheme}
+                        />
                     </div>
                 </TabsContent>
 
