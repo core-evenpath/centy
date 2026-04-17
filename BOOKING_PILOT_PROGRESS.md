@@ -278,3 +278,38 @@ predates the scope decision to build Phase 1 first; see session history).
   not an object type — the extension belongs on `Intent` (the object
   type). Extended `Intent` instead — semantic equivalent, matches
   actual repo types.
+
+---
+
+## M11 — Session: sticky `activeEngine` selection + persist
+- Status: done
+- Commit: (this commit)
+- Files changed: 2 added + 1 modified —
+  `src/lib/relay/engine-selection.ts` (pure selectActiveEngine),
+  `src/lib/relay/__tests__/engine-selection.test.ts` (14 tests);
+  `src/lib/relay/session-store.ts` (added `setActiveEngine` helper).
+- LOC: +65 src / +180 tests
+- Tests: **82/82 pass** (68 prior + 14 new):
+  - All 4 `reason` outcomes: sticky, switch-strong-hint,
+    fallback-first, fallback-none
+  - Weak hints never switch (two cases)
+  - Edge: strong hint not in partnerEngines → sticky
+  - Edge: strong hint matches current → sticky (no redundant switch)
+  - Edge: current engine removed from partner → fallback-first
+  - Edge: undefined current → treated as null
+  - Service overlay is a normal switch target (no special case)
+  - Purity: idempotence + no mutation of input partnerEngines
+  - **Multi-turn integration: 5-turn sequence with mixed hints
+    produces the expected engine arc (booking→booking→booking→
+    service→service with reasons fallback-first/sticky/sticky/
+    switch-strong-hint/sticky)**
+- Purity: `selectActiveEngine` uses no I/O, no Date, no mutation.
+  Verified by grep (no `await`/`Date.now()` in engine-selection.ts).
+- Session-store integration: `setActiveEngine(partnerId, conversationId,
+  engine)` does a merge-set of the single `activeEngine` field plus
+  `updatedAt`. M12 orchestrator will call this after each turn's
+  selection result.
+- tsc delta: 548 → 548 (zero new errors).
+- Notes: The multi-turn test is the pattern tests for future engines
+  should reuse. Sticky + weak-never-switch + strong-forces-switch-only-
+  if-in-partner produces the conservative switching behavior specified.
