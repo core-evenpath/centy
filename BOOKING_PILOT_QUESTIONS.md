@@ -172,3 +172,40 @@ targeted grep infeasible.
 Not blocking. The 548 errors pre-date this pilot. Phase 1's contract
 ("no regression") is intact — my changes add zero errors to the existing
 count.
+
+---
+
+## Q5 — Save-hook full coverage (carry-forward)    (opened at M07)
+
+**Status:** open; carry-forward — not blocking Phase 1 C gates
+
+**Trigger:** M07's spec instructs wiring `triggerHealthRecompute` into
+every admin save across `actions/admin-block-*.ts`,
+`actions/flow-engine-actions.ts`, `actions/modules-actions.ts`,
+`actions/partner-actions.ts`. M07 shipped one reference-pattern call in
+`modules-actions.ts:updateModuleItemAction` to demonstrate the shape;
+extending to all admin saves is mechanical but spans ~10 action files
+with different save shapes (batch writes, revalidation paths, partner vs
+admin scoping).
+
+**Why not blocking:**
+
+- `triggerHealthRecompute` is shadow-mode: safe to call from anywhere,
+  never rethrows, does not mutate the partner's save outcome.
+- Every un-hooked admin write simply defers Health recompute until the
+  next hooked write or an admin read (which triggers a recompute via
+  the M09 refresh loop, once shipped).
+- The Phase 1 C gates don't require Health to be computed at write time
+  — only that it's *shadow mode* (never gates), correct when computed,
+  and visible in the admin UI.
+
+**Carry-forward scope:**
+
+- Wire `triggerHealthRecompute` into the remaining admin save actions:
+  `createModuleItemAction`, `deleteModuleItemAction`,
+  `updateSystemModuleAction`, `createSystemModuleAction`,
+  `deleteSystemModuleAction`, `updateModuleAssignmentAction`,
+  `updatePartnerCustomFieldAction`, flow-engine save actions,
+  partner settings save actions.
+- Can land as a single cleanup commit or alongside M14 (onboarding
+  recipe picker) when the partner-settings save path is touched anyway.

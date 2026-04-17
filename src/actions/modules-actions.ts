@@ -29,6 +29,7 @@ import {
 } from '@/lib/modules/utils';
 import { DEFAULT_MODULE_SETTINGS } from '@/lib/modules/constants';
 import { syncModulesToCoreHub } from './core-hub-actions';
+import { triggerHealthRecompute } from './relay-health-actions';
 
 /**
  * Trigger Core Hub sync in background after module changes
@@ -971,6 +972,9 @@ export async function updateModuleItemAction(
 
         revalidatePath(`/partner/relay/modules`);
         triggerCoreHubSync(partnerId, `item updated in ${moduleId}`);
+        // M07: shadow-mode Health recompute. Non-throwing — any failure
+        // is logged and swallowed inside the helper.
+        await triggerHealthRecompute(partnerId);
         return { success: true };
     } catch (error) {
         console.error('Error updating module item:', error);

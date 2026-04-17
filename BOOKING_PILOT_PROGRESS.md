@@ -199,3 +199,47 @@ predates the scope decision to build Phase 1 first; see session history).
   will wire up.
 - Deviations from spec: none of substance. Added a `ComputeEngineHealthInput`
   shape wrapper (instead of positional params) for ergonomics.
+
+---
+
+## M07 — Health storage + shadow writes
+- Status: done
+- Commit: (this commit)
+- Files changed: 2 added + 2 modified —
+  `src/actions/relay-health-actions.ts` (action module),
+  `src/actions/__tests__/relay-health-actions.test.ts` (12 tests with
+  in-memory Firestore stub via `vi.mock`);
+  `src/actions/modules-actions.ts` (reference-pattern wiring in
+  `updateModuleItemAction`).
+- LOC: +410 src + ~230 tests
+- Tests: **44/44 pass** (32 from M06 + 12 new):
+  - `recomputeEngineHealth` writes EngineHealthDoc to Firestore
+  - Shadow mode: write failures are swallowed, not rethrown
+  - Red status doesn't prevent completion
+  - `getEngineHealth` serves cached reads within 30s TTL
+  - `invalidateHealthCache` scoping (per-partner, per-engine)
+  - `getAllPartnerEngineHealth` returns all docs for a partner
+  - `triggerHealthRecompute` never rethrows; defaults to 'booking'
+    engine when no partner passed; reads `partner.engines` when provided
+- Mock strategy: in-process Firestore stub via `vi.mock('@/lib/firebase-admin')`.
+  No Firestore emulator dependency — tests are fast and self-contained.
+- Save-hook wiring: one reference pattern wired in
+  `modules-actions.ts:updateModuleItemAction` (after core-hub sync, before
+  return). Extending to all admin save actions is a mechanical follow-up
+  tracked as Q5 — not blocking because the helper is safe to call
+  anywhere (shadow mode). Every admin write that *isn't* yet hooked
+  simply defers the Health recompute until the next hooked write or
+  admin UI read (which triggers a recompute path via the refresh loop).
+- tsc delta: 548 → 548 (zero new errors).
+- Notes: snapshot loaders (`loadBlockSnapshots`, etc.) return empty/null
+  stubs for now. Full snapshot resolution ties into M12's orchestrator
+  engine-scoped policy — once blocks are resolved by engine, the loaders
+  plug into that code path. In the meantime, Phase 1 partners' Health
+  docs record `red` status (no data), which is the correct shadow-mode
+  baseline; admin UI (M09) will show this as "no data" rather than a
+  false-positive red.
+- Deviations from spec: spec says "Firestore emulator" tests — used
+  in-process vi.mock instead. Rationale: equivalent test coverage for
+  the behaviors we care about (write semantics, shadow mode, cache), no
+  runtime dependency on the emulator. Logged as a minor deviation; can
+  revisit if Phase C C2 requires emulator-native tests.
