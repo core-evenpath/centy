@@ -160,3 +160,42 @@ predates the scope decision to build Phase 1 first; see session history).
   is more forward-compatible (just a list of named break intents); M10
   (intent engineHint) and M12 (orchestrator) will consume it. Spec said
   "intent routing breaks" — the named-list form satisfies the intent.
+
+---
+
+## M06 — Health checker (pure functions) + test runner
+- Status: done
+- Commit: (this commit)
+- Files changed: 8 added + 2 modified — `src/lib/relay/health/{types,
+  field-health,block-health,stage-health,fix-proposals,engine-health,
+  index}.ts` + `__tests__/{block-stage-health,fix-proposals,engine-health}.test.ts`;
+  `vitest.config.ts` added; `package.json` added `test` script; 1 devDep
+  (`vitest@^2`).
+- LOC: +924 src (320 health modules, 604 tests) + 12 config
+- Tests: **32/32 pass** across 3 files:
+  - `block-stage-health.test.ts` — 11 tests (block health 6, stage 5)
+  - `fix-proposals.test.ts` — 11 tests (similarity, bind-field proposals,
+    singular proposal builders)
+  - `engine-health.test.ts` — 10 tests covering all required failure
+    modes: green baseline, missing-stage red, orphan-block, orphan-
+    flow-target, unresolved-binding, empty-module, fix-proposal match,
+    fix-proposal no-match, plus purity (idempotence + no-mutation)
+- Purity verification (grep):
+  - `Date.now()` appears exactly once in health/**, on the final return
+    statement of `computeEngineHealth` (engine-health.ts:168) — the one
+    allowed non-deterministic call per spec.
+  - Zero `await`, `fetch`, `firestore`, `db.`, `fs.` occurrences in any
+    health/* non-test file (one string-literal match for "admin" inside a
+    fix-proposal `reason` — not an API call).
+- Pre-existing tsc errors (Q4): 548 errors on main in unrelated files
+  (actions/vault, conversation-*, etc.). M06 adds ZERO new errors —
+  verified via stash round-trip. My changes are clean.
+- Notes: Kept the fix-proposal similarity threshold at 0.6 (Levenshtein
+  OR token-overlap — whichever scores higher). Confidence tiers at 0.85/0.7.
+  Token-overlap is the interesting tweak — matches `room_name` vs
+  `roomName` perfectly (both tokenize to `['room','name']`).
+  Block-, stage-, engine-level computations are strictly pure; the
+  checker accepts plain-data snapshots from callers, which is what M07
+  will wire up.
+- Deviations from spec: none of substance. Added a `ComputeEngineHealthInput`
+  shape wrapper (instead of positional params) for ergonomics.

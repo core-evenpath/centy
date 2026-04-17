@@ -7,7 +7,7 @@ Format: one block per entry. Status transitions to `resolved` when closed.
 
 ## Q1 — No unit-test runner installed    (2026-04-17)
 
-**Status:** noted; proceeding with type-level verification only
+**Status:** resolved at M06 — Vitest installed
 
 **Trigger:** M01 acceptance criteria say "Guards have unit coverage
 (smoke-level is fine)". `package.json` has no `vitest` / `jest` / `node:test`
@@ -21,6 +21,16 @@ If/when a runner is introduced in a later milestone (likely alongside
 M06 health-checker tests), add a quick smoke spec for the guards.
 
 Not blocking.
+
+**Resolution at M06:** Vitest 2.1.9 installed with a minimal
+`vitest.config.ts` (node environment, `@/` alias, include pattern
+`src/**/__tests__/**/*.test.ts`). `npm test` script added.
+Justification per operating principle #6: M06 requires testing six
+distinct health-failure modes with fixture builders that exceed what
+ad-hoc tsx probes can cleanly express; Vitest also becomes infrastructure
+for M11/M12/M14 tests. No Jest chosen because the repo has no existing
+Jest config — Vitest integrates with the Vite-based tooling already
+present via Next.js. M06 ships 32 tests across 3 files.
 
 ---
 
@@ -134,3 +144,31 @@ wider resolution in Phase 2
   functionIds (or add an explicit alias map). This is a separate
   cleanup milestone, not Phase 1 scope.
 - Revisit M05 template fit once those verticals have proper blocks.
+
+---
+
+## Q4 — Pre-existing tsc errors in merged codebase    (observed at M06)
+
+**Status:** noted; not blocking
+
+**Trigger:** session resume Section 1.3 expected `tsc --noEmit` clean with
+only the pre-existing `baseUrl` warning. Actual state of main (from the
+fast-forward during M04 state check): 548 tsc errors in areas **unrelated**
+to this pilot — `src/actions/vault-actions.ts` (~12), `conversation-*`
+files (~7), `ai-config-actions.ts`, `assistant-actions.ts`, etc. These
+are codebase-level drift from the 28 other commits that landed on main
+during this session, not caused by anything in the booking pilot.
+
+**Verification:** I ran `tsc --noEmit` with my M06 changes and without them
+(via `git stash` round-trip). Both produce exactly 548 errors; M06 adds
+zero. My M01–M06 files are clean. The `baseUrl` warning filter has been
+in place since M01.
+
+**Revised protocol for remaining milestones:** treat "tsc clean" as "tsc
+error count does not increase" rather than "zero errors". Verified via
+error-count delta when a milestone's changes are large enough to make a
+targeted grep infeasible.
+
+Not blocking. The 548 errors pre-date this pilot. Phase 1's contract
+("no regression") is intact — my changes add zero errors to the existing
+count.
