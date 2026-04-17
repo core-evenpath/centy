@@ -1,5 +1,13 @@
 import type React from 'react';
 
+export {
+  ENGINES,
+  BLOCK_TAGS,
+  isEngine,
+  isBlockTag,
+} from './engine-types';
+export type { Engine, BlockTag } from './engine-types';
+
 export type BlockFamily =
   | 'navigation'
   | 'catalog'
