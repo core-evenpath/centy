@@ -69,3 +69,68 @@ A1 in the analysis doc is now stale but not inaccurate at the level of
 what's-a-booking-block (the 31-item list supersedes it). Not updating A1
 retroactively — the analysis doc is a point-in-time artifact; M04's
 actual tagging is the source of truth going forward.
+
+---
+
+## Q3 — Block-tag coverage gap + preview-subvertical id drift    (partial at M05; carry forward)
+
+**Status:** partially addressed at M05 via mapping; carry forward for
+wider resolution in Phase 2
+
+**Trigger (M05):** two related drifts surfaced when wiring
+`BOOKING_FLOW_TEMPLATES`:
+
+1. **Block-tag coverage gap.** M04 tagged booking blocks in 7 verticals
+   (hospitality, healthcare, personal_wellness, travel_transport,
+   events_entertainment, food_beverage, automotive). But the M03 recipe
+   classifies ~15 additional functionIds as booking-primary whose source
+   verticals are NOT in M04's scope — e.g., home-services
+   (`plumbing_electrical`, `cleaning_housekeeping`, `pest_control`,
+   `appliance_repair`, `laundry_drycleaning`), notary_compliance,
+   full-service restaurants (`full_service_restaurant`, `bars_pubs`),
+   automotive service (`vehicle_maintenance`, `car_wash`,
+   `vehicle_rental`, `driving_education`), entertainment
+   (`live_entertainment`, `luxury_adventure`), and
+   `ev_infrastructure`. These have no booking-tagged blocks today.
+
+2. **Preview sub-vertical id drift.** The admin preview's
+   `_SUBVERTICALS` arrays use different ids than
+   `src/lib/business-taxonomy/industries.ts`. Examples:
+   - travel_transport: `ticketing_services` (preview) vs
+     `ticketing_booking` (taxonomy); `airport_chauffeur` (preview) vs
+     `airport_transfer` (taxonomy).
+   - automotive: `new_vehicle_sales` (preview) vs `vehicle_sales_new`
+     (taxonomy); `vehicle_service` (preview) vs `vehicle_maintenance`
+     (taxonomy).
+   - food_beverage: `beverage_cafe`, `bakery_desserts` in taxonomy vs
+     different variants in the preview.
+   - healthcare: mostly aligned but `general_practice` (preview) vs
+     `primary_care` (taxonomy).
+   This means `getAllowedBlocksForFunction(partner.functionId)` may
+   return only shared blocks (no vertical match) for partners with
+   taxonomy ids that don't match a preview sub-vertical id. This is
+   pre-existing and not introduced by M04/M05.
+
+**Resolution at M05:**
+
+- Extended `BOOKING_FLOW_TEMPLATES` to map all 49 booking-primary
+  functionIds (from the M03 recipe) to one of the 5 M05 templates by
+  closest-fit (wellness-appointment for service-scheduling verticals,
+  clinic-appointment for notary, ticketing for ev_infrastructure /
+  luxury_adventure / live_entertainment).
+- For partners whose vertical blocks are untagged (home services,
+  restaurant reservations, automotive service, etc.), the flow
+  template's stage-structure is still declared but the orchestrator
+  (M12) will find zero matching vertical blocks and fall back to
+  legacy behavior — graceful degradation.
+
+**Carry-forward to Phase 2:**
+
+- M04-equivalent pass for home_property, food_beverage (beyond
+  table_reservation), full automotive, business_professional,
+  public_nonprofit verticals — tag their booking blocks with
+  `engines: ['booking']`.
+- Reconcile preview sub-vertical ids to match business-taxonomy
+  functionIds (or add an explicit alias map). This is a separate
+  cleanup milestone, not Phase 1 scope.
+- Revisit M05 template fit once those verticals have proper blocks.

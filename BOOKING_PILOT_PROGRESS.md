@@ -121,3 +121,42 @@ predates the scope decision to build Phase 1 first; see session history).
   booking). The +2 booking are the A1 omissions noted above. Spec itself
   was informed by A1, so the extra tagging is strictly additive and not a
   deviation from spec intent.
+
+---
+
+## M05 — Booking flow templates
+- Status: done
+- Commit: (this commit)
+- Files changed: 7 added — `src/lib/relay/flow-templates/booking/{hotel,
+  clinic-appointment,wellness-appointment,ticketing,airport-transfer,
+  index}.ts`. 1 modified — `src/lib/types-flow-engine.ts` (added
+  optional `engine?: Engine` and `serviceIntentBreaks?: string[]` to
+  `SystemFlowTemplate`).
+- LOC: +520 (booking templates) / +10 (types-flow-engine)
+- Tests: no runner (Q1). Verified via tsx probe:
+  - 5 unique templates, all `engine: 'booking'`
+  - 51 functionId mappings in `BOOKING_FLOW_TEMPLATES`
+  - All 49 booking-primary functionIds (per M03 recipe) covered by
+    `getBookingFlowTemplate` (0 uncovered)
+  - Every `stage.blockTypes[*]` id exists in `_registry-data.ts`
+  - Every referenced block has `engines` containing 'booking' or
+    'shared'
+  - All 5 templates declare `serviceIntentBreaks:
+    ['track-reservation', 'cancel-booking', 'modify-booking']`
+  - All templates' present stages are in canonical order
+    (`greeting → discovery → showcase → comparison → conversion →
+    followup → handoff`)
+  - `tsc --noEmit` clean
+- Notes: The M05 spec listed 5 sub-verticals; shipped 5 templates as
+  specified. But the M03 recipe covers 49 booking-primary functionIds;
+  extended mapping (Q3) assigns the closest-fit template to each
+  remaining one (wellness-appointment for service-scheduling, clinic
+  for notary, ticketing for entertainment-like). For verticals whose
+  blocks aren't tagged (home services, automotive service, etc.), the
+  orchestrator (M12) will find no matching vertical blocks and fall
+  back to legacy behavior — graceful degradation. Logged Q3.
+- Deviations from spec: Added `serviceIntentBreaks?: string[]` to
+  `SystemFlowTemplate` instead of an `intentRouting` object. The field
+  is more forward-compatible (just a list of named break intents); M10
+  (intent engineHint) and M12 (orchestrator) will consume it. Spec said
+  "intent routing breaks" — the named-list form satisfies the intent.
