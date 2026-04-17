@@ -58,3 +58,17 @@ export async function loadOrCreateSession(
   await relaySessionRef(partnerId, conversationId).set(fresh);
   return fresh;
 }
+
+// M11: single-field update for the session's sticky active engine. Called
+// by the orchestrator when the M11 `selectActiveEngine` result changes.
+// `engine === null` explicitly un-sets the active engine (post-`fallback-none`).
+export async function setActiveEngine(
+  partnerId: string,
+  conversationId: string,
+  engine: RelaySession['activeEngine'],
+): Promise<void> {
+  await relaySessionRef(partnerId, conversationId).set(
+    { activeEngine: engine, updatedAt: new Date().toISOString() },
+    { merge: true },
+  );
+}

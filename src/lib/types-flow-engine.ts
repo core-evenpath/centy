@@ -121,6 +121,14 @@ export interface SystemFlowTemplate {
   transitions: FlowTransition[];
   settings: FlowSettings;
   description: string;
+  // M05: engine scoping for this template (optional; legacy templates
+  // without an engine are considered untagged and fall back to function
+  // resolution only).
+  engine?: import('./relay/engine-types').Engine;
+  // M05: named intents that should break OUT of this flow into the
+  // Service overlay (track/cancel/modify). Consumed by M10 intent engine
+  // + M12 orchestrator once Service is wired; data-only in Phase 1.
+  serviceIntentBreaks?: string[];
 }
 
 export interface SystemFlowTemplateRecord extends SystemFlowTemplate {

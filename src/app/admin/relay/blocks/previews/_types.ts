@@ -1,5 +1,6 @@
 import type { ComponentType } from 'react';
 import type { BlockPreviewProps } from './_preview-props';
+import type { BlockTag } from '@/lib/relay/engine-types';
 
 export interface VerticalBlockDef {
   id: string;
@@ -11,6 +12,11 @@ export interface VerticalBlockDef {
   intents: string[];
   module: string | null;
   status?: 'active' | 'new' | 'planned';
+  // Engine taggings (M04). Optional; blocks without this field are
+  // untagged and ignored by engine-scoped consumers (M12+). Valid values
+  // are individual engines ('booking', 'commerce', ...) or 'shared' for
+  // cross-engine blocks.
+  engines?: BlockTag[];
 }
 
 export interface SubVerticalDef {

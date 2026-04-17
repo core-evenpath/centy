@@ -91,3 +91,297 @@ predates the scope decision to build Phase 1 first; see session history).
   `orchestrator/signals/partner.ts:31-35`.
 - Phase 1 contract: no consumer wired yet (M11/M12 will call
   `getPartnerEngines` at runtime). Zero partner-visible change.
+
+---
+
+## M04 — Tag Booking + shared blocks with `engines[]`
+- Status: done
+- Commit: (this commit)
+- Files changed: 10 — `scripts/extract-block-registry-data.js` (generator
+  template + shared-block reconciliation), `_types.ts` (added `engines?:
+  BlockTag[]` to `VerticalBlockDef`), 7 vertical `index.tsx` files
+  (automotive, events_entertainment, food_beverage, healthcare, hospitality,
+  personal_wellness, travel_transport), regenerated `_registry-data.ts`.
+- Tests: no runner (Q1). Verified via ad-hoc tsx probe:
+  - 6 shared blocks tagged `['shared']`
+  - 31 booking blocks tagged `['booking']`
+  - 0 blocks tagged for non-booking, non-shared engines
+  - Every booking-tagged block has valid `stage` and non-empty `desc`
+  - `getAllowedBlocksForFunction('hotels_resorts')` returns 18 blocks, all
+    with engine tags (13 booking + 5 shared)
+  - `tsc --noEmit` clean
+- Notes: Hit two drifts on session resume (see Q2). Fixed the generator's
+  shared-block-id divergence inline (reconciled toward unprefixed runtime-
+  authoritative ids). A1 analysis doc is stale on specifics (wrong ids,
+  missed `venue_space` + `camping_unit`); not updating retroactively —
+  M04's actual tagging supersedes A1.
+- Deviations from spec: M04 spec said "do not hand-edit `_registry-data.ts`".
+  Done — all edits were to sources + generator, with clean regeneration.
+  M04 spec listed 35 tagging targets (A1); shipped 37 (6 shared + 31
+  booking). The +2 booking are the A1 omissions noted above. Spec itself
+  was informed by A1, so the extra tagging is strictly additive and not a
+  deviation from spec intent.
+
+---
+
+## M05 — Booking flow templates
+- Status: done
+- Commit: (this commit)
+- Files changed: 7 added — `src/lib/relay/flow-templates/booking/{hotel,
+  clinic-appointment,wellness-appointment,ticketing,airport-transfer,
+  index}.ts`. 1 modified — `src/lib/types-flow-engine.ts` (added
+  optional `engine?: Engine` and `serviceIntentBreaks?: string[]` to
+  `SystemFlowTemplate`).
+- LOC: +520 (booking templates) / +10 (types-flow-engine)
+- Tests: no runner (Q1). Verified via tsx probe:
+  - 5 unique templates, all `engine: 'booking'`
+  - 51 functionId mappings in `BOOKING_FLOW_TEMPLATES`
+  - All 49 booking-primary functionIds (per M03 recipe) covered by
+    `getBookingFlowTemplate` (0 uncovered)
+  - Every `stage.blockTypes[*]` id exists in `_registry-data.ts`
+  - Every referenced block has `engines` containing 'booking' or
+    'shared'
+  - All 5 templates declare `serviceIntentBreaks:
+    ['track-reservation', 'cancel-booking', 'modify-booking']`
+  - All templates' present stages are in canonical order
+    (`greeting → discovery → showcase → comparison → conversion →
+    followup → handoff`)
+  - `tsc --noEmit` clean
+- Notes: The M05 spec listed 5 sub-verticals; shipped 5 templates as
+  specified. But the M03 recipe covers 49 booking-primary functionIds;
+  extended mapping (Q3) assigns the closest-fit template to each
+  remaining one (wellness-appointment for service-scheduling, clinic
+  for notary, ticketing for entertainment-like). For verticals whose
+  blocks aren't tagged (home services, automotive service, etc.), the
+  orchestrator (M12) will find no matching vertical blocks and fall
+  back to legacy behavior — graceful degradation. Logged Q3.
+- Deviations from spec: Added `serviceIntentBreaks?: string[]` to
+  `SystemFlowTemplate` instead of an `intentRouting` object. The field
+  is more forward-compatible (just a list of named break intents); M10
+  (intent engineHint) and M12 (orchestrator) will consume it. Spec said
+  "intent routing breaks" — the named-list form satisfies the intent.
+
+---
+
+## M06 — Health checker (pure functions) + test runner
+- Status: done
+- Commit: (this commit)
+- Files changed: 8 added + 2 modified — `src/lib/relay/health/{types,
+  field-health,block-health,stage-health,fix-proposals,engine-health,
+  index}.ts` + `__tests__/{block-stage-health,fix-proposals,engine-health}.test.ts`;
+  `vitest.config.ts` added; `package.json` added `test` script; 1 devDep
+  (`vitest@^2`).
+- LOC: +924 src (320 health modules, 604 tests) + 12 config
+- Tests: **32/32 pass** across 3 files:
+  - `block-stage-health.test.ts` — 11 tests (block health 6, stage 5)
+  - `fix-proposals.test.ts` — 11 tests (similarity, bind-field proposals,
+    singular proposal builders)
+  - `engine-health.test.ts` — 10 tests covering all required failure
+    modes: green baseline, missing-stage red, orphan-block, orphan-
+    flow-target, unresolved-binding, empty-module, fix-proposal match,
+    fix-proposal no-match, plus purity (idempotence + no-mutation)
+- Purity verification (grep):
+  - `Date.now()` appears exactly once in health/**, on the final return
+    statement of `computeEngineHealth` (engine-health.ts:168) — the one
+    allowed non-deterministic call per spec.
+  - Zero `await`, `fetch`, `firestore`, `db.`, `fs.` occurrences in any
+    health/* non-test file (one string-literal match for "admin" inside a
+    fix-proposal `reason` — not an API call).
+- Pre-existing tsc errors (Q4): 548 errors on main in unrelated files
+  (actions/vault, conversation-*, etc.). M06 adds ZERO new errors —
+  verified via stash round-trip. My changes are clean.
+- Notes: Kept the fix-proposal similarity threshold at 0.6 (Levenshtein
+  OR token-overlap — whichever scores higher). Confidence tiers at 0.85/0.7.
+  Token-overlap is the interesting tweak — matches `room_name` vs
+  `roomName` perfectly (both tokenize to `['room','name']`).
+  Block-, stage-, engine-level computations are strictly pure; the
+  checker accepts plain-data snapshots from callers, which is what M07
+  will wire up.
+- Deviations from spec: none of substance. Added a `ComputeEngineHealthInput`
+  shape wrapper (instead of positional params) for ergonomics.
+
+---
+
+## M07 — Health storage + shadow writes
+- Status: done
+- Commit: (this commit)
+- Files changed: 2 added + 2 modified —
+  `src/actions/relay-health-actions.ts` (action module),
+  `src/actions/__tests__/relay-health-actions.test.ts` (12 tests with
+  in-memory Firestore stub via `vi.mock`);
+  `src/actions/modules-actions.ts` (reference-pattern wiring in
+  `updateModuleItemAction`).
+- LOC: +410 src + ~230 tests
+- Tests: **44/44 pass** (32 from M06 + 12 new):
+  - `recomputeEngineHealth` writes EngineHealthDoc to Firestore
+  - Shadow mode: write failures are swallowed, not rethrown
+  - Red status doesn't prevent completion
+  - `getEngineHealth` serves cached reads within 30s TTL
+  - `invalidateHealthCache` scoping (per-partner, per-engine)
+  - `getAllPartnerEngineHealth` returns all docs for a partner
+  - `triggerHealthRecompute` never rethrows; defaults to 'booking'
+    engine when no partner passed; reads `partner.engines` when provided
+- Mock strategy: in-process Firestore stub via `vi.mock('@/lib/firebase-admin')`.
+  No Firestore emulator dependency — tests are fast and self-contained.
+- Save-hook wiring: one reference pattern wired in
+  `modules-actions.ts:updateModuleItemAction` (after core-hub sync, before
+  return). Extending to all admin save actions is a mechanical follow-up
+  tracked as Q5 — not blocking because the helper is safe to call
+  anywhere (shadow mode). Every admin write that *isn't* yet hooked
+  simply defers the Health recompute until the next hooked write or
+  admin UI read (which triggers a recompute path via the refresh loop).
+- tsc delta: 548 → 548 (zero new errors).
+- Notes: snapshot loaders (`loadBlockSnapshots`, etc.) return empty/null
+  stubs for now. Full snapshot resolution ties into M12's orchestrator
+  engine-scoped policy — once blocks are resolved by engine, the loaders
+  plug into that code path. In the meantime, Phase 1 partners' Health
+  docs record `red` status (no data), which is the correct shadow-mode
+  baseline; admin UI (M09) will show this as "no data" rather than a
+  false-positive red.
+- Deviations from spec: spec says "Firestore emulator" tests — used
+  in-process vi.mock instead. Rationale: equivalent test coverage for
+  the behaviors we care about (write semantics, shadow mode, cache), no
+  runtime dependency on the emulator. Logged as a minor deviation; can
+  revisit if Phase C C2 requires emulator-native tests.
+
+---
+
+## M10 — Intent engine: `engineHint` + keyword lexicon
+- Status: done
+- Commit: (this commit)
+- Files changed: 2 added + 1 modified —
+  `src/lib/relay/engine-keywords.ts` (ENGINE_KEYWORDS + classifyEngineHint),
+  `src/lib/relay/__tests__/engine-keywords.test.ts` (24 tests);
+  `src/lib/relay/intent-engine.ts` (attach engineHint + engineConfidence
+  to every returned Intent).
+- LOC: +120 src / +170 tests
+- Tests: **68/68 pass** (44 prior + 24 new):
+  - Lexicon coverage: all 6 engines have strong + weak lists
+  - Strong match per engine: booking, service, commerce, lead,
+    engagement, info
+  - Weak match: booking ("schedule"), commerce ("how much")
+  - Word-boundary discipline: "facebook" ≠ booking, "abooking" ≠
+    booking, case-insensitive matching, multi-word phrases match
+  - Ambiguity + tie-breaking: strong beats weak; multi-engine strong
+    broken by `ENGINES` tuple order (commerce < booking); `"buy a book"`
+    → commerce (not booking)
+  - Edge cases: empty, whitespace-only, non-keyword → null hint
+  - Determinism: same input → identical output
+- Integration: `classifyIntent` now calls `classifyEngineHint(lower)`
+  once and attaches the hint+confidence to every returned `Intent`
+  (all 3 return sites — pattern-matched, browse-query, general). Non-
+  keyword messages produce `engineHint: undefined, engineConfidence:
+  null` — existing intent output unchanged. Backward compatible.
+- tsc delta: 548 → 548 (zero new errors).
+- Deviations from spec: Spec said extend `IntentSignal` with
+  `engineHint?`. `IntentSignal` in this repo is a string union (enum),
+  not an object type — the extension belongs on `Intent` (the object
+  type). Extended `Intent` instead — semantic equivalent, matches
+  actual repo types.
+
+---
+
+## M11 — Session: sticky `activeEngine` selection + persist
+- Status: done
+- Commit: (this commit)
+- Files changed: 2 added + 1 modified —
+  `src/lib/relay/engine-selection.ts` (pure selectActiveEngine),
+  `src/lib/relay/__tests__/engine-selection.test.ts` (14 tests);
+  `src/lib/relay/session-store.ts` (added `setActiveEngine` helper).
+- LOC: +65 src / +180 tests
+- Tests: **82/82 pass** (68 prior + 14 new):
+  - All 4 `reason` outcomes: sticky, switch-strong-hint,
+    fallback-first, fallback-none
+  - Weak hints never switch (two cases)
+  - Edge: strong hint not in partnerEngines → sticky
+  - Edge: strong hint matches current → sticky (no redundant switch)
+  - Edge: current engine removed from partner → fallback-first
+  - Edge: undefined current → treated as null
+  - Service overlay is a normal switch target (no special case)
+  - Purity: idempotence + no mutation of input partnerEngines
+  - **Multi-turn integration: 5-turn sequence with mixed hints
+    produces the expected engine arc (booking→booking→booking→
+    service→service with reasons fallback-first/sticky/sticky/
+    switch-strong-hint/sticky)**
+- Purity: `selectActiveEngine` uses no I/O, no Date, no mutation.
+  Verified by grep (no `await`/`Date.now()` in engine-selection.ts).
+- Session-store integration: `setActiveEngine(partnerId, conversationId,
+  engine)` does a merge-set of the single `activeEngine` field plus
+  `updatedAt`. M12 orchestrator will call this after each turn's
+  selection result.
+- tsc delta: 548 → 548 (zero new errors).
+- Notes: The multi-turn test is the pattern tests for future engines
+  should reuse. Sticky + weak-never-switch + strong-forces-switch-only-
+  if-in-partner produces the conservative switching behavior specified.
+
+---
+
+## Session-end note — 2026-04-17 (resume session, M04 → M11 data/logic layer)
+
+**Last milestone completed:** M11 (session sticky activeEngine).
+
+**Next milestone to start:** M08 (Admin UI: engine tabs in
+`/admin/relay/blocks`). Alternatively, a future session may prefer to
+start at M12 (orchestrator engine-scoped policy) since M12 is the
+highest-risk remaining milestone and completing it unlocks all the
+runtime behavior the admin UI reflects.
+
+**What's committed + pushed on branch `claude/booking-pilot-m04-m15`
+(PR #134, draft):**
+
+| Commit | Milestone | Highlights |
+|---|---|---|
+| `7fa2ed18` | M04 | Tagged 31 booking + 6 shared blocks; generator drift reconciled (Q2) |
+| `e42f6d64` | M05 | 5 booking flow templates + 51 functionId mappings |
+| `9baf6067` | M06 | Pure Health checker (6 modules) + Vitest (Q1 resolved) + 32 tests |
+| `6f25b12c` | M07 | Shadow-mode Health writes + in-process Firestore stub + 12 tests |
+| `52c86738` | M10 | engineHint + 6-engine lexicon + 24 word-boundary tests |
+| `846f5190` | M11 | selectActiveEngine + sticky logic + 14 tests incl. multi-turn |
+
+**Test suite: 82/82 pass across 6 test files.** tsc error delta: 0
+across every commit (548 pre-existing errors are unrelated codebase
+drift; documented in Q4).
+
+**Remaining to ship Phase 1:**
+
+- **M08** — Admin engine tabs UI in `/admin/relay/blocks`. First
+  user-facing change. Screenshot before/after per spec. Booking tab
+  full; other engine tabs placeholder.
+- **M09** — `/admin/relay/health` matrix page + Apply-fix flows. Needs
+  at least `bind-field` working end-to-end.
+- **M12** — Orchestrator engine-scoped policy. Highest-risk milestone.
+  Must emit per-turn telemetry (`activeEngine`, `catalogSize`,
+  `selectionReason`). Degraded mode for red Health. Legacy-shape
+  partners (no `partner.engines`) must continue working via M03
+  derivation shim.
+- **M13** — Preview Copilot: 40 scripts (8 per sub-vertical × 5).
+  Sandbox isolation is critical.
+- **M14** — Onboarding 3-question recipe picker. Wire into existing
+  onboarding flow; starter blocks per sub-vertical.
+- **M15** — Seed templates (≥5 booking modules) + generic CSV import.
+- **Phase C** — C1 unit (add), C2 integration, C3 smoke (3 partners),
+  C4 regression (3 non-booking partners), C5 performance baseline.
+- **`BOOKING_PILOT_SUMMARY.md`** — only if Phase C all-green.
+
+**Open questions tracked in `BOOKING_PILOT_QUESTIONS.md`:**
+
+- Q1 resolved (test runner installed at M06)
+- Q2 resolved (shared-block drift reconciled at M04)
+- Q3 partial (carry-forward: extended-mapping block-tag gap for home
+  services / automotive service / restaurant reservations; preview
+  sub-vertical id drift for travel/automotive/food-beverage)
+- Q4 logged (pre-existing 548 tsc errors in unrelated files;
+  zero-delta protocol adopted)
+- Q5 open (full save-hook wiring — mechanical, non-blocking)
+
+**Branch state:** clean. Every commit is a working build. The PR #134
+is draft and ready to receive the remaining milestones.
+
+**Branch strategy recommendation for next session:** continue on
+`claude/booking-pilot-m04-m15` — it's the session's running PR. Do
+NOT merge to main until Phase C passes (per playbook: "resume-safe
+commits... never push a mid-milestone partial state to main"). The
+merge to main happens once Phase 1 is done AND the summary doc is
+written.
+
+Session halt at clean boundary. No mid-milestone work stranded.
