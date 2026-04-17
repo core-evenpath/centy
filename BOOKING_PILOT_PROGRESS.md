@@ -243,3 +243,38 @@ predates the scope decision to build Phase 1 first; see session history).
   the behaviors we care about (write semantics, shadow mode, cache), no
   runtime dependency on the emulator. Logged as a minor deviation; can
   revisit if Phase C C2 requires emulator-native tests.
+
+---
+
+## M10 — Intent engine: `engineHint` + keyword lexicon
+- Status: done
+- Commit: (this commit)
+- Files changed: 2 added + 1 modified —
+  `src/lib/relay/engine-keywords.ts` (ENGINE_KEYWORDS + classifyEngineHint),
+  `src/lib/relay/__tests__/engine-keywords.test.ts` (24 tests);
+  `src/lib/relay/intent-engine.ts` (attach engineHint + engineConfidence
+  to every returned Intent).
+- LOC: +120 src / +170 tests
+- Tests: **68/68 pass** (44 prior + 24 new):
+  - Lexicon coverage: all 6 engines have strong + weak lists
+  - Strong match per engine: booking, service, commerce, lead,
+    engagement, info
+  - Weak match: booking ("schedule"), commerce ("how much")
+  - Word-boundary discipline: "facebook" ≠ booking, "abooking" ≠
+    booking, case-insensitive matching, multi-word phrases match
+  - Ambiguity + tie-breaking: strong beats weak; multi-engine strong
+    broken by `ENGINES` tuple order (commerce < booking); `"buy a book"`
+    → commerce (not booking)
+  - Edge cases: empty, whitespace-only, non-keyword → null hint
+  - Determinism: same input → identical output
+- Integration: `classifyIntent` now calls `classifyEngineHint(lower)`
+  once and attaches the hint+confidence to every returned `Intent`
+  (all 3 return sites — pattern-matched, browse-query, general). Non-
+  keyword messages produce `engineHint: undefined, engineConfidence:
+  null` — existing intent output unchanged. Backward compatible.
+- tsc delta: 548 → 548 (zero new errors).
+- Deviations from spec: Spec said extend `IntentSignal` with
+  `engineHint?`. `IntentSignal` in this repo is a string union (enum),
+  not an object type — the extension belongs on `Intent` (the object
+  type). Extended `Intent` instead — semantic equivalent, matches
+  actual repo types.

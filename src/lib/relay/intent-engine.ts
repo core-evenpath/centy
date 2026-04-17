@@ -2,6 +2,8 @@ import type { RelaySessionCache } from './session-cache';
 import { parseQuery } from './query-parser';
 import type { ParsedFilters } from './query-parser';
 import { extractOrderId } from './order-id-parser';
+import type { Engine } from './engine-types';
+import { classifyEngineHint, type EngineConfidence } from './engine-keywords';
 
 export type IntentType =
   | 'greeting'
@@ -34,6 +36,10 @@ export interface Intent {
   orderId?: string;
   topic?: string;
   rawMessage: string;
+  // M10: engine hint derived from word-boundary keyword match (pure).
+  // Consumed by M11 session selectActiveEngine and M12 orchestrator.
+  engineHint?: Engine;
+  engineConfidence?: EngineConfidence;
 }
 
 export interface IntentContext {
@@ -209,6 +215,10 @@ export function classifyIntent(
     return { type: 'greeting', confidence: 0.5, rawMessage: message };
   }
 
+  // M10: pure word-boundary hint classification, attached to every Intent
+  // below. Never changes IntentType — purely additive signal.
+  const engineHint = classifyEngineHint(lower);
+
   const ctx: IntentContext = {
     messageHistory: context?.messageHistory || [],
     hasProducts: context?.hasProducts ?? cache.getItemCount() > 0,
@@ -248,6 +258,8 @@ export function classifyIntent(
       confidence: pattern.confidence,
       filters,
       rawMessage: message,
+      engineHint: engineHint.engineHint,
+      engineConfidence: engineHint.engineConfidence,
     };
 
     if (pattern.type === 'compare') {
@@ -277,6 +289,8 @@ export function classifyIntent(
       filters,
       productRef: filters.productRef || undefined,
       rawMessage: message,
+      engineHint: engineHint.engineHint,
+      engineConfidence: engineHint.engineConfidence,
     };
   }
 
@@ -285,5 +299,7 @@ export function classifyIntent(
     confidence: 0.5,
     filters,
     rawMessage: message,
+    engineHint: engineHint.engineHint,
+    engineConfidence: engineHint.engineConfidence,
   };
 }
