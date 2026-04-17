@@ -807,6 +807,19 @@ service cloud.firestore {
     }
 
     // ============================================================================
+    // RELAY ENGINE HEALTH (M02/M07 — shadow-mode Health writes)
+    // ============================================================================
+    //
+    // Document id format: `{partnerId}_{engine}`. Written exclusively by the
+    // server-side Health checker via the Admin SDK (which bypasses rules).
+    // No client reads or writes: operators view Health through /admin/relay/health,
+    // which fetches via a server action.
+
+    match /relayEngineHealth/{docId} {
+      allow read, write: if false;
+    }
+
+    // ============================================================================
     // SECURITY: EXPLICIT DENY FOR UNDEFINED COLLECTIONS
     // ============================================================================
 

@@ -69,6 +69,9 @@ export interface FlowDefinition {
   createdAt: string;
   updatedAt: string;
   createdBy: string;
+  // Engine scoping (M02). Optional; absent flows fall through to legacy
+  // function-scoped template resolution. Populated by M05 for booking flows.
+  engine?: import('./relay/engine-types').Engine;
 }
 
 export interface ConversationFlowState {

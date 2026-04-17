@@ -1,5 +1,13 @@
 import type React from 'react';
 
+export {
+  ENGINES,
+  BLOCK_TAGS,
+  isEngine,
+  isBlockTag,
+} from './engine-types';
+export type { Engine, BlockTag } from './engine-types';
+
 export type BlockFamily =
   | 'navigation'
   | 'catalog'
@@ -145,6 +153,9 @@ export interface UnifiedBlockConfig {
   applicableCategories: string[];
   createdAt: string;
   updatedAt: string;
+  // Engine tagging (M02). Optional; absent blocks fall through to legacy
+  // function-scoped resolution. Populated by M04 for booking blocks only.
+  engines?: BlockTag[];
 }
 
 // ── Blocks design fetch (GET /api/relay/blocks) ───────────────────────

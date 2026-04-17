@@ -64,6 +64,10 @@ export interface RelaySession {
   createdAt: string;
   updatedAt: string;
   expiresAt: string;
+  // Sticky active engine (M02). null explicitly represents "no engine
+  // resolved yet" (first turn); undefined means legacy session pre-dating
+  // M11. Written by M11; all reads ignore until M12 wires engine scoping.
+  activeEngine?: import('./engine-types').Engine | null;
 }
 
 // ── Helpers ─────────────────────────────────────────────────────────────
