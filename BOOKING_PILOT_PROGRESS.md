@@ -33,3 +33,29 @@ predates the scope decision to build Phase 1 first; see session history).
   `isBlockTag` all exported from both `@/lib/relay/engine-types` and
   (re-exported) `@/lib/relay/types`. No consumers wired yet; M02 adds the
   first usages via optional schema fields.
+
+---
+
+## M02 — Additive schema fields + Firestore rule
+- Status: done
+- Commit: (this commit)
+- Files changed: 5 — `src/lib/relay/types.ts` (+3 LOC,
+  `UnifiedBlockConfig.engines?: BlockTag[]`);
+  `src/lib/types-flow-engine.ts` (+3 LOC, `FlowDefinition.engine?: Engine`);
+  `src/lib/types.ts` (+5 LOC, `Partner.engines?: Engine[]` +
+  `Partner.engineRecipe?: 'auto' | 'custom'`);
+  `src/lib/relay/session-types.ts` (+4 LOC,
+  `RelaySession.activeEngine?: Engine | null`);
+  `firestore.rules` (+12 LOC, explicit deny on
+  `relayEngineHealth/{docId}`).
+- Tests: `tsc --noEmit` clean for the changed files (only pre-existing
+  `baseUrl` deprecation warning, unrelated).
+- Notes: All fields optional; zero existing partners, flows, or blocks
+  break. Inline `import('./engine-types')` type-only imports avoid
+  adding top-level module-graph edges in types-flow-engine.ts and
+  types.ts. Firestore rule is belt-and-suspenders — the catch-all
+  `{path=**}` at line 820 already denies by default, but an explicit
+  rule documents the collection and matches the design spec. No
+  emulator rules-test infrastructure exists in this repo; if/when it's
+  added, the "admin SDK writes / clients deny" assertion should be
+  covered there. Logged as a future enhancement; not blocking.

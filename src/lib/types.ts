@@ -159,6 +159,11 @@ export interface Partner {
     webhookUrl?: string;
     connectedAt?: any;
   };
+  // Engine architecture (M02). Optional; partners without these fall back
+  // to runtime derivation via getPartnerEngines(). See M03 and
+  // docs/booking-pilot-analysis.md A5.
+  engines?: import('./relay/engine-types').Engine[];
+  engineRecipe?: 'auto' | 'custom';
 }
 
 export interface AdminPartnerStats {
