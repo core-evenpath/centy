@@ -59,3 +59,35 @@ predates the scope decision to build Phase 1 first; see session history).
   emulator rules-test infrastructure exists in this repo; if/when it's
   added, the "admin SDK writes / clients deny" assertion should be
   covered there. Logged as a future enhancement; not blocking.
+
+---
+
+## M03 — Engine recipes (FUNCTION_TO_ENGINES + accessors)
+- Status: done
+- Commit: (this commit)
+- Files changed: 1 new file `src/lib/relay/engine-recipes.ts` (~220 LOC).
+  Exports `FUNCTION_TO_ENGINES` (142 entries — one per BUSINESS_FUNCTIONS
+  row, zero gaps), `deriveEnginesFromFunctionId`, `getPartnerEngines`.
+- Tests: no unit runner (see Q1). Verified via an ad-hoc tsx probe:
+  - Every taxonomy functionId is covered (142/142, zero extras).
+  - All 13 Appendix C booking-native mappings match exactly:
+    `hotels_resorts`, `budget_accommodation`, `boutique_bnb`,
+    `serviced_apartments`, `vacation_rentals`, `guest_houses`,
+    `camping_glamping`, `corporate_housing` (with `lead` for the B2B
+    arm), `event_venues` (with `lead`), `ticketing_booking`,
+    `airport_transfer`, `cinemas_theaters`, `taxi_ride`.
+  - Edge cases: unknown/`null`/empty string all return `[]`.
+  - Output order stable — sorted by canonical `ENGINES` tuple position.
+- Notes: **Booking-primary mappings are high-confidence** and ship
+  correct at this milestone. Non-booking engine membership (commerce,
+  lead, engagement, info) is a best-effort first cut and is **data-only**
+  until Phase 2 — no runtime reads exercise these tags in Phase 1. Phase
+  2's per-engine tuning (M01 of each engine) will revisit these assignments
+  with production evidence.
+  `getPartnerEngines` reads the firestore partner doc's deep
+  `businessPersona.identity.businessCategories[0].functionId` path
+  defensively (path-cast) since the Partner type doesn't expose
+  `businessPersona` publicly. Path matches
+  `orchestrator/signals/partner.ts:31-35`.
+- Phase 1 contract: no consumer wired yet (M11/M12 will call
+  `getPartnerEngines` at runtime). Zero partner-visible change.
