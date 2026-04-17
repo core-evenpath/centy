@@ -91,3 +91,33 @@ predates the scope decision to build Phase 1 first; see session history).
   `orchestrator/signals/partner.ts:31-35`.
 - Phase 1 contract: no consumer wired yet (M11/M12 will call
   `getPartnerEngines` at runtime). Zero partner-visible change.
+
+---
+
+## M04 — Tag Booking + shared blocks with `engines[]`
+- Status: done
+- Commit: (this commit)
+- Files changed: 10 — `scripts/extract-block-registry-data.js` (generator
+  template + shared-block reconciliation), `_types.ts` (added `engines?:
+  BlockTag[]` to `VerticalBlockDef`), 7 vertical `index.tsx` files
+  (automotive, events_entertainment, food_beverage, healthcare, hospitality,
+  personal_wellness, travel_transport), regenerated `_registry-data.ts`.
+- Tests: no runner (Q1). Verified via ad-hoc tsx probe:
+  - 6 shared blocks tagged `['shared']`
+  - 31 booking blocks tagged `['booking']`
+  - 0 blocks tagged for non-booking, non-shared engines
+  - Every booking-tagged block has valid `stage` and non-empty `desc`
+  - `getAllowedBlocksForFunction('hotels_resorts')` returns 18 blocks, all
+    with engine tags (13 booking + 5 shared)
+  - `tsc --noEmit` clean
+- Notes: Hit two drifts on session resume (see Q2). Fixed the generator's
+  shared-block-id divergence inline (reconciled toward unprefixed runtime-
+  authoritative ids). A1 analysis doc is stale on specifics (wrong ids,
+  missed `venue_space` + `camping_unit`); not updating retroactively —
+  M04's actual tagging supersedes A1.
+- Deviations from spec: M04 spec said "do not hand-edit `_registry-data.ts`".
+  Done — all edits were to sources + generator, with clean regeneration.
+  M04 spec listed 35 tagging targets (A1); shipped 37 (6 shared + 31
+  booking). The +2 booking are the A1 omissions noted above. Spec itself
+  was informed by A1, so the extra tagging is strictly additive and not a
+  deviation from spec intent.
