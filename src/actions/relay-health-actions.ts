@@ -21,29 +21,14 @@ import type {
 import type { Engine } from '@/lib/relay/engine-types';
 import { getPartnerEngines } from '@/lib/relay/engine-recipes';
 import type { Partner } from '@/lib/types';
+import { getCachedHealth, setCachedHealth } from '@/lib/relay/health-cache';
 
-// ── Cache ──────────────────────────────────────────────────────────────
-
-const CACHE_TTL_MS = 30_000;
-
-interface CacheEntry {
-  doc: EngineHealthDoc;
-  loadedAt: number;
-}
-const cache = new Map<string, CacheEntry>();
+// Note: cache internals live in `@/lib/relay/health-cache` because this
+// file is `'use server'` and Next.js Server Action modules must export
+// only async functions.
 
 function cacheKey(partnerId: string, engine: Engine): string {
   return `${partnerId}_${engine}`;
-}
-
-export function invalidateHealthCache(partnerId: string, engine?: Engine): void {
-  if (engine) {
-    cache.delete(cacheKey(partnerId, engine));
-  } else {
-    for (const key of Array.from(cache.keys())) {
-      if (key.startsWith(`${partnerId}_`)) cache.delete(key);
-    }
-  }
 }
 
 // ── Snapshot loaders (M07 — minimal shape; full resolution comes in M12) ──
@@ -106,7 +91,7 @@ export async function recomputeEngineHealth(
   }
 
   // Invalidate stale cache entry and re-seed with fresh value.
-  cache.set(key, { doc, loadedAt: Date.now() });
+  setCachedHealth(partnerId, engine, doc);
 
   return doc;
 }
@@ -115,19 +100,14 @@ export async function getEngineHealth(
   partnerId: string,
   engine: Engine,
 ): Promise<EngineHealthDoc | null> {
-  const key = cacheKey(partnerId, engine);
-  const now = Date.now();
-
-  const hit = cache.get(key);
-  if (hit && now - hit.loadedAt < CACHE_TTL_MS) {
-    return hit.doc;
-  }
+  const cached = getCachedHealth(partnerId, engine);
+  if (cached) return cached;
 
   try {
-    const snap = await db.collection('relayEngineHealth').doc(key).get();
+    const snap = await db.collection('relayEngineHealth').doc(cacheKey(partnerId, engine)).get();
     if (!snap.exists) return null;
     const doc = snap.data() as EngineHealthDoc;
-    cache.set(key, { doc, loadedAt: now });
+    setCachedHealth(partnerId, engine, doc);
     return doc;
   } catch (err) {
     // eslint-disable-next-line no-console
