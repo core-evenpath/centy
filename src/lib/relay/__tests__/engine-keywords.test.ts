@@ -143,6 +143,41 @@ describe('classifyEngineHint: ambiguity + tie-breaking', () => {
   });
 });
 
+describe('classifyEngineHint: service-overlay tiebreaker (Phase C C2.2 fix)', () => {
+  it('"cancel my reservation" → service (beats concurrent booking hit on "reservation")', () => {
+    const r = classifyEngineHint('cancel my reservation');
+    expect(r.engineHint).toBe('service');
+    expect(r.engineConfidence).toBe('strong');
+  });
+
+  it('"actually can you cancel my reservation" → service', () => {
+    const r = classifyEngineHint('actually can you cancel my reservation');
+    expect(r.engineHint).toBe('service');
+    expect(r.engineConfidence).toBe('strong');
+  });
+
+  it('"modify my reservation" → service', () => {
+    const r = classifyEngineHint('modify my reservation');
+    expect(r.engineHint).toBe('service');
+    expect(r.engineConfidence).toBe('strong');
+  });
+
+  it('"track my order" (no booking keyword) → service (unchanged)', () => {
+    const r = classifyEngineHint('track my order please');
+    expect(r.engineHint).toBe('service');
+  });
+
+  it('"i want to book a room" (service NOT present) → booking (unchanged)', () => {
+    const r = classifyEngineHint('i want to book a room');
+    expect(r.engineHint).toBe('booking');
+  });
+
+  it('"i want to make a reservation" → booking (no service verb present)', () => {
+    const r = classifyEngineHint('i want to make a reservation');
+    expect(r.engineHint).toBe('booking');
+  });
+});
+
 describe('classifyEngineHint: no-keyword / edge cases', () => {
   it('empty message → null confidence', () => {
     const r = classifyEngineHint('');

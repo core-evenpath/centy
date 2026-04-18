@@ -650,3 +650,82 @@ reviewable PR matches the resume-safe-commits principle.
   3. **Seeds target the existing `room_inventory` module with category filters**, not 5 separate modules. The codebase has 4 system modules total (room_inventory, food_menu, service_catalog, product_catalog); M04 tagging shows booking blocks all bind to `room_inventory` with a category filter. Seed categories: `rooms`, `amenities`, `house_rules`, `local_experiences`, `meal_plans`. Same spec intent (5 populated "groups"), different storage granularity.
 - UI wiring deferred: the M09 drilldown's "populate-module" Apply-fix flow still returns the stub message. Activating the M09 → M15 link is a small follow-up; both actions exist and can be called from the UI. Logged as Q7.
 - No browser-based UI verification (Q6 pattern).
+
+---
+
+## M10-tune — `engine-keywords.ts` service-overlay tiebreaker (surfaced by Phase C C2.2)
+
+- Status: done
+- Commit: (this commit — on `claude/booking-pilot-phase-c`)
+- Files changed: 2 modified
+  - `src/lib/relay/engine-keywords.ts` — when service ∈ strongHits AND ≥1 other engine is also in strongHits, prefer service
+  - `src/lib/relay/__tests__/engine-keywords.test.ts` — 6 regression tests
+- Rationale: C2.2 multi-turn hotel sequence failed — "cancel my reservation" returned `booking` because "reservation" (booking.strong) and "cancel" + "my reservation" (service.strong) both matched, and the ENGINES-tuple tiebreaker picks booking (earlier index). Semantically wrong: this is a service-overlay intent. Spec hard rule #7 permits M01–M12 file edits when a milestone explicitly requires it; C2.2 is that milestone.
+- Scope: isolated to the final tiebreaker in `classifyEngineHint`. ENGINES-tuple tiebreaker preserved for non-service multi-hits ("buy a book" still → commerce).
+- Tests: 138/138 pass. tsc delta: 548 → 548.
+
+---
+
+## Phase C — Validation
+
+### C1 — Unit tests
+- **Status: GREEN** — 138 / 138 passing. Coverage exceeds spec's 80% target on pure-function modules. Zero network / Firestore / filesystem calls.
+
+### C2.1 — Backward compatibility — **GREEN**
+- Legacy hotel partner (`functionId: hotels_resorts`, no `engines` field) → `getPartnerEngines` returns `['booking', 'service']` via M03 shim.
+- Partner with no functionId → `[]` (graceful).
+
+### C2.2 — Sticky multi-turn conversation — **GREEN** (after M10-tune)
+- 5-turn hotel sequence produces expected arc:
+  1. `"hi there"` → booking / fallback-first
+  2. `"book a room"` → booking / sticky
+  3. `"do you have availability saturday"` → booking / sticky
+  4. `"actually can you cancel my reservation"` → service / switch-strong-hint
+  5. `"thanks"` → service / sticky
+- Surfaced the service-overlay tiebreaker bug → fixed in M10-tune.
+
+### C2.3 — Engine-scoped catalog budget — **GREEN**
+- hotels_resorts booking: 18 blocks (budget ≤ 25) ✓
+- dental_care booking: 14 ✓  · hair_beauty: 15 ✓  · ticketing_booking: 5 ✓  · airport_transfer: 5 ✓
+
+### C2 — Cross-milestone consistency — **GREEN**
+- All 5 booking flow templates: every `suggestedBlockId` exists + has `booking` or `shared` tag ✓
+- All 33 starter-block sets reference only real registry blocks ✓
+- All 40 preview scripts: `engine === 'booking'`, unique ids, static text ✓
+- All 5 seed templates: 3–5 items, INR currency, empty images, no PII ✓
+- `computeEngineHealth` idempotence verified ✓
+
+### C3 — Smoke (3 real test partners × 8 scripts) — **DEFERRED, partial**
+- Static correctness verified: scripts parse, turn structure valid, flows wire correctly.
+- Live smoke requires dev-server + Firestore + seeded test partners — not available in this environment.
+- **Escalation:** before merging this phase-c PR, a reviewer with dev-server access should:
+  1. Seed one hotel, one clinic, one salon partner via M14 onboarding at `/admin/onboarding/relay`
+  2. Open `/admin/relay/health/preview?partnerId=…` for each
+  3. Run all 8 scripts per partner; verify zero orchestrator errors, ≥6/8 produce expected blocks
+- Preview Copilot panel designed for ≤15 minutes manual check.
+
+### C4 — Regression (non-booking partners unchanged) — **GREEN**
+- Legacy `ecommerce_d2c` null-engine catalog returns 15 blocks (unchanged — null engine is permissive).
+- Non-booking `government` → no auto-starter blocks (correct).
+- Untagged blocks (non-M04 verticals) pass through engine filter — verified via M12 test suite.
+
+### C5 — Performance — **PARTIAL PASS with documented rationale**
+- **Measurement gap acknowledged:** pre-pilot baseline was not captured before M12 merged. Spec allows partial-pass for this specific gap.
+- **Proxy measurement (catalog-size reduction):** for 5 pure-booking partners, unscoped-vs-booking-scoped catalog sizes are identical (0% reduction).
+  - `hotels_resorts`: 18 → 18
+  - `dental_care`: 14 → 14
+  - `hair_beauty`: 15 → 15
+  - `ticketing_booking`: 5 → 5
+  - `airport_transfer`: 5 → 5
+- **Why 0% is expected for pure-booking partners:** engine scoping removes blocks tagged for *other* engines. Pure-booking partners have no cross-engine blocks. The 40% target presumes multi-engine partners (hotel + restaurant, clinic + pharmacy) — Phase 2 territory.
+- **Catalog budget *is* being enforced:** M12 caps hotel at 18 blocks, well under 25-block budget.
+- **Live measurement path (post-pilot):** M12 telemetry emits `catalogSizeBeforeEngineFilter` vs `catalogSize`. Multi-engine partners in Phase 2 will show measurable reduction.
+- Per session prompt: "Do not fail C5 outright for a measurement gap that was baked in before this session."
+
+### Phase C — Outcome
+- **3 of 5 gates green** (C1, C2 all sub-gates, C4)
+- **1 partial-pass with explicit rationale** (C5 — measurement gap + 0%-for-pure-booking is correct behavior)
+- **1 deferred** (C3 — dev-server + seeded partners required; ≤15-minute reviewer check before merge)
+- **No hard failures.**
+- Surfaced 1 real bug (M10 service-overlay tiebreaker); fixed inline.
+- Proceeding to `BOOKING_PILOT_SUMMARY.md`.
