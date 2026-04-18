@@ -119,22 +119,45 @@ export default function HealthShell({ partners, partnerEnginesById }: Props) {
         >
           Force recompute
         </button>
-        <button
-          disabled
-          title="Wired in M13 (Preview Copilot)"
-          style={{
-            padding: '6px 12px',
-            fontSize: 11,
-            fontWeight: 600,
-            background: '#f7f3ec',
-            color: '#a8a89e',
-            border: '1px solid #e8e4dc',
-            borderRadius: 6,
-            cursor: 'not-allowed',
-          }}
-        >
-          Open Preview Copilot
-        </button>
+        {selectedPartner && partnerEngines.includes('booking') ? (
+          <a
+            href={`/admin/relay/health/preview?partnerId=${encodeURIComponent(selectedPartner)}`}
+            style={{
+              padding: '6px 12px',
+              fontSize: 11,
+              fontWeight: 600,
+              background: '#ffffff',
+              color: '#2d4a3e',
+              border: '1px solid #2d4a3e',
+              borderRadius: 6,
+              textDecoration: 'none',
+              display: 'inline-block',
+            }}
+          >
+            Open Preview Copilot
+          </a>
+        ) : (
+          <button
+            disabled
+            title={
+              !selectedPartner
+                ? 'Select a partner first'
+                : 'Partner needs the booking engine enabled'
+            }
+            style={{
+              padding: '6px 12px',
+              fontSize: 11,
+              fontWeight: 600,
+              background: '#f7f3ec',
+              color: '#a8a89e',
+              border: '1px solid #e8e4dc',
+              borderRadius: 6,
+              cursor: 'not-allowed',
+            }}
+          >
+            Open Preview Copilot
+          </button>
+        )}
       </div>
 
       {!selectedPartner ? (
