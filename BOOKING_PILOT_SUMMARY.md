@@ -111,13 +111,29 @@ M12's per-turn structured log emits `activeEngine`, `switchedFrom`, `selectionRe
 Phase 2 (Engine Rollout) pre-flight gate checklist:
 
 - [x] `BOOKING_PILOT_SUMMARY.md` exists (this document)
-- [x] `BOOKING_PILOT_PROGRESS.md` has entries for every milestone
+- [x] `BOOKING_PILOT_PROGRESS.md` has entries for every milestone + "Phase 1 — Closed" block
 - [x] `BOOKING_PILOT_QUESTIONS.md` has all open items classified (resolved / carry-forward)
 - [x] `docs/booking-pilot-analysis.md` exists (Phase A deliverable)
-- [ ] ≥ 1 week of shadow-mode Health observation on production — **needs time to elapse after merge**
-- [ ] C3 live smoke confirmed by reviewer — **pending**
+- [x] `docs/booking-pilot-observation.md` exists with watch list
+- [ ] ≥ 1 week of shadow-mode Health observation on production — **window in progress**
+- [ ] C3 live smoke confirmed by reviewer — **to be signed off on the observation log**
 
-Phase 2 should start once the C3 live smoke passes and ≥ 1 week of production observation reveals no partner-visible regressions.
+**Observation window**
+- phase-c merged on main: 2026-04-18 (PR #142, merge commit `8d4bb2c6`)
+- Earliest Phase 2 pre-flight: **2026-04-25** (7 days after merge)
+
+Phase 2 should start once: (a) the observation log's sign-off checklist is all green, (b) the reviewer has posted C3 smoke verdict, and (c) 7 days have elapsed with no partner-visible regressions.
+
+Phase 1 merge topology on main (in order):
+- `a0b7421` Phase 1 foundation (M01–M03) — PR #132
+- `0416cb0b` M04–M07, M10, M11 — PR #134
+- `3d0a6a8d` health-cache fix — PR #135
+- `1a72c8a0` M12 orchestrator engine-scoping — PR #138
+- `368079ea` M08 admin blocks UI — PR #139
+- `409628a1` M09 admin health page — PR #140
+- `b63d4dc5` M13 preview copilot — PR #141
+- `d6d90fc4` M14 onboarding — PR #143
+- `8d4bb2c6` M15 seeds + CSV + phase-c (M10-tune + Phase C + summary + observation log) — PR #142
 
 ---
 
