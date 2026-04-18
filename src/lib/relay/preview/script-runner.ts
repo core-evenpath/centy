@@ -25,6 +25,11 @@ import type {
   OrchestratorResponse,
 } from '../orchestrator/types';
 import type { PreviewScript } from './booking-scripts';
+import type { CommercePreviewScript } from './commerce-scripts';
+
+// Runner accepts either a Booking or Commerce script — both carry the
+// same `turns: Array<{role:'user',content:string}>` shape (see Q8).
+type AnyRunnablePreviewScript = PreviewScript | CommercePreviewScript;
 
 export interface PreviewTurnResult {
   turnIndex: number;
@@ -60,7 +65,7 @@ function makeSandboxConversationId(partnerId: string, scriptId: string): string 
 
 export async function runPreviewScript(
   partnerId: string,
-  script: PreviewScript,
+  script: AnyRunnablePreviewScript,
 ): Promise<PreviewRunResult> {
   const conversationId = makeSandboxConversationId(partnerId, script.id);
   const startedAt = Date.now();
