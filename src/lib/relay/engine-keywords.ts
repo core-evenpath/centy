@@ -18,9 +18,15 @@ export type EngineConfidence = 'strong' | 'weak' | null;
 
 export const ENGINE_KEYWORDS: Record<Engine, { strong: string[]; weak: string[] }> = {
   commerce: {
+    // Strong-phrase additions (gate-session lexicon stress, 2026-04-18):
+    // 'place an order', 'want to order' — cover the natural-language
+    // purchase-intent phrases the bare-verb strong list missed.
+    // See docs/engine-rollout-phase2/c5-interpretation-commerce.md for
+    // the pattern Lead + Engagement + Info must inherit.
     strong: [
       'add to cart', 'checkout', 'buy', 'purchase', 'order now',
-      'shopping', 'product', 'place order', 'proceed to pay',
+      'shopping', 'product', 'place order', 'place an order',
+      'want to order', 'proceed to pay',
     ],
     weak: [
       'price', 'cost', 'how much', 'shop', 'browse', 'catalog',
@@ -64,10 +70,14 @@ export const ENGINE_KEYWORDS: Record<Engine, { strong: string[]; weak: string[] 
     ],
   },
   service: {
+    // Strong-phrase additions (gate-session lexicon stress, 2026-04-18):
+    // 'order update', 'order updates' — "updates" has a word-char
+    // boundary after 'e', so the plural doesn't match the singular
+    // phrase under \b regex. Both forms listed explicitly.
     strong: [
       'track', 'tracking', 'status', 'cancel', 'modify', 'where is',
       'when will', 'reschedule', 'change my', 'update my', 'my order',
-      'my booking', 'my reservation',
+      'my booking', 'my reservation', 'order update', 'order updates',
     ],
     weak: [
       'order status', 'delivery status', 'eta',
