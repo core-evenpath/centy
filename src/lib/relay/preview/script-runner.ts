@@ -26,10 +26,11 @@ import type {
 } from '../orchestrator/types';
 import type { PreviewScript } from './booking-scripts';
 import type { CommercePreviewScript } from './commerce-scripts';
+import type { LeadPreviewScript } from './lead-scripts';
 
-// Runner accepts either a Booking or Commerce script — both carry the
-// same `turns: Array<{role:'user',content:string}>` shape (see Q8).
-type AnyRunnablePreviewScript = PreviewScript | CommercePreviewScript;
+// Runner accepts Booking, Commerce, or Lead scripts — all carry the
+// same `turns: Array<{role:'user',content:string}>` shape (Q8, lead.M08).
+type AnyRunnablePreviewScript = PreviewScript | CommercePreviewScript | LeadPreviewScript;
 
 export interface PreviewTurnResult {
   turnIndex: number;
