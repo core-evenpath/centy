@@ -695,14 +695,54 @@ reviewable PR matches the resume-safe-commits principle.
 - All 5 seed templates: 3–5 items, INR currency, empty images, no PII ✓
 - `computeEngineHealth` idempotence verified ✓
 
-### C3 — Smoke (3 real test partners × 8 scripts) — **DEFERRED, partial**
-- Static correctness verified: scripts parse, turn structure valid, flows wire correctly.
-- Live smoke requires dev-server + Firestore + seeded test partners — not available in this environment.
-- **Escalation:** before merging this phase-c PR, a reviewer with dev-server access should:
-  1. Seed one hotel, one clinic, one salon partner via M14 onboarding at `/admin/onboarding/relay`
-  2. Open `/admin/relay/health/preview?partnerId=…` for each
-  3. Run all 8 scripts per partner; verify zero orchestrator errors, ≥6/8 produce expected blocks
-- Preview Copilot panel designed for ≤15 minutes manual check.
+### C3 — Smoke (reviewer checklist, ≤ 15 minutes) — **DEFERRED**
+
+Static correctness verified: scripts parse, turn structure valid, flows wire correctly. Live smoke requires dev-server + Firestore + seeded test partners — not available in this execution environment. Reviewer sign-off is the merge gate for phase-c.
+
+**Dev-server setup**
+```
+git fetch origin
+git checkout claude/booking-pilot-phase-c
+npm install
+npm run dev          # default port 9002 per package.json (`next dev --turbopack -p 9002`)
+```
+Open `http://localhost:9002/admin/onboarding/relay` and `http://localhost:9002/admin/relay/health` in separate tabs.
+
+**Setup step (2 minutes): seed a hotel test partner**
+1. In onboarding page, pick any partner from the dropdown (throwaway / test id).
+2. Q1: select **Hotels & Resorts**.
+3. Q2: accept defaults (`booking`, `service` pre-checked).
+4. Q3: leave checked.
+5. Submit. Verify success banner: starter blocks enabled ≥ 10, flow cloned: yes, Health recomputed: `booking, service`.
+6. Open `/admin/modules` for this partner → apply the `booking.rooms` seed template. Confirm 5 items added.
+
+**Scripts to run** (from `/admin/relay/health/preview?partnerId=<test-partner>`)
+
+| Script id | Expected first-turn block | Expected activeEngine by turn 3 | Pass criteria |
+|---|---|---|---|
+| `hotel-01-greeting-browse` | `greeting` or `room_card` | `booking` | Catalog size 18±2; response text non-empty; no orchestrator errors |
+| `hotel-02-specific-availability` | `room_card` or `availability` | `booking` | availability block renders with seeded rooms |
+| `hotel-04-booking-flow` | `room_card` | `booking` | Progresses through stages; `check_in` block surfaces by turn 3-4 |
+| `hotel-06-service-break` | booking block (turn 1), then service-scoped block (turn 2-3) | `service` by turn 3 | Mid-conversation switch from booking → service; telemetry log shows `selectionReason: switch-strong-hint` on the switching turn |
+| `hotel-07-cancel` | service-scoped (or empty block + plain text on red Health) | `service` | Cancel intent routes to service engine; response addresses cancellation |
+
+**Pass criteria**
+- **GREEN:** 5/5 scripts produce expected blocks, zero orchestrator errors in the terminal log, telemetry fields all present (`activeEngine`, `catalogSize`, `catalogSizeBeforeEngineFilter`, `selectionReason`, `healthStatus`).
+- **PARTIAL:** 4/5 green with a named issue. If the 5th is degraded-mode producing generic text on red Health, that's the M12 documented deviation — acceptable for partial-pass.
+- **FAIL:** ≤3/5 green, or any orchestrator error (throw / 500), or missing telemetry fields.
+
+**Reviewer deliverable (comment on phase-c PR):**
+- [ ] Verdict: PASS / PARTIAL / FAIL
+- Per-script notes (anything surprising, screenshots if rendering wrong)
+- Telemetry spot-check: paste one turn's structured log line
+- Sign-off: _"Ready to merge phase-c"_ OR _"Needs fix first: <what>"_
+
+**Time estimate:** 2 min setup + ~1 min per script × 5 + 2 min comment = ~9 minutes. Budget 15 minutes for environment variance.
+
+**Non-booking regression spot-check (additional 5 minutes — recommended but not blocking):**
+- Open `/partner/relay` for any existing ecommerce or service-industry partner NOT in the booking pilot scope.
+- Send 3 ordinary messages.
+- Expected: identical behavior to pre-pilot. Zero "active engine = null" errors. Legacy flow path taken.
 
 ### C4 — Regression (non-booking partners unchanged) — **GREEN**
 - Legacy `ecommerce_d2c` null-engine catalog returns 15 blocks (unchanged — null engine is permissive).
