@@ -95,3 +95,26 @@ Phase 1 closed 2026-04-18 via PR #142 + close-out PR. Phase 2 pre-flight started
 - Tests: 149/149 (no new test file; tags are data-only and covered by existing engine-scoping tests)
 - tsc delta: 548 → 548
 - Speculative-From: tuning.md#4 (Commerce catalog budget ≤ 30 confirmed in probe; actual 13-16 range leaves healthy margin)
+
+---
+
+## P2.commerce.M03 — Commerce flow templates
+- Status: done
+- Commit: (this commit)
+- Branch: `claude/engine-rollout-commerce-m03` (stacked on M02)
+- Files changed: 5 added + 1 modified
+  - `src/lib/relay/flow-templates/commerce/{general-retail,food-delivery,food-supply,subscription,index}.ts`
+  - `src/lib/relay/flow-templates/commerce/__tests__/commerce-templates.test.ts` (8 tests)
+  - `src/lib/relay/orchestrator/signals/flow.ts` (wire `getCommerceFlowTemplate` when activeEngine === 'commerce')
+- Tests: **157/157 pass** (149 prior + 8 new)
+- tsc delta: 548 → 548
+- Templates shipped (4):
+  - `GENERAL_RETAIL_FLOW_TEMPLATE` — 13+ retail / D2C functionIds: ecommerce_d2c, physical_retail, fashion_apparel, electronics_gadgets, jewelry_luxury, furniture_home, grocery_convenience, health_wellness_retail, books_stationery, sports_outdoor, baby_kids, pet_supplies, pharmacy_retail (plus secondaries: carpentry_furniture, laundry_drycleaning, vision_care, auto_parts, tires_batteries, forex_remittance, translation_docs, logistics_courier, decor_floral, printing_invitations)
+  - `FOOD_DELIVERY_FLOW_TEMPLATE` — 7 F&B functionIds: full_service_restaurant, casual_dining, qsr, beverage_cafe, bakery_desserts, cloud_kitchen, street_food (plus secondary: bars_pubs)
+  - `FOOD_SUPPLY_FLOW_TEMPLATE` — 8 supply functionIds: fresh_produce, meat_fish, dairy_beverage, packaged_specialty, grocery_delivery, food_wholesale, farm_agricultural, organic_health_foods (plus secondary: wholesale_distribution)
+  - `SUBSCRIPTION_FLOW_TEMPLATE` — online_learning (primary)
+- All 36 commerce-primary functionIds covered by `getCommerceFlowTemplate` (verified via test).
+- Every template: `engine: 'commerce'`, canonical stage order, `serviceIntentBreaks: ['track-order', 'cancel-order', 'modify-order']`.
+- Every `suggestedBlockId` exists in registry AND is tagged commerce or shared (verified via test).
+- Orchestrator wiring: `loadFlowDefinition` now checks `getCommerceFlowTemplate(functionId)` when `activeEngine === 'commerce'`, falling back to legacy `getFlowTemplateForFunction`.
+- Speculative-From: tuning.md#1 (lexicon tie-break discipline — serviceIntentBreaks declared up-front, not discovered via C2.2-style smoke)
