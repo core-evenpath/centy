@@ -27,8 +27,28 @@ import type {
   OrchestratorResponse,
   SignalBundle,
 } from './types';
+import { classifyEngineHint } from '@/lib/relay/engine-keywords';
+import { selectActiveEngine } from '@/lib/relay/engine-selection';
+import { getPartnerEngines } from '@/lib/relay/engine-recipes';
+import { setActiveEngine } from '@/lib/relay/session-store';
+import { getEngineHealth } from '@/actions/relay-health-actions';
+import type { Engine } from '@/lib/relay/engine-types';
 
 const MODEL = 'gemini-2.5-flash';
+
+// Shared-tagged block ids — used by M12 degraded mode to narrow the
+// catalog when Health is red. Resolved once at module load.
+import { ALL_BLOCKS_DATA } from '@/app/admin/relay/blocks/previews/_registry-data';
+import type { BlockTag } from '@/lib/relay/engine-types';
+
+const SHARED_BLOCK_IDS = new Set<string>(
+  ALL_BLOCKS_DATA
+    .filter(
+      (b) => ((b as typeof b & { engines?: BlockTag[] }).engines ?? [])
+        .includes('shared'),
+    )
+    .map((b) => b.id),
+);
 
 interface GeminiPayload {
   blockId?: string;
@@ -126,19 +146,60 @@ async function callGemini(
 export async function orchestrate(
   ctx: OrchestratorContext,
 ): Promise<OrchestratorResponse> {
-  // 1. Partner signal first — downstream loaders need `functionId`.
-  const partner = await loadPartnerSignal(ctx.partnerId);
-
-  // 2. Load the four signal sources that don't depend on intent.
-  const [flow, blocks, datamap, session] = await Promise.all([
-    loadFlowSignal(ctx, partner.functionId),
-    loadBlocksSignal(ctx.partnerId),
-    loadDatamapSignal(ctx.partnerId),
+  // 1. Partner + session first — partner signal carries `functionId` and
+  //    partnerData (the source of `partner.engines` / `functionId` for the
+  //    engine recipe); session signal carries the previous turn's
+  //    `activeEngine` for stickiness.
+  const [partner, session] = await Promise.all([
+    loadPartnerSignal(ctx.partnerId),
     loadSessionSignal(ctx),
   ]);
 
-  // 3. RAG depends on flow-detected intent.
+  // 2. Engine selection (M12 — pure, cheap). Run per turn.
+  const lastMsg = ctx.messages[ctx.messages.length - 1]?.content ?? '';
+  const engineHint = classifyEngineHint(lastMsg);
+  const partnerEngines = getPartnerEngines(
+    partner.partnerData as Parameters<typeof getPartnerEngines>[0] ?? {},
+  );
+  const previousActive: Engine | null =
+    (session.session?.activeEngine as Engine | null | undefined) ?? null;
+  const selection = selectActiveEngine({
+    currentActive: previousActive,
+    engineHint: engineHint.engineHint,
+    engineConfidence: engineHint.engineConfidence,
+    partnerEngines,
+  });
+  const activeEngine: Engine | null = selection.engine;
+
+  // 3. Persist engine change (fire-and-forget; any write failure is logged
+  //    and swallowed by the session store, never blocking the turn).
+  if (activeEngine !== previousActive) {
+    try {
+      await setActiveEngine(ctx.partnerId, ctx.conversationId, activeEngine);
+    } catch (err) {
+      console.error('[orchestrator] setActiveEngine failed', err);
+    }
+  }
+
+  // 4. Load the remaining signals with the active engine applied.
+  //    Flow + blocks scope by activeEngine; datamap is engine-agnostic.
+  const [flow, blocks, datamap] = await Promise.all([
+    loadFlowSignal(ctx, partner.functionId, activeEngine),
+    loadBlocksSignal(ctx.partnerId, activeEngine),
+    loadDatamapSignal(ctx.partnerId),
+  ]);
+
+  // 5. RAG depends on flow-detected intent.
   const rag = await loadRagSignal(ctx, flow.intent);
+
+  // 6. Health (shadow mode — never throws, never blocks). Degraded mode
+  //    kicks in only when activeEngine is set AND Health reads red.
+  let healthStatus: 'green' | 'amber' | 'red' | 'none' = 'none';
+  if (activeEngine) {
+    const h = await getEngineHealth(ctx.partnerId, activeEngine);
+    if (h) healthStatus = h.status;
+  }
+  const degraded = healthStatus === 'red';
 
   const signals: SignalBundle = {
     partner,
@@ -150,28 +211,47 @@ export async function orchestrate(
   };
 
   const policy = buildPolicyDecision(signals);
-  const systemPrompt = buildSystemPrompt(signals, policy);
-  const parsed = await callGemini(systemPrompt, ctx);
 
-  // 4. Validate Gemini's block choice against the allow-list.
+  // 7. Degraded mode: narrow the catalog to shared blocks only so the
+  //    prompt doesn't ask Gemini to pick from a potentially-broken list.
+  //    Partner-visible behavior degrades gracefully — never throws.
+  const effectiveAllowed = degraded
+    ? policy.allowedBlockIds.filter((id) => SHARED_BLOCK_IDS.has(id))
+    : policy.allowedBlockIds;
+  const degradedPolicy = degraded
+    ? { ...policy, allowedBlockIds: effectiveAllowed }
+    : policy;
+
+  const systemPrompt = buildSystemPrompt(signals, degradedPolicy);
+  const parsed = degraded
+    ? {} // skip Gemini on red Health — reply with plain text
+    : await callGemini(systemPrompt, ctx);
+
+  // 8. Validate Gemini's block choice against the (possibly degraded)
+  //    allow-list.
   const rawBlockId =
     typeof parsed.blockId === 'string' ? parsed.blockId : undefined;
   const blockId =
-    rawBlockId && policy.allowedBlockIds.includes(rawBlockId)
+    rawBlockId && degradedPolicy.allowedBlockIds.includes(rawBlockId)
       ? rawBlockId
       : undefined;
 
-  const text =
-    parsed.text?.trim() ||
-    (rag.used && rag.chunks.length > 0
-      ? rag.chunks[0].text.slice(0, 240)
-      : "I'm here to help — what would you like to know?");
+  const degradedText =
+    "Thanks for your message — we're going to follow up with you directly.";
+  const text = degraded
+    ? degradedText
+    : (parsed.text?.trim() ||
+        (rag.used && rag.chunks.length > 0
+          ? rag.chunks[0].text.slice(0, 240)
+          : "I'm here to help — what would you like to know?"));
 
-  const suggestions = Array.isArray(parsed.suggestions)
-    ? parsed.suggestions
-        .filter((s): s is string => typeof s === 'string')
-        .slice(0, 4)
-    : [];
+  const suggestions = degraded
+    ? []
+    : Array.isArray(parsed.suggestions)
+      ? parsed.suggestions
+          .filter((s): s is string => typeof s === 'string')
+          .slice(0, 4)
+      : [];
 
   const blockData = blockId
     ? buildBlockData({
@@ -180,6 +260,26 @@ export async function orchestrate(
         modules: partner.modules,
       })
     : undefined;
+
+  // 9. Telemetry — mandatory structured per-turn log for Phase C C5.
+  try {
+    console.log('[relay][turn]', JSON.stringify({
+      partnerId: ctx.partnerId,
+      conversationId: ctx.conversationId,
+      activeEngine,
+      switchedFrom: previousActive,
+      selectionReason: selection.reason,
+      catalogSize: degradedPolicy.allowedBlockIds.length,
+      catalogSizeBeforeEngineFilter: policy.allowedBlockIds.length,
+      healthStatus,
+      degraded,
+      partnerEnginesCount: partnerEngines.length,
+      engineHint: engineHint.engineHint ?? null,
+      engineConfidence: engineHint.engineConfidence,
+    }));
+  } catch {
+    /* never break on telemetry */
+  }
 
   return {
     blockId,
@@ -201,7 +301,7 @@ export async function orchestrate(
       ragSources: rag.chunks.length,
       cartItems: session.cartItemCount,
       hasOrders: session.recentOrders.length > 0,
-      allowedBlocks: policy.allowedBlockIds,
+      allowedBlocks: degradedPolicy.allowedBlockIds,
       rejectedBlocks: policy.rejectedBlocks,
       compositionPath: policy.compositionPath,
     },
