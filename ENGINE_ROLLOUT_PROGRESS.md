@@ -137,3 +137,17 @@ Phase 1 closed 2026-04-18 via PR #142 + close-out PR. Phase 2 pre-flight started
 - Other engine tabs (Lead, Engagement, Info, Service) still render "Coming soon" via the existing `ComingSoon` component.
 - Screenshots: **deferred** to reviewer with dev-server access (same Q6 pattern as Phase 1 M08). Module graph compiles, types check, data layer verified via the M02/M03 tests.
 - Speculative-From: tuning.md#4 (catalog budget — Commerce tab content for a commerce-primary partner stays under 30 blocks by design of M02+M03)
+
+---
+
+## P2.commerce.M05 — activate Commerce row in /admin/relay/health
+- Status: done
+- Commit: (this commit)
+- Branch: `claude/engine-rollout-commerce-m05` (stacked on M04)
+- Files changed: 1 added — `src/app/admin/relay/health/components/__tests__/health-matrix-commerce.test.ts`
+- Tests: 161/161 pass (157 prior + 4 new)
+- tsc delta: 548 → 548
+- **Zero production-code changes.** The HealthMatrix component is engine-agnostic by Phase 1 design (iterates `ENGINES`, gates cells on `partnerEngines.includes(engine)`). Commerce rows render status for commerce partners the moment the partner's `getPartnerEngines` returns a set containing `'commerce'` — which M03 already does for 41 commerce functionIds.
+- Apply-fix flows are engine-agnostic too (from Phase 1 M09) — `bind-field` works for commerce partners out of the box. Stubbed kinds (enable-block, connect-flow, populate-module) surface the same "Not yet implemented" messages regardless of engine.
+- Preview Copilot button in HealthShell.tsx still hardcoded to `partnerEngines.includes('booking')` — will be broadened when commerce.M08 ships Commerce scripts. Logged here as a no-op for now; not regressing existing Booking behavior.
+- Speculative-From: tuning.md#7 (engine order — Commerce coming second confirmed engine-agnostic design of Phase 1 admin UI holds)
