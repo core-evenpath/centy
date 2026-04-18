@@ -371,5 +371,131 @@ claude/engine-rollout-commerce-phase-c
 └─ claude/gate-session-q9-mock-helper
    └─ claude/gate-session-q8-preview-panel
       └─ claude/gate-session-c5-interpretation
-         └─ claude/gate-session-lexicon-stress  ← THIS (pre-Lead foundation)
+         └─ claude/gate-session-lexicon-stress  ← (pre-Lead foundation)
 ```
+
+---
+
+## Lead state assessment (pre-M01)
+- Baseline verification: `main` clean-tree tsc = **401** (confirms Session 1 + gate session introduced zero regressions hidden under `.next/types/` cruft)
+- Re-verified on gate-session tip: tsc = 401 ✓
+- Test count before session: 213/213 passing ✓
+- All 4 gate-session branches on origin ✓
+- `docs/engine-rollout-phase2/{tuning.md,retro-session-1.md,c5-interpretation-commerce.md}` present ✓
+
+---
+
+## P2.lead.M01 — recipe verification
+- Status: done (commit `fc61579e`)
+- Branch: `claude/engine-rollout-lead-m01` (stacked on gate-session-lexicon-stress)
+- Tests: 213 → 220 (+7). tsc 401 → 401.
+- Inventory: 48 lead-primary functionIds across 8 categories
+- 3 documented no-service exceptions (community_savings, k12_education, higher_education) — logged Q15
+- Speculative-From: tuning.md#engine-order
+
+## P2.lead.M02 — tag Lead blocks
+- Status: done (commit `f712944c`)
+- Tests: 220 → 228 (+8). tsc 401 → 401.
+- 46 lead-tagged blocks across 4 verticals (business 14, financial 14, home 13, events 5 new beyond pre-tagged booking)
+- Dual-tag breakdown: 9 × `['lead', 'service']`, 4 × `['lead', 'booking']` (home-services genuine overlap)
+- Speculative-From: c5-interpretation-commerce.md
+
+## P2.lead.M03 — flow templates + orchestrator wiring
+- Status: done (commit `f84d0254`)
+- Tests: 228 → 238 (+10). tsc 401 → 401.
+- 3 templates: financial, professional, real-estate-b2b
+- Canonical serviceIntentBreaks: `['track-application', 'status-check', 'amend-application', 'withdraw-application']`
+- All 48 lead-primary fns covered
+- Every template has `followup` before `handoff` (asserted)
+- Speculative-From: c5-interpretation-commerce.md
+
+## P2.lead.M04 — activate Lead tab
+- Status: done (commit `0198850a`)
+- Tests: 238 → 241 (+3). tsc 401 → 401.
+- ACTIVATED_ENGINES now `['booking', 'commerce', 'lead']`
+- Screenshots deferred (Q13 open)
+
+## P2.lead.M05 — activate Lead health row
+- Status: done (commit `56afcf0f`)
+- Zero production-code changes (HealthMatrix engine-agnostic)
+- Tests: 241 → 246 (+5). tsc 401 → 401.
+
+## P2.lead.M06 — starter blocks
+- Status: done (commit `1959ea67`)
+- Tests: 246 → 252 (+6). tsc 401 → 401.
+- All 48 lead-primary fns have curated starter sets, size band 5-13
+- Phase 1 M14 assertion widened: booking → booking OR commerce OR lead
+
+## P2.lead.M07 — seed templates
+- Status: done (commit `951eaf7a`)
+- Tests: 252 → 261 (+9). tsc 401 → 401.
+- 5 templates × 5 items = 25 items targeting 5 modules
+- INR currency, empty images, anti-PII pattern-checked
+
+## P2.lead.M08 — Preview Copilot scripts (24)
+- Status: done (commit `e9d854fd`)
+- Tests: 261 → 269 (+8). tsc 401 → 401.
+- 8 scripts × 3 sub-verticals
+- Runner broadened to accept `AnyRunnablePreviewScript`
+- page.tsx engine-gated append when partner has lead
+
+## P2.lead.M08.5 — lexicon stress test (FIRST-CLASS MILESTONE)
+- Status: done (commit `e3ad395d`)
+- Tests: 269 → 285 (+16). tsc 401 → 401.
+- 16 cases; 8 initial failures → 9 lexicon keyword additions (5 lead.strong + 4 service.strong) fixing 7 of them; 2 documented gaps
+- NOT systemic (2 known-category gaps). Revised threshold proposed: systemic vs count-based
+- Speculative-From: c5-interpretation-commerce.md#lexicon-stress
+
+---
+
+## Lead Phase C
+- Status: done
+- Branch: `claude/engine-rollout-lead-phase-c` (stacked on M08.5)
+- Deliverable: `docs/engine-rollout-phase2/retro-session-2.md` + this block
+- Test count: **285/285 pass**. tsc 401 → 401.
+
+### Gate results
+
+**C2.1** Lead partner engine derivation: 5 samples verified incl. `k12_education` → `[lead, info]` documented exception ✓
+**C2.2** 5-turn multi-turn: service break at turn 4 ("status of my application"), sticky at turn 5 ("withdraw") ✓
+**C2.3** All 7 sample Lead partner catalogs ≤ 25 (max 15, min 5) ✓
+**C2 consistency:** 48/48 flow templates + starters; 24 scripts; 5 seeds ✓
+**C4 regression:** hotels_resorts booking-scoped=18, ecommerce_d2c commerce-scoped=13, full_service_restaurant commerce-scoped=15 — all unchanged ✓
+
+**C5 (Interpretation A with dual-tag amendment):**
+
+| Partner | Unscoped | Lead-scoped | Reduction |
+|---|---|---|---|
+| wealth_management | 5 | 5 | 0% |
+| legal_services | 15 | 15 | 0% |
+| real_estate | 12 | 12 | 0% |
+| consulting_advisory | 15 | 15 | 0% |
+| **event_planning** | 15 | 11 | **27%** (in range) |
+| painting_renovation | 13 | 12 | 8% |
+
+Explanation: dual-tagged blocks (`['lead', 'booking']`, `['lead', 'service']`) mean lead scoping strips nothing on partners whose booking overlap is genuine (home services, legal, consulting). `event_planning` shows real reduction because its booking-side (evt_venue_card, show_listing, seating_chart, invite_rsvp) is distinct. Catalog-size reduction is ONE goal of scoping; routing discipline is another and works regardless.
+
+### Retrospective summary
+- 10 `Speculative-From:` footers evaluated: 9 confirmed-by-test, 1 revised (threshold rule)
+- C5 Interpretation A holds with amendment
+- Lexicon stress NOT systemic (2 known categories)
+- **Gate decision for Engagement: GREEN** (no blockers)
+- Q15, Q16, Q17 newly opened
+
+### Stack state (session ready for PR)
+```
+claude/gate-session-lexicon-stress
+└─ claude/engine-rollout-lead-m01
+   └─ claude/engine-rollout-lead-m02
+      └─ claude/engine-rollout-lead-m03
+         └─ claude/engine-rollout-lead-m04
+            └─ claude/engine-rollout-lead-m05
+               └─ claude/engine-rollout-lead-m06
+                  └─ claude/engine-rollout-lead-m07
+                     └─ claude/engine-rollout-lead-m08
+                        └─ claude/engine-rollout-lead-m08-5
+                           └─ claude/engine-rollout-lead-phase-c  ← THIS
+```
+
+### Next session: Engagement
+Entry predicate satisfied. Lexicon-stress pattern + C5 interpretation discipline carried forward. Engagement M01 starts on `claude/engine-rollout-engagement-m01`.

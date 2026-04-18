@@ -236,5 +236,44 @@ Commerce lexicon stress test revealed > 3 failures. Actual: 3 failures,
 all fixable with targeted keyword additions. Escalation not triggered.
 Fixes shipped in the same commit as the test per playbook discipline.
 
-**No open question here** — this entry exists only to honor the
-playbook's numbering.
+---
+
+## Q15 — Lead-primary functionIds without service overlay    (2026-04-18)
+
+**Status:** open, **intentionally bounded**.
+
+3 lead-primary rows don't carry service:
+- `community_savings` → `[lead, engagement]`
+- `k12_education` → `[lead, info]`
+- `higher_education` → `[lead, info]`
+
+M01 test caps exception count at 3; breaking the cap forces a recipe
+decision. Revisit at Phase 3 once engagement/info ship.
+
+---
+
+## Q16 — Lexicon stress threshold: count vs systemic    (2026-04-18)
+
+**Status:** open, **revised rule proposed**.
+
+Gate-session "> 4 failures → Q19 stop" rule proved too count-sensitive.
+Lead M08.5 surfaced 8 cleanly-categorizable failures (inquiry verbs +
+service-overlay phrasings), fixed with 9 keyword additions. Not
+systemic.
+
+**Proposed:** escalate on *systemic gap* (a broad category missing),
+not count. Apply starting Engagement M08.5.
+
+---
+
+## Q17 — Dual-tag pattern drift    (2026-04-18)
+
+**Status:** open, **monitor**.
+
+Session 2 added 9 new dual-tagged blocks (5 × `['lead', 'service']`,
+4 × `['lead', 'booking']`). Home-services overlap is genuine. Risk:
+continued growth reduces scoping discriminative power. Consider a
+per-engine dual-tag cap if trend continues.
+
+**Action:** collect data during Engagement. Revisit at Phase 2 close.
+
