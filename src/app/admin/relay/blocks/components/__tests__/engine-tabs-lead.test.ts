@@ -8,8 +8,10 @@ describe('P2.lead.M04 — Lead tab activation', () => {
     expect(ACTIVATED_ENGINES.has('lead')).toBe(true);
   });
 
-  it('engagement and info remain not-yet-activated', () => {
-    expect(ACTIVATED_ENGINES.has('engagement')).toBe(false);
+  it('info remains not-yet-activated', () => {
+    // engagement became activated in engagement.M04 — see the
+    // engagement-specific test file. Lead assertion limited to info
+    // which remains the only non-activated primary engine.
     expect(ACTIVATED_ENGINES.has('info')).toBe(false);
   });
 
