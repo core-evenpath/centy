@@ -173,3 +173,27 @@ Phase 1 closed 2026-04-18 via PR #142 + close-out PR. Phase 2 pre-flight started
   - Subscription (1): `greeting, suggestions, skin_quiz, product_card, product_detail, subscription, promo, cart, contact`
 - `applyEngineRecipe` (from Phase 1 M14) is generic — no action code changes needed. New Commerce partner onboarded via the form now gets the right starter blocks + the cloned Commerce flow template + Health recompute for [commerce, service].
 - Speculative-From: tuning.md#1 (lexicon tie-breaks — set sizes held the 7-13 band for most, widened to 5-13 when forex_remittance / translation_docs / logistics_courier came in with minimal viable shape)
+
+---
+
+## P2.commerce.M07 — Commerce seed templates
+- Status: done
+- Commit: (this commit)
+- Branch: `claude/engine-rollout-commerce-m07` (stacked on M06)
+- Files changed: 2 added + 1 modified
+  - `src/lib/relay/seed-templates/commerce/index.ts` — 5 templates
+  - `src/lib/relay/seed-templates/commerce/__tests__/commerce-seeds.test.ts` — 8 tests
+  - `src/actions/relay-seed-actions.ts` — unified `getSeedTemplate` lookup (booking OR commerce registry)
+- Tests: 175/175 pass (167 prior + 8 new)
+- tsc delta: 548 → 548
+- 5 templates shipped:
+  - `commerce.products` (5 items) — D2C retail product catalog, tiered pricing starter → flagship
+  - `commerce.menu_items` (5 items) — F&B menu across appetizer / main / beverage / dessert with dietary tags
+  - `commerce.product_categories` (5 items) — navigation categories (New Arrivals, Bestsellers, On Sale, Gift Ideas, Clearance)
+  - `commerce.bulk_offers` (5 items) — B2B wholesale tiers (starter / growth / volume / enterprise / flagship) with tier-pricing logic baked in
+  - `commerce.subscription_plans` (3 items) — monthly / quarterly / annual
+- All items INR currency, empty images, no PII (pattern-checked).
+- Module targets: `product_catalog` (4 templates) + `food_menu` (1 template) — the 2 commerce-applicable system modules.
+- `applySeedTemplate` action unified: looks up ids from both booking + commerce registries. Prefix convention `booking.*` vs `commerce.*` ensures no collisions.
+- CSV import path from Phase 1 M15 is unchanged — generic, engine-agnostic, works for product_catalog out of the box (verified by Phase 1's M15 tests still passing).
+- Speculative-From: tuning.md#4 (catalog budget enforced at the seed level too: max 5 items per template keeps operator cognitive load manageable)
