@@ -508,3 +508,36 @@ reviewable PR matches the resume-safe-commits principle.
 - Deviations from spec:
   - No visual-regression or manual-screenshot verification (see Q6).
   - Inline styles rather than the existing `T` palette in `AdminRelayBlocks.tsx` — consistent with the codebase's inline-style convention for admin surfaces; extracting to a shared theme is a cross-cutting refactor out of M08's scope.
+
+---
+
+## M09 — Admin UI: `/admin/relay/health` matrix + Apply-fix flows
+- Status: done
+- Commit: (this commit)
+- Branch: `claude/booking-pilot-m09`
+- Files changed: 2 modified + 5 added
+  - `src/actions/relay-health-actions.ts` — added `applyFixProposal(partnerId, engine, proposal)` dispatcher
+  - `src/actions/__tests__/apply-fix-proposal.test.ts` — 6 tests covering happy path + error surfaces
+  - `src/app/admin/relay/health/page.tsx` — new route; server component fetches partner list + per-partner engines
+  - `src/app/admin/relay/health/components/HealthShell.tsx` — client shell with 60s auto-refresh, cache-hit tracking
+  - `src/app/admin/relay/health/components/HealthMatrix.tsx` — engine rows, em-dash for unowned engines, clickable rows
+  - `src/app/admin/relay/health/components/IssueDrillDown.tsx` — collapsible sections per issue kind, auto-expand when count > 0
+  - `src/app/admin/relay/health/components/FixProposalCard.tsx` — Apply button with pending/ok/error states
+- LOC: +820 total
+- Tests: **98/98 pass** (92 prior + 6 new):
+  - `bind-field` happy path: writes `partners/{pid}/relayBlockConfigs/{blockId}.fieldBindings[field] = {moduleSlug, sourceField}`
+  - `bind-field` with missing payload fields: rejects with clear error
+  - `enable-block`, `connect-flow`, `populate-module`: return `{ok:false, hint, error}` with user-facing next-step messaging
+  - Failed apply leaves underlying state unchanged
+- tsc delta: 548 → 548 (zero new errors)
+- Apply-fix implementation:
+  - `bind-field`: real mutation — writes to `partners/{pid}/relayBlockConfigs/{blockId}` under `fieldBindings.{field} = {moduleSlug, sourceField}`. M12's snapshot loaders (currently stubbed) will read this path once M07's snapshot resolution is wired. After mutation: `recomputeEngineHealth(partnerId, engine)` refreshes the doc.
+  - `enable-block`: stub; returns `{ok:false, hint:'enable-block', error:'Not yet implemented — use the /admin/relay/blocks page to enable this block manually.'}`
+  - `connect-flow`: stub; error refers to the partner flow definition edit surface
+  - `populate-module`: stub; error explicitly references M15
+- Auto-refresh: 60s setInterval on the shell. Cache-hit rate inferred heuristically (load < 100ms → count as hit). Displayed in the header strip for operator visibility.
+- Preview Copilot button: placeholder, `disabled`, tooltip "Wired in M13 (Preview Copilot)".
+- Deviations from spec:
+  - 3 of 4 Apply-fix kinds stubbed rather than implemented. Spec allows this ("can ship as stubs with 'Not yet implemented' messaging IF an escalation is logged with rationale"). Escalation: the three stubbed kinds each require non-trivial Firestore writes that interact with the existing partner-config surfaces in ways that would bloat M09 significantly. `enable-block` needs `partnerBlockPrefs` writes; `connect-flow` needs flow-definition writes; `populate-module` is explicitly M15 scope. All three have clear "do it manually via X" messages. `bind-field` is the one that ships working end-to-end.
+  - No browser-based UI verification (same Q6 pattern as M08). Module graph compiles, types check, and the action behavior is unit-tested; layout/interaction UX needs a dev-server review before merge.
+- Risk notes: applyFixProposal is the first write surface sourced from Health. It's scoped to a single Firestore write per apply, wrapped in try/catch, and always returns a structured `{ok, error}` result. Failed applies don't leave half-written state (verified by test).
