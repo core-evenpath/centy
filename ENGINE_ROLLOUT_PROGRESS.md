@@ -223,3 +223,24 @@ Phase 1 closed 2026-04-18 via PR #142 + close-out PR. Phase 2 pre-flight started
 - Onboarding UX (from Phase 1 M14): `Q2_ENGINES = ENGINES.filter((e) => e !== 'service')` already excludes Service from the 3-question form. No change needed.
 - Commerce flow templates' `serviceIntentBreaks: ['track-order', 'cancel-order', 'modify-order']` now resolve to real Service blocks when the orchestrator routes to them.
 - Speculative-From: tuning.md#7 (X01 alongside Commerce — confirmed the coupling works; service tagging doesn't require its own engine-milestone pattern, just per-engine tagging as needed)
+
+---
+
+## P2.commerce.M08 — Commerce Preview Copilot scripts (32 scripts)
+- Status: done
+- Commit: (this commit)
+- Branch: `claude/engine-rollout-commerce-m08` (stacked on X01)
+- Files changed: 2 added
+  - `src/lib/relay/preview/commerce-scripts.ts` — 32 scripts (8 × 4 sub-verticals)
+  - `src/lib/relay/preview/__tests__/commerce-scripts.test.ts` — 8 tests
+- Tests: **190/190 pass** (182 prior + 8 new)
+- tsc delta: 548 → 548
+- 32 scripts shipped:
+  - general-retail (8): browse, specific-product, compare, cart-checkout, promo, track-order (service break), cancel-order (service break), edge-subscription
+  - food-delivery (8): browse, specific-dish, compare, cart-checkout, promo, track-order (service break), cancel-order (service break), edge-customize
+  - food-supply (8): browse, specific-product, compare-tiers, bulk-order, promo/sample, track-shipment (service break), cancel-order (service break), edge-recurring
+  - subscription (8): browse, specific-plan, compare, subscribe-checkout, promo, track-next-delivery (service break), cancel/pause (service break), edge-swap
+- All scripts static plain text; no templates / randoms / Date.now (pattern-asserted in test).
+- Service-overlay breaks (themes 6 + 7 in each sub-vertical) depend on X01's Service tagging — ship AFTER X01 per the playbook ordering.
+- Runner (`runPreviewScript` from Phase 1 M13) is already engine-agnostic; no action-level changes needed. The commerce panel would just need to import `COMMERCE_PREVIEW_SCRIPTS` alongside `BOOKING_PREVIEW_SCRIPTS` — a follow-up UI tweak (Q8), not blocking.
+- Speculative-From: tuning.md#3 (sticky multi-turn for commerce partners surfaces same tie-break validation via scripts 6+7 — acts as regression for the Phase 1 M10-tune pattern)
