@@ -188,6 +188,227 @@ export const STARTER_BLOCKS_BY_FUNCTION: Record<string, string[]> = {
   ],
 };
 
+// ──────────────────────────────────────────────────────────────────
+// Commerce starter blocks (P2.commerce.M06)
+// ──────────────────────────────────────────────────────────────────
+
+const COMMERCE_STARTER_BLOCKS: Record<string, string[]> = {
+  // Retail / D2C — general-retail flow shape
+  ecommerce_d2c: [
+    'greeting', 'suggestions',
+    'product_card', 'product_detail', 'compare', 'bundle',
+    'promo', 'cart', 'subscription', 'contact',
+  ],
+  physical_retail: [
+    'greeting', 'suggestions',
+    'product_card', 'product_detail', 'compare',
+    'promo', 'cart', 'contact',
+  ],
+  fashion_apparel: [
+    'greeting', 'suggestions',
+    'skin_quiz', 'product_card', 'product_detail', 'compare', 'bundle',
+    'promo', 'cart', 'contact',
+  ],
+  electronics_gadgets: [
+    'greeting', 'suggestions',
+    'product_card', 'product_detail', 'compare', 'bundle',
+    'promo', 'cart', 'contact',
+  ],
+  jewelry_luxury: [
+    'greeting', 'suggestions',
+    'product_card', 'product_detail', 'compare',
+    'cart', 'contact',
+  ],
+  furniture_home: [
+    'greeting', 'suggestions',
+    'product_card', 'product_detail', 'compare', 'bundle',
+    'cart', 'contact',
+  ],
+  grocery_convenience: [
+    'greeting', 'suggestions',
+    'product_card', 'subscription',
+    'promo', 'cart', 'contact',
+  ],
+  health_wellness_retail: [
+    'greeting', 'suggestions',
+    'skin_quiz', 'product_card', 'product_detail', 'compare',
+    'subscription', 'cart', 'contact',
+  ],
+  books_stationery: [
+    'greeting', 'suggestions',
+    'product_card', 'product_detail', 'compare',
+    'cart', 'contact',
+  ],
+  sports_outdoor: [
+    'greeting', 'suggestions',
+    'product_card', 'product_detail', 'compare', 'bundle',
+    'promo', 'cart', 'contact',
+  ],
+  baby_kids: [
+    'greeting', 'suggestions',
+    'product_card', 'product_detail', 'bundle', 'subscription',
+    'promo', 'cart', 'contact',
+  ],
+  pet_supplies: [
+    'greeting', 'suggestions',
+    'product_card', 'product_detail', 'bundle', 'subscription',
+    'cart', 'contact',
+  ],
+  pharmacy_retail: [
+    'greeting', 'suggestions',
+    'product_card', 'product_detail', 'subscription',
+    'cart', 'contact',
+  ],
+
+  // Food & Beverage — food-delivery flow shape
+  full_service_restaurant: [
+    'greeting', 'suggestions',
+    'menu_item', 'menu_detail', 'category_browser', 'dietary_filter',
+    'order_customizer', 'daily_specials', 'drink_menu',
+    'cart', 'contact',
+  ],
+  casual_dining: [
+    'greeting', 'suggestions',
+    'menu_item', 'category_browser', 'dietary_filter',
+    'order_customizer', 'daily_specials', 'combo_meal',
+    'cart', 'contact',
+  ],
+  qsr: [
+    'greeting', 'suggestions',
+    'menu_item', 'category_browser', 'dietary_filter',
+    'order_customizer', 'combo_meal',
+    'cart', 'contact',
+  ],
+  beverage_cafe: [
+    'greeting', 'suggestions',
+    'menu_item', 'category_browser', 'drink_menu',
+    'order_customizer', 'daily_specials',
+    'cart', 'contact',
+  ],
+  bakery_desserts: [
+    'greeting', 'suggestions',
+    'menu_item', 'menu_detail', 'category_browser',
+    'daily_specials', 'catering',
+    'cart', 'contact',
+  ],
+  cloud_kitchen: [
+    'greeting', 'suggestions',
+    'menu_item', 'category_browser', 'dietary_filter',
+    'order_customizer', 'combo_meal',
+    'cart', 'contact',
+  ],
+  street_food: [
+    'greeting', 'suggestions',
+    'menu_item', 'category_browser',
+    'combo_meal', 'cart', 'contact',
+  ],
+
+  // Food Supply / B2B — food-supply flow shape
+  fresh_produce: [
+    'greeting', 'suggestions',
+    'fs_product_card', 'catalog_browser', 'stock_status',
+    'bulk_order', 'delivery_scheduler', 'recurring_order',
+    'cart', 'contact',
+  ],
+  meat_fish: [
+    'greeting', 'suggestions',
+    'fs_product_card', 'fs_product_detail', 'supplier_profile',
+    'wholesale_pricing', 'delivery_scheduler', 'quality_report',
+    'cert_compliance', 'cart', 'contact',
+  ],
+  dairy_beverage: [
+    'greeting', 'suggestions',
+    'fs_product_card', 'fs_product_detail', 'stock_status',
+    'wholesale_pricing', 'delivery_scheduler', 'recurring_order',
+    'cart', 'contact',
+  ],
+  packaged_specialty: [
+    'greeting', 'suggestions',
+    'fs_product_card', 'fs_product_detail', 'catalog_browser',
+    'wholesale_pricing', 'bulk_order', 'sample_request',
+    'cart', 'contact',
+  ],
+  grocery_delivery: [
+    'greeting', 'suggestions',
+    'fs_product_card', 'catalog_browser', 'stock_status',
+    'delivery_scheduler', 'recurring_order',
+    'cart', 'contact',
+  ],
+  food_wholesale: [
+    'greeting', 'suggestions',
+    'fs_product_card', 'catalog_browser', 'bulk_order',
+    'wholesale_pricing', 'delivery_scheduler', 'recurring_order',
+    'cart', 'contact',
+  ],
+  farm_agricultural: [
+    'greeting', 'suggestions',
+    'fs_product_card', 'supplier_profile', 'cert_compliance',
+    'wholesale_pricing', 'delivery_scheduler', 'sample_request',
+    'cart', 'contact',
+  ],
+  organic_health_foods: [
+    'greeting', 'suggestions',
+    'fs_product_card', 'fs_product_detail', 'cert_compliance',
+    'wholesale_pricing', 'delivery_scheduler',
+    'cart', 'contact',
+  ],
+
+  // Subscription — subscription flow shape
+  online_learning: [
+    'greeting', 'suggestions',
+    'skin_quiz', 'product_card', 'product_detail',
+    'subscription', 'promo', 'cart', 'contact',
+  ],
+
+  // Other commerce-primary functionIds (service-oriented retail, B2B,
+  // specialty) — general-retail / food-supply shapes as closest fit.
+  forex_remittance: [
+    'greeting', 'suggestions',
+    'product_card', 'product_detail',
+    'cart', 'contact',
+  ],
+  translation_docs: [
+    'greeting', 'suggestions',
+    'product_card', 'product_detail',
+    'cart', 'contact',
+  ],
+  wholesale_distribution: [
+    'greeting', 'suggestions',
+    'fs_product_card', 'catalog_browser', 'bulk_order',
+    'wholesale_pricing', 'delivery_scheduler',
+    'cart', 'contact',
+  ],
+  auto_parts: [
+    'greeting', 'suggestions',
+    'product_card', 'product_detail', 'compare',
+    'cart', 'contact',
+  ],
+  tires_batteries: [
+    'greeting', 'suggestions',
+    'product_card', 'product_detail', 'compare',
+    'cart', 'contact',
+  ],
+  logistics_courier: [
+    'greeting', 'suggestions',
+    'product_card', 'product_detail',
+    'cart', 'contact',
+  ],
+  decor_floral: [
+    'greeting', 'suggestions',
+    'product_card', 'product_detail', 'bundle',
+    'cart', 'contact',
+  ],
+  printing_invitations: [
+    'greeting', 'suggestions',
+    'product_card', 'product_detail', 'bundle',
+    'cart', 'contact',
+  ],
+};
+
+for (const [fn, ids] of Object.entries(COMMERCE_STARTER_BLOCKS)) {
+  STARTER_BLOCKS_BY_FUNCTION[fn] = ids;
+}
+
 export function getStarterBlocks(functionId: string): string[] {
   return STARTER_BLOCKS_BY_FUNCTION[functionId] ?? [];
 }
