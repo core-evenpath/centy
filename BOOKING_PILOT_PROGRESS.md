@@ -769,3 +769,30 @@ Open `http://localhost:9002/admin/onboarding/relay` and `http://localhost:9002/a
 - **No hard failures.**
 - Surfaced 1 real bug (M10 service-overlay tiebreaker); fixed inline.
 - Proceeding to `BOOKING_PILOT_SUMMARY.md`.
+
+---
+
+## Phase 1 — Closed
+
+- Status: **done**
+- phase-c merged to main: 2026-04-18 via PR #142 (merge commit `8d4bb2c6`) — brought M15 (stacked underneath) with it
+- `BOOKING_PILOT_SUMMARY.md` on main: committed alongside phase-c; updated in this close-out with concrete merge-topology + observation-window dates
+- `docs/booking-pilot-observation.md` on main: created with watch-list and 7-item sign-off checklist
+- Observation window begins: **2026-04-18**
+- Earliest Phase 2 pre-flight: **2026-04-25** (7 days)
+- Post-merge verification on main: `tsc --noEmit` = 548 (baseline unchanged), Vitest 138/138 pass
+- Open questions carried forward: **5** (Q3 drift, Q4 pre-existing tsc, Q5 save-hook full coverage, Q6 UI visual verification, Q7 M09→M15 wiring) — all non-blocking, each with explicit carry-forward disposition in `BOOKING_PILOT_QUESTIONS.md`
+- Reviewer C3 smoke-check: deliverable expected as a comment on PR #142 or a reply-comment here; sign-off goes in `docs/booking-pilot-observation.md`
+- 15 milestones shipped: M01, M02, M03, M04, M05, M06, M07, M08, M09, M10 (+M10-tune), M11, M12, M13, M14, M15
+- Merge topology (in order of landing on main):
+  - `a0b7421` foundation (M01–M03) — PR #132
+  - `0416cb0b` M04–M07 + M10 + M11 — PR #134
+  - `3d0a6a8d` health-cache fix — PR #135
+  - `1a72c8a0` M12 — PR #138
+  - `368079ea` M08 — PR #139
+  - `409628a1` M09 — PR #140
+  - `b63d4dc5` M13 — PR #141
+  - `d6d90fc4` M14 — PR #143
+  - `8d4bb2c6` M15 + phase-c — PR #142
+
+Phase 1 is closed. Phase 2 pre-flight unblocks when the observation log is signed off.
