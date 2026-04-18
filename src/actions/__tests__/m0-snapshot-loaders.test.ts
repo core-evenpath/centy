@@ -1,69 +1,12 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
+import {
+  firestoreStore,
+  makeFirestoreAdminMock,
+  resetFirestoreMock,
+  seedMockDoc,
+} from '@/__tests__/helpers/firestore-admin-mock';
 
-// ── Firestore admin mock (supports nested subcollections) ────────────
-
-interface DocData {
-  id: string;
-  data: Record<string, unknown>;
-}
-const store = new Map<string, DocData>();       // flat key → doc
-const countByCollection = new Map<string, number>();
-
-function makeCollectionRef(path: string): {
-  doc: (id: string) => ReturnType<typeof makeDocRef>;
-  get: () => Promise<{ docs: Array<{ id: string; data: () => unknown }> }>;
-  where: (_field: string, _op: string, value: unknown) => ReturnType<typeof makeCollectionRef>;
-  count: () => { get: () => Promise<{ data: () => { count: number } }> };
-} {
-  return {
-    doc: (id: string) => makeDocRef(`${path}/${id}`),
-    get: async () => ({
-      docs: [...store.entries()]
-        .filter(([k]) => {
-          const parentPath = k.substring(0, k.lastIndexOf('/'));
-          return parentPath === path;
-        })
-        .map(([k, v]) => ({ id: v.id, data: () => v.data, ref: { id: v.id, path: k } })) as Array<{ id: string; data: () => unknown }>,
-    }),
-    where: (_field: string, _op: string, _value: unknown) => makeCollectionRef(path),
-    count: () => ({
-      get: async () => {
-        const n = [...store.keys()].filter((k) => {
-          const parentPath = k.substring(0, k.lastIndexOf('/'));
-          return parentPath === path;
-        }).length;
-        countByCollection.set(path, n);
-        return { data: () => ({ count: n }) };
-      },
-    }),
-  };
-}
-
-function makeDocRef(path: string): {
-  set: (data: Record<string, unknown>, opts?: { merge?: boolean }) => Promise<void>;
-  get: () => Promise<{ exists: boolean; data: () => unknown }>;
-  collection: (sub: string) => ReturnType<typeof makeCollectionRef>;
-} {
-  return {
-    set: async (data: Record<string, unknown>, opts?: { merge?: boolean }) => {
-      const existing = store.get(path);
-      const id = path.split('/').pop()!;
-      const merged = opts?.merge && existing ? { ...existing.data, ...data } : data;
-      store.set(path, { id, data: merged });
-    },
-    get: async () => {
-      const hit = store.get(path);
-      return { exists: hit !== undefined, data: () => hit?.data };
-    },
-    collection: (sub: string) => makeCollectionRef(`${path}/${sub}`),
-  };
-}
-
-vi.mock('@/lib/firebase-admin', () => ({
-  db: {
-    collection: vi.fn((name: string) => makeCollectionRef(name)),
-  },
-}));
+vi.mock('@/lib/firebase-admin', () => makeFirestoreAdminMock());
 
 // Mock the block-config service so the loaders don't hit Firestore for
 // global configs; we feed in fixtures directly.
@@ -100,8 +43,7 @@ import { recomputeEngineHealth } from '../relay-health-actions';
 import { invalidateHealthCache } from '@/lib/relay/health-cache';
 
 beforeEach(() => {
-  store.clear();
-  countByCollection.clear();
+  resetFirestoreMock();
   invalidateHealthCache('p-m0');
 });
 
@@ -112,7 +54,7 @@ afterEach(() => {
 describe('M0 snapshot loaders — integration through recomputeEngineHealth', () => {
   it('assembles block snapshots from static registry + global configs + partner prefs', async () => {
     // Partner has opted in to room_card with a field binding.
-    await fetch_mock_setup_pref('p-m0', 'room_card', {
+    seedMockDoc('partners/p-m0/relayConfig/room_card', {
       isVisible: true,
       fieldBindings: { title: { moduleSlug: 'room_inventory', sourceField: 'roomName' } },
     });
@@ -147,15 +89,14 @@ describe('M0 snapshot loaders — integration through recomputeEngineHealth', ()
   });
 
   it('loadFlowSnapshot reads partner flow when present', async () => {
-    // Seed a flow definition doc.
-    await fetch_mock_setup_flow('p-m0-with-flow', {
+    seedMockDoc('partners/p-m0-with-flow/relayConfig/flowDefinition', {
       id: 'flow_booking_hotel',
       stages: [
         { id: 'greeting', blockTypes: ['greeting'] },
         { id: 'discovery', blockTypes: ['room_card'] },
       ],
     });
-    await fetch_mock_setup_pref('p-m0-with-flow', 'room_card', {
+    seedMockDoc('partners/p-m0-with-flow/relayConfig/room_card', {
       isVisible: true,
       fieldBindings: { title: { sourceField: 'roomName' } },
     });
@@ -169,50 +110,26 @@ describe('M0 snapshot loaders — integration through recomputeEngineHealth', ()
 
   it('loadModuleSnapshots counts items when partner has an assigned module', async () => {
     // Seed systemModule, moduleAssignment, and items.
-    store.set('systemModules/sysm1', {
-      id: 'sysm1',
-      data: {
-        slug: 'room_inventory',
-        schema: { fields: [{ id: 'roomName', type: 'text' }] },
-      },
+    seedMockDoc('systemModules/sysm1', {
+      slug: 'room_inventory',
+      schema: { fields: [{ id: 'roomName', type: 'text' }] },
     });
-    store.set('moduleAssignments/assign1', {
-      id: 'assign1',
-      data: { partnerId: 'p-m0-mod', systemModuleId: 'sysm1', partnerModuleId: 'pmod1' },
+    seedMockDoc('moduleAssignments/assign1', {
+      partnerId: 'p-m0-mod',
+      systemModuleId: 'sysm1',
+      partnerModuleId: 'pmod1',
     });
     // Seed 3 items under pmod1.
     for (const id of ['i1', 'i2', 'i3']) {
-      store.set(`partners/p-m0-mod/businessModules/pmod1/items/${id}`, {
-        id,
-        data: { name: 'sample' },
+      seedMockDoc(`partners/p-m0-mod/businessModules/pmod1/items/${id}`, {
+        name: 'sample',
       });
     }
 
     const doc = await recomputeEngineHealth('p-m0-mod', 'booking');
     // emptyModules should NOT contain room_inventory (3 items > 0).
     expect(doc.emptyModules).not.toContain('room_inventory');
+    // Sanity check the helper actually seeded.
+    expect(firestoreStore.has('partners/p-m0-mod/businessModules/pmod1/items/i1')).toBe(true);
   });
 });
-
-// ── Test helpers ─────────────────────────────────────────────────────
-
-async function fetch_mock_setup_pref(
-  partnerId: string,
-  blockId: string,
-  data: Record<string, unknown>,
-) {
-  store.set(`partners/${partnerId}/relayConfig/${blockId}`, {
-    id: blockId,
-    data,
-  });
-}
-
-async function fetch_mock_setup_flow(
-  partnerId: string,
-  flow: Record<string, unknown>,
-) {
-  store.set(`partners/${partnerId}/relayConfig/flowDefinition`, {
-    id: 'flowDefinition',
-    data: flow,
-  });
-}
