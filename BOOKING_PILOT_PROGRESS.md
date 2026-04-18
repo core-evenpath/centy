@@ -578,3 +578,41 @@ reviewable PR matches the resume-safe-commits principle.
   - `activeEngine` is not bubbled up in `OrchestratorResponse` at the field level (it's only in the telemetry log). The runner's `PreviewTurnResult.activeEngine` is therefore null — operators read the block ids + catalog size + composition path, and the M12 telemetry log is the source of truth for active engine per turn. Adding an explicit `activeEngine` field to `OrchestratorResponse` would be a cross-cutting change; out of M13 scope.
   - No browser-based UI verification (same Q6 pattern).
 - Risk notes: first exposure of the production orchestrator to ad-hoc user journeys outside real chat. Sandbox isolation is validated structurally (tests + inspection) but the actual absence of prod-session pollution needs a dev-server click-through before merge — that check + the Q6 UI-verification check merge naturally.
+
+---
+
+## M14 — Onboarding: deterministic recipe picker
+- Status: done
+- Commit: (this commit)
+- Branch: `claude/booking-pilot-m14` (stacked)
+- Files changed: 4 added
+  - `src/lib/relay/onboarding/starter-blocks.ts` — curated `STARTER_BLOCKS_BY_FUNCTION` (33 functionIds; 5–13 blocks each)
+  - `src/lib/relay/onboarding/__tests__/starter-blocks.test.ts` — 7 acceptance tests
+  - `src/actions/onboarding-actions.ts` — `applyEngineRecipe` server action + `previewEngineRecipe` helper
+  - `src/app/admin/onboarding/relay/{page.tsx,OnboardingPicker.tsx}` — 3-question form + result view
+- LOC: +650 total
+- Tests: **114/114 pass** (107 prior + 7 new):
+  - Every starter block id exists in the registry (no orphan refs)
+  - Each set is 5–13 blocks (curated, not all-available)
+  - Covers all hospitality booking primaries (9 functionIds)
+  - Covers healthcare + wellness + travel booking primaries
+  - `getStarterBlocks` returns `[]` for unknown functionId
+  - Every set includes at least one booking-tagged or shared block
+  - Every starter-set functionId has `booking` in its M03 recipe (data consistency check)
+- tsc delta: 548 → 548 (zero new errors)
+- 3-question form:
+  - Q1 (business function): dropdown of `BUSINESS_FUNCTIONS` grouped by industry
+  - Q2 (customer journey): 5 checkboxes (commerce/booking/lead/engagement/info), pre-filled from `previewEngineRecipe(functionId)` via the M03 derivation. Edits set `recipeKind = 'custom'`; untouched defaults set `recipeKind = 'auto'`.
+  - Q3: single checkbox "Track or manage afterwards?" — toggles the `service` engine add
+- Apply action:
+  - Writes `partner.engines`, `partner.engineRecipe`, `partner.businessPersona.identity.businessCategories[0].functionId` (merged, non-destructive)
+  - Booking engine: writes each starter block id to `partners/{pid}/relayConfig/{blockId}` with `isVisible: true` + `source: 'onboarding'` (batched)
+  - Booking engine: clones the M05 flow template to `partners/{pid}/relayConfig/flowDefinition` with `status: 'active'`, `clonedFrom: <template.id>`
+  - Non-booking engines: partner.engines write only, no starter content (spec rule — shadow-mode Health will surface amber/red for these, which is expected)
+  - Health recompute per engine after writes
+  - Existing-active-Booking-flow check: warns rather than overwrites; reviewer can re-run with `overrideExistingFlow: true`
+- Data consistency finding (and fix during M14 authoring): `public_transport` is classified as `[info, service]` in the M03 recipe — not booking-primary. Initial draft had a starter set for it; removed after the test caught the mismatch. Kept the M05 ticketing flow-template entry for public_transport in place (operators can still opt into booking for transit), but no auto-starter. Noted inline in the starter-blocks file.
+- Deviations from spec:
+  - The M14 spec lists partnerBlockPrefs under `partnerBlockPrefs.{blockId}.isVisible`; implementation writes to `partners/{pid}/relayConfig/{blockId}` which is the path M12's `loadBlocksSignal` fallback reads (verified in M12 test + orchestrator/signals/blocks.ts). The alternate `partners/{pid}/relayConfig/blocks/entries` subcollection is the first-attempted path in loadBlocksSignal but falls back to the flat path when empty. M14 writes to the flat path so newly-onboarded partners show up correctly to M12.
+  - No browser-based UI verification (Q6 pattern).
+- Not tested in this session: end-to-end "onboard a new partner → run 1 Preview Copilot script against them" flow. That's a C3 integration check for Phase C.
