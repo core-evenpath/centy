@@ -244,3 +244,90 @@ Phase 1 closed 2026-04-18 via PR #142 + close-out PR. Phase 2 pre-flight started
 - Service-overlay breaks (themes 6 + 7 in each sub-vertical) depend on X01's Service tagging — ship AFTER X01 per the playbook ordering.
 - Runner (`runPreviewScript` from Phase 1 M13) is already engine-agnostic; no action-level changes needed. The commerce panel would just need to import `COMMERCE_PREVIEW_SCRIPTS` alongside `BOOKING_PREVIEW_SCRIPTS` — a follow-up UI tweak (Q8), not blocking.
 - Speculative-From: tuning.md#3 (sticky multi-turn for commerce partners surfaces same tie-break validation via scripts 6+7 — acts as regression for the Phase 1 M10-tune pattern)
+
+---
+
+## Phase 2 Session 1 — Commerce Phase C
+- Status: done
+- Commit: (this commit)
+- Branch: `claude/engine-rollout-commerce-phase-c` (stacked on commerce.M08)
+- Deliverable: `docs/engine-rollout-phase2/retro-session-1.md` + this block
+- Test count: **190/190 pass** (138 Phase 1 + 52 Phase 2 Session 1)
+- tsc delta: 548 → 548 (zero new errors across the stack)
+
+### Gate results
+
+**C2.1 — Commerce partner engine derivation (via `getPartnerEngines`):**
+- `ecommerce_d2c` → `[commerce, service]` ✓
+- `qsr` → `[commerce, service]` ✓
+- `fresh_produce` → `[commerce, service]` ✓
+
+**C2.2 — Commerce 5-turn multi-turn (partnerEngines=[commerce, service]):**
+```
+"I want to browse your new arrivals"    hint=commerce/weak  → commerce (fallback-first)
+"Show me the black leather jacket..."   hint=-/-            → commerce (sticky)
+"Add two to my cart"                    hint=-/-            → commerce (sticky)
+"Track my order #1234"                  hint=service/strong → service  (switch-strong-hint)
+"Actually cancel my order"              hint=service/strong → service  (sticky)
+```
+Service-overlay break at turn 4 works without a commerce-specific tiebreaker — the Phase 1 M10-tune pattern ("service ∈ strongHits AND strongHits.length > 1 → service wins") generalizes to Commerce. ✓
+
+**C2.3 — Per-engine catalog sizes (budget ≤ 30):**
+
+| Partner | Unscoped | Commerce-scoped | ≤30? |
+|---|---|---|---|
+| ecommerce_d2c | 15 | 13 | ✓ |
+| qsr | 13 | 12 | ✓ |
+| fresh_produce | 5 | 5 | ✓ |
+| online_learning | 14 | 14 | ✓ |
+| fashion_apparel | 14 | 12 | ✓ |
+
+All commerce-primary sample partners under the 30-block budget with substantial headroom.
+
+**C2 consistency checks:**
+- All 36 commerce-primary functionIds have flow template mappings ✓
+- All 36 commerce-primary functionIds have starter block sets ✓
+- 32 preview scripts (8 × 4 sub-verticals) ✓
+- 5 seed templates targeting product_catalog (4) + food_menu (1) ✓
+
+**C4 — Booking regression:**
+- `hotels_resorts` → `[booking, service]` (unchanged) ✓
+- Booking Phase 1 tests: all still pass ✓
+- No booking-exclusivity assertion regressed; the `booking OR commerce` widening of the Phase 1 M14 starter-blocks test is the single expected extension, tracked in the commerce.M06 block above.
+
+**C5 — Multi-engine catalog reduction (FIRST REAL MEASUREMENT):**
+
+Phase 1 couldn't measure C5 because no multi-engine partner existed yet. `full_service_restaurant` ([booking, commerce, service]) is the first.
+
+| Scope | Blocks | Reduction vs unscoped |
+|---|---|---|
+| unscoped | 17 | baseline |
+| booking-scoped | 6 | **65%** |
+| commerce-scoped | 15 | 12% |
+| service-scoped | 6 | **65%** |
+
+Asymmetric reduction is expected and correct: commerce is the "heavy" engine for food_beverage (menu_item, menu_detail, dietary_filter, order_customizer, combo_meal, …); booking + service are lean overlays. See `docs/engine-rollout-phase2/retro-session-1.md` §2.1 for details.
+
+### Retrospective summary
+- All 10 `Speculative-From: tuning.md#X` footers evaluated. **9 confirmed, 1 revised** (M0 loader estimate dropped ~1 day → ~1.5 hours; starter-block set size widened 7-13 → 5-13 to accommodate minimal-viable commerce partners like forex_remittance).
+- 2 unexpected findings: (a) first real C5 multi-engine reduction data (65% for booking & service scopes on `full_service_restaurant`); (b) M0 surfaced a vitest subcollection mock gap — logged as Q9.
+- **Gate decision for Lead: GREEN.** No blockers. Q8 (commerce preview panel UI import) + Q9 (vitest mock helper) are low-priority, non-blocking.
+
+### Stack state (session ready for PR)
+```
+claude/engine-rollout-phase2-preflight
+└─ claude/engine-rollout-m0-snapshots
+   └─ claude/engine-rollout-commerce-m01
+      └─ claude/engine-rollout-commerce-m02
+         └─ claude/engine-rollout-commerce-m03
+            └─ claude/engine-rollout-commerce-m04
+               └─ claude/engine-rollout-commerce-m05
+                  └─ claude/engine-rollout-commerce-m06
+                     └─ claude/engine-rollout-commerce-m07
+                        └─ claude/engine-rollout-x01-service
+                           └─ claude/engine-rollout-commerce-m08
+                              └─ claude/engine-rollout-commerce-phase-c  ← THIS
+```
+
+### Next session: Lead engine (P2.lead.M01 onwards)
+Entry predicate satisfied per retro §3. Lead-primary functionIds (insurance, real_estate, education enrolment, financial discovery flows, etc.) enumerated in Lead M01. Service-overlay carry-forward (Q10) handled during Lead X01.
