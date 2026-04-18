@@ -132,6 +132,77 @@ export async function getAllPartnerEngineHealth(
   }
 }
 
+// M09: dispatch Apply-fix proposals. Only `bind-field` mutates for now;
+// the other three kinds return an explicit "not yet implemented" error
+// with user-facing next-step guidance so the UI can show a clear message
+// rather than silently failing.
+export async function applyFixProposal(
+  partnerId: string,
+  engine: Engine,
+  proposal: import('@/lib/relay/health').FixProposal,
+): Promise<{ ok: boolean; error?: string; hint?: string }> {
+  try {
+    switch (proposal.kind) {
+      case 'bind-field': {
+        const blockId = proposal.blockId;
+        const field = proposal.field;
+        const moduleSlug = proposal.moduleSlug;
+        const sourceField = proposal.sourceField;
+        if (!blockId || !field || !moduleSlug || !sourceField) {
+          return { ok: false, error: 'bind-field proposal missing required fields' };
+        }
+        // Store the field binding on the partner's relayBlockConfigs doc.
+        // M12's snapshot loaders will read this path once they're wired.
+        await db
+          .collection('partners')
+          .doc(partnerId)
+          .collection('relayBlockConfigs')
+          .doc(blockId)
+          .set(
+            {
+              fieldBindings: { [field]: { moduleSlug, sourceField } },
+              updatedAt: new Date().toISOString(),
+            },
+            { merge: true },
+          );
+        // Recompute Health so the UI sees the issue disappear.
+        await recomputeEngineHealth(partnerId, engine);
+        return { ok: true };
+      }
+      case 'enable-block':
+        return {
+          ok: false,
+          error: 'Not yet implemented — use the /admin/relay/blocks page to enable this block manually.',
+          hint: 'enable-block',
+        };
+      case 'connect-flow':
+        return {
+          ok: false,
+          error: 'Not yet implemented — edit the partner flow definition to include this block at the named stage.',
+          hint: 'connect-flow',
+        };
+      case 'populate-module':
+        return {
+          ok: false,
+          error: 'Not yet implemented — ships with M15 seed templates + CSV import.',
+          hint: 'populate-module',
+        };
+      default: {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const k: string = (proposal as any).kind;
+        return { ok: false, error: `Unknown fix kind: ${k}` };
+      }
+    }
+  } catch (err) {
+    // eslint-disable-next-line no-console
+    console.error('[health] applyFixProposal failed', { partnerId, engine, err });
+    return {
+      ok: false,
+      error: err instanceof Error ? err.message : 'Unknown error applying fix',
+    };
+  }
+}
+
 /**
  * Shadow-mode save-hook wrapper. Call after any admin save that could
  * change block, flow, module, or partner engine state. NEVER rethrows —
