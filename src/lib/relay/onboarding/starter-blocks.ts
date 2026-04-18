@@ -681,6 +681,44 @@ for (const [fn, ids] of Object.entries(LEAD_STARTER_BLOCKS)) {
   STARTER_BLOCKS_BY_FUNCTION[fn] = ids;
 }
 
+// ── Engagement starter blocks (P2.engagement.M06) ──────────────────
+// Curated sets per Engagement-primary functionId. Set size 5-13 per
+// the Session 1 retro band. Engagement sets skew small — nonprofit
+// flows have a narrow natural surface (donate, impact-report,
+// event-calendar, volunteer, contact, greeting = 6 blocks). Service-
+// exception partners (Adjustment 3) have no Service-dependent blocks
+// in their starter sets.
+const ENGAGEMENT_STARTER_BLOCKS: Record<string, string[]> = {
+  ngo_nonprofit: [
+    'greeting', 'suggestions',
+    'pu_program_card', 'pu_donation', 'pu_impact_report',
+    'pu_volunteer', 'pu_event_calendar', 'pu_feedback', 'contact',
+  ],
+  religious: [
+    'greeting', 'suggestions',
+    'pu_event_calendar', 'pu_donation', 'pu_volunteer',
+    'pu_program_card', 'pu_feedback', 'contact',
+  ],
+  community_association: [
+    'greeting', 'suggestions',
+    'pu_event_calendar', 'pu_complaint', 'pu_volunteer',
+    'pu_feedback', 'contact',
+  ],
+  // cultural_institutions blends booking (ticketed events) with
+  // engagement (donations + volunteer). Starter set picks engagement
+  // core blocks; the booking sub-surface (tickets) is a separate
+  // partner-level decision handled by the booking catalog on that tab.
+  cultural_institutions: [
+    'greeting', 'suggestions',
+    'pu_event_calendar', 'pu_donation', 'pu_program_card',
+    'pu_volunteer', 'pu_feedback', 'contact',
+  ],
+};
+
+for (const [fn, ids] of Object.entries(ENGAGEMENT_STARTER_BLOCKS)) {
+  STARTER_BLOCKS_BY_FUNCTION[fn] = ids;
+}
+
 export function getStarterBlocks(functionId: string): string[] {
   return STARTER_BLOCKS_BY_FUNCTION[functionId] ?? [];
 }

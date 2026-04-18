@@ -68,6 +68,10 @@ export default function BlocksEngineShell({ initialBlocks, partners }: Props) {
     () => getAllowedBlocksForFunctionAndEngine(selectedFunctionId, 'lead'),
     [selectedFunctionId],
   );
+  const engagementCatalog = useMemo(
+    () => getAllowedBlocksForFunctionAndEngine(selectedFunctionId, 'engagement'),
+    [selectedFunctionId],
+  );
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -126,6 +130,15 @@ export default function BlocksEngineShell({ initialBlocks, partners }: Props) {
               : `Catalog view — ${leadCatalog.length} lead blocks (select a partner for Health)`}
           </div>
           <BookingPipeline blocks={leadCatalog} health={health} />
+        </>
+      ) : activeEngine === 'engagement' ? (
+        <>
+          <div style={{ fontSize: 12, color: '#7a7a70', marginBottom: 4 }}>
+            {selectedPartner
+              ? `Showing ${engagementCatalog.length} engagement blocks for this partner`
+              : `Catalog view — ${engagementCatalog.length} engagement blocks (select a partner for Health)`}
+          </div>
+          <BookingPipeline blocks={engagementCatalog} health={health} />
         </>
       ) : (
         <ComingSoon engine={activeEngine} />

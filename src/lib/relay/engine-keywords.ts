@@ -47,22 +47,32 @@ export const ENGINE_KEYWORDS: Record<Engine, { strong: string[]; weak: string[] 
     // 'apply for', 'want to apply', 'start an application', 'hire you',
     // 'to hire' — natural inquiry-intent phrases. Bare 'apply' avoided
     // because it collides with "apply this filter" / "apply a coupon".
-    // See docs/engine-rollout-phase2/c5-interpretation-commerce.md for
-    // the stress-test discipline.
+    //
+    // P2.engagement.M08.5 additions (2026-04-18): 'development officer',
+    // 'major giving' — lead-cultivation phrasings distinct from
+    // volunteer/donation engagement (planned giving, donor-development
+    // pipeline).
     strong: [
       'consultation', 'quote', 'proposal', 'discovery call',
       'fee structure', 'retainer', 'get a quote', 'request a proposal',
       'apply for', 'want to apply', 'start an application',
       'hire you', 'to hire',
+      'development officer', 'major giving',
     ],
     weak: [
       'inquiry', 'interested in', 'more info', 'pricing for',
     ],
   },
   engagement: {
+    // Strong-phrase additions (P2.engagement.M08.5 lexicon stress,
+    // 2026-04-18): 'one-time gift', 'monthly contribution' —
+    // engagement-giving phrasings distinct from the bare 'donate' verb.
+    // Both are specific donation patterns that users describe without
+    // explicit donation verbs.
     strong: [
       'donate', 'donation', 'rsvp', 'volunteer', 'sign up', 'subscribe',
       'pledge', 'membership',
+      'one-time gift', 'monthly contribution',
     ],
     weak: [
       'support', 'contribute', 'join', 'participate',

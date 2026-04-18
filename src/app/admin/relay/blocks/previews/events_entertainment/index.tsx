@@ -453,7 +453,8 @@ const EVT_BLOCKS: VerticalBlockDef[] = [
   { id: 'evt_equipment', family: 'production', label: 'AV & Equipment', stage: 'showcase', desc: 'Audio/visual/lighting catalog with daily rates, availability status', preview: MiniEquipmentList, intents: ['equipment', 'AV', 'sound', 'lighting', 'LED', 'PA system'], module: 'moduleItems', status: 'active', engines: ['lead'] },
   { id: 'evt_client_review', family: 'social_proof', label: 'Client Reviews', stage: 'social_proof', desc: 'Event-specific criteria bars, event-type-tagged reviews', preview: MiniClientReview, intents: ['reviews', 'ratings', 'testimonials', 'feedback'], module: null, status: 'active', engines: ['lead'] },
   { id: 'seating_chart', family: 'planning', label: 'Seating Layout', stage: 'showcase', desc: 'Table/section assignments with guest counts per zone', preview: MiniSeatingChart, intents: ['seating', 'layout', 'tables', 'arrangement', 'floor plan'], module: null, status: 'active', engines: ['booking'] },
-  { id: 'invite_rsvp', family: 'management', label: 'RSVP Tracker', stage: 'social_proof', desc: 'Guest list with sent/accepted/declined/pending counts, dietary info', preview: MiniInviteRSVP, intents: ['RSVP', 'guest list', 'invites', 'who is coming', 'headcount', 'dietary'], module: null, status: 'active', engines: ['booking'] },
+  // engines: ['booking', 'engagement'] — ticketed-event RSVP uses booking-style capacity; community-event free RSVP is a pure engagement commitment. Same UI genuinely serves both.
+  { id: 'invite_rsvp', family: 'management', label: 'RSVP Tracker', stage: 'social_proof', desc: 'Guest list with sent/accepted/declined/pending counts, dietary info', preview: MiniInviteRSVP, intents: ['RSVP', 'guest list', 'invites', 'who is coming', 'headcount', 'dietary'], module: null, status: 'active', engines: ['booking', 'engagement'] },
 ];
 
 const EVT_SUBVERTICALS: SubVerticalDef[] = [
