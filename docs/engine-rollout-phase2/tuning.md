@@ -96,6 +96,8 @@ Pre-flight decisions informing the per-engine milestones (Commerce, Lead, Engage
 
 - **Whether these budgets actually produce acceptable Gemini prompt-token reductions** — needs production measurement. M12 telemetry log is the measurement surface (emits `catalogSizeBeforeEngineFilter` vs `catalogSize` per turn). Phase 2 M12-integration test should sample this for each new engine's first partner.
 
+**Post-Session-1 update (gate session, 2026-04-18):** see `c5-interpretation-commerce.md` for the first real multi-engine measurement. The playbook's uniform 40% C5 reduction target is retired in favor of per-engine ranges (Booking ≥60%, Commerce 10-25%, Lead 25-50% predicted, Engagement 40-60% predicted, Info 50-70% predicted, Service ≥60%).
+
 ---
 
 ## 5. Drafting AI decision
@@ -188,3 +190,83 @@ From `BOOKING_PILOT_SUMMARY.md` + `BOOKING_PILOT_QUESTIONS.md`:
 ---
 
 _Authored 2026-04-18 as part of Phase 2 pre-flight. Evidence base: Phase 1 summary + progress log + questions log + static analysis of M01–M15 code surface + M12 telemetry code inspection. No production observation data — see Q2._
+
+---
+
+## 11. Session 1 findings (post-Commerce, gate session 2026-04-18)
+
+Evaluated after the pre-Lead gate session shipped Q8, Q9, C5
+interpretation, and the Commerce lexicon stress test.
+
+### C5 interpretation
+
+Commerce reduced `full_service_restaurant`'s catalog by 12% (17→15)
+while Booking and Service both reduced by 65%. Every one of the 15
+commerce-scoped blocks was classified against three interpretations
+(catalog-wide, taxonomy-too-broad, scoping-gap) and the verdict came
+out as **Interpretation A — catalog-wide by nature**. See
+`c5-interpretation-commerce.md` for the per-block tally.
+
+**Implication:** the playbook's uniform 40% C5 target is wrong. Revised
+per-engine ranges (booking ≥60%, commerce 10–25%, lead 25–50%
+predicted, engagement 40–60% predicted, info 50–70% predicted, service
+≥60%) replace it.
+
+### Lexicon stress test
+
+Pattern established in
+`src/__tests__/integration/lexicon-stress-commerce.test.ts`. 10 cases
+covering commerce-vs-service, commerce-vs-booking, and partner-scope
+dependence. 3 cases failed on first run; 3 lexicon keywords added
+(commerce: `place an order`, `want to order`; service: `order update`,
+`order updates`) and tests now pass. "grab it" documented as an
+acceptable unclassified gap; commerce-vs-lead cases documented as TODO
+for Lead's inherit.
+
+**Lead session inherits this pattern:** add
+`lexicon-stress-lead.test.ts` alongside Lead's M08 equivalent, not
+after Phase C. If the test reveals > 3 failures, escalate — that's the
+threshold that surfaced a real Commerce gap this session.
+
+### Retrospective revision (Session 1 9/10 → actual breakdown)
+
+Session 1 retro claimed "9 confirmed, 1 revised" out of 10
+Speculative-From footers. Revised accounting after the gate session:
+
+- **Confirmed by test (explicit assertion):** 5 — M0, commerce.M01,
+  commerce.M04, commerce.M05, commerce.M08 (multi-turn sticky)
+- **Confirmed by absence of failure (no adverse observation):** 4 —
+  commerce.M02 (catalog budget), commerce.M03 (flow pattern),
+  commerce.M07 (seed pattern), X01 (overlay tagging pattern). Each
+  would benefit from explicit stress coverage similar to Task 4 but
+  the gate session didn't have budget to add them.
+- **Revised:** 1 — commerce.M06 starter-block size band (7-13 →
+  5-13), already in the Session 1 retro.
+
+The gate session **revised 2 additional items**:
+1. C5 target is per-engine ranges, not a uniform 40% (see above).
+2. Commerce lexicon had 3 stress-test gaps that Session 1's
+   confirmation-by-silence missed. Fixed this session.
+
+### Discipline for Lead
+
+- Every engine's C5 result must be interpreted against the revised
+  per-engine target **before retro closes** (not as a follow-up).
+- Every engine's lexicon must pass a `lexicon-stress-<engine>.test.ts`
+  before C3 smoke (not after). Stress test goes alongside M08, not
+  Phase C.
+- Confirmation-by-silence is no longer sufficient for speculative
+  items; each retro must distinguish "confirmed by test" from
+  "confirmed by no adverse observation" and treat the latter as still
+  speculative until it has a dedicated assertion.
+- Every per-engine Phase C block cites its predicted C5 range from
+  `c5-interpretation-commerce.md` and reports actual measured value.
+
+### Gate-session meta note: tsc baseline
+
+Session 1 retro recorded `tsc --noEmit: 548 → 548`. Gate-session
+re-measurement at HEAD showed **401** without any working-tree state.
+The 548 figure evidently included `.next/types/` cruft from a stale
+build. **401 is the correct baseline going forward.** Every future
+session should run `rm -rf .next && npx tsc --noEmit` as the measurement
+command to avoid the drift.

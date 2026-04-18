@@ -64,6 +64,10 @@ export default function BlocksEngineShell({ initialBlocks, partners }: Props) {
     () => getAllowedBlocksForFunctionAndEngine(selectedFunctionId, 'commerce'),
     [selectedFunctionId],
   );
+  const leadCatalog = useMemo(
+    () => getAllowedBlocksForFunctionAndEngine(selectedFunctionId, 'lead'),
+    [selectedFunctionId],
+  );
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -113,6 +117,15 @@ export default function BlocksEngineShell({ initialBlocks, partners }: Props) {
             rename-only PR; an engine-neutral alias can come later.
           */}
           <BookingPipeline blocks={commerceCatalog} health={health} />
+        </>
+      ) : activeEngine === 'lead' ? (
+        <>
+          <div style={{ fontSize: 12, color: '#7a7a70', marginBottom: 4 }}>
+            {selectedPartner
+              ? `Showing ${leadCatalog.length} lead blocks for this partner`
+              : `Catalog view — ${leadCatalog.length} lead blocks (select a partner for Health)`}
+          </div>
+          <BookingPipeline blocks={leadCatalog} health={health} />
         </>
       ) : (
         <ComingSoon engine={activeEngine} />

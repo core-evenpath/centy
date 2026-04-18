@@ -1,17 +1,12 @@
 'use client';
 
 import React, { useMemo, useState } from 'react';
-import type { PreviewScript } from '@/lib/relay/preview/booking-scripts';
+import type { AnyPreviewScript } from '@/lib/relay/preview/scripts-index';
+import { SUB_VERTICAL_LABELS } from '@/lib/relay/preview/scripts-index';
 import type { PreviewRunResult, PreviewTurnResult } from '@/lib/relay/preview/script-runner';
 import { runPreviewScriptAction } from '@/actions/relay-preview-actions';
 
-const SUB_VERTICAL_LABELS: Record<PreviewScript['subVertical'], string> = {
-  hotel: 'Hotel',
-  clinic: 'Clinic',
-  wellness: 'Wellness',
-  ticketing: 'Ticketing',
-  'airport-transfer': 'Airport Transfer',
-};
+type PreviewScript = AnyPreviewScript;
 
 interface Props {
   partnerId: string;
@@ -135,7 +130,7 @@ function ScriptPicker({
               padding: '4px 8px',
             }}
           >
-            {SUB_VERTICAL_LABELS[subVertical as PreviewScript['subVertical']] ?? subVertical}
+            {SUB_VERTICAL_LABELS[subVertical] ?? subVertical}
           </div>
           {groups[subVertical].map((s) => {
             const isSelected = selectedId === s.id;

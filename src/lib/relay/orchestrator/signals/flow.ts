@@ -17,6 +17,7 @@ import {
 import { getFlowTemplateForFunction } from '@/lib/flow-templates';
 import { getBookingFlowTemplate } from '@/lib/relay/flow-templates/booking';
 import { getCommerceFlowTemplate } from '@/lib/relay/flow-templates/commerce';
+import { getLeadFlowTemplate } from '@/lib/relay/flow-templates/lead';
 import type {
   ConversationFlowState,
   FlowDefinition,
@@ -81,6 +82,10 @@ async function loadFlowDefinition(
   if (activeEngine === 'commerce') {
     const commerceTpl = getCommerceFlowTemplate(functionId);
     if (commerceTpl) return commerceTpl as unknown as FlowDefinition;
+  }
+  if (activeEngine === 'lead') {
+    const leadTpl = getLeadFlowTemplate(functionId);
+    if (leadTpl) return leadTpl as unknown as FlowDefinition;
   }
   const template = getFlowTemplateForFunction(functionId);
   return template ? (template as unknown as FlowDefinition) : null;

@@ -1,63 +1,12 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
+import {
+  firestoreStore,
+  makeFirestoreAdminMock,
+  resetFirestoreMock,
+} from '@/__tests__/helpers/firestore-admin-mock';
 
-// ── Firestore admin mock ──────────────────────────────────────────────
-//
-// The applyFixProposal server action writes to
-// `partners/{partnerId}/relayBlockConfigs/{blockId}` via `db.collection`.
-// We stub `@/lib/firebase-admin` with an in-memory Firestore so tests
-// run without emulator.
-
-interface StoreDoc {
-  id: string;
-  data: Record<string, unknown>;
-}
-const store = new Map<string, StoreDoc>();
-
-const docMock = (path: string) => ({
-  set: vi.fn(async (data: Record<string, unknown>, opts?: { merge?: boolean }) => {
-    const existing = store.get(path);
-    const merged = opts?.merge && existing
-      ? { ...existing.data, ...data }
-      : data;
-    store.set(path, { id: path.split('/').pop()!, data: merged });
-  }),
-  get: vi.fn(async () => {
-    const hit = store.get(path);
-    return {
-      exists: hit !== undefined,
-      data: () => hit?.data,
-    };
-  }),
-});
-
-function collectionMock(name: string, prefix = ''): {
-  doc: (id: string) => ReturnType<typeof docMock> & { collection: (sub: string) => ReturnType<typeof collectionMock> };
-  where: () => { get: () => Promise<{ docs: Array<{ id: string; data: () => unknown }> }> };
-} {
-  return {
-    doc: (id: string) => {
-      const path = `${prefix}${name}/${id}`;
-      const base = docMock(path);
-      return {
-        ...base,
-        collection: (sub: string) => collectionMock(sub, `${path}/`),
-      };
-    },
-    where: () => ({
-      get: vi.fn(async () => ({
-        docs: Array.from(store.entries())
-          .filter(([k]) => k.startsWith(`${prefix}${name}/`))
-          .map(([, v]) => ({ id: v.id, data: () => v.data })),
-      })),
-    }),
-  };
-}
-
-vi.mock('@/lib/firebase-admin', () => ({
-  db: {
-    collection: vi.fn((name: string) => collectionMock(name)),
-  },
-}));
+// Shared subcollection-aware mock (Q9).
+vi.mock('@/lib/firebase-admin', () => makeFirestoreAdminMock());
 
 // ── SUT imports (after mock) ──────────────────────────────────────────
 
@@ -65,7 +14,7 @@ import { applyFixProposal } from '../relay-health-actions';
 import type { FixProposal } from '@/lib/relay/health';
 
 beforeEach(() => {
-  store.clear();
+  resetFirestoreMock();
 });
 
 afterEach(() => {
@@ -93,7 +42,7 @@ describe('applyFixProposal — bind-field (happy path)', () => {
     expect(result.ok).toBe(true);
 
     const key = 'partners/p1/relayBlockConfigs/room_card';
-    const written = store.get(key);
+    const written = firestoreStore.get(key);
     expect(written).toBeDefined();
     expect((written!.data as { fieldBindings: Record<string, { moduleSlug: string; sourceField: string }> }).fieldBindings).toEqual({
       name: { moduleSlug: 'room_inventory', sourceField: 'roomName' },
@@ -147,7 +96,7 @@ describe('applyFixProposal — other kinds return explicit "not yet implemented"
 
 describe('applyFixProposal — underlying-state unchanged on error', () => {
   it('failed apply does not leave half-written state', async () => {
-    const before = store.size;
+    const before = firestoreStore.size;
     await applyFixProposal('p1', 'booking', {
       kind: 'enable-block',
       blockId: 'b1',
@@ -155,6 +104,6 @@ describe('applyFixProposal — underlying-state unchanged on error', () => {
       reason: 'test',
       payload: {},
     });
-    expect(store.size).toBe(before);
+    expect(firestoreStore.size).toBe(before);
   });
 });

@@ -111,3 +111,130 @@ from code with high confidence"), I am stopping.
   started.
 
 **Awaiting:** human guidance on which resolution path to take.
+
+---
+
+## Q3–Q7 — Phase 1 carry-forwards
+
+**Status:** **carried forward, non-blocking** for Phase 2. Tracked in
+Phase 1's `BOOKING_PILOT_QUESTIONS.md` and in `tuning.md` §8 risk
+register. Summary:
+
+- **Q3** preview sub-vertical id drift (travel/automotive/food_beverage)
+- **Q4** pre-existing tsc error count (401 post-gate-session; previously
+  reported as 548 due to `.next/types/` cruft — see Q12)
+- **Q5** full save-hook coverage for non-booking admin saves
+- **Q6** UI visual verification gap (no Playwright coverage)
+- **Q7** M09 populate-module → M15 seed action wiring
+
+None block Lead. Revisit as each engine ships.
+
+---
+
+## Q8 — Commerce preview panel UI import    (2026-04-18)
+
+**Status:** **resolved** — gate session, commit `fbbae94d`.
+
+**Trigger:** commerce.M08 shipped 32 `COMMERCE_PREVIEW_SCRIPTS` but the
+admin Preview Copilot panel (`src/app/admin/relay/health/preview/page.tsx`)
+only imported `BOOKING_PREVIEW_SCRIPTS`. Commerce partners couldn't run
+their own preview scripts from the panel.
+
+**Resolution:** new unified scripts index
+(`src/lib/relay/preview/scripts-index.ts`) combining both registries;
+engine-gated import in `page.tsx` (commerce scripts appended only when
+partner has `commerce` in `getPartnerEngines`); broadened PreviewPanel
+to accept `AnyPreviewScript[]`. 6 new tests in `scripts-index.test.ts`.
+
+---
+
+## Q9 — Vitest subcollection mock helper    (2026-04-18)
+
+**Status:** **resolved** — gate session, commit `cba60a4b`.
+
+**Trigger:** M0's `loadPartnerBlockPrefs` calls
+`db.collection().doc().collection().get()` (subcollection read). Two
+adjacent test files (`relay-health-actions.test.ts`,
+`apply-fix-proposal.test.ts`) carried inline mocks that didn't
+implement `.doc().collection()`. The try/catch swallowed the TypeError
+but a WARN log leaked every run.
+
+**Resolution:** extracted a reusable helper at
+`src/__tests__/helpers/firestore-admin-mock.ts` with full nested
+subcollection support, `.count()` aggregation, `.where/.limit`,
+configurable `throwOnWrite`. Migrated 3 test files; removed ~90 LOC of
+duplication; WARN leak eliminated. 7 helper validation tests.
+
+---
+
+## Q10 — Service tagging for non-Commerce blocks    (2026-04-18)
+
+**Status:** open, **intentionally deferred** per-engine as each engine
+ships.
+
+**Scope:** X01 this session tagged 4 Commerce-adjacent Service blocks
+(order_confirmation, order_tracker, kitchen_queue, fs_order_tracker).
+Service-candidate blocks in other verticals remain untagged:
+- hospitality: `check_in`
+- healthcare: `lab_results`, `prescription`
+- personal_wellness: `loyalty_progress`
+- public_nonprofit: `application-tracker`
+- (further candidates discovered as per-engine work proceeds)
+
+**Action path:** tag Service-candidate blocks during the owning engine's
+session (hospitality check_in → Booking engine retrospective;
+healthcare lab_results → Info/Lead session; etc.). No dedicated X01
+follow-up milestone.
+
+---
+
+## Q11 — Observation window data    (2026-04-18)
+
+**Status:** open, long-running. Revisit mid-Phase-2 per pre-flight
+waived-observation caveat (see Q2).
+
+**Scope:** production shadow-mode Health + classifier data needed to
+convert speculative tuning items (per `docs/engine-rollout-phase2/tuning.md`)
+into confirmed decisions. Earliest meaningful sample:
+7 days after phase-c merged (2026-04-25).
+
+---
+
+## Q12 — tsc baseline drift 548 → 401    (2026-04-18)
+
+**Status:** **resolved** — gate session meta-finding.
+
+**Trigger:** Session 1 retro recorded `tsc: 548 → 548`. Gate-session
+re-measurement at HEAD (clean working tree) returned **401**. Root
+cause: the 548 figure was evidently counted with `.next/types/` cruft
+from a stale Next.js build.
+
+**Resolution:** **401 is the correct baseline going forward.** All
+future measurement MUST run `rm -rf .next && npx tsc --noEmit` to
+avoid this drift. Logged in `tuning.md` §11 "Gate-session meta note."
+
+---
+
+## Q13 — Preview panel Playwright smoke    (2026-04-18)
+
+**Status:** open, **intentionally deferred**. Low priority.
+
+**Trigger:** Q8 resolution touched server + client components; unit
+tests confirm the unified index works but actual UI rendering is not
+covered. A Playwright smoke would close this gap.
+
+**Action path:** bundle with Phase 3 gating-cutover work (when Health
+UI becomes save-blocking, UI verification becomes mandatory). Phase 2
+engines can each ship with their own unit-level coverage.
+
+---
+
+## Q14 — n/a (lexicon-stress escalation threshold not exceeded)
+
+**Trigger:** the gate-session playbook instructed "log Q14 and stop" if
+Commerce lexicon stress test revealed > 3 failures. Actual: 3 failures,
+all fixable with targeted keyword additions. Escalation not triggered.
+Fixes shipped in the same commit as the test per playbook discipline.
+
+**No open question here** — this entry exists only to honor the
+playbook's numbering.
