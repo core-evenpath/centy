@@ -51,9 +51,9 @@ import {
   recomputeEngineHealth,
   getEngineHealth,
   getAllPartnerEngineHealth,
-  invalidateHealthCache,
   triggerHealthRecompute,
 } from '../relay-health-actions';
+import { invalidateHealthCache } from '@/lib/relay/health-cache';
 
 beforeEach(() => {
   store.clear();
