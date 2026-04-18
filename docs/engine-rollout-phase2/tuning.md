@@ -320,3 +320,51 @@ for engagement-session watch.
 - Tuning.md additive growth per session (each session appends a new §N findings block).
 - tsc baseline re-measured with `rm -rf .next` discipline at session start + end.
 
+---
+
+## 13. Session 3 findings (post-Engagement, 2026-04-18)
+
+### C5 distribution shape (Adjustment 1)
+
+Engagement distribution: 5 × 0% + 1 × 44% (community_savings, lead-primary
+with engagement overlay). Spans 0-44%; at least one partner ≥ 15% → Q20
+NOT triggered. Pure-engagement partners show 0% as predicted — catalogs
+are already narrow (5-12 blocks) and engagement-tagged, so there's
+nothing to strip. The 44% outlier comes from a lead-primary partner whose
+lead-specific financial blocks lack engagement tags.
+
+**Revised per-engine C5 ranges (post-Session-3):**
+- Booking: ≥ 60% (Session 1)
+- Commerce: 10-25% (Session 1)
+- Lead: 25-50% on at-least-one-partner; 0% on dual-tag-heavy partners (Session 2)
+- **Engagement: 0-15% pure + 30-50% on secondary-overlay partners (Session 3)**
+- Info: predict 0-15% pure + 40-70% on secondary (Session 4)
+- Service: ≥ 60% (Session 1)
+
+Predictive pattern: engines with narrow pure-domain catalogs (engagement, info) show 0% on pure partners and high-% on cross-engine overlay; engines with richer pure-domain catalogs (booking, commerce, lead) show varying by dual-tag density.
+
+### Q16 rule confirmation
+
+Rule applied cleanly to Engagement: 3 failures in 2 thematic categories (engagement-giving phrasings + lead-cultivation phrasings). Under ceiling → proceed. No post-hoc category invention (verified: the 2 categories are linguistically distinct — HOW vs WHO).
+
+Session trend: Commerce (3 failures/2 cats), Lead (8/2), Engagement (3/2). Category count stable at ≤ 2. **Q16 rule holds as spec** — predict Info will also land at 2 categories.
+
+### Dual-tag drift (Q17 follow-up)
+
+Session-by-session dual-tag additions: Session 1 ~0, Session 2 9, Session 3 4. **Trend: not accelerating.** Per-block justification discipline (Adjustment 4) enforced — every dual-tag has a single-line comment. Triple-tag count remains 0.
+
+### Service-exception calibration (Adjustment 3 / Q15)
+
+Current count: 4 of 5 allowed. Pattern is coherent — all 4 are engagement-primary partners with no post-commitment state. 1 slot remaining; Info session should only consume if genuinely warranted (zero post-interaction state for an info-primary partner).
+
+### In-chat conversion state (Adjustment 5)
+
+Engagement shipped ZERO new session fields. Post-conversion content (thank-you, impact-receipt, next-step) lives in flow-template `followup` stage, not session state. Q22 never triggered.
+
+### Discipline confirmed for Info
+
+- 8+1 milestone template validated across 3 engines (Commerce, Lead, Engagement).
+- Simpler-engine discipline (Adjustment 6) held — Engagement shipped a full suite despite being structurally simpler.
+- C5 distribution-shape pattern now validated across 2 engines (Lead, Engagement).
+- Info session should inherit all Adjustments 1-6 as-is; no revisions needed this retro.
+
