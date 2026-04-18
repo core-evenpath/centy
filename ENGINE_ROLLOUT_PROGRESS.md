@@ -197,3 +197,29 @@ Phase 1 closed 2026-04-18 via PR #142 + close-out PR. Phase 2 pre-flight started
 - `applySeedTemplate` action unified: looks up ids from both booking + commerce registries. Prefix convention `booking.*` vs `commerce.*` ensures no collisions.
 - CSV import path from Phase 1 M15 is unchanged — generic, engine-agnostic, works for product_catalog out of the box (verified by Phase 1's M15 tests still passing).
 - Speculative-From: tuning.md#4 (catalog budget enforced at the seed level too: max 5 items per template keeps operator cognitive load manageable)
+
+---
+
+## X01 — Service overlay tagging + verification
+- Status: done (Commerce-adjacent scope; broader tagging carry-forward)
+- Commit: (this commit)
+- Branch: `claude/engine-rollout-x01-service` (stacked on M07)
+- Files changed: 3 modified + 1 added + regenerated registry
+  - `previews/ecommerce/index.ts` — tagged `order_confirmation`, `order_tracker` with `engines: ['service']`
+  - `previews/food_beverage/index.tsx` — tagged `kitchen_queue` with `engines: ['service']`
+  - `previews/food_supply/index.tsx` — tagged `fs_order_tracker` with `engines: ['service']`
+  - `_registry-data.ts` regenerated (4 service tags)
+  - `src/lib/relay/__tests__/x01-service-overlay.test.ts` — 7 tests
+- Tests: 182/182 pass (175 prior + 7 new)
+- tsc delta: 548 → 548
+- Scope **this session**: **Commerce-adjacent Service blocks only** (4 tags). Other Service-candidate blocks listed in the playbook spec (hospitality `check_in`, personal_wellness `loyalty_progress`, healthcare `lab_results`, healthcare `prescription`, public_nonprofit `application-tracker`, etc.) are **carried forward** — they need tagging when their respective engines ship in later Phase 2 sessions. Non-Commerce engines aren't in scope this session.
+- Verified behaviors:
+  - Service auto-included for every booking-primary partner (Phase 1 M03 confirmed)
+  - Service auto-included for every commerce-primary partner (Phase 2 M01 confirmed)
+  - Service-scoped catalog for ecommerce_d2c includes order_confirmation + order_tracker
+  - Commerce-scoped catalog does NOT leak service blocks
+  - Booking-scoped catalog does NOT include Commerce service blocks (kitchen_queue, order_tracker)
+  - Shared blocks still appear in service catalog (greeting, contact, etc.)
+- Onboarding UX (from Phase 1 M14): `Q2_ENGINES = ENGINES.filter((e) => e !== 'service')` already excludes Service from the 3-question form. No change needed.
+- Commerce flow templates' `serviceIntentBreaks: ['track-order', 'cancel-order', 'modify-order']` now resolve to real Service blocks when the orchestrator routes to them.
+- Speculative-From: tuning.md#7 (X01 alongside Commerce — confirmed the coupling works; service tagging doesn't require its own engine-milestone pattern, just per-engine tagging as needed)
