@@ -616,3 +616,156 @@ reviewable PR matches the resume-safe-commits principle.
   - The M14 spec lists partnerBlockPrefs under `partnerBlockPrefs.{blockId}.isVisible`; implementation writes to `partners/{pid}/relayConfig/{blockId}` which is the path M12's `loadBlocksSignal` fallback reads (verified in M12 test + orchestrator/signals/blocks.ts). The alternate `partners/{pid}/relayConfig/blocks/entries` subcollection is the first-attempted path in loadBlocksSignal but falls back to the flat path when empty. M14 writes to the flat path so newly-onboarded partners show up correctly to M12.
   - No browser-based UI verification (Q6 pattern).
 - Not tested in this session: end-to-end "onboard a new partner → run 1 Preview Copilot script against them" flow. That's a C3 integration check for Phase C.
+
+---
+
+## M15 — Drafting: seed templates + generic module CSV import
+- Status: done
+- Commit: (this commit)
+- Branch: `claude/booking-pilot-m15` (stacked)
+- Files changed: 5 added
+  - `src/lib/relay/seed-templates/booking/index.ts` — 5 templates × 5 items each (rooms, amenities, house_rules, local_experiences, meal_plans)
+  - `src/lib/relay/seed-templates/__tests__/booking-seeds.test.ts` — 8 acceptance tests
+  - `src/lib/import/module-csv-import.ts` — pure CSV parser + validator (papaparse, already in deps)
+  - `src/lib/import/__tests__/module-csv-import.test.ts` — 10 tests (BOM, CRLF, quoted fields, coercions, error paths)
+  - `src/actions/relay-seed-actions.ts` — `applySeedTemplate`, `importModuleItemsFromCSVAction`, `listSeedTemplatesAction`
+- LOC: +860 total
+- Tests: **132/132 pass** (114 prior + 18 new):
+  - 5 templates shipped; 3–5 items each; INR currency; empty images
+  - No real names/addresses/phone in seeds (pattern-checked)
+  - sortOrder monotonic within each template
+  - CSV: clean parse with header === field id
+  - CSV: case-insensitive + name-based header mapping
+  - CSV: BOM + CRLF + quoted fields via papaparse
+  - CSV: multi_select via `,`/`|`/`;` delimiters
+  - CSV: toggle coercion (`yes`/`no`/`true`/`false`/`1`/`0`)
+  - CSV: rejects missing required fields, invalid select options, numbers out of range
+  - CSV: headerMap exposes which columns mapped and which were dropped
+- tsc delta: 548 → 548 (zero new errors)
+- Seed-template append semantics verified: every apply generates fresh item ids via `generateItemId()`; no upsert-merge. UI hint should display "Adds N sample items" per the spec.
+- CSV import batching: 400-row Firestore batches (under the 500-op limit). Shadow-mode Health recompute after the final batch.
+- Deviations from spec (3, all logged):
+  1. **Modules system uses `ModuleFieldDefinition[]`, not Zod.** The spec assumed Zod schemas. Wrote the validator against the actual runtime shape (required-fields check, select-option check, number min/max check). Same acceptance coverage; different validation library.
+  2. **`hotel-import-service.ts` was not refactored** into a thin wrapper. That file is a Google-Places + AI enrichment service, not a CSV import — the spec's framing didn't match the actual code. Left it untouched; the new generic CSV path lives alongside it in `lib/import/module-csv-import.ts`. No regressions to `importHotelData` or its caller `hotel-import-actions.ts`.
+  3. **Seeds target the existing `room_inventory` module with category filters**, not 5 separate modules. The codebase has 4 system modules total (room_inventory, food_menu, service_catalog, product_catalog); M04 tagging shows booking blocks all bind to `room_inventory` with a category filter. Seed categories: `rooms`, `amenities`, `house_rules`, `local_experiences`, `meal_plans`. Same spec intent (5 populated "groups"), different storage granularity.
+- UI wiring deferred: the M09 drilldown's "populate-module" Apply-fix flow still returns the stub message. Activating the M09 → M15 link is a small follow-up; both actions exist and can be called from the UI. Logged as Q7.
+- No browser-based UI verification (Q6 pattern).
+
+---
+
+## M10-tune — `engine-keywords.ts` service-overlay tiebreaker (surfaced by Phase C C2.2)
+
+- Status: done
+- Commit: (this commit — on `claude/booking-pilot-phase-c`)
+- Files changed: 2 modified
+  - `src/lib/relay/engine-keywords.ts` — when service ∈ strongHits AND ≥1 other engine is also in strongHits, prefer service
+  - `src/lib/relay/__tests__/engine-keywords.test.ts` — 6 regression tests
+- Rationale: C2.2 multi-turn hotel sequence failed — "cancel my reservation" returned `booking` because "reservation" (booking.strong) and "cancel" + "my reservation" (service.strong) both matched, and the ENGINES-tuple tiebreaker picks booking (earlier index). Semantically wrong: this is a service-overlay intent. Spec hard rule #7 permits M01–M12 file edits when a milestone explicitly requires it; C2.2 is that milestone.
+- Scope: isolated to the final tiebreaker in `classifyEngineHint`. ENGINES-tuple tiebreaker preserved for non-service multi-hits ("buy a book" still → commerce).
+- Tests: 138/138 pass. tsc delta: 548 → 548.
+
+---
+
+## Phase C — Validation
+
+### C1 — Unit tests
+- **Status: GREEN** — 138 / 138 passing. Coverage exceeds spec's 80% target on pure-function modules. Zero network / Firestore / filesystem calls.
+
+### C2.1 — Backward compatibility — **GREEN**
+- Legacy hotel partner (`functionId: hotels_resorts`, no `engines` field) → `getPartnerEngines` returns `['booking', 'service']` via M03 shim.
+- Partner with no functionId → `[]` (graceful).
+
+### C2.2 — Sticky multi-turn conversation — **GREEN** (after M10-tune)
+- 5-turn hotel sequence produces expected arc:
+  1. `"hi there"` → booking / fallback-first
+  2. `"book a room"` → booking / sticky
+  3. `"do you have availability saturday"` → booking / sticky
+  4. `"actually can you cancel my reservation"` → service / switch-strong-hint
+  5. `"thanks"` → service / sticky
+- Surfaced the service-overlay tiebreaker bug → fixed in M10-tune.
+
+### C2.3 — Engine-scoped catalog budget — **GREEN**
+- hotels_resorts booking: 18 blocks (budget ≤ 25) ✓
+- dental_care booking: 14 ✓  · hair_beauty: 15 ✓  · ticketing_booking: 5 ✓  · airport_transfer: 5 ✓
+
+### C2 — Cross-milestone consistency — **GREEN**
+- All 5 booking flow templates: every `suggestedBlockId` exists + has `booking` or `shared` tag ✓
+- All 33 starter-block sets reference only real registry blocks ✓
+- All 40 preview scripts: `engine === 'booking'`, unique ids, static text ✓
+- All 5 seed templates: 3–5 items, INR currency, empty images, no PII ✓
+- `computeEngineHealth` idempotence verified ✓
+
+### C3 — Smoke (reviewer checklist, ≤ 15 minutes) — **DEFERRED**
+
+Static correctness verified: scripts parse, turn structure valid, flows wire correctly. Live smoke requires dev-server + Firestore + seeded test partners — not available in this execution environment. Reviewer sign-off is the merge gate for phase-c.
+
+**Dev-server setup**
+```
+git fetch origin
+git checkout claude/booking-pilot-phase-c
+npm install
+npm run dev          # default port 9002 per package.json (`next dev --turbopack -p 9002`)
+```
+Open `http://localhost:9002/admin/onboarding/relay` and `http://localhost:9002/admin/relay/health` in separate tabs.
+
+**Setup step (2 minutes): seed a hotel test partner**
+1. In onboarding page, pick any partner from the dropdown (throwaway / test id).
+2. Q1: select **Hotels & Resorts**.
+3. Q2: accept defaults (`booking`, `service` pre-checked).
+4. Q3: leave checked.
+5. Submit. Verify success banner: starter blocks enabled ≥ 10, flow cloned: yes, Health recomputed: `booking, service`.
+6. Open `/admin/modules` for this partner → apply the `booking.rooms` seed template. Confirm 5 items added.
+
+**Scripts to run** (from `/admin/relay/health/preview?partnerId=<test-partner>`)
+
+| Script id | Expected first-turn block | Expected activeEngine by turn 3 | Pass criteria |
+|---|---|---|---|
+| `hotel-01-greeting-browse` | `greeting` or `room_card` | `booking` | Catalog size 18±2; response text non-empty; no orchestrator errors |
+| `hotel-02-specific-availability` | `room_card` or `availability` | `booking` | availability block renders with seeded rooms |
+| `hotel-04-booking-flow` | `room_card` | `booking` | Progresses through stages; `check_in` block surfaces by turn 3-4 |
+| `hotel-06-service-break` | booking block (turn 1), then service-scoped block (turn 2-3) | `service` by turn 3 | Mid-conversation switch from booking → service; telemetry log shows `selectionReason: switch-strong-hint` on the switching turn |
+| `hotel-07-cancel` | service-scoped (or empty block + plain text on red Health) | `service` | Cancel intent routes to service engine; response addresses cancellation |
+
+**Pass criteria**
+- **GREEN:** 5/5 scripts produce expected blocks, zero orchestrator errors in the terminal log, telemetry fields all present (`activeEngine`, `catalogSize`, `catalogSizeBeforeEngineFilter`, `selectionReason`, `healthStatus`).
+- **PARTIAL:** 4/5 green with a named issue. If the 5th is degraded-mode producing generic text on red Health, that's the M12 documented deviation — acceptable for partial-pass.
+- **FAIL:** ≤3/5 green, or any orchestrator error (throw / 500), or missing telemetry fields.
+
+**Reviewer deliverable (comment on phase-c PR):**
+- [ ] Verdict: PASS / PARTIAL / FAIL
+- Per-script notes (anything surprising, screenshots if rendering wrong)
+- Telemetry spot-check: paste one turn's structured log line
+- Sign-off: _"Ready to merge phase-c"_ OR _"Needs fix first: <what>"_
+
+**Time estimate:** 2 min setup + ~1 min per script × 5 + 2 min comment = ~9 minutes. Budget 15 minutes for environment variance.
+
+**Non-booking regression spot-check (additional 5 minutes — recommended but not blocking):**
+- Open `/partner/relay` for any existing ecommerce or service-industry partner NOT in the booking pilot scope.
+- Send 3 ordinary messages.
+- Expected: identical behavior to pre-pilot. Zero "active engine = null" errors. Legacy flow path taken.
+
+### C4 — Regression (non-booking partners unchanged) — **GREEN**
+- Legacy `ecommerce_d2c` null-engine catalog returns 15 blocks (unchanged — null engine is permissive).
+- Non-booking `government` → no auto-starter blocks (correct).
+- Untagged blocks (non-M04 verticals) pass through engine filter — verified via M12 test suite.
+
+### C5 — Performance — **PARTIAL PASS with documented rationale**
+- **Measurement gap acknowledged:** pre-pilot baseline was not captured before M12 merged. Spec allows partial-pass for this specific gap.
+- **Proxy measurement (catalog-size reduction):** for 5 pure-booking partners, unscoped-vs-booking-scoped catalog sizes are identical (0% reduction).
+  - `hotels_resorts`: 18 → 18
+  - `dental_care`: 14 → 14
+  - `hair_beauty`: 15 → 15
+  - `ticketing_booking`: 5 → 5
+  - `airport_transfer`: 5 → 5
+- **Why 0% is expected for pure-booking partners:** engine scoping removes blocks tagged for *other* engines. Pure-booking partners have no cross-engine blocks. The 40% target presumes multi-engine partners (hotel + restaurant, clinic + pharmacy) — Phase 2 territory.
+- **Catalog budget *is* being enforced:** M12 caps hotel at 18 blocks, well under 25-block budget.
+- **Live measurement path (post-pilot):** M12 telemetry emits `catalogSizeBeforeEngineFilter` vs `catalogSize`. Multi-engine partners in Phase 2 will show measurable reduction.
+- Per session prompt: "Do not fail C5 outright for a measurement gap that was baked in before this session."
+
+### Phase C — Outcome
+- **3 of 5 gates green** (C1, C2 all sub-gates, C4)
+- **1 partial-pass with explicit rationale** (C5 — measurement gap + 0%-for-pure-booking is correct behavior)
+- **1 deferred** (C3 — dev-server + seeded partners required; ≤15-minute reviewer check before merge)
+- **No hard failures.**
+- Surfaced 1 real bug (M10 service-overlay tiebreaker); fixed inline.
+- Proceeding to `BOOKING_PILOT_SUMMARY.md`.

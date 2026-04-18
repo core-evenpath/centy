@@ -140,7 +140,19 @@ export function classifyEngineHint(message: string): EngineHintResult {
     }
   }
 
+  // Tiebreaker: when a service-overlay intent (cancel / track / modify /
+  // reschedule) co-occurs with a primary-engine keyword, prefer service.
+  // Rationale: a message like "cancel my reservation" hits both
+  // booking.strong ("reservation") and service.strong ("cancel",
+  // "my reservation") — the user intent is the SERVICE overlay (modify
+  // an existing booking), not a new booking. Without this guard the
+  // simple ENGINES-tuple tiebreaker picks booking (earlier index), which
+  // misroutes. Applied only when service is among the strong hits AND
+  // at least one other engine is also present.
   if (strongHits.length > 0) {
+    if (strongHits.includes('service') && strongHits.length > 1) {
+      return { engineHint: 'service', engineConfidence: 'strong' };
+    }
     return { engineHint: strongHits[0], engineConfidence: 'strong' };
   }
   if (weakHits.length > 0) {

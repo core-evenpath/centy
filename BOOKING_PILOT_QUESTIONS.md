@@ -251,3 +251,23 @@ preserved), read-only (no mutations), and constrained to an admin page.
 Worst case: the layout looks slightly off; the data stays correct.
 
 Carried forward to next session with dev-server access.
+
+---
+
+## Q7 — M09 "populate-module" Apply-fix → M15 seed wiring (opened at M15)
+
+**Status:** open; non-blocking — small follow-up
+
+**Trigger:** M15 shipped `applySeedTemplate` and `importModuleItemsFromCSVAction`, but the M09 drilldown's Apply-fix button for the `populate-module` proposal kind still returns the stub message `Not yet implemented — ships with M15 seed templates + CSV import`.
+
+**Proposed resolution:** replace the `populate-module` branch in `applyFixProposal` (src/actions/relay-health-actions.ts) with a link/redirect to the M15 seed action — either:
+1. Call `applySeedTemplate` with a matching template id inferred from the module slug
+2. Or return `{ ok: false, hint: 'populate-module', error: 'Use /admin/relay/health seed buttons (M15) or /admin/modules'}` and surface a UI "Seed" button inline in the drilldown
+
+Option 2 is cleaner (explicit user intent) — the stub message can be replaced with a button that calls `listSeedTemplatesAction` then `applySeedTemplate`.
+
+Not blocking because:
+- `applySeedTemplate` works correctly when called directly
+- Operators can reach it via `/admin/modules` (seed templates UI to follow as part of the same cleanup)
+
+Scope: ~1 hour of UI wiring. Appropriate as a cleanup pass after Phase C passes.
