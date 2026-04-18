@@ -8,19 +8,39 @@ ambiguity is closed out, or `carried forward` when deferred to a later phase.
 
 ## Q1 — Phase 1 pre-flight evidence files missing    (2026-04-17)
 
-**Status:** open — BLOCKING
+**Status:** **resolved** — Phase 1 completed end-to-end in subsequent sessions. All required artifacts now exist on main:
 
-**Trigger:** Section 2.1 (Pre-flight / Read Phase 1 outputs). The playbook
-instructs:
+- `BOOKING_PILOT_SUMMARY.md` ✓
+- `BOOKING_PILOT_QUESTIONS.md` ✓ (Q1–Q7 all classified)
+- `BOOKING_PILOT_PROGRESS.md` ✓ (with "Phase 1 — Closed" entry)
+- `docs/booking-pilot-analysis.md` ✓
+- `docs/booking-pilot-observation.md` ✓ (watch list + sign-off checklist)
 
-> Read these files at repo root and absorb every conclusion:
-> - `BOOKING_PILOT_SUMMARY.md`
-> - `BOOKING_PILOT_QUESTIONS.md`
-> - `BOOKING_PILOT_PROGRESS.md`
-> - `docs/booking-pilot-analysis.md`
->
-> If any of these is missing, **stop**. Phase 2 cannot proceed without
-> Phase 1 evidence. Log to `ENGINE_ROLLOUT_QUESTIONS.md` and escalate.
+Phase 1 closed 2026-04-18 via PR #142 + close-out PR on same day. This entry is kept for audit trail.
+
+---
+
+## Q2 — Phase 2 pre-flight started under waived observation window    (2026-04-18)
+
+**Status:** open — carried forward into tuning.md
+
+**Trigger:** Phase 2's Section 2.1 pre-flight gates include "≥ 1 week of shadow-mode Health observation" and "C3 live smoke confirmed by reviewer" — both pending (observation window just started 2026-04-18; earliest completion 2026-04-25). User explicitly requested Phase 2 start now, waiving these gates.
+
+**Implication:** `docs/engine-rollout-phase2/tuning.md` will be derived from static analysis + M12 telemetry code-surface inspection, NOT from production observation data. Specifically:
+
+- **Lexicon refinements** — can only note that M10's service-overlay tiebreaker was added during C2.2 (production evidence of other misfires is zero — no observation data yet).
+- **Health threshold tuning** — M06 thresholds (0.6 similarity, amber/red boundaries) have not been run against production partners; tuning recommendations will say "keep as-is, revisit after observation."
+- **Sticky engine behavior** — M11's 4-reason outcomes are unit-tested but have not seen real conversational traffic.
+- **Drafting AI decision** — no onboarding-friction observations yet; decision will default to "defer to Phase 3" until Phase 2 mid-cycle.
+- **Gating cutover decision** — no shadow-mode false-positive rate data; default defer to Phase 3.
+
+**Mitigation:** Phase 2 pre-flight tuning.md will honestly mark observation-dependent conclusions as "unknown; revisit in-phase." Phase 2's own retrospective should flag that observation data landed late.
+
+**Original trigger text (2026-04-17):** kept below for audit trail.
+
+---
+
+## Q1 (original text — 2026-04-17)
 
 **Observed state of the repo (branch `claude/phase-2-engine-rollout-Hr3aW`,
 working tree clean):**
