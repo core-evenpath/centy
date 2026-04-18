@@ -270,3 +270,53 @@ The 548 figure evidently included `.next/types/` cruft from a stale
 build. **401 is the correct baseline going forward.** Every future
 session should run `rm -rf .next && npx tsc --noEmit` as the measurement
 command to avoid the drift.
+
+---
+
+## 12. Session 2 findings (post-Lead, 2026-04-18)
+
+### C5 interpretation for Lead
+
+Multi-engine Lead partners produced mixed C5 outcomes: `event_planning`
+hit 27% (in the 25-50% predicted range), but `legal_services`,
+`consulting_advisory`, and `real_estate` hit 0% because their blocks
+are extensively dual-tagged (`['lead', 'booking']` for home-services
+overlap; `['lead', 'service']` for application-tracking). **Interpretation
+A holds with amendment:** when a partner's blocks genuinely serve
+both engines, scoping shouldn't strip them, and the observed 0%
+reduction IS the correct signal — not a bug. Catalog-size reduction
+is one of several goals of scoping; routing discipline is another
+and that works regardless of reduction %.
+
+**Revised engagement prediction:** 40-60% (unchanged). Engagement
+surface is genuinely narrower.
+
+### Lexicon stress — revised threshold
+
+Gate session's "> 4 failures triggers Q19" rule proved too
+count-sensitive. Lead M08.5 surfaced 8 initial failures, all fixable
+with targeted additions (9 keywords: 5 lead-strong, 4 service-strong).
+Fixing them in the same commit per Session 1 C2.2 discipline kept the
+milestone healthy.
+
+**Proposed new rule:** escalate on *systemic* gap (a broad category
+missing) rather than count. Lead's 8 gaps fit exactly two categories
+(inquiry verbs + service-overlay phrasings), confirming the
+non-systemic nature. This is an **incremental extension**, not a
+blocker.
+
+### Dual-tag pattern maturation
+
+Session 2 introduced more dual-tags than Session 1. Home-services
+partners driving `['lead', 'booking']` is a genuine architectural
+signal — some domains DO blend both engines natively. Logged as Q17
+for engagement-session watch.
+
+### Discipline confirmed for remaining engines
+
+- Every engine ships an M08.5-equivalent lexicon-stress file before Phase C.
+- C5 interpretation is a required retrospective section (not optional).
+- Systemic-gap escalation supersedes count-based.
+- Tuning.md additive growth per session (each session appends a new §N findings block).
+- tsc baseline re-measured with `rm -rf .next` discipline at session start + end.
+
