@@ -331,3 +331,45 @@ claude/engine-rollout-phase2-preflight
 
 ### Next session: Lead engine (P2.lead.M01 onwards)
 Entry predicate satisfied per retro §3. Lead-primary functionIds (insurance, real_estate, education enrolment, financial discovery flows, etc.) enumerated in Lead M01. Service-overlay carry-forward (Q10) handled during Lead X01.
+
+---
+
+## Gate Session (pre-Lead)
+- Status: done
+- Branches: `claude/gate-session-q9-mock-helper` → `claude/gate-session-q8-preview-panel` → `claude/gate-session-c5-interpretation` → `claude/gate-session-lexicon-stress`
+- Commits:
+  - `cba60a4b` [gate-session] Q9 vitest subcollection mock helper
+  - `fbbae94d` [gate-session] Q8 preview panel imports commerce scripts
+  - `0bce185d` [gate-session] C5 interpretation — commerce (A verdict)
+  - `243fda36` [gate-session] Commerce lexicon stress test + 3 lexicon fixes
+- Tests: **213/213 pass** (190 Session 1 + 23 new this gate session)
+  - 7 in `firestore-admin-mock.test.ts` (Q9)
+  - 6 in `scripts-index.test.ts` (Q8)
+  - 10 in `lexicon-stress-commerce.test.ts` (Task 4, 3 of which triggered lexicon fixes)
+- tsc delta: 401 → 401 (re-measured baseline; see tuning.md §11 for the 548-vs-401 drift note)
+- Files touched:
+  - New: `src/__tests__/helpers/firestore-admin-mock.ts`, `src/__tests__/helpers/__tests__/firestore-admin-mock.test.ts`, `src/lib/relay/preview/scripts-index.ts`, `src/lib/relay/preview/__tests__/scripts-index.test.ts`, `src/__tests__/integration/lexicon-stress-commerce.test.ts`, `docs/engine-rollout-phase2/c5-interpretation-commerce.md`
+  - Modified: `src/actions/__tests__/{m0-snapshot-loaders,relay-health-actions,apply-fix-proposal}.test.ts` (migrated to shared mock), `src/lib/relay/preview/script-runner.ts` (accepts AnyRunnablePreviewScript), `src/actions/relay-preview-actions.ts` (unified lookup), `src/app/admin/relay/health/preview/{page,PreviewPanel}.tsx` (engine-gated commerce scripts), `src/lib/relay/engine-keywords.ts` (+2 commerce-strong, +2 service-strong), `docs/engine-rollout-phase2/tuning.md` (§4 update + new §11 findings)
+
+### Gate results
+
+- **Task 1 (Q9):** helper extracted, 3 existing test files migrated, WARN-log leak eliminated (was "[health] loadPartnerBlockPrefs failed" × N per run; now zero).
+- **Task 2 (Q8):** commerce scripts now appear in the Preview Copilot panel for commerce-enabled partners. Engine-gated: booking-only partners see only booking scripts (backward-compat).
+- **Task 3 (C5 interpretation):** **Interpretation A — catalog-wide by nature.** All 15 commerce-scoped blocks on `full_service_restaurant` classified; zero scoping-layer gaps, zero material taxonomy redundancy. Playbook's uniform 40% C5 target retired; per-engine ranges adopted (see `c5-interpretation-commerce.md`).
+- **Task 4 (lexicon stress):** 10-case stress test shipped. 3 initial failures produced 3 lexicon fixes (commerce: `place an order`, `want to order`; service: `order update`, `order updates`). Pattern established for Lead to inherit.
+
+### Lead readiness: **YES**
+
+- C5 interpretation is A (no Interpretation B/C fix required before Lead starts).
+- Lexicon stress pattern established; Lead session must add `lexicon-stress-lead.test.ts` alongside M08.
+- Q8, Q9 resolved. Q10 (service tagging for non-Commerce blocks) and Q11 (observation data) still open by design.
+- New questions: Q12 (tsc 548 → 401 baseline drift, root-caused to .next/types/ cruft — resolution: always `rm -rf .next` before tsc), Q13 (Preview panel Playwright smoke deferred), Q14 (n/a — lexicon stress didn't exceed 3 failures).
+
+### Stack state
+```
+claude/engine-rollout-commerce-phase-c
+└─ claude/gate-session-q9-mock-helper
+   └─ claude/gate-session-q8-preview-panel
+      └─ claude/gate-session-c5-interpretation
+         └─ claude/gate-session-lexicon-stress  ← THIS (pre-Lead foundation)
+```
