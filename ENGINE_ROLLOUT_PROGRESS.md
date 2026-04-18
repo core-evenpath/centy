@@ -118,3 +118,22 @@ Phase 1 closed 2026-04-18 via PR #142 + close-out PR. Phase 2 pre-flight started
 - Every `suggestedBlockId` exists in registry AND is tagged commerce or shared (verified via test).
 - Orchestrator wiring: `loadFlowDefinition` now checks `getCommerceFlowTemplate(functionId)` when `activeEngine === 'commerce'`, falling back to legacy `getFlowTemplateForFunction`.
 - Speculative-From: tuning.md#1 (lexicon tie-break discipline — serviceIntentBreaks declared up-front, not discovered via C2.2-style smoke)
+
+---
+
+## P2.commerce.M04 — activate Commerce tab in /admin/relay/blocks
+- Status: done
+- Commit: (this commit)
+- Branch: `claude/engine-rollout-commerce-m04` (stacked on M03)
+- Files changed: 2 modified
+  - `src/app/admin/relay/blocks/components/EngineTabs.tsx` — added `'commerce'` to `ACTIVATED_ENGINES` set
+  - `src/app/admin/relay/blocks/components/BlocksEngineShell.tsx` — added Commerce tab branch + Commerce catalog memo + broadened Health-load gate to `ACTIVATED_ENGINES.has(...)`
+- Tests: 157/157 pass (no new tests; UI branch follows the same shape as Booking tab)
+- tsc delta: 548 → 548
+- Commerce tab behavior:
+  - Renders stage-ordered pipeline via reused `BookingPipeline` component (which is engine-agnostic internally — just buckets blocks by canonical stage). An engine-neutral alias rename is a future cleanup.
+  - Catalog source: `getAllowedBlocksForFunctionAndEngine(partner.functionId, 'commerce')` — M12 helper activated via M02 tagging.
+  - Health dots fill from the new M0-enabled real snapshots when a partner is selected. No partner → catalog view, dots hidden.
+- Other engine tabs (Lead, Engagement, Info, Service) still render "Coming soon" via the existing `ComingSoon` component.
+- Screenshots: **deferred** to reviewer with dev-server access (same Q6 pattern as Phase 1 M08). Module graph compiles, types check, data layer verified via the M02/M03 tests.
+- Speculative-From: tuning.md#4 (catalog budget — Commerce tab content for a commerce-primary partner stays under 30 blocks by design of M02+M03)
