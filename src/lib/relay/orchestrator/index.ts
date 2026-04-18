@@ -173,7 +173,9 @@ export async function orchestrate(
 
   // 3. Persist engine change (fire-and-forget; any write failure is logged
   //    and swallowed by the session store, never blocking the turn).
-  if (activeEngine !== previousActive) {
+  //    Preview mode suppresses this write so sandbox runs don't mutate
+  //    production session state.
+  if (activeEngine !== previousActive && !ctx.preview) {
     try {
       await setActiveEngine(ctx.partnerId, ctx.conversationId, activeEngine);
     } catch (err) {

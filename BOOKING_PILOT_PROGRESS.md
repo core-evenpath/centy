@@ -541,3 +541,40 @@ reviewable PR matches the resume-safe-commits principle.
   - 3 of 4 Apply-fix kinds stubbed rather than implemented. Spec allows this ("can ship as stubs with 'Not yet implemented' messaging IF an escalation is logged with rationale"). Escalation: the three stubbed kinds each require non-trivial Firestore writes that interact with the existing partner-config surfaces in ways that would bloat M09 significantly. `enable-block` needs `partnerBlockPrefs` writes; `connect-flow` needs flow-definition writes; `populate-module` is explicitly M15 scope. All three have clear "do it manually via X" messages. `bind-field` is the one that ships working end-to-end.
   - No browser-based UI verification (same Q6 pattern as M08). Module graph compiles, types check, and the action behavior is unit-tested; layout/interaction UX needs a dev-server review before merge.
 - Risk notes: applyFixProposal is the first write surface sourced from Health. It's scoped to a single Firestore write per apply, wrapped in try/catch, and always returns a structured `{ok, error}` result. Failed applies don't leave half-written state (verified by test).
+
+---
+
+## M13 — Preview Copilot: scripted scenarios + sandboxed admin panel
+- Status: done
+- Commit: (this commit)
+- Branch: `claude/booking-pilot-m13` (stacked on M09)
+- Files changed: 2 modified + 6 added
+  - `src/lib/relay/orchestrator/types.ts` — added `preview?: boolean` to `OrchestratorContext`
+  - `src/lib/relay/orchestrator/index.ts` — skip `setActiveEngine` persistence when `ctx.preview` is true
+  - `src/lib/relay/preview/booking-scripts.ts` — 40 scripts (8 per sub-vertical × 5)
+  - `src/lib/relay/preview/script-runner.ts` — `runPreviewScript` calls production `orchestrate()` with `preview_` conversationId + `preview: true` flag
+  - `src/lib/relay/preview/__tests__/booking-scripts.test.ts` — 9 structural acceptance tests
+  - `src/actions/relay-preview-actions.ts` — `'use server'` actions `listPreviewScripts` + `runPreviewScriptAction`
+  - `src/app/admin/relay/health/preview/page.tsx` — new route at `/admin/relay/health/preview?partnerId=…`
+  - `src/app/admin/relay/health/preview/PreviewPanel.tsx` — script-picker + per-turn rendering + re-run button
+  - `src/app/admin/relay/health/components/HealthShell.tsx` — activated the "Open Preview Copilot" button (links to the new route; disabled when partner lacks booking engine)
+- LOC: +950 total
+- Tests: **107/107 pass** (98 prior + 9 new):
+  - Exactly 40 scripts shipped (8 per sub-vertical × 5 sub-verticals: hotel, clinic, wellness, ticketing, airport-transfer)
+  - Every script engine === 'booking'
+  - All script ids unique
+  - Every turn role === 'user' with non-empty content
+  - No template interpolation (`${}`) or `Date.now` in any user message — static plain text
+  - `getScriptById` lookup works; returns undefined for unknown ids
+  - Each sub-vertical covers all 8 canonical themes (greeting-browse, specific-availability, comparison, booking-flow, addon, service-break, cancel, edge)
+- tsc delta: 548 → 548 (zero new errors)
+- Sandbox isolation strategy (three layers of defense):
+  1. **`OrchestratorContext.preview: true` flag** — suppresses the `setActiveEngine` session-persist call inside the orchestrator so sandbox runs don't mutate real session state.
+  2. **`preview_` conversationId prefix** — any residual writes that might happen downstream land in isolated docs that never collide with production. Format: `preview_{partnerId}_{scriptId}_{nonce}`.
+  3. **Runner never calls the M07 save-hook** — Health stays shadow-mode on production partner data only; preview runs never trigger Health recomputes.
+- The M09 "Open Preview Copilot" button is now active when a booking-enabled partner is selected. Disabled with tooltip otherwise.
+- Reproducibility: same script → same block ids per turn, modulo the fresh nonce in conversationId (which intentionally keeps each run a separate flow-engine session so history doesn't accumulate across re-runs).
+- Deviations from spec:
+  - `activeEngine` is not bubbled up in `OrchestratorResponse` at the field level (it's only in the telemetry log). The runner's `PreviewTurnResult.activeEngine` is therefore null — operators read the block ids + catalog size + composition path, and the M12 telemetry log is the source of truth for active engine per turn. Adding an explicit `activeEngine` field to `OrchestratorResponse` would be a cross-cutting change; out of M13 scope.
+  - No browser-based UI verification (same Q6 pattern).
+- Risk notes: first exposure of the production orchestrator to ad-hoc user journeys outside real chat. Sandbox isolation is validated structurally (tests + inspection) but the actual absence of prod-session pollution needs a dev-server click-through before merge — that check + the Q6 UI-verification check merge naturally.

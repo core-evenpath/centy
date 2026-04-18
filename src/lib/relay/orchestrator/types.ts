@@ -22,6 +22,14 @@ export interface OrchestratorContext {
   messages: Array<{ role: 'user' | 'assistant'; content: string }>;
   /** Force-disable RAG retrieval even when the intent would qualify. */
   skipRag?: boolean;
+  /**
+   * Preview-mode (M13 sandbox). When true, the orchestrator:
+   *   - skips the `setActiveEngine` session persistence call
+   *   - reads Health (cached) but never recomputes
+   * The caller is responsible for using a `preview_` prefixed
+   * conversationId so any remaining writes land in isolated docs.
+   */
+  preview?: boolean;
 }
 
 // ── Signal bundle ───────────────────────────────────────────────────
