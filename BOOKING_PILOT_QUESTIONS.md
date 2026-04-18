@@ -209,3 +209,45 @@ admin scoping).
   partner settings save actions.
 - Can land as a single cleanup commit or alongside M14 (onboarding
   recipe picker) when the partner-settings save path is touched anyway.
+
+---
+
+## Q6 — M08 visual verification gap    (opened at M08)
+
+**Status:** open; carry-forward — not blocking the milestone but blocking PR merge
+
+**Trigger:** M08 acceptance requires before/after screenshots of
+`/admin/relay/blocks` attached to the PR. This session's environment
+has no browser or dev-server access, so visual verification is limited
+to:
+
+- `tsc --noEmit` clean (zero new errors vs 548 baseline)
+- Vitest 92/92 pass
+- Module graph compiles + imports resolve
+- Ad-hoc tsx probe confirms engine-scoped catalog output (18 blocks for
+  hotels_resorts, canonical stages bucketed correctly, 0 commerce-
+  leak)
+
+**What's verified:** data layer correctness, type correctness, engine-
+scoping behavior.
+
+**What's NOT verified:** visual layout, responsive behavior on narrow
+viewports, tab interaction smoothness, partner-selector dropdown UX,
+whether the "Other stages" fallback bucket for non-canonical-stage
+blocks (guest_review, nudge, house_rules) looks awkward, whether the
+collapsed "Legacy grid view" element is discoverable.
+
+**Proposed resolution:** someone with dev-server + browser access
+clicks through the page before merge:
+1. Load `/admin/relay/blocks` → capture catalog-view screenshot
+2. Pick a hotel partner → capture partner-selected screenshot
+3. Toggle to Commerce tab → confirm "Coming soon" placeholder
+4. Attach both screenshots to PR
+5. If any visual issue is found, open a follow-up cleanup PR — do not
+   block other milestones on it since the data layer is correct.
+
+**Risk assessment:** low. The component is additive (existing grid is
+preserved), read-only (no mutations), and constrained to an admin page.
+Worst case: the layout looks slightly off; the data stays correct.
+
+Carried forward to next session with dev-server access.
