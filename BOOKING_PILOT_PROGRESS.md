@@ -477,3 +477,34 @@ reviewable PR matches the resume-safe-commits principle.
 - Build-breaking `invalidateHealthCache` issue (M07 followup) was
   fixed via PR #135 and merged before this session.
 - No new questions opened.
+
+---
+
+## M08 — Admin UI: engine tabs + Booking pipeline + Health dots
+- Status: done
+- Commit: (this commit)
+- Branch: `claude/booking-pilot-m08` (from updated main post-#136)
+- Files changed: 1 modified + 6 added
+  - `src/app/admin/relay/blocks/page.tsx` — rewrapped with `BlocksEngineShell`, now fetches partners list
+  - `src/app/admin/relay/blocks/components/EngineTabs.tsx` — tab bar with 6 engines + 'Coming soon' affordance
+  - `src/app/admin/relay/blocks/components/BookingPipeline.tsx` — canonical-stage horizontal pipeline + "Other stages" fallback bucket
+  - `src/app/admin/relay/blocks/components/BlockCard.tsx` — per-block card with id/module badges
+  - `src/app/admin/relay/blocks/components/HealthDots.tsx` — 3-dot indicator (flow / module / fields); hidden when no partner
+  - `src/app/admin/relay/blocks/components/PartnerSelector.tsx` — lightweight dropdown (no existing selector to reuse)
+  - `src/app/admin/relay/blocks/components/BlocksEngineShell.tsx` — top-level client shell
+- LOC: +510 total
+- Tests: **92/92 pass** (unchanged — component-level RTL testing deferred; not justified as new dep)
+- tsc delta: 548 → 548 (zero new errors)
+- Visual verification via ad-hoc tsx probe:
+  - 18 blocks for `hotels_resorts` booking scope (matches M12 budget ≤ 25)
+  - Canonical stages covered: greeting 1, discovery 4, showcase 5, comparison 0, conversion 4, followup 0, handoff 1
+  - 3 blocks land in non-canonical stages (`guest_review`→social_proof, `nudge`→social_proof, `house_rules`→objection) — render in "Other stages" fallback bucket with visual note
+  - Catalog view (null partner) shows 5 shared blocks
+  - Commerce scope for hotel: 0 booking leaks (engine tag isolation works)
+- Screenshots: **NOT captured** — no browser access from this environment. Deviation from spec. The module graph compiles, imports resolve, tsc is clean, and probe output is correct, but I cannot verify visual layout fidelity. Flagged as a Q6 follow-up: someone with dev-server access should click through `/admin/relay/blocks` and attach before/after screenshots to the PR before merge.
+- Partner fetch scope: page loads up to 50 partners from the `partners` collection. Large admin deployments (>50) will need a search surface in a follow-up milestone; not blocking since M08 is operator-facing + infrequently opened.
+- Preserved existing `AdminRelayBlocks` grid view behind a collapsible details element ("Legacy grid view") — operators don't lose any current affordances.
+- Backward compat: page is purely additive — the existing grid view is still available, all existing actions (seed, reset, sync, bulk-toggle) still work.
+- Deviations from spec:
+  - No visual-regression or manual-screenshot verification (see Q6).
+  - Inline styles rather than the existing `T` palette in `AdminRelayBlocks.tsx` — consistent with the codebase's inline-style convention for admin surfaces; extracting to a shared theme is a cross-cutting refactor out of M08's scope.
