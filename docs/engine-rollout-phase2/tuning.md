@@ -96,6 +96,8 @@ Pre-flight decisions informing the per-engine milestones (Commerce, Lead, Engage
 
 - **Whether these budgets actually produce acceptable Gemini prompt-token reductions** — needs production measurement. M12 telemetry log is the measurement surface (emits `catalogSizeBeforeEngineFilter` vs `catalogSize` per turn). Phase 2 M12-integration test should sample this for each new engine's first partner.
 
+**Post-Session-1 update (gate session, 2026-04-18):** see `c5-interpretation-commerce.md` for the first real multi-engine measurement. The playbook's uniform 40% C5 reduction target is retired in favor of per-engine ranges (Booking ≥60%, Commerce 10-25%, Lead 25-50% predicted, Engagement 40-60% predicted, Info 50-70% predicted, Service ≥60%).
+
 ---
 
 ## 5. Drafting AI decision
