@@ -65,11 +65,13 @@ describe('STARTER_BLOCKS_BY_FUNCTION (M14)', () => {
     }
   });
 
-  it('starter sets only exist for functionIds where booking is primary or present', () => {
-    // Every starter functionId should have 'booking' in its recipe.
+  it('starter sets only exist for functionIds with booking OR commerce in the recipe', () => {
+    // Phase 1 M14 asserted booking-only; Phase 2 commerce.M06 extends
+    // to Commerce partners. Any other primary would be a mistake.
     for (const fn of Object.keys(STARTER_BLOCKS_BY_FUNCTION)) {
       const engines = FUNCTION_TO_ENGINES[fn] ?? [];
-      expect(engines, `${fn}`).toContain('booking');
+      const hasCovered = engines.includes('booking') || engines.includes('commerce');
+      expect(hasCovered, `${fn} has engines [${engines.join(',')}]`).toBe(true);
     }
   });
 });

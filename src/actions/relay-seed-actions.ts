@@ -12,8 +12,15 @@
 
 import { db as adminDb } from '@/lib/firebase-admin';
 import { FieldValue } from 'firebase-admin/firestore';
-import { getSeedTemplate } from '@/lib/relay/seed-templates/booking';
+import { getSeedTemplate as getBookingSeedTemplate } from '@/lib/relay/seed-templates/booking';
+import { getCommerceSeedTemplate } from '@/lib/relay/seed-templates/commerce';
 import { importModuleItemsFromCSV } from '@/lib/import/module-csv-import';
+
+// Unified lookup: seed templates ids are globally unique (prefix
+// `booking.*` or `commerce.*`). Look up both registries.
+function getSeedTemplate(id: string) {
+  return getBookingSeedTemplate(id) ?? getCommerceSeedTemplate(id);
+}
 import { generateItemId } from '@/lib/modules/utils';
 import type { ModuleItem, SystemModule } from '@/lib/modules/types';
 import { triggerHealthRecompute } from './relay-health-actions';

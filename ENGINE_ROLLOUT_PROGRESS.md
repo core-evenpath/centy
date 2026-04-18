@@ -151,3 +151,49 @@ Phase 1 closed 2026-04-18 via PR #142 + close-out PR. Phase 2 pre-flight started
 - Apply-fix flows are engine-agnostic too (from Phase 1 M09) — `bind-field` works for commerce partners out of the box. Stubbed kinds (enable-block, connect-flow, populate-module) surface the same "Not yet implemented" messages regardless of engine.
 - Preview Copilot button in HealthShell.tsx still hardcoded to `partnerEngines.includes('booking')` — will be broadened when commerce.M08 ships Commerce scripts. Logged here as a no-op for now; not regressing existing Booking behavior.
 - Speculative-From: tuning.md#7 (engine order — Commerce coming second confirmed engine-agnostic design of Phase 1 admin UI holds)
+
+---
+
+## P2.commerce.M06 — Commerce onboarding starter blocks
+- Status: done
+- Commit: (this commit)
+- Branch: `claude/engine-rollout-commerce-m06` (stacked on M05)
+- Files changed: 1 modified + 1 added + 1 updated (M14 test relaxed)
+  - `src/lib/relay/onboarding/starter-blocks.ts` — extended `STARTER_BLOCKS_BY_FUNCTION` with 36 commerce-primary functionIds (all primaries from M03 recipe)
+  - `src/lib/relay/onboarding/__tests__/commerce-starter-blocks.test.ts` — 6 acceptance tests
+  - `src/lib/relay/onboarding/__tests__/starter-blocks.test.ts` — relaxed M14 assertion: starter-set functionIds now allow booking OR commerce in recipe (was booking-only)
+- Tests: 167/167 pass (161 prior + 6 new)
+- tsc delta: 548 → 548
+- Coverage: all 36 commerce-primary functionIds have curated starter sets
+- Set sizes: 5–13 blocks each (`forex_remittance` is smallest at 6; `full_service_restaurant` is largest at 11)
+- Pattern per flow-template shape:
+  - General retail (13 + 6 secondary-style): `greeting, suggestions, product_card, product_detail, compare, bundle?, promo?, cart, contact` (+variants per sub-vertical)
+  - Food delivery (7): `greeting, suggestions, menu_item, category_browser, dietary_filter?, order_customizer, daily_specials?, combo_meal?, cart, contact`
+  - Food supply (8): `greeting, suggestions, fs_product_card, catalog_browser?, bulk_order?, wholesale_pricing, delivery_scheduler, recurring_order?, cart, contact`
+  - Subscription (1): `greeting, suggestions, skin_quiz, product_card, product_detail, subscription, promo, cart, contact`
+- `applyEngineRecipe` (from Phase 1 M14) is generic — no action code changes needed. New Commerce partner onboarded via the form now gets the right starter blocks + the cloned Commerce flow template + Health recompute for [commerce, service].
+- Speculative-From: tuning.md#1 (lexicon tie-breaks — set sizes held the 7-13 band for most, widened to 5-13 when forex_remittance / translation_docs / logistics_courier came in with minimal viable shape)
+
+---
+
+## P2.commerce.M07 — Commerce seed templates
+- Status: done
+- Commit: (this commit)
+- Branch: `claude/engine-rollout-commerce-m07` (stacked on M06)
+- Files changed: 2 added + 1 modified
+  - `src/lib/relay/seed-templates/commerce/index.ts` — 5 templates
+  - `src/lib/relay/seed-templates/commerce/__tests__/commerce-seeds.test.ts` — 8 tests
+  - `src/actions/relay-seed-actions.ts` — unified `getSeedTemplate` lookup (booking OR commerce registry)
+- Tests: 175/175 pass (167 prior + 8 new)
+- tsc delta: 548 → 548
+- 5 templates shipped:
+  - `commerce.products` (5 items) — D2C retail product catalog, tiered pricing starter → flagship
+  - `commerce.menu_items` (5 items) — F&B menu across appetizer / main / beverage / dessert with dietary tags
+  - `commerce.product_categories` (5 items) — navigation categories (New Arrivals, Bestsellers, On Sale, Gift Ideas, Clearance)
+  - `commerce.bulk_offers` (5 items) — B2B wholesale tiers (starter / growth / volume / enterprise / flagship) with tier-pricing logic baked in
+  - `commerce.subscription_plans` (3 items) — monthly / quarterly / annual
+- All items INR currency, empty images, no PII (pattern-checked).
+- Module targets: `product_catalog` (4 templates) + `food_menu` (1 template) — the 2 commerce-applicable system modules.
+- `applySeedTemplate` action unified: looks up ids from both booking + commerce registries. Prefix convention `booking.*` vs `commerce.*` ensures no collisions.
+- CSV import path from Phase 1 M15 is unchanged — generic, engine-agnostic, works for product_catalog out of the box (verified by Phase 1's M15 tests still passing).
+- Speculative-From: tuning.md#4 (catalog budget enforced at the seed level too: max 5 items per template keeps operator cognitive load manageable)
