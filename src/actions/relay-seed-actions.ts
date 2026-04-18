@@ -15,15 +15,18 @@ import { FieldValue } from 'firebase-admin/firestore';
 import { getSeedTemplate as getBookingSeedTemplate } from '@/lib/relay/seed-templates/booking';
 import { getCommerceSeedTemplate } from '@/lib/relay/seed-templates/commerce';
 import { getLeadSeedTemplate } from '@/lib/relay/seed-templates/lead';
+import { getEngagementSeedTemplate } from '@/lib/relay/seed-templates/engagement';
 import { importModuleItemsFromCSV } from '@/lib/import/module-csv-import';
 
 // Unified lookup: seed templates ids are globally unique (prefix
-// `booking.*` / `commerce.*` / `lead.*`). Look up every registry.
+// `booking.*` / `commerce.*` / `lead.*` / `engagement.*`). Look up
+// every registry in order.
 function getSeedTemplate(id: string) {
   return (
     getBookingSeedTemplate(id) ??
     getCommerceSeedTemplate(id) ??
-    getLeadSeedTemplate(id)
+    getLeadSeedTemplate(id) ??
+    getEngagementSeedTemplate(id)
   );
 }
 import { generateItemId } from '@/lib/modules/utils';
