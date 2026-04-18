@@ -27,10 +27,15 @@ import type {
 import type { PreviewScript } from './booking-scripts';
 import type { CommercePreviewScript } from './commerce-scripts';
 import type { LeadPreviewScript } from './lead-scripts';
+import type { EngagementPreviewScript } from './engagement-scripts';
 
-// Runner accepts Booking, Commerce, or Lead scripts — all carry the
-// same `turns: Array<{role:'user',content:string}>` shape (Q8, lead.M08).
-type AnyRunnablePreviewScript = PreviewScript | CommercePreviewScript | LeadPreviewScript;
+// Runner accepts Booking, Commerce, Lead, or Engagement scripts — all
+// carry the same `turns: Array<{role:'user',content:string}>` shape.
+type AnyRunnablePreviewScript =
+  | PreviewScript
+  | CommercePreviewScript
+  | LeadPreviewScript
+  | EngagementPreviewScript;
 
 export interface PreviewTurnResult {
   turnIndex: number;

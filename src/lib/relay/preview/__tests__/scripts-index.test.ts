@@ -7,13 +7,15 @@ import {
 import { BOOKING_PREVIEW_SCRIPTS } from '../booking-scripts';
 import { COMMERCE_PREVIEW_SCRIPTS } from '../commerce-scripts';
 import { LEAD_PREVIEW_SCRIPTS } from '../lead-scripts';
+import { ENGAGEMENT_PREVIEW_SCRIPTS } from '../engagement-scripts';
 
 describe('Q8 — unified Preview Copilot scripts index', () => {
-  it('ALL_PREVIEW_SCRIPTS contains booking + commerce + lead scripts', () => {
+  it('ALL_PREVIEW_SCRIPTS contains booking + commerce + lead + engagement scripts', () => {
     expect(ALL_PREVIEW_SCRIPTS.length).toBe(
       BOOKING_PREVIEW_SCRIPTS.length +
         COMMERCE_PREVIEW_SCRIPTS.length +
-        LEAD_PREVIEW_SCRIPTS.length,
+        LEAD_PREVIEW_SCRIPTS.length +
+        ENGAGEMENT_PREVIEW_SCRIPTS.length,
     );
   });
 

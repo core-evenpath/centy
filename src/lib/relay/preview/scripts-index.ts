@@ -15,16 +15,22 @@ import {
   LEAD_PREVIEW_SCRIPTS,
   type LeadPreviewScript,
 } from './lead-scripts';
+import {
+  ENGAGEMENT_PREVIEW_SCRIPTS,
+  type EngagementPreviewScript,
+} from './engagement-scripts';
 
 export type AnyPreviewScript =
   | BookingPreviewScript
   | CommercePreviewScript
-  | LeadPreviewScript;
+  | LeadPreviewScript
+  | EngagementPreviewScript;
 
 export const ALL_PREVIEW_SCRIPTS: readonly AnyPreviewScript[] = [
   ...BOOKING_PREVIEW_SCRIPTS,
   ...COMMERCE_PREVIEW_SCRIPTS,
   ...LEAD_PREVIEW_SCRIPTS,
+  ...ENGAGEMENT_PREVIEW_SCRIPTS,
 ];
 
 export function getAnyScriptById(id: string): AnyPreviewScript | undefined {
@@ -50,4 +56,8 @@ export const SUB_VERTICAL_LABELS: Record<string, string> = {
   'financial-services': 'Financial Services',
   'professional-services': 'Professional Services',
   'real-estate-b2b': 'Real Estate / B2B',
+  // engagement
+  'nonprofit-charity': 'Nonprofit / Charity',
+  'community-engagement': 'Community Engagement',
+  'subscription-rsvp': 'Subscription / RSVP',
 };
