@@ -616,3 +616,37 @@ reviewable PR matches the resume-safe-commits principle.
   - The M14 spec lists partnerBlockPrefs under `partnerBlockPrefs.{blockId}.isVisible`; implementation writes to `partners/{pid}/relayConfig/{blockId}` which is the path M12's `loadBlocksSignal` fallback reads (verified in M12 test + orchestrator/signals/blocks.ts). The alternate `partners/{pid}/relayConfig/blocks/entries` subcollection is the first-attempted path in loadBlocksSignal but falls back to the flat path when empty. M14 writes to the flat path so newly-onboarded partners show up correctly to M12.
   - No browser-based UI verification (Q6 pattern).
 - Not tested in this session: end-to-end "onboard a new partner → run 1 Preview Copilot script against them" flow. That's a C3 integration check for Phase C.
+
+---
+
+## M15 — Drafting: seed templates + generic module CSV import
+- Status: done
+- Commit: (this commit)
+- Branch: `claude/booking-pilot-m15` (stacked)
+- Files changed: 5 added
+  - `src/lib/relay/seed-templates/booking/index.ts` — 5 templates × 5 items each (rooms, amenities, house_rules, local_experiences, meal_plans)
+  - `src/lib/relay/seed-templates/__tests__/booking-seeds.test.ts` — 8 acceptance tests
+  - `src/lib/import/module-csv-import.ts` — pure CSV parser + validator (papaparse, already in deps)
+  - `src/lib/import/__tests__/module-csv-import.test.ts` — 10 tests (BOM, CRLF, quoted fields, coercions, error paths)
+  - `src/actions/relay-seed-actions.ts` — `applySeedTemplate`, `importModuleItemsFromCSVAction`, `listSeedTemplatesAction`
+- LOC: +860 total
+- Tests: **132/132 pass** (114 prior + 18 new):
+  - 5 templates shipped; 3–5 items each; INR currency; empty images
+  - No real names/addresses/phone in seeds (pattern-checked)
+  - sortOrder monotonic within each template
+  - CSV: clean parse with header === field id
+  - CSV: case-insensitive + name-based header mapping
+  - CSV: BOM + CRLF + quoted fields via papaparse
+  - CSV: multi_select via `,`/`|`/`;` delimiters
+  - CSV: toggle coercion (`yes`/`no`/`true`/`false`/`1`/`0`)
+  - CSV: rejects missing required fields, invalid select options, numbers out of range
+  - CSV: headerMap exposes which columns mapped and which were dropped
+- tsc delta: 548 → 548 (zero new errors)
+- Seed-template append semantics verified: every apply generates fresh item ids via `generateItemId()`; no upsert-merge. UI hint should display "Adds N sample items" per the spec.
+- CSV import batching: 400-row Firestore batches (under the 500-op limit). Shadow-mode Health recompute after the final batch.
+- Deviations from spec (3, all logged):
+  1. **Modules system uses `ModuleFieldDefinition[]`, not Zod.** The spec assumed Zod schemas. Wrote the validator against the actual runtime shape (required-fields check, select-option check, number min/max check). Same acceptance coverage; different validation library.
+  2. **`hotel-import-service.ts` was not refactored** into a thin wrapper. That file is a Google-Places + AI enrichment service, not a CSV import — the spec's framing didn't match the actual code. Left it untouched; the new generic CSV path lives alongside it in `lib/import/module-csv-import.ts`. No regressions to `importHotelData` or its caller `hotel-import-actions.ts`.
+  3. **Seeds target the existing `room_inventory` module with category filters**, not 5 separate modules. The codebase has 4 system modules total (room_inventory, food_menu, service_catalog, product_catalog); M04 tagging shows booking blocks all bind to `room_inventory` with a category filter. Seed categories: `rooms`, `amenities`, `house_rules`, `local_experiences`, `meal_plans`. Same spec intent (5 populated "groups"), different storage granularity.
+- UI wiring deferred: the M09 drilldown's "populate-module" Apply-fix flow still returns the stub message. Activating the M09 → M15 link is a small follow-up; both actions exist and can be called from the UI. Logged as Q7.
+- No browser-based UI verification (Q6 pattern).
