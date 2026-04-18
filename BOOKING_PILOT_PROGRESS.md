@@ -444,3 +444,36 @@ Session halt at clean boundary. No mid-milestone work stranded.
     orchestrator has extensive Firestore + Gemini surface that would
     require substantial mocking infrastructure to unit-test.
   - Full catalog-size benchmark for pre/post M12 deferred to Phase C C5.
+
+---
+
+## Session-end note — 2026-04-18 (M12 session, single milestone)
+
+**Last milestone completed:** M12 (orchestrator engine-scoped policy).
+
+**Next milestone to start:** M08 (admin engine tabs UI). Alternative
+entries: M13, M14, M15.
+
+**What landed this session:**
+
+| Commit | Branch |
+|---|---|
+| `2b57155e` M12 — orchestrator engine-scoping + telemetry | `claude/booking-pilot-m12` |
+
+**Test suite: 92/92 pass.** tsc delta: 0 (548 → 548). Zero new
+partner-visible regressions expected: null-engine path = pre-pilot;
+untagged blocks pass through the engine filter.
+
+**Remaining for Phase 1:** M08, M09, M13, M14, M15, Phase C, summary doc.
+
+**Branch strategy:** open PR for `claude/booking-pilot-m12` and merge
+before the next session (or allow merging mid-session after review).
+M12 is load-bearing for downstream milestones; keeping it as its own
+reviewable PR matches the resume-safe-commits principle.
+
+**Notes:**
+- M12 was flagged "highest-risk remaining" — landed with zero
+  regressions, no escalations.
+- Build-breaking `invalidateHealthCache` issue (M07 followup) was
+  fixed via PR #135 and merged before this session.
+- No new questions opened.
