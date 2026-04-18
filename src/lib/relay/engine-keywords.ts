@@ -43,9 +43,17 @@ export const ENGINE_KEYWORDS: Record<Engine, { strong: string[]; weak: string[] 
     ],
   },
   lead: {
+    // Strong-phrase additions (P2.lead.M08.5 lexicon stress, 2026-04-18):
+    // 'apply for', 'want to apply', 'start an application', 'hire you',
+    // 'to hire' — natural inquiry-intent phrases. Bare 'apply' avoided
+    // because it collides with "apply this filter" / "apply a coupon".
+    // See docs/engine-rollout-phase2/c5-interpretation-commerce.md for
+    // the stress-test discipline.
     strong: [
       'consultation', 'quote', 'proposal', 'discovery call',
       'fee structure', 'retainer', 'get a quote', 'request a proposal',
+      'apply for', 'want to apply', 'start an application',
+      'hire you', 'to hire',
     ],
     weak: [
       'inquiry', 'interested in', 'more info', 'pricing for',
@@ -74,10 +82,16 @@ export const ENGINE_KEYWORDS: Record<Engine, { strong: string[]; weak: string[] 
     // 'order update', 'order updates' — "updates" has a word-char
     // boundary after 'e', so the plural doesn't match the singular
     // phrase under \b regex. Both forms listed explicitly.
+    //
+    // Lead.M08.5 additions (2026-04-18): 'withdraw', 'did you receive',
+    // 'my advisor', 'my application' — Lead-flow service-overlay
+    // triggers. 'withdraw' is the lead-specific equivalent of 'cancel';
+    // 'did you receive' is a status-check phrasing.
     strong: [
       'track', 'tracking', 'status', 'cancel', 'modify', 'where is',
       'when will', 'reschedule', 'change my', 'update my', 'my order',
       'my booking', 'my reservation', 'order update', 'order updates',
+      'withdraw', 'did you receive', 'my advisor', 'my application',
     ],
     weak: [
       'order status', 'delivery status', 'eta',
