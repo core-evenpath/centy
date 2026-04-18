@@ -385,3 +385,62 @@ merge to main happens once Phase 1 is done AND the summary doc is
 written.
 
 Session halt at clean boundary. No mid-milestone work stranded.
+
+---
+
+## M12 — Orchestrator: engine-scoped policy + telemetry
+- Status: done
+- Commit: (this commit)
+- Branch: `claude/booking-pilot-m12` (new branch from main after #135 merge)
+- Files changed: 4 modified + 1 added
+  - `src/lib/relay/admin-block-registry.ts` — `getAllowedBlocksForFunctionAndEngine` + `getAllowedBlockIdsForEngine`
+  - `src/lib/relay/orchestrator/index.ts` — new engine-selection flow before signal loading; degraded-mode path; telemetry log
+  - `src/lib/relay/orchestrator/signals/flow.ts` — optional `activeEngine` parameter; routes to M05 booking templates when engine is 'booking'
+  - `src/lib/relay/orchestrator/signals/blocks.ts` — optional `activeEngine` parameter; filters `visibleBlockIds` by engine tag (permissive when null; untagged blocks pass through)
+  - `src/lib/relay/__tests__/admin-block-registry.test.ts` — 10 tests (new)
+- LOC: +180 src / +95 tests
+- Tests: **92/92 pass** (82 prior + 10 new):
+  - Null/undefined engine → permissive (matches unscoped catalog)
+  - Booking scope preserves booking + shared blocks
+  - Booking scope trims: hotels_resorts → ≤ 25 blocks (spec budget ✅)
+  - Commerce scope excludes booking-only blocks (e.g., `room_card`)
+  - Untagged blocks pass through (backward compat for non-booking verticals)
+  - Unknown functionId → shared-only
+  - Engine scope ≤ unscoped catalog size
+- tsc delta: 548 → 548 (zero new errors).
+- Orchestrator wiring:
+  1. Partner + session loaded in parallel
+  2. `classifyEngineHint(lastMsg)` — pure, from M10
+  3. `getPartnerEngines(partnerData)` — from M03
+  4. `selectActiveEngine(...)` — pure, from M11
+  5. `setActiveEngine(partnerId, conversationId, engine)` if changed (try/catch, never throws)
+  6. Flow + blocks + datamap loaded in parallel with activeEngine
+  7. RAG after flow (depends on flow.intent)
+  8. `getEngineHealth(partnerId, activeEngine)` — shadow-mode read, never throws
+  9. Degraded mode if red Health: narrow to shared blocks, skip Gemini, return plain text
+  10. Telemetry log with all required fields (partnerId, conversationId,
+      activeEngine, switchedFrom, selectionReason, catalogSize,
+      catalogSizeBeforeEngineFilter, healthStatus, degraded,
+      partnerEnginesCount, engineHint, engineConfidence)
+- Backward compatibility:
+  - Partners with no `partner.engines` and no recipe match → `activeEngine`
+    stays null → both signal loaders take the permissive path → legacy behavior
+  - Partners with `activeEngine` null on red Health → no degraded path triggered
+    (Health only reads when engine is set); unchanged response
+  - Untagged blocks (non-booking verticals) pass through engine filter →
+    no loss of blocks for e-commerce / home-services / etc. partners
+- Deviations from spec:
+  - Spec's "skipped-transactional" Gemini call path uses the original
+    policy; degraded mode in M12 bypasses Gemini ENTIRELY on red Health
+    (returns static plain text). Rationale: Gemini's prompt is built
+    from the block catalog, and a degraded catalog risks degenerate
+    prompts. Safer to short-circuit. Can revisit in Phase C C3 if
+    partners report too-generic responses.
+- Risk notes (Phase 1 contract):
+  - Highest-risk milestone as the prompt flagged. Ran the full test
+    suite + tsc before commit. Existing orchestrator tests: none
+    pre-existed; my 10 new tests exercise the new helpers. Full
+    orchestrate() integration test deferred to Phase C C2 — the
+    orchestrator has extensive Firestore + Gemini surface that would
+    require substantial mocking infrastructure to unit-test.
+  - Full catalog-size benchmark for pre/post M12 deferred to Phase C C5.

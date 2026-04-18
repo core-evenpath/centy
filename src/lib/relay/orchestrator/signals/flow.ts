@@ -15,10 +15,12 @@ import {
   runFlowEngine,
 } from '@/lib/flow-engine';
 import { getFlowTemplateForFunction } from '@/lib/flow-templates';
+import { getBookingFlowTemplate } from '@/lib/relay/flow-templates/booking';
 import type {
   ConversationFlowState,
   FlowDefinition,
 } from '@/lib/types-flow-engine';
+import type { Engine } from '@/lib/relay/engine-types';
 import type { FlowSignal, OrchestratorContext } from '../types';
 
 async function loadSavedFlowState(
@@ -43,6 +45,7 @@ async function loadSavedFlowState(
 async function loadFlowDefinition(
   partnerId: string,
   functionId: string,
+  activeEngine: Engine | null,
 ): Promise<FlowDefinition | null> {
   try {
     const doc = await db
@@ -51,9 +54,28 @@ async function loadFlowDefinition(
       .collection('relayConfig')
       .doc('flowDefinition')
       .get();
-    if (doc.exists) return doc.data() as FlowDefinition;
+    if (doc.exists) {
+      const data = doc.data() as FlowDefinition;
+      // M12: if the partner has a custom flow AND an active engine is
+      // set, scope by `flow.engine`. Custom flows without an engine are
+      // treated as permissive (pre-pilot behavior).
+      if (activeEngine && data.engine && data.engine !== activeEngine) {
+        // Partner override is for a different engine — fall through to
+        // engine-specific template lookup below.
+      } else {
+        return data;
+      }
+    }
   } catch {
     /* non-fatal */
+  }
+  // M12: engine-specific template resolution. When active engine is
+  // 'booking', prefer the M05 booking flow templates (which use real
+  // block ids from the engine-scoped registry). Otherwise fall through
+  // to the legacy function-id template map.
+  if (activeEngine === 'booking') {
+    const bookingTpl = getBookingFlowTemplate(functionId);
+    if (bookingTpl) return bookingTpl as unknown as FlowDefinition;
   }
   const template = getFlowTemplateForFunction(functionId);
   return template ? (template as unknown as FlowDefinition) : null;
@@ -62,10 +84,11 @@ async function loadFlowDefinition(
 export async function loadFlowSignal(
   ctx: OrchestratorContext,
   functionId: string,
+  activeEngine: Engine | null = null,
 ): Promise<FlowSignal> {
   const [flowState, flowDef] = await Promise.all([
     loadSavedFlowState(ctx.conversationId, ctx.partnerId),
-    loadFlowDefinition(ctx.partnerId, functionId),
+    loadFlowDefinition(ctx.partnerId, functionId, activeEngine),
   ]);
 
   const lastMsg = ctx.messages[ctx.messages.length - 1]?.content ?? '';
