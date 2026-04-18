@@ -409,6 +409,278 @@ for (const [fn, ids] of Object.entries(COMMERCE_STARTER_BLOCKS)) {
   STARTER_BLOCKS_BY_FUNCTION[fn] = ids;
 }
 
+// ── Lead starter blocks (P2.lead.M06) ──────────────────────────────────
+// One curated set per lead-primary functionId. Set size 5-13 per Session 1
+// retro band. Covers all 48 lead-primary functionIds from M01.
+const LEAD_STARTER_BLOCKS: Record<string, string[]> = {
+  // Financial services (13) — fin_* blocks + shared
+  retail_banking: [
+    'greeting', 'suggestions',
+    'fin_product_card', 'fin_account_snapshot', 'fin_application',
+    'fin_doc_upload', 'fin_app_tracker', 'contact',
+  ],
+  alternative_lending: [
+    'greeting', 'suggestions',
+    'fin_product_card', 'fin_loan_calc', 'fin_application',
+    'fin_eligibility', 'fin_doc_upload', 'contact',
+  ],
+  consumer_lending: [
+    'greeting', 'suggestions',
+    'fin_product_card', 'fin_loan_calc', 'fin_application',
+    'fin_eligibility', 'fin_credit_score', 'contact',
+  ],
+  commercial_lending: [
+    'greeting', 'suggestions',
+    'fin_product_card', 'fin_loan_calc', 'fin_application',
+    'fin_doc_upload', 'fin_advisor', 'contact',
+  ],
+  payments_processing: [
+    'greeting', 'suggestions',
+    'fin_transfer', 'fin_product_card', 'contact',
+  ],
+  wealth_management: [
+    'greeting', 'suggestions',
+    'fin_portfolio', 'fin_advisor', 'fin_product_card',
+    'fin_rate_compare', 'contact',
+  ],
+  insurance_brokerage: [
+    'greeting', 'suggestions',
+    'fin_insurance', 'fin_product_card', 'fin_advisor',
+    'fin_application', 'fin_doc_upload', 'contact',
+  ],
+  accounting_tax: [
+    'greeting', 'suggestions',
+    'service_package', 'expert_profile', 'consultation_booking',
+    'document_collector', 'contact',
+  ],
+  investment_trading: [
+    'greeting', 'suggestions',
+    'fin_portfolio', 'fin_product_card', 'fin_advisor',
+    'fin_eligibility', 'contact',
+  ],
+  credit_debt: [
+    'greeting', 'suggestions',
+    'fin_credit_score', 'fin_loan_calc', 'fin_eligibility',
+    'fin_advisor', 'contact',
+  ],
+  fintech: [
+    'greeting', 'suggestions',
+    'fin_product_card', 'fin_eligibility', 'fin_loan_calc',
+    'fin_application', 'fin_transfer', 'contact',
+  ],
+  community_savings: [
+    'greeting', 'suggestions',
+    'fin_account_snapshot', 'fin_product_card', 'fin_advisor', 'contact',
+  ],
+  auto_insurance: [
+    'greeting', 'suggestions',
+    'fin_insurance', 'fin_product_card', 'fin_application', 'contact',
+  ],
+
+  // Education (9) — professional-services shape
+  early_childhood: [
+    'greeting', 'suggestions',
+    'service_package', 'expert_profile', 'consultation_booking',
+    'credential_badge', 'contact',
+  ],
+  k12_education: [
+    'greeting', 'suggestions',
+    'service_package', 'credential_badge', 'contact',
+  ],
+  higher_education: [
+    'greeting', 'suggestions',
+    'service_package', 'expert_profile', 'credential_badge',
+    'document_collector', 'contact',
+  ],
+  test_preparation: [
+    'greeting', 'suggestions',
+    'service_package', 'expert_profile', 'consultation_booking',
+    'credential_badge', 'contact',
+  ],
+  language_learning: [
+    'greeting', 'suggestions',
+    'service_package', 'expert_profile', 'consultation_booking',
+    'credential_badge', 'client_review', 'contact',
+  ],
+  skill_vocational: [
+    'greeting', 'suggestions',
+    'service_package', 'expert_profile', 'credential_badge',
+    'client_review', 'contact',
+  ],
+  corporate_training: [
+    'greeting', 'suggestions',
+    'service_package', 'expert_profile', 'proposal',
+    'case_study', 'contact',
+  ],
+  academic_counseling: [
+    'greeting', 'suggestions',
+    'service_package', 'expert_profile', 'consultation_booking',
+    'credential_badge', 'contact',
+  ],
+  creative_arts: [
+    'greeting', 'suggestions',
+    'service_package', 'expert_profile', 'evt_portfolio', 'contact',
+  ],
+
+  // Professional services (9)
+  real_estate: [
+    'greeting', 'suggestions',
+    'property_listing', 'expert_profile', 'consultation_booking',
+    'fee_calculator', 'document_collector', 'client_review', 'contact',
+  ],
+  construction_dev: [
+    'greeting', 'suggestions',
+    'service_package', 'expert_profile', 'project_scope',
+    'proposal', 'credential_badge', 'client_review', 'contact',
+  ],
+  legal_services: [
+    'greeting', 'suggestions',
+    'service_package', 'expert_profile', 'consultation_booking',
+    'case_study', 'proposal', 'retainer_status', 'credential_badge',
+    'compliance_checklist', 'client_review', 'contact',
+  ],
+  architecture_design: [
+    'greeting', 'suggestions',
+    'service_package', 'expert_profile', 'consultation_booking',
+    'case_study', 'project_scope', 'fee_calculator', 'client_review', 'contact',
+  ],
+  hr_recruitment: [
+    'greeting', 'suggestions',
+    'service_package', 'expert_profile', 'consultation_booking',
+    'case_study', 'proposal', 'engagement_timeline', 'contact',
+  ],
+  marketing_advertising: [
+    'greeting', 'suggestions',
+    'service_package', 'expert_profile', 'consultation_booking',
+    'case_study', 'proposal', 'retainer_status', 'client_review', 'contact',
+  ],
+  software_it: [
+    'greeting', 'suggestions',
+    'service_package', 'expert_profile', 'consultation_booking',
+    'case_study', 'project_scope', 'proposal', 'engagement_timeline',
+    'fee_calculator', 'client_review', 'contact',
+  ],
+  consulting_advisory: [
+    'greeting', 'suggestions',
+    'service_package', 'expert_profile', 'consultation_booking',
+    'case_study', 'project_scope', 'proposal', 'retainer_status',
+    'client_review', 'contact',
+  ],
+  pr_communications: [
+    'greeting', 'suggestions',
+    'service_package', 'expert_profile', 'consultation_booking',
+    'case_study', 'retainer_status', 'client_review', 'contact',
+  ],
+
+  // F&B lead (1)
+  catering_events: [
+    'greeting', 'suggestions',
+    'evt_service_card', 'event_package', 'evt_quote_builder',
+    'vendor_profile', 'evt_client_review', 'contact',
+  ],
+
+  // Automotive lead-primary (5)
+  vehicle_sales_new: [
+    'greeting', 'suggestions',
+    'property_listing', 'fee_calculator', 'consultation_booking',
+    'fin_loan_calc', 'client_review', 'contact',
+  ],
+  vehicle_sales_used: [
+    'greeting', 'suggestions',
+    'property_listing', 'fee_calculator', 'consultation_booking',
+    'fin_loan_calc', 'client_review', 'contact',
+  ],
+  fleet_services: [
+    'greeting', 'suggestions',
+    'service_package', 'fee_calculator', 'consultation_booking',
+    'contact',
+  ],
+  motorcycle_sales: [
+    'greeting', 'suggestions',
+    'property_listing', 'fee_calculator', 'consultation_booking',
+    'client_review', 'contact',
+  ],
+
+  // Travel / logistics (2)
+  moving_relocation: [
+    'greeting', 'suggestions',
+    'service_package', 'fee_calculator', 'consultation_booking',
+    'document_collector', 'client_review', 'contact',
+  ],
+  visa_immigration: [
+    'greeting', 'suggestions',
+    'service_package', 'expert_profile', 'consultation_booking',
+    'document_collector', 'compliance_checklist', 'contact',
+  ],
+
+  // Events / entertainment (6)
+  event_planning: [
+    'greeting', 'suggestions',
+    'evt_service_card', 'event_package', 'evt_quote_builder',
+    'vendor_profile', 'evt_portfolio', 'evt_client_review', 'contact',
+  ],
+  wedding_private: [
+    'greeting', 'suggestions',
+    'evt_service_card', 'event_package', 'evt_quote_builder',
+    'mood_board', 'vendor_profile', 'evt_portfolio', 'evt_client_review', 'contact',
+  ],
+  corporate_events: [
+    'greeting', 'suggestions',
+    'evt_service_card', 'event_package', 'evt_quote_builder',
+    'vendor_profile', 'evt_equipment', 'evt_client_review', 'contact',
+  ],
+  photography_video: [
+    'greeting', 'suggestions',
+    'evt_service_card', 'vendor_profile', 'evt_portfolio',
+    'evt_quote_builder', 'evt_client_review', 'contact',
+  ],
+  hosts_anchors: [
+    'greeting', 'suggestions',
+    'evt_service_card', 'vendor_profile', 'evt_portfolio', 'contact',
+  ],
+  av_production: [
+    'greeting', 'suggestions',
+    'evt_equipment', 'evt_service_card', 'vendor_profile',
+    'evt_quote_builder', 'contact',
+  ],
+
+  // Home / property (6)
+  painting_renovation: [
+    'greeting', 'suggestions',
+    'hp_service_card', 'hp_technician', 'hp_estimate',
+    'hp_before_after', 'hp_review', 'contact',
+  ],
+  landscaping_gardening: [
+    'greeting', 'suggestions',
+    'hp_service_card', 'hp_technician', 'hp_estimate',
+    'hp_maintenance_plan', 'hp_before_after', 'hp_review', 'contact',
+  ],
+  home_automation: [
+    'greeting', 'suggestions',
+    'hp_service_card', 'hp_technician', 'hp_estimate',
+    'hp_before_after', 'hp_review', 'contact',
+  ],
+  carpentry_furniture: [
+    'greeting', 'suggestions',
+    'hp_service_card', 'hp_estimate', 'hp_before_after',
+    'hp_review', 'contact',
+  ],
+  solar_renewable: [
+    'greeting', 'suggestions',
+    'hp_service_card', 'hp_estimate', 'hp_maintenance_plan',
+    'hp_warranty', 'hp_review', 'contact',
+  ],
+  security_surveillance: [
+    'greeting', 'suggestions',
+    'hp_service_card', 'hp_estimate', 'hp_maintenance_plan',
+    'hp_warranty', 'hp_review', 'contact',
+  ],
+};
+
+for (const [fn, ids] of Object.entries(LEAD_STARTER_BLOCKS)) {
+  STARTER_BLOCKS_BY_FUNCTION[fn] = ids;
+}
+
 export function getStarterBlocks(functionId: string): string[] {
   return STARTER_BLOCKS_BY_FUNCTION[functionId] ?? [];
 }
