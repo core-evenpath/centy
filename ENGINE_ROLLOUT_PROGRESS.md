@@ -48,3 +48,19 @@ Phase 1 closed 2026-04-18 via PR #142 + close-out PR. Phase 2 pre-flight started
   - `type: 'string'` default on field bindings; actual type mapping from `ModuleFieldType` happens in the module catalog path.
 - Phase 1 contract: verified via existing health-actions test suite still passing (12/12), and the broader Phase 1 Booking test suite untouched.
 - Speculative-From: tuning.md#2 (Section 2 predicted ~1 day; shipped in ~1 hour of implementation + 30 minutes of testing).
+
+---
+
+## P2.commerce.M01 — recipe verification
+- Status: done
+- Commit: (this commit)
+- Branch: `claude/engine-rollout-commerce-m01` (stacked on M0)
+- Files changed: 1 added — `src/lib/relay/__tests__/engine-recipes-commerce.test.ts` (6 tests)
+- Tests: **149/149 pass** (143 prior + 6 new)
+- tsc delta: 548 → 548
+- Audit result:
+  - **36 commerce-primary functionIds** (engines[0] === 'commerce'): retail + ecommerce core (ecommerce_d2c, physical_retail, fashion_apparel, etc.), food_beverage quick-service (qsr, cafe, bakery, cloud-kitchen, street-food), food_supply (all 8), and extras (auto_parts, forex_remittance, online_learning, pharmacy_retail, translation_docs, printing_invitations)
+  - **5 commerce-secondary functionIds**: bars_pubs, carpentry_furniture, full_service_restaurant, laundry_drycleaning, vision_care
+  - **Zero drift**: every commerce functionId has `service` co-included (overlay rule from Phase 1 M03). No fixes needed.
+- Booking-primary unchanged (backward-compat assertion): hotels_resorts, dental_care, hair_beauty, ticketing_booking, etc. all still booking[0]=booking.
+- Speculative-From: tuning.md#7 (engine ordering — Commerce first was the correct choice; recipe already covers the commerce universe cleanly)
