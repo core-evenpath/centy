@@ -64,3 +64,34 @@ Phase 1 closed 2026-04-18 via PR #142 + close-out PR. Phase 2 pre-flight started
   - **Zero drift**: every commerce functionId has `service` co-included (overlay rule from Phase 1 M03). No fixes needed.
 - Booking-primary unchanged (backward-compat assertion): hotels_resorts, dental_care, hair_beauty, ticketing_booking, etc. all still booking[0]=booking.
 - Speculative-From: tuning.md#7 (engine ordering — Commerce first was the correct choice; recipe already covers the commerce universe cleanly)
+
+---
+
+## P2.commerce.M02 — tag Commerce blocks
+- Status: done
+- Commit: (this commit)
+- Branch: `claude/engine-rollout-commerce-m02` (stacked on M01)
+- Files changed: 4 — 3 vertical index files (ecommerce, food_beverage, food_supply) + regenerated `_registry-data.ts`
+- Inventory (mini-A for Commerce, authored as part of M02):
+  - **ecommerce** (10 blocks): skin_quiz, product_card, product_detail, compare, bundle, order_confirmation, order_tracker, booking, subscription, loyalty
+  - **food_beverage** (14 blocks): menu_item, menu_detail, category_browser, dietary_filter, order_customizer, table_reservation, daily_specials, kitchen_queue, combo_meal, drink_menu, chef_profile, catering, nutrition, diner_review
+  - **food_supply** (14 blocks): fs_product_card, fs_product_detail, catalog_browser, bulk_order, supplier_profile, wholesale_pricing, delivery_scheduler, fs_order_tracker, cert_compliance, stock_status, sample_request, quality_report, recurring_order, buyer_review
+- Tagged `engines: ['commerce']` — **31 blocks**:
+  - ecommerce (6): skin_quiz, product_card, product_detail, compare, bundle, subscription
+  - food_beverage (12): menu_item, menu_detail, category_browser, dietary_filter, order_customizer, daily_specials, combo_meal, drink_menu, chef_profile, catering, nutrition, diner_review
+  - food_supply (13): all except fs_order_tracker (Service, reserved for X01)
+- **Deliberately NOT tagged**:
+  - `table_reservation` (food_beverage) — already `engines: ['booking']` from Phase 1 M04
+  - `booking` (ecommerce, family `conversion`) — booking-engine block; not commerce
+  - `loyalty` (ecommerce, family `engagement`) — engagement engine (Phase 2 later)
+  - `order_confirmation`, `order_tracker` (ecommerce) — reserved for X01 Service tagging
+  - `kitchen_queue` (food_beverage, live-status) — reserved for X01 Service tagging
+  - `fs_order_tracker` (food_supply) — reserved for X01 Service tagging
+- Acceptance probe:
+  - `getAllowedBlocksForFunctionAndEngine('ecommerce_d2c', 'commerce')` → 15 blocks (≤ 30 budget ✓)
+  - `full_service_restaurant` → 16 blocks ✓
+  - `grocery_wholesale` → 13 blocks ✓
+  - `fresh_produce` → 5 blocks (only shared — known Q3 preview-subvertical-id drift; `fresh_produce` taxonomy id doesn't match food_supply preview sub-vertical ids like `organic_farm`. Carried forward; same issue surfaced in Phase 1 M05.)
+- Tests: 149/149 (no new test file; tags are data-only and covered by existing engine-scoping tests)
+- tsc delta: 548 → 548
+- Speculative-From: tuning.md#4 (Commerce catalog budget ≤ 30 confirmed in probe; actual 13-16 range leaves healthy margin)
