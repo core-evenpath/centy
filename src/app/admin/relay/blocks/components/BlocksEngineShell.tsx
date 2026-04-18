@@ -25,11 +25,12 @@ export default function BlocksEngineShell({ initialBlocks, partners }: Props) {
   const selectedFunctionId = selectedPartnerObj?.functionId ?? null;
 
   // Fetch Health whenever the partner or engine changes. Booking is the
-  // only engine with content in Phase 1 — skip for other engines.
+  // Booking + Commerce are the activated engines in Phase 2 session 1
+  // — skip Health load for other engines (they show "Coming soon").
   useEffect(() => {
     let cancelled = false;
     async function load() {
-      if (!selectedPartner || activeEngine !== 'booking') {
+      if (!selectedPartner || !ACTIVATED_ENGINES.has(activeEngine)) {
         setHealth(null);
         return;
       }
@@ -53,10 +54,14 @@ export default function BlocksEngineShell({ initialBlocks, partners }: Props) {
   }, [selectedPartner, activeEngine]);
 
   // Engine-scoped catalog via the M12 helper. For catalog view (no
-  // partner), we still want a Booking-engine scope so the tab content
-  // is meaningful; we just hide the Health dots.
+  // partner), we still want an engine scope so the tab content is
+  // meaningful; we just hide the Health dots.
   const bookingCatalog = useMemo(
     () => getAllowedBlocksForFunctionAndEngine(selectedFunctionId, 'booking'),
+    [selectedFunctionId],
+  );
+  const commerceCatalog = useMemo(
+    () => getAllowedBlocksForFunctionAndEngine(selectedFunctionId, 'commerce'),
     [selectedFunctionId],
   );
 
@@ -94,6 +99,20 @@ export default function BlocksEngineShell({ initialBlocks, partners }: Props) {
               <AdminRelayBlocks initialBlocks={initialBlocks} />
             </div>
           </details>
+        </>
+      ) : activeEngine === 'commerce' ? (
+        <>
+          <div style={{ fontSize: 12, color: '#7a7a70', marginBottom: 4 }}>
+            {selectedPartner
+              ? `Showing ${commerceCatalog.length} commerce blocks for this partner`
+              : `Catalog view — ${commerceCatalog.length} commerce blocks (select a partner for Health)`}
+          </div>
+          {/*
+            BookingPipeline is engine-agnostic — it just renders blocks
+            bucketed by canonical stage. Reusing for Commerce avoids a
+            rename-only PR; an engine-neutral alias can come later.
+          */}
+          <BookingPipeline blocks={commerceCatalog} health={health} />
         </>
       ) : (
         <ComingSoon engine={activeEngine} />

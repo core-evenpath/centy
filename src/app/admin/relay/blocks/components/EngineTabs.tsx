@@ -16,9 +16,10 @@ const ENGINE_META: Record<Engine, { label: string; emoji: string }> = {
   service: { label: 'Service', emoji: '🔧' },
 };
 
-// Engines that have full tab content in Phase 1. Everything else shows
-// the 'Coming soon' placeholder.
-export const ACTIVATED_ENGINES: ReadonlySet<Engine> = new Set(['booking']);
+// Engines that have full tab content. Everything else shows the
+// 'Coming soon' placeholder. Booking shipped in Phase 1 M08; Commerce
+// in Phase 2 commerce.M04.
+export const ACTIVATED_ENGINES: ReadonlySet<Engine> = new Set(['booking', 'commerce']);
 
 interface Props {
   active: Engine;
