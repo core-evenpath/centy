@@ -31,28 +31,218 @@ function cacheKey(partnerId: string, engine: Engine): string {
   return `${partnerId}_${engine}`;
 }
 
-// ── Snapshot loaders (M07 — minimal shape; full resolution comes in M12) ──
+// ── Snapshot loaders (M0 — real partner-state resolution) ──────────
 //
-// These are narrow stubs: they don't yet walk the partner's full block
-// config or module state. The shadow-mode writes in Phase 1 produce
-// mostly-empty EngineHealthDoc entries for operator visibility; real
-// content fills in once M12 wires engine-scoped resolution and M09
-// surfaces the results.
+// These assemble the inputs `computeEngineHealth` needs from three
+// sources:
+//   1. Static registry — `_registry-data.ts` ALL_BLOCKS_DATA carries
+//      block id, stage, engine tags (from M04).
+//   2. Global block config — `relayBlockConfigs` Firestore collection
+//      carries fields_req + fields_opt when admins have populated it.
+//   3. Partner state — `partners/{pid}/relayConfig/{blockId}` docs
+//      carry isVisible + fieldBindings (from M14 onboarding + M09
+//      Apply-fix writes).
+//   4. Module state — `moduleAssignments` + per-module items collection
+//      provide item counts and field catalogs for ModuleSnapshot.
+//   5. Flow state — `partners/{pid}/relayConfig/flowDefinition`
+//      carries stages with blockTypes.
+//
+// Before M0 these returned stubs — every partner's Health doc was
+// "red-no-data." Post-M0 Health reflects real configuration.
 
-async function loadBlockSnapshots(_partnerId: string, _engine: Engine): Promise<BlockSnapshot[]> {
-  // Placeholder: full resolution ties into M12's orchestrator policy.
-  // Returning [] means the checker will mark every canonical stage as
-  // red, which is the correct shadow-mode baseline for "we don't know
-  // yet" partners. Admin UI surfaces this as "no data".
-  return [];
+import { ALL_BLOCKS_DATA } from '@/app/admin/relay/blocks/previews/_registry-data';
+import { getGlobalBlockConfigs } from '@/lib/relay/block-config-service';
+import type { BlockTag } from '@/lib/relay/engine-types';
+
+interface PartnerBlockPrefDoc {
+  isVisible?: boolean;
+  fieldBindings?: Record<string, { moduleSlug?: string; sourceField?: string }>;
 }
 
-async function loadModuleSnapshots(_partnerId: string): Promise<Record<string, ModuleSnapshot>> {
-  return {};
+async function loadPartnerBlockPrefs(
+  partnerId: string,
+): Promise<Map<string, PartnerBlockPrefDoc>> {
+  const out = new Map<string, PartnerBlockPrefDoc>();
+  try {
+    const snap = await db
+      .collection('partners')
+      .doc(partnerId)
+      .collection('relayConfig')
+      .get();
+    for (const doc of snap.docs) {
+      // `flowDefinition` is a sibling doc, not a block pref.
+      if (doc.id === 'flowDefinition') continue;
+      out.set(doc.id, doc.data() as PartnerBlockPrefDoc);
+    }
+  } catch (err) {
+    // eslint-disable-next-line no-console
+    console.error('[health] loadPartnerBlockPrefs failed', { partnerId, err });
+  }
+  return out;
 }
 
-async function loadFlowSnapshot(_partnerId: string, _engine: Engine): Promise<FlowSnapshot | null> {
-  return null;
+async function loadBlockSnapshots(
+  partnerId: string,
+  engine: Engine,
+): Promise<BlockSnapshot[]> {
+  // 1. Engine-scoped block inventory from the static registry.
+  const engineBlocks = ALL_BLOCKS_DATA.filter((b) => {
+    const tags = (b as typeof b & { engines?: BlockTag[] }).engines;
+    if (!tags || tags.length === 0) return false; // untagged blocks ignored
+    return tags.includes(engine) || tags.includes('shared');
+  });
+
+  // 2. Rich field metadata from `relayBlockConfigs` (when present).
+  const globalConfigs = await getGlobalBlockConfigs();
+  const configById = new Map(globalConfigs.map((c) => [c.id, c]));
+
+  // 3. Partner-specific pref state.
+  const prefs = await loadPartnerBlockPrefs(partnerId);
+
+  const snapshots: BlockSnapshot[] = [];
+  for (const block of engineBlocks) {
+    const config = configById.get(block.id);
+    const pref = prefs.get(block.id);
+    const requiredFields = config?.fields_req ?? [];
+    const optionalFields = config?.fields_opt ?? [];
+
+    const fieldBindings: BlockSnapshot['fieldBindings'] = {};
+    for (const field of requiredFields) {
+      const binding = pref?.fieldBindings?.[field];
+      fieldBindings[field] = {
+        bound: binding !== undefined && binding.sourceField !== undefined,
+        // Approximation: if the field has a binding record, assume the
+        // source resolves non-empty. Cheaper than round-tripping module
+        // items just to confirm; empty-module detection in
+        // loadModuleSnapshots catches the "connected but no data" case
+        // which is the main false-green we'd miss here.
+        resolvedNonEmpty: binding !== undefined && binding.sourceField !== undefined,
+        type: 'string',
+        sourceField: binding?.sourceField,
+      };
+    }
+
+    snapshots.push({
+      id: block.id,
+      engines: (block as typeof block & { engines?: BlockTag[] }).engines,
+      stage: block.stage,
+      requiredFields,
+      optionalFields,
+      moduleSlug: (block.module ?? config?.module) ?? null,
+      // Enabled when the partner has explicitly set isVisible !== false,
+      // OR when the block is 'shared' (auto-enabled for every partner).
+      enabled: (pref?.isVisible !== false) && pref !== undefined
+        || (block as typeof block & { engines?: BlockTag[] }).engines?.includes('shared') === true,
+      fieldBindings,
+    });
+  }
+
+  return snapshots;
+}
+
+async function loadModuleSnapshots(
+  partnerId: string,
+): Promise<Record<string, ModuleSnapshot>> {
+  const out: Record<string, ModuleSnapshot> = {};
+  try {
+    // Partner's assigned modules.
+    const assignSnap = await db
+      .collection('moduleAssignments')
+      .where('partnerId', '==', partnerId)
+      .get();
+
+    for (const assign of assignSnap.docs) {
+      const assignData = assign.data() as {
+        systemModuleId?: string;
+        partnerModuleId?: string;
+      };
+      if (!assignData.systemModuleId || !assignData.partnerModuleId) continue;
+
+      // System module for schema
+      const sysSnap = await db
+        .collection('systemModules')
+        .doc(assignData.systemModuleId)
+        .get();
+      if (!sysSnap.exists) continue;
+      const sys = sysSnap.data() as {
+        slug?: string;
+        schema?: { fields?: Array<{ id?: string; name?: string; type?: string }> };
+      };
+      if (!sys.slug) continue;
+
+      // Count items in partner's module.
+      const itemsSnap = await db
+        .collection(
+          `partners/${partnerId}/businessModules/${assignData.partnerModuleId}/items`,
+        )
+        .count()
+        .get();
+      const itemCount = itemsSnap.data().count ?? 0;
+
+      const fieldCatalog = (sys.schema?.fields ?? [])
+        .filter((f): f is { id: string; name?: string; type?: string } => typeof f.id === 'string')
+        .map((f) => ({
+          name: f.id,
+          type: mapFieldType(f.type),
+        }));
+
+      out[sys.slug] = { slug: sys.slug, itemCount, fieldCatalog };
+    }
+  } catch (err) {
+    // eslint-disable-next-line no-console
+    console.error('[health] loadModuleSnapshots failed', { partnerId, err });
+  }
+  return out;
+}
+
+function mapFieldType(
+  t: string | undefined,
+): 'string' | 'number' | 'boolean' | 'array' | 'object' {
+  switch (t) {
+    case 'number':
+    case 'currency':
+    case 'duration':
+      return 'number';
+    case 'toggle':
+      return 'boolean';
+    case 'multi_select':
+    case 'tags':
+    case 'image':
+    case 'images':
+      return 'array';
+    default:
+      return 'string';
+  }
+}
+
+async function loadFlowSnapshot(
+  partnerId: string,
+  _engine: Engine,
+): Promise<FlowSnapshot | null> {
+  try {
+    const doc = await db
+      .collection('partners')
+      .doc(partnerId)
+      .collection('relayConfig')
+      .doc('flowDefinition')
+      .get();
+    if (!doc.exists) return null;
+    const data = doc.data() as {
+      id?: string;
+      stages?: Array<{ id?: string; blockTypes?: string[] }>;
+    };
+    return {
+      flowId: data.id ?? 'partner_flow',
+      stages: (data.stages ?? []).map((s) => ({
+        stageId: s.id ?? 'unknown',
+        blockIds: Array.isArray(s.blockTypes) ? s.blockTypes : [],
+      })),
+    };
+  } catch (err) {
+    // eslint-disable-next-line no-console
+    console.error('[health] loadFlowSnapshot failed', { partnerId, err });
+    return null;
+  }
 }
 
 // ── Public API ─────────────────────────────────────────────────────────

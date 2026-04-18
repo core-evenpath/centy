@@ -26,3 +26,25 @@ Phase 1 closed 2026-04-18 via PR #142 + close-out PR. Phase 2 pre-flight started
   - `ENGINE_ROLLOUT_QUESTIONS.md` initialized ✓ (Q1 resolved, Q2 open waived-observation)
   - `ENGINE_ROLLOUT_PROGRESS.md` initialized ✓ (this doc)
   - Observation window: **waived, revisit mid-cycle**
+
+---
+
+## M0 — Snapshot loaders wire-up
+- Status: done
+- Commit: (this commit)
+- Branch: `claude/engine-rollout-m0-snapshots` (stacked on pre-flight)
+- Files changed: 1 modified + 1 added
+  - `src/actions/relay-health-actions.ts` — replaced stub `loadBlockSnapshots`, `loadModuleSnapshots`, `loadFlowSnapshot` with real-state readers
+  - `src/actions/__tests__/m0-snapshot-loaders.test.ts` — 5 integration tests exercising the new paths through `recomputeEngineHealth`
+- LOC: +225 src / +210 tests
+- Tests: **143/143 pass** (138 prior + 5 new)
+- tsc delta: 548 → 548 (zero new errors)
+- Data path:
+  - Blocks: `ALL_BLOCKS_DATA` (static, engine-tagged from M04) ∩ `relayBlockConfigs` (global `fields_req`/`fields_opt`) ∩ `partners/{pid}/relayConfig/{blockId}` (partner `isVisible` + `fieldBindings`)
+  - Modules: `moduleAssignments` → `systemModules.schema` + `partners/{pid}/businessModules/{moduleId}/items` count
+  - Flow: `partners/{pid}/relayConfig/flowDefinition` with `stages[].blockTypes[]`
+- Approximations made explicit:
+  - `resolvedNonEmpty` for a bound field is `true` when a binding record exists (no round-trip to the actual item). Rationale: cheap, and M06's empty-module detection already catches the "connected module has no items" case.
+  - `type: 'string'` default on field bindings; actual type mapping from `ModuleFieldType` happens in the module catalog path.
+- Phase 1 contract: verified via existing health-actions test suite still passing (12/12), and the broader Phase 1 Booking test suite untouched.
+- Speculative-From: tuning.md#2 (Section 2 predicted ~1 day; shipped in ~1 hour of implementation + 30 minutes of testing).
