@@ -6,11 +6,14 @@ import {
 } from '../scripts-index';
 import { BOOKING_PREVIEW_SCRIPTS } from '../booking-scripts';
 import { COMMERCE_PREVIEW_SCRIPTS } from '../commerce-scripts';
+import { LEAD_PREVIEW_SCRIPTS } from '../lead-scripts';
 
 describe('Q8 — unified Preview Copilot scripts index', () => {
-  it('ALL_PREVIEW_SCRIPTS contains both booking and commerce scripts', () => {
+  it('ALL_PREVIEW_SCRIPTS contains booking + commerce + lead scripts', () => {
     expect(ALL_PREVIEW_SCRIPTS.length).toBe(
-      BOOKING_PREVIEW_SCRIPTS.length + COMMERCE_PREVIEW_SCRIPTS.length,
+      BOOKING_PREVIEW_SCRIPTS.length +
+        COMMERCE_PREVIEW_SCRIPTS.length +
+        LEAD_PREVIEW_SCRIPTS.length,
     );
   });
 

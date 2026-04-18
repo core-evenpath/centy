@@ -2,6 +2,7 @@ import { db as adminDb } from '@/lib/firebase-admin';
 import PreviewPanel from './PreviewPanel';
 import { BOOKING_PREVIEW_SCRIPTS } from '@/lib/relay/preview/booking-scripts';
 import { COMMERCE_PREVIEW_SCRIPTS } from '@/lib/relay/preview/commerce-scripts';
+import { LEAD_PREVIEW_SCRIPTS } from '@/lib/relay/preview/lead-scripts';
 import type { AnyPreviewScript } from '@/lib/relay/preview/scripts-index';
 import { getPartnerEngines } from '@/lib/relay/engine-recipes';
 import type { Partner } from '@/lib/types';
@@ -31,10 +32,13 @@ export default async function PreviewCopilotPage({ searchParams }: PageProps) {
   }
 
   // Engine-gated script list: booking scripts always shown (Phase 1
-  // legacy); commerce scripts added when the partner has commerce.
+  // legacy); commerce and lead scripts added per partner's engines.
   const scripts: AnyPreviewScript[] = [...BOOKING_PREVIEW_SCRIPTS];
   if (partnerEngines.includes('commerce')) {
     scripts.push(...COMMERCE_PREVIEW_SCRIPTS);
+  }
+  if (partnerEngines.includes('lead')) {
+    scripts.push(...LEAD_PREVIEW_SCRIPTS);
   }
 
   return (
