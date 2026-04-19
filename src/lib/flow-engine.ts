@@ -6,7 +6,12 @@ import type {
   IntentSignal,
   LeadTemperature,
 } from './types-flow-engine';
-import { getBlockMappingForFunction } from '@/lib/relay-block-taxonomy';
+// P3.M04: replaced the legacy relay-block-taxonomy lookup with the
+// engine-tagged registry. Same data source as production Health +
+// orchestrator block scoping.
+import { ALL_BLOCKS_DATA } from '@/app/admin/relay/blocks/previews/_registry-data';
+import { deriveEnginesFromFunctionId } from '@/lib/relay/engine-recipes';
+import type { BlockTag, Engine } from '@/lib/relay/engine-types';
 
 // ---------------------------------------------------------------------------
 // Create initial conversation flow state
@@ -251,9 +256,18 @@ export function runFlowEngine(
     stageType = INTENT_TO_STAGE[detectedIntent];
     s.currentStageType = stageType;
 
-    // 6. Get block types from taxonomy
-    const mapping = getBlockMappingForFunction(functionId);
-    const allBlocks = [...mapping.primaryBlocks, ...mapping.secondaryBlocks];
+    // 6. Get block types from the engine-tagged registry (P3.M04).
+    // Resolve the functionId's engine set, then pick registry blocks
+    // that either carry one of those engines or the 'shared' tag.
+    // Untagged blocks are excluded (match production scoping).
+    const engines = deriveEnginesFromFunctionId(functionId);
+    const allBlocks = ALL_BLOCKS_DATA
+      .filter((b) => {
+        const tags = (b as typeof b & { engines?: BlockTag[] }).engines;
+        if (!tags || tags.length === 0) return false;
+        return tags.some((t) => engines.includes(t as Engine)) || tags.includes('shared');
+      })
+      .map((b) => b.id);
     const relevantBlocks = STAGE_BLOCK_RELEVANCE[stageType] ?? [];
 
     // Filter taxonomy blocks by stage relevance
