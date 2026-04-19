@@ -221,3 +221,75 @@ that file will localize the drift).
 
 **Awaiting:** human guidance on resolution A / B / C before resuming the
 pre-flight.
+
+---
+
+## Q_P3_02 — Pre-flight prerequisites missing; PR #175 baseline-investigation never executed    (2026-04-19)
+
+**Status:** open — BLOCKING
+
+**Trigger:** Phase 3 pre-flight (revised) playbook Section 4.1 prerequisites and Section 4.2 baseline check.
+
+**Playbook premise:**
+> The baseline investigation (commit `efd6891`, PR #175) found and fixed a generator bug in `scripts/extract-block-registry-data.js` that had been producing 125 identical TS2353 errors since commit `7c36f26`. Post-fix, the verified baseline on `main` at Phase 2 close is **330**.
+> Phase 3 baseline is 330, not 401. Every subsequent session measures against 330.
+
+**Verified state of repo (HEAD = `76b16b7a` on `main`):**
+
+| Section 4.1 / 4.3 expected artifact                                          | Present? |
+|------------------------------------------------------------------------------|----------|
+| `CUTOVER_PROGRESS.md` with baseline-investigation entry                      | NO       |
+| `CUTOVER_QUESTIONS.md` with Q1 + Q_P3_01                                     | YES — but only Q1 + Q_P3_01; no Q_P3_## supersession marker for Q1 |
+| `docs/baseline-investigation/outcome.md`                                     | NO — directory does not exist |
+| `docs/baseline-investigation/registry-data-diagnosis.md`                     | NO — directory does not exist |
+| Commit `efd6891` (claimed baseline-investigation commit) in `git log`        | NO       |
+| PR #175 in `git log --oneline` (latest merge is PR #173 / commit `0ee68973`) | NO       |
+
+**Section 4.2 baseline measurement (clean tree, prescribed command):**
+```
+git checkout main && git pull origin main      # already at 76b16b7a
+rm -rf .next && rm -rf node_modules/.cache
+rm -f tsconfig.tsbuildinfo
+npx tsc --noEmit 2>&1 | grep -c "error TS"
+```
+Result: **401** (expected 330 ±5; > 335 ceiling triggers escalation).
+
+**Top contributor (matches Q_P3_01 diagnosis):**
+- `src/app/admin/relay/blocks/previews/_registry-data.ts` — 125 errors
+
+The 125-error generator-bug pattern that Q_P3_01 flagged and that PR #175 was supposed to fix is still present.
+
+**Why this blocks the entire pre-flight:**
+
+The playbook is internally consistent only if the baseline-investigation has executed. Specifically:
+- **Tasks 1–7 (decision documents)** reference 330 as the baseline; writing decisions against 401 would propagate the same kind of incorrect-reference issue Phase 2 had.
+- **Task 8 (cast removals)** depends on the generator fix making the casts unnecessary. Removing them while the generator bug still produces incompatible types would break tsc.
+- **Task 9 (erratum notes)** would document a 401 → 330 transition that hasn't actually occurred.
+- **Section 4.2** explicitly says "If > 335: ... Stop; log Q_P3_03; do not proceed." Current measurement is 401 — well above that ceiling, with the same root cause as Q_P3_01.
+
+Calling this Q_P3_02 because Q_P3_01 already exists; the playbook says "log Q_P3_03" but the next actual unused number is Q_P3_02 (Q_P3_01 is the prior session's escalation; nothing was Q_P3_02).
+
+**Possible resolutions (human review required):**
+
+A. **Execute the baseline investigation first.** Write `docs/baseline-investigation/{registry-data-diagnosis,outcome}.md`, fix the generator bug in `scripts/extract-block-registry-data.js`, regenerate `_registry-data.ts`, verify the new baseline (predicted 330 ±5), open PR #175, merge. Then this pre-flight session can run as written.
+
+B. **Re-spec the pre-flight against the actual 401 baseline.** Drop the playbook's "330" reference; treat 401 as the authoritative Phase 3 entry baseline; skip Task 8 (casts may still be needed) and adjust Task 9 to document the actual 401 → 401 (no transition). Less work, but loses the generator-bug fix value.
+
+C. **Combine A + this session.** Same session does the investigation + fix + pre-flight. ~3 hours total — over the 2.5h ceiling but inside Phase 3 risk envelope. Higher coupling risk (pre-flight decisions made while production-code-touching work is in progress).
+
+**Recommendation:** **Option A.** The baseline-investigation deserves its own focused commit boundary so the generator fix and the pre-flight decisions are separable artifacts. The playbook's separation between "PR #175 fix" and "this pre-flight" exists for that reason; folding them together loses the audit trail the playbook implicitly relies on.
+
+**Action taken so far in this session:**
+
+- Confirmed git HEAD = `76b16b7a [cutover pre-flight] Q_P3_01 escalation`.
+- Ran prescribed `rm -rf .next && rm -rf node_modules/.cache && rm -f tsconfig.tsbuildinfo && npx tsc --noEmit 2>&1 | grep -c "error TS"`. Result: **401**.
+- Confirmed top contributor is `_registry-data.ts` with 125 errors (same root cause as Q_P3_01).
+- Verified absence of `CUTOVER_PROGRESS.md`, `docs/baseline-investigation/`, commit `efd6891`, PR #175.
+- Did NOT proceed to Tasks 1–9 per Section 8 escalation triggers #1 + #5 + Section 5 hard rule #7.
+- Did NOT modify `scripts/extract-block-registry-data.js` or `_registry-data.ts` (would constitute production-code work that this pre-flight prohibits).
+- Did NOT remove the type casts in `analytics.ts:164` / `lookups.ts:40` (Task 8 prereq unmet).
+- Did NOT add erratum notes (Task 9 prereq unmet).
+- Did NOT initialize `CUTOVER_PROGRESS.md` (Task 7 reaches that, blocked behind 1–6).
+- Appended this entry rather than overwriting prior entries (append-only discipline).
+
+**Awaiting:** human guidance on resolution A / B / C before resuming.
