@@ -49,7 +49,7 @@ function shouldThrow(): boolean {
 }
 
 interface CollectionRef {
-  doc: (id: string) => DocRef;
+  doc: (id?: string) => DocRef;
   get: () => Promise<{ docs: Array<{ id: string; data: () => unknown; ref: { id: string; path: string } }> }>;
   where: (_field: string, _op: string, _value: unknown) => CollectionRef;
   count: () => { get: () => Promise<{ data: () => { count: number } }> };
@@ -111,7 +111,13 @@ function makeCollectionRef(path: string, predicates: WherePredicate[] = [], limi
   };
 
   return {
-    doc: (id: string) => makeDocRef(`${path}/${id}`),
+    doc: (id?: string) => {
+      // Admin SDK's collection.doc() with no argument returns a ref
+      // with an auto-generated id. Emulate with time + random suffix.
+      const resolvedId =
+        id ?? `auto_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
+      return makeDocRef(`${path}/${resolvedId}`);
+    },
     get: async () => ({ docs: listDocs() }),
     where: (field, op, value) => makeCollectionRef(path, [...predicates, { field, op, value }], limit),
     limit: (n) => makeCollectionRef(path, predicates, n),

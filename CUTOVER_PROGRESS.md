@@ -66,3 +66,35 @@ Pre-flight outputs ground the reset page design:
 - `q10-service-audit.md` informs collection allow-list
 - `x05-timing-decision.md` informs Health reset semantics
 - `plan.md`'s P3.M06 final-validation depends on reset being available
+
+---
+
+## Admin Reset Page
+- Status: done
+- Branch: `claude/admin-reset-mr06` (stacked on MR01→MR02→MR03→MR04→MR05)
+- Commits:
+  - MR01 `c02d6568` — allow-list + per-collection semantics
+  - MR02 `ea771983` — filter model + validation
+  - MR03 `483fc79d` — dry-run preview action
+  - MR04 `e2a3753f` — execute + per-verb + env gate
+  - MR05 `637afb8f` — admin page UI
+  - MR06 (this commit) — self-test + runbook
+- Collections on allow-list: **5** (verb distribution: recompute 1, clear 3, delete 1)
+  - relay-engine-health (recompute, per-partner)
+  - relay-block-configs (clear, per-partner)
+  - relay-sessions (clear, per-partner + per-session optional)
+  - preview-sessions (clear, no required scope)
+  - partner-module-items (delete, per-partner + per-module)
+- Env-gated unscoped mode: `RESET_ALLOW_UNSCOPED=true` required; UI + action both gate
+- Self-test: green (14 tests exercising full preview→execute→verify sequence for every allow-list collection + idempotence + rejection matrix + audit chain)
+- Phase 3 readiness sequence: green (end-to-end flow asserted in self-test)
+- Unexpected findings: mock helper needed two enhancements during build
+  - `.batch()` support (MR04) — queued-ops batch with `.set`/`.delete`/`.update`/`.commit`
+  - auto-id `.doc()` with no argument (MR06) — emulates admin SDK's fresh-id generation
+- Ready for Phase 3 Session 1: **yes**
+- Deliverables:
+  - Source: src/lib/admin/reset/{resettable-collections.ts, filter-model.ts}; src/actions/admin-reset-actions.ts; src/app/admin/system/reset/{page.tsx, ResetShell.tsx}
+  - Tests: src/lib/admin/reset/__tests__/*.test.ts + src/actions/__tests__/admin-reset-*.test.ts (63 new tests)
+  - Runbook: docs/admin-reset-runbook.md
+- Baseline: **276** (verified at every commit; never higher)
+- Test count: 448 (Phase 2 close) → 523 (+75 across investigation + pre-flight + admin reset)
