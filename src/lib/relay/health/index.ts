@@ -30,3 +30,9 @@ export {
   proposeConnectFlowFix,
   proposeEnableBlockFix,
 } from './fix-proposals';
+
+// X05 Health gating policy (P3.M01). No callers consume this yet;
+// P3.M05 (Session 2) wires save-path callers. Shipped in P3.M01 so the
+// policy decision lives in one place when it's needed.
+export { decideHealthGate } from './gating';
+export type { GatingDecision } from './gating';
