@@ -499,3 +499,126 @@ claude/gate-session-lexicon-stress
 
 ### Next session: Engagement
 Entry predicate satisfied. Lexicon-stress pattern + C5 interpretation discipline carried forward. Engagement M01 starts on `claude/engine-rollout-engagement-m01`.
+
+---
+
+## Engagement state assessment (pre-M01)
+- Baseline verification: `main` clean-tree tsc = **401** post Session 2 merge (PRs #158-#163). Zero hidden regressions.
+- Re-verified on Session 2 tip: tsc = 401 ✓
+- Test count before session: 285/285 passing ✓
+- Session 2 retro-session-2.md + tuning.md §12 both present ✓
+- Six adjustments absorbed (C5 distribution-shape, Q16 categorization, service-exception cap, dual-tag justifications, no new session fields, simpler ≠ lighter)
+
+---
+
+## P2.engagement.M01 — recipe verification
+- Status: done (commit `8fae3aa0`)
+- Branch: `claude/engine-rollout-engagement-m01` (from main post Session 2)
+- Tests: 285 → 294 (+9). tsc 401 → 401.
+- 4 engagement-primary functionIds (ngo_nonprofit, religious, cultural_institutions, community_association); all are service-exception (Adjustment 3: 4/5 cap)
+- Speculative-From: tuning.md#engine-order
+
+## P2.engagement.M02 — tag Engagement blocks
+- Status: done (commit `37b0382b`)
+- Tests: 294 → 302 (+8). tsc 401 → 401.
+- 11 engagement-tagged blocks (8 public_nonprofit + 2 personal_wellness + 1 events_entertainment)
+- 4 dual-tags, each with per-block justification comment (Adjustment 4)
+- 0 triple-tags (Q17 guard)
+- Speculative-From: c5-interpretation-commerce.md
+
+## P2.engagement.M03 — flow templates + orchestrator wiring
+- Status: done (commit `c30a45ee`)
+- Tests: 302 → 312 (+10). tsc 401 → 401.
+- 3 templates: nonprofit-charity (skips comparison stage), community-engagement, subscription-rsvp
+- Canonical serviceIntentBreaks: `['track-donation', 'cancel-recurring', 'update-rsvp']`
+- Service-exception partners skip service-overlay routing via recipe (no service in engine set)
+- Speculative-From: c5-interpretation-commerce.md
+
+## P2.engagement.M04 — activate Engagement tab
+- Status: done (commit `bbe2f720`)
+- Tests: 312 → 315 (+3). tsc 401 → 401.
+- ACTIVATED_ENGINES now `['booking', 'commerce', 'lead', 'engagement']`
+- Info still "Coming soon"
+
+## P2.engagement.M05 — activate Engagement health row
+- Status: done (commit `f033bc49`)
+- Zero production-code changes
+- Tests: 315 → 321 (+6). tsc 401 → 401.
+- Service-exception distinction ("no service by design" vs "unconfigured") asserted
+
+## P2.engagement.M06 — starter blocks
+- Status: done (commit `6d231d20`)
+- Tests: 321 → 328 (+7). tsc 401 → 401.
+- 4 engagement-primary fns have curated starter sets (size 7-9, within 5-13 band)
+- Service-exception partners have no Service-only blocks in starter sets (asserted)
+
+## P2.engagement.M07 — seed templates
+- Status: done (commit `438e5326`)
+- Tests: 328 → 337 (+9). tsc 401 → 401.
+- 5 templates × 5 items = 25 items targeting moduleCampaigns, moduleEvents, moduleImpactStories, moduleMemberships, moduleCauses
+
+## P2.engagement.M08 — Preview Copilot scripts (24)
+- Status: done (commit `d1205811`)
+- Tests: 337 → 346 (+9). tsc 401 → 401.
+- 8 scripts × 3 sub-verticals
+- nonprofit-charity themes 5-6 SUBSTITUTED (service-exception): community-testimonial + mission-deep-dive replace receipt-lookup + cancel-recurring
+
+## P2.engagement.M08.5 — lexicon stress test (FIRST-CLASS, Q16 rule applied)
+- Status: done (commit `5d188d22`)
+- Tests: 346 → 362 (+16). tsc 401 → 401.
+- 16 cases; 3 initial failures in 2 thematic categories (engagement-giving + lead-cultivation) — under Q16 ceiling (≤2)
+- 4 keyword additions: engagement.strong += 'one-time gift', 'monthly contribution'; lead.strong += 'development officer', 'major giving'
+- No post-hoc category invention (categories linguistically distinct)
+- Speculative-From: c5-interpretation-commerce.md#lexicon-stress
+
+---
+
+## Engagement Phase C
+- Status: done
+- Branch: `claude/engine-rollout-engagement-phase-c` (stacked on M08.5)
+- Deliverable: `docs/engine-rollout-phase2/retro-session-3.md` + this block
+- Test count: **362/362 pass**. tsc 401 → 401.
+
+### Gate results
+
+**C2.1** Engagement partner derivation: ngo_nonprofit → [engagement, info] (service-exception); cultural_institutions → [engagement, booking, info]; community_savings → [lead, engagement] ✓
+**C2.2** 5-turn multi-turn: partner=[engagement, info] — all 5 turns land on engagement correctly (fallback-first → sticky × 4). No service break needed (service-exception partner). ✓
+**C2.3** All 4 engagement partners ≤ 20 budget (max 12: ngo_nonprofit) ✓
+**C2 consistency:** 4/4 flow-template mappings + 4/4 starter sets + 24 scripts + 5 seeds ✓
+
+**C4 regression:**
+- hotels_resorts booking-scoped = 18 (unchanged)
+- ecommerce_d2c commerce-scoped = 13 (unchanged)
+- full_service_restaurant commerce-scoped = 15 (unchanged)
+- wealth_management lead-scoped = 5 (unchanged)
+- real_estate lead-scoped = 12 (unchanged)
+
+**C5 distribution shape (Adjustment 1):**
+
+| Partner | Engines | Unscoped | Engagement | Reduction |
+|---|---|---|---|---|
+| ngo_nonprofit | [engagement, info] | 12 | 12 | 0% |
+| religious | [engagement, info] | 5 | 5 | 0% |
+| community_association | [engagement, info] | 5 | 5 | 0% |
+| cultural_institutions | [engagement, booking, info] | 5 | 5 | 0% |
+| government | [info, engagement] | 5 | 5 | 0% |
+| **community_savings** | [lead, engagement] | 9 | 5 | **44%** |
+
+Distribution spans 0-44% with visible variation. At least one partner ≥ 15% → Q20 NOT triggered. Interpretation A extended: pure-engagement 0% (narrow natural catalog), secondary-overlay on lead-primary partners 44% (lead-specific blocks stripped).
+
+### Retrospective summary
+- 10 Speculative-From footers evaluated: **10 confirmed by test, 0 revised** (no confirmation-by-silence)
+- Q16 rule held (2 thematic categories; no post-hoc invention)
+- Q17 dual-tag drift not accelerating (4 new vs Session 2's 9)
+- Adjustment 5 (in-chat conversion) held: ZERO new session fields
+- **Gate decision for Info: GREEN** (no blockers)
+
+### Stack state (session ready for PR)
+```
+main (Session 2 merged)
+└─ claude/engine-rollout-engagement-m01
+   └─ engagement-m02 → m03 → m04 → m05 → m06 → m07 → m08 → m08-5 → phase-c  ← THIS
+```
+
+### Next session: Info
+Entry predicate satisfied. 8+1 template validated across 3 engines. Info M01 starts on `claude/engine-rollout-info-m01`.
