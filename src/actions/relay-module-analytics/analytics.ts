@@ -18,7 +18,6 @@ import {
 import {
   buildBlockVerticalMap,
   resolveBlockVerticals,
-  type SubVerticalWithIndustry,
 } from '@/lib/relay/module-analytics-derive';
 import type {
   BlockModuleBinding,
@@ -161,7 +160,7 @@ export async function getRelayModuleAnalyticsAction(): Promise<GetRelayModuleAna
     ]);
 
     const verticalMap = buildBlockVerticalMap(
-      ALL_SUB_VERTICALS_DATA as unknown as SubVerticalWithIndustry[],
+      ALL_SUB_VERTICALS_DATA,
       SHARED_BLOCK_IDS_DATA,
     );
 

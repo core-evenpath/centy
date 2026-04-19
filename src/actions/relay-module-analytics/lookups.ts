@@ -13,10 +13,7 @@ import {
   ALL_SUB_VERTICALS_DATA,
   SHARED_BLOCK_IDS_DATA,
 } from '@/app/admin/relay/blocks/previews/_registry-data';
-import {
-  buildBlockVerticalMap,
-  type SubVerticalWithIndustry,
-} from '@/lib/relay/module-analytics-derive';
+import { buildBlockVerticalMap } from '@/lib/relay/module-analytics-derive';
 import type { SimpleBlockRef } from '@/lib/relay/module-analytics-types';
 
 export interface BlocksForModuleResult {
@@ -37,7 +34,7 @@ export async function getBlocksForModuleAction(
 ): Promise<BlocksForModuleResult> {
   try {
     const verticalMap = buildBlockVerticalMap(
-      ALL_SUB_VERTICALS_DATA as unknown as SubVerticalWithIndustry[],
+      ALL_SUB_VERTICALS_DATA,
       SHARED_BLOCK_IDS_DATA,
     );
 
