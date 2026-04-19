@@ -3,7 +3,7 @@
 const fs = require('fs');
 const path = require('path');
 
-const PREVIEWS_DIR = '/home/user/centy/src/app/admin/relay/blocks/previews';
+const PREVIEWS_DIR = path.resolve(__dirname, '..', 'src/app/admin/relay/blocks/previews');
 const OUT_FILE = path.join(PREVIEWS_DIR, '_registry-data.ts');
 
 const VERTICALS = [
@@ -128,7 +128,10 @@ export interface ServerBlockData {
 
 export interface ServerSubVerticalData {
   id: string;
+  name: string;
+  industryId: string;
   blocks: string[];
+  genericBlocks?: string[];
 }
 
 // Shared blocks (cross-engine). M04 tags them all 'shared'. Ids here
