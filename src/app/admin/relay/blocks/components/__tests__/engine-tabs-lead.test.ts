@@ -8,11 +8,10 @@ describe('P2.lead.M04 — Lead tab activation', () => {
     expect(ACTIVATED_ENGINES.has('lead')).toBe(true);
   });
 
-  it('info remains not-yet-activated', () => {
-    // engagement became activated in engagement.M04 — see the
-    // engagement-specific test file. Lead assertion limited to info
-    // which remains the only non-activated primary engine.
-    expect(ACTIVATED_ENGINES.has('info')).toBe(false);
+  it('info activated in info.M04 (Session 4)', () => {
+    // Engagement + Info both shipped since lead.M04; all 5 primaries
+    // now activated. Service still overlay-only.
+    expect(ACTIVATED_ENGINES.has('info')).toBe(true);
   });
 
   it('service is not exposed as a top-level tab (overlay-only)', () => {
