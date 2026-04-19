@@ -11,12 +11,13 @@
 // when the page auto-refreshes faster than TTL (verified in tests).
 
 import { db } from '@/lib/firebase-admin';
-import { computeEngineHealth } from '@/lib/relay/health';
+import { computeEngineHealth, decideHealthGate } from '@/lib/relay/health';
 import type {
   EngineHealthDoc,
   BlockSnapshot,
   ModuleSnapshot,
   FlowSnapshot,
+  GatingDecision,
 } from '@/lib/relay/health';
 import type { Engine } from '@/lib/relay/engine-types';
 import { getPartnerEngines } from '@/lib/relay/engine-recipes';
@@ -426,4 +427,26 @@ export async function triggerHealthRecompute(
       err,
     });
   }
+}
+
+// ── Gating helper (P3.M01) ────────────────────────────────────────
+//
+// Save-path actions that want to gate on Health call this helper. It
+// reads the current Health snapshot for (partner, engine) and returns
+// the gating decision from `decideHealthGate`.
+//
+// Behavior with `HEALTH_GATING_ENABLED = false` (current default):
+// always allows. Reason will be `'gating-disabled'`. No save-path
+// caller consumes this in P3.M01 — wired in P3.M05 (Session 2).
+//
+// Recompute (`triggerHealthRecompute`, `recomputeEngineHealth`) is
+// deliberately untouched: snapshots must keep updating regardless of
+// gating policy so the policy has fresh data when it flips on.
+
+export async function evaluateHealthGate(
+  partnerId: string,
+  engine: Engine,
+): Promise<GatingDecision> {
+  const health = await getEngineHealth(partnerId, engine);
+  return decideHealthGate(health);
 }
