@@ -396,7 +396,8 @@ const EDU_BLOCKS: VerticalBlockDef[] = [
   { id: 'batch_selector', family: 'scheduling', label: 'Batch / Cohort Selector', stage: 'conversion', desc: 'Batch picker with dates, times, mode, seat availability', preview: MiniBatchSelector, intents: ['batch', 'start date', 'cohort', 'next batch'], module: null, status: 'active' },
   { id: 'certificate', family: 'credentials', label: 'Certificate / Credential', stage: 'social_proof', desc: 'Formal completion certificate with verification ID', preview: MiniCertificate, intents: ['certificate', 'credential', 'diploma'], module: null, status: 'active' },
   { id: 'resources', family: 'content', label: 'Learning Resources', stage: 'discovery', desc: 'Material library with type-coded icons', preview: MiniResources, intents: ['resources', 'materials', 'downloads', 'videos'], module: null, status: 'active' },
-  { id: 'facility', family: 'info', label: 'Campus / Facility', stage: 'discovery', desc: 'Campus photo grid, facility list, virtual tour link', preview: MiniFacility, intents: ['campus', 'facility', 'location', 'labs'], module: null, status: 'active' },
+  // engines: ['info'] — campus/facility directory is pure info surface (hours, location, virtual-tour navigation)
+  { id: 'facility', family: 'info', label: 'Campus / Facility', stage: 'discovery', desc: 'Campus photo grid, facility list, virtual tour link', preview: MiniFacility, intents: ['campus', 'facility', 'location', 'labs'], module: null, status: 'active', engines: ['info'] },
 ];
 
 const EDU_SUBVERTICALS: SubVerticalDef[] = [
