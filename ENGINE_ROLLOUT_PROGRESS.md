@@ -622,3 +622,85 @@ main (Session 2 merged)
 
 ### Next session: Info
 Entry predicate satisfied. 8+1 template validated across 3 engines. Info M01 starts on `claude/engine-rollout-info-m01`.
+
+---
+
+## Info state assessment (pre-M01)
+- Baseline verification: main clean-tree tsc = **401** post Session 3 merge (PRs #164-#166). Zero hidden regressions.
+- Test count before session: 362/362 ✓
+
+## P2.info.M01 — recipe verification
+- Status: done (commit `9499e0f3`)
+- Tests: 362 → 369 (+7). tsc 401 → 401.
+- 3 info-primary fns: public_transport, government, utilities
+
+## P2.info.M02 — tag Info blocks
+- Status: done (commit `ebf6e37d`)
+- Tests: 369 → 374 (+5). tsc 401 → 401.
+- 6 info-tagged blocks total (5 single + 2 dual). `facility` tagged in both healthcare + education verticals.
+
+## P2.info.M03 — 1 flow template
+- Status: done (commit `887c6da9`)
+- Tests: 374 → 381 (+7). tsc 401 → 401.
+- info_tpl_directory: 4-stage template (greeting → discovery → showcase → handoff). Deliberately skips conversion/followup/comparison.
+
+## P2.info.M04 — activate Info tab
+- Status: done (commit `a7189cec`)
+- Tests: 381 → 384 (+3). tsc 401 → 401.
+- ACTIVATED_ENGINES now all 5 primaries.
+
+## P2.info.M05 — activate Info health row
+- Status: done (commit `be1c1992`)
+- Tests: 384 → 389 (+5). tsc 401 → 401.
+
+## P2.info.M06 — starter blocks
+- Status: done (commit `eff3d6ac`)
+- Tests: 389 → 395 (+6). tsc 401 → 401.
+- 3 starter sets at 5-6 blocks (floor-hugging). Phase 1 M14 assertion widened to 5 engines.
+
+## P2.info.M07 — seed templates
+- Status: done (commit `7b8a1a0e`)
+- Tests: 395 → 404 (+9). tsc 401 → 401.
+- 3 templates × 5 items (narrowest engine)
+
+## P2.info.M08 — Preview scripts (24)
+- Status: done (commit `585013ee`)
+- Tests: 404 → 411 (+7). tsc 401 → 401.
+- 8 themes × 3 sub-verticals; theme 8 is service-overlay break.
+
+## P2.info.M08.5 — lexicon stress (FIRST-CLASS, Q16 rule)
+- Status: done (commit `8cfb951c`)
+- Tests: 411 → 424 (+13). tsc 401 → 401.
+- 3 failures in **1 thematic category** (info-discovery phrasings). Under Q16 ceiling.
+- 5 info.strong keywords added: timetable, upcoming events, community events, any delays, delay today
+
+---
+
+## Info Phase C
+- Status: done
+- Test count: **424/424 pass**. tsc 401 → 401.
+
+### C5 distribution
+| Partner | Unscoped | Info | % |
+|---|---|---|---|
+| public_transport | 9 | 8 | 11% |
+| government | 5 | 5 | 0% |
+| utilities | 5 | 5 | 0% |
+| k12_education | 15 | 15 | 0% |
+| hospitals | 5 | 5 | 0% |
+| **physical_retail** | 10 | 6 | **40%** |
+| cultural_institutions | 5 | 5 | 0% |
+
+Spans 0-40% with visible variation. Q20 NOT triggered (physical_retail at 40%).
+
+### Retrospective
+- 10/10 Speculative-From footers confirmed by test
+- Q16 rule stable at ≤ 2 categories (Info hit 1)
+- Dual-tag drift decelerating (9→4→1)
+- Adjustments 1-6 all held
+
+### Gate decision for X02: GREEN
+
+### Next: X02 Lineage view, X03 Multi-engine refinement, Phase 2 summary
+
+All 5 primary engines complete. No more per-engine sessions.

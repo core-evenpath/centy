@@ -368,3 +368,63 @@ Engagement shipped ZERO new session fields. Post-conversion content (thank-you, 
 - C5 distribution-shape pattern now validated across 2 engines (Lead, Engagement).
 - Info session should inherit all Adjustments 1-6 as-is; no revisions needed this retro.
 
+
+---
+
+## 14. Session 4 findings (post-Info, 2026-04-19)
+
+### C5 distribution shape
+
+Info spans 0-40% across 7 measured partners. `physical_retail`
+(commerce-primary with info secondary) shows 40% — distinct-scope
+outlier matching the Engagement pattern. Pure-info partners at 0-11%.
+Q20 not triggered.
+
+### Per-engine C5 range table (ALL 6 ENGINES NOW MEASURED)
+
+| Engine | Pattern | Target |
+|---|---|---|
+| Booking | ≥60% | ≥60% |
+| Commerce | 10-25% | 10-25% |
+| Lead | 0-27% | 25-50% on at-least-one partner |
+| Engagement | 0% pure + 44% secondary | 0-15% pure + 30-50% secondary |
+| **Info** | **0-11% pure + 40% on commerce-primary** | **0-15% pure + 40%+ on commerce-primary secondary** |
+| Service | ≥60% | ≥60% |
+
+Pattern: narrow engines (Engagement, Info) converge on 0% for pure
+partners and 30-50%+ for cross-engine secondary; wide engines
+(Booking, Service) always heavy-reduce.
+
+### Lexicon stress session trend
+
+| Engine | Failures | Categories | Fixes |
+|---|---|---|---|
+| Commerce | 3 | 2 | 3 |
+| Lead | 8 | 2 | 9 |
+| Engagement | 3 | 2 | 4 |
+| **Info** | **3** | **1** | **5** |
+
+**Q16 rule stable across 4 sessions.** Category count ≤ 2 always
+held. Info hit 1 category — further validation.
+
+### Dual-tag drift (Q17 final)
+
+Sessions added: 0, 9, 4, 1. **Decelerating.** Zero triple-tags across
+Phase 2. Adjustment 4 per-block justification discipline worked.
+
+### Adjustments 1-6 review
+
+All 6 adjustments from Session 3 playbook held across Info session:
+1. C5 distribution-shape — validated on 2 engines (Engagement, Info)
+2. Q16 thematic-category rule — stable at ≤ 2 across all 4 engines
+3. Service-exception cap — 4/5 consumed, slot remaining
+4. Dual-tag justifications — decelerating trend, zero triples
+5. No new session fields — zero across all 4 engines
+6. Simpler ≠ lighter — Info was narrowest but shipped full suite
+
+### Phase 2 per-engine phase now complete
+
+All 5 primary engines (Booking + Commerce + Lead + Engagement + Info)
+shipped with Phase C green. X01 Service overlay shipped Session 1.
+Remaining Phase 2 scope: X02 Lineage, X03 Multi-engine refinement,
+Phase 2 summary.
