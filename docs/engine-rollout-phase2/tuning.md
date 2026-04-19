@@ -4,6 +4,8 @@ Pre-flight decisions informing the per-engine milestones (Commerce, Lead, Engage
 
 **Gate status note:** the Phase 2 playbook's pre-flight specifies reading production observation data from Phase 1's ≥ 1-week shadow-mode window. At the time this document is authored (2026-04-18), phase-c merged today — observation data does not exist yet. User explicitly requested Phase 2 start now; observation gate waived. This doc distinguishes **evidence-based** recommendations (static analysis, unit tests, code inspection) from **speculative** recommendations that need production evidence to confirm. Every speculative item is flagged explicitly — Phase 2's retrospective should revisit those once observation catches up.
 
+> **Erratum (added during Phase 3 pre-flight v3, 2026-04-19):** This document and its §11-§14 findings sections reference a tsc baseline of **401** as "stable throughout Phase 2." That measurement was stable but incorrect. The true committed-main baseline was **276**; 125 of the 401 errors came from a generator bug in `scripts/extract-block-registry-data.js` (interface declared `ServerSubVerticalData` as `{ id, blocks }` but emitted `{ id, name, industryId, blocks }`). Phase 2's per-session tsc-delta discipline was valid; the reference number in these retrospectives was not. Baseline-investigation session (see `docs/baseline-investigation/outcome.md`) fixed the generator and regenerated the output; post-fix baseline is **276**. Phase 3 operates against 276 — see `docs/engine-cutover-phase3/tuning.md` §2. The body text of this Phase 2 retrospective is preserved as historical record; future readers should mentally substitute 276 wherever 401 appears below.
+
 ---
 
 ## 1. Lexicon refinements
