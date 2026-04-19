@@ -27,3 +27,42 @@ escalations required.
 - Recommendation: **CLEAN** — Phase 3 pre-flight can resume against 276 once this branch merges.
 - See: `docs/baseline-investigation/{registry-data-diagnosis,outcome}.md`
 - Phase 2 retrospective correction flagged (ENGINE_ROLLOUT_SUMMARY.md + docs/engine-rollout-phase2/tuning.md reference 401) — to be addressed via erratum notes in the next pre-flight session's Task 9.
+
+---
+
+## Phase 3 Pre-Flight (v3)
+- Status: done
+- Branch: `claude/cutover-preflight-v3` (stacked on `claude/baseline-investigation-fresh`)
+- Commits:
+  - `63616e03` — Q10 service audit
+  - `e3b797a7` — observation closure criteria (Model B)
+  - `bf054a84` — X04 scope decision (Narrow)
+  - `e16b8921` — X05 timing decision (before X04)
+  - `8632715e` — tuning.md
+  - `5ce1c24b` — execution plan
+  - (this commit) — progress log update
+  - (next commit) — Phase 2 erratum notes
+- Baseline: **276** (verified clean-tree tsc at every commit; never higher)
+- Deliverables under `docs/engine-cutover-phase3/`:
+  - `q10-service-audit.md`
+  - `observation-closure.md`
+  - `x04-scope-decision.md`
+  - `x05-timing-decision.md`
+  - `tuning.md`
+  - `plan.md`
+- Ready for admin reset page session: **yes**
+
+### Key decisions
+
+- **Q10 service tagging**: 16 service-tagged blocks (not 4); per-engine gaps 3-6 blocks total; below escalation threshold. Recommendation: contact-fallback rule in P3.M05 rather than per-intent blocks.
+- **Observation closure**: Model B (evidence-based). 7 signals verified today. Q2 and Q11 transition to resolved at Phase 3 close.
+- **X04 scope**: Narrow (admin seed-drafting CLI tool only). No runtime AI. Adjustment 5 preserved.
+- **X05 timing**: Before X04, via feature flag. Two-step rollout (flag default-off, then flip to on atomically).
+- **Milestone count**: 8 milestones (M01-M09, M02 removed for no-migration). 3 Phase 3 sessions estimated.
+
+### Next session: admin reset page
+
+Pre-flight outputs ground the reset page design:
+- `q10-service-audit.md` informs collection allow-list
+- `x05-timing-decision.md` informs Health reset semantics
+- `plan.md`'s P3.M06 final-validation depends on reset being available
