@@ -19,18 +19,24 @@ import {
   ENGAGEMENT_PREVIEW_SCRIPTS,
   type EngagementPreviewScript,
 } from './engagement-scripts';
+import {
+  INFO_PREVIEW_SCRIPTS,
+  type InfoPreviewScript,
+} from './info-scripts';
 
 export type AnyPreviewScript =
   | BookingPreviewScript
   | CommercePreviewScript
   | LeadPreviewScript
-  | EngagementPreviewScript;
+  | EngagementPreviewScript
+  | InfoPreviewScript;
 
 export const ALL_PREVIEW_SCRIPTS: readonly AnyPreviewScript[] = [
   ...BOOKING_PREVIEW_SCRIPTS,
   ...COMMERCE_PREVIEW_SCRIPTS,
   ...LEAD_PREVIEW_SCRIPTS,
   ...ENGAGEMENT_PREVIEW_SCRIPTS,
+  ...INFO_PREVIEW_SCRIPTS,
 ];
 
 export function getAnyScriptById(id: string): AnyPreviewScript | undefined {
@@ -60,4 +66,8 @@ export const SUB_VERTICAL_LABELS: Record<string, string> = {
   'nonprofit-charity': 'Nonprofit / Charity',
   'community-engagement': 'Community Engagement',
   'subscription-rsvp': 'Subscription / RSVP',
+  // info
+  'public-transport': 'Public Transport',
+  'government': 'Government',
+  'utilities': 'Utilities',
 };
