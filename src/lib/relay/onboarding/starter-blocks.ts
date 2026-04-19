@@ -719,6 +719,29 @@ for (const [fn, ids] of Object.entries(ENGAGEMENT_STARTER_BLOCKS)) {
   STARTER_BLOCKS_BY_FUNCTION[fn] = ids;
 }
 
+// ── Info starter blocks (P2.info.M06) ──────────────────────────────
+// 3 info-primary functionIds. Narrow sets (5-6 blocks) per Session 3
+// retro's prediction that info trends smallest — info partners serve
+// directory + status + contact.
+const INFO_STARTER_BLOCKS: Record<string, string[]> = {
+  public_transport: [
+    'greeting', 'suggestions',
+    'tl_schedule_grid', 'pu_office_locator', 'contact',
+  ],
+  government: [
+    'greeting', 'suggestions',
+    'pu_service_directory', 'pu_document_portal', 'pu_office_locator', 'contact',
+  ],
+  utilities: [
+    'greeting', 'suggestions',
+    'pu_outage_status', 'pu_service_directory', 'pu_office_locator', 'contact',
+  ],
+};
+
+for (const [fn, ids] of Object.entries(INFO_STARTER_BLOCKS)) {
+  STARTER_BLOCKS_BY_FUNCTION[fn] = ids;
+}
+
 export function getStarterBlocks(functionId: string): string[] {
   return STARTER_BLOCKS_BY_FUNCTION[functionId] ?? [];
 }
