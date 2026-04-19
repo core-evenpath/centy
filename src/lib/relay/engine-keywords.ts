@@ -79,9 +79,14 @@ export const ENGINE_KEYWORDS: Record<Engine, { strong: string[]; weak: string[] 
     ],
   },
   info: {
+    // Strong-phrase additions (P2.info.M08.5 lexicon stress, 2026-04-18):
+    // 'timetable', 'upcoming events', 'any delays' — info-discovery
+    // phrasings for public-transit / government / utilities partners
+    // (read-only schedule / event / status queries).
     strong: [
       'hours', 'opening hours', 'directions', 'address', 'location',
       'phone number', 'find us', 'where are you', 'contact info',
+      'timetable', 'upcoming events', 'community events', 'any delays', 'delay today',
     ],
     weak: [
       'info', 'information', 'about', 'where', 'when',
