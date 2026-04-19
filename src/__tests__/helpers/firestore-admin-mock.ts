@@ -127,7 +127,11 @@ function makeCollectionRef(path: string, predicates: WherePredicate[] = [], limi
 
 function makeDocRef(path: string): DocRef {
   const id = path.split('/').pop() ?? '';
-  return {
+  const ref: DocRef & { __path: string } = {
+    // Tag the ref with its concrete path so batch ops can resolve it.
+    // The real Firestore SDK exposes `.path` on refs; we use `__path`
+    // to avoid colliding with anything else tests might reference.
+    __path: path,
     id,
     set: async (data, opts) => {
       if (shouldThrow()) throw new Error('simulated write failure');
@@ -144,6 +148,65 @@ function makeDocRef(path: string): DocRef {
       firestoreStore.delete(path);
     },
   };
+  return ref;
+}
+
+// ── Batch mock ──────────────────────────────────────────────────
+//
+// Supports set / delete / update queued ops; commit applies them.
+// The queued ops carry the concrete doc path so the batch can
+// operate on nested subcollections without holding references to
+// the ref objects themselves.
+interface BatchOp {
+  kind: 'set' | 'delete' | 'update';
+  path: string;
+  data?: Record<string, unknown>;
+}
+
+function resolvePath(ref: unknown): string | null {
+  // DocRef objects we produce expose a .id but not a .path. The
+  // admin SDK has ref.path for docs; emulate by tracking the path
+  // on the ref itself. Our DocRef doesn't expose path today — fall
+  // back by reading the `(ref as any).__path` backing field we attach
+  // at construction time (see buildPath extension below).
+  const r = ref as { __path?: string };
+  return r?.__path ?? null;
+}
+
+function makeBatch() {
+  const ops: BatchOp[] = [];
+  return {
+    set: (ref: unknown, data: Record<string, unknown>) => {
+      const path = resolvePath(ref);
+      if (path) ops.push({ kind: 'set', path, data });
+    },
+    delete: (ref: unknown) => {
+      const path = resolvePath(ref);
+      if (path) ops.push({ kind: 'delete', path });
+    },
+    update: (ref: unknown, data: Record<string, unknown>) => {
+      const path = resolvePath(ref);
+      if (path) ops.push({ kind: 'update', path, data });
+    },
+    commit: async () => {
+      if (shouldThrow()) throw new Error('simulated batch commit failure');
+      for (const op of ops) {
+        if (op.kind === 'delete') {
+          firestoreStore.delete(op.path);
+        } else if (op.kind === 'set') {
+          const id = op.path.split('/').pop() ?? '';
+          firestoreStore.set(op.path, { id, data: op.data ?? {} });
+        } else if (op.kind === 'update') {
+          const existing = firestoreStore.get(op.path);
+          const id = op.path.split('/').pop() ?? '';
+          firestoreStore.set(op.path, {
+            id,
+            data: { ...(existing?.data ?? {}), ...(op.data ?? {}) },
+          });
+        }
+      }
+    },
+  };
 }
 
 /**
@@ -153,11 +216,17 @@ function makeDocRef(path: string): DocRef {
  * `db.collection` is wrapped in `vi.fn(...)` so tests that override it
  * with `.mockImplementation()` / `.mockImplementationOnce()` keep
  * working — the inline mock this helper replaces did the same.
+ *
+ * `db.batch()` returns a queued-ops batch (set / delete / update →
+ * commit applies them atomically in test-land).
  */
-export function makeFirestoreAdminMock(): { db: { collection: ReturnType<typeof vi.fn> } } {
+export function makeFirestoreAdminMock(): {
+  db: { collection: ReturnType<typeof vi.fn>; batch: () => ReturnType<typeof makeBatch> };
+} {
   return {
     db: {
       collection: vi.fn((name: string) => makeCollectionRef(name)),
+      batch: () => makeBatch(),
     },
   };
 }
