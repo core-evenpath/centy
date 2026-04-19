@@ -704,3 +704,47 @@ Spans 0-40% with visible variation. Q20 NOT triggered (physical_retail at 40%).
 ### Next: X02 Lineage view, X03 Multi-engine refinement, Phase 2 summary
 
 All 5 primary engines complete. No more per-engine sessions.
+
+---
+
+## X02 — Lineage view
+- Status: done (commit `c204890c`)
+- Branch: `claude/engine-rollout-x02-lineage` (stacked on info-phase-c)
+- Files: `src/lib/relay/lineage.ts` + test
+- Tests: 424 → 435 (+11). tsc 401 → 401.
+- Pure function library. Shadow-mode (read-only analytical lens).
+- Exports: `getBlockLineage`, `buildAllBlockLineages`, `summarizeLineage`.
+- Admin UI wiring deferred to follow-up (not a Phase 2 blocker).
+
+## X03 — Multi-engine refinement
+- Status: done (commit `4414d40e`)
+- Branch: `claude/engine-rollout-x03-multi-engine` (stacked on X02)
+- Files: `src/__tests__/integration/multi-engine-refinement.test.ts`
+- Tests: 435 → 448 (+13). tsc 401 → 401.
+- 13 integration tests across 5 multi-engine partner shapes:
+  booking+commerce+service, lead+booking+service, engagement+booking+info,
+  commerce+service+info, commerce+lead+service.
+- 4 stress patterns: rapid topic flip, sticky drift, strong-hint cascade, service-overlay break
+- Findings: M11 sticky + M10 classifier scale to 3+ engine partners WITHOUT new rules. No classifier changes.
+
+## Phase 2 — Closed
+- Status: done
+- Branch: `claude/engine-rollout-phase2-close`
+- Deliverable: `ENGINE_ROLLOUT_SUMMARY.md` + this block
+- **Final test count: 448/448 pass**
+- **tsc: 401 (stable throughout Phase 2)**
+- **48 branches pushed to origin**
+- **0 new AI calls / 0 new session fields**
+
+### Phase 2 completion scorecard
+| Scope | Status |
+|---|---|
+| 5 primary engines (Booking, Commerce, Lead, Engagement, Info) | ✓ |
+| X01 Service overlay | ✓ |
+| X02 Lineage view | ✓ |
+| X03 Multi-engine refinement | ✓ |
+| X04 Drafting AI | Deferred to Phase 3 |
+| X05 Gating cutover | Deferred to Phase 3 |
+
+### Phase 3 readiness: GREEN
+See `ENGINE_ROLLOUT_SUMMARY.md` for Phase 3 preconditions checklist.
