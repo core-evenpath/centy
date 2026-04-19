@@ -225,36 +225,22 @@ export function deriveEnginesFromFunctionId(
 }
 
 /**
- * Canonical accessor for a partner's engines.
+ * Returns a partner's explicit `engines` array, sorted into canonical
+ * ENGINES-tuple order. Partners without `engines` return `[]`.
  *
- * - If the partner has an explicit `engines` array (set by onboarding at
- *   M14 or edited manually), return it verbatim (sorted).
- * - Otherwise, derive from the partner's primary `functionId` under
- *   `businessPersona.identity.businessCategories[0].functionId`.
- * - Legacy partners with neither → `[]`.
+ * Post-P3.M03: no functionId-based derivation. Phase 2 onboarding
+ * (M14 `applyEngineRecipe`) writes `engines` at partner creation via
+ * `deriveEnginesFromFunctionId`; partners that existed before Phase 2
+ * or bypass onboarding return `[]` and their callers fall through to
+ * engine-agnostic behavior.
+ *
+ * Callers MUST handle the empty-array case explicitly. See
+ * `docs/engine-cutover-phase3/m03-caller-audit.md` for the per-caller
+ * empty-engines behavior audit.
  */
-export function getPartnerEngines(
-  partner: Pick<Partner, 'engines'> & {
-    businessProfile?: unknown;
-    [key: string]: unknown;
-  },
-): Engine[] {
-  if (Array.isArray(partner.engines) && partner.engines.length > 0) {
-    return sortByEngineOrder(partner.engines);
+export function getPartnerEngines(partner: Pick<Partner, 'engines'>): Engine[] {
+  if (!Array.isArray(partner.engines) || partner.engines.length === 0) {
+    return [];
   }
-  // Firestore partner docs carry the functionId under a deep path. The
-  // runtime shape (not captured in the typed Partner interface today) is
-  // `partner.businessPersona?.identity?.businessCategories?.[0]?.functionId`
-  // per `src/lib/relay/orchestrator/signals/partner.ts:31–35`. We read it
-  // defensively so this function works both with the typed Partner and
-  // with the raw Firestore doc that the orchestrator sees first.
-  const p = partner as {
-    businessPersona?: {
-      identity?: {
-        businessCategories?: { functionId?: string }[];
-      };
-    };
-  };
-  const fn = p.businessPersona?.identity?.businessCategories?.[0]?.functionId;
-  return deriveEnginesFromFunctionId(fn);
+  return sortByEngineOrder(partner.engines);
 }

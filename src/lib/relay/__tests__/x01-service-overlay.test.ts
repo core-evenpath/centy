@@ -1,7 +1,7 @@
 // X01 — Service overlay tagging + auto-inclusion verification.
 
 import { describe, expect, it } from 'vitest';
-import { getPartnerEngines, FUNCTION_TO_ENGINES } from '../engine-recipes';
+import { deriveEnginesFromFunctionId, FUNCTION_TO_ENGINES } from '../engine-recipes';
 import { getAllowedBlocksForFunctionAndEngine } from '../admin-block-registry';
 import { ALL_BLOCKS_DATA } from '@/app/admin/relay/blocks/previews/_registry-data';
 
@@ -22,8 +22,9 @@ describe('X01 — Service overlay', () => {
       .filter(([, e]) => e[0] === 'booking')
       .map(([fn]) => fn);
     for (const fn of bookingPrimary) {
-      const partner = { businessPersona: { identity: { businessCategories: [{ functionId: fn }] } } };
-      const engines = getPartnerEngines(partner as Parameters<typeof getPartnerEngines>[0]);
+      // Post-P3.M03: recipe-table correctness tested via
+      // deriveEnginesFromFunctionId directly.
+      const engines = deriveEnginesFromFunctionId(fn);
       expect(engines, `${fn}`).toContain('service');
     }
   });
@@ -33,8 +34,7 @@ describe('X01 — Service overlay', () => {
       .filter(([, e]) => e[0] === 'commerce')
       .map(([fn]) => fn);
     for (const fn of commercePrimary) {
-      const partner = { businessPersona: { identity: { businessCategories: [{ functionId: fn }] } } };
-      const engines = getPartnerEngines(partner as Parameters<typeof getPartnerEngines>[0]);
+      const engines = deriveEnginesFromFunctionId(fn);
       expect(engines, `${fn}`).toContain('service');
     }
   });

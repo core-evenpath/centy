@@ -409,11 +409,11 @@ export async function triggerHealthRecompute(
     // no-ops in Phase 1 since no blocks are tagged for them.
     let engines: Engine[] = ['booking'];
     if (partner) {
-      // getPartnerEngines accepts a loose structural shape; cast to
-      // unknown → its parameter type keeps the Partner public type clean.
-      const resolved = getPartnerEngines(
-        partner as unknown as Parameters<typeof getPartnerEngines>[0],
-      );
+      // Post-P3.M03: getPartnerEngines returns partner.engines only;
+      // no functionId derivation. Partner doc without `engines` returns
+      // []; the existing `if (resolved.length > 0)` guard keeps the
+      // ['booking'] default in that case.
+      const resolved = getPartnerEngines(partner);
       if (resolved.length > 0) engines = resolved;
     }
 
