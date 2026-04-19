@@ -158,8 +158,13 @@ export async function orchestrate(
   // 2. Engine selection (M12 — pure, cheap). Run per turn.
   const lastMsg = ctx.messages[ctx.messages.length - 1]?.content ?? '';
   const engineHint = classifyEngineHint(lastMsg);
+  // Post-P3.M03: getPartnerEngines returns partner.engines only. If the
+  // Firestore doc lacks engines (pre-Phase-2 partner or testing shape),
+  // this returns []; downstream selectActiveEngine's rule 5 yields
+  // engine=null and the orchestrator falls into the Phase 1 legacy
+  // engine-agnostic path.
   const partnerEngines = getPartnerEngines(
-    partner.partnerData as Parameters<typeof getPartnerEngines>[0] ?? {},
+    (partner.partnerData ?? {}) as Parameters<typeof getPartnerEngines>[0],
   );
   const previousActive: Engine | null =
     (session.session?.activeEngine as Engine | null | undefined) ?? null;

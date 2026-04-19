@@ -70,12 +70,11 @@ describe('P2.engagement.M01 — Engagement recipe verification', () => {
   });
 
   it('engagement-primary partner derivation', () => {
-    const partner = {
-      businessPersona: {
-        identity: { businessCategories: [{ functionId: 'ngo_nonprofit' }] },
-      },
-    };
-    const engines = getPartnerEngines(partner as Parameters<typeof getPartnerEngines>[0]);
+    // Post-P3.M03 the recipe table is tested via deriveEnginesFromFunctionId
+    // directly. getPartnerEngines no longer derives from functionId; it
+    // only returns partner.engines. This test asserts recipe-table
+    // correctness for ngo_nonprofit's shape.
+    const engines = deriveEnginesFromFunctionId('ngo_nonprofit');
     expect(engines).toContain('engagement');
     expect(engines).toContain('info');
     // No service by design (service-exception class).

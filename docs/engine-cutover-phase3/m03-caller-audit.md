@@ -76,8 +76,106 @@ Three resolution paths:
 - [x] Audited all `getPartnerEngines` call sites (29 total, 4 production)
 - [x] Classified each production caller's empty-list handling
 - [x] Documented the pre-session-expectation discrepancy
-- [ ] **NOT** modified `src/lib/relay/engine-recipes.ts`
-- [ ] **NOT** modified any caller
-- [ ] **NOT** updated tests
+- [x] **Option B (extended audit)** — per-caller deep audit below
+- [ ] NOT yet modified `src/lib/relay/engine-recipes.ts`
 
-Awaiting direction before proceeding with M03 removal.
+---
+
+## Option B — per-caller deep audit
+
+For each of the 4 production callers, trace the data path from its
+data source to `getPartnerEngines` and verify the empty-list behavior
+at the call site. Then inventory test fixtures that exercise the
+derivation branch so their root-cause migration is scoped.
+
+### Caller 1 — `src/actions/relay-health-actions.ts:414`
+
+**Data path:** `triggerHealthRecompute(partnerId, partner?)`. The
+`partner` argument is optional; invokers decide whether to pass it.
+
+**Invokers in production (via grep):**
+- `src/actions/modules-actions.ts:977` → `await triggerHealthRecompute(partnerId);` — **no partner arg**
+- `src/actions/relay-seed-actions.ts:139` → `await triggerHealthRecompute(partnerId);` — **no partner arg**
+- `src/actions/relay-seed-actions.ts:216` → `await triggerHealthRecompute(partnerId);` — **no partner arg**
+
+**Finding:** no production invoker passes `partner`. The `if (partner) { ... getPartnerEngines(...) }` branch is **architecturally unreachable from production**. Test fixtures (`apply-fix-proposal.test.ts`, `relay-health-actions.test.ts`) pass `partner` for coverage, but production paths always hit the default `['booking']` fallback.
+
+**Shim-removal impact:** zero. Branch never fires in production anyway. Post-removal, even if a future caller passes a partner with missing `engines`, the caller's existing `if (resolved.length > 0) engines = resolved;` guard handles the empty case cleanly.
+
+### Caller 2 — `src/app/admin/relay/health/preview/page.tsx:30`
+
+**Data path:** Next.js server component loads a partner doc via `adminDb.collection('partners').doc(partnerId).get()`. Returns the raw Firestore doc data.
+
+**Empty-list handling:** `if (data) partnerEngines = getPartnerEngines(data);` → sets `partnerEngines` to whatever `getPartnerEngines` returns. Then:
+
+```ts
+const scripts: AnyPreviewScript[] = [...BOOKING_PREVIEW_SCRIPTS];
+if (partnerEngines.includes('commerce')) scripts.push(...COMMERCE_PREVIEW_SCRIPTS);
+if (partnerEngines.includes('lead')) ...
+// etc
+```
+
+Empty list → booking scripts only, no engine-specific scripts appended. The catch-block comment on line 32 explicitly says `"Fall back to raw id; no engines → booking scripts only"` — the page already treats empty-engines as an expected degraded state.
+
+**Shim-removal impact:** partners without `engines` go from "5-engine preview script set derived from functionId" to "booking-only preview script set." Acceptable degradation for partners that haven't been Phase-2-onboarded.
+
+### Caller 3 — `src/app/admin/relay/health/page.tsx:28`
+
+**Data path:** Next.js server component iterates partner docs via `adminDb.collection('partners').limit(50).get()`. Builds `partnerEnginesById` map used by `HealthShell` to render the matrix.
+
+**Empty-list handling:** `partnerEnginesById[d.id] = engines;` stores whatever `getPartnerEngines` returned. The matrix gates cells on `partnerEngines.includes(engine)` — empty list renders em-dashes for every engine column.
+
+**Shim-removal impact:** partners without `engines` go from "derived-engine matrix cells" to "all-em-dashes matrix cells." Admin-facing UX change. The original comment on line 25-27 explicitly calls out the derivation behavior: `"partner.engines override → functionId derivation"`. Removing the shim means this comment needs updating alongside the behavior change.
+
+### Caller 4 — `src/lib/relay/orchestrator/index.ts:161`
+
+**Data path:** Runtime hot path. `partner.partnerData` is the raw Firestore doc loaded in `loadPartnerSignal` (`src/lib/relay/orchestrator/signals/partner.ts`). The signal loader reads `snap.data() as Record<string, unknown>` — no schema-level guarantee that `engines` is populated.
+
+**Empty-list handling:** `partnerEngines = []` → `selectActiveEngine` rule 4 fails → returns `{ engine: null, reason: 'fallback-none' }`. The orchestrator proceeds with `activeEngine: null`.
+
+**Downstream with `activeEngine = null`:**
+- `loadFlowSignal(ctx, functionId, null)` — resolves flow template by `functionId` alone (Phase 1 legacy path, still present)
+- `loadBlocksSignal(partnerId, null)` — engine-agnostic blocks catalog
+- Health degraded-mode check guard: `if (activeEngine)` — skips when null
+
+**Shim-removal impact:** partners without `engines` go from "5-engine-scoped orchestrator behavior" to "engine-agnostic legacy orchestrator behavior." The legacy path is preserved for Phase 1 backward compat; it functions correctly but loses engine-specific routing improvements from Phase 2. Acceptable for partners that haven't been Phase-2-onboarded.
+
+### Summary of the 4 production callers
+
+| Caller | Empty-engines behavior | Shim removal acceptable? |
+|---|---|---|
+| 1 — `relay-health-actions.ts:414` | Defensive branch unreachable in production | ✅ Yes — no observable change |
+| 2 — `preview/page.tsx:30` | Booking-only preview scripts | ✅ Yes — documented degradation |
+| 3 — `health/page.tsx:28` | Em-dashes across matrix | ✅ Yes — admin-facing-only change |
+| 4 — `orchestrator/index.ts:161` | Engine-agnostic legacy path | ✅ Yes — preserved fallback |
+
+All four callers handle empty engines correctly. Removal is safe under the no-production-partners invariant.
+
+### Test-fixture inventory (22 fixtures across 8 files)
+
+These test fixtures construct partners WITHOUT `engines` and rely on the derivation branch:
+
+| File | Fixtures |
+|---|---|
+| `engine-recipes-engagement.test.ts` | 1 |
+| `engine-recipes-info.test.ts` | 1 |
+| `engine-recipes-lead.test.ts` | 2 |
+| `x01-service-overlay.test.ts` | 2 |
+| `health-matrix-commerce.test.ts` | 3 |
+| `health-matrix-engagement.test.ts` | 5 |
+| `health-matrix-info.test.ts` | 4 |
+| `health-matrix-lead.test.ts` | 4 |
+
+**Migration approach:** these tests are asserting recipe-table correctness (functionId → engines). Post-removal they should call `deriveEnginesFromFunctionId(fn)` directly — which remains exported for onboarding's use. The test's intent doesn't change; only the function under test does.
+
+For cases that genuinely need to test the partner-level API (where the partner has `engines` explicitly set), fixtures can pass `engines: [...]` directly and call `getPartnerEngines` against that — those tests become passthrough tests rather than derivation tests.
+
+### Revised plan
+
+1. Update test fixtures to call `deriveEnginesFromFunctionId` directly for the derivation assertions (22 fixtures across 8 files)
+2. Remove the derivation branch from `getPartnerEngines`; relax its parameter back to `Pick<Partner, 'engines'>`
+3. Simplify the 3 callers' type casts (`as unknown as Parameters<...>` no longer needed with the tighter param type — the passing shape was always a superset of `Pick<Partner, 'engines'>`)
+4. `src/lib/types.ts:163` JSDoc comment update ("runtime derivation via getPartnerEngines" is no longer accurate)
+5. Keep `deriveEnginesFromFunctionId` exported (onboarding still uses it)
+
+**Proceeding with this plan.**

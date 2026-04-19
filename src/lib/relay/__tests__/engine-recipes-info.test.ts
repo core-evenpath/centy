@@ -56,12 +56,8 @@ describe('P2.info.M01 — Info recipe verification', () => {
   });
 
   it('info-primary partner derivation', () => {
-    const partner = {
-      businessPersona: {
-        identity: { businessCategories: [{ functionId: 'public_transport' }] },
-      },
-    };
-    const engines = getPartnerEngines(partner as Parameters<typeof getPartnerEngines>[0]);
+    // Post-P3.M03: recipe-table correctness tested via deriveEnginesFromFunctionId.
+    const engines = deriveEnginesFromFunctionId('public_transport');
     expect(engines).toContain('info');
     expect(engines).toContain('service');
   });

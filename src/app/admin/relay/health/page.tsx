@@ -22,9 +22,9 @@ export default async function RelayHealthPage() {
       const functionId =
         biz?.identity?.businessCategories?.[0]?.functionId ?? null;
 
-      // Resolve engines per the M03 recipe (partner.engines override →
-      // functionId derivation). M11's getPartnerEngines accepts a loose
-      // structural shape; cast is explicit via the exported param type.
+      // Post-P3.M03: engines come from the partner's explicit `engines`
+      // field only (set by onboarding M14 `applyEngineRecipe`). Partners
+      // without `engines` render em-dashes across the matrix.
       const engines = getPartnerEngines(
         data as unknown as Parameters<typeof getPartnerEngines>[0],
       );

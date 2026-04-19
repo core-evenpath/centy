@@ -159,9 +159,11 @@ export interface Partner {
     webhookUrl?: string;
     connectedAt?: any;
   };
-  // Engine architecture (M02). Optional; partners without these fall back
-  // to runtime derivation via getPartnerEngines(). See M03 and
-  // docs/booking-pilot-analysis.md A5.
+  // Engine architecture (M02). Optional; partners without explicit engines
+  // return [] from getPartnerEngines and fall back to engine-agnostic
+  // behavior (post-P3.M03 removed the functionId-derivation shim).
+  // Phase 2 onboarding (M14 `applyEngineRecipe`) populates this field
+  // at partner creation via `deriveEnginesFromFunctionId`.
   engines?: import('./relay/engine-types').Engine[];
   engineRecipe?: 'auto' | 'custom';
 }

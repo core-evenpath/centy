@@ -4,10 +4,14 @@
 // gates cells on partnerEngines.includes(engine)). This test locks in
 // the behavior so a future refactor doesn't accidentally hardcode
 // 'booking'.
+//
+// Post-P3.M03: recipe-table correctness is tested via
+// deriveEnginesFromFunctionId directly. getPartnerEngines no longer
+// derives from functionId — it returns partner.engines as-is.
 
 import { describe, expect, it } from 'vitest';
 import { ENGINES } from '@/lib/relay/engine-types';
-import { getPartnerEngines } from '@/lib/relay/engine-recipes';
+import { deriveEnginesFromFunctionId } from '@/lib/relay/engine-recipes';
 
 describe('P2.commerce.M05 — HealthMatrix Commerce row activation', () => {
   it('ENGINES tuple includes commerce and service', () => {
@@ -16,35 +20,20 @@ describe('P2.commerce.M05 — HealthMatrix Commerce row activation', () => {
   });
 
   it('commerce-primary partner resolves to [commerce, service]', () => {
-    const partner = {
-      businessPersona: {
-        identity: { businessCategories: [{ functionId: 'ecommerce_d2c' }] },
-      },
-    };
-    const engines = getPartnerEngines(partner as Parameters<typeof getPartnerEngines>[0]);
+    const engines = deriveEnginesFromFunctionId('ecommerce_d2c');
     expect(engines).toContain('commerce');
     expect(engines).toContain('service');
   });
 
   it('booking-primary partner does NOT have commerce → row renders em-dash', () => {
-    const partner = {
-      businessPersona: {
-        identity: { businessCategories: [{ functionId: 'hotels_resorts' }] },
-      },
-    };
-    const engines = getPartnerEngines(partner as Parameters<typeof getPartnerEngines>[0]);
+    const engines = deriveEnginesFromFunctionId('hotels_resorts');
     expect(engines).not.toContain('commerce');
     // HealthMatrix gates the cell on `partnerEngines.includes(engine)`;
     // when false, it renders em-dash.
   });
 
   it('food_beverage commerce-secondary partner has commerce', () => {
-    const partner = {
-      businessPersona: {
-        identity: { businessCategories: [{ functionId: 'full_service_restaurant' }] },
-      },
-    };
-    const engines = getPartnerEngines(partner as Parameters<typeof getPartnerEngines>[0]);
+    const engines = deriveEnginesFromFunctionId('full_service_restaurant');
     // full_service_restaurant is [booking, commerce, service]
     expect(engines).toContain('commerce');
     expect(engines).toContain('booking');

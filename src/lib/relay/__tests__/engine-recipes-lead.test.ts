@@ -90,12 +90,9 @@ describe('P2.lead.M01 — Lead recipe verification', () => {
       'photography_video',
     ];
     for (const fn of samples) {
-      const partner = {
-        businessPersona: {
-          identity: { businessCategories: [{ functionId: fn }] },
-        },
-      };
-      const engines = getPartnerEngines(partner as Parameters<typeof getPartnerEngines>[0]);
+      // Post-P3.M03: recipe-table correctness tested via
+      // deriveEnginesFromFunctionId (still exported for onboarding use).
+      const engines = deriveEnginesFromFunctionId(fn);
       expect(engines, fn).toContain('lead');
       expect(engines, fn).toContain('service');
     }
@@ -126,14 +123,9 @@ describe('P2.lead.M01 — Lead recipe verification', () => {
   it('multi-engine lead partners preserve engine ordering via sortByEngineOrder', () => {
     // real_estate is [lead, booking, service]. ENGINES tuple order is
     // commerce < booking < lead < engagement < info < service, so sorted
-    // output is [booking, lead, service]. Verify the partner path returns
-    // canonical order.
-    const partner = {
-      businessPersona: {
-        identity: { businessCategories: [{ functionId: 'real_estate' }] },
-      },
-    };
-    const engines = getPartnerEngines(partner as Parameters<typeof getPartnerEngines>[0]);
+    // output is [booking, lead, service]. Verify the recipe table applies
+    // canonical order (deriveEnginesFromFunctionId sorts output).
+    const engines = deriveEnginesFromFunctionId('real_estate');
     // Booking comes before lead in ENGINES tuple.
     expect(engines.indexOf('booking')).toBeLessThan(engines.indexOf('lead'));
   });
