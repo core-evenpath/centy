@@ -22,7 +22,10 @@ export interface ServerBlockData {
 
 export interface ServerSubVerticalData {
   id: string;
+  name: string;
+  industryId: string;
   blocks: string[];
+  genericBlocks?: string[];
 }
 
 // Shared blocks (cross-engine). M04 tags them all 'shared'. Ids here
