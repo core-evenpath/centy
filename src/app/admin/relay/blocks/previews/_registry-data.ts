@@ -22,6 +22,13 @@ export interface ServerBlockData {
 
 export interface ServerSubVerticalData {
   id: string;
+  // name + industryId are emitted by the generator (extracted verbatim from
+  // each vertical's index.tsx SUBVERTICALS literal). Marked optional so
+  // downstream consumers that only care about { id, blocks } stay satisfied
+  // while analytics consumers (module-analytics-derive.ts SubVerticalWithIndustry)
+  // can read industryId without a cast.
+  name?: string;
+  industryId?: string;
   blocks: string[];
 }
 
