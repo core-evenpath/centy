@@ -16,17 +16,19 @@ import { getSeedTemplate as getBookingSeedTemplate } from '@/lib/relay/seed-temp
 import { getCommerceSeedTemplate } from '@/lib/relay/seed-templates/commerce';
 import { getLeadSeedTemplate } from '@/lib/relay/seed-templates/lead';
 import { getEngagementSeedTemplate } from '@/lib/relay/seed-templates/engagement';
+import { getInfoSeedTemplate } from '@/lib/relay/seed-templates/info';
 import { importModuleItemsFromCSV } from '@/lib/import/module-csv-import';
 
 // Unified lookup: seed templates ids are globally unique (prefix
-// `booking.*` / `commerce.*` / `lead.*` / `engagement.*`). Look up
-// every registry in order.
+// `booking.*` / `commerce.*` / `lead.*` / `engagement.*` / `info.*`).
+// Look up every registry in order.
 function getSeedTemplate(id: string) {
   return (
     getBookingSeedTemplate(id) ??
     getCommerceSeedTemplate(id) ??
     getLeadSeedTemplate(id) ??
-    getEngagementSeedTemplate(id)
+    getEngagementSeedTemplate(id) ??
+    getInfoSeedTemplate(id)
   );
 }
 import { generateItemId } from '@/lib/modules/utils';
