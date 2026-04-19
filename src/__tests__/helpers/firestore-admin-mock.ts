@@ -64,24 +64,57 @@ interface DocRef {
   delete: () => Promise<void>;
 }
 
-function makeCollectionRef(path: string): CollectionRef {
-  const listDocs = () =>
-    [...firestoreStore.entries()]
+interface WherePredicate {
+  field: string;
+  op: string;
+  value: unknown;
+}
+
+function matchesPredicate(data: Record<string, unknown>, p: WherePredicate): boolean {
+  const actual = data[p.field];
+  switch (p.op) {
+    case '==':
+      return actual === p.value;
+    case '!=':
+      return actual !== p.value;
+    case '>':
+      return typeof actual === 'number' && typeof p.value === 'number' && actual > p.value;
+    case '>=':
+      return typeof actual === 'number' && typeof p.value === 'number' && actual >= p.value;
+    case '<':
+      return typeof actual === 'number' && typeof p.value === 'number' && actual < p.value;
+    case '<=':
+      return typeof actual === 'number' && typeof p.value === 'number' && actual <= p.value;
+    case 'in':
+      return Array.isArray(p.value) && p.value.includes(actual);
+    default:
+      // Unknown op: return false so mis-specified tests fail loudly
+      // rather than silently accept all docs.
+      return false;
+  }
+}
+
+function makeCollectionRef(path: string, predicates: WherePredicate[] = [], limit?: number): CollectionRef {
+  const listDocs = () => {
+    const all = [...firestoreStore.entries()]
       .filter(([k]) => {
         const parentPath = k.substring(0, k.lastIndexOf('/'));
         return parentPath === path;
       })
-      .map(([k, v]) => ({
-        id: v.id,
-        data: () => v.data,
-        ref: { id: v.id, path: k },
-      }));
+      .filter(([, v]) => predicates.every((p) => matchesPredicate(v.data, p)));
+    const mapped = all.map(([k, v]) => ({
+      id: v.id,
+      data: () => v.data,
+      ref: { id: v.id, path: k },
+    }));
+    return typeof limit === 'number' ? mapped.slice(0, limit) : mapped;
+  };
 
   return {
     doc: (id: string) => makeDocRef(`${path}/${id}`),
     get: async () => ({ docs: listDocs() }),
-    where: (_field, _op, _value) => makeCollectionRef(path),
-    limit: (_n) => makeCollectionRef(path),
+    where: (field, op, value) => makeCollectionRef(path, [...predicates, { field, op, value }], limit),
+    limit: (n) => makeCollectionRef(path, predicates, n),
     count: () => ({
       get: async () => {
         const n = listDocs().length;
