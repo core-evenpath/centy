@@ -124,6 +124,11 @@ interface MatchingDocs {
   ids: string[];  // all matching ids
   sampleIds: string[];  // first N for display
   warnings: string[];
+  // The concrete Firestore collection path the ids belong to. May differ
+  // from buildFirestorePath's output when placeholders need runtime
+  // resolution (e.g., partner-module-items' {moduleId} is the
+  // partnerModuleId, not the slug).
+  resolvedPath?: string;
 }
 
 async function findMatchingDocs(
@@ -229,7 +234,16 @@ async function findMatchingDocs(
         .collection('items')
         .get();
       for (const d of snap.docs) ids.push(d.id);
-      break;
+      // Remember the resolved path so executeReset targets the real
+      // partnerModuleId, not the slug. buildFirestorePath substitutes
+      // with the slug (wrong for deletion).
+      const sampleIds = ids.slice(0, SAMPLE_LIMIT);
+      return {
+        ids,
+        sampleIds,
+        warnings,
+        resolvedPath: `partners/${filter.partnerId}/businessModules/${partnerModuleId}/items`,
+      };
     }
     default: {
       // Defensive: any new allow-list entry without a query branch
@@ -276,7 +290,144 @@ async function writeAuditEntry(input: AuditEntryInput): Promise<string> {
   return docRef.id;
 }
 
+// ── Firestore batch delete helper (MR04) ────────────────────────
+//
+// Firestore admin batch limit is 500 ops. Chunk into 400-doc batches
+// (leaves headroom for audit + safety).
+const BATCH_CHUNK = 400;
+
+// Build a doc ref at the concrete collection path, supporting
+// subcollection paths like `partners/p1/businessModules/pmod1/items`.
+// The collection path is odd-segment-count (terminates in a collection
+// name, not a doc id). buildDocRef walks the segments and ends on
+// `.doc(id)`.
+function buildDocRef(collectionPath: string, id: string) {
+  const segments = collectionPath.split('/');
+  if (segments.length === 1) {
+    return adminDb.collection(segments[0]).doc(id);
+  }
+  type AnyColl = ReturnType<typeof adminDb.collection>;
+  let coll: AnyColl = adminDb.collection(segments[0]);
+  for (let i = 1; i + 1 < segments.length; i += 2) {
+    const docId = segments[i];
+    const nextCollName = segments[i + 1];
+    coll = coll.doc(docId).collection(nextCollName);
+  }
+  return coll.doc(id);
+}
+
+async function batchDeleteIds(collectionPath: string, ids: string[]): Promise<void> {
+  for (let offset = 0; offset < ids.length; offset += BATCH_CHUNK) {
+    const chunk = ids.slice(offset, offset + BATCH_CHUNK);
+    const batch = adminDb.batch();
+    for (const id of chunk) {
+      batch.delete(buildDocRef(collectionPath, id) as Parameters<typeof batch.delete>[0]);
+    }
+    await batch.commit();
+  }
+}
+
+// ── Env gate (MR04) ──────────────────────────────────────────────
+
+function enforceUnscopedEnvGate(filter: ResetFilter): ResetError | null {
+  if (filter.unscoped && process.env.RESET_ALLOW_UNSCOPED !== 'true') {
+    return {
+      ok: false,
+      error: 'Unscoped reset requires RESET_ALLOW_UNSCOPED=true (env flag not set)',
+    };
+  }
+  return null;
+}
+
 // ── Public API ──────────────────────────────────────────────────
+
+export interface ExecuteResult {
+  ok: true;
+  collectionId: string;
+  firestorePath: string;
+  verb: ResetVerb;
+  filter: ResetFilter;
+  affectedCount: number;
+  durationMs: number;
+  auditId: string;
+  postResetAction?: 'trigger-recompute';
+}
+
+/**
+ * Execute a reset. Looks up collection, validates filter, enforces env
+ * gate for unscoped, performs the verb (delete / clear / invalidate /
+ * recompute — all currently batch-delete the matched docs; the verb
+ * differentiates audit log intent). Writes systemResetAudit entry with
+ * the collection's concrete verb.
+ *
+ * confirmedDryRunId optionally links this execution to a prior
+ * previewReset audit entry so operators can trace "we previewed this,
+ * then executed it" sequences.
+ */
+export async function executeReset(
+  collectionId: string,
+  filter: ResetFilter,
+  confirmedDryRunId?: string,
+): Promise<ExecuteResult | ResetError> {
+  const collection = getResettableCollection(collectionId);
+  if (!collection) {
+    return { ok: false, error: `Unknown collection id: ${collectionId}` };
+  }
+
+  const validation = validateFilterForCollection(collection, filter);
+  if (!validation.valid) {
+    return { ok: false, error: 'Filter invalid', details: validation.errors };
+  }
+
+  const gateError = enforceUnscopedEnvGate(filter);
+  if (gateError) return gateError;
+
+  const startedAt = Date.now();
+  try {
+    const matches = await findMatchingDocs(collection, filter);
+    const { ids, sampleIds, resolvedPath } = matches;
+    // Use the findMatchingDocs-provided resolved path when available
+    // (e.g., partner-module-items where {moduleId} needs runtime
+    // resolution). Otherwise fall back to the template substitution.
+    const path = resolvedPath ?? buildFirestorePath(collection, filter).path;
+
+    if (ids.length > 0) {
+      await batchDeleteIds(path, ids);
+    }
+
+    const completedAt = Date.now();
+
+    const auditId = await writeAuditEntry({
+      collectionId,
+      firestorePath: path,
+      verb: collection.verb,
+      filter,
+      affectedCount: ids.length,
+      sampleIds,
+      startedAt,
+      completedAt,
+      confirmedDryRunId,
+    });
+
+    return {
+      ok: true,
+      collectionId,
+      firestorePath: path,
+      verb: collection.verb,
+      filter,
+      affectedCount: ids.length,
+      durationMs: completedAt - startedAt,
+      auditId,
+      postResetAction: collection.postResetAction,
+    };
+  } catch (err) {
+    return {
+      ok: false,
+      error: 'Execute failed',
+      details: [err instanceof Error ? err.message : String(err)],
+    };
+  }
+}
 
 /**
  * Dry-run preview: compute what a reset would affect without any
