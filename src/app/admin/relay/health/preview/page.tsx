@@ -4,6 +4,7 @@ import { BOOKING_PREVIEW_SCRIPTS } from '@/lib/relay/preview/booking-scripts';
 import { COMMERCE_PREVIEW_SCRIPTS } from '@/lib/relay/preview/commerce-scripts';
 import { LEAD_PREVIEW_SCRIPTS } from '@/lib/relay/preview/lead-scripts';
 import { ENGAGEMENT_PREVIEW_SCRIPTS } from '@/lib/relay/preview/engagement-scripts';
+import { INFO_PREVIEW_SCRIPTS } from '@/lib/relay/preview/info-scripts';
 import type { AnyPreviewScript } from '@/lib/relay/preview/scripts-index';
 import { getPartnerEngines } from '@/lib/relay/engine-recipes';
 import type { Partner } from '@/lib/types';
@@ -44,6 +45,9 @@ export default async function PreviewCopilotPage({ searchParams }: PageProps) {
   }
   if (partnerEngines.includes('engagement')) {
     scripts.push(...ENGAGEMENT_PREVIEW_SCRIPTS);
+  }
+  if (partnerEngines.includes('info')) {
+    scripts.push(...INFO_PREVIEW_SCRIPTS);
   }
 
   return (

@@ -28,14 +28,16 @@ import type { PreviewScript } from './booking-scripts';
 import type { CommercePreviewScript } from './commerce-scripts';
 import type { LeadPreviewScript } from './lead-scripts';
 import type { EngagementPreviewScript } from './engagement-scripts';
+import type { InfoPreviewScript } from './info-scripts';
 
-// Runner accepts Booking, Commerce, Lead, or Engagement scripts — all
-// carry the same `turns: Array<{role:'user',content:string}>` shape.
+// Runner accepts scripts from any of the 5 primary engines — all carry
+// the same `turns: Array<{role:'user',content:string}>` shape.
 type AnyRunnablePreviewScript =
   | PreviewScript
   | CommercePreviewScript
   | LeadPreviewScript
-  | EngagementPreviewScript;
+  | EngagementPreviewScript
+  | InfoPreviewScript;
 
 export interface PreviewTurnResult {
   turnIndex: number;
