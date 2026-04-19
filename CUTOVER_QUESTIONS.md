@@ -102,3 +102,18 @@ proceed"), I am stopping.
 **Awaiting:** human guidance. The most likely correct next step is completing
 Phase 1 + Phase 2 first, not forcing Phase 3 on top of an unverified
 foundation.
+
+### Supersession note (added during baseline investigation)
+
+- Date: 2026-04-19
+- Status: **obsolete**
+- Reason: Phase 2 close (merge `0ee6897`, PR #173) produced all required
+  artifacts — `ENGINE_ROLLOUT_SUMMARY.md`, the per-session retrospectives,
+  `docs/engine-rollout-phase2/tuning.md`, `BOOKING_PILOT_SUMMARY.md`, and
+  the carried-forward questions. Q1's concern no longer applies.
+- Superseded by: **Q_P3_01** (baseline-drift escalation — different concern;
+  logged on branch `claude/youthful-wilson-24723f` via PR #174, not yet
+  merged to `main` as of this note). The baseline-investigation session
+  (this branch) addresses Q_P3_01; its recommendation is in
+  `docs/baseline-investigation/outcome.md`.
+- Original Q1 preserved per append-only rule.
