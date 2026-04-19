@@ -98,3 +98,30 @@ Pre-flight outputs ground the reset page design:
   - Runbook: docs/admin-reset-runbook.md
 - Baseline: **276** (verified at every commit; never higher)
 - Test count: 448 (Phase 2 close) → 523 (+75 across investigation + pre-flight + admin reset)
+
+---
+
+## Phase 3 Session 1 — M01 + M03 + M04
+- Status: done
+- Branches (stacked on main):
+  - `claude/cutover-p3-m01`
+  - `claude/cutover-p3-m03` (stacked on M01)
+  - `claude/cutover-p3-m04` (stacked on M03)
+- Commits:
+  - `2740d489` — P3.M01 health gating feature-flag infrastructure (default off)
+  - `fc740493` — P3.M03-audit: shim caller audit (discrepancy with pre-session expectation)
+  - `d0829651` — P3.M03: remove derivation shim (22 fixtures migrated to deriveEnginesFromFunctionId)
+  - `0dd20bf3` — P3.M04-audit: relay-block-taxonomy caller audit (1 caller, matches expectation)
+  - `daa096d0` — P3.M04: migrate flow-engine + delete legacy taxonomy (-240 LOC)
+- Baseline: **276** (held at every commit; zero drift)
+- Tests: 523 → 531 (+8 from M01 gating tests; M03/M04 were semantic-no-op fixture migrations)
+- Dormant infrastructure: `HEALTH_GATING_ENABLED = false`, `decideHealthGate` + `evaluateHealthGate` available but no save-path caller consumes yet (M05 Session 2 wires; M01-flip Session 2 flips default to true)
+- Unexpected findings:
+  - Pre-session audit expected 1 live shim caller; actual 4. Halt condition fired; extended audit (Option B) documented per-caller safety before removal.
+  - All 4 callers had acceptable empty-engines fallback behavior — shim removal safe.
+  - flow-engine.ts migration to registry-data used the same filter pattern as loadBlockSnapshots (production-proven).
+- Ready for Session 2: **yes** — see `docs/engine-cutover-phase3/session-1-retro.md` §4 for concerns to carry into Session 2 kickoff
+- Deliverables:
+  - Source: src/lib/feature-flags.ts, src/lib/relay/health/gating.ts (new); engine-recipes.ts + flow-engine.ts + relay-health-actions.ts + relay/health/index.ts (modified); relay-block-taxonomy.ts (deleted)
+  - Docs: m03-caller-audit.md (Option B extended audit); m04-caller-audit.md; session-1-retro.md
+  - Tests: src/lib/relay/health/__tests__/gating.test.ts (new, 8 tests); 22 test-fixture migrations across 8 files
