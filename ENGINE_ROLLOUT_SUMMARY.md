@@ -2,6 +2,8 @@
 
 Closed 2026-04-19. Phase 2 shipped the 6-engine architecture end-to-end across 4 engine sessions + gate session + 2 cross-cutting milestones. All deliverables validated by test; zero AI calls added; tsc baseline stable throughout.
 
+> **Erratum (added during Phase 3 pre-flight v3, 2026-04-19):** This summary references a tsc baseline of **401** throughout Phase 2 (see §Type safety below and elsewhere). The true measurement on committed `main` was **276**, not 401. The 401 figure came from a generator bug in `scripts/extract-block-registry-data.js`: the template declared `ServerSubVerticalData` as `{ id, blocks }` but emitted literals carrying `{ id, name, industryId, blocks }`, producing 125 identical TS2353 errors that got counted into the baseline every session. Phase 2's per-session tsc-delta discipline was valid — each session preserved whatever count it observed, and 401 was stable — but the reference number was incorrect. Baseline-investigation session fixed the generator and regenerated `_registry-data.ts`; post-fix baseline is **276**. Phase 3 operates against 276. Full context: `docs/baseline-investigation/outcome.md` + commits `a2dfb85f` (generator fix), `026af78e` (regenerated file), `6b69c688` (redundant-cast cleanup) on `claude/baseline-investigation-fresh`.
+
 ---
 
 ## What shipped
