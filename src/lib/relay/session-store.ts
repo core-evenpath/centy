@@ -5,6 +5,7 @@ import {
   RelaySessionBooking,
   RelaySessionCart,
   RelaySessionCustomer,
+  RelaySessionSpace,
   SESSION_TTL_MS,
   emptyBooking,
   emptyCart,
@@ -140,6 +141,24 @@ export async function setActiveEngine(
     activeEngine: engine,
     updatedAt: new Date().toISOString(),
   });
+}
+
+// ── P4.M01 Space helpers ───────────────────────────────────────────────
+//
+// Space is its own top-level sub-object per ADR-P4-01 §Schema. Same
+// whole-group write pattern as setSessionBooking — the reducer
+// produces the full new state; caller persists it atomically.
+
+export async function setSessionSpace(
+  partnerId: string,
+  conversationId: string,
+  space: RelaySessionSpace,
+): Promise<RelaySessionSpace> {
+  await relaySessionRef(partnerId, conversationId).update({
+    space,
+    updatedAt: new Date().toISOString(),
+  });
+  return space;
 }
 
 // ── P1.M03 Identity helpers ────────────────────────────────────────────
