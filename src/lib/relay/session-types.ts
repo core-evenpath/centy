@@ -61,6 +61,37 @@ export interface RelaySessionBooking {
   slots: RelayBookingSlot[];
   guestCount?: number;
   notes?: string;
+  /**
+   * P3.M01: booking holds per ADR-P4-01 §Schema. Nests under the
+   * existing `booking` sub-object alongside `slots`. Holds are
+   * anon-allowed ephemeral reservations; confirmation at commit
+   * boundary (via `confirmBookingHoldAction`) writes a real booking
+   * doc and releases the hold.
+   *
+   * Each hold carries its own `holdExpiresAt` — per-field TTL per ADR
+   * §TTL. Expiry is enforced via on-read + on-write sweep
+   * (`pruneExpiredHolds`), not via a background cron.
+   */
+  holds?: RelaySessionBookingHold[];
+}
+
+export interface RelaySessionBookingHold {
+  /** Client-side stable id for this hold. */
+  holdId: string;
+  /** What's being held (room, slot, ticket — partner-module item ref). */
+  resourceId: string;
+  /** FK to partners/{pid}/businessModules/{mod}/items/{id}. */
+  moduleItemId: string;
+  /** ISO — slot start. */
+  startAt: string;
+  /** ISO — slot end. */
+  endAt: string;
+  /** ISO — per-hold TTL per ADR §TTL (~15min target). */
+  holdExpiresAt: string;
+  /** ISO — when the hold was created. */
+  createdAt: string;
+  /** Partner-opaque payload. */
+  metadata?: Record<string, unknown>;
 }
 
 export interface RelaySessionCustomer {
