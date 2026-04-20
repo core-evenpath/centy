@@ -33,7 +33,7 @@ function getSeedTemplate(id: string) {
 }
 import { generateItemId } from '@/lib/modules/utils';
 import type { ModuleItem, SystemModule } from '@/lib/modules/types';
-import { triggerHealthRecompute } from './relay-health-actions';
+import { evaluatePartnerSaveGate, triggerHealthRecompute } from './relay-health-actions';
 
 export interface ApplySeedResult {
   ok: boolean;
@@ -83,6 +83,17 @@ export async function applySeedTemplate(
   templateId: string,
 ): Promise<ApplySeedResult> {
   try {
+    // P3.M05.3: Health gate (dormant with flag off). Seeds write many
+    // rows in one batch — gating before the batch prevents compounding
+    // already-red engine state.
+    const gate = await evaluatePartnerSaveGate(partnerId);
+    if (!gate.allow) {
+      return {
+        ok: false,
+        error: `Health gating blocked this seed apply — engine "${gate.engine}" is red. Fix outstanding issues via /admin/relay/health first.`,
+      };
+    }
+
     const template = getSeedTemplate(templateId);
     if (!template) {
       return { ok: false, error: `Unknown seed template: ${templateId}` };

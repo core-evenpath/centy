@@ -27,8 +27,10 @@ import {
   getEngineHealth,
   getAllPartnerEngineHealth,
   triggerHealthRecompute,
+  evaluatePartnerSaveGate,
 } from '../relay-health-actions';
 import { invalidateHealthCache } from '@/lib/relay/health-cache';
+import { withGatingEnabled } from '@/__tests__/helpers/gating-flag';
 
 beforeEach(() => {
   resetFirestoreMock();
@@ -152,5 +154,74 @@ describe('triggerHealthRecompute (save-hook wrapper)', () => {
     } as any;
     await triggerHealthRecompute('p1', partner);
     expect(firestoreStore.get('relayEngineHealth/p1_booking')).toBeDefined();
+  });
+});
+
+// ── P3.M05.3: evaluatePartnerSaveGate ───────────────────────────────
+
+describe('evaluatePartnerSaveGate (P3.M05.3)', () => {
+  it('returns allow with reason=partner-missing when partner doc does not exist', async () => {
+    const result = await evaluatePartnerSaveGate('missing');
+    expect(result.allow).toBe(true);
+    expect(result.reason).toBe('partner-missing');
+  });
+
+  it('returns allow with reason=no-engines when partner has empty engines array', async () => {
+    firestoreStore.set('partners/p1', {
+      id: 'p1',
+      data: { id: 'p1', engines: [] },
+    });
+    const result = await evaluatePartnerSaveGate('p1');
+    expect(result.allow).toBe(true);
+    expect(result.reason).toBe('no-engines');
+  });
+
+  it('returns allow when flag is off regardless of red Health (shadow mode)', async () => {
+    firestoreStore.set('partners/p1', {
+      id: 'p1',
+      data: { id: 'p1', engines: ['booking'] },
+    });
+    // seed a red health doc
+    await recomputeEngineHealth('p1', 'booking');
+    expect(firestoreStore.get('relayEngineHealth/p1_booking')?.data.status).toBe('red');
+
+    const result = await evaluatePartnerSaveGate('p1');
+    expect(result.allow).toBe(true);
+    expect(result.reason).toBe('gating-disabled');
+  });
+
+  it('denies on red Health when gating is enabled (M01-flip target)', async () => {
+    firestoreStore.set('partners/p1', {
+      id: 'p1',
+      data: { id: 'p1', engines: ['booking'] },
+    });
+    await recomputeEngineHealth('p1', 'booking');
+
+    await withGatingEnabled(true, async () => {
+      const mod = await import('../relay-health-actions');
+      const result = await mod.evaluatePartnerSaveGate('p1');
+      expect(result.allow).toBe(false);
+      expect(result.engine).toBe('booking');
+      expect(result.reason).toBe('health-red');
+    });
+  });
+
+  it('iterates engines and denies on the first red match', async () => {
+    firestoreStore.set('partners/p1', {
+      id: 'p1',
+      data: { id: 'p1', engines: ['booking', 'commerce'] },
+    });
+    // recompute both — both red because stub loaders return empty blocks
+    await recomputeEngineHealth('p1', 'booking');
+    await recomputeEngineHealth('p1', 'commerce');
+
+    await withGatingEnabled(true, async () => {
+      const mod = await import('../relay-health-actions');
+      const result = await mod.evaluatePartnerSaveGate('p1');
+      expect(result.allow).toBe(false);
+      // ENGINES canonical order is [commerce, booking, ...]; sortByEngineOrder
+      // puts commerce first regardless of input order.
+      expect(result.engine).toBe('commerce');
+    });
   });
 });
