@@ -34,6 +34,8 @@ import { setActiveEngine } from '@/lib/relay/session-store';
 import { getEngineHealth } from '@/actions/relay-health-actions';
 import type { Engine } from '@/lib/relay/engine-types';
 
+import { isServiceBreakFallback, CONTACT_BLOCK_ID } from './service-break';
+
 const MODEL = 'gemini-2.5-flash';
 
 // Shared-tagged block ids — used by M12 degraded mode to narrow the
@@ -229,30 +231,50 @@ export async function orchestrate(
     ? { ...policy, allowedBlockIds: effectiveAllowed }
     : policy;
 
+  // 7b. P3.M05.2: Q10 service-break contact-fallback. When the active
+  //     engine is 'service', the catalog is empty, AND the detected
+  //     intent signals a service break (returning/complaint/contact/
+  //     urgent), render the shared 'contact' block rather than falling
+  //     through to a text-only reply. Skip Gemini for this path — the
+  //     block carries the contact info, no narrative needed.
+  const isServiceBreak = isServiceBreakFallback({
+    activeEngine,
+    allowedCount: degradedPolicy.allowedBlockIds.length,
+    intent: flow.intent,
+  });
+
   const systemPrompt = buildSystemPrompt(signals, degradedPolicy);
-  const parsed = degraded
-    ? {} // skip Gemini on red Health — reply with plain text
+  const parsed = degraded || isServiceBreak
+    ? {} // skip Gemini on red Health or service-break contact rule
     : await callGemini(systemPrompt, ctx);
 
   // 8. Validate Gemini's block choice against the (possibly degraded)
-  //    allow-list.
+  //    allow-list. For the service-break contact-fallback path, force
+  //    blockId to the shared 'contact' block (it bypasses the allow-list
+  //    because the whole point of this rule is that the allow-list is
+  //    empty).
   const rawBlockId =
     typeof parsed.blockId === 'string' ? parsed.blockId : undefined;
-  const blockId =
-    rawBlockId && degradedPolicy.allowedBlockIds.includes(rawBlockId)
+  const blockId = isServiceBreak
+    ? CONTACT_BLOCK_ID
+    : rawBlockId && degradedPolicy.allowedBlockIds.includes(rawBlockId)
       ? rawBlockId
       : undefined;
 
   const degradedText =
     "Thanks for your message — we're going to follow up with you directly.";
+  const serviceBreakText =
+    "Let's get you to the right person — here's how to reach the team.";
   const text = degraded
     ? degradedText
-    : (parsed.text?.trim() ||
-        (rag.used && rag.chunks.length > 0
-          ? rag.chunks[0].text.slice(0, 240)
-          : "I'm here to help — what would you like to know?"));
+    : isServiceBreak
+      ? serviceBreakText
+      : (parsed.text?.trim() ||
+          (rag.used && rag.chunks.length > 0
+            ? rag.chunks[0].text.slice(0, 240)
+            : "I'm here to help — what would you like to know?"));
 
-  const suggestions = degraded
+  const suggestions = degraded || isServiceBreak
     ? []
     : Array.isArray(parsed.suggestions)
       ? parsed.suggestions
@@ -280,6 +302,7 @@ export async function orchestrate(
       catalogSizeBeforeEngineFilter: policy.allowedBlockIds.length,
       healthStatus,
       degraded,
+      serviceBreak: isServiceBreak,
       partnerEnginesCount: partnerEngines.length,
       engineHint: engineHint.engineHint ?? null,
       engineConfidence: engineHint.engineConfidence,

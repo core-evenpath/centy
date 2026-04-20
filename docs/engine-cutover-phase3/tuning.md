@@ -95,7 +95,17 @@ Rollback = flip flag back. No state migration.
 
 Per Q10 audit, uncovered service-break intents route to `contact` shared block with error context, not to a permissive catalog fallback. Single orchestrator rule; no per-intent service blocks authored. Covered in P3.M05.
 
-### 4.5 No observation-window gating
+### 4.5 Audit-mismatch halt rule
+
+If a destructive milestone's pre-session expected caller count differs
+materially from actual on the first grep, pause before any removal commit.
+Write an extended audit covering each caller's data path, the value the
+removed code produces today, and the empty-behavior downstream. Surface to
+the user with explicit options (proceed / extend audit / defer). Removals
+that skip this step after a mismatch are drift-prone — Session 1's P3.M03
+(1 expected, 4 actual) established the pattern.
+
+### 4.6 No observation-window gating
 
 Observation closed by Model B evidence (see `observation-closure.md`). No time-based checkpoints between Phase 3 milestones.
 

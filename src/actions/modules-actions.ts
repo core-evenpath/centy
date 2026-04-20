@@ -29,7 +29,7 @@ import {
 } from '@/lib/modules/utils';
 import { DEFAULT_MODULE_SETTINGS } from '@/lib/modules/constants';
 import { syncModulesToCoreHub } from './core-hub-actions';
-import { triggerHealthRecompute } from './relay-health-actions';
+import { evaluatePartnerSaveGate, triggerHealthRecompute } from './relay-health-actions';
 
 /**
  * Trigger Core Hub sync in background after module changes
@@ -896,6 +896,17 @@ export async function updateModuleItemAction(
     userId: string
 ): Promise<ModulesActionResponse> {
     try {
+        // P3.M05.3: Health gate (dormant with flag off). With gating
+        // enabled, a partner with any red engine cannot save.
+        const gate = await evaluatePartnerSaveGate(partnerId);
+        if (!gate.allow) {
+            return {
+                success: false,
+                error: `Health gating blocked this save — engine "${gate.engine}" is red. Fix outstanding issues via /admin/relay/health before editing module items.`,
+                code: 'HEALTH_RED',
+            };
+        }
+
         const itemRef = adminDb
             .collection(`partners/${partnerId}/businessModules/${moduleId}/items`)
             .doc(itemId);

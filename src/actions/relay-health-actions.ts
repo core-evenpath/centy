@@ -450,3 +450,58 @@ export async function evaluateHealthGate(
   const health = await getEngineHealth(partnerId, engine);
   return decideHealthGate(health);
 }
+
+// P3.M05.3 partner-level save gate.
+//
+// Save-path actions (module item update, seed apply) check this before
+// writing. Shape: resolve the partner's engines, evaluate each, deny
+// the save if ANY engine is red. With HEALTH_GATING_ENABLED=false the
+// gate always allows (reason='gating-disabled').
+//
+// Why "any engine red" blocks: a partner with a red engine shouldn't
+// be stacking more data onto already-broken state until the Health
+// issues are resolved. Partners whose engines array is empty (pre-
+// Phase-2 shape — now assumed extinct) get `allow: true` with
+// reason='no-engines' so the caller can tell it apart from a real
+// denial.
+
+export interface PartnerSaveGateResult {
+  allow: boolean;
+  /** The engine that produced the deny decision (first red match). */
+  engine?: Engine;
+  reason?: GatingDecision['reason'] | 'no-engines' | 'partner-missing';
+}
+
+async function loadPartner(partnerId: string): Promise<Partner | null> {
+  try {
+    const snap = await db.collection('partners').doc(partnerId).get();
+    if (!snap.exists) return null;
+    return { id: snap.id, ...snap.data() } as Partner;
+  } catch (err) {
+    // eslint-disable-next-line no-console
+    console.error('[health] partner load for gate failed', { partnerId, err });
+    return null;
+  }
+}
+
+export async function evaluatePartnerSaveGate(
+  partnerId: string,
+): Promise<PartnerSaveGateResult> {
+  const partner = await loadPartner(partnerId);
+  if (!partner) {
+    return { allow: true, reason: 'partner-missing' };
+  }
+  const engines = getPartnerEngines(partner);
+  if (engines.length === 0) {
+    return { allow: true, reason: 'no-engines' };
+  }
+  let lastReason: GatingDecision['reason'];
+  for (const engine of engines) {
+    const decision = await evaluateHealthGate(partnerId, engine);
+    if (!decision.allow) {
+      return { allow: false, engine, reason: decision.reason };
+    }
+    lastReason = decision.reason;
+  }
+  return { allow: true, reason: lastReason };
+}

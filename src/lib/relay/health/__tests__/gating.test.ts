@@ -1,12 +1,13 @@
 // X05 Health gating policy tests (P3.M01).
 //
 // `decideHealthGate` is a pure function reading `HEALTH_GATING_ENABLED`
-// at call time. We swap the constant via vi.doMock for the flag-on
-// case so the policy logic is exercised without changing the production
-// default.
+// at call time. Flag-on cases use `withGatingEnabled(true, ...)` from
+// `src/__tests__/helpers/gating-flag.ts` so the policy logic is exercised
+// without changing the production default.
 
-import { describe, expect, it, beforeEach, afterEach, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import type { EngineHealthDoc, GatingDecision } from '../index';
+import { withGatingEnabled } from '@/__tests__/helpers/gating-flag';
 
 function makeHealth(status: EngineHealthDoc['status']): EngineHealthDoc {
   return {
@@ -23,55 +24,50 @@ function makeHealth(status: EngineHealthDoc['status']): EngineHealthDoc {
   };
 }
 
-// ── Flag-off behavior (production default) ─────────────────────────
+// ── Flag-off behavior (rollback state) ─────────────────────────────
+//
+// Post-P3.M01-flip the production default is `true`. These tests force
+// the flag off via `withGatingEnabled(false, ...)` so the rollback path
+// (flip back to false) is still exercised.
 
-describe('decideHealthGate — HEALTH_GATING_ENABLED = false (production default)', () => {
+describe('decideHealthGate — HEALTH_GATING_ENABLED = false (rollback state)', () => {
   it('always allows when flag is off, regardless of red status', async () => {
-    // Use the production module — flag is false in source.
-    const { decideHealthGate } = await import('../gating');
-    const r: GatingDecision = decideHealthGate(makeHealth('red'));
-    expect(r.allow).toBe(true);
-    expect(r.reason).toBe('gating-disabled');
+    await withGatingEnabled(false, async () => {
+      const { decideHealthGate } = await import('../gating');
+      const r: GatingDecision = decideHealthGate(makeHealth('red'));
+      expect(r.allow).toBe(true);
+      expect(r.reason).toBe('gating-disabled');
+    });
   });
 
   it('always allows for amber + green when flag off', async () => {
-    const { decideHealthGate } = await import('../gating');
-    expect(decideHealthGate(makeHealth('amber'))).toEqual({
-      allow: true,
-      reason: 'gating-disabled',
-    });
-    expect(decideHealthGate(makeHealth('green'))).toEqual({
-      allow: true,
-      reason: 'gating-disabled',
+    await withGatingEnabled(false, async () => {
+      const { decideHealthGate } = await import('../gating');
+      expect(decideHealthGate(makeHealth('amber'))).toEqual({
+        allow: true,
+        reason: 'gating-disabled',
+      });
+      expect(decideHealthGate(makeHealth('green'))).toEqual({
+        allow: true,
+        reason: 'gating-disabled',
+      });
     });
   });
 
   it('always allows for missing health (null) when flag off', async () => {
-    const { decideHealthGate } = await import('../gating');
-    expect(decideHealthGate(null)).toEqual({
-      allow: true,
-      reason: 'gating-disabled',
+    await withGatingEnabled(false, async () => {
+      const { decideHealthGate } = await import('../gating');
+      expect(decideHealthGate(null)).toEqual({
+        allow: true,
+        reason: 'gating-disabled',
+      });
     });
   });
 });
 
-// ── Flag-on behavior (P3.M01-flip target state) ────────────────────
-//
-// We swap @/lib/feature-flags so the imported HEALTH_GATING_ENABLED
-// constant resolves to true. vi.resetModules ensures gating.ts
-// re-evaluates with the new flag.
+// ── Flag-on behavior (current production default, post-P3.M01-flip) ─
 
-describe('decideHealthGate — HEALTH_GATING_ENABLED = true (P3.M01-flip target)', () => {
-  beforeEach(() => {
-    vi.resetModules();
-    vi.doMock('@/lib/feature-flags', () => ({ HEALTH_GATING_ENABLED: true }));
-  });
-
-  afterEach(() => {
-    vi.resetModules();
-    vi.doUnmock('@/lib/feature-flags');
-  });
-
+describe('decideHealthGate — HEALTH_GATING_ENABLED = true (production default)', () => {
   it('denies on red status with reason health-red', async () => {
     const { decideHealthGate } = await import('../gating');
     const r = decideHealthGate(makeHealth('red'));
@@ -112,10 +108,6 @@ describe('decideHealthGate — HEALTH_GATING_ENABLED = true (P3.M01-flip target)
 
 describe('decideHealthGate — M01 scope guard', () => {
   it('no save-path action imports decideHealthGate yet (M05 wires callers)', async () => {
-    // Read the source files under src/actions and confirm none
-    // imports decideHealthGate. The single permitted import in
-    // relay-health-actions.ts is for the helper `evaluateHealthGate`,
-    // which is itself dormant until M05 wires its callers.
     const { readFileSync, readdirSync, statSync } = await import('node:fs');
     const { join } = await import('node:path');
 
@@ -138,9 +130,6 @@ describe('decideHealthGate — M01 scope guard', () => {
       const src = readFileSync(f, 'utf-8');
       return /\bdecideHealthGate\b/.test(src);
     });
-    // Expected: only relay-health-actions.ts imports decideHealthGate
-    // (to wrap it in evaluateHealthGate). M05 will add more callers
-    // and update this assertion.
     expect(importingDecide.map((f) => f.replace(/^.*\/actions\//, ''))).toEqual([
       'relay-health-actions.ts',
     ]);

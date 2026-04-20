@@ -81,11 +81,19 @@ export async function loadBlocksSignal(
 
   // M12: engine scoping. When an active engine is resolved, drop any
   // visible block that's tagged for a different engine (blocks tagged
-  // 'shared' and untagged blocks pass through). Permissive when null.
+  // 'shared' and untagged blocks pass through).
+  //
+  // P3.M05.1: engine-null case is now fail-closed. Partners whose
+  // engine resolution yields null (engines array empty) see no blocks,
+  // not the full catalog. Since Phase 3 invariant says no production
+  // partners lack engines, this is a dormant runtime change; its value
+  // is removing a silently-permissive branch so future bugs fail loud.
   if (activeEngine) {
     visibleBlockIds = visibleBlockIds.filter((id) =>
       blockMatchesEngine(id, activeEngine),
     );
+  } else {
+    visibleBlockIds = [];
   }
 
   return { prefs, visibleBlockIds, hasPrefs };
