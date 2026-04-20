@@ -4,6 +4,15 @@
 import { db } from '../lib/firebase-admin';
 import { FieldValue } from 'firebase-admin/firestore';
 import type { Contact } from '../lib/types';
+import {
+  normalizePhoneNumber,
+  isValidPhoneNumber,
+} from '@/utils/phone-utils';
+import {
+  CONTACTS_COLLECTION,
+  contactDocId,
+  type Contact as RelayContact,
+} from '@/lib/relay/contacts/types';
 
 interface CreateContactInput {
   partnerId: string;
@@ -175,6 +184,98 @@ export async function deleteContactAction(partnerId: string, contactId: string):
     return {
       success: false,
       message: `Failed to delete contact: ${error.message}`,
+    };
+  }
+}
+
+// ── Phase 1 Identity — runtime contact resolution ─────────────────────
+//
+// Per ADR-P4-01 §Schema + §Anon handling. Resolves a raw phone string
+// to a canonical contact doc at `contacts/{partnerId}_{phone}` (top-
+// level collection, composite doc id mirroring relaySessions).
+//
+// Distinct from the CRM contact CRUD above (which writes
+// `partners/{partnerId}/contacts/{autoId}` with name/email/groups/etc.).
+// The runtime contact has a tight ADR-defined shape with no engine-
+// specific fields.
+//
+// NOT health-gated: identity resolution is a prerequisite for commit
+// actions, not itself a commit action. Gating fires at commit (order-
+// create, booking-confirm) via `requireIdentityOrThrow` (Phase 1 M04).
+
+export interface ResolveContactSuccess {
+  success: true;
+  contactId: string;
+  created: boolean;
+}
+
+export interface ResolveContactFailure {
+  success: false;
+  error: string;
+  code: 'INVALID_PARTNER' | 'INVALID_PHONE' | 'INTERNAL_ERROR';
+}
+
+export type ResolveContactResult = ResolveContactSuccess | ResolveContactFailure;
+
+export async function resolveContact(
+  partnerId: string,
+  phone: string,
+): Promise<ResolveContactResult> {
+  if (!partnerId) {
+    return {
+      success: false,
+      error: 'partnerId is required',
+      code: 'INVALID_PARTNER',
+    };
+  }
+
+  const normalizedPhone = normalizePhoneNumber(phone);
+  if (!normalizedPhone || !isValidPhoneNumber(normalizedPhone)) {
+    return {
+      success: false,
+      error: `Phone number could not be normalized to E.164: ${phone}`,
+      code: 'INVALID_PHONE',
+    };
+  }
+
+  const docId = contactDocId(partnerId, normalizedPhone);
+  const ref = db.collection(CONTACTS_COLLECTION).doc(docId);
+
+  try {
+    const snap = await ref.get();
+    if (snap.exists) {
+      return {
+        success: true,
+        contactId: normalizedPhone,
+        created: false,
+      };
+    }
+
+    const now = new Date().toISOString();
+    const contact: RelayContact = {
+      id: normalizedPhone,
+      partnerId,
+      phone: normalizedPhone,
+      createdAt: now,
+      updatedAt: now,
+    };
+    await ref.set(contact);
+
+    return {
+      success: true,
+      contactId: normalizedPhone,
+      created: true,
+    };
+  } catch (error: any) {
+    console.error('[contact-actions] resolveContact failed', {
+      partnerId,
+      phone,
+      err: error?.message,
+    });
+    return {
+      success: false,
+      error: error?.message ?? 'Internal error resolving contact',
+      code: 'INTERNAL_ERROR',
     };
   }
 }

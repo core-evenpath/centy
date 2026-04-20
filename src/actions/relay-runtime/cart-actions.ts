@@ -6,7 +6,7 @@
 // loads (or creates) the session, mutates it, recomputes totals via the
 // shared helper, and writes it back.
 
-import { loadOrCreateSession, saveSession } from '@/lib/relay/session-store';
+import { loadOrCreateSession, setSessionCart } from '@/lib/relay/session-store';
 import {
   RelaySessionCart,
   RelaySessionItem,
@@ -58,8 +58,8 @@ export async function addToCartAction(
     }
 
     const cart = recomputeCartTotals({ ...session.cart, items: nextItems });
-    const saved = await saveSession({ ...session, cart });
-    return { success: true, cart: saved.cart };
+    const saved = await setSessionCart(partnerId, conversationId, cart);
+    return { success: true, cart: saved };
   } catch (e) {
     console.error('[relay-cart] add failed:', e);
     return { success: false, error: e instanceof Error ? e.message : 'unknown' };
@@ -81,8 +81,8 @@ export async function updateCartItemAction(
         : session.cart.items.map((i) => (i.itemId === itemId ? { ...i, quantity: q } : i));
 
     const cart = recomputeCartTotals({ ...session.cart, items: nextItems });
-    const saved = await saveSession({ ...session, cart });
-    return { success: true, cart: saved.cart };
+    const saved = await setSessionCart(partnerId, conversationId, cart);
+    return { success: true, cart: saved };
   } catch (e) {
     return { success: false, error: e instanceof Error ? e.message : 'unknown' };
   }
@@ -97,8 +97,8 @@ export async function removeFromCartAction(
     const session = await loadOrCreateSession(partnerId, conversationId);
     const nextItems = session.cart.items.filter((i) => i.itemId !== itemId);
     const cart = recomputeCartTotals({ ...session.cart, items: nextItems });
-    const saved = await saveSession({ ...session, cart });
-    return { success: true, cart: saved.cart };
+    const saved = await setSessionCart(partnerId, conversationId, cart);
+    return { success: true, cart: saved };
   } catch (e) {
     return { success: false, error: e instanceof Error ? e.message : 'unknown' };
   }
@@ -111,8 +111,8 @@ export async function clearCartAction(
   try {
     const session = await loadOrCreateSession(partnerId, conversationId);
     const cart = recomputeCartTotals({ items: [], subtotal: 0, total: 0 });
-    const saved = await saveSession({ ...session, cart });
-    return { success: true, cart: saved.cart };
+    const saved = await setSessionCart(partnerId, conversationId, cart);
+    return { success: true, cart: saved };
   } catch (e) {
     return { success: false, error: e instanceof Error ? e.message : 'unknown' };
   }
@@ -151,8 +151,8 @@ export async function applyDiscountCodeAction(
       discountCode: upper,
       discountAmount,
     });
-    const saved = await saveSession({ ...session, cart });
-    return { success: true, valid: true, cart: saved.cart };
+    const saved = await setSessionCart(partnerId, conversationId, cart);
+    return { success: true, valid: true, cart: saved };
   } catch (e) {
     return { success: false, valid: false, error: e instanceof Error ? e.message : 'unknown' };
   }
