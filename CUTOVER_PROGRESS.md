@@ -125,3 +125,40 @@ Pre-flight outputs ground the reset page design:
   - Source: src/lib/feature-flags.ts, src/lib/relay/health/gating.ts (new); engine-recipes.ts + flow-engine.ts + relay-health-actions.ts + relay/health/index.ts (modified); relay-block-taxonomy.ts (deleted)
   - Docs: m03-caller-audit.md (Option B extended audit); m04-caller-audit.md; session-1-retro.md
   - Tests: src/lib/relay/health/__tests__/gating.test.ts (new, 8 tests); 22 test-fixture migrations across 8 files
+
+---
+
+## Phase 3 Session 2 — tuning §4.5 + test helper + M05 + M01-flip + M06
+- Status: done
+- Branch: `claude/phase-2-engine-rollout-Hr3aW` (stacked on main at `365cea9c`)
+- Commits:
+  - `170703b7` — tuning §4.5 audit-mismatch halt rule (codifies Session 1 §3 recommendation)
+  - `66fee970` — `withGatingEnabled` test helper + M01 gating test refactor
+  - `41aefa2c` — P3.M05-audit (orchestrator permissive-fallback evidence doc)
+  - `ad1ddefe` — P3.M05.1 blocks signal: remove engine-null permissive filter
+  - `bb4eb80d` — P3.M05.2 Q10 service-break contact-fallback rule
+  - `dc1e50ae` — P3.M05.3 wire `evaluateHealthGate` into two save paths
+  - `023f8043` — P3.M01-flip `HEALTH_GATING_ENABLED: false → true`
+  - `81a63900` — P3.M06 cross-engine validation (doc-only)
+  - (this commit) — progress log update + Session 2 retro
+- Baseline: **276** (verified at every commit; never higher)
+- Test count: 531 (Session 1 close) → **556** (+25)
+- Tuning revision landed: §4.5 audit-mismatch halt rule (new); old §4.5 bumped to §4.6
+- M05 sub-commit shape: one audit + three focused commits (blocks-signal fail-closed, Q10 contact-fallback, save-path gating wire); no `@ts-ignore`, no new dependencies, no tsconfig changes
+- M05 behaviors under test:
+  - M05.1: 3 new tests in `blocks.test.ts` (null-engine → empty; filter active; no-prefs)
+  - M05.2: 17 new tests in `service-break.test.ts` (pure function positive + negative)
+  - M05.3: 5 new tests in `relay-health-actions.test.ts` §evaluatePartnerSaveGate
+- M01-flip discipline: single-constant commit (`feature-flags.ts` one-line); 4 flag-off tests re-wrapped in `withGatingEnabled(false)`, 4 flag-on tests dropped their wrap (now default)
+- Q10 contact-fallback rule placement: orchestrator selection layer (per Session 2 §0.3 decision). Pure helper `isServiceBreakFallback` in `src/lib/relay/orchestrator/service-break.ts`; short-circuits Gemini call + allow-list validation when active engine is 'service', catalog is empty, and intent ∈ `{returning, complaint, contact, urgent}`.
+- Save-path gating scope: `updateModuleItemAction` + `applySeedTemplate`. CSV import and other lower-impact save paths stay unwired per audit §2.
+- Telemetry additions: `serviceBreak: boolean` field on `[relay][turn]` log.
+- Unexpected findings:
+  - Canonical engine order is `[commerce, booking, ...]` not `[booking, ...]` — caught during M05.3 test pass 1.
+  - `evaluatePartnerSaveGate` initially dropped the `reason` when all engines allowed; fixed to carry `lastReason` so callers distinguish "allowed due to flag off" from "allowed with no engines".
+- Rollback: each commit independently revertable; combined revert via `git revert 81a63900..170703b7^` returns runtime to Session-1-close.
+- Ready for Phase 3 Session 3: **yes** — see `docs/engine-cutover-phase3/session-2-retro.md` §4
+- Deliverables:
+  - Source: `src/lib/feature-flags.ts` (flipped); `src/lib/relay/orchestrator/service-break.ts` (new); `src/lib/relay/orchestrator/index.ts` (service-break wiring + telemetry); `src/lib/relay/orchestrator/signals/blocks.ts` (engine-null fail-closed); `src/actions/relay-health-actions.ts` (evaluatePartnerSaveGate added); `src/actions/modules-actions.ts` + `src/actions/relay-seed-actions.ts` (gate calls)
+  - Docs: `tuning.md` (§4.5 added); `m05-fallback-audit.md`; `m06-validation.md`; `session-2-retro.md`; `CUTOVER_PROGRESS.md` (this block)
+  - Tests: `src/__tests__/helpers/gating-flag.ts` (new helper); `src/lib/relay/orchestrator/signals/__tests__/blocks.test.ts` (new, 3 tests); `src/lib/relay/orchestrator/__tests__/service-break.test.ts` (new, 17 tests); `src/lib/relay/health/__tests__/gating.test.ts` (refactored); `src/actions/__tests__/relay-health-actions.test.ts` (+5 tests)
