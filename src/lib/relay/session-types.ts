@@ -129,6 +129,37 @@ export interface RelaySession {
   activeEngine?: import('./engine-types').Engine | null;
   /** P1.M03: identity group. Absent / `{}` means anon session. */
   identity?: RelaySessionIdentity;
+  /**
+   * P4.M01: space engine state. Date-range holds distinct from
+   * booking's slot-range. Its own top-level sub-object per ADR-P4-01
+   * §Schema (space is its own engine, not a sub-section of booking).
+   */
+  space?: RelaySessionSpace;
+}
+
+export interface RelaySessionSpace {
+  holds: RelaySessionSpaceHold[];
+}
+
+export interface RelaySessionSpaceHold {
+  /** Client-side stable id for this hold. */
+  holdId: string;
+  /** What's being held (room, property, unit). */
+  resourceId: string;
+  /** FK to partners/{pid}/businessModules/{mod}/items/{id}. */
+  moduleItemId: string;
+  /** YYYY-MM-DD — check-in date (date, not timestamp). */
+  checkIn: string;
+  /** YYYY-MM-DD — check-out date. */
+  checkOut: string;
+  /** ISO — per-hold TTL per ADR §TTL. */
+  holdExpiresAt: string;
+  /** ISO — when the hold was created. */
+  createdAt: string;
+  /** Guest count — optional; partners may gate availability on it. */
+  guestCount?: number;
+  /** Partner-opaque payload. */
+  metadata?: Record<string, unknown>;
 }
 
 // ── Helpers ─────────────────────────────────────────────────────────────
