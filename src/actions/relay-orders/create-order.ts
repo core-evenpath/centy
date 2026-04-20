@@ -10,7 +10,7 @@
 import { revalidatePath } from 'next/cache';
 import {
   loadOrCreateSession,
-  saveSession,
+  setSessionCart,
 } from '@/lib/relay/session-store';
 import {
   computeOrderPricing,
@@ -116,7 +116,7 @@ export async function createOrderFromCartAction(
     // untouched so the visitor can keep browsing with the same
     // conversationId.
     const clearedCart = recomputeCartTotals(emptyCart());
-    await saveSession({ ...session, cart: clearedCart });
+    await setSessionCart(partnerId, input.conversationId, clearedCart);
 
     // Write-through to the partner-facing order list. Non-fatal if it
     // throws — the order still exists in its canonical path.

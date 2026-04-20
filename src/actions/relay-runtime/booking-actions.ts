@@ -8,7 +8,7 @@
 // real booking engine is out of scope for this layer.
 
 import { db } from '@/lib/firebase-admin';
-import { loadOrCreateSession, saveSession } from '@/lib/relay/session-store';
+import { loadOrCreateSession, setSessionBooking } from '@/lib/relay/session-store';
 import type { RelayBookingSlot, RelaySessionBooking } from '@/lib/relay/session-types';
 
 export interface BookingActionResult {
@@ -43,8 +43,8 @@ export async function reserveSlotAction(
       ? session.booking.slots.map((s) => (s.slotId === slot.slotId ? next : s))
       : [...session.booking.slots, next];
     const booking: RelaySessionBooking = { ...session.booking, slots };
-    const saved = await saveSession({ ...session, booking });
-    return { success: true, booking: saved.booking };
+    const saved = await setSessionBooking(partnerId, conversationId, booking);
+    return { success: true, booking: saved };
   } catch (e) {
     console.error('[relay-booking] reserve failed:', e);
     return { success: false, error: e instanceof Error ? e.message : 'unknown' };
@@ -60,8 +60,8 @@ export async function cancelSlotAction(
     const session = await loadOrCreateSession(partnerId, conversationId);
     const slots = session.booking.slots.filter((s) => s.slotId !== slotId);
     const booking: RelaySessionBooking = { ...session.booking, slots };
-    const saved = await saveSession({ ...session, booking });
-    return { success: true, booking: saved.booking };
+    const saved = await setSessionBooking(partnerId, conversationId, booking);
+    return { success: true, booking: saved };
   } catch (e) {
     return { success: false, error: e instanceof Error ? e.message : 'unknown' };
   }
@@ -81,7 +81,7 @@ export async function confirmBookingAction(
     const slots = session.booking.slots.map((s) =>
       s.status === 'tentative' ? { ...s, status: 'confirmed' as const } : s,
     );
-    await saveSession({ ...session, booking: { ...session.booking, slots } });
+    await setSessionBooking(partnerId, conversationId, { ...session.booking, slots });
 
     // Persist a lightweight pending-booking record so partner-side jobs
     // can pick it up. Stored under partner subtree so existing rules /

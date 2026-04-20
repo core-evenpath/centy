@@ -6,7 +6,11 @@
 // session lifecycle: get-or-create, fetch, and arbitrary partial updates
 // the client may need (e.g. capturing a customer name).
 
-import { loadOrCreateSession, loadSession, saveSession } from '@/lib/relay/session-store';
+import {
+  loadOrCreateSession,
+  loadSession,
+  updateSession,
+} from '@/lib/relay/session-store';
 import type { RelaySession } from '@/lib/relay/session-types';
 
 export interface SessionActionResult {
@@ -50,17 +54,12 @@ export async function updateRelaySessionAction(
   updates: Partial<Pick<RelaySession, 'customer' | 'booking' | 'cart'>>,
 ): Promise<SessionActionResult> {
   try {
-    const existing = await loadOrCreateSession(partnerId, conversationId);
-    const merged: RelaySession = {
-      ...existing,
-      ...updates,
-      // Identity fields are immutable
-      conversationId: existing.conversationId,
-      partnerId: existing.partnerId,
-      createdAt: existing.createdAt,
-    };
-    const saved = await saveSession(merged);
-    return { success: true, session: saved };
+    await loadOrCreateSession(partnerId, conversationId);
+    await updateSession(partnerId, conversationId, updates);
+    const session = await loadSession(partnerId, conversationId);
+    return session
+      ? { success: true, session }
+      : { success: false, error: 'Session disappeared after update' };
   } catch (e) {
     console.error('[relay-session] update failed:', e);
     return { success: false, error: e instanceof Error ? e.message : 'unknown' };

@@ -59,6 +59,7 @@ interface CollectionRef {
 interface DocRef {
   id: string;
   set: (data: Record<string, unknown>, opts?: { merge?: boolean }) => Promise<void>;
+  update: (data: Record<string, unknown>) => Promise<void>;
   get: () => Promise<{ exists: boolean; data: () => unknown; id: string }>;
   collection: (sub: string) => CollectionRef;
   delete: () => Promise<void>;
@@ -144,6 +145,36 @@ function makeDocRef(path: string): DocRef {
       const existing = firestoreStore.get(path);
       const merged = opts?.merge && existing ? { ...existing.data, ...data } : data;
       firestoreStore.set(path, { id, data: merged });
+    },
+    update: async (data) => {
+      if (shouldThrow()) throw new Error('simulated write failure');
+      const existing = firestoreStore.get(path);
+      if (!existing) throw new Error(`[firestore-mock] update on missing doc: ${path}`);
+      const next: Record<string, unknown> = {
+        ...(existing.data as Record<string, unknown>),
+      };
+      for (const [key, value] of Object.entries(data)) {
+        if (key.includes('.')) {
+          // Dotted field-path: navigate/create nested objects.
+          const parts = key.split('.');
+          let cursor: Record<string, unknown> = next;
+          for (let i = 0; i < parts.length - 1; i++) {
+            const k = parts[i];
+            const current = cursor[k];
+            if (current === undefined || current === null || typeof current !== 'object') {
+              cursor[k] = {};
+            } else {
+              // Clone to avoid mutating the existing store entry.
+              cursor[k] = { ...(current as Record<string, unknown>) };
+            }
+            cursor = cursor[k] as Record<string, unknown>;
+          }
+          cursor[parts[parts.length - 1]] = value;
+        } else {
+          next[key] = value;
+        }
+      }
+      firestoreStore.set(path, { id, data: next });
     },
     get: async () => {
       const hit = firestoreStore.get(path);
