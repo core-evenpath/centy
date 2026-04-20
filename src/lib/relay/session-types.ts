@@ -55,6 +55,20 @@ export interface RelaySessionCustomer {
   phone?: string;
 }
 
+// P1.M03 — session identity group (ADR-P4-01 §Schema).
+//
+// Pointer to the cross-conversation contact doc at
+// `contacts/{partnerId}_{phone}`. Optional at every level:
+// anon sessions have `identity` absent or `{}`. Resolution happens
+// via `resolveContact` + `setSessionIdentity` at the action that
+// captures the phone (or upstream of a commit-gated action).
+export interface RelaySessionIdentity {
+  /** E.164 phone pointer to the canonical contact record. */
+  contactId?: string;
+  /** ISO timestamp of when the contactId was written. */
+  resolvedAt?: string;
+}
+
 export interface RelaySession {
   conversationId: string;
   partnerId: string;
@@ -68,6 +82,8 @@ export interface RelaySession {
   // resolved yet" (first turn); undefined means legacy session pre-dating
   // M11. Written by M11; all reads ignore until M12 wires engine scoping.
   activeEngine?: import('./engine-types').Engine | null;
+  /** P1.M03: identity group. Absent / `{}` means anon session. */
+  identity?: RelaySessionIdentity;
 }
 
 // ── Helpers ─────────────────────────────────────────────────────────────

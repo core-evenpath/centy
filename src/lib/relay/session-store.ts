@@ -141,3 +141,28 @@ export async function setActiveEngine(
     updatedAt: new Date().toISOString(),
   });
 }
+
+// ── P1.M03 Identity helpers ────────────────────────────────────────────
+//
+// Write: dotted field-path update so siblings (cart, booking, etc.) are
+// untouched. Read: pure function over a loaded session — hot path
+// consumers avoid a Firestore round-trip.
+
+export async function setSessionIdentity(
+  partnerId: string,
+  conversationId: string,
+  contactId: string,
+): Promise<void> {
+  await relaySessionRef(partnerId, conversationId).update({
+    'identity.contactId': contactId,
+    'identity.resolvedAt': new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  });
+}
+
+export function getSessionIdentity(
+  session: RelaySession | null,
+): { contactId: string | null; resolved: boolean } {
+  const contactId = session?.identity?.contactId ?? null;
+  return { contactId, resolved: contactId !== null };
+}

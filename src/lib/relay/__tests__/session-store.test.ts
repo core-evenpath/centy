@@ -15,12 +15,14 @@ vi.mock('server-only', () => ({}));
 vi.mock('@/lib/firebase-admin', () => makeFirestoreAdminMock());
 
 import {
+  getSessionIdentity,
   loadOrCreateSession,
   loadSession,
   setActiveEngine,
   setSessionBooking,
   setSessionCart,
   setSessionCustomer,
+  setSessionIdentity,
   updateSession,
 } from '../session-store';
 import { recomputeCartTotals } from '../session-types';
@@ -229,6 +231,68 @@ describe('session-store — array-clobber regression (P1.M01)', () => {
       .futureNestedField).toBe('holds_placeholder');
     // Sibling in same nested parent preserved
     expect(reloaded?.booking.guestCount).toBe(4);
+  });
+});
+
+describe('session-store — identity group (P1.M03)', () => {
+  it('getSessionIdentity on null session returns null/false', () => {
+    const r = getSessionIdentity(null);
+    expect(r.contactId).toBeNull();
+    expect(r.resolved).toBe(false);
+  });
+
+  it('getSessionIdentity on session without identity returns null/false', async () => {
+    const session = await seedSession();
+    const r = getSessionIdentity(session);
+    expect(r.contactId).toBeNull();
+    expect(r.resolved).toBe(false);
+  });
+
+  it('setSessionIdentity writes identity.contactId + resolvedAt via field path', async () => {
+    await seedSession();
+    await setSessionIdentity(PARTNER, CONV, '+15551234567');
+
+    const reloaded = await loadSession(PARTNER, CONV);
+    const r = getSessionIdentity(reloaded);
+    expect(r.contactId).toBe('+15551234567');
+    expect(r.resolved).toBe(true);
+    expect(reloaded?.identity?.resolvedAt).toBeDefined();
+  });
+
+  it('setSessionIdentity does not touch cart/booking sub-objects', async () => {
+    await seedSession();
+    await setSessionCart(PARTNER, CONV, recomputeCartTotals({
+      items: [{ itemId: 'x', moduleSlug: 'p', name: 'X', price: 10, quantity: 1, addedAt: 't' }],
+      subtotal: 0,
+      total: 0,
+    }));
+    await setSessionBooking(PARTNER, CONV, {
+      slots: [
+        { slotId: 'S', serviceId: 'svc', serviceName: 'X', date: 'd', time: 't', duration: 30, price: 1, status: 'tentative', reservedAt: 't' },
+      ],
+    });
+
+    await setSessionIdentity(PARTNER, CONV, '+15551234567');
+
+    const reloaded = await loadSession(PARTNER, CONV);
+    expect(reloaded?.identity?.contactId).toBe('+15551234567');
+    expect(reloaded?.cart.items).toHaveLength(1);
+    expect(reloaded?.booking.slots).toHaveLength(1);
+  });
+
+  it('setSessionIdentity is idempotent; re-setting same contactId updates resolvedAt', async () => {
+    await seedSession();
+    await setSessionIdentity(PARTNER, CONV, '+15551234567');
+    const first = await loadSession(PARTNER, CONV);
+    const firstResolvedAt = first?.identity?.resolvedAt;
+
+    await new Promise((r) => setTimeout(r, 5));
+
+    await setSessionIdentity(PARTNER, CONV, '+15551234567');
+    const second = await loadSession(PARTNER, CONV);
+
+    expect(second?.identity?.contactId).toBe('+15551234567');
+    expect(second?.identity?.resolvedAt).not.toBe(firstResolvedAt);
   });
 });
 
