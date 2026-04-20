@@ -9,7 +9,19 @@
 
 import { db } from '@/lib/firebase-admin';
 import { loadOrCreateSession, setSessionBooking } from '@/lib/relay/session-store';
-import type { RelayBookingSlot, RelaySessionBooking } from '@/lib/relay/session-types';
+import type {
+  RelayBookingSlot,
+  RelaySessionBooking,
+  RelaySessionBookingHold,
+} from '@/lib/relay/session-types';
+import {
+  addBookingHold,
+  extendBookingHold,
+  releaseBookingHold,
+  BookingHoldConflictError,
+  BookingHoldLimitError,
+  type BookingHoldInput,
+} from '@/lib/relay/booking/booking-reducer';
 
 export interface BookingActionResult {
   success: boolean;
@@ -64,6 +76,81 @@ export async function cancelSlotAction(
     return { success: true, booking: saved };
   } catch (e) {
     return { success: false, error: e instanceof Error ? e.message : 'unknown' };
+  }
+}
+
+// ── P3.M01 hold actions (anon-allowed) ──────────────────────────────
+//
+// Holds live alongside the existing slot-flow. They share the
+// `booking` session sub-object (nested `holds` array). Anon-allowed
+// per ADR-P4-01 §Anon handling; identity resolved at commit
+// (`confirmBookingHoldAction` in M02) — not here.
+
+export interface HoldActionResult {
+  success: boolean;
+  hold?: RelaySessionBookingHold;
+  booking?: RelaySessionBooking;
+  error?: string;
+  code?: 'BOOKING_HOLD_CONFLICT' | 'BOOKING_HOLD_LIMIT' | 'INTERNAL_ERROR';
+}
+
+function toHoldErr(e: unknown): { error: string; code: NonNullable<HoldActionResult['code']> } {
+  if (e instanceof BookingHoldConflictError) {
+    return { error: e.message, code: e.code };
+  }
+  if (e instanceof BookingHoldLimitError) {
+    return { error: e.message, code: e.code };
+  }
+  return {
+    error: e instanceof Error ? e.message : 'unknown',
+    code: 'INTERNAL_ERROR',
+  };
+}
+
+export async function createBookingHoldAction(
+  partnerId: string,
+  conversationId: string,
+  input: BookingHoldInput,
+): Promise<HoldActionResult> {
+  try {
+    const session = await loadOrCreateSession(partnerId, conversationId);
+    const booking = addBookingHold(session.booking, input);
+    const saved = await setSessionBooking(partnerId, conversationId, booking);
+    const hold = saved.holds?.find((h) => h.holdId === input.holdId);
+    return { success: true, hold, booking: saved };
+  } catch (e) {
+    return { success: false, ...toHoldErr(e) };
+  }
+}
+
+export async function extendBookingHoldAction(
+  partnerId: string,
+  conversationId: string,
+  holdId: string,
+): Promise<HoldActionResult> {
+  try {
+    const session = await loadOrCreateSession(partnerId, conversationId);
+    const booking = extendBookingHold(session.booking, holdId);
+    const saved = await setSessionBooking(partnerId, conversationId, booking);
+    const hold = saved.holds?.find((h) => h.holdId === holdId);
+    return { success: true, hold, booking: saved };
+  } catch (e) {
+    return { success: false, ...toHoldErr(e) };
+  }
+}
+
+export async function releaseBookingHoldAction(
+  partnerId: string,
+  conversationId: string,
+  holdId: string,
+): Promise<HoldActionResult> {
+  try {
+    const session = await loadOrCreateSession(partnerId, conversationId);
+    const booking = releaseBookingHold(session.booking, holdId);
+    const saved = await setSessionBooking(partnerId, conversationId, booking);
+    return { success: true, booking: saved };
+  } catch (e) {
+    return { success: false, ...toHoldErr(e) };
   }
 }
 
