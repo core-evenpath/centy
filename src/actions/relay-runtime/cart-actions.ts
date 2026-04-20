@@ -2,31 +2,49 @@
 
 // ── Relay runtime cart actions ──────────────────────────────────────────
 //
-// Mutates the `cart` field on the runtime session document. Each action
-// loads (or creates) the session, mutates it, recomputes totals via the
-// shared helper, and writes it back.
+// Thin orchestration around the pure `cart-reducer`. Each action loads
+// (or creates) the session, applies a reducer, writes via targeted
+// `setSessionCart` setter, and returns the updated cart.
+//
+// Per ADR-P4-01 §Anon handling: cart mutations are anon-allowed. No
+// `requireIdentityOrThrow`, no `evaluatePartnerSaveGate`. Identity gate
+// fires at `createOrder` (P2.M02), not here.
 
 import { loadOrCreateSession, setSessionCart } from '@/lib/relay/session-store';
-import {
+import type {
   RelaySessionCart,
   RelaySessionItem,
-  recomputeCartTotals,
 } from '@/lib/relay/session-types';
+import {
+  reduceCartAdd,
+  reduceCartApplyDiscount,
+  reduceCartRemove,
+  reduceCartUpdate,
+  CartCurrencyMismatchError,
+} from '@/lib/relay/commerce/cart-reducer';
 
 export interface CartActionResult {
   success: boolean;
   cart?: RelaySessionCart;
   error?: string;
+  code?: 'CART_CURRENCY_MISMATCH' | 'INTERNAL_ERROR';
 }
 
 export interface DiscountActionResult extends CartActionResult {
   valid?: boolean;
 }
 
+function toErr(e: unknown): { error: string; code?: CartActionResult['code'] } {
+  if (e instanceof CartCurrencyMismatchError) {
+    return { error: e.message, code: e.code };
+  }
+  return { error: e instanceof Error ? e.message : 'unknown' };
+}
+
 export async function addToCartAction(
   conversationId: string,
   partnerId: string,
-  item: Omit<RelaySessionItem, 'addedAt' | 'quantity'> & { quantity?: number },
+  item: Omit<RelaySessionItem, 'addedAt' | 'quantity'> & { quantity?: number; currency?: string },
 ): Promise<CartActionResult> {
   try {
     if (!item?.itemId || !item?.name || typeof item.price !== 'number') {
@@ -34,35 +52,21 @@ export async function addToCartAction(
     }
 
     const session = await loadOrCreateSession(partnerId, conversationId);
-    const quantity = Math.max(1, item.quantity ?? 1);
-    const idx = session.cart.items.findIndex(
-      (i) => i.itemId === item.itemId && i.variant === item.variant,
-    );
-
-    let nextItems: RelaySessionItem[];
-    if (idx >= 0) {
-      nextItems = session.cart.items.slice();
-      nextItems[idx] = { ...nextItems[idx], quantity: nextItems[idx].quantity + quantity };
-    } else {
-      const fullItem: RelaySessionItem = {
-        itemId: item.itemId,
-        moduleSlug: item.moduleSlug,
-        name: item.name,
-        price: item.price,
-        quantity,
-        variant: item.variant,
-        image: item.image,
-        addedAt: new Date().toISOString(),
-      };
-      nextItems = [...session.cart.items, fullItem];
-    }
-
-    const cart = recomputeCartTotals({ ...session.cart, items: nextItems });
+    const cart = reduceCartAdd(session.cart, {
+      itemId: item.itemId,
+      moduleSlug: item.moduleSlug,
+      name: item.name,
+      price: item.price,
+      quantity: item.quantity,
+      variant: item.variant,
+      image: item.image,
+      currency: item.currency,
+    });
     const saved = await setSessionCart(partnerId, conversationId, cart);
     return { success: true, cart: saved };
   } catch (e) {
     console.error('[relay-cart] add failed:', e);
-    return { success: false, error: e instanceof Error ? e.message : 'unknown' };
+    return { success: false, ...toErr(e) };
   }
 }
 
@@ -74,17 +78,11 @@ export async function updateCartItemAction(
 ): Promise<CartActionResult> {
   try {
     const session = await loadOrCreateSession(partnerId, conversationId);
-    const q = Math.max(0, Math.floor(quantity));
-    const nextItems =
-      q === 0
-        ? session.cart.items.filter((i) => i.itemId !== itemId)
-        : session.cart.items.map((i) => (i.itemId === itemId ? { ...i, quantity: q } : i));
-
-    const cart = recomputeCartTotals({ ...session.cart, items: nextItems });
+    const cart = reduceCartUpdate(session.cart, { itemId, quantity });
     const saved = await setSessionCart(partnerId, conversationId, cart);
     return { success: true, cart: saved };
   } catch (e) {
-    return { success: false, error: e instanceof Error ? e.message : 'unknown' };
+    return { success: false, ...toErr(e) };
   }
 }
 
@@ -95,12 +93,11 @@ export async function removeFromCartAction(
 ): Promise<CartActionResult> {
   try {
     const session = await loadOrCreateSession(partnerId, conversationId);
-    const nextItems = session.cart.items.filter((i) => i.itemId !== itemId);
-    const cart = recomputeCartTotals({ ...session.cart, items: nextItems });
+    const cart = reduceCartRemove(session.cart, { itemId });
     const saved = await setSessionCart(partnerId, conversationId, cart);
     return { success: true, cart: saved };
   } catch (e) {
-    return { success: false, error: e instanceof Error ? e.message : 'unknown' };
+    return { success: false, ...toErr(e) };
   }
 }
 
@@ -110,11 +107,15 @@ export async function clearCartAction(
 ): Promise<CartActionResult> {
   try {
     const session = await loadOrCreateSession(partnerId, conversationId);
-    const cart = recomputeCartTotals({ items: [], subtotal: 0, total: 0 });
+    // Clearing is reduce-to-empty; preserve structure for field-path write.
+    const cart = reduceCartRemove(
+      { items: [], subtotal: 0, total: 0, currency: session.cart.currency },
+      { itemId: '__noop__' },
+    );
     const saved = await setSessionCart(partnerId, conversationId, cart);
     return { success: true, cart: saved };
   } catch (e) {
-    return { success: false, error: e instanceof Error ? e.message : 'unknown' };
+    return { success: false, ...toErr(e) };
   }
 }
 
@@ -146,14 +147,10 @@ export async function applyDiscountCodeAction(
     const subtotal = session.cart.items.reduce((s, i) => s + i.price * i.quantity, 0);
     const discountAmount = rule < 1 ? Math.round(subtotal * rule * 100) / 100 : rule;
 
-    const cart = recomputeCartTotals({
-      ...session.cart,
-      discountCode: upper,
-      discountAmount,
-    });
+    const cart = reduceCartApplyDiscount(session.cart, { code: upper, discountAmount });
     const saved = await setSessionCart(partnerId, conversationId, cart);
     return { success: true, valid: true, cart: saved };
   } catch (e) {
-    return { success: false, valid: false, error: e instanceof Error ? e.message : 'unknown' };
+    return { success: false, valid: false, ...toErr(e) };
   }
 }

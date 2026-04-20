@@ -5,6 +5,7 @@ import type {
   GreetingPreviewData,
   ProductCardPreviewData,
   ContactPreviewData,
+  OrderTrackerPreviewData,
 } from './previews/_preview-props';
 
 export const T = {
@@ -203,22 +204,41 @@ function MiniOrderConfirmation() {
   );
 }
 
-function MiniOrderTracker() {
-  const steps = ["Confirmed", "Processing", "Shipped", "Delivered"];
+// P2.M03: accepts OrderTrackerPreviewData. When `orders` has entries,
+// renders the most-recent order's progress. When absent or empty,
+// falls back to the design sample (keeps the admin flow visualizer
+// stable when the partner has no orders yet).
+const ORDER_STEP_INDEX: Record<string, number> = {
+  pending: 0,
+  confirmed: 1,
+  processing: 1,
+  shipped: 2,
+  out_for_delivery: 2,
+  delivered: 3,
+  cancelled: -1,
+  refunded: -1,
+};
+
+function MiniOrderTracker({ data }: { data?: OrderTrackerPreviewData } = {}) {
+  const steps = ["Placed", "Processing", "Shipped", "Delivered"];
+  const order = data?.orders?.[0];
+  const shortId = order?.shortId ?? "#ORD-847291";
+  const statusLabel = order?.statusLabel ?? "Shipped";
+  const currentIdx = order ? ORDER_STEP_INDEX[order.status] ?? 2 : 2;
   return (
     <div style={{ background: T.surface, border: `1px solid ${T.bdr}`, borderRadius: "10px", padding: "8px" }}>
       <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "6px" }}>
-        <div><div style={{ fontSize: "9px", fontWeight: 600, color: T.t1 }}>#ORD-847291</div></div>
-        <span style={{ fontSize: "8px", fontWeight: 600, color: T.pri, background: T.priBg, padding: "2px 6px", borderRadius: "4px" }}>Shipped</span>
+        <div><div style={{ fontSize: "9px", fontWeight: 600, color: T.t1 }}>{shortId}</div></div>
+        <span style={{ fontSize: "8px", fontWeight: 600, color: T.pri, background: T.priBg, padding: "2px 6px", borderRadius: "4px" }}>{statusLabel}</span>
       </div>
       <div style={{ display: "flex", alignItems: "flex-start" }}>
         {steps.map((st, i) => {
-          const done = i <= 2;
+          const done = i <= currentIdx;
           return (
             <div key={st} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", position: "relative" }}>
               {i > 0 && <div style={{ position: "absolute", top: 6, right: "50%", width: "100%", height: 2, background: done ? T.green : T.bdr }} />}
               <div style={{ width: 14, height: 14, borderRadius: "50%", background: done ? T.green : T.surface, border: `2px solid ${done ? T.green : T.bdr}`, display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1, fontSize: "6px", color: done ? "#fff" : T.t4 }}>{done ? "✓" : ""}</div>
-              <span style={{ fontSize: "6px", color: i === 2 ? T.t1 : T.t4, fontWeight: i === 2 ? 600 : 400, textAlign: "center", marginTop: "2px" }}>{st}</span>
+              <span style={{ fontSize: "6px", color: i === currentIdx ? T.t1 : T.t4, fontWeight: i === currentIdx ? 600 : 400, textAlign: "center", marginTop: "2px" }}>{st}</span>
             </div>
           );
         })}

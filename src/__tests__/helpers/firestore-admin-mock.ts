@@ -48,12 +48,18 @@ function shouldThrow(): boolean {
   return typeof f === 'function' ? f() : f;
 }
 
+interface OrderBySpec {
+  field: string;
+  dir: 'asc' | 'desc';
+}
+
 interface CollectionRef {
   doc: (id?: string) => DocRef;
   get: () => Promise<{ docs: Array<{ id: string; data: () => unknown; ref: { id: string; path: string } }> }>;
   where: (_field: string, _op: string, _value: unknown) => CollectionRef;
   count: () => { get: () => Promise<{ data: () => { count: number } }> };
   limit: (_n: number) => CollectionRef;
+  orderBy: (field: string, dir?: 'asc' | 'desc') => CollectionRef;
 }
 
 interface DocRef {
@@ -95,7 +101,12 @@ function matchesPredicate(data: Record<string, unknown>, p: WherePredicate): boo
   }
 }
 
-function makeCollectionRef(path: string, predicates: WherePredicate[] = [], limit?: number): CollectionRef {
+function makeCollectionRef(
+  path: string,
+  predicates: WherePredicate[] = [],
+  limit?: number,
+  orderBys: OrderBySpec[] = [],
+): CollectionRef {
   const listDocs = () => {
     const all = [...firestoreStore.entries()]
       .filter(([k]) => {
@@ -103,6 +114,27 @@ function makeCollectionRef(path: string, predicates: WherePredicate[] = [], limi
         return parentPath === path;
       })
       .filter(([, v]) => predicates.every((p) => matchesPredicate(v.data, p)));
+    // Apply orderBys in declaration order. Sort is stable; later orderBys
+    // break ties established by earlier ones.
+    if (orderBys.length > 0) {
+      all.sort((a, b) => {
+        for (const ob of orderBys) {
+          const av = (a[1].data as Record<string, unknown>)[ob.field];
+          const bv = (b[1].data as Record<string, unknown>)[ob.field];
+          if (av === bv) continue;
+          // Undefined / null sort last regardless of direction
+          // (Firestore-like — missing fields at the end).
+          if (av === undefined || av === null) return 1;
+          if (bv === undefined || bv === null) return -1;
+          // After null/undefined guards, both values are defined.
+          const ap = av as string | number;
+          const bp = bv as string | number;
+          const cmp = ap < bp ? -1 : ap > bp ? 1 : 0;
+          return ob.dir === 'desc' ? -cmp : cmp;
+        }
+        return 0;
+      });
+    }
     const mapped = all.map(([k, v]) => ({
       id: v.id,
       data: () => v.data,
@@ -120,8 +152,11 @@ function makeCollectionRef(path: string, predicates: WherePredicate[] = [], limi
       return makeDocRef(`${path}/${resolvedId}`);
     },
     get: async () => ({ docs: listDocs() }),
-    where: (field, op, value) => makeCollectionRef(path, [...predicates, { field, op, value }], limit),
-    limit: (n) => makeCollectionRef(path, predicates, n),
+    where: (field, op, value) =>
+      makeCollectionRef(path, [...predicates, { field, op, value }], limit, orderBys),
+    limit: (n) => makeCollectionRef(path, predicates, n, orderBys),
+    orderBy: (field, dir = 'asc') =>
+      makeCollectionRef(path, predicates, limit, [...orderBys, { field, dir }]),
     count: () => ({
       get: async () => {
         const n = listDocs().length;

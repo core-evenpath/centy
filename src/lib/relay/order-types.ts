@@ -57,6 +57,13 @@ export interface RelayOrder {
   id: string;
   partnerId: string;
   conversationId: string;
+  /**
+   * P2.M02: required commit-boundary contact pointer per ADR-P4-01
+   * §Anon handling. Equals the resolved E.164 phone; points at
+   * `contacts/{partnerId}_{contactId}`. Optional only on orders
+   * created pre-P2.M02 (legacy shape); new orders MUST populate it.
+   */
+  contactId?: string;
 
   items: OrderItem[];
 
