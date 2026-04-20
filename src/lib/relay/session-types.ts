@@ -25,6 +25,20 @@ export interface RelaySessionCart {
   discountCode?: string;
   discountAmount?: number;
   total: number;
+  /**
+   * P2.M01: ISO currency code. Derived from the first-added item's
+   * (implicit) currency or defaulted at partner-level when items lack
+   * one. Absent on carts created before P2; callers should default to
+   * partner currency on read when undefined.
+   */
+  currency?: string;
+  /**
+   * P2.M01: per-field TTL per ADR-P4-01 §TTL. Bumped on every cart
+   * mutation (~2h window). Read-path consumers treat an expired cart
+   * as empty and rely on the application-level sweeper (Phase 2+) to
+   * prune stale docs.
+   */
+  expiresAt?: string;
 }
 
 export type RelayBookingStatus = 'tentative' | 'confirmed' | 'cancelled';
@@ -89,6 +103,30 @@ export interface RelaySession {
 // ── Helpers ─────────────────────────────────────────────────────────────
 
 export const SESSION_TTL_MS = 24 * 60 * 60 * 1000; // 24h
+export const CART_TTL_MS = 2 * 60 * 60 * 1000; // 2h per ADR-P4-01 §TTL
+
+/**
+ * P2.M01: per-field cart TTL. Computes the future ISO timestamp at
+ * which the cart is considered expired. Callers (cart mutations)
+ * stamp this every write; read-path consumers may compare against
+ * `Date.now()` to decide whether to treat the cart as empty.
+ */
+export function computeCartExpiresAt(now: Date = new Date()): string {
+  return new Date(now.getTime() + CART_TTL_MS).toISOString();
+}
+
+/**
+ * Returns true when the cart's expiresAt is in the past. Undefined
+ * expiresAt is treated as non-expired (pre-P2 carts).
+ */
+export function isCartExpired(
+  cart: Pick<RelaySessionCart, 'expiresAt'> | null | undefined,
+  now: Date = new Date(),
+): boolean {
+  if (!cart?.expiresAt) return false;
+  const exp = Date.parse(cart.expiresAt);
+  return Number.isFinite(exp) && exp < now.getTime();
+}
 
 export function relaySessionDocId(partnerId: string, conversationId: string): string {
   return `${partnerId}_${conversationId}`;
