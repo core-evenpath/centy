@@ -74,6 +74,17 @@ export default function ModuleManagePage({ params }: PageProps) {
     const [isExporting, setIsExporting] = useState(false);
     const [showCustomFields, setShowCustomFields] = useState(false);
 
+    const ingest = useAIIngest({
+        partnerId: partnerId || '',
+        moduleId: moduleId,
+        moduleSlug: slug,
+        userId: user?.uid || 'unknown',
+        onSaveComplete: () => {
+            refetch();
+            refetchModule();
+        },
+    });
+
     // Combined loading state
     const isLoading = authLoading || pLoading || (partnerModule && iLoading);
 
@@ -160,17 +171,6 @@ export default function ModuleManagePage({ params }: PageProps) {
     const schema = systemModule.schema;
     const itemLabel = systemModule.itemLabel || 'Item';
     const itemLabelPlural = systemModule.itemLabelPlural || 'Items';
-
-    const ingest = useAIIngest({
-        partnerId: partnerId || '',
-        moduleId: moduleId,
-        moduleSlug: slug,
-        userId: user?.uid || 'unknown',
-        onSaveComplete: () => {
-            refetch();
-            refetchModule();
-        },
-    });
 
     const handleCreate = () => {
         setEditingItem(undefined);
