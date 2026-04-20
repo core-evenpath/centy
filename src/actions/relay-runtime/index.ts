@@ -20,4 +20,14 @@ export {
   reserveSlotAction,
   cancelSlotAction,
   confirmBookingAction,
+  createBookingHoldAction,
+  extendBookingHoldAction,
+  releaseBookingHoldAction,
 } from './booking-actions';
+
+export {
+  createSpaceHoldAction,
+  extendSpaceHoldAction,
+  releaseSpaceHoldAction,
+  confirmSpaceAction,
+} from './space-actions';
