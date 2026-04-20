@@ -1,1016 +1,709 @@
-## Partner Relay Test Chat — iPhone-frame UX redesign — 2026-04-13
+# Pingbox Homepage & Marketing Site Upgrade
 
-Replicated the `/admin/relay/flows` phone-simulator experience in the
-`/partner/relay` Test Chat tab. Split into modular files so each can be
-reviewed and type-checked independently.
+**Branch:** `claude/affectionate-diffie-644888`  
+**Completed:** 2026-04-19
 
-New files under `src/components/partner/relay/test-chat/`:
+## What was built
 
-- `TestChatBubbles.tsx` — themed `BotAvatar`, `BotBubble`, `UserBubble`,
-  `TypingIndicator`, `SuggestionChips`, `EmptyChat` primitives
-  (`RelayTheme`-driven, 28px avatars, 12px bot bubble radius, asymmetric
-  16/4 user bubble, `testChatPulse` typing animation, 36px-indented chip
-  row).
-- `TestChatPhoneFrame.tsx` — 375×720 iPhone chrome (6px bezel, 32px
-  outer radius, notch).
-- `TestChatHeader.tsx` — brand avatar + name + "Test Chat" sub-label,
-  optional pill Clear button.
-- `TestChatMessages.tsx` — scrollable list composing bubbles,
-  `BlockRenderer`, suggestion chips, typing indicator, empty state.
-- `TestChatInput.tsx` — pill input + circular accent send FAB, owns
-  local input state and submits on Enter.
-- `TestChatPanel.tsx` — top-level composition (`Frame → Header →
-  Messages → Input`), stateless wrapper.
+Replaced the old Tailwind-based homepage and built a complete marketing site for Pingbox.io across 6 phases.
 
-Partner page integration (`src/app/partner/(protected)/relay/page.tsx`):
+### Phase 1 — Homepage
+- Created `src/app/(marketing)/` route group (no URL impact)
+- `layout.tsx`: Karla + Fraunces + JetBrains Mono via `next/font/google`, global animations CSS
+- `components/theme.ts`: shared color palette `C`, font variables `F/FM/FS`, SVG icon paths
+- `components/PingboxHomepage.tsx`: full client component (Nav, Hero, TrustBar, ProblemStats, HowItWorks, Platform, Comparison, Industries, Pricing, FAQ, FinalCTA, Footer, RegionBanner)
+- `page.tsx`: thin server wrapper importing PingboxHomepage
+- Deleted old `src/app/page.tsx` (conflicting Tailwind homepage)
 
-- Replaced the ~120-line Test Chat `<Card>` with a single
-  `<TestChatPanel ... />` call.
-- Dropped welcome-message auto-injection + `welcomeShown` state — the
-  welcome is now surfaced through `EmptyChat` as tagline until the
-  visitor sends their first message.
-- Removed `chatInput` state, `chatEndRef`, and `useRef` import (input
-  state lives in `TestChatInput`; scroll lives in `TestChatMessages`).
-- Simplified `sendChatMessage` to take a required string argument.
-- Trimmed now-unused icon imports (`Send`, `Bot`, `User`, `Trash2`) and
-  the direct `BlockRenderer` import.
+### Phase 2 — Stub pages (35 routes)
+All hrefs in the homepage now resolve to real pages. Zero broken links.
 
-Verified: remaining TS errors in new files are environmental (React
-types unavailable in sandbox) and mirror identical false positives in
-the already-shipping `admin/relay/flows` tree. No regressions in pre-
-existing `BadgeProps` errors (2 remain; 2 removed by the swap).
+US routes: `/pricing`, `/relay`, `/engage`, `/intelligence`, `/for/teams`, `/for/dental-clinics`, `/for/hvac`, `/for/fitness`, `/for/real-estate`, `/for/law-insurance`, `/for/b2b-wholesale`, `/contact/sales`, `/customers`, `/about`, `/careers`, `/security`, `/cookies`, `/changelog`, `/docs`, `/docs/api`, `/blog`, `/case-studies`, `/help`, `/tools/leak-calculator`, `/us`
+
+India routes: `/in`, `/in/pricing`, `/in/customers`, `/in/contact/sales`, `/in/for/dental-clinics`, `/in/for/hvac`, `/in/for/fitness`, `/in/for/real-estate`, `/in/for/b2b-wholesale`
+
+### Phase 3 — Priority pages (real content from `pingbox-site-content.docx`)
+Fully implemented with inline styles (no Tailwind):
+- `/pricing` — full pricing page with billing toggle, tier cards, feature matrix, ROI anchor, FAQ accordion
+- `/relay` — product deep-dive with block library, text-vs-UI comparison, embed snippet
+- `/engage` — unified inbox, routing rules, broadcast campaigns
+- `/intelligence` — revenue attribution, 6 dashboards, AI lift tracking, integrations
+- `/contact/sales` — sales form with trust signals sidebar, WhatsApp demo path
+- `/customers` — minimum viable page with beta-partner callout
+- `/for/teams` — multi-location deep-dive with rollout framework
+- All 6 industry pages (dental, HVAC, fitness, real estate, law/insurance, B2B wholesale) via reusable `IndustryPage` component
+
+### Phase 4 — India subsite (/in)
+- `/in` — WhatsApp-first India homepage with ₹ pricing preview, Hindi/Tamil/Marathi support, DPDP compliance, Meta BSP badge
+- `/in/pricing` — ₹6,999/₹16,999/₹0 tiers, GST-invoiced, Razorpay, annual/monthly toggle
+- `/in/customers` — beta-partner callout with Indian context
+- `/in/contact/sales` — India sales form with WhatsApp number field, city dropdown, demo format selection
+- 5 India industry pages — same `IndustryPage` component with India-specific content (IndiaMART, Zoho, LeadSquared, ₹ ROI math)
+
+### Phase 5 — SEO infrastructure
+- `src/app/sitemap.ts` — updated with all 36 marketing URLs, proper priorities
+- `src/app/(marketing)/layout.tsx` — hreflang `en-us`/`en-in`/`x-default` (removed incorrect shared canonical)
+- `src/app/(marketing)/in/layout.tsx` — India sub-layout with self-referential `/in` canonical + hreflang back to `/`
+- Key pages refactored to server wrappers + client components for per-page canonical metadata:
+  - `pricing`, `relay`, `engage`, `intelligence`, `contact/sales`, `customers`, `for/teams`
+  - All have correct `alternates.canonical` and paired hreflang where India equivalent exists
+
+### Phase 6 — Validation
+- `tsc --noEmit`: zero marketing errors (only pre-existing issues in admin/lib files)
+- Broken link scan: all 35+ hrefs resolve; `/partner/login` confirmed via `(auth)` route group
+- Build compilation: passes in 39.4s; pre-render failures are Firebase credential issues in pre-existing admin/partner routes (expected in worktree without .env)
+
+## Architecture decisions
+- Inline styles throughout (no Tailwind conversion)
+- `'use client'` for interactive pages; server component wrappers export metadata
+- Shared `IndustryPage` component reused for US + India verticals
+- Shared `StubPage` component for remaining placeholder pages
+- `RegionBanner` parameterized (`fromRegion`, `toHref`, `toLabel`) for reuse
+
+## Files created / modified
+- `src/app/(marketing)/layout.tsx` — modified
+- `src/app/(marketing)/in/layout.tsx` — new
+- `src/app/(marketing)/components/theme.ts` — new
+- `src/app/(marketing)/components/PingboxHomepage.tsx` — new
+- `src/app/(marketing)/components/StubPage.tsx` — new
+- `src/app/(marketing)/components/IndustryPage.tsx` — new
+- `src/app/(marketing)/components/PricingClient.tsx` — new
+- `src/app/(marketing)/components/RelayClient.tsx` — new
+- `src/app/(marketing)/components/EngageClient.tsx` — new
+- `src/app/(marketing)/components/IntelligenceClient.tsx` — new
+- `src/app/(marketing)/components/ContactSalesClient.tsx` — new
+- `src/app/(marketing)/components/CustomersClient.tsx` — new
+- `src/app/(marketing)/components/ForTeamsClient.tsx` — new
+- 35+ `page.tsx` files across US and India routes
+- `src/app/sitemap.ts` — updated
 
 ---
 
-## Navigation, Brand & SEO — Done
+# Relay Commerce Phase 2 — Session & Block Action Layer
+
+Status: implementation complete, awaiting review on
+`claude/relay-session-actions-Ak9zl`.
+
+## What this layer adds
+
+A stateful cart + booking layer attached to every Relay chat
+conversation. The runtime session is keyed by `{partnerId}_{conversationId}`
+in the top-level `relaySessions` Firestore collection and survives view
+switches / page refreshes for the same conversation id.
+
+## Modular file map
+
+The work was deliberately split into small, independently-writable
+files so a single large file write never had to land at once.
+
+### Types & store (no `'use server'`)
+
+| File | Purpose |
+|---|---|
+| `src/lib/relay/session-types.ts` | `RelaySession`, `RelaySessionItem`, `RelayBookingSlot`, `recomputeCartTotals`, `relaySessionDocId`, `SESSION_TTL_MS` |
+| `src/lib/relay/session-store.ts` | Firestore Admin SDK helpers: `loadSession`, `saveSession`, `loadOrCreateSession`, `newSession` |
+
+### Server actions (`'use server'`, one file per concern)
+
+| File | Exports |
+|---|---|
+| `src/actions/relay-runtime/session-actions.ts` | `getOrCreateRelaySessionAction`, `getRelaySessionAction`, `updateRelaySessionAction` |
+| `src/actions/relay-runtime/cart-actions.ts` | `addToCartAction`, `updateCartItemAction`, `removeFromCartAction`, `clearCartAction`, `applyDiscountCodeAction` |
+| `src/actions/relay-runtime/booking-actions.ts` | `reserveSlotAction`, `cancelSlotAction`, `confirmBookingAction` |
+| `src/actions/relay-runtime/index.ts` | Barrel re-export consumed by the API route |
+
+> Note: a different `src/actions/relay-session-actions.ts` already
+> exists (loads partner relay config). The new files live under
+> `src/actions/relay-runtime/` to avoid colliding with that contract.
+
+### API & client
+
+| File | Purpose |
+|---|---|
+| `src/app/api/relay/action/route.ts` | CORS-friendly POST endpoint. Accepts `{ action, conversationId, partnerId, payload }` and dispatches to the server action layer. Supports `get_session`, `fetch_session`, `update_session`, `add_to_cart`, `update_cart`, `remove_from_cart`, `clear_cart`, `apply_discount`, `reserve_slot`, `cancel_slot`, `confirm_booking`. |
+| `src/hooks/useRelaySession.ts` | Client hook. Loads/creates the session on mount, exposes `addToCart`, `updateCartItem`, `removeFromCart`, `clearCart`, `applyDiscount`, `reserveSlot`, `cancelSlot`, `confirmBooking`. Updates local state from server responses so consumers can wire it straight into `BlockRenderer` callbacks. |
+
+### Block layer changes
+
+| File | Change |
+|---|---|
+| `src/components/relay/blocks/types.ts` | Extended `BlockCallbacks` with `onAddToCart`, `onUpdateCartItem`, `onRemoveFromCart`, `onClearCart`, `onApplyDiscount`, `onReserveSlot`, `onCancelSlot`, `onConfirmBooking`, plus a `cart: BlockCartContext` snapshot. New helper interfaces `BlockAddToCartArgs`, `BlockReserveSlotArgs`, `BlockCartItemRef`, `BlockCartContext`. |
+| `src/components/relay/blocks/CartBlock.tsx` | New block. Reads `callbacks.cart` and emits `onUpdateCartItem` / `onRemoveFromCart`. |
+| `src/components/relay/blocks/BlockRenderer.tsx` | Imports `CartBlock`, adds `case "cart"`. Catalog/products case now prefers `onAddToCart` (fall back to legacy `onSendMessage` if the host hasn't wired session callbacks). |
+| `src/components/relay/blocks/BookingFlow.tsx` | Step 1 → Step 2 "Continue" now calls `callbacks.onReserveSlot` to create a tentative reservation when a session is wired. |
+
+### Widget integration
+
+| File | Change |
+|---|---|
+| `src/components/relay/RelayWidget.tsx` | Generates a stable `conversationId`, instantiates `useRelaySession`, builds a `BlockCallbacks` snapshot, threads it into `HomeScreenRenderer` and `ChatInterface`. |
+| `src/components/relay/HomeScreenRenderer.tsx` | Accepts `callbacks?: BlockCallbacks` and forwards to every `BlockRenderer`. |
+| `src/components/relay/ChatInterface.tsx` | Accepts `conversationId` + `callbacks` for parent-driven session wiring (no behavioural change — message bubbles render as text and don't currently re-dispatch through `BlockRenderer`). |
+| `src/components/relay/RelayFullPage.tsx` | Mounts `useRelaySession` so the runtime session document is created for the public `/r/[partnerId]` page. |
+
+### Firestore rules
+
+`firestore.rules` (the file referenced by `firebase.json` — there is a
+stale duplicate at `src/firestore.rules`, which we left alone) gained a
+`match /relaySessions/{sessionId}` block immediately above the
+catch-all deny. Reads / creates are open (the widget is unauth'd);
+identity fields are immutable on update; deletes are denied (sessions
+are TTL-style).
+
+## How the action loop works
+
+1. Widget mounts → `useRelaySession` POSTs `{ action: 'get_session' }`
+   to `/api/relay/action`.
+2. Server action calls `loadOrCreateSession(partnerId, conversationId)`
+   under `relaySessions/{partnerId}_{conversationId}`.
+3. Block-level interactions (e.g. "Add to cart" in `CatalogCards`)
+   bubble through `BlockRenderer` → `callbacks.onAddToCart` →
+   `useRelaySession.addToCart` → `POST /api/relay/action`
+   `{ action: 'add_to_cart', payload: { … } }`.
+4. Server response includes the new `cart` / `booking`; the hook
+   reduces it into local state and re-renders the consumer.
+
+## Known gap
+
+The partner-side test chat (`/partner/relay`) still renders blocks via
+`TestChatBlockPreview`, which mounts admin-preview components that
+don't yet accept `BlockCallbacks`. Cart/booking actions therefore do
+not flow through that surface even though the runtime session document
+is created. Production-style rendering via `BlockRenderer` (used by
+`RelayWidget` / `HomeScreenRenderer`) is fully wired.
+
+## Verification
+
+- `tsc --noEmit` passes (run via the package's `typecheck` script).
+- Files created can each be opened independently — no single file
+  exceeded ~170 lines.
+
+---
+
+# Relay Commerce Phase 3 — Orders + Admin Modules View
+
+Status: implementation complete on the same branch
+(`claude/relay-session-actions-Ak9zl`), stacked on top of Phase 2.
+Split into many small files so no single write had to carry the whole
+feature.
+
+## Phase 3a — Orders system
+
+### Shared types & helpers (no `'use server'`, safe from client)
+
+| File | Purpose |
+|---|---|
+| `src/lib/relay/order-types.ts` | `OrderStatus`, `OrderItem`, `OrderAddress`, `OrderTracking`, `OrderTimeline`, `RelayOrder`, `CreateOrderInput`, `OrderSummary`, `OrderLookupResult` |
+| `src/lib/relay/order-helpers.ts` | `generateOrderId` (6-char unambiguous alphabet), `getStatusLabel`, `computeOrderPricing` (free shipping ≥ ₹500 + 18% GST), `orderToSummary`, `orderStatusToStepLabel`, `ORDER_TRACKER_STEPS` |
+| `src/lib/relay/order-store.ts` | Firestore refs + `loadOrder` / `saveOrder` for `partners/{pid}/orders/{oid}` |
+
+### Server actions (one file per concern)
+
+| File | Exports |
+|---|---|
+| `src/actions/relay-orders/create-order.ts` | `createOrderFromCartAction` — loads the runtime session, snapshots cart into order doc, drains cart, revalidates `/partner/orders` |
+| `src/actions/relay-orders/get-order.ts` | `getOrderAction`, `getOrdersForConversationAction`, `getPartnerOrdersAction` |
+| `src/actions/relay-orders/update-order.ts` | `updateOrderStatusAction` (appends timeline + milestone timestamp), `addTrackingInfoAction` |
+| `src/actions/relay-orders/lookup-order.ts` | `lookupOrderAction` — cross-partner `collectionGroup('orders')` query for the widget tracker, returns sanitized `OrderLookupResult` |
+| `src/actions/relay-orders/index.ts` | Barrel re-export |
+
+### API + client hook
+
+| File | Purpose |
+|---|---|
+| `src/app/api/relay/order/route.ts` | CORS-open POST dispatcher (`create` / `lookup` / `list`) + GET shortcut (`?orderId=…`) |
+| `src/hooks/useRelayCheckout.ts` | Client hook with `checkout`, `lookupOrder`, `listOrders`, + `loading` / `error` / `order` state |
+
+### Block layer
+
+| File | Change |
+|---|---|
+| `src/lib/relay/blocks/ecommerce/order-tracker-live.tsx` | Wraps the existing `OrderTrackerBlock` — when `data.orderId` is present, fetches `/api/relay/order?orderId=…` and projects the live `OrderStatus` into the 5-step UI |
+| `src/lib/relay/blocks/ecommerce/order-confirmation-live.tsx` | Wraps `OrderConfirmationBlock` — when `data.order` is a real `RelayOrder`, maps it into the card's expected shape |
+| `src/lib/relay/blocks/index.ts` | Registers the live wrappers against the existing block definitions so preview fallback still works |
+| `src/components/relay/blocks/types.ts` | Added `onCheckout?: () => Promise<unknown> | void` to `BlockCallbacks` |
+| `src/components/relay/blocks/BlockRenderer.tsx` | Wires `callbacks.onCheckout` into `CartBlock`'s `onCheckout` prop |
+| `src/components/relay/checkout/address-form-fields.ts` | Declarative address-field schema |
+| `src/components/relay/checkout/CheckoutAddressForm.tsx` | Controlled address form + payment method pills |
+| `src/components/relay/checkout/CheckoutFlow.tsx` | Overlay modal: owns `useRelayCheckout`, submits, closes on success |
+| `src/components/relay/RelayWidget.tsx` | Instantiates the checkout flow, exposes `onCheckout` in `sessionCallbacks`, mounts `<CheckoutFlow>` alongside the widget |
+
+### Firestore rules
+
+`firestore.rules` gained a `partners/{pid}/orders/{orderId}` match — read/update gated by `canAccessPartner` / `canModifyPartner`; create/delete denied (server-side only). Identity + items + createdAt are immutable on update. The widget's cross-partner lookup runs through Admin SDK (rules bypassed) so no public collection-group read rule is needed — keeping raw addresses / phone / payment method partner-scoped.
+
+### Checkout loop end-to-end
+
+1. Cart block's checkout button → `callbacks.onCheckout` → `RelayWidget` opens `<CheckoutFlow>`.
+2. Form submit → `useRelayCheckout.checkout(address, method)` → `POST /api/relay/order` `{ action: 'create' }`.
+3. Server loads session, snapshots cart, writes order doc, clears cart.
+4. Response returns the full `RelayOrder`; the hook folds it into local state and the overlay closes.
+5. The next time the `ecom_order_confirmation` block renders with `data.order = <RelayOrder>`, `OrderConfirmationLive` maps it into the visual card.
+6. Tracking lookup: `ecom_order_tracker` with `data.orderId = "ORD-XXXX"` triggers `OrderTrackerLive` → `GET /api/relay/order?orderId=…` → real status + carrier.
+
+## Phase 3b — Admin Relay Modules view (`/admin/relay/modules`)
+
+### Shared types / derivation
+
+| File | Purpose |
+|---|---|
+| `src/lib/relay/module-analytics-types.ts` | `BlockModuleBinding`, `ModuleBlockUsage`, `RelayModuleAnalytics`, `SimpleBlockRef` — consumed by both server action and client view |
+| `src/lib/relay/module-analytics-derive.ts` | `buildBlockVerticalMap` (inverts `sub.industryId` → `block.verticals[]`), `resolveBlockVerticals` — pure, no I/O |
+
+### Server actions
+
+| File | Exports |
+|---|---|
+| `src/actions/relay-module-analytics/analytics.ts` | `getRelayModuleAnalyticsAction` — joins `ALL_BLOCKS_DATA` with `systemModules`, `relayBlockConfigs`, and partner `businessModules` (collection-group) to produce `{ connectedBlocks, darkBlocks, modules, …counts }` |
+| `src/actions/relay-module-analytics/lookups.ts` | `getBlocksForModuleAction`, `getModuleForBlockAction` |
+| `src/actions/relay-module-analytics/index.ts` | Barrel |
+
+### Page + view components
+
+| File | Purpose |
+|---|---|
+| `src/app/admin/relay/modules/page.tsx` | Server component: runs the action once, renders the view |
+| `src/app/admin/relay/modules/RelayModulesView.tsx` | Client orchestrator: vertical filter + tabs for dark / connected / modules |
+| `src/app/admin/relay/modules/SummaryCards.tsx` | 4-card summary row (total blocks, module-dependent, dark, modules) |
+| `src/app/admin/relay/modules/VerticalFilter.tsx` | "All / automotive / ecommerce / …" pill filter |
+| `src/app/admin/relay/modules/DarkBlockCard.tsx` | Amber card with "View Module" / "Create Module" deep links |
+| `src/app/admin/relay/modules/ConnectedBlockCard.tsx` | Neutral card showing module slug + item count |
+| `src/app/admin/relay/modules/ModuleCard.tsx` | Module row listing every block it powers + item/partner totals |
 
 ### Navigation
-- 3 anchor links: Relay (#relay), How it works (#demo), Industries (#industries)
-- Section IDs added/verified on all target sections
-- Smooth scroll via `scroll-smooth` class on <html>
-- `scroll-margin-top: 80px` to offset fixed nav
-- Mobile hamburger nav (sm:hidden) with auto-close on scroll
-- Footer links updated to match nav
 
-### Brand Assets
-- `public/images/brand/logo.svg` — full wordmark (P mark + "Pingbox")
-- `public/images/brand/favicon.svg` — P mark only
-- `public/images/brand/og-image.svg` (and .png)
-- `public/favicon.svg` — copied from brand directory
+`src/app/admin/relay/RelayDashboard.tsx` gained a "Modules ↔ Blocks" link next to Block Registry / Flow Editor.
 
-### SEO (layout.tsx)
-- Title: "Pingbox — AI That Responds to Your Customers in 30 Seconds"
-- Description: channel-agnostic, mentions all 4 channels
-- Keywords: 14 terms covering AI messaging, verticals, use cases
-- OG image: points to new brand asset
-- Favicon: SVG favicon linked
-- siteName: "Pingbox" (not PingBox)
+## Verification
 
-### UX / Accessibility
-- <main> wrapper around page content
-- aria-label on nav
-- Single <h1> verified (hero only)
-- prefers-reduced-motion media query kills all animations
-- Mobile nav accessible: aria-expanded, aria-label on toggle
+- `tsc --noEmit`: net zero new errors vs baseline (same 400-class of pre-existing env-only errors — missing React types / module stubs).
+- Every new file stays comfortably small (~40–200 lines each); the biggest file in the diff is `analytics.ts` at ~170 lines and it's composed of 4 small named helpers.
 
-### Files modified
-- `src/app/page.tsx` — nav links, section IDs, mobile nav, scroll-margin, reduced motion, semantic HTML
-- `src/app/layout.tsx` — metadata, favicon, scroll-smooth
+## Known gaps / follow-ups
 
-### Files created
-- `public/images/brand/logo.svg`
-- `public/images/brand/favicon.svg`
-- `public/images/brand/og-image.svg`
-- `public/images/brand/og-image.png`
-- `public/favicon.svg`
-
-### Honesty check
-- [x] No design/layout changes
-- [x] No typography changes
-- [x] No new npm dependencies
-- [x] Exactly 1 <h1> on page
-- [x] All nav links have matching section IDs
-- [x] PingBox → Pingbox everywhere
-- [x] Mobile nav works and auto-closes
+- **Chat assistant doesn't auto-surface `order_confirmation` on success.** The overlay closes silently; a future change should post a system-style chat message referencing the new order id so the `OrderConfirmationLive` block picks up `{ order }` on its next render. The hook surface already supports this via `onOrderCreated`.
+- **No partner-facing orders dashboard yet.** `revalidatePath('/partner/orders')` is a placeholder — the route itself is a follow-up PR.
+- **Discount codes still built-in.** `applyDiscountCodeAction` (from Phase 2) stays with its two-code test list; real partner-owned codes deserve their own config layer.
+- **Collection-group indexes.** The first deploy of this branch needs a composite index for `orders` (`id asc`) and another for `businessModules` (`moduleSlug asc`) so the two `collectionGroup` queries in `lookupOrderAction` / `loadModuleItemCounts` run without fallback errors.
 
 ---
 
-## Pipeline Orchestrator: Software & IT Services
+# Option A — Quick wins on top of Phase 3
 
-### Files Created
+Closes out the three Phase-3 gaps flagged in the section above. Split
+into many small files so each write stays modest.
 
-| File | Lines | Purpose |
-|------|-------|---------|
-| `src/actions/vertical-pipeline-actions.ts` | 304 | Server action orchestrating the full module-to-flow pipeline |
-| `src/scripts/seed-software-it.ts` | 36 | CLI seed script for the `software_it` vertical |
+## Task 1 — Order confirmation surfaces in chat
 
-### Files Modified
+After checkout, the widget now switches to the chat view and injects
+a system-style `ecom_order_confirmation` block carrying the real
+`RelayOrder`.
 
-None.
+| File | Change |
+|---|---|
+| `src/components/relay/RegisteredBlock.tsx` | New — thin wrapper around the block registry: calls `registerAllBlocks()` once, then renders the component returned by `getBlock(blockId)`. Returns null for unknown ids. |
+| `src/components/relay/chat-message-types.ts` | New — shared `RelayChatMessage` shape with optional `blockId` / `blockData`. |
+| `src/components/relay/ChatInterface.tsx` | Extended local `ChatMessage` to the shared type, accepts a new `injectMessage` prop (dedup'd by id via a ref-held `Set`), renders `<RegisteredBlock>` above the text bubble when `blockId` is present. |
+| `src/components/relay/RelayWidget.tsx` | New `handleOrderCreated(order)` — closes the overlay, builds an injected message (`blockId: 'ecom_order_confirmation'`, `blockData: { order }`), and switches `view` to `'chat'` so the confirmation is visible regardless of which tab the user came from. `OrderConfirmationLive` already knows how to project `data.order` into the visual card. |
 
-### What the Pipeline Does (Step by Step)
+## Task 2 — Firestore composite indexes
 
-1. **Module Discovery** — Calls `discoverModulesForBusinessType()` with industry/function IDs to get AI-discovered modules for the business type
-2. **For each discovered module** (sequential, with 2s delay for rate limiting):
-   - Checks if a module with slug `${functionId}_${slug}` already exists — skips if so
-   - Calls `generateModuleSchemaAction()` to AI-generate the field schema
-   - Calls `createSystemModuleAction()` which:
-     - Persists the system module to Firestore
-     - Auto-triggers `generateRelayBlockForModule()` to create the relay block
-3. **Flow Template Creation** — Creates a hardcoded `SystemFlowTemplateRecord` for `software_it` with 6 stages (Welcome, Discovery, Qualification, Presentation, Conversion, Team Connect), 20 transitions, and default flow settings
-4. **Returns a `PipelineResult`** summarizing modules discovered/created/skipped/failed, relay blocks created, and the flow template ID
+`firestore.indexes.json` gained four entries (existing entries
+untouched):
 
-### How to Run
+- `orders` collection-group, `id asc` → `lookupOrderAction`
+- `orders` collection, `conversationId asc + createdAt desc` → `getOrdersForConversationAction`
+- `orders` collection, `status asc + createdAt desc` → `getPartnerOrdersAction` status filter
+- `businessModules` collection-group, `moduleSlug asc` → `loadModuleItemCounts` in `/admin/relay/modules`
 
-```bash
-npx tsx src/scripts/seed-software-it.ts
+Deploy with `firebase deploy --only firestore:indexes`.
+
+## Task 3 — Partner orders dashboard (`/partner/orders`)
+
+| File | Purpose |
+|---|---|
+| `src/app/partner/(protected)/orders/page.tsx` | Tiny server wrapper; renders the client dashboard inside the standard partner container. |
+| `src/app/partner/(protected)/orders/OrdersDashboard.tsx` | Client orchestrator. Resolves `partnerId` via `useMultiWorkspaceAuth`, loads via `getPartnerOrdersAction`, owns filter + selection state, wires status updates to `updateOrderStatusAction`. |
+| `src/app/partner/(protected)/orders/orders-constants.ts` | Status-tab definitions, tailwind badge color map, linear status flow + `nextStatusAfter()` helper. |
+| `src/app/partner/(protected)/orders/StatsCard.tsx` | 5 summary tiles (total / pending / processing / shipped / delivered). |
+| `src/app/partner/(protected)/orders/OrderRow.tsx` | Row in the left-hand list (id, status badge, item count, total, relative createdAt via `date-fns`). |
+| `src/app/partner/(protected)/orders/OrderDetailPanel.tsx` | Right-hand detail: items, totals (subtotal / discount / shipping / tax / total), shipping address, payment, tracking, "Mark as <next status>" action + conditional Cancel button. |
+| `src/components/navigation/UnifiedPartnerSidebar.tsx` | Added `ShoppingBag`-iconed "Orders" link at `/partner/orders`. |
+
+Behavior notes:
+- Selection survives list reload (if the selected order is still in the filtered set it gets updated in place; otherwise cleared).
+- Status updates short-circuit: on success, the single row is patched locally without re-fetching the full list, keeping scroll + selection stable.
+- Currency formatting is INR-aware (₹ symbol); everything else prints the raw code. Matches the format used in `OrderConfirmationLive`.
+- Uses the existing `sonner` toast system (also used elsewhere in partner settings).
+
+## Verification
+
+- `npm run typecheck`: no new errors introduced; same 400-class of pre-existing env/stub issues as the baseline.
+- File sizes stay modest: biggest new file is `OrdersDashboard.tsx` (~220 lines) since it orchestrates a few hooks; every other new file is comfortably under 140 lines.
+
+## Follow-ups that remain
+
+- Order detail page with per-order edit (addresses, add tracking info) — the dashboard detail panel intentionally stays read-only for addresses in this pass.
+- Customer-facing "where is my order" intent in the chat still returns the design sample until `OrderTrackerLive` is triggered by an explicit `orderId` in the intent parse.
+- Partner-side test chat (`TestChatBlockPreview`) still doesn't thread callbacks through admin preview blocks — unchanged from Phase 2.
+
+---
+
+# Commerce Engine Completion
+
+Two focused tasks on top of Phase 3 + Option A that close the "orders can be tracked end-to-end" story. Split across many small files so no single write is dangerous.
+
+## Task 1 — Tracking editor on the order detail panel
+
+Partners can now add / edit tracking info from the `/partner/orders` detail pane. The server action (`addTrackingInfoAction`) already existed; this wires a UI around it and auto-flips the order to `shipped` status with a timeline entry.
+
+| File | Action | Purpose |
+|---|---|---|
+| `src/app/partner/(protected)/orders/tracking-carriers.ts` | NEW | Pure data module: 10-carrier list, per-carrier URL builders (Delhivery / BlueDart / DTDC / FedEx / UPS), `carrierLabel()` + `carrierValueFromLabel()` helpers. |
+| `src/app/partner/(protected)/orders/TrackingFormDialog.tsx` | NEW | Controlled form in a shadcn `Dialog`: carrier select (with a free-text fallback for "Other"), AWB, optional tracking URL (auto-filled on carrier/number change), optional ETA date. Validates shape before enabling the submit button. |
+| `src/app/partner/(protected)/orders/OrderDetailPanel.tsx` | MODIFY | Accepts new `partnerId` + `onTrackingUpdated` props. The Tracking section now renders for any confirmed/processing/shipped/out-for-delivery order, with an inline "Add tracking" or "Edit" button that opens the dialog. On save it calls `addTrackingInfoAction` and shows a `sonner` toast. |
+| `src/app/partner/(protected)/orders/OrdersDashboard.tsx` | MODIFY | Threads `partnerId` into the detail panel and passes `loadOrders` as `onTrackingUpdated` so the row reflects the new status after a save. |
+
+### Behavior notes
+
+- Carrier select pre-populates from the stored `carrier` string via `carrierValueFromLabel()` — round-trip works even though we store the human label, not the value.
+- The dialog blocks interaction (can't close) while `savingTracking` is true, preventing double-submits.
+- `addTrackingInfoAction` itself flips the order to `shipped` and appends a `"Shipped via <carrier> (<awb>)"` timeline entry — the dialog doesn't do this itself, so the behavior stays centralized in the server action.
+
+## Task 2 — "Where is my order" intent → real tracker
+
+Chat visitors can now trigger the live order tracker from a free-form message. The intent engine already had an `order_status` type and a `resolveOrderTracker` that hands the orderId into `ecom_order_tracker`; this PR tightens the id regex and makes the tracker gracefully prompt for an id when none is quoted.
+
+| File | Action | Purpose |
+|---|---|---|
+| `src/lib/relay/order-id-parser.ts` | NEW | Shared regex + helpers: `ORDER_ID_REGEX` (matches canonical `ORD-XXXXXX` *and* the legacy `#PBX-NNNNNN` design-sample shape), `extractOrderId()`, `isCanonicalOrderId()`, `normalizeOrderIdInput()` (lenient — tolerates leading `#`, lowercase, bare 6-char suffix). |
+| `src/lib/relay/intent-engine.ts` | MODIFY | `detectOrderId()` now delegates to the shared `extractOrderId()`. The old ad-hoc regex required 4+ digits, which failed against the actual `generateOrderId()` output (letter-heavy alphabet `ABCDEFGHJKLMNPQRSTUVWXYZ23456789`) — real `ORD-ABC234` ids weren't matching. |
+| `src/lib/relay/blocks/ecommerce/order-tracker-input.tsx` | NEW | Small inline form rendered by `OrderTrackerLive` when no orderId is provided. Normalizes input through `normalizeOrderIdInput()` so users typing just `ABC234` get promoted to `ORD-ABC234`. |
+| `src/lib/relay/blocks/ecommerce/order-tracker-live.tsx` | MODIFY | Now maintains its own `pendingOrderId` state. `activeOrderId = data.orderId ?? pendingOrderId`. When neither is set it renders `<OrderTrackerInput>`; on submit the fetch kicks off and the component transitions into the normal loading/error/result flow. |
+
+### Behavior notes
+
+- No change needed in `block-resolver.ts` — the existing `resolveOrderTracker()` already routes `order_status` intent (with or without `intent.orderId`) to `ecom_order_tracker`. The input-form fallback handles the "empty id" path.
+- The canonical regex is deliberately lenient (4–10 chars suffix) in case future id generators change length — `CANONICAL_ORDER_ID_REGEX` keeps the strict 6-char shape for input validation.
+- The input component is client-only (styled via inline `BlockTheme` tokens to match the rest of the block gallery) — no shadcn deps to avoid pulling the widget bundle into tailwind territory.
+
+## Verification
+
+- `npm run typecheck`: 400 errors — identical to the pre-change baseline. Two `intent-engine.ts` TS2322 warnings about `string | null` vs `string | undefined` on `intent.orderId` already existed before this PR and weren't introduced here.
+- File sizes: largest new file is `TrackingFormDialog.tsx` (~170 lines); everything else is 50–120 lines.
+
+## What's still open
+
+- **Timeline notes:** the detail panel doesn't expose a "Add note" control yet.
+- **Partner-side test chat** still uses `TestChatBlockPreview`, which doesn't thread callbacks through admin preview blocks.
+- **Customer order history:** no "show all my orders" surface yet — customers need to know their order id.
+- **Email / SMS notifications:** order status changes don't trigger outbound messages.
+
+---
+
+# AI Data Collection — "Let AI collect it for you"
+
+Backend + UI for the new onboarding accelerator: partner clicks **Let AI collect for you** on an empty module, picks a source (website / PDF / pasted text / AI-generated), reviews the extracted items, approves → items land in the module.
+
+Split across many small files so each concern stays reviewable in isolation. 17 new files, 1 modified page.
+
+## Module layout
+
+```
+src/lib/relay/ai-ingest/
+├── types.ts                    dep-free shapes (IngestInput, ExtractedItem, IngestResult)
+├── schema-builder.ts           ModuleSchema → Zod schema for `ai.generate({ output })`
+├── prompt-builder.ts           Extraction prompt (schema description + rules + content)
+├── engine.ts                   `ai.generate()` wrapper (Gemini 2.5 Flash, temp 0.3)
+└── sources/
+    ├── types.ts                `SourceExtractionResult`
+    ├── website.ts              scrapeWebsiteAction → knowledge.{packages,services,products,menuItems,faqs,pricingTiers,offerings}
+    ├── pdf.ts                  base64 → tmp file → `extractPageTextFromPdf`
+    ├── core-memory.ts          `partners/{pid}/hubDocuments/{id}.extractedText`
+    ├── text.ts                 raw text + AI-generate wrapper
+    └── index.ts                barrel
+
+src/actions/ai-ingest/
+├── ingest.ts                   Orchestrator: loads partner+system module, merges schema, runs source adapter, calls engine
+├── save.ts                     `bulkCreateModuleItemsAction` wrapper; stashes provenance under `fields.__ingest`
+└── index.ts                    barrel
+
+src/app/api/relay/ai-ingest/
+└── route.ts                    POST dispatcher — `action: 'ingest' | 'save'`, `maxDuration = 60`
+
+src/hooks/
+└── useAIIngest.ts              State machine: pickerOpen / reviewOpen / loading / saving / result
+
+src/components/relay/ai-ingest/
+├── source-options.ts           Static catalogue of the 4 pickable sources
+├── SourcePickerModal.tsx       Two-stage modal (pick → source-specific form)
+├── ReviewItemRow.tsx           Single extracted item w/ inline name edit + remove
+├── ReviewModal.tsx             Owns the local edit state, seeds from ingest result
+└── IngestMount.tsx             Convenience wrapper mounting both modals with a shared hook
 ```
 
-### Assumptions
+## Flow
 
-- The `discoverModulesForBusinessType` AI call returns modules with `selected` defaulting to true (modules without `selected: false` are included)
-- Default currency is `USD` when `countryCode` is `US`, otherwise `INR`
-- Module color defaults to `#6366f1` (indigo) for all discovered modules
-- The flow template stages map to existing `FlowStageType` values: `greeting`, `discovery`, `showcase` (qualification), `comparison` (presentation), `conversion`, `handoff`
-- `IntentSignal` values from the type system are used for `intentTriggers` (not free-form strings)
-
----
-
-## Prompt 2A: BlockGallery — Scaffold Two-Column Layout
-
-### File changed
-- `src/app/admin/relay/blocks/BlockGallery.tsx`
-
-### Before / After
-- **Before:** 852 lines
-- **After:** 567 lines
-
-### What changed (layout)
-- Replaced vertical collapsible `ConfigCard` list with a two-column grid layout (`lg:grid-cols-3`)
-- **Left column** (`lg:col-span-1`): scrollable `BlockListItem` list with selection state (`selectedId`)
-- **Right column** (`lg:col-span-2`): placeholder preview area (dashed border box with block label, "Phone preview coming soon", block type badge) + "Edit panel coming soon" text
-- Added `BlockListItem` internal component (compact row: label, module slug, block type badge, status dot, first applicable function)
-- Deleted `ConfigCard` component entirely (~320 lines)
-- Removed unused imports: `CatalogCards`, `CompareTable`, `ServiceList`, `BookingFlow`, `LocationCard`, `ContactCard`, `GalleryGrid`, `InfoTable`, `TextWithSuggestions`, `GreetingCard`, `Collapsible`, `CollapsibleTrigger`, `CollapsibleContent`, `ChevronDown`, `ChevronRight`, `Separator`
-
-### What stayed (all state/handlers/constants/actions)
-- All constants: `BLOCK_TYPES`, `BLOCK_TYPE_COLORS`, `CATALOG_ITEMS`, `SERVICE_ITEMS`, `CONTACT_METHODS`, `generateMockBlock`, `sampleDataToRelayBlock`, `getBlockTypeColor`
-- All state variables: `configs`, `activeFilter`, `industryFilter`, `functionFilter`, `generatingAll`, `clearingAll`, `showClearConfirm`
-- All handlers: `handleConfigUpdate`, `handleConfigDelete`, `handleGenerateAll`, `handleClearAll`, `handleConfigRegenerated`
-- All memos: `uniqueBlockTypes`, `availableFunctions`, `filteredConfigs`, `blockTypeDistribution`
-- Filter pills row, Generate All / Clear All buttons row, empty state card
-- Export signature: `export function BlockGallery`
-- Kept imports needed for Prompt 2C: `Card`, `CardContent`, `Badge`, `Button`, `Input`, `Textarea`, `Label`, `Select*`, `BlockRenderer`, `DEFAULT_THEME`, type imports
-
----
-
-## Prompt 2B: BlockGallery — Phone Frame Preview
-
-### File changed
-- `src/app/admin/relay/blocks/BlockGallery.tsx`
-
-### Before / After
-- **Before:** 567 lines
-- **After:** 745 lines
-
-### What changed (phone frame preview)
-- Added `buildBlockFromConfig()` — uses real `sampleData` from Firestore config, falls back to `generateMockBlock()`
-- Added `getUserMessage()` — contextual user chat bubble text per block type
-- Added `getSuggestions()` — suggestion chips per block type
-- Added `PREVIEW_THEME` constant — warm stone color palette for phone chrome
-- Added `PhonePreview` component — full phone frame (375x667) with notch, header, user bubble, bot response via `BlockRenderer`, suggestion chips, and input bar
-- Replaced placeholder div ("Phone preview coming soon") with `<PhonePreview config={selectedConfig} />`
-
-### What stayed
-- Two-column grid layout from Prompt 2A
-- All constants, state, handlers, memos unchanged
-- `BlockListItem` component unchanged
-- "Edit panel coming soon" placeholder remains (for Prompt 2C)
-
----
-
-## Prompt 2C: BlockGallery — Edit Panel
-
-### File changed
-- `src/app/admin/relay/blocks/BlockGallery.tsx`
-
-### Before / After
-- **Before:** 745 lines
-- **After:** 909 lines
-
-### What changed (edit panel)
-- Added `EditPanel` component — collapsible card with block type select, label, description, source collection, max items, sort by fields, save/delete/regenerate actions
-- Replaced placeholder ("Edit panel coming soon") with `<EditPanel>` wired to existing handlers
-- On delete, auto-selects next available block via `setSelectedId`
-- Re-added imports: `useEffect`, `ChevronDown`, `Separator`
-- Removed unused imports: `RefreshCw`, `CardHeader`, `CardTitle`
-
-### What stayed
-- Two-column grid layout (Prompt 2A)
-- Phone frame preview with sampleData (Prompt 2B)
-- All constants, state, handlers, memos unchanged
-- `BlockListItem` and `PhonePreview` components unchanged
-
-### Full feature summary (Prompts 2A–2C)
-1. **Two-column layout** — scrollable block list (left), preview + edit (right)
-2. **Phone frame preview** — 375x667 phone with notch, chat bubbles, BlockRenderer with real sampleData, suggestion chips
-3. **Collapsible edit panel** — inline config editing with save/delete/regenerate actions
-All done in 3 incremental prompts modifying 1 file (852 → 909 lines).
-
----
-
-## Prompt 3A: Create relay-knowledge-actions.ts
-
-### File created
-- `src/actions/relay-knowledge-actions.ts` (71 lines)
-
-### Exported functions
-1. `getRelayKnowledgeConfigAction(partnerId)` — reads `excludedVaultDocIds` from `partners/{partnerId}/relayConfig/config`, returns empty array if missing
-2. `updateRelayDocExclusionsAction(partnerId, excludedDocIds)` — writes exclusions with `merge: true` to preserve other relay config fields, revalidates `/partner/relay`
-3. `getVaultFilesForRelayAction(partnerId)` — reads active vault files ordered by createdAt desc, maps field names (`originalName || displayName || name || doc.id`), handles Firestore Timestamp vs string for createdAt
-
----
-
-## Phase 0 — AI Block Generation Removal — DONE
-
-### Date: 2026-04-04
-
-### Files Modified
-- `src/actions/relay-actions.ts` — Removed 518 lines (AI block generation functions, Gemini client, prompts)
-- `src/actions/modules-actions.ts` — Removed relay block generation calls from create/update (46 lines changed)
-- `src/actions/relay-block-actions.ts` — Removed syncBlocksFromTemplatesAction + ICON_MAP/CAT_MAP (132 lines)
-- `src/actions/vertical-pipeline-actions.ts` — Removed relayBlocksCreated tracking (6 lines)
-- `src/app/admin/relay/blocks/BlockGallery.tsx` — Removed Generate All, Clear All, Regenerate buttons/handlers (118 lines)
-- `src/components/partner/relay/RelayStorefrontManager.tsx` — Removed Sync blocks button/handler (31 lines)
-- `src/components/admin/modules/UnifiedModuleCreator.tsx` — Removed relay block status UI (41 lines)
-
-### Files NOT Modified (confirmed unchanged)
-- `src/actions/relay-partner-actions.ts` — no changes needed
-- `src/actions/relay-storefront-actions.ts` — no changes needed
-- `src/actions/relay-knowledge-actions.ts` — no changes needed
-- `src/actions/flow-engine-actions.ts` — no changes needed
-- `src/actions/module-ai-actions.ts` — calls createSystemModuleAction but doesn't use relayBlock from result
-- `src/components/admin/modules/ModuleEditor.tsx` — calls createSystemModuleAction but only uses moduleId
-- `src/lib/relay-block-taxonomy.ts` — still imported by flow-engine.ts, not removed
-
-### What Was Removed
-- `generateRelayBlockForModule()` — AI-generated block configs from module schemas
-- `callGeminiForBlockTemplate()` — Gemini call for block template generation
-- `regenerateBlockTemplateAction()` — Re-generate a block template via AI
-- `clearAllRelayBlockConfigsAction()` — Bulk delete all relayBlockConfigs
-- `generateMissingRelayBlocksAction()` — Generate blocks for modules missing configs
-- `syncBlocksFromTemplatesAction()` — Sync partner blocks from system templates
-- `BLOCK_TYPE_PROMPT` — 140-line prompt constant
-- `VALID_BLOCK_TYPES` — Block type validation array
-- `ICON_MAP` / `CAT_MAP` — Block type to icon/category mapping
-- `GenerateRelayBlockModuleInput` — Interface for AI block generation input
-- `retryWithBackoff()` — Gemini retry helper
-- `wait()` — Sleep utility
-- GoogleGenAI import and client setup (`genAI`, `BLOCK_GEN_MODEL`)
-- relay-block-taxonomy import (from relay-actions only)
-- UI: "Generate All Missing" button, "Clear All Configs" button, "Regenerate" button, "Sync Blocks" button
-- Relay block status tracking in UnifiedModuleCreator and vertical-pipeline-actions
-
-### What Was Kept (verified present)
-- RelayConfig, DiagnosticCheck, RelayConversation, RelayBlockConfigDetail types
-- getRelayConfigAction, saveRelayConfigAction
-- runRelayDiagnosticsAction
-- getRelayConversationsAction
-- getRelayBlockConfigsWithModulesAction, updateRelayBlockConfigAction, deleteRelayBlockConfigAction
-- All partner block operations (get, toggle, reorder, update, remove)
-- All module CRUD (create, read, update, delete, publish schema)
-- All flow template CRUD
-- relay-partner-actions.ts (slug validation, lookup)
-- relay-storefront-actions.ts (storefront data)
-- relay-knowledge-actions.ts (vault file exclusions)
-
-### Downstream Fixes
-- BlockGallery.tsx: Removed Generate All, Clear All, Regenerate buttons and their handlers/state
-- RelayStorefrontManager.tsx: Removed Sync blocks button and handler
-- UnifiedModuleCreator.tsx: Removed relay block status from GenerationProgress interface and UI
-- vertical-pipeline-actions.ts: Removed relayBlocksCreated from PipelineResult summary
-
-### Validation
-- [x] `npx tsc --noEmit` — PASSED (only pre-existing error in BusinessProfileTab.tsx)
-- [x] No dangling references — PASSED (only flow-engine.ts importing relay-block-taxonomy, which is expected)
-- [x] All keeper functions verified present — PASSED
-
-### Honesty Check
-- Pre-existing TypeScript error in `src/components/partner/settings/BusinessProfileTab.tsx` — not introduced by this change
-- `src/lib/relay-block-taxonomy.ts` file itself was NOT deleted because `src/lib/flow-engine.ts` still imports from it
-- Module delete functions in modules-actions.ts still reference `relayBlockConfigs` Firestore collection for cleanup — this is correct CRUD behavior, not AI generation
-- Total: 882 deletions, 10 insertions across 7 files
-
----
-
-# Phase 1 — Block Registry + E-Commerce Blocks — DONE
-
-## Date: 2026-04-04
-
-## Files Created
-- `src/lib/relay/types.ts` — BlockDefinition, DataContract, BlockTheme, BlockComponentProps types
-- `src/lib/relay/registry.ts` ��� registerBlock, getBlock, listBlocks, matchBlocksToIntent, computeDataContract
-- `src/lib/relay/blocks/index.ts` — Registration of all 11 blocks
-- `src/lib/relay/blocks/ecommerce/greeting.tsx` — Welcome + quick actions
-- `src/lib/relay/blocks/ecommerce/product-card.tsx` — Product catalog card
-- `src/lib/relay/blocks/ecommerce/product-detail.tsx` — Expanded product view
-- `src/lib/relay/blocks/ecommerce/compare.tsx` — Side-by-side comparison
-- `src/lib/relay/blocks/ecommerce/cart.tsx` — Shopping cart
-- `src/lib/relay/blocks/ecommerce/order-confirmation.tsx` — Order success
-- `src/lib/relay/blocks/ecommerce/order-tracker.tsx` — Shipment tracking
-- `src/lib/relay/blocks/ecommerce/promo.tsx` ��� Promotional offers (4 variants)
-- `src/lib/relay/blocks/shared/nudge.tsx` — Smart contextual prompt
-- `src/lib/relay/blocks/shared/suggestions.tsx` — Quick reply chips
-- `src/lib/relay/blocks/shared/contact.tsx` — Multi-channel contact
-
-## Block Registry Summary
-| Block ID | Family | Preloadable | Variants |
-|----------|--------|-------------|----------|
-| ecom_greeting | navigation | yes | 3 |
-| ecom_product_card | catalog | yes | 6 |
-| ecom_product_detail | detail | no | 3 |
-| ecom_compare | compare | no | 1 |
-| ecom_cart | cart | no | 3 |
-| ecom_order_confirmation | confirmation | no | 1 |
-| ecom_order_tracker | tracking | no | 1 |
-| ecom_promo | promo | yes | 4 |
-| shared_nudge | shared | yes | 4 |
-| shared_suggestions | shared | yes | 2 |
-| shared_contact | support | yes | 1 |
-
-## Validation
-- [x] `npx tsc --noEmit` — PASSED (only pre-existing error in BusinessProfileTab.tsx)
-- [x] All 14 files exist — PASSED
-- [x] All 11 blocks registered — PASSED
-- [x] No references to removed Phase 0 code — PASSED
-
-## Honesty Check
-- Added `import type React from 'react'` to types.ts (not in original spec) because `React.ComponentType` in `BlockRegistryEntry` needs it in `.ts` files
-- All blocks follow the exact structure: `export const definition` + `export default function`
-- No existing files were modified
-
----
-
-# Phase 2 — Session Cache + Pre-warming — DONE
-
-## Date: 2026-04-04
-
-## Files Modified
-- `src/lib/relay/types.ts` — Appended 7 session interfaces (~60 lines): SessionModuleItem, SessionBrand, SessionContact, SessionFlowStage, SessionFlowDefinition, SessionBlockOverride, RelaySessionData
-
-## Files Created
-- `src/actions/relay-session-actions.ts` — Server action: `loadRelaySessionAction()` fires 6 parallel Firestore queries via Promise.all, returns `RelaySessionData`
-- `src/lib/relay/session-cache.ts` — `RelaySessionCache` class: in-memory cache with moduleIndex, filterItems, searchItems, getVisibleBlockIds, isStale
-- `src/lib/relay/preloader.ts` — Orchestrator: `buildRelaySession()` creates cache, `resolvePreloadData()` pre-resolves preloadable blocks with data from cache
-
-## Architecture
-
-### Server Action (relay-session-actions.ts)
-Single `loadRelaySessionAction(partnerId)` does 6 parallel Firestore reads:
-1. Partner doc → brand name, logo, contact info
-2. Relay config → brandName, tagline, accentColor, emoji
-3. Partner blocks → block overrides (visibility, sort order)
-4. CoreHub items → all denormalized module items
-5. System modules → module metadata
-6. Flow templates → active flow matching partner's industry
-
-Returns a flat `RelaySessionData` payload ready for client-side caching.
-
-### Session Cache (session-cache.ts)
-`RelaySessionCache` class:
-- Builds `moduleIndex` (Map<string, items[]>) on construction for O(1) module lookups
-- `filterItems(moduleSlug?, tags?)` — filtered by module and/or tags
-- `searchItems(query)` — case-insensitive text search across name, description, tags
-- `getVisibleBlockIds()` — sorted visible block IDs from partner overrides
-- `isStale(maxAgeMs?)` — checks cache age (default 5 min)
-
-### Preloader (preloader.ts)
-- `buildRelaySession(data)` — wraps data in RelaySessionCache
-- `resolvePreloadData(cache)` — for each preloadable block in the session category:
-  - Resolves field data from cache items
-  - Injects contact info for support blocks
-  - Falls back to sampleData for missing required fields
-  - Returns `PreloadedBlock[]` ready for rendering
-
-## Firestore Paths Used
-- `partners/{partnerId}` — partner document
-- `partners/{partnerId}/relayConfig/config` — relay config
-- `partners/{partnerId}/relayConfig/blocks` — partner block overrides
-- `partners/{partnerId}/coreHub/data/items` — CoreHub items
-- `systemModules` — system module collection
-- `systemFlowTemplates` — flow templates (where status='active')
-
-## Validation
-- [x] `npx tsc --noEmit` — PASSED (only pre-existing error in BusinessProfileTab.tsx)
-- [x] All 3 new files exist — PASSED
-- [x] types.ts has 7 session interfaces — PASSED
-- [x] No circular imports — PASSED
-
-## Honesty Check
-- Partner blocks collection path uses flat `partners/{id}/relayConfig/blocks` (matching relay-block-actions.ts), not a nested subcollection
-- `blocks` field in RelaySessionData is currently empty array — block definitions come from the client-side registry, not Firestore
-- Category determination uses `industry?.id` with fallback to `industry?.name` lowercased, then `'general'`
-- Flow template matching checks both `industryId` and `functionId` against the category
-- Pre-existing TypeScript error in BusinessProfileTab.tsx unchanged
-
----
-
-# Phase 3 — Block Resolver + Intent Engine — DONE
-
-## Date: 2026-04-04
-
-## Files Modified
-- `src/lib/relay/session-cache.ts` — Extended with 6 new methods (`getItem`, `getItemCount`, `getCategories`, `hasRag`, scored `searchItems`, object-param `filterItems`), `SearchResult` and `FilterOptions` exports, `itemIndex` for O(1) lookups
-- `src/lib/relay/types.ts` — Added `welcomeMessage?: string` to `SessionBrand` interface
-- `src/actions/relay-session-actions.ts` — Map `welcomeMessage` from relay config into brand
-
-## Files Created
-- `src/lib/relay/query-parser.ts` — Extracts price range, category, keywords, sort preference, product ref, quantity from natural language
-- `src/lib/relay/intent-engine.ts` — Classifies messages into 15 intent types via keyword + regex pattern matching
-- `src/lib/relay/block-resolver.ts` — Maps intent → block ID + populated data from session cache
-
-## Architecture
 ```
-User: "Show me silk sarees under 5000"
+(1) User opens empty module → Empty-state shows "Let AI collect for you" CTA
+    → `ingest.startIngest()`
+
+(2) SourcePickerModal opens
+    • User picks: website URL / PDF upload / paste text / AI-describe
+    • onSubmit → POST /api/relay/ai-ingest { action: 'ingest', … }
+
+(3) ingestContentAction:
+    • getPartnerModuleByIdAction → { partnerModule, systemModule }
+    • effectiveSchema = systemModule.schema.fields ⧺ partnerModule.customFields
+    • getBusinessPersonaAction → industry blurb for prompt context
+    • runSourceAdapter → raw text content
+    • extractItemsFromContent (Gemini 2.5 Flash w/ Zod-schema output)
+    → IngestResult { items, warnings, sourceLabel, processingTimeMs }
+
+(4) ReviewModal opens with the extracted items
+    • Users can inline-edit name and remove rows
+    • Confidence badge + low-confidence warning
+    • Approve → POST /api/relay/ai-ingest { action: 'save', items, … }
+
+(5) saveIngestedItemsAction:
+    • maps ExtractedItem → Partial<ModuleItem> (provenance under fields.__ingest)
+    • bulkCreateModuleItemsAction writes the batch
+    • revalidates /partner/relay/datamap + /partner/relay/modules
+```
+
+## Wired surfaces
+
+- `src/app/partner/(protected)/relay/modules/[slug]/page.tsx` —
+  empty-state CTA row now shows two buttons: **Let AI collect for you** (primary) and **Add manually** (outline). Instantiates `useAIIngest`; the module + item list refetch on successful save. `<IngestMount>` sits at the bottom of the JSX.
+
+Datamap integration (`/partner/relay/datamap`) intentionally stays in a follow-up PR — feature → module resolution logic there is non-trivial and this PR already touches 17 files.
+
+## Tradeoffs / adjustments from the spec
+
+- **ModuleFieldType** union is narrower than the spec assumed (`'radio'`, `'boolean'` don't exist). Schema-builder maps only the real types; unknowns degrade to `z.string()`.
+- **`extractPageTextFromPdf`** takes a **file path**, not a Buffer, and returns `{ success, text }`. PDF adapter writes to a `tmp` file and cleans up in `finally`.
+- **`scrapeWebsiteAction`** returns an `AutoFilledProfile` — the website adapter flattens the `knowledge.*` sub-trees into a labeled text blob rather than raw page content.
+- **Genkit `output`** is a property getter, not a method (the legacy `result.output()` in an older flow file is a pre-existing TS error). Engine reads `result.output` directly.
+- **`ModuleItem`** has no generic `metadata` slot; ingest provenance goes under `fields.__ingest` with `{ source, confidence, importedAt, preview }`. Consumers ignore it; the review modal hides any `__`-prefixed field from its preview row.
+- **Core Memory** docs live at `partners/{pid}/hubDocuments/{id}.extractedText` (not `documents` as the spec guessed). Confirmed by grepping `partnerhub-actions.ts`.
+
+## Verification
+
+- `npm run typecheck` — 400 errors, **identical** to the pre-change baseline. Zero new errors across all 17 new files.
+- Largest new file: `SourcePickerModal.tsx` (~260 lines). Everything else is 40–180 lines.
+
+## What remains open
+
+- **Datamap wire-in** — the `/partner/relay/datamap` page still has stub `onFileUpload` / `onUseMemory` / `onFetchApi` handlers. Future PR: compute the target module from the `mappedFeatures` entry + the block's `module` binding, then reuse the same hook.
+- **Images** — items don't yet get images. The website adapter has the page URLs but we don't parse `<img>`s or surface them into the review modal.
+- **Dedup** — no "item looks similar to an existing one" detection.
+- **Streaming** — extraction is single-shot (`ai.generate`). Gemini supports streaming; follow-up could surface items as they arrive.
+
+---
+
+# Datamap Design Upgrade — expandable items + inline AI flow
+
+Replaces the flat "needs your input" + separate `DataInputPanel` pattern with expandable cards that surface three choices (Upload / Core Memory / Let AI collect). Picking the AI option runs an inline state machine: `checking` → `found` (offer to connect an existing module) or `not_found` (generate prompts, let partner edit, then activate an AI-driven data-collection module). "Live now" rows are also expandable now, with a data-source / items-synced summary + a placeholder slot for a future UI preview.
+
+## Files (split for reviewability)
+
+### Types + theme + icons
+
+| File | Change |
+|---|---|
+| `src/app/partner/(protected)/relay/datamap/types.ts` | Appended `AIFlowState`, `MatchedModule`, `GeneratedPrompt`. |
+| `src/app/partner/(protected)/relay/datamap/constants.ts` | Added `greenBdr2` + `amberBdr2` darker-border tokens. |
+| `src/app/partner/(protected)/relay/datamap/components/inline-icon.tsx` | Added `chevronUp` / `chevronDown` / `edit` path data. |
+
+### Server actions (new)
+
+| File | Exports |
+|---|---|
+| `src/actions/content-studio-module-match.ts` | `matchExistingModuleAction(partnerId, moduleSlug)` — looks up `partners/{pid}/businessModules` by slug and returns a `MatchedModule` (name / itemCount / timestamps / first 5 field labels) if one already exists with items. |
+| `src/actions/content-studio-generate-prompts.ts` | `generateDataCollectionPromptsAction(partnerId, featureLabel, moduleSlug, partnerActionDescription)` — Gemini 2.5 Flash generates 2–5 short conversational prompts + a suggested module name derived from the feature label. |
+| `src/actions/content-studio-activate-collection.ts` | `activateAICollectionAction(partnerId, featureId, prompts, suggestedModuleName)` — creates a custom partner module under `businessModules` with `customFields` built from the prompts + writes a pointer at `partners/{pid}/relayConfig/aiCollectionPrompts[featureId]` so the chat agent can pick the prompts up later. |
+
+### UI components (new)
+
+| File | Purpose |
+|---|---|
+| `components/needs-input/format-relative.ts` | Pure "X days ago" helper. |
+| `components/needs-input/prompt-item.tsx` | One editable prompt row (edit-in-place / remove). |
+| `components/needs-input/ai-flow-panel.tsx` | The state machine. Kicks off the match + prompt-generation calls in parallel with the initial check; renders the matching-module card or the prompt builder depending on the result. |
+| `components/needs-input/needs-input-item.tsx` | Expandable amber card with the 3 option buttons + swap-in for the AI flow. |
+| `components/live-now/live-now-preview.tsx` | Two-card summary + source row + profile-fields list + "Displays in UI as" placeholder. |
+| `components/live-now/live-now-item.tsx` | Expandable green row rendering `LiveNowPreview` in the expanded state. |
+
+### UI components (rewritten)
+
+| File | Change |
+|---|---|
+| `components/feature-list.tsx` | Now a thin orchestrator — iterates `notReady` through `NeedsInputItem` and `ready` through `LiveNowItem`, holds only the single "active live row" selection. API changed from 5 legacy handlers to 4 new ones (`onUpload`, `onUseMemory`, `onConnectModule`, `onActivateAICollection`). |
+
+### Page wiring
+
+| File | Change |
+|---|---|
+| `src/app/partner/(protected)/relay/datamap/page.tsx` | New `ingestTarget` state + single `useAIIngest` instance; `resolveFeatureModule()` resolves a feature's `moduleSlug` to the partner module id via `getPartnerModulesAction`. New handlers `handleUpload`, `handleUseMemory`, `handleConnectModule`, `handleActivateAICollection` replace the stubs. `DataInputPanel` (still used on the empty-state screen) keeps its old 5-handler API via a `legacyInputHandlers` adapter. `<IngestMount>` mounts at the bottom of the page so the picker + review modals share a single instance. |
+
+## Behavior
+
+1. Partner clicks a "Needs your input" card → expands inline with 3 options.
+2. Option "Let AI collect for you" → AI flow panel takes over:
+   - Spinner while `matchExistingModuleAction` + `generateDataCollectionPromptsAction` race.
+   - If a matching module exists with items → **found**: card shows `{name, itemCount, updatedAt, first 5 fields}` + Connect / Create-new buttons.
+   - Otherwise → **not_found**: renders the generated prompts, each editable in place + a "Suggested module name" banner that links to `/partner/relay/modules`.
+3. "Connect this module" → parent `onConnectModule` callback fires, page refetches state.
+4. "Activate AI collection" → `activateAICollectionAction` writes the new custom module + registers the prompts, page refetches state.
+5. "Upload a document" and "Use Core Memory" routes reuse the existing `useAIIngest` picker/review modals from PR #126 (AI data collection).
+
+## Verification
+
+- `npm run typecheck`: 400 errors — identical to the pre-change baseline. No new errors across 10 new files + 4 modified files.
+- File sizes stay modest: biggest new file is `ai-flow-panel.tsx` at ~310 lines; everything else 40–220 lines.
+
+## Deliberately out of scope (follow-up PR)
+
+- **Test Chat wiring** (Tasks 4 + 5 from the original prompt). Threading `BlockCallbacks` through `TestChatBlockPreview` + wiring `useRelaySession` / `useRelayCheckout` into `/partner/relay` so the phone preview drives the production commerce flow. Kept separate because it touches 4 different files across the test-chat surface and would make this PR non-reviewable.
+- **UI preview placeholder** on `LiveNowPreview` currently says "Preview available in Test Chat →". A later PR can render a mini `RegisteredBlock` in that slot once the test-chat-preview wiring lands.
+- **Prompt answer handling in chat** — activating an AI collection writes the config, but the chat route doesn't yet pick it up to actually ask the prompts. Needs a handler inside `/api/relay/chat/route.ts` that checks `relayConfig/aiCollectionPrompts` when the matching feature intent fires.
+- **Dedupe on activation** — re-running activation on the same feature currently creates a second custom module. Future PR should check `featureId` on the existing config doc and update in place.
+
+---
+
+# Flow-driven Test Chat wiring
+
+Makes `/partner/relay` Test Chat render what's actually configured in `/admin/relay/flows`, with real interaction callbacks. Closes three distinct gaps that PR #124 / #127 left open.
+
+## What changed
+
+### The three root causes
+
+1. **`TestChatBlockPreview` always routed to the admin preview registry.** Interactive blocks (`cart`, `product_card`, `ecom_checkout`, …) came through but `onAddToCart` / `onCheckout` etc. were dropped because the admin preview components don't accept `BlockCallbacks`.
+2. **`/api/relay/chat` ignored `flowDecision.suggestedBlockTypes`.** Gemini's catalog was always the function-level list, so it could emit blocks the admin-configured flow explicitly excluded for the current stage.
+3. **Test Chat opened empty.** The live widget's `greeting`-stage blocks never auto-rendered, so partner testing missed the actual first impression.
+
+### Fixes
+
+| File | Change |
+|---|---|
+| `src/lib/relay/flow-to-blocks.ts` (NEW) | `allowedBlocksFromFlow` / `isBlockAllowedByFlow` / `getEntryStage` / `findStageById` — pure helpers. The engine's `suggestedBlockTypes` win; union-of-all-stages is the second preference; empty allow-list means "use the function catalog". |
+| `src/app/api/relay/chat/route.ts` | Hoisted `flowDef` out of the inner try block so it's visible to both the catalog filter and the response builder. Gemini's catalog is now filtered through `allowedBlocksFromFlow(flowDecision, flowDef)`. Response `flowMeta` now carries `stageId` + `stageLabel` so the UI can track transitions. |
+| `src/app/api/relay/chat/seed/route.ts` (NEW) | POST `{ partnerId }` → returns the entry stage's blocks as `seedMessages[]`. Reuses the same module-loading loop the chat route uses so `buildBlockData` gets real partner data. |
+| `src/components/partner/relay/test-chat/TestChatBlockPreview.tsx` | REWRITE. Interactive blocks (cart / product / booking / order-confirmation / order-tracker) route through the production `BlockRenderer` with live `BlockCallbacks`. Design-only blocks continue through the admin preview registry. `RENDERER_TYPE_MAP` translates admin-registry ids (`ecom_cart`, `product_card`, …) to the `type` union `BlockRenderer` switches on. |
+| `TestChatMessages.tsx` | Accepts `callbacks` + threads it into every `<TestChatBlockPreview>`. `TestChatMessage` gains optional `stageId`. |
+| `TestChatPanel.tsx` | Accepts `callbacks` + `currentStageLabel`, passes through. |
+| `TestChatHeader.tsx` | Displays `Stage · <label>` in the subtitle when a stage is known; keeps the static "Test Chat" otherwise. |
+| `TestChatFlowPanel.tsx` (NEW) | Debug panel shown below the phone frame — stage / lead temp / interaction count / first five suggested block ids + a link back to `/admin/relay/flows`. |
+| `src/app/partner/(protected)/relay/page.tsx` | Mounts `useRelaySession` + `useRelayCheckout`; builds a `sessionCallbacks` object exposing every cart / booking / checkout handler plus the live cart snapshot. A new `useEffect` calls `/api/relay/chat/seed` on mount (and again after Clear) and feeds the returned blocks into `chatMessages`. `sendChatMessage` stores `data.flowMeta` so the header + debug panel reflect the current stage. `<CheckoutFlow>` is mounted at the root and opens when any block triggers `onCheckout`. |
+
+## Runtime loop after this PR
+
+```
+Test Chat opens
+  ↓ POST /api/relay/chat/seed
+Entry stage blocks (greeting / suggestions) render via
+  TestChatBlockPreview → BlockRenderer for interactive, admin preview otherwise
+
+User sends "show me products"
+  ↓ POST /api/relay/chat
+  ↓ runFlowEngine → { currentStageId: 'discovery',
+                       suggestedBlockTypes: ['product_card', 'suggestions'] }
+  ↓ Gemini catalog = function catalog ∩ suggestedBlockTypes
+  ↓ blockId validated against that intersection
+Response { blockId: 'product_card', blockData, flowMeta }
   ↓
-query-parser.parseQuery()                           [<5ms]
-  → { category: "sarees", priceMax: 5000, keywords: ["silk"], sortBy: null }
+Bubble mounts BlockRenderer with sessionCallbacks
   ↓
-intent-engine.classifyIntent()                      [<5ms]
-  → { type: "browse", confidence: 0.75, filters: { ... } }
+"Add to cart" → onAddToCart → useRelaySession → Firestore write under
+  relaySessions/{partnerId}_{conversationId}
   ↓
-block-resolver.resolveBlock()                       [<20ms]
-  → cache.filterItems({ category: "sarees", priceMax: 5000 })
-  → 3 items matched
-  → { blockId: "ecom_product_card", data: { items: [...] }, confidence: 0.9 }
+Cart block renders with live items; clicking Checkout opens CheckoutFlow overlay
   ↓
-TOTAL: <30ms, ZERO network calls
+Order created → handleOrderCreated injects an ecom_order_confirmation
+  message into chat with the real order.
 ```
 
-## Intent Types Supported (15)
-| Intent | Block | Trigger Example |
-|--------|-------|-----------------|
-| greeting | ecom_greeting | "hi", "hello" |
-| browse | ecom_product_card | "show me kurtas" |
-| search | ecom_product_card | "blue cotton under 2000" |
-| product_detail | ecom_product_detail | "tell me about the silk saree" |
-| compare | ecom_compare | "compare kurta vs anarkali" |
-| price_check | ecom_product_detail | "how much is the choker set" |
-| cart_view | ecom_cart | "show my cart" |
-| cart_add | (no block) | "add to bag" — handled by UI |
-| checkout | ecom_cart | "ready to checkout" |
-| order_status | ecom_order_tracker | "track my order #PBX-123" |
-| return_request | (no block) | "want to return" — RAG text |
-| promo_inquiry | ecom_promo | "any discounts?" |
-| contact | shared_contact | "how to contact you" |
-| support | shared_contact | "need help with..." |
-| general | (no block) | everything else → RAG text only |
+## Verification
 
-## Query Parser Capabilities
-- Price: "under 2000", "₹500-1000", "above $50", "budget 3k"
-- Category: matches against known categories from session cache
-- Keywords: extracts after removing stop words, prices, categories
-- Sort: "cheapest", "top rated", "newest", "trending"
-- Product reference: searches cache for matching item by name
-- Quantity: "2 pcs", "3 items"
+- `npm run typecheck` — 400 errors, identical to baseline. Zero new errors across 3 new files + 6 modifications.
+- File sizes stay modest; largest new file is `TestChatFlowPanel.tsx` at ~130 lines.
 
-## API Mismatches Resolved (12)
-The spec code referenced methods/fields that didn't exist in Phase 2's implementation:
-- Extended `session-cache.ts` with: `getItem()`, `getItemCount()`, `getCategories()`, `hasRag()`, scored `searchItems(query, limit)`, object-param `filterItems(opts)`
-- Adapted spec code: `item.metadata` → `item.raw`, `item.keywords` → `item.tags`, `item.category` → `item.moduleSlug`, `item.currency` with `|| 'INR'` default
-- Added `welcomeMessage` to `SessionBrand` type + server action mapping
+## Still intentionally out of scope
 
-## Validation
-- [x] `npx tsc --noEmit` — PASSED (only pre-existing error in BusinessProfileTab.tsx)
-- [x] All 3 new files exist — PASSED
-- [x] All functions are synchronous — PASSED
-- [x] No server/client directives — PASSED
-- [x] No network imports — PASSED
-
-## Honesty Check
-- Spec said "3 new files, 0 modified files" but code referenced 12 non-existent APIs — had to extend session-cache.ts, types.ts, and server action
-- `hasRag()` returns `items.length > 0` — no separate RAG flag in session data
-- `getCategories()` returns unique `moduleSlug` values + `raw.category` values — items have no dedicated `category` field
-- `INTENT_TO_BLOCK` map is defined but not used (resolveBlock uses switch instead) — kept for documentation/future use
-- Compare intent requires 2+ matched items from cache, otherwise falls through to next pattern
-- Pre-existing TypeScript error in BusinessProfileTab.tsx unchanged
+- **Live widget seeding.** The public `/r/[partnerId]` widget already mounts `useRelaySession`; applying the same flow-entry seed to it is a follow-up PR.
+- **Per-bubble stage overlay.** Messages carry `stageId` but no per-bubble debug marker yet.
+- **Flow-aware validation on the client.** We rely on the server to enforce `allowedBlocksFromFlow`; the client trusts whatever `blockId` comes back.
+- **Admin preview component callbacks.** Design-only admin previews stay static — they're for design review, not interaction.
 
 ---
 
-# Phase 4 — RAG Enhancement (Block-Aware Relay AI) — DONE
+# Relay Orchestrator — unified intelligence stack
 
-## Date: 2026-04-04
+Folds all five intelligence signals (flow, partner block prefs, datamap readiness, commerce session, RAG) into a single composable layer under `src/lib/relay/orchestrator/`. Gemini becomes a copywriter + classifier inside a tight policy box — the orchestrator owns the allow-list.
 
-## Files Created
-- `src/lib/relay/rag-context-builder.ts` — Builds minimal AI prompt from session data + block context
-- `src/actions/relay-rag-actions.ts` — Server action calling Gemini with two paths (fast + document)
+## 12 new files + 2 modifications
 
-## Two Response Paths
+### Orchestrator core (`src/lib/relay/orchestrator/`)
 
-### Fast Path: `generateRelayResponseAction`
-- Used when: A block is displayed (browse, detail, compare, cart, etc.)
-- Context: ~1500 tokens (brand + business context + block summary + history)
-- Output: ~200 tokens (1-3 sentence commentary + follow-ups)
-- Model: gemini-2.5-flash (configurable via RELAY_AI_MODEL env var)
-- Target latency: 800-1200ms
+| File | Role |
+|---|---|
+| `types.ts` | Shared shapes: `OrchestratorContext` / `SignalBundle` / `PolicyDecision` / `OrchestratorResponse`. No I/O. |
+| `signals/partner.ts` | Partner doc + top-10 modules + items — reused by `buildBlockData`. |
+| `signals/flow.ts` | Loads saved flow state or creates one; resolves `FlowDefinition` (partner override → function template); runs `detectIntent` + `runFlowEngine`; returns stage + `suggestedBlockIds`. |
+| `signals/blocks.ts` | Loads partner block prefs from `partners/{pid}/relayConfig/*`. Empty subcollection ⇒ permissive downstream. |
+| `signals/datamap.ts` | Reads `partners/{pid}/contentStudio/state` and buckets `blockStates` into `ready` vs `dark`. |
+| `signals/session.ts` | Live cart / booking holds from `relaySessions/{pid}_{cid}` + recent orders via `getOrdersForConversationAction`. |
+| `signals/rag.ts` | Top-k Firestore retrieval via `firestoreRetriever(RAGINDEX_COLLECTION_NAME)` with `where: { partnerId }`. Only fires on factual intents (`inquiry` / `complaint` / `returning` / `location` / `contact`) or hard cue keywords; transactional intents skip to save tokens. |
+| `signals/index.ts` | Barrel. |
+| `policy.ts` | Pure — `resolveAllowedBlocks` (flow ∩ partner-visible ∩ ¬dark), `applyCommerceBias` (cart / booking / order boosts), `decidePath` (`rag_only` / `block_only` / `block_with_rag` / `fallback`), `buildPolicyDecision`. |
+| `prompt.ts` | Assembles system prompt from persona + flow stage + session state + RAG chunks + filtered block catalog (via existing `buildBlockCatalogPrompt`) + response contract. |
+| `index.ts` | `orchestrate(ctx)` entry point. Partner signal first → four signals in parallel → RAG (needs intent from flow) → policy → prompt → Gemini → validate → blockData. |
 
-### Document Path: `generateRelayResponseWithDocsAction`
-- Used when: No block is shown (general/policy questions)
-- Context: Customer message + conversation history + vault documents via file search
-- Output: ~300 tokens (document-grounded answer + follow-ups)
-- Falls back to fast path if no RAG store is available
+### Chat route + UI
 
-## Context Budget Comparison
-```
-Existing Inbox RAG:                    Relay RAG (fast path):
-  System prompt:    ~500 tokens          System prompt:    ~200 tokens
-  Business persona: ~400 tokens          Brand summary:    ~50 tokens
-  ALL module items: ~2000 tokens         Block summary:    ~50 tokens (what's SHOWN)
-  History:          ~800 tokens          Business context: ~200 tokens (truncated)
-  RAG docs:         ~1000 tokens          History:          ~300 tokens (last 6)
-  Total:            ~4700 tokens          Total:            ~800 tokens
-  Output:           ~500 tokens          Output:           ~200 tokens
-  Latency:          2-3.5 seconds         Latency:          0.8-1.2 seconds
-```
+| File | Change |
+|---|---|
+| `src/app/api/relay/chat/route.ts` | REWRITE as ~130-line HTTP adapter. Resolves `partnerId` from the widget, calls `orchestrate()`, persists the turn + updated flow state non-blocking, returns the legacy response shape plus an additive `signals` field. |
+| `src/components/partner/relay/test-chat/TestChatSignalsPanel.tsx` (NEW) | Debug panel below the phone frame showing flow + RAG + session + allowed/rejected blocks + composition path. Links back to `/admin/relay/flows`, `/partner/relay/blocks`, `/partner/relay/datamap`. |
+| `src/app/partner/(protected)/relay/page.tsx` | Tracks `signals` on every response; passes through to `<TestChatSignalsPanel>`; clears on Clear. |
 
-## Block-Aware Prompt Design
-The AI receives a one-line summary of what the customer sees:
-- "The customer sees 4 products: Block Print Kurta, Mirror Work Anarkali... (₹2,800 - ₹5,200)"
-- "The customer sees the detail view of 'Block Print Kurta Set' at ₹2,800, rated 4.2/5"
-- "The shopping cart shows 2 items totaling ₹7,000. Checkout button is visible."
-
-## API Fixes Applied
-- `tools` moved inside `config` (not top-level) per new `@google/genai` SDK pattern
-- `contents` uses plain string (not `[{role, parts}]` object) per new SDK
-- `systemInstruction` as string in `config` per codebase convention
-- `response.text` as property access (not method call)
-- `fileSearch` config uses `any` type matching `rag-query-engine.ts` pattern
-- `responseMimeType: 'application/json'` for structured JSON output
-
-## Validation
-- [x] `npx tsc --noEmit` — PASSED (only pre-existing error in BusinessProfileTab.tsx)
-- [x] Both files exist — PASSED
-- [x] Context builder has no network imports — PASSED
-- [x] Server action has 'use server' — PASSED
-- [x] Imports from existing codebase resolve — PASSED
-
-## Honesty Check
-- Adapted Gemini API calls from spec to match codebase's new SDK patterns (tools inside config, string contents, property text access)
-- `getCoreHubContextString` import resolves correctly from `./core-hub-actions`
-- fileSearch tools API uses `any` cast for `fileSearchConfig` matching existing pattern in `rag-query-engine.ts`
-- Business context truncated to 800 chars to keep total prompt under ~1500 tokens
-- Pre-existing TypeScript error in BusinessProfileTab.tsx unchanged
-
----
-
-# Phase 5 — Block Builder + Admin UI — DONE
-
-## Date: 2026-04-04
-
-## Files Created
-- `src/actions/block-builder-actions.ts` — Server actions: list registry, block details, generate from prompt, export registry, derive schema
-- `src/app/admin/relay/blocks/page.tsx` — Admin Block Library page (replaced old BlockGallery page, backup at page.tsx.bak)
-
-## Server Action Inventory
-| Action | Purpose |
-|--------|---------|
-| `getRegisteredBlocksAction(filters?)` | List all blocks from code registry with family/category filters |
-| `getBlockDetailAction(blockId)` | Full definition + computed data contract for one block |
-| `getBlockSampleDataAction(blockId)` | Sample data for block preview |
-| `getDerivedSchemaAction(blockIds[])` | Compute merged module schema from selected blocks |
-| `generateBlockFromPromptAction(prompt, vertical)` | AI generates React component + BlockDefinition from natural language |
-| `exportBlockRegistryAction()` | Full registry export for debugging/analysis |
-
-## Admin Page Features
-- Block grid with family icon, color, label, description
-- Filter by family (navigation, catalog, detail, compare, etc.)
-- Text search across block labels, IDs, descriptions
-- Expandable detail: categories, variants, required/optional fields, intent triggers
-- Block Builder: enter prompt + select vertical -> AI generates .tsx code -> copy to clipboard
-- Inline styles throughout (no Tailwind dependency)
-
-## Block Builder Flow
-1. Admin clicks "Generate Block" -> Selects vertical (ecommerce, hospitality, etc.)
-2. Describes the block in natural language
-3. Gemini generates full .tsx file with BlockDefinition export + default component
-4. Admin reviews generated code in the UI, copies with one click
-5. Admin creates file in src/lib/relay/blocks/ and registers in blocks/index.ts
-6. Generated blocks are NOT auto-saved — human review required
-
-## Validation
-- [x] `npx tsc --noEmit` — PASSED (only pre-existing error in BusinessProfileTab.tsx)
-- [x] Both files exist — PASSED
-- [x] Server action has 'use server' — PASSED
-- [x] Admin page has 'use client' — PASSED
-- [x] Page imports server actions correctly — PASSED
-
-## Honesty Check
-- Old page.tsx backed up to page.tsx.bak before overwriting (was server component importing BlockGallery)
-- BlockGallery.tsx still exists but is now unused (only imported by old page.tsx)
-- Server action imports `registerAllBlocks` from blocks/index.ts which imports 'use client' components — works in Next.js (stores component references, doesn't render them)
-- Registry initialization uses lazy `ensureRegistry()` pattern to avoid startup overhead
-- Pre-existing TypeScript error in BusinessProfileTab.tsx unchanged
-
----
-
-# Phase 6 — Module Derivation from Block Data Contracts — DONE
-
-## Date: 2026-04-04
-
-## Files Created
-- `src/actions/module-derivation-actions.ts` — 5 server actions for deriving module schemas from block data contracts
-
-## Files Modified
-- (none)
-
-## Server Action Inventory
-| Action | Purpose |
-|--------|---------|
-| `deriveModuleSchemaAction(blockIds[])` | Merge data contracts from selected blocks → DerivedField[] with provenance |
-| `deriveSchemaForVerticalAction(verticalId)` | Auto-select all blocks for a vertical (+ shared) → derive schema |
-| `compareWithExistingModuleAction(moduleId, blockIds[])` | Diff: current module schema vs block-derived schema (added/removed/unchanged/modified) |
-| `applyDerivedSchemaAction(moduleId, fields, options)` | Apply derived fields to existing module (add_only or full_replace, keep orphaned fields) |
-| `getFieldProvenanceAction(blockIds[])` | Which blocks need which fields (for admin transparency) |
-
-## Architecture: How Modules Are Now Derived
+## Runtime loop
 
 ```
-BEFORE (AI-driven, fragile):
-  Admin creates module → AI guesses schema → AI generates block → hope they match
-
-AFTER (block-driven, deterministic):
-  Blocks define data contracts (Phase 1)
-    ↓
-  computeDataContract(blockIds) merges contracts
-    ↓
-  deriveModuleSchemaAction converts to ModuleFieldDefinitions
-    ↓
-  compareWithExistingModule shows diff
-    ↓
-  Admin reviews → applyDerivedSchema updates module
-    ↓
-  Partner fills module items → Session cache loads items → Blocks render items
+POST /api/relay/chat
+  ↓ loadPartnerSignal (sequential — needed for functionId)
+  ↓ Promise.all(loadFlowSignal, loadBlocksSignal, loadDatamapSignal, loadSessionSignal)
+  ↓ loadRagSignal (needs intent from flow)
+  ↓ buildPolicyDecision
+    • allowed = flow.suggested ∩ partner-visible ∩ ¬datamap.dark
+    • boost cart/checkout if cart has items, tracker if orders, booking-confirm if hold
+    • decide compositionPath
+  ↓ buildSystemPrompt
+    • persona · stage · session state · RAG · filtered catalog · contract
+  ↓ Gemini (classifier + copywriter)
+  ↓ validate blockId ∈ allowed, build blockData
+  ↓ { blockId, blockData, text, suggestions, flowMeta, signals, updatedFlowState }
 ```
 
-## Key Design Decisions
-- DerivedField type is self-contained — does NOT import from @/lib/modules/types to avoid coupling
-- applyDerivedSchemaAction defaults to 'add_only' mode — never deletes fields without explicit opt-in
-- Orphaned fields (in current module but not needed by blocks) are KEPT by default — admin decides
-- Field type mapping: rating→number, images→tags, everything else maps 1:1
-- Smart display defaults: SEARCHABLE_TYPES, LIST_TYPES, CARD_TYPES sets determine field visibility
-- trackFieldProvenance helper reused across deriveModuleSchema and getFieldProvenance actions
-- deriveSchemaForVerticalAction includes 'shared' family blocks alongside vertical-specific blocks
-- Required fields sorted first, then optional — alphabetically within each group
+## Spec-vs-reality adjustments
 
-## Validation
-- [x] `npx tsc --noEmit` — PASSED (only pre-existing error in BusinessProfileTab.tsx)
-- [x] File exists — PASSED
-- [x] All 5 actions exported — PASSED
-- [x] No modification to existing module files — PASSED
-- [x] No circular imports — PASSED
-- [x] Pre-existing TypeScript error in BusinessProfileTab.tsx unchanged
+- **Paths**: partner block prefs live at `partners/{pid}/relayConfig/*` (used by `relay-block-actions.ts`), not `partners/{pid}/partnerModules/...` or a nested `blocks/entries`. Datamap state is `partners/{pid}/contentStudio/state` (not `relayConfig/contentStudioState`).
+- **RAG retriever**: `firestoreRetriever(RAGINDEX_COLLECTION_NAME)` is a function returning a retriever, options use `where` (not `filter`).
+- **`IntentSignal` union** is 12 literals: `browsing` / `comparing` / `pricing` / `booking` / `inquiry` / `complaint` / `returning` / `urgent` / `location` / `contact` / `promo` / `schedule`. The spec used `support` / `objection` / `purchase_ready` which don't exist — remapped to the real enum.
+- **`detectIntent`** returns an `IntentSignal` directly (string), not an object with `.type`.
+- **`buildBlockCatalogPrompt`** takes `ServerBlockData[]`, not string ids — the prompt resolves the full entries before calling it.
+- **Session booking hold** check: `session.booking.slots[]` with `status: 'tentative' | 'confirmed'`, not `session.booking.reservedSlot` as the spec assumed.
 
----
+## Verification
 
-# Phase 7 — Flow Composer (Block-Aware Enhancement) — DONE
+- `npm run typecheck`: 400 errors — identical to the pre-change baseline. Zero new errors across 12 new files + 2 modifications.
+- Largest file: `orchestrator/index.ts` at ~200 lines; every signal loader is 40–95 lines.
 
-## Date: 2026-04-04
+## Still out of scope (follow-ups)
 
-## Files Created
-- `src/actions/flow-composer-actions.ts` — 8 server actions for block-aware flow composition
-
-## Files Modified
-- (none — existing flow-engine-actions.ts untouched)
-
-## Server Action Inventory
-| Action | Purpose |
-|--------|---------|
-| `getFlowBlockConfigAction(templateId)` | Read block enhancement fields from existing flow template |
-| `saveFlowBlockConfigAction(templateId, config)` | Save homeScreen + stageBlocks + preloadBlocks + cacheStrategy |
-| `updateHomeScreenAction(templateId, homeScreen)` | Update homescreen sections (validates block IDs against registry) |
-| `updateStageBlocksAction(templateId, stageId, config)` | Set eligible blocks + intent mappings for a stage |
-| `getAvailableBlocksForFlowAction(verticalId?)` | List all blocks available for a vertical (includes shared blocks) |
-| `generateDefaultHomeScreenAction(verticalId)` | Auto-generate a default homescreen for e-commerce |
-| `publishFlowAction(templateId)` | Collect all block IDs → derive module schema → set status active |
-| `unpublishFlowAction(templateId)` | Set status back to draft |
-
-## Enhancement Architecture
-```
-EXISTING (untouched):                     NEW (additive):
-systemFlowTemplates                       systemFlowTemplates (same collection)
-  ├── id, name, status                      ├── (all existing fields preserved)
-  ├── stages[]                               ├── homeScreen: { layout, sections[] }
-  ├── industryId, functionId                 ├── stageBlocks: [{ stageId, eligibleBlocks[], intentMappings[] }]
-  ├── createdAt, updatedAt                   ├── preloadBlocks: string[]
-  └── ...                                    ├── cacheStrategy: 'aggressive' | 'moderate' | 'none'
-                                             ├── publishedAt
-                                             ├── publishedBlockIds: string[]
-                                             └── publishedFieldCount: number
-```
-
-## Key Design Decisions
-- Additive only — new fields on existing Firestore docs, old templates without these fields work fine
-- Block ID validation — updateHomeScreen and updateStageBlocks verify blocks exist in registry before saving
-- Publish triggers derivation but does NOT auto-apply schema — admin reviews via Phase 6 compare/apply
-- Existing flow-engine-actions.ts is NOT modified — flow composer is a parallel enhancement layer
-
-## Validation
-- [x] `npx tsc --noEmit` — PASSED (only pre-existing error in BusinessProfileTab.tsx)
-- [x] File exists — PASSED
-- [x] All 8 actions exported — PASSED
-- [x] Existing flow-engine-actions not modified — PASSED
-- [x] No circular imports — PASSED
-
----
-
-# Phase 8 — Partner Layer (Block Overrides + Customization) — DONE
-
-## Date: 2026-04-04
-
-## Files Created
-- `src/actions/relay-customization-actions.ts` — 9 server actions for partner block customization
-
-## Files Modified
-- (none — existing relay-partner-actions.ts and relay-storefront-actions.ts untouched)
-
-## Server Action Inventory
-| Action | Purpose |
-|--------|---------|
-| `getPartnerCustomizationAction(partnerId)` | Read block overrides + homescreen overrides |
-| `savePartnerCustomizationAction(partnerId, config)` | Save full customization doc |
-| `toggleBlockAction(partnerId, blockId, enabled)` | Enable/disable a specific block |
-| `setBlockFieldPriorityAction(partnerId, blockId, fields)` | Reorder which fields display first |
-| `setBlockLabelOverridesAction(partnerId, blockId, labels)` | Change CTA text, section titles |
-| `updateHomeScreenOverridesAction(partnerId, overrides)` | Reorder/hide homescreen sections |
-| `assignFlowToPartnerAction(partnerId, flowTemplateId)` | Link partner to a flow template |
-| `applyPartnerPromptAction(partnerId, prompt)` | Natural language → structured block overrides via Gemini |
-| `resetPartnerCustomizationAction(partnerId)` | Clear all customizations to defaults |
-
-## Storage Location
-`partners/{partnerId}/relayConfig/blockOverrides` — single Firestore doc containing blockOverrides map, homeScreenOverrides, flowTemplateId, updatedAt.
-
-## Key Design Decisions
-- Thin config layer — no component forking, blocks read overrides at render time
-- Natural language customization via Gemini — interprets prompts into structured field_priority/label_override/toggle/config changes
-- All block IDs validated against registry before saving
-- `adminDb` null check at top of applyPartnerPromptAction (before AI call) to avoid wasted API calls
-- Uses `{ merge: true }` on all writes — additive, never overwrites unrelated fields
-- Reset action deletes the entire blockOverrides doc — clean slate
-
-## Validation
-- [x] `npx tsc --noEmit` — PASSED (only pre-existing error in BusinessProfileTab.tsx)
-- [x] File exists — PASSED
-- [x] All 9 actions exported — PASSED
-- [x] Existing partner files not modified — PASSED
-
----
-
-# Phase 9 — Widget Runtime — DONE
-
-## Date: 2026-04-04
-
-## Files Created
-- `src/components/relay/RegistryBlockRenderer.tsx` — Registry lookup + render any block by ID
-- `src/components/relay/HomeScreenRenderer.tsx` — Bento grid from preloaded blocks
-- `src/components/relay/ChatInterface.tsx` — Conversation view with blocks + AI text + suggestion chips
-- `src/components/relay/RelayWidget.tsx` — Top-level container: session init + tab switching
-
-## Files Modified
-- (none — existing RelayFullPage.tsx and blocks/BlockRenderer.tsx untouched)
-
-## Runtime Pipeline
-```
-Page Load (partnername.pingbox.io):
-  → RelayWidget mounts with partnerId
-  → loadRelaySessionAction(partnerId)               [~500ms, 6 parallel Firestore queries]
-  → buildRelaySession(data) + resolvePreloadData()   [<20ms, build cache + pre-resolve blocks]
-  → Render HomeScreen with preloaded blocks           [instant]
-  → Widget is interactive
-
-User Types / Taps:
-  → classifyIntent(message, cache)                   [<5ms, synchronous]
-  → resolveBlock(intent, cache)                      [<20ms, synchronous]
-  → RegistryBlockRenderer renders block immediately   [<50ms total]
-  → IN PARALLEL: generateRelayResponseAction(...)    [~1000ms]
-  → AI text merges into the assistant message
-  → Follow-up chips appear below
-```
-
-## Component Architecture
-```
-RelayWidget (container)
-  ├── Header (brand name + avatar + Browse/Chat tabs)
-  ├── HomeScreenRenderer (browse-first view)
-  │     └── RegistryBlockRenderer × N (one per preloaded block)
-  └── ChatInterface (conversation view)
-        ├── Message bubbles
-        │     ├── Customer bubble (accent, right-aligned)
-        │     └── Assistant bubble (left-aligned)
-        │           ├── RegistryBlockRenderer (if block resolved)
-        │           ├── AI text (if RAG responded)
-        │           └── Suggestion chips (tappable)
-        ├── Loading indicator
-        └── Input bar (text field + send button)
-```
-
-## Key Adaptations from Spec
-- Named `RegistryBlockRenderer` to avoid conflict with existing `blocks/BlockRenderer.tsx`
-- Used `loadRelaySessionAction` (not `initRelaySessionAction`) — matched actual export
-- `buildRelaySession()` returns `RelaySessionCache`, not `{ cache, preloadedBlocks }` — called `resolvePreloadData()` separately
-- Built theme manually from `DEFAULT_THEME` + `brand.accentColor` — no `getTheme()` on cache
-- `findLastIndex` works fine with `lib: ["esnext"]` in tsconfig
-- Used `className="animate-spin"` on Loader2 (Tailwind utility available in existing codebase for lucide icons)
-
-## Validation
-- [x] `npx tsc --noEmit` — PASSED (only pre-existing error in BusinessProfileTab.tsx)
-- [x] All 4 component files exist — PASSED
-- [x] All components are 'use client' — PASSED
-- [x] No direct Firestore imports in components — PASSED
-- [x] Import chain connects all phases — PASSED
-
-## Flow Builder — Prompt 1 (Types + Canvas)
-- Date: 2026-04-06
-- Files created:
-  - `src/app/admin/relay/flows/flow-builder-types.ts` (86 lines)
-  - `src/app/admin/relay/flows/FlowCanvas.tsx` (219 lines)
-- Files modified: none
-- tsc --noEmit: PASS (only pre-existing TS5101 baseUrl deprecation warning)
-- Notes: none — all spec requirements met
-
-## Flow Builder — Prompt 2 (StagePanel + FlowBuilder + page.tsx)
-- Date: 2026-04-06
-- Files created:
-  - `src/app/admin/relay/flows/StagePanel.tsx` (~190 lines, 'use client')
-  - `src/app/admin/relay/flows/FlowBuilder.tsx` (~217 lines, 'use client')
-- Files modified:
-  - `src/app/admin/relay/flows/page.tsx` — replaced 972-line 'use client' page with lean server component (34 lines)
-- Key mapping: FlowStage(label/blockTypes) ↔ FlowBuilderStage(name/blockIds)
-- tsc --noEmit: PASS (only pre-existing TS5101 baseUrl deprecation warning)
-- Verification: no className usage, correct client/server directives, zero new type errors
-
-## Flow Builder — Prompt 3 (Dashboard Integration + Validation)
-- Date: 2026-04-06
-- Files modified:
-  - `src/app/admin/relay/page.tsx` — added getSystemFlowTemplatesFromDB call, passes initialFlowTemplate prop
-  - `src/app/admin/relay/RelayDashboard.tsx` — STAGES/TRANSITIONS derived from Firestore prop with fallback to DEFAULT_STAGES/DEFAULT_TRANSITIONS, added flow builder link in flows tab
-  - `src/actions/flow-engine-actions.ts` — added block registry validation to create/update template actions
-- tsc --noEmit: PASS (only pre-existing TS5101 baseUrl deprecation warning)
-- Notes: Field mapping label→name, blockTypes→blockIds handled in page.tsx server component; FLOW_STAGE_STYLES imported for stage colors; dynamic import of ALL_BLOCKS in validation to avoid client bundle in server actions
-
-## Flow Builder — Prompt 4 (Registry Sync + Chat API Block Status)
-- Date: 2026-04-06
-- Files modified:
-  - `src/actions/relay-admin-actions.ts` — seedDefaultBlocksAction now uses ALL_BLOCKS from preview registry via dynamic import instead of buildAllBlockConfigs(); skips existing blocks to preserve admin toggles; added syncRegistryToFirestoreAction that adds new blocks and marks removed as deprecated
-  - `src/app/api/relay/chat/route.ts` — removed stale RELAY_BLOCK_SCHEMAS import and fallback; chat API already respected Firestore block status via getActiveBlocksForPartner() filter
-- tsc --noEmit: PASS (only pre-existing TS5101 baseUrl deprecation warning)
-- Notes: getActiveBlocksForPartner already filters status!=='active' (block-config-service.ts:115), so disabled blocks were already excluded from chat. The RELAY_BLOCK_SCHEMAS fallback was stale (~11 blocks vs 53+ in registry) and replaced with empty string
-
-## Flow Builder — Prompt 5 (Flow Engine → Chat API Wiring)
-- Date: 2026-04-06
-- Path taken: A — flow engine was already fully wired in the chat route
-- Files modified:
-  - `src/app/api/relay/chat/route.ts` — confirmed fully wired: loads/creates flow state, calls detectIntent + runFlowEngine, injects contextForAI into Gemini prompt, persists updated state, returns flowMeta in response. No changes needed.
-  - `src/actions/relay-partner-actions.ts` — added autoAssignFlowTemplateAction: auto-assigns a system flow template to a partner based on industry/function matching; does not overwrite existing flows
-- tsc --noEmit: PASS (only pre-existing TS5101 baseUrl deprecation warning)
-- Flow engine status: fully wired
-- Notes: Chat route already had complete flow engine integration (state loading, intent detection, flow resolution with partner→system template fallback, engine execution, prompt injection, state persistence, flowMeta response). Only addition was the autoAssignFlowTemplateAction for automatic template matching by functionId/industryId.
-
-## Modules — Prompt 6 (Auto-Derive + Export)
-- Date: 2026-04-06
-- Files modified:
-  - `src/actions/modules-actions.ts` — exported getPartnerModuleByIdAction; added deriveModulesFromRegistryAction (scans ALL_BLOCKS for module bindings, creates missing system modules via createSystemModuleAction with proper ModuleFieldDefinition/SystemModuleSettings types); added exportModuleItemsAction (exports partner items to CSV with fixed + dynamic columns, proper CSV escaping)
-  - `src/app/partner/(protected)/modules/[slug]/page.tsx` — added Export CSV button next to Import button with download handler
-  - `src/components/admin/modules/ModulesList.tsx` — added "Derive from Blocks" button with toast feedback showing created/skipped/errors
-- tsc --noEmit: PASS (only pre-existing TS5101 baseUrl deprecation warning)
-- Module slugs found in registry: `moduleItems` (only slug used across all block verticals)
-- Notes: All blocks use `module: 'moduleItems'` or `module: null`. Schema fields adapted to real ModuleFieldDefinition interface (isRequired/isSearchable/showInList/showInCard, not required/searchable/showInDetail). SystemModuleSettings uses DEFAULT_MODULE_SETTINGS spread. ModuleAgentConfig.inboxContext is string type. getPartnerModuleByIdAction was internal-only — now exported for use by exportModuleItemsAction.
-
-## Partner Relay — Prompt 7 (New Block System Wiring)
-- Date: 2026-04-06
-- Files modified:
-  - `src/app/api/relay/chat/route.ts` — added imports for RelaySessionCache, classifyIntent, resolveBlock; builds RelaySessionData from already-loaded partnerData + moduleConfigs (brand from businessPersona.identity, contact from identity, items from moduleConfigs flatMap); constructs RelaySessionCache, runs classifyIntent→resolveBlock pipeline after Gemini response; merges blockId/blockData/blockVariant into parsed response when confidence >= 0.6; entire block is try/catch so failures fall back silently to Gemini-only mode
-  - `src/app/partner/(protected)/relay/page.tsx` — added RegistryBlockRenderer + BlockTheme imports; added relayThemeToBlockTheme() mapper (RelayTheme 29 fields → BlockTheme 18 fields, maps text→t1, bdrL→bdrM, hardcodes redBg/amber/amberBg); extended ChatMessage with blockId/blockData/blockVariant; updated sendChatMessage to capture new fields; three-tier rendering: RegistryBlockRenderer (new) → BlockRenderer (old fallback) → plain text; added blockId diagnostic badge
-- tsc --noEmit: PASS (only pre-existing TS5101 baseUrl deprecation warning)
-- Notes: RelaySessionCache constructed via `new RelaySessionCache(data)` (not static factory). blocks/blockOverrides set to empty arrays (not needed by intent engine or block resolver). Response includes BOTH old format (type/items) and new format (blockId/blockData) for backward compatibility with embeddable widget. Theme types are incompatible (RelayTheme vs BlockTheme) — solved with mapping function at call site, no modifications to RegistryBlockRenderer.
-
-## Partner Relay — Prompt 8 (Block Pipeline Debug + Fix)
-- Date: 2026-04-06
-- Root cause: Two issues — (1) intent/resolve returns blockId: null with confidence 0.3-0.5 for most queries when partner has no items (browse/search/general all fail the 0.6 threshold), only greeting (0.95), promo (0.7), and contact-with-data (0.8) pass; (2) old Gemini JSON schema format (brand.name, methods[], promos[], features/specs) doesn't match what new block components expect (flat brandName, whatsapp/phone/email, title/subtitle, tags/imageUrl)
-- Files modified:
-  - `src/app/api/relay/chat/route.ts` — added diagnostic logging with `[Relay Block Pipeline]` prefix showing intent type/confidence, resolution blockId/confidence/source/itemsUsed, cache item count; added hybrid Gemini-type-to-blockId fallback mapping (GEMINI_TYPE_TO_BLOCK) that activates when intent/resolve doesn't produce a blockId — maps catalog→ecom_product_card, greeting→ecom_greeting, contact→shared_contact, promo→ecom_promo with per-type data transformations (brand.name→brandName, methods[]→flat fields, promos[0]→flat fields, items[] field remapping); compare NOT mapped (data transformation too complex, falls through to old BlockRenderer)
-- tsc --noEmit: PASS (only pre-existing TS5101 baseUrl deprecation warning)
-- Test expectations:
-  - "hello" → ecom_greeting via intent/resolve (confidence 0.95) or via hybrid (Gemini type: 'greeting')
-  - "show me products" with items → ecom_product_card via intent/resolve
-  - "show me products" without items → ecom_product_card via hybrid mapping (Gemini type: 'catalog')
-  - "contact us" → shared_contact via intent/resolve or hybrid
-  - "compare X vs Y" → falls through to old BlockRenderer
-  - Generic question → old BlockRenderer or plain text
-- Notes: Diagnostic logging left in for development debugging (prefixed with [Relay Block Pipeline] for easy grep). Hybrid mapping is try/catch wrapped — failures fall back silently. No changes needed to relay page (three-tier rendering already correct from Prompt 7).
-
-## Partner Relay — Prompt 9 (Complete Block Rendering)
-- Date: 2026-04-06
-- Finding: BlockRenderer already handles ALL 17 block types with dedicated components (44 case labels). The 7 "missing" types (pricing, testimonials, quick_actions, schedule, promo, lead_capture, handoff) were already implemented with dedicated components (PricingTable, TestimonialCards, QuickActions, ScheduleView, PromoCard, LeadCapture, HandoffCard).
-- Root cause of rendering issue: The Prompt 8 hybrid mapping (GEMINI_TYPE_TO_BLOCK) was intercepting Gemini responses for 4 types (catalog, greeting, contact, promo) and routing them to RegistryBlockRenderer with fragile data transformations, bypassing the old BlockRenderer which already renders them correctly with the original Gemini data.
-- Fix: Removed the hybrid mapping entirely. Pipeline is now cleanly two-layered:
-  1. Intent/resolve pipeline → sets blockId/blockData when confident → RegistryBlockRenderer (tier 1)
-  2. Gemini response with type field → BlockRenderer handles all 17 types (tier 2)
-  3. No block → plain text (tier 3)
-- Files modified:
-  - `src/app/api/relay/chat/route.ts` — removed GEMINI_TYPE_TO_BLOCK hybrid fallback section (70 lines). Kept intent/resolve pipeline with diagnostic logging.
-- tsc --noEmit: PASS (only pre-existing TS5101 baseUrl deprecation warning)
-- Block types rendered: catalog, rooms, menu, products, services, listings, compare, activities, experiences, classes, treatments, book, reserve, appointment, inquiry, location, directions, contact, gallery, photos, info, faq, details, greeting, welcome, pricing, packages, plans, testimonials, reviews, quick_actions, menu_actions, schedule, timetable, slots, promo, offer, deal, lead_capture, form, inquiry_form, handoff, connect, human, text (44 case labels, 17 base types)
-
-## Partner Relay — Prompt 10 (Gemini-to-Registry Block Mapper)
-- Date: 2026-04-06
-- Files created:
-  - `src/app/partner/(protected)/relay/gemini-block-mapper.ts` — pure mapping function that transforms Gemini response format into registry block data format. Maps 14 Gemini type aliases to 6 registry block IDs with per-type data transformations.
-- Files modified:
-  - `src/app/partner/(protected)/relay/page.tsx` — imports mapper, calls mapGeminiToRegistryBlock on every API response to populate blockId/blockData for RegistryBlockRenderer; added suggestion chips as clickable buttons below new registry blocks; removed unused blockVariant from ChatMessage interface
-- Mapping coverage:
-  - catalog/products/rooms/menu/services/listings → ecom_product_card (reviewCount→reviews, features→tags, subtitle→description)
-  - compare → ecom_compare (items[].name → itemLabels[], compareFields × items → rows[][])
-  - greeting/welcome → ecom_greeting (brand.name→brandName, brand.tagline→tagline, text→welcomeMessage, brand.quickActions[].label→quickActions[] strings)
-  - contact → shared_contact (methods[] array → flat whatsapp/phone/email)
-  - promo/offer/deal → ecom_promo (promos[0] → flat title/subtitle/code/discount/ctaLabel)
-  - text → shared_suggestions (suggestions[] → items[])
-- Unmapped types (fall through to old BlockRenderer): activities, book, location, gallery, info, pricing, testimonials, quick_actions, schedule, lead_capture, handoff
-- Returns null (→ old BlockRenderer fallback) when: unknown type, no items for catalog, no rows for compare, no contact data
-- tsc --noEmit: PASS (only pre-existing TS5101 baseUrl deprecation warning)
-
-## Relay Pipeline Unification — 2026-04-13
-- Removed mapItemToProductData() hardcoded field mapper from src/lib/relay/block-resolver.ts
-- Replaced with mapItemWithAgentConfig() + resolveTemplate() that reads module agentConfig dynamically (cardTitle / cardSubtitle / cardPrice / cardImage / displayFields, with `{token}` interpolation)
-- Threaded agentConfigMap through resolveBlock() → resolveBrowse / resolveProductDetail / resolveBundle / resolveSubscription. Third arg defaulted to empty Map so client component (src/components/relay/ChatInterface.tsx) keeps compiling.
-- Updated src/lib/relay/rag-populator.ts buildSessionData() and populateBlock() to require agentConfigs map and use it for name / description / price / imageUrl resolution
-- Updated src/app/api/relay/chat/route.ts to capture agentConfig from the existing getSystemModuleAction loop and pass agentConfigMap into buildSessionData and populateBlock
-- Replaced hardcoded blockId switch in src/lib/relay/rag-context-builder.ts summarizeBlockContext() with shape-based detection (items array / name|title / brandName|welcomeMessage / contact). buildFollowUpPrompt() also de-hardcoded.
-- Deleted src/lib/relay-chat-schemas.ts (hardcoded RELAY_BLOCK_SCHEMAS); inlined a minimal text-only fallback string in src/lib/relay/block-config-service.ts so Firestore is now the only source for block schemas.
-- Added relayPipelineDiagnosticsAction() in src/actions/relay-actions.ts with 9 end-to-end checks (partner exists / business category / modules enabled / module items / system modules linked / agent configs / per-module relayBlockConfigs / active block schemas / relay config saved). Integrated into runRelayDiagnosticsAction so the admin Diagnostics tab shows pipeline health.
-- Single pipeline: admin → systemModules → relayBlockConfigs → partner/businessModules → agentConfig → Relay chat
-- Validation: grep "mapItemToProductData|RELAY_BLOCK_SCHEMAS|relay-chat-schemas" → 0 hits. tsc --noEmit: no new errors introduced (only pre-existing missing-deps + TS5101 baseUrl noise).
-
-Code execution completed
-
-## Relay Block Rendering Pipeline Fix — 2026-04-13
-- Gap 1: src/components/relay/RegistryBlockRenderer.tsx now primes the registry at module load (top-level ensureRegistry() call) AND as the first statement of the component body; Component state uses a lazy useState initializer so getBlock() resolves synchronously on first paint — eliminates the Loading... flash.
-- Gap 2: Aligned Firestore relayBlockConfigs doc IDs to the code registry IDs. Added CODE_REGISTRY_ID_MAP + mapToRegistryId() in src/actions/relay-admin-actions.ts. syncRegistryToFirestoreAction and seedDefaultBlocksAction now write prefixed IDs (ecom_*, shared_*) for greeting / product_card / product_detail / compare / cart / order_confirmation / order_tracker / promo / nudge / suggestions / contact. buildAllBlockConfigs also prefixes bare VERTICAL_MANIFEST IDs with their vertical slug (e.g. room_card → hosp_room_card) before remapping.
-- Also updated dead-code CORE_BLOCKS + DEFAULT_STAGES in src/actions/relay-admin-actions.ts for spec consistency, and expanded resolvePromptSchemaType idMap with prefixed keys so the schema type stays correct after remap.
-- Updated scripts/extract-block-registry-data.js SHARED_BLOCKS_DATA to use prefixed IDs so future regenerations of _registry-data.ts stay aligned.
-- Gap 3: Verified /api/relay/chat wiring — getActiveBlocksForPartner + buildBlockSchemasFromConfigs imported and used, blockSchemas inlined into Gemini systemPrompt, agentConfigMap threaded to buildSessionData + populateBlock. No changes needed.
-- Follow-up: a one-off admin sweep can migrate admin-managed fields (e.g. applicableCategories, status) from any short-id relayBlockConfigs docs to their prefixed counterparts and delete the dangling short-id docs. Not included in this PR for safety.
-- Validation: tsc diff vs baseline shows only line-number shifts; zero new errors. Greps confirm prefixed IDs in CORE_BLOCKS / CODE_REGISTRY_ID_MAP / DEFAULT_STAGES and ensureRegistry() at both module and component scope.
-
-Code execution completed
-
-## Content Studio — 2026-04-15
-
-Partner-facing page at `/partner/relay/datamap` that translates the Relay block registry for a partner's vertical into plain-English "what your AI can do / what data it needs / how to provide it" copy, plus an admin toggle page at `/admin/relay/api-config` controlling which third-party integrations (Shopify, Stripe, etc.) partners see as API data-source options.
-
-Phase 1 — Types (`src/lib/types-content-studio.ts`)
-- `ContentStudioBlockEntry`, `ContentStudioConfig`, `ApiIntegrationConfig`, `PartnerContentStudioState`, `DATA_SOURCE_OPTIONS` const.
-
-Phase 2 — Admin API integrations
-- `src/actions/admin-api-config-actions.ts` — `getApiIntegrationsAction`, `toggleApiIntegrationAction`, `seedApiIntegrationsAction`. Single Firestore doc `platformConfig/apiIntegrations` with a `configs` map.
-- Seed list: Shopify, WooCommerce, Stripe, Razorpay, Google Calendar, Cal.com, Custom REST — all `enabled: false` by default.
-- `src/app/admin/relay/api-config/page.tsx` — shadcn card grid with per-integration Switch, category Badge, optimistic toggle, seed-defaults button. Auth handled by existing `/admin` layout (`AdminAuthWrapper`).
-
-Phase 3 — Registry reader + Gemini generator
-- `src/lib/content-studio/verticals.ts` — canonical 15-vertical id list exported as a plain const (`'use server'` files can only export async fns in Next 15).
-- `src/lib/content-studio/registry-reader.ts` — server module that imports `ECOM_CONFIG` / `EDU_CONFIG` (the only vertical preview configs that exist today) plus 8 ecommerce + 14 education `definition` exports for data contracts. Missing verticals return a stub `{ blocks: [] }` so the partner page can render a graceful empty state.
-- `src/lib/content-studio/generator.ts` — calls Gemini (`gemini-2.5-flash`, temp 0.3, 4k tokens) with a UX-copywriter system prompt to produce `customerLabel` / `partnerAction` / `missReason` / `icon` / `templateColumns` / `priority` / `sourceType` / `autoConfigured` for each block. Falls back to deterministic copy (truncated desc, family-based icon/priority) on any Gemini failure or missing API key.
-
-Phase 4 — Storage + retrieval (`src/actions/content-studio-actions.ts`)
-- `getContentStudioConfigAction(verticalId)` — reads cache at `contentStudioConfigs/{verticalId}`; lazy-generates + writes on first read.
-- `regenerateContentStudioConfigAction(verticalId)` — force-regen + version bump, revalidates `/partner/relay/datamap`.
-- `regenerateAllContentStudioConfigsAction()` — iterates every vertical id.
-- `getPartnerContentStudioStateAction(partnerId)` — reads `partners/{pid}/contentStudio/state`, returns empty shell on miss.
-- `updatePartnerBlockStateAction(partnerId, blockId, update)` — merge-updates per-block provision state with `lastUpdatedAt`.
-- `getEnabledApiIntegrationsForPartnerAction(partnerId)` — fetches partner doc, resolves vertical from `industry.id` / `businessPersona.identity.industry` / `verticalId` / `functionId` with a `retail_commerce → ecommerce` alias map, filters integrations by `enabled && (applicableVerticals === 'all' || includes partner vertical)`.
-- `getPartnerVerticalIdAction(partnerId)` — companion helper used by the partner page to know which config to load.
-
-Phase 5 — Partner page (`src/app/partner/(protected)/relay/datamap/{page,layout}.tsx`)
-- Loads config + partner state + enabled integrations in parallel after resolving the partner's vertical.
-- Header with vertical icon, readiness percentage (non-auto blocks with `dataProvided`), sub-vertical pill filter, family-grouped expandable block cards.
-- Expanded card: customerLabel / partnerAction, amber miss-reason box, data contract table (red dot for required, gray for optional), "How to provide this data" grid with Upload / Core Memory / API / Manual tiles. API tile only renders when the partner has at least one enabled integration; Upload tile shows "Download template" when `templateColumns` exist (generates CSV client-side).
-- Empty state renders for stub verticals (13 of 15) until their preview configs are authored.
-
-Phase 6 — Navigation
-- `src/app/partner/(protected)/relay/layout.tsx` — sticky horizontal sub-nav: Overview / Content Studio / Cards / Conversations. Exact-match for `/partner/relay`, prefix-match for children.
-- `src/components/navigation/UnifiedPartnerSidebar.tsx` — added `Map` icon + "Content Studio" entry pointing at `/partner/relay/datamap`, plus a special-case in `isActiveRoute` so the existing Relay entry no longer highlights on the Content Studio sub-route.
-
-Validation
-- `npx tsc --noEmit` passes after every phase (only pre-existing TS5101 `baseUrl` warning remains).
-- Routes added: `/partner/relay/datamap`, `/admin/relay/api-config`.
-- Firestore collections touched: `platformConfig/apiIntegrations`, `contentStudioConfigs/{vid}`, `partners/{pid}/contentStudio/state`.
-
-## Content Studio — refresh from existing partner data — 2026-04-15
-
-Addendum: partners who set up before Content Studio shipped already had modules with items and populated profiles, but no `partners/{pid}/contentStudio/state` doc — so they saw 0% readiness on first visit. Added a refresh path that backfills block readiness by scanning existing modules + profile, wired to run automatically on first visit and exposed as a manual "Refresh status" button in the header. Split into two small modules to keep the AI/registry code paths untouched.
-
-- `src/lib/content-studio/detect-readiness.ts` — pure (no I/O) detection: given a `PartnerDataSnapshot` ({ hasProfile, moduleItemCounts }) and the Content Studio blocks, returns the block-state map that should be persisted. Handles auto-configured (always ready), profile-sourced (ready when any identity field is populated), and module-dependent (ready when any enabled module has items) blocks.
-- `src/actions/content-studio-refresh-actions.ts` — `refreshPartnerContentStudioStateAction(partnerId)`: resolves vertical, loads config (lazy-generates if needed), fetches partner doc + `getPartnerModulesAction` in parallel, runs `detectAllBlockReadiness`, merge-writes to `partners/{pid}/contentStudio/state` with `refreshedAt` timestamp, revalidates the page.
-- `src/app/partner/(protected)/relay/datamap/page.tsx` — added `RefreshCw` import, `refreshing` state, `reloadPartnerState` + `runRefresh` callbacks, a "Refresh status" button next to the readiness ring, and an auto-refresh branch in the initial loader that fires when `blockStates` is empty but the config has blocks (so existing partners see their real readiness without needing to click anything).
-
-Validation: `npx tsc --noEmit` clean.
-
+- **Streaming responses** — single shot today; Gemini streaming + signal-progress stream to UI is a follow-up.
+- **RAG chunk dedup** — adjacent chunks from the same doc both land in the prompt.
+- **Per-turn analytics writes** — signals are visible in Test Chat but not persisted to `partners/{pid}/relayAnalytics`.
+- **Partner-facing "why did you pick this block?"** — the debug panel exists for the partner surface; customer-facing chat gets only the block + text.
+- **Live widget signals UI** — the public `/r/[partnerId]` page uses the same endpoint so the orchestrator benefits apply, but the debug overlay is Test-Chat-only.
