@@ -35,6 +35,10 @@ import { getEngineHealth } from '@/actions/relay-health-actions';
 import type { Engine } from '@/lib/relay/engine-types';
 
 import { isServiceBreakFallback, CONTACT_BLOCK_ID } from './service-break';
+import {
+  ORDER_TRACKER_BLOCK_IDS,
+  loadOrderTrackerData,
+} from '@/lib/relay/commerce/order-tracker-data';
 
 const MODEL = 'gemini-2.5-flash';
 
@@ -282,13 +286,22 @@ export async function orchestrate(
           .slice(0, 4)
       : [];
 
-  const blockData = blockId
+  let blockData: Record<string, unknown> | undefined = blockId
     ? buildBlockData({
         blockId,
         partnerData: partner.partnerData as Record<string, unknown> | null,
         modules: partner.modules,
       })
     : undefined;
+
+  // P2.M03: order_tracker reads from partners/{pid}/orders, scoped to
+  // the resolved contactId. Kept separate from buildBlockData so its
+  // async Firestore read doesn't leak into the pure sync dispatch.
+  if (blockId && ORDER_TRACKER_BLOCK_IDS.has(blockId)) {
+    const contactId = session.session?.identity?.contactId ?? null;
+    const trackerData = await loadOrderTrackerData(ctx.partnerId, contactId);
+    blockData = trackerData as unknown as Record<string, unknown>;
+  }
 
   // 9. Telemetry — mandatory structured per-turn log for Phase C C5.
   try {

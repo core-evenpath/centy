@@ -29,6 +29,28 @@ export interface ContactPreviewData {
   items?: Array<{ label: string; value: string; icon?: string }>;
 }
 
+// P2.M03: order_tracker reads recent orders for the session's
+// resolved contactId. Anon sessions (no identity) see empty orders;
+// the preview renders its hardcoded design sample for them.
+export interface OrderTrackerPreviewData {
+  orders?: Array<{
+    id: string;
+    shortId: string;                       // display-friendly (e.g. #ORD-847291)
+    status: string;                        // existing OrderStatus enum values
+    statusLabel: string;                   // human-readable (e.g. "Shipped")
+    total: number;
+    currency: string;
+    itemCount: number;
+    createdAt: string;
+    trackingUrl?: string;
+  }>;
+}
+
 export interface BlockPreviewProps {
-  data?: GreetingPreviewData | ProductCardPreviewData | ContactPreviewData | Record<string, unknown>;
+  data?:
+    | GreetingPreviewData
+    | ProductCardPreviewData
+    | ContactPreviewData
+    | OrderTrackerPreviewData
+    | Record<string, unknown>;
 }
