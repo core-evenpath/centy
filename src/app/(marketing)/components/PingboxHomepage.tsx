@@ -74,11 +74,8 @@ function Nav() {
   return (
     <nav style={{ position: 'fixed', top: 0, left: 0, right: 0, zIndex: 1000, background: scrolled ? 'rgba(250,248,245,0.85)' : 'transparent', backdropFilter: scrolled ? 'blur(16px) saturate(150%)' : 'none', borderBottom: scrolled ? `1px solid ${C.border}` : '1px solid transparent', transition: 'all 0.3s ease', padding: '0 24px' }}>
       <div style={{ maxWidth: 1180, margin: '0 auto', display: 'flex', alignItems: 'center', justifyContent: 'space-between', height: 64 }}>
-        <a href="/" style={{ display: 'flex', alignItems: 'center', gap: 10, textDecoration: 'none' }}>
-          <div style={{ width: 28, height: 28, background: C.ink, borderRadius: 7, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <div style={{ width: 8, height: 8, borderRadius: '50%', background: C.accent }} />
-          </div>
-          <span style={{ fontFamily: F, fontSize: 19, fontWeight: 700, color: C.ink, letterSpacing: '-0.025em' }}>Pingbox</span>
+        <a href="/" aria-label="Pingbox home" style={{ display: 'flex', alignItems: 'center', textDecoration: 'none' }}>
+          <img src="/images/brand/logo.svg" alt="Pingbox" style={{ height: 32, width: 'auto', display: 'block' }} />
         </a>
         <div style={{ display: 'flex', alignItems: 'center', gap: 32 }}>
           <div style={{ position: 'relative', height: 64, display: 'flex', alignItems: 'center' }} onMouseEnter={() => setProdOpen(true)} onMouseLeave={() => setProdOpen(false)}>

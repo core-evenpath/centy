@@ -1,6 +1,7 @@
 'use client';
 import Link from 'next/link';
 import { C, F, FM, FS, icons } from './theme';
+import { BlockTiles, BlockTileDef } from './BlockTiles';
 
 const Ic = ({ d, size = 18, color = C.t3 }: { d: string; size?: number; color?: string }) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
@@ -8,13 +9,13 @@ const Ic = ({ d, size = 18, color = C.t3 }: { d: string; size?: number; color?: 
   </svg>
 );
 
-const coreBlocks = [
-  'Service Catalog — browsable cards for everything you offer',
-  'Booking Flow — calendar scheduling without redirect',
-  'Pricing Table — dynamic quotes pulled from your price list',
-  'Lead Capture Form — qualification before human handoff',
-  'Review Card — social proof inline in the conversation',
-  'Handoff Card — full context transfer to your team',
+const coreBlocks: BlockTileDef[] = [
+  { label: 'Service Catalog', sub: 'Browsable cards for everything you offer', iconKey: 'grid', color: C.accent },
+  { label: 'Booking Flow', sub: 'Calendar scheduling without redirect', iconKey: 'calendar', color: C.blue },
+  { label: 'Pricing Table', sub: 'Dynamic quotes pulled from your price list', iconKey: 'dollar', color: C.green },
+  { label: 'Lead Capture Form', sub: 'Qualification before human handoff', iconKey: 'users', color: C.indigo },
+  { label: 'Review Card', sub: 'Social proof inline in the conversation', iconKey: 'star', color: C.amber },
+  { label: 'Handoff Card', sub: 'Full context transfer to your team', iconKey: 'phone', color: C.rust },
 ];
 
 const verticalBlocks = [
@@ -31,7 +32,7 @@ export default function RelayPage() {
     <div style={{ minHeight: '100vh', background: C.bg, fontFamily: F, color: C.t1 }}>
       <nav style={{ position: 'sticky', top: 0, zIndex: 50, background: C.bg, borderBottom: `1px solid ${C.border}`, padding: '0 24px' }}>
         <div style={{ maxWidth: 1120, margin: '0 auto', height: 60, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <Link href="/" style={{ fontFamily: FM, fontSize: 15, fontWeight: 600, color: C.t1, textDecoration: 'none' }}>pingbox</Link>
+          <Link href="/" aria-label="Pingbox home" style={{ display: 'inline-flex', alignItems: 'center' }}><img src="/images/brand/logo.svg" alt="Pingbox" style={{ height: 28, width: 'auto', display: 'block' }} /></Link>
           <Link href="/early-access" style={{ background: C.accent, color: '#fff', fontSize: 13, fontWeight: 600, padding: '8px 18px', borderRadius: 7, textDecoration: 'none' }}>Start free</Link>
         </div>
       </nav>
@@ -80,29 +81,29 @@ export default function RelayPage() {
       <section style={{ padding: '72px 24px' }}>
         <div style={{ maxWidth: 960, margin: '0 auto' }}>
           <h2 style={{ fontSize: 'clamp(22px, 3vw, 32px)', fontWeight: 700, letterSpacing: '-0.02em', marginBottom: 10 }}>Every intent has a block</h2>
-          <p style={{ fontSize: 15, color: C.t2, marginBottom: 40, lineHeight: 1.6 }}>Relay ships with a library of blocks pre-built for service business intents. Each block renders inside the chat widget, fills with your data, and converts into the relevant next step.</p>
+          <p style={{ fontSize: 15, color: C.t2, marginBottom: 28, lineHeight: 1.6 }}>Relay ships with a library of blocks pre-built for service business intents. Each block is the same tile your operators design in <Link href="/admin/relay/flows" style={{ color: C.accent, textDecoration: 'none', fontWeight: 600 }}>Relay Flows</Link> — renders inside the chat widget, fills with your data, converts into the next step.</p>
 
-          <div style={{ marginBottom: 36 }}>
-            <h3 style={{ fontSize: 12, fontWeight: 700, color: C.t1, marginBottom: 14, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Core blocks — all plans</h3>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 10 }}>
-              {coreBlocks.map((b) => (
-                <div key={b} style={{ display: 'flex', alignItems: 'flex-start', gap: 10, background: C.surface, border: `1px solid ${C.border}`, borderRadius: 10, padding: '12px 16px' }}>
-                  <Ic d={icons.zap} size={14} color={C.accent} />
-                  <span style={{ fontSize: 13, color: C.t2, lineHeight: 1.4 }}>{b}</span>
-                </div>
-              ))}
-            </div>
+          <div style={{ marginBottom: 28 }}>
+            <BlockTiles blocks={coreBlocks} title="Core blocks — all plans" subtitle="Available on every plan, for every vertical." />
           </div>
 
           <div>
             <h3 style={{ fontSize: 12, fontWeight: 700, color: C.t3, marginBottom: 14, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Vertical blocks — Growth & Scale</h3>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 10 }}>
-              {verticalBlocks.map(({ vertical, blocks }) => (
-                <div key={vertical} style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 10, padding: '14px 16px' }}>
-                  <div style={{ fontSize: 11, fontWeight: 700, color: C.accent, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6 }}>{vertical}</div>
-                  <p style={{ fontSize: 13, color: C.t2, margin: 0, lineHeight: 1.5 }}>{blocks}</p>
-                </div>
-              ))}
+              {verticalBlocks.map(({ vertical, blocks }, i) => {
+                const color = [C.accent, C.blue, C.green, C.amber, C.indigo, C.rust][i % 6];
+                return (
+                  <div key={vertical} style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, padding: '16px 18px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
+                      <div style={{ width: 28, height: 28, borderRadius: 7, background: `${color}22`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        <Ic d={icons.grid} size={14} color={color} />
+                      </div>
+                      <div style={{ fontSize: 12, fontWeight: 700, color: C.t1, textTransform: 'uppercase', letterSpacing: '0.06em' }}>{vertical}</div>
+                    </div>
+                    <p style={{ fontSize: 13, color: C.t2, margin: 0, lineHeight: 1.5 }}>{blocks}</p>
+                  </div>
+                );
+              })}
             </div>
           </div>
         </div>

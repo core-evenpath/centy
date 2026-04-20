@@ -27,7 +27,7 @@ export default function IndiahomePage() {
       {/* Nav */}
       <nav style={{ position: 'sticky', top: 0, zIndex: 50, background: C.bg, borderBottom: `1px solid ${C.border}`, padding: '0 24px' }}>
         <div style={{ maxWidth: 1120, margin: '0 auto', height: 60, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <Link href="/in" style={{ fontFamily: FM, fontSize: 15, fontWeight: 600, color: C.t1, textDecoration: 'none' }}>pingbox <span style={{ fontSize: 11, color: C.t3, fontWeight: 400 }}>India</span></Link>
+          <Link href="/in" aria-label="Pingbox India home" style={{ display: 'inline-flex', alignItems: 'center', gap: 8, textDecoration: 'none' }}><img src="/images/brand/logo.svg" alt="Pingbox" style={{ height: 28, width: 'auto', display: 'block' }} /><span style={{ fontSize: 11, color: C.t3, fontWeight: 400, fontFamily: FM }}>India</span></Link>
           <div style={{ display: 'flex', gap: 16, alignItems: 'center' }}>
             <Link href="/in/pricing" style={{ fontSize: 13, color: C.t2, textDecoration: 'none' }}>Pricing</Link>
             <Link href="/in/customers" style={{ fontSize: 13, color: C.t2, textDecoration: 'none' }}>Customers</Link>

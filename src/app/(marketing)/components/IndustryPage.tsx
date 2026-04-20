@@ -1,6 +1,7 @@
 'use client';
 import Link from 'next/link';
 import { C, F, FM, FS, icons } from './theme';
+import { BlockTiles, parseBlocks } from './BlockTiles';
 
 const Ic = ({ d, size = 16, color = C.accent }: { d: string; size?: number; color?: string }) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
@@ -25,7 +26,7 @@ export default function IndustryPage({ eyebrow, headline, subheadline, problemSt
     <div style={{ minHeight: '100vh', background: C.bg, fontFamily: F, color: C.t1 }}>
       <nav style={{ position: 'sticky', top: 0, zIndex: 50, background: C.bg, borderBottom: `1px solid ${C.border}`, padding: '0 24px' }}>
         <div style={{ maxWidth: 1120, margin: '0 auto', height: 60, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <Link href="/" style={{ fontFamily: FM, fontSize: 15, fontWeight: 600, color: C.t1, textDecoration: 'none' }}>pingbox</Link>
+          <Link href="/" aria-label="Pingbox home" style={{ display: 'inline-flex', alignItems: 'center' }}><img src="/images/brand/logo.svg" alt="Pingbox" style={{ height: 28, width: 'auto', display: 'block' }} /></Link>
           <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
             <Link href="/pricing" style={{ fontSize: 13, color: C.t2, textDecoration: 'none' }}>Pricing</Link>
             <Link href="/early-access" style={{ background: C.accent, color: '#fff', fontSize: 13, fontWeight: 600, padding: '8px 18px', borderRadius: 7, textDecoration: 'none' }}>Start free</Link>
@@ -56,21 +57,8 @@ export default function IndustryPage({ eyebrow, headline, subheadline, problemSt
       <section style={{ padding: '72px 24px' }}>
         <div style={{ maxWidth: 960, margin: '0 auto' }}>
           <h2 style={{ fontSize: 'clamp(20px, 2.5vw, 28px)', fontWeight: 700, letterSpacing: '-0.02em', marginBottom: 10 }}>Built-in blocks for your vertical</h2>
-          <p style={{ fontSize: 14, color: C.t2, marginBottom: 28, lineHeight: 1.6 }}>Every block renders inside the chat widget, fills with your data, and converts into the relevant next step.</p>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 10 }}>
-            {blocks.map((b) => {
-              const [title, ...rest] = b.split(' — ');
-              return (
-                <div key={b} style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 10, padding: '14px 16px', display: 'flex', gap: 10, alignItems: 'flex-start' }}>
-                  <Ic d={icons.zap} size={14} />
-                  <div>
-                    <div style={{ fontSize: 13, fontWeight: 600, color: C.t1, marginBottom: 2 }}>{title}</div>
-                    {rest.length > 0 && <div style={{ fontSize: 12, color: C.t3, lineHeight: 1.4 }}>{rest.join(' — ')}</div>}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
+          <p style={{ fontSize: 14, color: C.t2, marginBottom: 22, lineHeight: 1.6 }}>Rendered inside the chat widget — the same tiles your operators design in <Link href="/admin/relay/flows" style={{ color: C.accent, textDecoration: 'none', fontWeight: 600 }}>Relay Flows</Link>. Fill with your data; ships tappable.</p>
+          <BlockTiles blocks={parseBlocks(blocks)} title="Vertical block library" subtitle="Tap a tile to see how it renders in conversation." />
         </div>
       </section>
 
