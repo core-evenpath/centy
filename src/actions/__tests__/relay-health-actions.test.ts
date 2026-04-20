@@ -176,7 +176,7 @@ describe('evaluatePartnerSaveGate (P3.M05.3)', () => {
     expect(result.reason).toBe('no-engines');
   });
 
-  it('returns allow when flag is off regardless of red Health (shadow mode)', async () => {
+  it('returns allow when flag is off regardless of red Health (rollback state)', async () => {
     firestoreStore.set('partners/p1', {
       id: 'p1',
       data: { id: 'p1', engines: ['booking'] },
@@ -185,28 +185,28 @@ describe('evaluatePartnerSaveGate (P3.M05.3)', () => {
     await recomputeEngineHealth('p1', 'booking');
     expect(firestoreStore.get('relayEngineHealth/p1_booking')?.data.status).toBe('red');
 
-    const result = await evaluatePartnerSaveGate('p1');
-    expect(result.allow).toBe(true);
-    expect(result.reason).toBe('gating-disabled');
+    await withGatingEnabled(false, async () => {
+      const mod = await import('../relay-health-actions');
+      const result = await mod.evaluatePartnerSaveGate('p1');
+      expect(result.allow).toBe(true);
+      expect(result.reason).toBe('gating-disabled');
+    });
   });
 
-  it('denies on red Health when gating is enabled (M01-flip target)', async () => {
+  it('denies on red Health (flag on, current production default)', async () => {
     firestoreStore.set('partners/p1', {
       id: 'p1',
       data: { id: 'p1', engines: ['booking'] },
     });
     await recomputeEngineHealth('p1', 'booking');
 
-    await withGatingEnabled(true, async () => {
-      const mod = await import('../relay-health-actions');
-      const result = await mod.evaluatePartnerSaveGate('p1');
-      expect(result.allow).toBe(false);
-      expect(result.engine).toBe('booking');
-      expect(result.reason).toBe('health-red');
-    });
+    const result = await evaluatePartnerSaveGate('p1');
+    expect(result.allow).toBe(false);
+    expect(result.engine).toBe('booking');
+    expect(result.reason).toBe('health-red');
   });
 
-  it('iterates engines and denies on the first red match', async () => {
+  it('iterates engines and denies on the first red match (canonical order)', async () => {
     firestoreStore.set('partners/p1', {
       id: 'p1',
       data: { id: 'p1', engines: ['booking', 'commerce'] },
@@ -215,13 +215,10 @@ describe('evaluatePartnerSaveGate (P3.M05.3)', () => {
     await recomputeEngineHealth('p1', 'booking');
     await recomputeEngineHealth('p1', 'commerce');
 
-    await withGatingEnabled(true, async () => {
-      const mod = await import('../relay-health-actions');
-      const result = await mod.evaluatePartnerSaveGate('p1');
-      expect(result.allow).toBe(false);
-      // ENGINES canonical order is [commerce, booking, ...]; sortByEngineOrder
-      // puts commerce first regardless of input order.
-      expect(result.engine).toBe('commerce');
-    });
+    const result = await evaluatePartnerSaveGate('p1');
+    expect(result.allow).toBe(false);
+    // ENGINES canonical order is [commerce, booking, ...]; sortByEngineOrder
+    // puts commerce first regardless of input order.
+    expect(result.engine).toBe('commerce');
   });
 });

@@ -24,77 +24,79 @@ function makeHealth(status: EngineHealthDoc['status']): EngineHealthDoc {
   };
 }
 
-// ── Flag-off behavior (production default) ─────────────────────────
+// ── Flag-off behavior (rollback state) ─────────────────────────────
+//
+// Post-P3.M01-flip the production default is `true`. These tests force
+// the flag off via `withGatingEnabled(false, ...)` so the rollback path
+// (flip back to false) is still exercised.
 
-describe('decideHealthGate — HEALTH_GATING_ENABLED = false (production default)', () => {
+describe('decideHealthGate — HEALTH_GATING_ENABLED = false (rollback state)', () => {
   it('always allows when flag is off, regardless of red status', async () => {
-    const { decideHealthGate } = await import('../gating');
-    const r: GatingDecision = decideHealthGate(makeHealth('red'));
-    expect(r.allow).toBe(true);
-    expect(r.reason).toBe('gating-disabled');
+    await withGatingEnabled(false, async () => {
+      const { decideHealthGate } = await import('../gating');
+      const r: GatingDecision = decideHealthGate(makeHealth('red'));
+      expect(r.allow).toBe(true);
+      expect(r.reason).toBe('gating-disabled');
+    });
   });
 
   it('always allows for amber + green when flag off', async () => {
-    const { decideHealthGate } = await import('../gating');
-    expect(decideHealthGate(makeHealth('amber'))).toEqual({
-      allow: true,
-      reason: 'gating-disabled',
-    });
-    expect(decideHealthGate(makeHealth('green'))).toEqual({
-      allow: true,
-      reason: 'gating-disabled',
+    await withGatingEnabled(false, async () => {
+      const { decideHealthGate } = await import('../gating');
+      expect(decideHealthGate(makeHealth('amber'))).toEqual({
+        allow: true,
+        reason: 'gating-disabled',
+      });
+      expect(decideHealthGate(makeHealth('green'))).toEqual({
+        allow: true,
+        reason: 'gating-disabled',
+      });
     });
   });
 
   it('always allows for missing health (null) when flag off', async () => {
-    const { decideHealthGate } = await import('../gating');
-    expect(decideHealthGate(null)).toEqual({
-      allow: true,
-      reason: 'gating-disabled',
+    await withGatingEnabled(false, async () => {
+      const { decideHealthGate } = await import('../gating');
+      expect(decideHealthGate(null)).toEqual({
+        allow: true,
+        reason: 'gating-disabled',
+      });
     });
   });
 });
 
-// ── Flag-on behavior (P3.M01-flip target state) ────────────────────
+// ── Flag-on behavior (current production default, post-P3.M01-flip) ─
 
-describe('decideHealthGate — HEALTH_GATING_ENABLED = true (P3.M01-flip target)', () => {
+describe('decideHealthGate — HEALTH_GATING_ENABLED = true (production default)', () => {
   it('denies on red status with reason health-red', async () => {
-    await withGatingEnabled(true, async () => {
-      const { decideHealthGate } = await import('../gating');
-      const r = decideHealthGate(makeHealth('red'));
-      expect(r.allow).toBe(false);
-      expect(r.reason).toBe('health-red');
-    });
+    const { decideHealthGate } = await import('../gating');
+    const r = decideHealthGate(makeHealth('red'));
+    expect(r.allow).toBe(false);
+    expect(r.reason).toBe('health-red');
   });
 
   it('allows on amber (review-recommended, not blocking)', async () => {
-    await withGatingEnabled(true, async () => {
-      const { decideHealthGate } = await import('../gating');
-      const r = decideHealthGate(makeHealth('amber'));
-      expect(r.allow).toBe(true);
-      expect(r.reason).toBeUndefined();
-    });
+    const { decideHealthGate } = await import('../gating');
+    const r = decideHealthGate(makeHealth('amber'));
+    expect(r.allow).toBe(true);
+    expect(r.reason).toBeUndefined();
   });
 
   it('allows on green', async () => {
-    await withGatingEnabled(true, async () => {
-      const { decideHealthGate } = await import('../gating');
-      const r = decideHealthGate(makeHealth('green'));
-      expect(r.allow).toBe(true);
-      expect(r.reason).toBeUndefined();
-    });
+    const { decideHealthGate } = await import('../gating');
+    const r = decideHealthGate(makeHealth('green'));
+    expect(r.allow).toBe(true);
+    expect(r.reason).toBeUndefined();
   });
 
   it('allows on missing health (default open during shadow→gating transition)', async () => {
     // Safety: partners whose Health snapshot hasn't been computed yet
     // must not be blocked. Operators see "no health data" as a UX
     // concern, not as gating denial.
-    await withGatingEnabled(true, async () => {
-      const { decideHealthGate } = await import('../gating');
-      const r = decideHealthGate(null);
-      expect(r.allow).toBe(true);
-      expect(r.reason).toBeUndefined();
-    });
+    const { decideHealthGate } = await import('../gating');
+    const r = decideHealthGate(null);
+    expect(r.allow).toBe(true);
+    expect(r.reason).toBeUndefined();
   });
 });
 
