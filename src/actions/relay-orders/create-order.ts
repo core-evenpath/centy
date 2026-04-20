@@ -26,11 +26,22 @@ import type {
   OrderItem,
   RelayOrder,
 } from '@/lib/relay/order-types';
+import {
+  IdentityRequiredError,
+  requireIdentityOrThrow,
+} from '@/lib/relay/identity/commit-gate';
+import { evaluatePartnerSaveGate } from '@/actions/relay-health-actions';
 
 export interface CreateOrderResult {
   success: boolean;
   order?: RelayOrder;
   error?: string;
+  code?:
+    | 'IDENTITY_REQUIRED'
+    | 'HEALTH_RED'
+    | 'EMPTY_CART'
+    | 'INVALID_INPUT'
+    | 'INTERNAL_ERROR';
 }
 
 const DEFAULT_CURRENCY = 'INR';
@@ -51,17 +62,49 @@ export async function createOrderFromCartAction(
   partnerId: string,
   input: CreateOrderInput,
 ): Promise<CreateOrderResult> {
-  if (!partnerId) return { success: false, error: 'partnerId is required' };
+  if (!partnerId) {
+    return { success: false, error: 'partnerId is required', code: 'INVALID_INPUT' };
+  }
   if (!input?.conversationId) {
-    return { success: false, error: 'conversationId is required' };
+    return { success: false, error: 'conversationId is required', code: 'INVALID_INPUT' };
   }
   const addrErr = validateAddress(input.shippingAddress);
-  if (addrErr) return { success: false, error: addrErr };
+  if (addrErr) return { success: false, error: addrErr, code: 'INVALID_INPUT' };
 
   try {
+    // Gate 1: Health. Red partner health → deny (fail-closed BEFORE
+    // asking for customer PII). Per ADR §Anon handling + P3.M05.3.
+    const healthGate = await evaluatePartnerSaveGate(partnerId);
+    if (!healthGate.allow) {
+      return {
+        success: false,
+        error: `Order creation blocked: engine "${healthGate.engine}" health is red. Fix outstanding issues via /admin/relay/health first.`,
+        code: 'HEALTH_RED',
+      };
+    }
+
     const session = await loadOrCreateSession(partnerId, input.conversationId);
+
+    // Gate 2: Identity. First production consumer of requireIdentityOrThrow
+    // per ADR §Anon handling. Throws IdentityRequiredError if no
+    // contactId on the session.
+    let contactId: string;
+    try {
+      contactId = requireIdentityOrThrow(session);
+    } catch (err) {
+      if (err instanceof IdentityRequiredError) {
+        return {
+          success: false,
+          error: err.message,
+          code: 'IDENTITY_REQUIRED',
+        };
+      }
+      throw err;
+    }
+
+    // Gate 3: cart must be non-empty.
     if (!session.cart.items.length) {
-      return { success: false, error: 'Cart is empty' };
+      return { success: false, error: 'Cart is empty', code: 'EMPTY_CART' };
     }
 
     const items: OrderItem[] = session.cart.items.map((i) => ({
@@ -84,6 +127,7 @@ export async function createOrderFromCartAction(
       id: orderId,
       partnerId,
       conversationId: input.conversationId,
+      contactId,
       items,
 
       subtotal: pricing.subtotal,
@@ -132,6 +176,7 @@ export async function createOrderFromCartAction(
     return {
       success: false,
       error: e instanceof Error ? e.message : 'Failed to create order',
+      code: 'INTERNAL_ERROR',
     };
   }
 }
