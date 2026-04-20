@@ -3,7 +3,6 @@
 import { useState, useEffect } from 'react';
 import Link from "next/link";
 import { useRouter } from 'next/navigation';
-import { Button } from "../../../../components/ui/button";
 import { Input } from "../../../../components/ui/input";
 import { Label } from "../../../../components/ui/label";
 import { useToast } from "../../../../hooks/use-toast";
@@ -20,6 +19,7 @@ import {
   ArrowRight,
   CheckCircle2,
   Shield,
+  Sparkles,
 } from 'lucide-react';
 
 const auth = getAuth(app);
@@ -156,6 +156,10 @@ export default function PartnerLoginPage() {
 
         {/* Hero Text */}
         <div className="relative z-10 mb-10">
+          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-rose-50 border border-rose-200 mb-5">
+            <Sparkles className="w-4 h-4 text-rose-500" />
+            <span className="text-sm text-rose-600 font-medium">Partner Portal</span>
+          </div>
           <h1 className="font-serif text-3xl xl:text-4xl tracking-tight text-stone-900 mb-3 leading-[1.1]">
             Your AI sales team is{' '}
             <br />
@@ -246,23 +250,25 @@ export default function PartnerLoginPage() {
                 />
               </div>
 
-              <Button
+              <button
                 type="submit"
-                className="w-full bg-stone-900 hover:bg-stone-800 text-white font-semibold py-5 rounded-xl transition-all"
                 disabled={isLoading}
+                className="w-full flex items-center justify-center bg-stone-900 text-white pl-6 pr-2 py-2 rounded-full font-medium hover:bg-stone-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {isLoading ? (
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 py-2">
                     <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                     Signing In...
                   </div>
                 ) : (
                   <div className="flex items-center gap-2">
-                    Sign In
-                    <ArrowRight className="w-4 h-4" />
+                    <span className="mr-2">Sign In</span>
+                    <div className="w-10 h-10 bg-rose-500 rounded-full flex items-center justify-center">
+                      <ArrowRight className="w-5 h-5 text-white" />
+                    </div>
                   </div>
                 )}
-              </Button>
+              </button>
             </form>
 
             <div className="mt-6 text-center">

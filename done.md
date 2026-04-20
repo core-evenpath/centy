@@ -1,3 +1,84 @@
+# Pingbox Homepage & Marketing Site Upgrade
+
+**Branch:** `claude/affectionate-diffie-644888`  
+**Completed:** 2026-04-19
+
+## What was built
+
+Replaced the old Tailwind-based homepage and built a complete marketing site for Pingbox.io across 6 phases.
+
+### Phase 1 — Homepage
+- Created `src/app/(marketing)/` route group (no URL impact)
+- `layout.tsx`: Karla + Fraunces + JetBrains Mono via `next/font/google`, global animations CSS
+- `components/theme.ts`: shared color palette `C`, font variables `F/FM/FS`, SVG icon paths
+- `components/PingboxHomepage.tsx`: full client component (Nav, Hero, TrustBar, ProblemStats, HowItWorks, Platform, Comparison, Industries, Pricing, FAQ, FinalCTA, Footer, RegionBanner)
+- `page.tsx`: thin server wrapper importing PingboxHomepage
+- Deleted old `src/app/page.tsx` (conflicting Tailwind homepage)
+
+### Phase 2 — Stub pages (35 routes)
+All hrefs in the homepage now resolve to real pages. Zero broken links.
+
+US routes: `/pricing`, `/relay`, `/engage`, `/intelligence`, `/for/teams`, `/for/dental-clinics`, `/for/hvac`, `/for/fitness`, `/for/real-estate`, `/for/law-insurance`, `/for/b2b-wholesale`, `/contact/sales`, `/customers`, `/about`, `/careers`, `/security`, `/cookies`, `/changelog`, `/docs`, `/docs/api`, `/blog`, `/case-studies`, `/help`, `/tools/leak-calculator`, `/us`
+
+India routes: `/in`, `/in/pricing`, `/in/customers`, `/in/contact/sales`, `/in/for/dental-clinics`, `/in/for/hvac`, `/in/for/fitness`, `/in/for/real-estate`, `/in/for/b2b-wholesale`
+
+### Phase 3 — Priority pages (real content from `pingbox-site-content.docx`)
+Fully implemented with inline styles (no Tailwind):
+- `/pricing` — full pricing page with billing toggle, tier cards, feature matrix, ROI anchor, FAQ accordion
+- `/relay` — product deep-dive with block library, text-vs-UI comparison, embed snippet
+- `/engage` — unified inbox, routing rules, broadcast campaigns
+- `/intelligence` — revenue attribution, 6 dashboards, AI lift tracking, integrations
+- `/contact/sales` — sales form with trust signals sidebar, WhatsApp demo path
+- `/customers` — minimum viable page with beta-partner callout
+- `/for/teams` — multi-location deep-dive with rollout framework
+- All 6 industry pages (dental, HVAC, fitness, real estate, law/insurance, B2B wholesale) via reusable `IndustryPage` component
+
+### Phase 4 — India subsite (/in)
+- `/in` — WhatsApp-first India homepage with ₹ pricing preview, Hindi/Tamil/Marathi support, DPDP compliance, Meta BSP badge
+- `/in/pricing` — ₹6,999/₹16,999/₹0 tiers, GST-invoiced, Razorpay, annual/monthly toggle
+- `/in/customers` — beta-partner callout with Indian context
+- `/in/contact/sales` — India sales form with WhatsApp number field, city dropdown, demo format selection
+- 5 India industry pages — same `IndustryPage` component with India-specific content (IndiaMART, Zoho, LeadSquared, ₹ ROI math)
+
+### Phase 5 — SEO infrastructure
+- `src/app/sitemap.ts` — updated with all 36 marketing URLs, proper priorities
+- `src/app/(marketing)/layout.tsx` — hreflang `en-us`/`en-in`/`x-default` (removed incorrect shared canonical)
+- `src/app/(marketing)/in/layout.tsx` — India sub-layout with self-referential `/in` canonical + hreflang back to `/`
+- Key pages refactored to server wrappers + client components for per-page canonical metadata:
+  - `pricing`, `relay`, `engage`, `intelligence`, `contact/sales`, `customers`, `for/teams`
+  - All have correct `alternates.canonical` and paired hreflang where India equivalent exists
+
+### Phase 6 — Validation
+- `tsc --noEmit`: zero marketing errors (only pre-existing issues in admin/lib files)
+- Broken link scan: all 35+ hrefs resolve; `/partner/login` confirmed via `(auth)` route group
+- Build compilation: passes in 39.4s; pre-render failures are Firebase credential issues in pre-existing admin/partner routes (expected in worktree without .env)
+
+## Architecture decisions
+- Inline styles throughout (no Tailwind conversion)
+- `'use client'` for interactive pages; server component wrappers export metadata
+- Shared `IndustryPage` component reused for US + India verticals
+- Shared `StubPage` component for remaining placeholder pages
+- `RegionBanner` parameterized (`fromRegion`, `toHref`, `toLabel`) for reuse
+
+## Files created / modified
+- `src/app/(marketing)/layout.tsx` — modified
+- `src/app/(marketing)/in/layout.tsx` — new
+- `src/app/(marketing)/components/theme.ts` — new
+- `src/app/(marketing)/components/PingboxHomepage.tsx` — new
+- `src/app/(marketing)/components/StubPage.tsx` — new
+- `src/app/(marketing)/components/IndustryPage.tsx` — new
+- `src/app/(marketing)/components/PricingClient.tsx` — new
+- `src/app/(marketing)/components/RelayClient.tsx` — new
+- `src/app/(marketing)/components/EngageClient.tsx` — new
+- `src/app/(marketing)/components/IntelligenceClient.tsx` — new
+- `src/app/(marketing)/components/ContactSalesClient.tsx` — new
+- `src/app/(marketing)/components/CustomersClient.tsx` — new
+- `src/app/(marketing)/components/ForTeamsClient.tsx` — new
+- 35+ `page.tsx` files across US and India routes
+- `src/app/sitemap.ts` — updated
+
+---
+
 # Relay Commerce Phase 2 — Session & Block Action Layer
 
 Status: implementation complete, awaiting review on
