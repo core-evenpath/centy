@@ -11,6 +11,7 @@ import 'server-only';
 // `orchestrate()`.
 
 import { GoogleGenAI } from '@google/genai';
+import type { GenerateContentResponse, Part } from '@google/genai';
 import { buildBlockData } from '@/lib/relay/admin-block-data';
 import { buildPolicyDecision } from './policy';
 import { buildSystemPrompt } from './prompt';
@@ -109,6 +110,52 @@ function extractFirstJsonObject(raw: string): string | null {
   return null;
 }
 
+/**
+ * Iterate every part on the first candidate and assemble a single string
+ * for `parseGeminiJson` to consume.
+ *
+ * Why not `response.text`: the SDK's `text` accessor returns only text
+ * parts and logs a warning when non-text parts exist (see
+ * `node_modules/@google/genai/dist/genai.d.ts:3051-3073`). When Gemini
+ * emits the structured `{blockId, text, suggestions}` payload via a
+ * `functionCall` part — which it does for constrained-output prompts —
+ * the JSON is dropped and the parser receives only the narrative text.
+ * Result: `blockId` is silently lost and no block renders even though
+ * the model picked one. See the Phase 2 probe report + PR #196.
+ *
+ * Co-occurrence policy:
+ *   1. If any part carries `functionCall.args`, prefer stringified args
+ *      as authoritative structured output (`args` is typed
+ *      `Record<string, unknown>` per the SDK). Join multiple with `\n`.
+ *   2. Otherwise fall back to concatenated text parts (skipping thought
+ *      parts, matching `response.text` semantics).
+ *
+ * Backward compatibility: a response with only text parts and no
+ * `functionCall` produces the same string `response.text` would.
+ */
+export function extractAllText(response: GenerateContentResponse): string {
+  const parts: Part[] = response.candidates?.[0]?.content?.parts ?? [];
+  const functionCallChunks: string[] = [];
+  const textChunks: string[] = [];
+  for (const part of parts) {
+    if (part.functionCall && part.functionCall.args) {
+      try {
+        functionCallChunks.push(JSON.stringify(part.functionCall.args));
+      } catch {
+        // Circular / unserializable args — skip rather than throw;
+        // the parser will still try the text fallback.
+      }
+      continue;
+    }
+    if (part.thought) continue;
+    if (typeof part.text === 'string' && part.text.length > 0) {
+      textChunks.push(part.text);
+    }
+  }
+  if (functionCallChunks.length > 0) return functionCallChunks.join('\n');
+  return textChunks.join('');
+}
+
 /** Tolerant parser — strips fences, grabs the first `{...}` object. */
 function parseGeminiJson(raw: string): GeminiPayload {
   const trimmed = raw
@@ -150,7 +197,7 @@ async function callGemini(
         temperature: 0.3,
       },
     });
-    return parseGeminiJson(response.text?.trim() ?? '');
+    return parseGeminiJson(extractAllText(response).trim());
   } catch (err) {
     console.error('[orchestrator] Gemini call failed:', err);
     return {};

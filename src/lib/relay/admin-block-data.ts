@@ -44,6 +44,8 @@ export function buildBlockData({
     case 'menu':
     case 'fb_menu':
     case 'services':
+    case 'menu_item':
+    case 'drink_menu':
       return buildProductCard(modules, blockId) as Record<string, unknown> | undefined;
 
     case 'contact':
@@ -105,6 +107,14 @@ const PRODUCT_BLOCK_PREFERRED_SLUGS: Record<string, readonly string[]> = {
   menu: ['menu_items', 'menu', 'dishes'],
   fb_menu: ['menu_items', 'menu', 'dishes'],
   services: ['services', 'treatments', 'offerings'],
+  // Test-chat-emission follow-up: cafe discovery blocks per
+  // food-delivery.ts:22 flow template. Both share items-array
+  // shape with menu / product_card; reuse buildProductCard
+  // directly. category_browser + dietary_filter deferred — their
+  // data shapes (category aggregation, dietary taxonomy) don't
+  // fit today's businessModules schema.
+  menu_item: ['menu_items', 'menu', 'dishes'],
+  drink_menu: ['drinks', 'beverages', 'drink_menu', 'menu_items'],
 };
 
 function pickModuleByPurpose(
