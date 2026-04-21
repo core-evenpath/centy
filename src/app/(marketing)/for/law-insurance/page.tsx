@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import IndustryPage from '../../components/IndustryPage';
+import { LAW_FLOWS } from '../../components/blocks';
 
 export const metadata: Metadata = {
   title: 'Pingbox for Law Firms & Insurance',
@@ -13,6 +14,10 @@ export default function Page() {
       headline="Intake every inquiry. Qualify before you spend a minute."
       subheadline="Pingbox handles legal and insurance intake with structured qualification, document collection, and case-specific routing. No more 20-minute intake calls that go nowhere — prospects qualify themselves before anyone on your team picks up the phone."
       problemStats="Legal and insurance inbound is notoriously noisy. Half the inquiries are outside your practice area or scope. The rest need 20+ minutes of qualification before anyone knows if it's worth a consultation. Attorneys end up doing intake work instead of billable work; agents end up re-qualifying leads the receptionist misunderstood. Every hour of attorney time spent on unqualified intake represents $300–$800 in lost billable time."
+      blockFlows={LAW_FLOWS}
+      blockHeadword="intake"
+      blockLabel="LIVE FLOWS FOR LAW & INSURANCE"
+      blockNarrative="Intake questions get structured Case Intake blocks by practice area. Consultation requests ship a Calendar Booking block with case-type-appropriate slots. Document requests ship an encrypted Upload block. Attorneys only see qualified, pre-categorized cases."
       blocks={[
         'Case Intake — structured questions by practice area',
         'Consultation Booking — calendar with case-type-specific timing',

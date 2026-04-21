@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import IndustryPage from '../../components/IndustryPage';
+import { DENTAL_FLOWS } from '../../components/blocks';
 
 export const metadata: Metadata = {
   title: 'Pingbox for Dental Clinics',
@@ -13,6 +14,10 @@ export default function Page() {
       headline="Turn every patient inquiry into a booked appointment."
       subheadline="Pingbox catches every inquiry — from your website, Google, social, or SMS — and converts them with interactive booking, insurance verification, and treatment consults. Dental practices using Pingbox book 3–5x more new patients from the traffic they already have."
       problemStats="78% of dental patients contact 3+ practices before choosing. The first practice to respond wins the majority of the time. Yet your front desk is on calls, at the chair, or in meetings — meaning inquiries sit unanswered for hours. The math: if you spend $8K/month on Google Ads driving dental inquiries and only 5% convert to first appointments, you're leaving $7,600/month in patient LTV on the table."
+      blockFlows={DENTAL_FLOWS}
+      blockHeadword="patient"
+      blockLabel="LIVE FLOWS FOR DENTAL"
+      blockNarrative="When a patient asks about whitening on WhatsApp or chats from your site, Pingbox doesn't reply with text — it ships a Service Card showing the actual treatment and price, then a Booking Flow with your calendar. Patient books in three taps. No typing. No phone tag."
       blocks={[
         'Treatment Menu — browsable cards for cleanings, whitening, implants, clear aligners',
         'Insurance Verifier — upload insurance card, auto-check coverage',

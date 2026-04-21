@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import IndustryPage from '../../../components/IndustryPage';
+import { DENTAL_FLOWS_IN } from '../../../components/blocks';
 
 export const metadata: Metadata = {
   title: 'Pingbox for Dental Clinics — India',
@@ -13,6 +14,10 @@ export default function Page() {
       headline="Convert every WhatsApp inquiry into a booked consultation."
       subheadline="Indian patients research 3–5 clinics on WhatsApp before deciding. Pingbox replies in 30 seconds with interactive treatment menus, consultation booking, and insurance verification — in Hindi, Tamil, Marathi, or English."
       problemStats="Dental leads in India arrive primarily via WhatsApp and Google. Most clinics have one receptionist checking one phone. Leads arrive at odd hours, on weekends, during surgeries. Every unanswered WhatsApp is a patient who walked into a competitor. Average consultation value: ₹500–₹2,000. Implant/orthodontic case: ₹50,000–₹2 lakh. One lost implant case per week costs a 5-clinic chain ₹60+ lakh annually."
+      blockFlows={DENTAL_FLOWS_IN}
+      blockHeadword="patient"
+      blockLabel="LIVE FLOWS FOR DENTAL — INDIA"
+      blockNarrative="When a patient asks about whitening on WhatsApp, Pingbox replies with a Service Card in ₹ pricing and a Booking Flow with your calendar slots. Patient books in three taps. Same flow works in Hindi, Tamil, or English — no human needed."
       blocks={[
         'Treatment Menu — browsable cards in Hindi and English for cleanings, whitening, implants, aligners',
         'Insurance Verifier — upload insurance card, check coverage eligibility',

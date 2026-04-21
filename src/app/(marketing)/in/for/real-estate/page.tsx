@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import IndustryPage from '../../../components/IndustryPage';
+import { REAL_ESTATE_FLOWS_IN } from '../../../components/blocks';
 
 export const metadata: Metadata = {
   title: 'Pingbox for Real Estate — India',
@@ -12,6 +13,10 @@ export default function Page() {
       eyebrow="For real estate brokers & developers — India"
       headline="Qualify buyers while they're still on WhatsApp."
       subheadline="Pingbox handles every listing inquiry — from MagicBricks, 99acres, Housing.com, your website, and direct WhatsApp — with interactive listing cards, viewing scheduling, and pre-qualification. Convert leads while they're hot, not the next morning."
+      blockFlows={REAL_ESTATE_FLOWS_IN}
+      blockHeadword="buyer"
+      blockLabel="LIVE FLOWS FOR REAL ESTATE — INDIA"
+      blockNarrative="When a buyer pings about a 2BHK in Koramangala, Pingbox sends a Listing Card with photos and ₹ pricing, then a Viewing Scheduler for site visit slots, then a Pre-Qualification block for budget and loan status. Broker gets a qualified lead before they've even seen the message."
       problemStats="Indian real estate buyers contact 10–20 brokers before deciding. WhatsApp is the primary channel. Brokers who respond in 5 minutes book 3x more viewings than those who respond in 30 minutes. Most leads from property portals arrive at night or on weekends. Without automation, these leads either go cold or require the broker to be on WhatsApp 24/7. One missed flat sale in Gurgaon, Bangalore, or Mumbai = ₹1.5–₹5 lakh in lost commission."
       blocks={[
         'Listing Card — photo gallery, BHK, area, price, builder, possession date',
