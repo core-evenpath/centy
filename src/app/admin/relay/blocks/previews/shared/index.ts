@@ -84,6 +84,63 @@ function MiniContact() {
   );
 }
 
+// ── M03: booking_confirmation ──────────────────────────────────────
+//
+// Consumes BookingConfirmationPreviewData (defined in _preview-props.ts).
+// When `bookings` is non-empty, renders the most-recent confirmed
+// booking. When absent or empty, renders the design sample so the
+// admin flow visualizer stays stable. Pattern matches MiniOrderTracker.
+
+import type {
+  BlockPreviewProps,
+  BookingConfirmationPreviewData,
+  SpaceConfirmationPreviewData,
+} from '../_preview-props';
+
+function MiniBookingConfirmation({ data }: { data?: BlockPreviewProps['data'] } = {}) {
+  const top = (data as BookingConfirmationPreviewData | undefined)?.bookings?.[0];
+  const reference = top?.bookingId ? `#${top.bookingId.slice(-8).toUpperCase()}` : '#BK-2026-0421';
+  const statusLabel = top?.status === 'confirmed' ? 'Confirmed' : top?.status ?? 'Confirmed';
+  const detailLine = top?.hold
+    ? `${top.hold.resourceId ?? 'Resource'} · ${top.hold.startAt?.slice(11, 16) ?? 'time'}`
+    : top?.slots?.[0]
+      ? `${top.slots[0].serviceName ?? 'Service'} · ${top.slots[0].date ?? 'date'} ${top.slots[0].time ?? ''}`
+      : 'Service · Tue 10:00 AM';
+  return React.createElement('div', { style: { background: T.surface, border: `1px solid ${T.bdr}`, borderRadius: '10px', padding: '10px' } },
+    React.createElement('div', { style: { display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '6px' } },
+      React.createElement(I, { d: ic.send, size: 12, color: T.green, stroke: 2 }),
+      React.createElement('span', { style: { fontSize: '10px', fontWeight: 600, color: T.t1 } }, 'Booking confirmed'),
+      React.createElement('span', { style: { fontSize: '8px', fontWeight: 600, color: T.green, background: `${T.green}1a`, padding: '2px 6px', borderRadius: '4px', marginLeft: 'auto' } }, statusLabel)
+    ),
+    React.createElement('div', { style: { fontSize: '9px', fontWeight: 600, color: T.t1 } }, reference),
+    React.createElement('div', { style: { fontSize: '9px', color: T.t3, marginTop: '2px' } }, detailLine)
+  );
+}
+
+// ── M03: space_confirmation ────────────────────────────────────────
+//
+// Consumes SpaceConfirmationPreviewData (defined in _preview-props.ts).
+// Date-range render (check-in / check-out) vs booking's slot-time.
+// Same design-sample fallback pattern.
+
+function MiniSpaceConfirmation({ data }: { data?: BlockPreviewProps['data'] } = {}) {
+  const top = (data as SpaceConfirmationPreviewData | undefined)?.reservations?.[0];
+  const reference = top?.reservationId ? `#${top.reservationId.slice(-8).toUpperCase()}` : '#RV-2026-0501';
+  const statusLabel = top?.status === 'confirmed' ? 'Confirmed' : top?.status ?? 'Confirmed';
+  const room = top?.hold?.resourceId ?? 'Room 101';
+  const checkIn = top?.hold?.checkIn ?? '2026-05-01';
+  const checkOut = top?.hold?.checkOut ?? '2026-05-04';
+  return React.createElement('div', { style: { background: T.surface, border: `1px solid ${T.bdr}`, borderRadius: '10px', padding: '10px' } },
+    React.createElement('div', { style: { display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '6px' } },
+      React.createElement(I, { d: ic.send, size: 12, color: T.green, stroke: 2 }),
+      React.createElement('span', { style: { fontSize: '10px', fontWeight: 600, color: T.t1 } }, 'Reservation confirmed'),
+      React.createElement('span', { style: { fontSize: '8px', fontWeight: 600, color: T.green, background: `${T.green}1a`, padding: '2px 6px', borderRadius: '4px', marginLeft: 'auto' } }, statusLabel)
+    ),
+    React.createElement('div', { style: { fontSize: '9px', fontWeight: 600, color: T.t1 } }, `${reference} · ${room}`),
+    React.createElement('div', { style: { fontSize: '9px', color: T.t3, marginTop: '2px' } }, `${checkIn} → ${checkOut}`)
+  );
+}
+
 export const SHARED_BLOCKS: VerticalBlockDef[] = [
   { id: 'greeting', family: 'shared', label: 'Greeting', stage: 'greeting', desc: 'Welcome message with brand identity and quick action buttons', preview: MiniGreeting, intents: ['hello', 'hi', 'start', 'hey'], module: null, status: 'active' },
   { id: 'suggestions', family: 'shared', label: 'Quick Replies', stage: 'greeting', desc: 'Tappable suggestion chips for guided conversation flow', preview: MiniSuggestions, intents: [], module: null, status: 'active' },
@@ -91,6 +148,9 @@ export const SHARED_BLOCKS: VerticalBlockDef[] = [
   { id: 'promo', family: 'shared', label: 'Promo Banner', stage: 'showcase', desc: 'Promotional offer with discount code, countdown, or sale info', preview: MiniPromo, intents: ['offer', 'deal', 'discount', 'promo', 'sale'], module: null, status: 'active' },
   { id: 'cart', family: 'shared', label: 'Cart', stage: 'conversion', desc: 'Shopping cart with line items, discounts, and checkout CTA', preview: MiniCart, intents: ['cart', 'checkout', 'order', 'buy'], module: null, status: 'active' },
   { id: 'contact', family: 'shared', label: 'Contact Card', stage: 'handoff', desc: 'Business contact info with click-to-call, email, WhatsApp', preview: MiniContact, intents: ['contact', 'phone', 'email', 'reach', 'call'], module: null, status: 'active' },
+  // M03 confirmations — service-engine read blocks; cross-vertical
+  { id: 'booking_confirmation', family: 'shared', label: 'Booking Confirmation', stage: 'followup', desc: 'Confirmed booking reference with service details and date/time', preview: MiniBookingConfirmation, intents: ['booking', 'confirmation', 'reference', 'reminder'], module: null, status: 'active', engines: ['service'] },
+  { id: 'space_confirmation', family: 'shared', label: 'Space Confirmation', stage: 'followup', desc: 'Confirmed space reservation with check-in/check-out dates', preview: MiniSpaceConfirmation, intents: ['reservation', 'confirmation', 'stay', 'check-in'], module: null, status: 'active', engines: ['service'] },
 ];
 
 export const SHARED_BLOCK_IDS = SHARED_BLOCKS.map(b => b.id);

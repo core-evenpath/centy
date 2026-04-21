@@ -39,6 +39,14 @@ import {
   ORDER_TRACKER_BLOCK_IDS,
   loadOrderTrackerData,
 } from '@/lib/relay/commerce/order-tracker-data';
+import {
+  BOOKING_CONFIRMATION_BLOCK_IDS,
+  loadBookingConfirmationData,
+} from '@/lib/relay/booking/booking-confirmation-data';
+import {
+  SPACE_CONFIRMATION_BLOCK_IDS,
+  loadSpaceConfirmationData,
+} from '@/lib/relay/space/space-confirmation-data';
 
 const MODEL = 'gemini-2.5-flash';
 
@@ -297,10 +305,31 @@ export async function orchestrate(
   // P2.M03: order_tracker reads from partners/{pid}/orders, scoped to
   // the resolved contactId. Kept separate from buildBlockData so its
   // async Firestore read doesn't leak into the pure sync dispatch.
-  if (blockId && ORDER_TRACKER_BLOCK_IDS.has(blockId)) {
+  //
+  // M03 follow-up adds the same shape for booking_confirmation
+  // (partners/{pid}/relayBookings) and space_confirmation
+  // (partners/{pid}/relayReservations). Three parallel branches per
+  // Phase 4 retro §abstraction-decision — generic block-data registry
+  // extraction deferred (3 loaders is not enough pressure; revisit at
+  // ≥5 or when a 4th surfaces a variation worth abstracting around).
+  if (blockId) {
     const contactId = session.session?.identity?.contactId ?? null;
-    const trackerData = await loadOrderTrackerData(ctx.partnerId, contactId);
-    blockData = trackerData as unknown as Record<string, unknown>;
+    if (ORDER_TRACKER_BLOCK_IDS.has(blockId)) {
+      blockData = (await loadOrderTrackerData(
+        ctx.partnerId,
+        contactId,
+      )) as unknown as Record<string, unknown>;
+    } else if (BOOKING_CONFIRMATION_BLOCK_IDS.has(blockId)) {
+      blockData = (await loadBookingConfirmationData(
+        ctx.partnerId,
+        contactId,
+      )) as unknown as Record<string, unknown>;
+    } else if (SPACE_CONFIRMATION_BLOCK_IDS.has(blockId)) {
+      blockData = (await loadSpaceConfirmationData(
+        ctx.partnerId,
+        contactId,
+      )) as unknown as Record<string, unknown>;
+    }
   }
 
   // 9. Telemetry — mandatory structured per-turn log for Phase C C5.
