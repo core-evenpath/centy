@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import IndustryPage from '../../../components/IndustryPage';
+import { B2B_FLOWS_IN } from '../../../components/blocks';
 
 export const metadata: Metadata = {
   title: 'Pingbox for B2B Wholesale — India',
@@ -12,6 +13,10 @@ export default function Page() {
       eyebrow="For B2B distributors & wholesalers — India"
       headline="Convert every IndiaMART lead into a quoted order — in 10 minutes."
       subheadline="Indian B2B buyers expect quotes within hours. Pingbox handles every WhatsApp RFQ with interactive volume pricing, inventory checks, and quote generation. Your sales team gets pre-qualified leads ready to close — not raw inquiries."
+      blockFlows={B2B_FLOWS_IN}
+      blockHeadword="buyer"
+      blockLabel="LIVE FLOWS FOR B2B — INDIA"
+      blockNarrative="When a buyer WhatsApps an RFQ for 500 units of electrical fittings, Pingbox replies with a Quote Builder block with ₹ volume pricing tiers, an Inventory Lookup showing stock availability, and a Purchase Order block ready to fill. Buyer gets a quote in 10 minutes. Your competitor is still drafting the email."
       problemStats="IndiaMART and TradeIndia generate millions of B2B leads daily. Most go unanswered for 24–48 hours. The distributor who quotes fastest wins. B2B buyers in India contact 5–8 suppliers for each RFQ. A Pune electrical wholesaler doing ₹5 crore annually can recover ₹25–50 lakh by improving WhatsApp RFQ response from 4 hours to 10 minutes. The same math applies to FMCG distributors, garment wholesalers, and industrial parts suppliers."
       blocks={[
         'Quote Builder — SKU, quantity, customer-specific pricing tiers in ₹',

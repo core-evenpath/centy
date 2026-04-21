@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import IndustryPage from '../../../components/IndustryPage';
+import { HVAC_FLOWS_IN } from '../../../components/blocks';
 
 export const metadata: Metadata = {
   title: 'Pingbox for AC & Home Services — India',
@@ -12,6 +13,10 @@ export default function Page() {
       eyebrow="For AC & home services — India"
       headline="Every WhatsApp 'AC not working' becomes a confirmed service call."
       subheadline="Pingbox handles every urgent inquiry, quote request, and AMC renewal — triaging emergencies, qualifying leads, and booking service windows across every technician in every city. Zero leads lost to missed WhatsApp messages."
+      blockFlows={HVAC_FLOWS_IN}
+      blockHeadword="customer"
+      blockLabel="LIVE FLOWS FOR AC SERVICE — INDIA"
+      blockNarrative="When a customer WhatsApps 'AC nahi chal raha', Pingbox replies with an Emergency Triage block to classify urgency, then a Service Request block for area and slot selection. Technician is dispatched with ETA via WhatsApp — no call needed. Works in Hindi, Tamil, and English."
       problemStats="In India, AC service inquiries peak in April–June and arrive exclusively on WhatsApp. Customers contact 3 providers simultaneously. The one who responds first with a price and availability wins. Most small AC service businesses lose 60–70% of emergency inquiries because the owner is on-site and can't respond. AMC renewals — worth ₹3,000–₹8,000/year each — are lost to competitors who send automated WhatsApp reminders."
       blocks={[
         'Emergency Triage — classify urgency (no cooling, gas leak, no heat), auto-dispatch',

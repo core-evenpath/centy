@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { C, F, FM, FS, icons } from './theme';
+import { BlockLibraryVisual } from './blocks';
 
 // ── Primitives ────────────────────────────────────────────────────────────────
 
@@ -625,44 +626,7 @@ function HowItWorks() {
 }
 
 // ── Platform visuals ──────────────────────────────────────────────────────────
-
-function BlockLibraryVisual() {
-  const blocks = [
-    {name:'Service Card',cat:'Catalog',color:C.accent,tint:'rgba(78,63,255,0.1)',hot:true},
-    {name:'Booking Flow',cat:'Action',color:C.accent,tint:'rgba(10,10,10,0.12)',hot:true},
-    {name:'Pricing Table',cat:'Commerce',color:C.accent,tint:'rgba(10,10,10,0.12)',hot:true},
-    {name:'Lead Form',cat:'Capture',color:C.blue,tint:'rgba(47,89,117,0.1)'},
-    {name:'Review Cards',cat:'Proof',color:C.amber,tint:'rgba(185,138,58,0.12)'},
-    {name:'Handoff Card',cat:'Support',color:C.indigo,tint:'rgba(74,79,122,0.1)'},
-    {name:'Compare Table',cat:'Catalog',color:C.accent,tint:'rgba(78,63,255,0.1)'},
-    {name:'Quote Builder',cat:'Commerce',color:C.accent,tint:'rgba(10,10,10,0.12)'},
-    {name:'FAQ Block',cat:'Info',color:C.blue,tint:'rgba(47,89,117,0.1)'},
-    {name:'Location Map',cat:'Info',color:C.blue,tint:'rgba(47,89,117,0.1)'},
-    {name:'Gallery',cat:'Catalog',color:C.accent,tint:'rgba(78,63,255,0.1)'},
-    {name:'Testimonials',cat:'Proof',color:C.amber,tint:'rgba(185,138,58,0.12)'},
-    {name:'Nudge',cat:'Retain',color:C.rust,tint:'rgba(161,71,40,0.1)'},
-    {name:'Greeting',cat:'Entry',color:C.indigo,tint:'rgba(74,79,122,0.1)'},
-    {name:'Promo Card',cat:'Commerce',color:C.accent,tint:'rgba(10,10,10,0.12)'},
-  ];
-  return (
-    <div style={{ maxWidth:440, width:'100%' }}>
-      <div style={{ fontSize:11, fontWeight:800, color:C.t3, letterSpacing:'0.08em', fontFamily:F, marginBottom:14, textAlign:'center' }}>SAMPLE BLOCK LIBRARY</div>
-      <div style={{ display:'grid', gridTemplateColumns:'repeat(3, 1fr)', gap:8 }}>
-        {blocks.map((b,i) => (
-          <div key={i} style={{ background:'#fff', borderRadius:10, padding:'12px 14px', border:`1px solid ${C.border}`, position:'relative', cursor:'default' }} onMouseEnter={e=>{e.currentTarget.style.borderColor=b.color;e.currentTarget.style.transform='translateY(-2px)';}} onMouseLeave={e=>{e.currentTarget.style.borderColor=C.border;e.currentTarget.style.transform='translateY(0)';}}>
-            {b.hot&&<div style={{ position:'absolute', top:6, right:6, width:5, height:5, borderRadius:'50%', background:b.color }} />}
-            <div style={{ width:24, height:24, borderRadius:6, background:b.tint, display:'flex', alignItems:'center', justifyContent:'center', color:b.color, marginBottom:6 }}><Ic d={icons.grid} size={11} sw={2.2} /></div>
-            <div style={{ fontSize:11, fontWeight:700, color:C.ink, fontFamily:F, lineHeight:1.2, marginBottom:2 }}>{b.name}</div>
-            <div style={{ fontSize:9, color:C.t4, fontFamily:F }}>{b.cat}</div>
-          </div>
-        ))}
-      </div>
-      <div style={{ textAlign:'center', marginTop:16, padding:'12px 16px', background:'#fff', borderRadius:10, border:`1px dashed ${C.borderDeep}` }}>
-        <span style={{ fontSize:12, color:C.t2, fontFamily:F, fontWeight:600 }}>Plus dozens more — <strong style={{ color:C.ink }}>built per industry</strong></span>
-      </div>
-    </div>
-  );
-}
+// BlockLibraryVisual is imported from ./blocks
 
 function EngageVisual() {
   const items = [
@@ -742,11 +706,12 @@ function IntelligenceVisual() {
 function Platform() {
   const [active, setActive] = useState(0);
   const products = [
-    {id:'relay',label:'Relay',sub:'The block library',color:C.accent,softBg:C.accentSoft,icon:icons.grid,headline:'A library of interactive blocks. One per vertical intent.',description:"Most chat tools reply with text. Relay replies with a tappable block — the right one, for the right intent. Service Cards, Booking Flows, Pricing Tables, Lead Forms, Quote Builders, and dozens more. Customers tap instead of type. Conversions go up.",features:[{title:'Service Catalogs',desc:'Browsable cards for everything you offer'},{title:'Booking Flows',desc:'Calendar scheduling without redirects'},{title:'Pricing Tables',desc:'Dynamic quotes from your price list'},{title:'Lead Capture',desc:'Forms that qualify before a human touches it'},{title:'Review Cards',desc:'Social proof inline in the conversation'},{title:'Handoff Cards',desc:'Full context transfer to your team'}],stat:{number:'3-5x',label:'lift on conversion'},visual:<BlockLibraryVisual />},
-    {id:'engage',label:'Engage',sub:'Inbox + broadcast',color:C.blue,softBg:C.blueSoft,icon:icons.broadcast,headline:'Every channel. Every location. One view.',description:'Consolidate inbound from web, WhatsApp, Instagram, and SMS into a single operator console. Route conversations by location, team, or lifecycle stage. Broadcast to segmented audiences across all locations.',features:[{title:'Unified Inbox',desc:'All channels, all locations, one stream'},{title:'Location Routing',desc:'Auto-route by geography, team, or load'},{title:'Broadcast Campaigns',desc:'Segment by behavior, location, lifecycle'},{title:'Smart Escalation',desc:'AI triages complex requests to humans'},{title:'Drip Sequences',desc:'Automated follow-ups with revenue tracking'},{title:'Template Library',desc:'Pre-approved messaging templates'}],stat:{number:'5',label:'channels, one inbox'},visual:<EngageVisual />},
-    {id:'intelligence',label:'Intelligence',sub:'Revenue attribution',color:C.indigo,softBg:C.indigoSoft,icon:icons.chart,headline:'Know which message made you money.',description:'Every conversation tracked as pipeline. See revenue by location, channel, and AI response category. Benchmark performance across your brand and spot the outliers — the location drowning in inquiries, the channel silently converting.',features:[{title:'Revenue Attribution',desc:'Conversations tied to actual payments'},{title:'Location Benchmarking',desc:'Compare performance across locations'},{title:'Channel Analytics',desc:'Compare web vs WhatsApp vs SMS ROI'},{title:'AI Lift Tracking',desc:'What AI resolved vs what needed humans'},{title:'Conversation Trends',desc:'Top questions, peak hours, drop-offs'},{title:'Pipeline Dashboard',desc:'Real-time funnel, by location or rolled up'}],stat:{number:'$142K',label:'tracked last month'},visual:<IntelligenceVisual />},
+    {id:'relay',label:'Relay',sub:'The block library',color:C.accent,softBg:C.accentSoft,icon:icons.grid,headline:'A library of interactive blocks. One per vertical intent.',description:"Most chat tools reply with text. Relay replies with a tappable block — the right one, for the right intent, in your industry's language. Service Cards, Booking Flows, Pricing Tables, Lead Forms, Quote Builders, Handoff Cards, and dozens more. Customers tap instead of type. Bookings go up.",features:[{title:'Service Catalogs',desc:'Browsable cards for everything you offer'},{title:'Booking Flows',desc:'Calendar scheduling without redirects'},{title:'Pricing Tables',desc:'Dynamic quotes from your price list'},{title:'Lead Capture',desc:'Forms that qualify before a human touches it'},{title:'Review Cards',desc:'Social proof inline in the conversation'},{title:'Handoff Cards',desc:'Full context transfer to your team'}],stat:{number:'3-5x',label:'lift on conversion'}},
+    {id:'engage',label:'Engage',sub:'Inbox + broadcast',color:C.blue,softBg:C.blueSoft,icon:icons.broadcast,headline:'Every channel. Every location. One view.',description:'Consolidate inbound from web, WhatsApp, Instagram, and SMS into a single operator console. Route conversations by location, team, or lifecycle stage. Broadcast to segmented audiences across all locations without switching tools.',features:[{title:'Unified Inbox',desc:'All channels, all locations, one stream'},{title:'Location Routing',desc:'Auto-route by geography, team, or load'},{title:'Broadcast Campaigns',desc:'Segment by behavior, location, lifecycle'},{title:'Smart Escalation',desc:'AI triages complex requests to humans'},{title:'Drip Sequences',desc:'Automated follow-ups with revenue tracking'},{title:'Template Library',desc:'Pre-approved WhatsApp & SMS templates'}],stat:{number:'5',label:'channels, one inbox'}},
+    {id:'intelligence',label:'Intelligence',sub:'Revenue attribution',color:C.indigo,softBg:C.indigoSoft,icon:icons.chart,headline:'Know which message made you money.',description:'Every conversation tracked as pipeline. See revenue by location, channel, and AI response category. Benchmark performance across your brand and spot the outliers — the location drowning in inquiries, the channel silently converting.',features:[{title:'Revenue Attribution',desc:'Conversations tied to actual payments'},{title:'Location Benchmarking',desc:'Compare performance across locations'},{title:'Channel Analytics',desc:'Compare web vs WhatsApp vs SMS ROI'},{title:'AI Lift Tracking',desc:'What AI resolved vs what needed humans'},{title:'Conversation Trends',desc:'Top questions, peak hours, drop-offs'},{title:'Pipeline Dashboard',desc:'Real-time funnel, by location or rolled up'}],stat:{number:'$142K',label:'tracked last month'}},
   ];
   const p = products[active];
+  const tabIcon = (id: string) => id === 'relay' ? icons.grid : id === 'engage' ? icons.broadcast : icons.chart;
   return (
     <section style={{ padding:'100px 24px', background:C.bg }}>
       <div style={{ maxWidth:1180, margin:'0 auto' }}>
@@ -754,13 +719,14 @@ function Platform() {
           <div style={{ textAlign:'center', marginBottom:50 }}>
             <Eyebrow>The platform</Eyebrow>
             <h2 style={{ fontFamily:F, fontSize:48, fontWeight:800, color:C.ink, letterSpacing:'-0.04em', margin:'0 0 12px', lineHeight:1.02 }}>Three products. <span style={{ fontFamily:FS, fontStyle:'italic', fontWeight:500, letterSpacing:'-0.025em' }}>One brain.</span></h2>
+            <p style={{ fontSize:16, color:C.t2, fontFamily:F, maxWidth:520, margin:'0 auto', fontWeight:400 }}>Everything you need to reply fast, manage every channel, and track what actually converts — built on one connected foundation.</p>
           </div>
         </FadeIn>
         <FadeIn delay={0.06}>
           <div style={{ display:'flex', gap:8, justifyContent:'center', marginBottom:40, flexWrap:'wrap' }}>
             {products.map((pr,i) => (
               <button key={pr.id} onClick={() => setActive(i)} style={{ display:'flex', alignItems:'center', gap:10, padding:'12px 22px', borderRadius:12, border:`1px solid ${active===i?C.ink:C.border}`, cursor:'pointer', fontFamily:F, fontSize:14, fontWeight:700, background:active===i?C.ink:'#fff', color:active===i?'#fff':C.t2, transition:'all 0.2s ease' }}>
-                <Ic d={pr.icon} size={15} stroke={active===i?pr.color:C.t3} />
+                <Ic d={tabIcon(pr.id)} size={15} stroke={active===i?pr.color:C.t3} />
                 {pr.label}
                 <span style={{ fontSize:11, fontWeight:500, color:active===i?'rgba(255,255,255,0.5)':C.t4, borderLeft:`1px solid ${active===i?'rgba(255,255,255,0.15)':C.border}`, paddingLeft:10 }}>{pr.sub}</span>
               </button>
@@ -768,15 +734,15 @@ function Platform() {
           </div>
         </FadeIn>
         <FadeIn key={p.id} delay={0.05}>
-          <div style={{ background:'#fff', borderRadius:20, border:`1px solid ${C.border}`, overflow:'hidden' }}>
+          <div style={{ background:'#fff', borderRadius:20, border:`1px solid ${C.border}`, boxShadow:'0 2px 8px rgba(10,10,10,0.03)', overflow:'hidden' }}>
             <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', minHeight:520 }}>
               <div style={{ padding:'48px 48px 40px', borderRight:`1px solid ${C.border}`, display:'flex', flexDirection:'column' }}>
                 <div id={p.id} style={{ display:'inline-flex', alignItems:'center', gap:6, padding:'4px 12px', borderRadius:100, background:p.softBg, marginBottom:20, alignSelf:'flex-start' }}>
-                  <Ic d={p.icon} size={12} stroke={p.color} />
+                  <Ic d={tabIcon(p.id)} size={12} stroke={p.color} />
                   <span style={{ fontSize:11, fontWeight:800, color:p.color, fontFamily:F, letterSpacing:'0.04em', textTransform:'uppercase' }}>{p.label}</span>
                 </div>
                 <h3 style={{ fontFamily:F, fontSize:32, fontWeight:800, color:C.ink, margin:'0 0 16px', letterSpacing:'-0.03em', lineHeight:1.08 }}>{p.headline}</h3>
-                <p style={{ fontSize:15, color:C.t2, fontFamily:F, lineHeight:1.65, margin:'0 0 32px' }}>{p.description}</p>
+                <p style={{ fontSize:15, color:C.t2, fontFamily:F, lineHeight:1.65, margin:'0 0 32px', fontWeight:400 }}>{p.description}</p>
                 <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8, marginBottom:24 }}>
                   {p.features.map((f,i) => (
                     <div key={i} style={{ padding:'14px 16px', borderRadius:10, background:C.bg, border:`1px solid ${C.borderLight}` }}>
@@ -787,11 +753,13 @@ function Platform() {
                 </div>
                 <div style={{ marginTop:'auto', paddingTop:20, borderTop:`1px solid ${C.borderLight}`, display:'flex', alignItems:'baseline', gap:12 }}>
                   <span style={{ fontFamily:F, fontSize:40, fontWeight:800, color:p.color, letterSpacing:'-0.04em', lineHeight:1 }}>{p.stat.number}</span>
-                  <span style={{ fontSize:13, color:C.t3, fontFamily:F }}>{p.stat.label}</span>
+                  <span style={{ fontSize:13, color:C.t3, fontFamily:F, fontWeight:500 }}>{p.stat.label}</span>
                 </div>
               </div>
               <div style={{ padding:48, background:`radial-gradient(ellipse at center, ${p.softBg} 0%, ${C.bg} 80%)`, display:'flex', alignItems:'center', justifyContent:'center' }}>
-                {p.visual}
+                {p.id === 'relay' && <BlockLibraryVisual />}
+                {p.id === 'engage' && <EngageVisual />}
+                {p.id === 'intelligence' && <IntelligenceVisual />}
               </div>
             </div>
           </div>
@@ -1104,42 +1072,6 @@ function Footer() {
   );
 }
 
-// ── RegionBanner ──────────────────────────────────────────────────────────────
-
-function RegionBanner({ fromRegion = 'in', toHref = '/in', toLabel = 'India' }: { fromRegion?: string; toHref?: string; toLabel?: string }) {
-  const [visible, setVisible] = useState(false);
-  useEffect(() => {
-    try {
-      if (sessionStorage.getItem('pb_region_dismissed')) return;
-      const locale = navigator.language || '';
-      const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || '';
-      const isIN = locale.toLowerCase().includes('-in') || tz === 'Asia/Kolkata' || tz === 'Asia/Calcutta';
-      const isUS = locale.toLowerCase().includes('-us') || tz?.startsWith('America/');
-      const show = fromRegion === 'in' ? isIN : isUS;
-      if (show) { const t = setTimeout(() => setVisible(true), 800); return () => clearTimeout(t); }
-    } catch {}
-  }, [fromRegion]);
-  const dismiss = () => { try { sessionStorage.setItem('pb_region_dismissed', '1'); } catch {} setVisible(false); };
-  if (!visible) return null;
-  return (
-    <div style={{ position:'fixed', bottom:24, left:24, zIndex:999, background:'#fff', border:`1px solid ${C.border}`, borderRadius:14, padding:'14px 18px 14px 16px', boxShadow:'0 20px 48px rgba(10,10,10,0.18)', display:'flex', alignItems:'center', gap:14, maxWidth:440, animation:'slideUp 0.4s cubic-bezier(0.16,1,0.3,1)' }}>
-      <span style={{ fontSize:22 }}>{fromRegion === 'in' ? '🇮🇳' : '🇺🇸'}</span>
-      <div style={{ flex:1 }}>
-        <div style={{ fontSize:13, fontWeight:700, color:C.ink, fontFamily:F, marginBottom:2 }}>
-          {fromRegion === 'in' ? 'Visiting from India?' : `Visiting from the US?`}
-        </div>
-        <div style={{ fontSize:12, color:C.t3, fontFamily:F, lineHeight:1.5 }}>
-          {fromRegion === 'in' ? 'We have a dedicated page for Indian service brands — with ₹ pricing and Meta BSP compliance.' : 'See our main page for US pricing and integrations.'}
-        </div>
-      </div>
-      <a href={toHref} style={{ display:'inline-flex', alignItems:'center', gap:4, padding:'8px 14px', borderRadius:8, background:C.ink, color:'#fff', textDecoration:'none', fontSize:12, fontWeight:700, fontFamily:F, whiteSpace:'nowrap' }}>
-        {fromRegion === 'in' ? `See ${toLabel}` : 'Main page'} <Ic d={icons.arrow} size={11} stroke="#fff" sw={2.5} />
-      </a>
-      <button onClick={dismiss} style={{ background:'transparent', border:'none', cursor:'pointer', padding:4, color:C.t4 }}><Ic d={icons.x} size={14} sw={2.5} /></button>
-    </div>
-  );
-}
-
 // ── Root export ───────────────────────────────────────────────────────────────
 
 export default function PingboxHomepage() {
@@ -1158,7 +1090,6 @@ export default function PingboxHomepage() {
       <FAQ />
       <FinalCTA />
       <Footer />
-      <RegionBanner fromRegion="in" toHref="/in" toLabel="India" />
     </div>
   );
 }
