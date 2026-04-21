@@ -43,6 +43,44 @@ Copy this block at the top of a new session, fill in at session close.
 
 > Newest at top. Prepend new sessions above existing entries.
 
+## [2026-04-21] MR-1 Session 2 + MR-2 Session 1 — items retrieval end-to-end vertical slice
+
+**MR targeted:** MR-1, MR-2
+**Milestones attempted:** MR-1.M02, MR-2.M01
+**Milestones shipped:** MR-1.M02 (6d4790ef) · MR-2.M01 (4865080a) · e2e test (e97583c6)
+**tsc before → after:** 100 → 100 (worktree; main confirmed 276 from prior session)
+**Tests before → after:** 732 passing → 745 passing (+13)
+**Hops touched:** 04 (MISSING → HALF), 06 (HALF → HALF, now scoped to items collection)
+
+### What shipped
+- `src/lib/relay/retrieval/index-items.ts` — item indexer: reads `ragText`, embeds via `gemini-embedding-001`, writes to `relayRetrieval/{pid}/items/{itemId}` with structured metadata
+- `src/lib/relay/retrieval/__tests__/index-items.test.ts` — 6 unit tests (idempotent, text change, skip empty/inactive/missing)
+- `src/actions/modules-actions.ts` — fire-and-forget hook in `createModuleItemAction` + `updateModuleItemAction`
+- `src/lib/relay/orchestrator/signals/rag.ts` — `LoadRagSignalOpts` interface + `collectionPath?` param on `loadRagSignal`
+- `src/lib/relay/orchestrator/index.ts` — orchestrator passes `relayRetrieval/${ctx.partnerId}/items` to `loadRagSignal`
+- `src/lib/relay/orchestrator/signals/__tests__/rag.test.ts` — 4 unit tests (backward compat + scoped path)
+- `src/lib/relay/retrieval/__tests__/items-e2e.test.ts` — 3 integration tests proving full pipeline path
+
+### Hop status changes
+- Hop 04: MISSING → HALF (item indexer wired; persona + docs indexers still needed for DONE)
+- Hop 06: HALF → HALF (orchestrator now queries `relayRetrieval/{pid}/items`; still HALF until persona/docs sources added in MR-2.M02)
+
+### Halts / scope surprises
+- None. Session executed cleanly. Firestore vector index for `relayRetrieval` must be created by operator (gcloud command; out of code scope).
+- `firestoreRetriever` factory has a hardcoded name "exampleRetriever" — known limitation for multi-kind queries in MR-2.M02; not a blocker for items-only.
+
+### What's next
+- MR-1.M03 — persona indexer (`indexBusinessPersona`). D4/D8 handoff unblocks it cold.
+- MR-1.M04 — doc indexer (reuse `indexPdfFile`).
+- MR-1.M05 — backfill script.
+- MR-2.M02 — extend `loadRagSignal` to multi-source (persona + docs). Requires resolving `firestoreRetriever` name conflict for multi-kind in same request.
+- **Operator action needed:** create Firestore vector index on `relayRetrieval/{pid}/items` collection field `embedding` (COSINE, 768-dim).
+
+### Links
+- PR: #TBD
+
+---
+
 ## [2026-04-21] MR-1 Session 1 — M01 retrieval strategy + hygiene refinements
 
 **MR targeted:** MR-1
