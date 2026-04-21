@@ -44,7 +44,7 @@ export function buildBlockData({
     case 'menu':
     case 'fb_menu':
     case 'services':
-      return buildProductCard(modules) as Record<string, unknown> | undefined;
+      return buildProductCard(modules, blockId) as Record<string, unknown> | undefined;
 
     case 'contact':
     case 'shared_contact':
@@ -85,11 +85,51 @@ function buildGreeting(
 
 // ── product_card / menu / services ───────────────────────────────────
 
+/**
+ * Per-block preferred module-slug list for purpose-aware module
+ * selection. Five different block ids (product_card,
+ * ecom_product_card, menu, fb_menu, services) all dispatch to
+ * buildProductCard; without this mapping, all five would render
+ * the same first-non-empty module regardless of intent.
+ *
+ * Ordering inside each list is preference: leftmost slug wins
+ * if multiple matches exist. Fallback to first-with-items only
+ * when no preferred slug matches (preserves single-module
+ * partner behavior + catches partners using bespoke slugs).
+ *
+ * See docs/phase-4/test-chat-products-audit.md §root-cause.
+ */
+const PRODUCT_BLOCK_PREFERRED_SLUGS: Record<string, readonly string[]> = {
+  product_card: ['products', 'catalog', 'inventory'],
+  ecom_product_card: ['products', 'catalog', 'inventory'],
+  menu: ['menu_items', 'menu', 'dishes'],
+  fb_menu: ['menu_items', 'menu', 'dishes'],
+  services: ['services', 'treatments', 'offerings'],
+};
+
+function pickModuleByPurpose(
+  modules: ModuleLike[],
+  blockId: string,
+): ModuleLike | undefined {
+  const preferred = PRODUCT_BLOCK_PREFERRED_SLUGS[blockId];
+  if (preferred) {
+    for (const slug of preferred) {
+      const match = modules.find(
+        (m) => m.slug === slug && Array.isArray(m.items) && m.items.length > 0,
+      );
+      if (match) return match;
+    }
+  }
+  // Fallback: first module with any items. Preserves prior behavior
+  // for partners with one module or bespoke slugs.
+  return modules.find((m) => Array.isArray(m.items) && m.items.length > 0);
+}
+
 function buildProductCard(
-  modules: ModuleLike[]
+  modules: ModuleLike[],
+  blockId: string,
 ): ProductCardPreviewData | undefined {
-  // Pick the first module that has items.
-  const mod = modules.find((m) => Array.isArray(m.items) && m.items.length > 0);
+  const mod = pickModuleByPurpose(modules, blockId);
   if (!mod) return undefined;
 
   const items = mod.items.slice(0, 4).map((raw: any) => {
