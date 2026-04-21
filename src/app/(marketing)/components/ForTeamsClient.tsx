@@ -1,6 +1,7 @@
 'use client';
 import Link from 'next/link';
 import { C, F, FM, FS, icons } from './theme';
+import { BlockLibraryVisual, HOMEPAGE_FLOWS } from './blocks';
 
 const Ic = ({ d, size = 16, color = C.accent }: { d: string; size?: number; color?: string }) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
@@ -97,6 +98,28 @@ export default function ForTeamsPage() {
               <p style={{ fontSize: 13, color: C.t2, lineHeight: 1.65, margin: 0 }}>{desc}</p>
             </div>
           ))}
+        </div>
+      </section>
+
+      {/* Block library demo — breadth across verticals */}
+      <section style={{ padding: '80px 24px', background: C.bg }}>
+        <div style={{ maxWidth: 1180, margin: '0 auto' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.1fr', gap: 60, alignItems: 'center' }}>
+            <div>
+              <p style={{ fontFamily: FS, fontStyle: 'italic', fontSize: 12, color: C.accent, marginBottom: 12, textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 700 }}>What your customers see</p>
+              <h2 style={{ fontSize: 'clamp(28px, 3.5vw, 42px)', fontWeight: 800, lineHeight: 1.05, letterSpacing: '-0.035em', color: C.ink, marginBottom: 18 }}>
+                One deployment.<br />Every industry.<br />Every <span style={{ fontFamily: FS, fontStyle: 'italic', fontWeight: 500, color: C.accent, letterSpacing: '-0.02em' }}>location</span>.
+              </h2>
+              <p style={{ fontSize: 17, color: C.t2, fontFamily: F, lineHeight: 1.6, marginBottom: 28 }}>
+                Blocks adapt to each of your franchises' intent patterns. A dental location shows Booking Flows and Service Cards. An HVAC franchise shows Emergency Triage and Quote Builders. All managed from one admin.
+              </p>
+              <Link href="/contact/sales" style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: C.accent, color: '#fff', fontSize: 14, fontWeight: 700, padding: '13px 24px', borderRadius: 9, textDecoration: 'none' }}>
+                Book a rollout call
+                <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14M12 5l7 7-7 7" /></svg>
+              </Link>
+            </div>
+            <BlockLibraryVisual flows={HOMEPAGE_FLOWS} label="LIVE FLOWS — ALL VERTICALS" />
+          </div>
         </div>
       </section>
 
