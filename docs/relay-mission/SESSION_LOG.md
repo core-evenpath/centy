@@ -43,6 +43,38 @@ Copy this block at the top of a new session, fill in at session close.
 
 > Newest at top. Prepend new sessions above existing entries.
 
+## [2026-04-21] MR-1 Session 1 — M01 retrieval strategy + hygiene refinements
+
+**MR targeted:** MR-1
+**Milestones attempted:** MR-1.M01 + hygiene (tuning.md anchor, README refinements)
+**Milestones shipped:** MR-1.M01 (commit TBD) · hygiene commit 1 (25e96e8f) · hygiene commit 2 (ce19ff4b)
+**tsc before → after:** 100 → 100
+**Tests before → after:** not run (docs-only session)
+**Hops touched:** documentation only — no hop status changes
+
+### What shipped
+- `docs/engine-cutover-phase3/tuning.md` — tsc anchor 276 → 100
+- `docs/relay-mission/README.md` — hop 02 / hop 06 descriptions refined; MR-2 effort shrunk; MR-3 renamed + M00 design decision added; tsc references updated; Current Status table updated
+- `docs/relay-mission/MR-1/strategy.md` — 9 decisions locked (storage, retrieval strategy, chunking, schemas, interface)
+
+### Hop status changes
+- None (documentation session). Hop 02/06 *understanding* refined; *status* unchanged (both still HALF).
+
+### Halts / scope surprises
+- Working tree had widespread deletions from prior worktree cleanup. Restored only the three docs files needed; no source file changes made.
+- Tests not runnable in this environment (package.json not accessible from cwd after worktree deletion). Baseline tsc confirmed 100 via main repo.
+
+### What's next
+- MR-1.M02 — item indexer (`indexModuleItem`). Strategy doc D1/D3/D8 + handoff section unblocks it cold.
+- MR-1.M03 — persona indexer. D4/D8 handoff unblocks it.
+- Flag for MR-3 operator: M00 design decision (Options A/B/C) is now queued in `docs/relay-mission/README.md`.
+- Flag for MR-2 operator: D7 extension surface on `loadRagSignal` is documented in strategy.md.
+
+### Links
+- PR: #TBD
+
+---
+
 ## [2026-04-21] Phase 0 — Mission recon
 
 **MR targeted:** none (pre-MR reconnaissance)
