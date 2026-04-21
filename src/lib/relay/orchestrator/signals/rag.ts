@@ -57,9 +57,15 @@ interface RetrievedDoc {
   metadata?: { source?: string; title?: string; score?: number };
 }
 
+export interface LoadRagSignalOpts {
+  /** Override the Firestore collection to query. Defaults to RAGINDEX_COLLECTION_NAME. */
+  collectionPath?: string;
+}
+
 export async function loadRagSignal(
   ctx: OrchestratorContext,
   intent: IntentSignal | null,
+  opts: LoadRagSignalOpts = {},
 ): Promise<RagSignal> {
   const lastMsg = ctx.messages[ctx.messages.length - 1]?.content ?? '';
 
@@ -76,7 +82,7 @@ export async function loadRagSignal(
   }
 
   try {
-    const retriever = firestoreRetriever(RAGINDEX_COLLECTION_NAME);
+    const retriever = firestoreRetriever(opts.collectionPath ?? RAGINDEX_COLLECTION_NAME);
     const docs = (await ai.retrieve({
       retriever,
       query: lastMsg,

@@ -30,6 +30,7 @@ import {
 import { DEFAULT_MODULE_SETTINGS } from '@/lib/modules/constants';
 import { syncModulesToCoreHub } from './core-hub-actions';
 import { evaluatePartnerSaveGate, triggerHealthRecompute } from './relay-health-actions';
+import { indexModuleItem } from '@/lib/relay/retrieval/index-items';
 
 /**
  * Trigger Core Hub sync in background after module changes
@@ -881,6 +882,9 @@ export async function createModuleItemAction(
 
         revalidatePath(`/partner/relay/modules/${partnerModule.moduleSlug}`);
         triggerCoreHubSync(partnerId, `item created in ${moduleId}`);
+        void indexModuleItem(partnerId, moduleId, itemId).catch((e) => {
+            console.error('[relay-index] item indexing failed:', { partnerId, moduleId, itemId, error: e });
+        });
         return { success: true, data: { itemId } };
     } catch (error) {
         console.error('Error creating module item:', error);
@@ -986,6 +990,9 @@ export async function updateModuleItemAction(
         // M07: shadow-mode Health recompute. Non-throwing — any failure
         // is logged and swallowed inside the helper.
         await triggerHealthRecompute(partnerId);
+        void indexModuleItem(partnerId, moduleId, itemId).catch((e) => {
+            console.error('[relay-index] item indexing failed:', { partnerId, moduleId, itemId, error: e });
+        });
         return { success: true };
     } catch (error) {
         console.error('Error updating module item:', error);

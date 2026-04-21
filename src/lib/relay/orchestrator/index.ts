@@ -258,7 +258,9 @@ export async function orchestrate(
   ]);
 
   // 5. RAG depends on flow-detected intent.
-  const rag = await loadRagSignal(ctx, flow.intent);
+  const rag = await loadRagSignal(ctx, flow.intent, {
+    collectionPath: `relayRetrieval/${ctx.partnerId}/items`,
+  });
 
   // 6. Health (shadow mode — never throws, never blocks). Degraded mode
   //    kicks in only when activeEngine is set AND Health reads red.
