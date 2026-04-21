@@ -46,11 +46,36 @@ export interface OrderTrackerPreviewData {
   }>;
 }
 
+// M03 follow-up: booking_confirmation + space_confirmation. Wide
+// shapes — preview reads first item, falls back to design sample
+// when absent.
+
+export interface BookingConfirmationPreviewData {
+  bookings?: Array<{
+    bookingId?: string;
+    status?: string;
+    createdAt?: string;
+    hold?: { resourceId?: string; startAt?: string; endAt?: string };
+    slots?: Array<{ serviceName?: string; date?: string; time?: string }>;
+  }>;
+}
+
+export interface SpaceConfirmationPreviewData {
+  reservations?: Array<{
+    reservationId?: string;
+    status?: string;
+    createdAt?: string;
+    hold?: { resourceId?: string; checkIn?: string; checkOut?: string };
+  }>;
+}
+
 export interface BlockPreviewProps {
   data?:
     | GreetingPreviewData
     | ProductCardPreviewData
     | ContactPreviewData
     | OrderTrackerPreviewData
+    | BookingConfirmationPreviewData
+    | SpaceConfirmationPreviewData
     | Record<string, unknown>;
 }
