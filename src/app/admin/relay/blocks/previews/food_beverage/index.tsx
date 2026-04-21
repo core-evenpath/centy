@@ -21,11 +21,47 @@ function DietTag({ label, color }: { label: string; color?: string }) {
   return <span style={{ display: 'inline-flex', alignItems: 'center', gap: '2px', fontSize: '6px', fontWeight: 600, padding: '1px 4px', borderRadius: '3px', color: color || T.green, background: `${color || T.green}10`, border: `1px solid ${color || T.green}20`, letterSpacing: '0.3px' }}><I d={ic.leaf} size={6} color={color || T.green} stroke={2} />{label}</span>;
 }
 
-function MiniMenuItemCard() {
-  const items = [
-    { name: 'Truffle Mushroom Risotto', desc: 'Arborio rice, wild mushrooms, aged parmesan, truffle oil', price: 24, cal: 580, spice: 0, tags: ['GF'], img: 'linear-gradient(135deg, #fef3c7 0%, #d4a574 50%, #92400e 100%)', badge: "Chef's Pick", rating: 4.9, orders: 1240 },
-    { name: 'Grilled Salmon Teriyaki', desc: 'Atlantic salmon, house teriyaki, jasmine rice, bok choy', price: 28, cal: 420, spice: 1, tags: ['DF'], img: 'linear-gradient(135deg, #fed7aa 0%, #fb923c 50%, #ea580c 100%)', rating: 4.7, orders: 890 },
-  ];
+// Rotating image gradients for live menu items (data-backed items
+// don't carry visual fields today — fall back to a palette that
+// matches the existing design aesthetic).
+const DEFAULT_MENU_IMGS = [
+  'linear-gradient(135deg, #fef3c7 0%, #d4a574 50%, #92400e 100%)',
+  'linear-gradient(135deg, #fed7aa 0%, #fb923c 50%, #ea580c 100%)',
+  'linear-gradient(135deg, #d1fae5 0%, #34d399 50%, #047857 100%)',
+  'linear-gradient(135deg, #dbeafe 0%, #60a5fa 50%, #1d4ed8 100%)',
+];
+
+const DEFAULT_DRINK_IMGS = [
+  'linear-gradient(135deg, #92400e, #78350f)',
+  'linear-gradient(135deg, #7f1d1d, #991b1b)',
+  'linear-gradient(135deg, #d97706, #b45309)',
+  'linear-gradient(135deg, #1e3a8a, #1e40af)',
+];
+
+// Test-chat-emission follow-up: accept ProductCardPreviewData shape
+// (data.items[]). When partner modules are wired, items override the
+// hardcoded design sample; other visual fields (cal, spice, tags, img)
+// fall back to defaults so real partner items still render cleanly
+// without a schema extension. Pattern matches MiniProductCard.
+function MiniMenuItemCard({ data } = {}) {
+  const liveItems = Array.isArray(data?.items) && data.items.length > 0 ? data.items : null;
+  const items = liveItems
+    ? liveItems.slice(0, 4).map((it, i) => ({
+        name: it.name,
+        desc: it.desc ?? '',
+        price: typeof it.price === 'number' ? it.price : 0,
+        cal: typeof it.cal === 'number' ? it.cal : 0,
+        spice: 0,
+        tags: Array.isArray(it.tags) ? it.tags : [],
+        img: DEFAULT_MENU_IMGS[i % DEFAULT_MENU_IMGS.length],
+        badge: typeof it.badge === 'string' ? it.badge : undefined,
+        rating: typeof it.rating === 'number' ? it.rating : 0,
+        orders: typeof it.reviews === 'number' ? it.reviews : 0,
+      }))
+    : [
+        { name: 'Truffle Mushroom Risotto', desc: 'Arborio rice, wild mushrooms, aged parmesan, truffle oil', price: 24, cal: 580, spice: 0, tags: ['GF'], img: 'linear-gradient(135deg, #fef3c7 0%, #d4a574 50%, #92400e 100%)', badge: "Chef's Pick", rating: 4.9, orders: 1240 },
+        { name: 'Grilled Salmon Teriyaki', desc: 'Atlantic salmon, house teriyaki, jasmine rice, bok choy', price: 28, cal: 420, spice: 1, tags: ['DF'], img: 'linear-gradient(135deg, #fed7aa 0%, #fb923c 50%, #ea580c 100%)', rating: 4.7, orders: 890 },
+      ];
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
       {items.map((item, i) => (
@@ -296,18 +332,33 @@ function MiniComboMeal() {
   );
 }
 
-function MiniDrinkMenu() {
+// Test-chat-emission follow-up: accept ProductCardPreviewData shape.
+// Same items-array source as menu_item; `cat` and `abv` fall back to
+// defaults (not in today's moduleItems schema). Pattern matches
+// MiniMenuItemCard.
+function MiniDrinkMenu({ data } = {}) {
+  const liveItems = Array.isArray(data?.items) && data.items.length > 0 ? data.items : null;
+  const drinks = liveItems
+    ? liveItems.slice(0, 4).map((it, i) => ({
+        name: it.name,
+        desc: it.desc ?? '',
+        price: typeof it.price === 'number' ? it.price : 0,
+        cat: typeof it.badge === 'string' ? it.badge : 'Drink',
+        abv: '',
+        img: DEFAULT_DRINK_IMGS[i % DEFAULT_DRINK_IMGS.length],
+      }))
+    : [
+        { name: 'House Old Fashioned', desc: 'Bourbon, Angostura, Demerara, orange peel', price: 16, cat: 'Cocktails', abv: '32%', img: 'linear-gradient(135deg, #92400e, #78350f)' },
+        { name: 'Napa Valley Pinot Noir', desc: 'Black cherry, earth, silky tannins', price: 14, cat: 'Wine', abv: '13.5%', img: 'linear-gradient(135deg, #7f1d1d, #991b1b)' },
+        { name: 'Local Craft IPA', desc: 'Citrus hops, pine, medium body', price: 9, cat: 'Beer', abv: '6.8%', img: 'linear-gradient(135deg, #d97706, #b45309)' },
+      ];
   return (
     <div style={{ background: T.surface, border: `1px solid ${T.bdr}`, borderRadius: '10px', overflow: 'hidden' }}>
       <div style={{ padding: '6px 10px', borderBottom: `1px solid ${T.bdr}`, display: 'flex', alignItems: 'center', gap: '4px' }}>
         <I d={ic.coffee} size={11} color={T.t1} stroke={2} />
         <span style={{ fontSize: '10px', fontWeight: 600, color: T.t1 }}>Drinks</span>
       </div>
-      {[
-        { name: 'House Old Fashioned', desc: 'Bourbon, Angostura, Demerara, orange peel', price: 16, cat: 'Cocktails', abv: '32%', img: 'linear-gradient(135deg, #92400e, #78350f)' },
-        { name: 'Napa Valley Pinot Noir', desc: 'Black cherry, earth, silky tannins', price: 14, cat: 'Wine', abv: '13.5%', img: 'linear-gradient(135deg, #7f1d1d, #991b1b)' },
-        { name: 'Local Craft IPA', desc: 'Citrus hops, pine, medium body', price: 9, cat: 'Beer', abv: '6.8%', img: 'linear-gradient(135deg, #d97706, #b45309)' },
-      ].map((d, i) => (
+      {drinks.map((d, i) => (
         <div key={i} style={{ display: 'flex', gap: '7px', padding: '6px 10px', borderBottom: i < 2 ? `1px solid ${T.bdr}` : 'none' }}>
           <div style={{ width: 32, height: 32, borderRadius: 6, background: d.img, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <I d={ic.droplet} size={12} color="rgba(255,255,255,0.4)" stroke={1.5} />
@@ -321,7 +372,7 @@ function MiniDrinkMenu() {
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '3px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                 <span style={{ fontSize: '11px', fontWeight: 700, color: T.pri }}>{fmt(d.price)}</span>
-                <span style={{ fontSize: '7px', color: T.t4, background: T.bg, padding: '1px 4px', borderRadius: '2px' }}>ABV {d.abv}</span>
+                {d.abv && <span style={{ fontSize: '7px', color: T.t4, background: T.bg, padding: '1px 4px', borderRadius: '2px' }}>ABV {d.abv}</span>}
               </div>
               <button style={{ fontSize: '7px', fontWeight: 600, color: '#fff', background: T.pri, border: 'none', padding: '3px 8px', borderRadius: '4px', cursor: 'pointer' }}>Add</button>
             </div>

@@ -169,3 +169,112 @@ describe('buildBlockData / buildProductCard — purpose-aware module selection',
     expect(items[0].name).toBe('Catalog Item');
   });
 });
+
+// ── Cafe discovery blocks (test-chat-emission follow-up) ─────────
+//
+// Brew & BonBon Cafe symptom: cafe flow template offers menu_item /
+// drink_menu / category_browser / dietary_filter; buildBlockData
+// previously handled NONE of them. Ship menu_item + drink_menu (both
+// item-shape); defer category_browser + dietary_filter (schema-
+// divergent, see retro).
+
+describe('buildBlockData — menu_item (cafe discovery)', () => {
+  it('menu_item prefers `menu_items` over `drinks`', () => {
+    const modules: FakeModule[] = [
+      mod('drinks', [{ name: 'Coffee', price: 4 }]),
+      mod('menu_items', [
+        { name: 'Artisanal Bonbon', price: 5 },
+        { name: 'Croissant', price: 3 },
+      ]),
+    ];
+
+    const result = buildBlockData({
+      blockId: 'menu_item',
+      partnerData: null,
+      modules,
+    });
+
+    expect(result).toBeDefined();
+    const items = (result as { items: Array<{ name: string }> }).items;
+    expect(items.map((i) => i.name)).toEqual(['Artisanal Bonbon', 'Croissant']);
+  });
+
+  it('menu_item falls back to first-with-items when no preferred slug matches', () => {
+    const modules: FakeModule[] = [
+      mod('cafe_catalog_v2', [{ name: 'Bespoke Item', price: 9 }]),
+    ];
+    const result = buildBlockData({
+      blockId: 'menu_item',
+      partnerData: null,
+      modules,
+    });
+    const items = (result as { items: Array<{ name: string }> }).items;
+    expect(items[0].name).toBe('Bespoke Item');
+  });
+});
+
+describe('buildBlockData — drink_menu (cafe discovery)', () => {
+  it('drink_menu prefers `drinks` over `menu_items`', () => {
+    const modules: FakeModule[] = [
+      mod('menu_items', [{ name: 'Croissant', price: 3 }]),
+      mod('drinks', [
+        { name: 'Espresso', price: 4 },
+        { name: 'Matcha Latte', price: 6 },
+      ]),
+    ];
+
+    const result = buildBlockData({
+      blockId: 'drink_menu',
+      partnerData: null,
+      modules,
+    });
+
+    const items = (result as { items: Array<{ name: string }> }).items;
+    expect(items.map((i) => i.name)).toEqual(['Espresso', 'Matcha Latte']);
+  });
+
+  it('drink_menu falls back to menu_items when no drinks module exists', () => {
+    // ordering inside PRODUCT_BLOCK_PREFERRED_SLUGS.drink_menu is
+    // ['drinks', 'beverages', 'drink_menu', 'menu_items'] — menu_items
+    // is the last preferred entry before fallback.
+    const modules: FakeModule[] = [
+      mod('menu_items', [{ name: 'Menu Coffee', price: 4 }]),
+    ];
+    const result = buildBlockData({
+      blockId: 'drink_menu',
+      partnerData: null,
+      modules,
+    });
+    const items = (result as { items: Array<{ name: string }> }).items;
+    expect(items[0].name).toBe('Menu Coffee');
+  });
+});
+
+describe('buildBlockData — cafe blocks deferred (halt condition)', () => {
+  it('category_browser returns undefined (deferred — schema divergent)', () => {
+    const modules: FakeModule[] = [
+      mod('menu_items', [{ name: 'Item', price: 5 }]),
+    ];
+    const result = buildBlockData({
+      blockId: 'category_browser',
+      partnerData: null,
+      modules,
+    });
+    // Explicit undefined — the preview component falls back to its
+    // design sample. Categories/counts require aggregation that isn't
+    // in today's businessModules schema.
+    expect(result).toBeUndefined();
+  });
+
+  it('dietary_filter returns undefined (deferred — schema divergent)', () => {
+    const modules: FakeModule[] = [
+      mod('menu_items', [{ name: 'Item', price: 5 }]),
+    ];
+    const result = buildBlockData({
+      blockId: 'dietary_filter',
+      partnerData: null,
+      modules,
+    });
+    expect(result).toBeUndefined();
+  });
+});
