@@ -55,13 +55,13 @@ Every turn from partner data entry to customer response flows through these 8 ho
 | 08 | FEEDBACK · verification | Test Chat signals panel + conversations tab | **OK** | `TestChatSignalsPanel.tsx`, `/admin/relay/health` |
 
 ### Why HALF for hop 02
-The editor and persistence both work. **Verified (Phase 0):** the admin editor at `/admin/relay/flows` writes to `systemFlowTemplates` Firestore collection. The orchestrator reads from `partners/{pid}/relayConfig/flowDefinition`. These are structurally disconnected — no code path moves a system template into the orchestrator. The partner-level flow editor (`savePartnerFlowAction`) writes to the path the orchestrator reads, so partner overrides work. MR-3's job is a design decision: how should admin-level templates propagate to the orchestrator? See `PHASE_0_RECON.md` for full evidence.
+The admin flow editor and partner flow editor both work in isolation. **The gap is structural, not precedence:** admin saves to `systemFlowTemplates`, while the orchestrator reads `partners/{pid}/relayConfig/flowDefinition` — different collections. Admin edits do not propagate to any partner unless that partner has explicitly created an override (most haven't). Evidence: [`PHASE_0_RECON.md`](./PHASE_0_RECON.md). MR-3 needs a design decision before it's a build (see MR-3.M00).
 
 ### Why MISSING for hop 04 — the load-bearing gap
 The RAG infrastructure exists (`firestoreRetriever`, `gemini-embedding-001`, `centy_documents` vector collection). But its only writer today is `/api/thesis-docs/save` for the financial advisory feature. **Nothing writes module items, business persona, or partner-uploaded docs into the retrieval store for Relay.** So `signals.ragUsed=false` for every non-thesis partner — the response falls back to generic text or empty block data. This is why partners report "the chat doesn't know my products" after filling their catalog.
 
 ### Why HALF for hop 06
-**Verified (Phase 0):** `src/lib/relay/orchestrator/signals/rag.ts` already contains a full retrieval call: it queries `centy_documents` with `where: { partnerId: ctx.partnerId }` and k=4. For all non-thesis partners it returns `reason: 'empty-result'` because hop 04 is missing. Block selection works. RAG grounding returns empty because the collection has no relay data. `ragText` inline fields on `moduleItems` are NOT used by the orchestrator. MR-2's scope is narrower than planned — extend `loadRagSignal` (add `ragSourceBreakdown`) rather than rebuild. See `PHASE_0_RECON.md`.
+The retrieval call already exists at `src/lib/relay/orchestrator/signals/rag.ts:79` — `loadRagSignal` does a full partner-scoped retrieval. It currently returns `empty-result` because hop 04 has nothing indexed for non-thesis partners. **The mechanism is working; the data isn't there.** MR-2 extends this call with three source kinds (items / persona / docs) rather than rebuilding. Evidence: [`PHASE_0_RECON.md`](./PHASE_0_RECON.md).
 
 ### Why HALF for hop 07
 Structured blocks pulling from `moduleItems` by direct query work (the TestChatProducts fix closed that). **Unstructured answers** (FAQ, policy, doc-grounded) don't, because the retrieval path has no data.
@@ -75,11 +75,11 @@ Session-by-session hop status. Update in place at session close.
 | Hop | Last status | Last changed | By (MR) | Notes |
 |-----|-------------|--------------|---------|-------|
 | 01  | OK | pre-P3 | Engine recipes | Stable |
-| 02  | HALF | pre-P3 | Admin flow editor shipped | Needs MR-3 trace to verify orchestrator read |
+| 02  | HALF | 2026-04-21 | Phase 0 recon | Disconnected collections — MR-3 design decision needed (see MR-3.M00) |
 | 03  | OK | Phase 2 | Partner toolkit | Stable |
 | 04  | MISSING | never wired | — | **MR-1 target** |
 | 05  | OK | pre-P3 | Subdomain path works | Embed path separate (P5, out of mission scope) |
-| 06  | HALF | pre-P3 | Orchestrator shipped | Becomes OK when MR-2 wires retrieval in |
+| 06  | HALF | 2026-04-21 | Phase 0 recon | `loadRagSignal` exists and retrieves — returns empty until hop 04 indexes data. MR-2 extends with source kinds |
 | 07  | HALF | Phase 4 | TestChatProducts fix landed structured path | Unstructured waits on hop 4 |
 | 08  | OK | Phase 2 | Test Chat signals work | Prod conversation tab doesn't render signals — non-mission |
 
@@ -108,11 +108,11 @@ Five phases. Each milestone (Mn) is session-sized (~2–3h). **Order is a strict
 
 ### MR-2 — Wire the retriever into the orchestrator *(hop 6)*
 **Goal:** Make `orchestrate()` actually use the retrieval store. Make signals fidelity match reality.
-**Effort:** ~2 sessions, ~5h.
+**Effort:** ~1–2 sessions, ~3h.
 **Depends on:** MR-1 complete.
 
-- **M01 — Retriever abstraction: `retrievePartnerContext(partnerId, query, opts)`.** Three modes: `kind: 'items'` (structured + keyword first, embedding rerank), `kind: 'persona'` (vector only), `kind: 'docs'` (vector only). Returns normalised chunks with source type + score.
-  - Files: `src/lib/relay/retrieval/retrieve.ts`
+- **M01 — Extend `loadRagSignal` with source kinds.** Current implementation at `src/lib/relay/orchestrator/signals/rag.ts:79` returns a single-stream result. Extend signature to accept `kind: 'items' | 'persona' | 'docs'` and return a per-kind breakdown. Prefer extension over wrapping — the call site already exists and has a working contract.
+  - Files: `src/lib/relay/orchestrator/signals/rag.ts` · touch only what's needed
 - **M02 — Orchestrator integration.** Replace the current RAG step in `orchestrate()` with `retrievePartnerContext` calls — one per relevant kind per turn. Pass `items` results into `buildBlockData`; pass `persona` + `docs` results into the LLM prompt.
   - Files: `src/lib/relay/orchestrator/*`
 - **M03 — Signals fidelity.** `signals.ragUsed=true` when any retrieval happened. `ragSources` = count of retrieved chunks. New field: `ragSourceBreakdown: { items, persona, docs }`. Surface in `TestChatSignalsPanel`.
@@ -122,10 +122,17 @@ Five phases. Each milestone (Mn) is session-sized (~2–3h). **Order is a strict
 
 **Exit criteria:** A Test Chat turn on a partner with indexed data shows `ragUsed: true` in the signals panel, `ragSources > 0`, and the response contains tokens that demonstrably came from the indexed content (not hallucination).
 
-### MR-3 — Verify flows edit → flows execute *(hop 2)*
-**Goal:** Prove that what the admin edits in `/admin/relay/flows` actually changes orchestrator behaviour. A bug-hunt more than a build.
-**Effort:** ~1 session, ~2h.
+### MR-3 — Connect admin flows to orchestrator *(hop 2)*
+**Goal:** Design and implement how admin-edited system templates reach the orchestrator. Phase 0 confirmed they're currently in disconnected collections — this MR closes the gap.
+**Effort:** ~1–2 sessions, ~3h.
 **Depends on:** nothing; can run parallel to MR-1 if a second stream is available.
+
+- **M00 — Flow propagation design decision.** Admin saves to `systemFlowTemplates`; orchestrator reads `partners/{pid}/relayConfig/flowDefinition`. These are disconnected collections — Phase 0 confirmed this. Decide between:
+  - **Option A** — copy on admin save (fan out to every matching partner; overwrites partner customisations)
+  - **Option B** — fallback at orchestrator read (partner override first, system template as default; preserves customisations, smallest change)
+  - **Option C** — merge/resolver (compose system + partner as delta; most correct, most complex)
+
+  Deliverable: `docs/relay-mission/MR-3/flow-propagation-design.md`. Lock the choice before M01 starts.
 
 - **M01 — Trace: admin save → Firestore → orchestrator read.** Edit the `ecommerce_d2c` flow in admin. Change one intent trigger (e.g. add "gift" to discovery). Save. Confirm the Firestore doc reflects it. Confirm the next Test Chat turn uses the new trigger.
 - **M02 — Identify & close the fall-through.** If the orchestrator ignores Firestore and uses `getFlowTemplateForFunction()` hardcoded, that's the bug. Fix: orchestrator prefers Firestore, falls back to hardcoded only when unset.
@@ -190,7 +197,7 @@ The fallback simplification in M05 may overlap with MR-2's graceful zero-result 
 - [ ] Verify assigned task matches an MR milestone
 - [ ] If no match, halt and add to Freeze List with rationale
 - [ ] Check [`SESSION_LOG.md`](./SESSION_LOG.md) — what did the last session ship?
-- [ ] Verify `tsc` baseline (≤276 per `docs/engine-cutover-phase3/tuning.md`)
+- [ ] Verify `tsc` baseline (≤100 per `docs/engine-cutover-phase3/tuning.md`)
 - [ ] Verify `npm test -- --run` green
 
 ### During session
@@ -222,7 +229,7 @@ Referenced from this doc. Read as needed, in this order of priority:
 
 **Operating principles**
 - [`docs/booking-pilot/00-context.md`](../booking-pilot/00-context.md) — pause-on-ambiguity, one-milestone-per-commit, root-cause-only
-- [`docs/engine-cutover-phase3/tuning.md`](../engine-cutover-phase3/tuning.md) — baseline discipline, session template, tsc anchor (276)
+- [`docs/engine-cutover-phase3/tuning.md`](../engine-cutover-phase3/tuning.md) — baseline discipline, session template, tsc anchor (100)
 
 **What's been shipped**
 - [`docs/engine-cutover-phase3/plan.md`](../engine-cutover-phase3/plan.md) — Phase 3 milestones (M01–M09)
@@ -251,3 +258,4 @@ Append-only. One entry per substantive update to this doc.
 |------|--------|--------|
 | 2026-04-21 | [assign] | Initial version. 8-hop pipeline, 5 MRs, freeze list. Status baseline: MR-1 not started, hop 04 MISSING is the load-bearing gap. |
 | 2026-04-21 | Claude (Phase 0) | Corrected hop 02 explanation: admin writes `systemFlowTemplates`, orchestrator reads `partners/{pid}/relayConfig/flowDefinition` — disconnected. Corrected hop 06: retrieval call already exists in `signals/rag.ts`; gets empty-result. MR-2 scope narrowed accordingly. |
+| 2026-04-21 | Claude (MR-1.M01) | Refined hop 02 / hop 06 per Phase 0 recon. Hop 02 gap is structural (disconnected collections), not precedence. Hop 06's `loadRagSignal` exists and works — the data, not the mechanism, is missing. MR-2 shrunk from "build abstraction" to "extend existing" (~3h). MR-3 renamed + gained M00 design decision (Options A/B/C). tsc anchor 276 → 100 in tuning.md and session protocol. |
