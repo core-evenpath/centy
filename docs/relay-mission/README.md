@@ -55,13 +55,13 @@ Every turn from partner data entry to customer response flows through these 8 ho
 | 08 | FEEDBACK · verification | Test Chat signals panel + conversations tab | **OK** | `TestChatSignalsPanel.tsx`, `/admin/relay/health` |
 
 ### Why HALF for hop 02
-The editor and persistence both work. **Unverified:** does the orchestrator actually read the saved Firestore flow, or fall back to `getFlowTemplateForFunction()` (hardcoded)? This is MR-3's job to trace.
+The editor and persistence both work. **Verified (Phase 0):** the admin editor at `/admin/relay/flows` writes to `systemFlowTemplates` Firestore collection. The orchestrator reads from `partners/{pid}/relayConfig/flowDefinition`. These are structurally disconnected — no code path moves a system template into the orchestrator. The partner-level flow editor (`savePartnerFlowAction`) writes to the path the orchestrator reads, so partner overrides work. MR-3's job is a design decision: how should admin-level templates propagate to the orchestrator? See `PHASE_0_RECON.md` for full evidence.
 
 ### Why MISSING for hop 04 — the load-bearing gap
 The RAG infrastructure exists (`firestoreRetriever`, `gemini-embedding-001`, `centy_documents` vector collection). But its only writer today is `/api/thesis-docs/save` for the financial advisory feature. **Nothing writes module items, business persona, or partner-uploaded docs into the retrieval store for Relay.** So `signals.ragUsed=false` for every non-thesis partner — the response falls back to generic text or empty block data. This is why partners report "the chat doesn't know my products" after filling their catalog.
 
 ### Why HALF for hop 06
-`orchestrate()` has `signals.ragUsed`, `ragSources`, `ragReason` in its contract. Block selection works. RAG grounding doesn't, because hop 4 is missing.
+**Verified (Phase 0):** `src/lib/relay/orchestrator/signals/rag.ts` already contains a full retrieval call: it queries `centy_documents` with `where: { partnerId: ctx.partnerId }` and k=4. For all non-thesis partners it returns `reason: 'empty-result'` because hop 04 is missing. Block selection works. RAG grounding returns empty because the collection has no relay data. `ragText` inline fields on `moduleItems` are NOT used by the orchestrator. MR-2's scope is narrower than planned — extend `loadRagSignal` (add `ragSourceBreakdown`) rather than rebuild. See `PHASE_0_RECON.md`.
 
 ### Why HALF for hop 07
 Structured blocks pulling from `moduleItems` by direct query work (the TestChatProducts fix closed that). **Unstructured answers** (FAQ, policy, doc-grounded) don't, because the retrieval path has no data.
@@ -250,3 +250,4 @@ Append-only. One entry per substantive update to this doc.
 | Date | Author | Change |
 |------|--------|--------|
 | 2026-04-21 | [assign] | Initial version. 8-hop pipeline, 5 MRs, freeze list. Status baseline: MR-1 not started, hop 04 MISSING is the load-bearing gap. |
+| 2026-04-21 | Claude (Phase 0) | Corrected hop 02 explanation: admin writes `systemFlowTemplates`, orchestrator reads `partners/{pid}/relayConfig/flowDefinition` — disconnected. Corrected hop 06: retrieval call already exists in `signals/rag.ts`; gets empty-result. MR-2 scope narrowed accordingly. |
