@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
+import { toast } from 'sonner';
 import {
     CheckCircle2,
     AlertCircle,
@@ -10,11 +11,17 @@ import {
     Loader2,
     Sparkles,
     Clock3,
+    Wand2,
+    PlusCircle,
 } from 'lucide-react';
 import {
     getModuleSampleSummaryAction,
     type ModuleSampleSummary,
 } from '@/actions/relay-test-chat-actions';
+import {
+    quickStartTaxonomyDataAction,
+    seedSampleItemsAction,
+} from '@/actions/relay-sample-data-actions';
 import type {
     DataSection,
     FunctionDataGuide,
@@ -33,6 +40,8 @@ import type {
 interface Props {
     guide: FunctionDataGuide;
     partnerId: string;
+    /** Used as `createdBy` on seeded sample items. */
+    userId?: string;
     highlightSectionId?: string | null;
     onHighlightConsumed?: () => void;
 }
@@ -40,11 +49,15 @@ interface Props {
 export default function BlockDataChecklist({
     guide,
     partnerId,
+    userId,
     highlightSectionId,
     onHighlightConsumed,
 }: Props) {
     const [summaries, setSummaries] = useState<Record<string, ModuleSampleSummary>>({});
     const [loadingSlugs, setLoadingSlugs] = useState<Set<string>>(new Set());
+    const [isSeedingAll, setIsSeedingAll] = useState(false);
+    const [seedingSlug, setSeedingSlug] = useState<string | null>(null);
+    const [reloadToken, setReloadToken] = useState(0);
     const sectionRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
     const uniqueSlugs = useMemo(() => {
@@ -59,6 +72,9 @@ export default function BlockDataChecklist({
         if (!partnerId || uniqueSlugs.length === 0) return;
         let cancelled = false;
         setLoadingSlugs(new Set(uniqueSlugs));
+        // reloadToken is an explicit dep so this effect re-runs whenever
+        // the partner triggers a seed action and we want fresh summaries.
+        void reloadToken;
         (async () => {
             for (const slug of uniqueSlugs) {
                 try {
@@ -84,7 +100,52 @@ export default function BlockDataChecklist({
         return () => {
             cancelled = true;
         };
-    }, [partnerId, uniqueSlugs]);
+    }, [partnerId, uniqueSlugs, reloadToken]);
+
+    const handleSeedSection = async (section: DataSection) => {
+        if (!section.moduleSlug || !userId) return;
+        setSeedingSlug(section.moduleSlug);
+        try {
+            const res = await seedSampleItemsAction(partnerId, section.moduleSlug, userId);
+            if (res.success) {
+                toast.success(
+                    res.created && res.created > 0
+                        ? `Added ${res.created} sample items to ${section.name}`
+                        : `${section.name} is ready`,
+                );
+                setReloadToken((t) => t + 1);
+            } else {
+                toast.error(res.error || `Could not load samples for ${section.name}`);
+            }
+        } catch (err: any) {
+            toast.error(err?.message || 'Could not load samples');
+        } finally {
+            setSeedingSlug(null);
+        }
+    };
+
+    const handleQuickStart = async () => {
+        if (!userId) return;
+        setIsSeedingAll(true);
+        try {
+            const res = await quickStartTaxonomyDataAction(partnerId, guide.functionId, userId);
+            if (res.success) {
+                const total = res.sectionsSeeded.reduce((acc, s) => acc + s.created, 0);
+                toast.success(
+                    total > 0
+                        ? `Loaded sample data across ${res.sectionsSeeded.length} sections (${total} items)`
+                        : 'All sections already have data',
+                );
+                setReloadToken((t) => t + 1);
+            } else {
+                toast.error(res.error || 'Could not load sample data');
+            }
+        } catch (err: any) {
+            toast.error(err?.message || 'Could not load sample data');
+        } finally {
+            setIsSeedingAll(false);
+        }
+    };
 
     useEffect(() => {
         if (!highlightSectionId) return;
@@ -115,17 +176,34 @@ export default function BlockDataChecklist({
                         every block picks them up automatically.
                     </p>
                 </div>
-                {requiredSections.length > 0 && (
-                    <div
-                        className={`shrink-0 rounded-full border px-3 py-1 text-xs font-medium ${
-                            readyCount === requiredSections.length
-                                ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
-                                : 'bg-muted/50'
-                        }`}
-                    >
-                        {readyCount} / {requiredSections.length} required ready
-                    </div>
-                )}
+                <div className="shrink-0 flex items-center gap-2">
+                    {requiredSections.length > 0 && (
+                        <div
+                            className={`rounded-full border px-3 py-1 text-xs font-medium ${
+                                readyCount === requiredSections.length
+                                    ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                                    : 'bg-muted/50'
+                            }`}
+                        >
+                            {readyCount} / {requiredSections.length} required ready
+                        </div>
+                    )}
+                    {userId && (
+                        <button
+                            type="button"
+                            onClick={handleQuickStart}
+                            disabled={isSeedingAll}
+                            className="inline-flex items-center gap-1.5 rounded-md border bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground shadow-sm hover:bg-primary/90 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+                        >
+                            {isSeedingAll ? (
+                                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                            ) : (
+                                <Wand2 className="h-3.5 w-3.5" />
+                            )}
+                            {isSeedingAll ? 'Loading samples…' : 'Start with sample data'}
+                        </button>
+                    )}
+                </div>
             </header>
 
             <div className="divide-y">
@@ -215,15 +293,34 @@ export default function BlockDataChecklist({
                                         </div>
                                     )}
 
-                                    {section.route && (
-                                        <div className="mt-3">
-                                            <Link
-                                                href={section.route}
-                                                className="inline-flex items-center gap-1.5 rounded-md border bg-background px-3 py-1.5 text-xs font-medium hover:bg-muted transition-colors"
-                                            >
-                                                {section.ctaLabel || 'Open editor'}
-                                                <ExternalLink className="h-3 w-3" />
-                                            </Link>
+                                    {(section.route || canSeedSection(section, summary)) && (
+                                        <div className="mt-3 flex flex-wrap items-center gap-2">
+                                            {section.route && (
+                                                <Link
+                                                    href={section.route}
+                                                    className="inline-flex items-center gap-1.5 rounded-md border bg-background px-3 py-1.5 text-xs font-medium hover:bg-muted transition-colors"
+                                                >
+                                                    {section.ctaLabel || 'Open editor'}
+                                                    <ExternalLink className="h-3 w-3" />
+                                                </Link>
+                                            )}
+                                            {canSeedSection(section, summary) && userId && (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => handleSeedSection(section)}
+                                                    disabled={seedingSlug === section.moduleSlug}
+                                                    className="inline-flex items-center gap-1.5 rounded-md border bg-background px-3 py-1.5 text-xs font-medium hover:bg-muted transition-colors disabled:opacity-60"
+                                                >
+                                                    {seedingSlug === section.moduleSlug ? (
+                                                        <Loader2 className="h-3 w-3 animate-spin" />
+                                                    ) : (
+                                                        <PlusCircle className="h-3 w-3" />
+                                                    )}
+                                                    {seedingSlug === section.moduleSlug
+                                                        ? 'Loading…'
+                                                        : 'Load sample data'}
+                                                </button>
+                                            )}
                                         </div>
                                     )}
                                 </div>
@@ -322,6 +419,19 @@ function BlockChip({
             {label}
         </span>
     );
+}
+
+// Sections that are module-backed and currently empty get an inline
+// "Load sample data" CTA. Design-only sections (no moduleSlug) and
+// already-populated sections are skipped.
+function canSeedSection(
+    section: DataSection,
+    summary: ModuleSampleSummary | undefined,
+): boolean {
+    if (!section.moduleSlug) return false;
+    if (section.status === 'design_only') return false;
+    if (summary?.enabled && summary.total > 0) return false;
+    return true;
 }
 
 function chipStatus(

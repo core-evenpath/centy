@@ -79,8 +79,12 @@ export async function getModuleSampleSummaryAction(
         const itemsRes = await getModuleItemsAction(partnerId, moduleId, {
             isActive: true,
             pageSize: 3,
-            sortBy: 'updatedAt',
-            sortOrder: 'desc',
+            // Firestore's orderBy silently excludes docs missing the field,
+            // so using 'updatedAt' drops older seeded items (the .count()
+            // call below would return 0 even when items exist). 'sortOrder'
+            // is set at item creation and is reliably present.
+            sortBy: 'sortOrder',
+            sortOrder: 'asc',
         });
         if (!itemsRes.success || !itemsRes.data) {
             return {
