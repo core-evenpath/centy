@@ -136,6 +136,13 @@ export default function PartnerRelayTestChatPage() {
     const [backendBlocks, setBackendBlocks] = useState<TestChatBlockInfo[]>([]);
     const [blocksLoading, setBlocksLoading] = useState(false);
 
+    const relayTheme = useMemo(() => buildThemeFromAccent(config.accentColor), [config.accentColor]);
+
+    // Bento tiles + tile-tap handler depend on `relayTheme` and `dataGuide`
+    // — keep them declared *after* those values so their useMemo/useCallback
+    // dependency arrays don't access the bindings before initialization
+    // (TDZ). Moving this block earlier triggers a runtime
+    // "Cannot access 'relayTheme' before initialization" in production.
     const bentoTiles: BentoTile[] = useMemo(() => {
         if (blocksLoading) return [];
         if (backendBlocks.length === 0) return defaultV1Tiles(relayTheme);
@@ -194,8 +201,6 @@ export default function PartnerRelayTestChatPage() {
         },
         [partnerId, dataGuide],
     );
-
-    const relayTheme = useMemo(() => buildThemeFromAccent(config.accentColor), [config.accentColor]);
 
     const session = useRelaySession({
         conversationId,
