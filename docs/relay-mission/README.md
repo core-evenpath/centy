@@ -3,7 +3,7 @@
 > **The mission.** `/admin/relay/flows` drives a flows-based conversation in `/partner/relay`, grounded in RAG over the partner's real data.
 > Every workstream serves this or waits behind it.
 
-**Status:** MR-1.M02 + MR-2.M01 shipped · last updated 2026-04-21
+**Status:** MR-1.M03 shipped · last updated 2026-04-21
 **Owner:** [assign]
 **Critical path:** MR-1 → MR-2 → MR-3 → MR-4 → MR-5 → then unfreeze P3.S3 / P5 / P7
 
@@ -77,7 +77,7 @@ Session-by-session hop status. Update in place at session close.
 | 01  | OK | pre-P3 | Engine recipes | Stable |
 | 02  | HALF | 2026-04-21 | Phase 0 recon | Disconnected collections — MR-3 design decision needed (see MR-3.M00) |
 | 03  | OK | Phase 2 | Partner toolkit | Stable |
-| 04  | HALF | 2026-04-21 | MR-1.M02 | Item indexer live; persona + docs indexers still MISSING |
+| 04  | HALF | 2026-04-21 | MR-1.M03 | Items + persona indexed; docs indexer still MISSING (M04). Hop flips to OK when docs indexer + backfill land. |
 | 05  | OK | pre-P3 | Subdomain path works | Embed path separate (P5, out of mission scope) |
 | 06  | HALF | 2026-04-21 | MR-2.M01 | `loadRagSignal` now queries `relayRetrieval/{pid}/items`; multi-source (persona/docs) in MR-2.M02+ |
 | 07  | HALF | Phase 4 | TestChatProducts fix landed structured path | Unstructured waits on hop 4 |

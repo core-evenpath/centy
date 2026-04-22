@@ -43,6 +43,46 @@ Copy this block at the top of a new session, fill in at session close.
 
 > Newest at top. Prepend new sessions above existing entries.
 
+## [2026-04-21] MR-1 Session 3 — persona indexer
+
+**MR targeted:** MR-1
+**Milestones attempted:** MR-1.M03
+**Milestones shipped:** MR-1.M03 (2503d561)
+**tsc before → after:** 276 → 276
+**Tests before → after:** 745 → 752 (+7)
+**Hops touched:** 04 (HALF → HALF, now covers items + persona)
+
+### What shipped
+- `src/lib/relay/retrieval/index-persona.ts` — `indexBusinessPersona` (delete-then-rewrite, 3 chunk kinds)
+- `src/lib/relay/retrieval/__tests__/index-persona.test.ts` — 7 behavioural tests
+- `src/actions/business-persona-actions.ts` — fire-and-forget hook in `saveBusinessPersonaAction`
+
+### Hop status changes
+- Hop 04: HALF → HALF (items + persona indexed; doc indexer pending MR-1.M04)
+
+### Halts / scope surprises
+- None. Clean session — M02 pattern applied directly.
+
+### Open operator actions (cumulative)
+- [ ] `gcloud` Firestore vector index for `relayRetrieval/{pid}/items` (from MR-1.M02)
+- [ ] `gcloud` Firestore vector index for `relayRetrieval/{pid}/persona` (this session):
+  ```
+  gcloud firestore indexes composite create \
+    --collection-group=persona \
+    --query-scope=COLLECTION_GROUP \
+    --field-config=vector-config='{"dimension":"768","flat":"{}"}',field-path=embedding
+  ```
+
+### What's next
+- MR-1.M04 — doc indexer: reuse `indexPdfFile`, new `/api/relay/upload-doc` route, `excludedVaultDocIds` guard (strategy open question #1)
+- MR-1.M05 — backfill script (iterates all active partners, idempotent re-index)
+- MR-2.M02 — multi-kind retrieval in orchestrator (blocked on `firestoreRetriever` name collision fix)
+
+### Links
+- PR: #TBD
+
+---
+
 ## [2026-04-21] MR-1 Session 2 + MR-2 Session 1 — items retrieval end-to-end vertical slice
 
 **MR targeted:** MR-1, MR-2
