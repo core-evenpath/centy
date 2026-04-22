@@ -12,9 +12,18 @@ import TestChatPhoneFrame from '@/components/partner/relay/test-chat/TestChatPho
 import TestChatHeader from '@/components/partner/relay/test-chat/TestChatHeader';
 import TestChatMessages from '@/components/partner/relay/test-chat/TestChatMessages';
 import TestChatInput from '@/components/partner/relay/test-chat/TestChatInput';
-import TestChatBento from '@/components/partner/relay/test-chat/TestChatBento';
+import TestChatBento, {
+    type BentoTile,
+    buildTilesFromBlocks,
+    defaultV1Tiles,
+} from '@/components/partner/relay/test-chat/TestChatBento';
 import BlockDataChecklist from '@/components/partner/relay/test-chat/BlockDataChecklist';
-import { getDataGuideForFunction } from '@/lib/relay/block-data-guide';
+import { getDataGuideForFunction, getSectionForBlock } from '@/lib/relay/block-data-guide';
+import {
+    getTestChatBlocksAction,
+    type TestChatBlockInfo,
+} from '@/actions/relay-test-chat-actions';
+import { getBlockPreviewDataAction } from '@/actions/relay-block-sources-actions';
 import TestChatFlowPanel, {
     type TestChatFlowMeta,
 } from '@/components/partner/relay/test-chat/TestChatFlowPanel';
@@ -119,6 +128,71 @@ export default function PartnerRelayTestChatPage() {
     const dataGuide = useMemo(
         () => getDataGuideForFunction(activeFunctionId),
         [activeFunctionId],
+    );
+
+    // Backend-sourced block definitions for the active taxonomy. Tiles
+    // are derived from these so anything the admin registry ships turns
+    // into a bento entry automatically.
+    const [backendBlocks, setBackendBlocks] = useState<TestChatBlockInfo[]>([]);
+    const [blocksLoading, setBlocksLoading] = useState(false);
+
+    const bentoTiles: BentoTile[] = useMemo(() => {
+        if (blocksLoading) return [];
+        if (backendBlocks.length === 0) return defaultV1Tiles(relayTheme);
+        return buildTilesFromBlocks(
+            backendBlocks,
+            relayTheme,
+            dataGuide
+                ? (blockId) => getSectionForBlock(dataGuide, blockId)?.id
+                : undefined,
+        );
+    }, [backendBlocks, relayTheme, dataGuide, blocksLoading]);
+
+    const handleBentoTileTap = useCallback(
+        (tile: { id: string; label: string; sectionId?: string }) => {
+            // v1: append a synthetic assistant message with the blockId.
+            // The admin preview renders immediately with sample data, then
+            // we fetch the partner's real data in the background and swap
+            // it into the message so the preview reflects actual content.
+            setChatMessages((prev) => [
+                ...prev,
+                {
+                    role: 'assistant',
+                    content: `Here's the ${tile.label} block.`,
+                    blockId: tile.id,
+                },
+            ]);
+            setShowHome(false);
+            if (tile.sectionId && dataGuide) {
+                setHighlightSectionId(tile.sectionId);
+            }
+
+            if (!partnerId) return;
+            (async () => {
+                try {
+                    const res = await getBlockPreviewDataAction(partnerId, tile.id);
+                    if (!res.success || !res.data) return;
+                    setChatMessages((prev) => {
+                        const next = [...prev];
+                        for (let i = next.length - 1; i >= 0; i--) {
+                            const m = next[i];
+                            if (
+                                m.role === 'assistant' &&
+                                m.blockId === tile.id &&
+                                !m.blockData
+                            ) {
+                                next[i] = { ...m, blockData: res.data };
+                                break;
+                            }
+                        }
+                        return next;
+                    });
+                } catch {
+                    // leave the design-sample preview in place
+                }
+            })();
+        },
+        [partnerId, dataGuide],
     );
 
     const relayTheme = useMemo(() => buildThemeFromAccent(config.accentColor), [config.accentColor]);
@@ -229,6 +303,27 @@ export default function PartnerRelayTestChatPage() {
             cancelled = true;
         };
     }, [partnerId]);
+
+    // ── Load block registry for active function ──────────────────────
+
+    useEffect(() => {
+        let cancelled = false;
+        setBlocksLoading(true);
+        (async () => {
+            try {
+                const res = await getTestChatBlocksAction(activeFunctionId);
+                if (cancelled) return;
+                setBackendBlocks(res.success ? res.blocks : []);
+            } catch {
+                if (!cancelled) setBackendBlocks([]);
+            } finally {
+                if (!cancelled) setBlocksLoading(false);
+            }
+        })();
+        return () => {
+            cancelled = true;
+        };
+    }, [activeFunctionId]);
 
     // ── Seed: pull entry-stage blocks on chat open ────────────────────
 
@@ -608,25 +703,8 @@ export default function PartnerRelayTestChatPage() {
                         {showHome ? (
                             <TestChatBento
                                 theme={relayTheme}
-                                functionId={activeFunctionId}
-                                onTileTap={(tile) => {
-                                    // v1: tapping a tile embeds the block preview
-                                    // directly into the chat (no RAG / no /api/relay/chat
-                                    // round-trip). The existing TestChatBlockPreview
-                                    // picks the registry entry by blockId and renders it.
-                                    setChatMessages((prev) => [
-                                        ...prev,
-                                        {
-                                            role: 'assistant',
-                                            content: `Here's the ${tile.label} block.`,
-                                            blockId: tile.id,
-                                        },
-                                    ]);
-                                    setShowHome(false);
-                                    if (tile.sectionId && dataGuide) {
-                                        setHighlightSectionId(tile.sectionId);
-                                    }
-                                }}
+                                tiles={bentoTiles}
+                                onTileTap={handleBentoTileTap}
                             />
                         ) : (
                             <TestChatMessages
