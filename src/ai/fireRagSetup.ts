@@ -46,7 +46,8 @@ export async function indexPdfFile(
   collectionName: string,
   partnerId: string,
   fileId: string,
-  filePath: string
+  filePath: string,
+  extraFieldsFactory?: (chunkIdx: number) => Record<string, unknown>,
 ) {
   filePath = path.resolve(filePath);
 
@@ -69,14 +70,15 @@ export async function indexPdfFile(
   // TODO
   // fileId should be unique per partner per file
   // Add chunks to the index.
-  await indexToFirestore(collectionName, partnerId, fileId, chunks);
+  await indexToFirestore(collectionName, partnerId, fileId, chunks, extraFieldsFactory);
 }
 
 export async function indexToFirestore(
   collectionName: string,
   partnerId: string,
   fileId: string,
-  data: string[]
+  data: string[],
+  extraFieldsFactory?: (chunkIdx: number) => Record<string, unknown>,
 ) {
   // Change these values to match your Firestore config/schema
   const indexConfig = {
@@ -87,7 +89,8 @@ export async function indexToFirestore(
   };
 
   console.log(`--- indexing chunks = ${data.length}`);
-  for (const text of data) {
+  for (let chunkIdx = 0; chunkIdx < data.length; chunkIdx++) {
+    const text = data[chunkIdx];
     console.log(`--- indexing text.length = ${text.length}`);
     const embedding = (
       await ai.embed({
@@ -100,6 +103,7 @@ export async function indexToFirestore(
       partnerId,
       [indexConfig.vectorField]: FieldValue.vector(embedding),
       [indexConfig.contentField]: text,
+      ...(extraFieldsFactory ? extraFieldsFactory(chunkIdx) : {}),
     });
   }
 }

@@ -60,6 +60,7 @@ interface CollectionRef {
   count: () => { get: () => Promise<{ data: () => { count: number } }> };
   limit: (_n: number) => CollectionRef;
   orderBy: (field: string, dir?: 'asc' | 'desc') => CollectionRef;
+  add: (data: Record<string, unknown>) => Promise<DocRef>;
 }
 
 interface DocRef {
@@ -157,6 +158,12 @@ function makeCollectionRef(
     limit: (n) => makeCollectionRef(path, predicates, n, orderBys),
     orderBy: (field, dir = 'asc') =>
       makeCollectionRef(path, predicates, limit, [...orderBys, { field, dir }]),
+    add: async (data: Record<string, unknown>) => {
+      if (shouldThrow()) throw new Error('simulated write failure');
+      const id = `auto_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
+      firestoreStore.set(`${path}/${id}`, { id, data });
+      return makeDocRef(`${path}/${id}`);
+    },
     count: () => ({
       get: async () => {
         const n = listDocs().length;
