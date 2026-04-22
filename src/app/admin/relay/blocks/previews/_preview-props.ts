@@ -14,6 +14,7 @@ export interface GreetingPreviewData {
 
 export interface ProductCardPreviewData {
   items?: Array<{
+    // Admin design-preview fields (MiniProductCard in BlockPreviews.tsx).
     name: string;
     desc?: string;
     price?: number;
@@ -22,7 +23,21 @@ export interface ProductCardPreviewData {
     rating?: number;
     reviews?: number;
     bg?: string;
+    // Interactive-renderer fields (CatalogCards via BlockRenderer in
+    // Test Chat / live widget). `id` is required for expand + add-to-cart
+    // lookup; `moduleSlug` is read by BlockRenderer to route onAddToCart
+    // back to the right module.
+    id?: string;
+    moduleSlug?: string;
+    subtitle?: string;
+    badges?: string[];
+    reviewCount?: number;
+    currency?: string;
+    originalPrice?: number;
+    imageUrl?: string;
   }>;
+  // Top-level fallback for BlockRenderer.onAddToCart when items lack moduleSlug.
+  moduleSlug?: string;
 }
 
 export interface ContactPreviewData {

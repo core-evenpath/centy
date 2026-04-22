@@ -250,6 +250,158 @@ describe('buildBlockData — drink_menu (cafe discovery)', () => {
   });
 });
 
+// ── Interactive-renderer field parity ─────────────────────────────
+//
+// TestChatBlockPreview routes `product_card` through BlockRenderer →
+// CatalogCards, which reads a different field shape than the admin
+// MiniProductCard design preview (`subtitle` vs `desc`, `badges` array
+// vs `badge` string, `reviewCount` vs `reviews`). `id` + `moduleSlug`
+// are required for the onAddToCart lookup in BlockRenderer.tsx:82.
+//
+// buildProductCard now emits both sets of field names from the same
+// ModuleItem so either rendering path sees real data.
+
+describe('buildBlockData / buildProductCard — interactive renderer fields', () => {
+  it('emits `id` and per-item `moduleSlug` so BlockRenderer.onAddToCart can resolve', () => {
+    const modules: FakeModule[] = [
+      mod('products', [
+        { id: 'sku_abc', name: 'Shampoo', price: 12, currency: 'USD' },
+      ]),
+    ];
+
+    const result = buildBlockData({
+      blockId: 'product_card',
+      partnerData: null,
+      modules,
+    }) as { items: Array<Record<string, unknown>>; moduleSlug: string };
+
+    expect(result.items[0].id).toBe('sku_abc');
+    expect(result.items[0].moduleSlug).toBe('products');
+    expect(result.moduleSlug).toBe('products');
+  });
+
+  it('duplicates desc → subtitle, badge → badges[], reviews → reviewCount for CatalogCards', () => {
+    const modules: FakeModule[] = [
+      mod('products', [
+        {
+          id: 'p1',
+          name: 'Widget',
+          description: 'A handy widget',
+          price: 25,
+          isPopular: true,
+          reviewCount: 42,
+          rating: 4.8,
+        },
+      ]),
+    ];
+
+    const result = buildBlockData({
+      blockId: 'product_card',
+      partnerData: null,
+      modules,
+    }) as { items: Array<Record<string, unknown>> };
+
+    const item = result.items[0];
+    // Admin-preview fields preserved.
+    expect(item.desc).toBe('A handy widget');
+    expect(item.badge).toBe('Popular');
+    expect(item.reviews).toBe(42);
+    // Interactive-renderer fields also populated.
+    expect(item.subtitle).toBe('A handy widget');
+    expect(item.badges).toEqual(['Popular']);
+    expect(item.reviewCount).toBe(42);
+  });
+
+  it('emits `currency`, `originalPrice`, and `imageUrl` when the ModuleItem carries them', () => {
+    const modules: FakeModule[] = [
+      mod('products', [
+        {
+          id: 'p1',
+          name: 'Shampoo',
+          price: 12,
+          currency: 'EUR',
+          compareAtPrice: 18,
+          thumbnail: 'https://cdn.example.com/shampoo-thumb.jpg',
+          images: ['https://cdn.example.com/shampoo-full.jpg'],
+        },
+      ]),
+    ];
+
+    const result = buildBlockData({
+      blockId: 'product_card',
+      partnerData: null,
+      modules,
+    }) as { items: Array<Record<string, unknown>> };
+
+    expect(result.items[0].currency).toBe('EUR');
+    expect(result.items[0].originalPrice).toBe(18);
+    // Prefers thumbnail over images[0].
+    expect(result.items[0].imageUrl).toBe('https://cdn.example.com/shampoo-thumb.jpg');
+  });
+
+  it('falls back to images[0] when thumbnail is absent', () => {
+    const modules: FakeModule[] = [
+      mod('products', [
+        {
+          id: 'p1',
+          name: 'Mug',
+          price: 8,
+          images: ['https://cdn.example.com/mug.jpg'],
+        },
+      ]),
+    ];
+
+    const result = buildBlockData({
+      blockId: 'product_card',
+      partnerData: null,
+      modules,
+    }) as { items: Array<Record<string, unknown>> };
+
+    expect(result.items[0].imageUrl).toBe('https://cdn.example.com/mug.jpg');
+  });
+
+  it('per-item moduleSlug + top-level moduleSlug both reflect the picked module', () => {
+    // products module is EMPTY → falls through to the next preferred
+    // slug (`catalog`). Both per-item and top-level moduleSlug should
+    // be `catalog`, not `products`.
+    const modules: FakeModule[] = [
+      mod('products', []),
+      mod('catalog', [{ id: 'c1', name: 'Catalog Item', price: 5 }]),
+    ];
+
+    const result = buildBlockData({
+      blockId: 'product_card',
+      partnerData: null,
+      modules,
+    }) as { items: Array<Record<string, unknown>>; moduleSlug: string };
+
+    expect(result.moduleSlug).toBe('catalog');
+    expect(result.items[0].moduleSlug).toBe('catalog');
+  });
+
+  it('gracefully handles items missing optional fields (id / currency / image)', () => {
+    const modules: FakeModule[] = [
+      mod('products', [{ name: 'Bare Item', price: 3 }]),
+    ];
+
+    const result = buildBlockData({
+      blockId: 'product_card',
+      partnerData: null,
+      modules,
+    }) as { items: Array<Record<string, unknown>>; moduleSlug: string };
+
+    const item = result.items[0];
+    expect(item.name).toBe('Bare Item');
+    expect(item.price).toBe(3);
+    expect(item.id).toBeUndefined();
+    expect(item.currency).toBeUndefined();
+    expect(item.imageUrl).toBeUndefined();
+    // moduleSlug is always attached so onAddToCart has a target.
+    expect(item.moduleSlug).toBe('products');
+    expect(result.moduleSlug).toBe('products');
+  });
+});
+
 describe('buildBlockData — cafe blocks deferred (halt condition)', () => {
   it('category_browser returns undefined (deferred — schema divergent)', () => {
     const modules: FakeModule[] = [

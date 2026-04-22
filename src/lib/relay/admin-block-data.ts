@@ -156,18 +156,44 @@ function buildProductCard(
       (raw?.isPopular ? 'Popular' : raw?.isNew ? 'New' : undefined);
     const rating = pickNumber(raw, ['rating', 'stars', 'averageRating']);
     const reviews = pickNumber(raw, ['reviewCount', 'reviews', 'numReviews']);
+    const id = pickString(raw, ['id']);
+    const currency = pickString(raw, ['currency']);
+    const originalPrice = pickNumber(raw, ['compareAtPrice', 'originalPrice']);
+    const imageUrl =
+      pickString(raw, ['thumbnail', 'imageUrl', 'image']) ||
+      (Array.isArray(raw?.images) && typeof raw.images[0] === 'string'
+        ? raw.images[0]
+        : undefined);
 
     const out: NonNullable<ProductCardPreviewData['items']>[number] = { name };
-    if (desc) out.desc = desc;
+    if (id) out.id = id;
+    if (desc) {
+      out.desc = desc;
+      // Duplicated to `subtitle` so CatalogCards (BlockRenderer) renders
+      // the description line — its type reads `subtitle`, not `desc`.
+      out.subtitle = desc;
+    }
     if (typeof rawPrice === 'number') out.price = rawPrice;
     if (priceLabel) out.priceLabel = priceLabel;
-    if (badge) out.badge = badge;
+    if (currency) out.currency = currency;
+    if (typeof originalPrice === 'number') out.originalPrice = originalPrice;
+    if (badge) {
+      out.badge = badge;
+      // Duplicated to `badges` (array) for CatalogCards.
+      out.badges = [badge];
+    }
     if (typeof rating === 'number') out.rating = rating;
-    if (typeof reviews === 'number') out.reviews = reviews;
+    if (typeof reviews === 'number') {
+      out.reviews = reviews;
+      // Duplicated to `reviewCount` for CatalogCards.
+      out.reviewCount = reviews;
+    }
+    if (imageUrl) out.imageUrl = imageUrl;
+    out.moduleSlug = mod.slug;
     return out;
   });
 
-  return items.length > 0 ? { items } : undefined;
+  return items.length > 0 ? { items, moduleSlug: mod.slug } : undefined;
 }
 
 // ── contact ──────────────────────────────────────────────────────────

@@ -80,7 +80,7 @@ Session-by-session hop status. Update in place at session close.
 | 04  | HALF | 2026-04-21 | MR-1.M03 | Items + persona indexed; docs indexer still MISSING (M04). Hop flips to OK when docs indexer + backfill land. |
 | 05  | OK | pre-P3 | Subdomain path works | Embed path separate (P5, out of mission scope) |
 | 06  | HALF | 2026-04-21 | MR-2.M01 | `loadRagSignal` now queries `relayRetrieval/{pid}/items`; multi-source (persona/docs) in MR-2.M02+ |
-| 07  | HALF | Phase 4 | TestChatProducts fix landed structured path | Unstructured waits on hop 4 |
+| 07  | HALF | 2026-04-22 | tactical fix | `buildProductCard` now emits CatalogCards-compatible fields (id, moduleSlug, subtitle, badges[], reviewCount, currency, imageUrl) so Test Chat renders real catalog + wires add-to-cart. Unstructured still pending MR-2.M02. |
 | 08  | OK | Phase 2 | Test Chat signals work | Prod conversation tab doesn't render signals — non-mission |
 
 ---
