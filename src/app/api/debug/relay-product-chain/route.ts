@@ -1,6 +1,9 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/firebase-admin';
-import { getFlowTemplateForFunction } from '@/lib/flow-templates';
+import {
+  resolveFlowDefinition,
+  type FlowLoadSource,
+} from '@/lib/relay/flow-loader';
 import type { FlowDefinition } from '@/lib/types-flow-engine';
 
 // ── /api/debug/relay-product-chain ─────────────────────────────────────
@@ -260,8 +263,15 @@ export async function GET(request: Request) {
   }
 
   // ── Step 4: product_card in current stage's allowed blocks ─────────
+  //
+  // Delegates resolution to the shared three-tier resolver in
+  // src/lib/relay/flow-loader.ts (partner override → systemFlowTemplates
+  // → buildFlowSyncServer). Previously this route had its own two-tier
+  // logic that silently dropped the auto-generated tier, so Step 4
+  // reported FAIL on partners (like beverage_cafe) where the runtime
+  // orchestrator was correctly resolving a generated flow.
   let flowDef: FlowDefinition | null = null;
-  let flowSource: 'partner_override' | 'system_template' | 'none' = 'none';
+  let flowSource: FlowLoadSource = 'none';
   let currentStageId: string | null = null;
   try {
     const persona = partnerData?.businessPersona as
@@ -270,27 +280,9 @@ export async function GET(request: Request) {
     const functionId =
       persona?.identity?.businessCategories?.[0]?.functionId ?? 'general';
 
-    try {
-      const overrideDoc = await db
-        .collection('partners')
-        .doc(partnerId)
-        .collection('relayConfig')
-        .doc('flowDefinition')
-        .get();
-      if (overrideDoc.exists) {
-        flowDef = overrideDoc.data() as FlowDefinition;
-        flowSource = 'partner_override';
-      }
-    } catch {
-      /* fall through to template */
-    }
-    if (!flowDef) {
-      const tpl = getFlowTemplateForFunction(functionId);
-      if (tpl) {
-        flowDef = tpl as unknown as FlowDefinition;
-        flowSource = 'system_template';
-      }
-    }
+    const resolved = await resolveFlowDefinition(partnerId, functionId);
+    flowDef = resolved.flow;
+    flowSource = resolved.source;
 
     if (conversationId) {
       try {
