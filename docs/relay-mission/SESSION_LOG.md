@@ -43,6 +43,49 @@ Copy this block at the top of a new session, fill in at session close.
 
 > Newest at top. Prepend new sessions above existing entries.
 
+## [2026-04-22] Tactical — product_card ← moduleItems (Test Chat)
+
+**MR targeted:** none (tactical fix; parallel to MR-1/MR-2 critical path)
+**Milestones attempted:** structured product_card data parity with CatalogCards renderer
+**Milestones shipped:** tactical commit (TBD sha)
+**tsc before → after:** 276 → 276
+**Tests before → after:** 752 → 758 (+6)
+**Hops touched:** 07 (HALF → HALF, structured path improved)
+
+### What shipped
+- `src/lib/relay/admin-block-data.ts` — `buildProductCard` now emits both admin-preview fields (desc / badge / reviews) AND interactive-renderer fields (id / moduleSlug / subtitle / badges[] / reviewCount / currency / originalPrice / imageUrl). Top-level `moduleSlug` added to the result.
+- `src/app/admin/relay/blocks/previews/_preview-props.ts` — `ProductCardPreviewData` extended to allow the CatalogCards-compatible fields (all optional; admin path unchanged).
+- `src/lib/relay/__tests__/admin-block-data-products.test.ts` — 6 new tests covering id propagation, per-item + top-level moduleSlug, desc→subtitle / badge→badges[] / reviews→reviewCount duplication, currency + originalPrice + imageUrl emission, images[0] fallback, graceful missing-field handling.
+
+### Why this session existed
+Test Chat routes `product_card` through `BlockRenderer` → `CatalogCards`, not the admin `MiniProductCard` design preview. Those two components read different field names from the same item shape (`subtitle` vs `desc`, `badges[]` vs `badge`, `reviewCount` vs `reviews`), and CatalogCards also requires `id` for the expand/add-to-cart lookup in `BlockRenderer.tsx:82`. Pre-fix the interactive path rendered partial data and add-to-cart was a dead click. This closes the structured path without touching MR-1/MR-2.
+
+### Hop status changes
+- Hop 07: HALF → HALF (structured path more robust; unstructured still pending MR-2.M02)
+
+### Phase 0 verifications
+- Q1 (loader existence): `buildBlockData` + `buildProductCard` already existed in `src/lib/relay/admin-block-data.ts`. **Case B** — extend in place, don't create parallel path.
+- Q2 (buildBlockData dispatch): synchronous, at `admin-block-data.ts:32`. Async commerce loaders wire AFTER via `orchestrator/index.ts:346-382`. Kept the synchronous dispatch — no async read needed (modules already loaded by `loadPartnerSignal`).
+- Q3 (order-tracker-data.ts): exists at `src/lib/relay/commerce/order-tracker-data.ts`. Not used as template this session — the fix is inside the existing synchronous `buildProductCard`, not a new async loader.
+- Q4 (ModuleItem shape): `src/lib/modules/types.ts:230` — `id`, `name`, `description`, `price`, `currency`, `compareAtPrice`, `images: string[]`, `thumbnail?`, `isActive`, `isFeatured`. Used the real field names in the mapping.
+- Q5 (module slug discovery): `loadPartnerSignal` already enumerates `partners/{pid}/modules/*` with active items via `getPartnerModulesAction` + `getModuleItemsAction({isActive:true})`. `pickModuleByPurpose` picks by preferred slug list (`['products','catalog','inventory']` for `product_card`). No new discovery code needed.
+- Q6 (renderer contract): `BlockRenderer.tsx:66-104` → `CatalogCards` reads `id`, `name`, `price`, `currency`, `subtitle`, `tagline`, `badges[]`, `reviewCount`; `onAddToCart` at line 82 reads `it.moduleSlug || block.moduleSlug || 'products'`. Pre-fix none of these were emitted.
+
+### Halts / scope surprises
+- Task prompt predicted 762 passing baseline; actual was 752. Recorded and proceeded.
+- Task prompt referenced PR #205 / MR-1.M04 on main; actual tip was PR #204 / MR-1.M03. Tactical fix is independent so proceeded.
+- Dev env had no `node_modules` — ran `npm ci` before baseline.
+
+### What's next (unchanged — tactical doesn't alter the critical path)
+- MR-1.M04 — doc indexer
+- MR-1.M05 — backfill script
+- MR-2.M02 — multi-kind retrieval in orchestrator
+
+### Links
+- PR: #TBD
+
+---
+
 ## [2026-04-21] MR-1 Session 3 — persona indexer
 
 **MR targeted:** MR-1
