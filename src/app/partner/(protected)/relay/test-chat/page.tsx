@@ -610,11 +610,22 @@ export default function PartnerRelayTestChatPage() {
                                 theme={relayTheme}
                                 functionId={activeFunctionId}
                                 onTileTap={(tile) => {
+                                    // v1: tapping a tile embeds the block preview
+                                    // directly into the chat (no RAG / no /api/relay/chat
+                                    // round-trip). The existing TestChatBlockPreview
+                                    // picks the registry entry by blockId and renders it.
+                                    setChatMessages((prev) => [
+                                        ...prev,
+                                        {
+                                            role: 'assistant',
+                                            content: `Here's the ${tile.label} block.`,
+                                            blockId: tile.id,
+                                        },
+                                    ]);
+                                    setShowHome(false);
                                     if (tile.sectionId && dataGuide) {
                                         setHighlightSectionId(tile.sectionId);
-                                        return;
                                     }
-                                    setShowHome(false);
                                 }}
                             />
                         ) : (
