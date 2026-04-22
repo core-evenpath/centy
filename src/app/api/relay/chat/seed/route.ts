@@ -1,14 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db as adminDb } from '@/lib/firebase-admin';
-import { getFlowTemplateForFunction } from '@/lib/flow-templates';
 import { buildBlockData } from '@/lib/relay/admin-block-data';
+import { resolveFlowDefinition } from '@/lib/relay/flow-loader';
 import { getEntryStage } from '@/lib/relay/flow-to-blocks';
 import {
   getModuleItemsAction,
   getPartnerModulesAction,
   getSystemModuleAction,
 } from '@/actions/modules-actions';
-import type { FlowDefinition } from '@/lib/types-flow-engine';
 
 // ── /api/relay/chat/seed ───────────────────────────────────────────────
 //
@@ -28,21 +27,6 @@ export async function OPTIONS() {
 
 interface SeedBody {
   partnerId?: string;
-}
-
-async function loadFlowDef(
-  partnerId: string,
-  functionId: string,
-): Promise<FlowDefinition | null> {
-  const flowDoc = await adminDb
-    .collection('partners')
-    .doc(partnerId)
-    .collection('relayConfig')
-    .doc('flowDefinition')
-    .get();
-  if (flowDoc.exists) return flowDoc.data() as FlowDefinition;
-  const template = getFlowTemplateForFunction(functionId);
-  return template ? (template as unknown as FlowDefinition) : null;
 }
 
 async function loadModuleSummaries(partnerId: string) {
@@ -102,7 +86,7 @@ export async function POST(request: NextRequest) {
     const functionId =
       (businessCategories?.[0]?.functionId as string | undefined) ?? 'general';
 
-    const flowDef = await loadFlowDef(partnerId, functionId);
+    const { flow: flowDef } = await resolveFlowDefinition(partnerId, functionId);
     const entryStage = getEntryStage(flowDef);
     if (!entryStage) {
       return NextResponse.json(
