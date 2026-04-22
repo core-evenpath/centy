@@ -3,7 +3,7 @@
 import React from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Zap, Map, Layers, GitBranch, Package, type LucideIcon } from 'lucide-react';
+import { Zap, Map, Layers, GitBranch, Package, Play, type LucideIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 const RELAY_SUB_NAV: Array<{
@@ -13,6 +13,7 @@ const RELAY_SUB_NAV: Array<{
     exact?: boolean;
 }> = [
     { href: '/partner/relay', label: 'Overview', icon: Zap, exact: true },
+    { href: '/partner/relay/test-chat', label: 'Test Chat', icon: Play },
     { href: '/partner/relay/datamap', label: 'Content Studio', icon: Map },
     { href: '/partner/relay/modules', label: 'Modules', icon: Package },
     { href: '/partner/relay/blocks', label: 'Cards', icon: Layers },

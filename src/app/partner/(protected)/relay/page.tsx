@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useCallback, useMemo } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useMultiWorkspaceAuth } from '@/hooks/use-multi-workspace-auth';
 import Link from 'next/link';
 import {
@@ -12,20 +12,6 @@ import {
 import type { RelayConfig, DiagnosticCheck, RelayConversation } from '@/actions/relay-actions';
 import RelayChatSetup from '@/components/partner/relay/RelayChatSetup';
 import RelayStorefrontManager from '@/components/partner/relay/RelayStorefrontManager';
-import TestChatPanel from '@/components/partner/relay/test-chat/TestChatPanel';
-import TestChatFlowPanel, {
-    type TestChatFlowMeta,
-} from '@/components/partner/relay/test-chat/TestChatFlowPanel';
-import TestChatSignalsPanel, {
-    type TestChatSignalsDebug,
-} from '@/components/partner/relay/test-chat/TestChatSignalsPanel';
-import TestChatProductDiagnostic from '@/components/partner/relay/test-chat/TestChatProductDiagnostic';
-import CheckoutFlow from '@/components/relay/checkout/CheckoutFlow';
-import { useRelaySession } from '@/hooks/useRelaySession';
-import { useRelayCheckout } from '@/hooks/useRelayCheckout';
-import { DEFAULT_THEME } from '@/components/relay/blocks/types';
-import type { BlockCallbacks, RelayTheme } from '@/components/relay/blocks/types';
-import type { RelayOrder } from '@/lib/relay/order-types';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -49,11 +35,14 @@ import {
     Play,
     GitBranch,
     Layers,
-    ChevronRight,
-    Plus,
 } from 'lucide-react';
-import { T } from '@/app/admin/relay/flows/flow-helpers';
-import type { Scenario } from '@/lib/relay/scenarios/types';
+
+// Diagnostics checks we hide for now (RAG is intentionally scoped out of
+// the partner-facing surface until the RAG pipeline is ready to ship).
+const HIDDEN_DIAGNOSTIC_LABELS = new Set<string>([
+    'RAG Store',
+    'Knowledge Documents',
+]);
 
 const DEFAULT_CONFIG: RelayConfig = {
     enabled: false,
@@ -71,95 +60,13 @@ const ACCENT_COLORS = [
 
 const EMOJI_OPTIONS = ['💬', '🤖', '✨', '🏨', '🍽️', '💼', '🎯', '🌟'];
 
-// ── Test Chat scenarios sidebar ──────────────────────────────────────
-// Stub data only — the scenarios backend (/api/partner/relay/scenarios +
-// src/lib/relay/scenarios/*) is scaffolded but UI wiring is deferred to
-// a follow-up prompt. Selecting a scenario here is a no-op placeholder
-// for the eventual seed behavior.
-const STUB_SCENARIO_NOW = Date.now();
-const STUB_SCENARIOS: Scenario[] = [
-    {
-        id: 'stub-1',
-        partnerId: 'stub',
-        title: 'New patient booking',
-        description: 'Prospective patient asks about teeth whitening availability.',
-        vertical: 'dental_care',
-        messages: [],
-        createdAt: STUB_SCENARIO_NOW,
-        updatedAt: STUB_SCENARIO_NOW,
-    },
-    {
-        id: 'stub-2',
-        partnerId: 'stub',
-        title: 'Botox pricing inquiry',
-        description: 'Returning client asks about touch-up pricing.',
-        vertical: 'aesthetic_clinic',
-        messages: [],
-        createdAt: STUB_SCENARIO_NOW,
-        updatedAt: STUB_SCENARIO_NOW,
-    },
-    {
-        id: 'stub-3',
-        partnerId: 'stub',
-        title: 'Emergency appointment',
-        description: 'Patient with a broken crown needs same-day help.',
-        vertical: 'dental_care',
-        messages: [],
-        createdAt: STUB_SCENARIO_NOW,
-        updatedAt: STUB_SCENARIO_NOW,
-    },
-];
-
-const SCENARIO_SIDEBAR_FONT = "'Karla', -apple-system, sans-serif";
-
 // ── Diagnostic fix links ─────────────────────────────────────────────
 
 const DIAG_LINKS: Record<string, string> = {
     'Widget Configuration': '/partner/relay',
-    'RAG Store': '/partner/core',
-    'Knowledge Documents': '/partner/core',
     'Module Data': '/partner/relay/modules',
     'Relay Block Configs': '/admin/modules/new',
 };
-
-// ── Theme builder from accent color ──────────────────────────────────
-
-function hexToRgb(hex: string): [number, number, number] {
-    const h = hex.replace('#', '');
-    return [
-        parseInt(h.substring(0, 2), 16),
-        parseInt(h.substring(2, 4), 16),
-        parseInt(h.substring(4, 6), 16),
-    ];
-}
-
-function rgbToHex(r: number, g: number, b: number): string {
-    return '#' + [r, g, b].map(v => Math.max(0, Math.min(255, Math.round(v))).toString(16).padStart(2, '0')).join('');
-}
-
-function buildThemeFromAccent(accent: string): RelayTheme {
-    const [r, g, b] = hexToRgb(accent);
-    return {
-        ...DEFAULT_THEME,
-        accent,
-        accentHi: rgbToHex(r + 30, g + 30, b + 30),
-        accentDk: rgbToHex(r - 25, g - 25, b - 25),
-        accentBg: `rgba(${r},${g},${b},0.06)`,
-        accentBg2: `rgba(${r},${g},${b},0.13)`,
-    };
-}
-
-// ── Chat message type ────────────────────────────────────────────────
-
-interface ChatMessage {
-    role: 'user' | 'assistant';
-    content: string;
-    blockId?: string;
-    blockData?: Record<string, unknown>;
-    suggestions?: string[];
-    /** Stage id from the flow engine that produced this message. */
-    stageId?: string;
-}
 
 export default function PartnerRelayPage() {
     const { currentWorkspace, loading: authLoading } = useMultiWorkspaceAuth();
@@ -174,85 +81,6 @@ export default function PartnerRelayPage() {
     const [diagRunning, setDiagRunning] = useState(false);
     const [conversations, setConversations] = useState<RelayConversation[]>([]);
     const [convoLoading, setConvoLoading] = useState(true);
-
-    // Chat test state
-    const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
-    const [chatSending, setChatSending] = useState(false);
-    const [conversationId] = useState(() => `test_${Date.now()}`);
-    const [flowMeta, setFlowMeta] = useState<TestChatFlowMeta | null>(null);
-    const [signals, setSignals] = useState<TestChatSignalsDebug | null>(null);
-    const [seeded, setSeeded] = useState(false);
-    const [checkoutOpen, setCheckoutOpen] = useState(false);
-    const [activeScenarioId, setActiveScenarioId] = useState<string>(STUB_SCENARIOS[0].id);
-
-    // Compute relay theme from accent color
-    const relayTheme = useMemo(() => buildThemeFromAccent(config.accentColor), [config.accentColor]);
-
-    // ── Session + checkout wiring (Test Chat = production widget fidelity) ──
-    //
-    // The test chat now drives the same runtime session the production
-    // widget uses, so "Add to cart" / "Checkout" / order-tracker blocks
-    // all produce real Firestore writes under
-    // `relaySessions/{partnerId}_{conversationId}` and
-    // `partners/{pid}/orders/{orderId}`.
-    const session = useRelaySession({
-        conversationId,
-        partnerId: partnerId || '',
-    });
-
-    const handleOrderCreated = useCallback((order: RelayOrder) => {
-        setCheckoutOpen(false);
-        setChatMessages((prev) => [
-            ...prev,
-            {
-                role: 'assistant',
-                content: `Your order ${order.id} has been confirmed.`,
-                blockId: 'ecom_order_confirmation',
-                blockData: { order },
-            },
-        ]);
-    }, []);
-
-    const checkout = useRelayCheckout({
-        partnerId: partnerId || '',
-        conversationId,
-        onOrderCreated: handleOrderCreated,
-    });
-    // `checkout` is instantiated so the CheckoutFlow overlay below has
-    // its dependencies ready; the overlay itself calls the hook again
-    // internally — re-using the instance is fine either way.
-    void checkout;
-
-    const sessionCallbacks: BlockCallbacks = useMemo(
-        () => ({
-            onAddToCart: session.addToCart,
-            onUpdateCartItem: session.updateCartItem,
-            onRemoveFromCart: session.removeFromCart,
-            onClearCart: session.clearCart,
-            onApplyDiscount: session.applyDiscount,
-            onReserveSlot: session.reserveSlot,
-            onCancelSlot: session.cancelSlot,
-            onConfirmBooking: session.confirmBooking,
-            onCheckout: () => {
-                setCheckoutOpen(true);
-            },
-            cart: {
-                items: session.cart.items.map((i) => ({
-                    itemId: i.itemId,
-                    name: i.name,
-                    price: i.price,
-                    quantity: i.quantity,
-                    variant: i.variant,
-                    image: i.image,
-                })),
-                subtotal: session.cart.subtotal,
-                total: session.cart.total,
-                discountCode: session.cart.discountCode,
-                discountAmount: session.cart.discountAmount,
-            },
-        }),
-        [session],
-    );
 
     // ── Load config via server action ────────────────────────────────
 
@@ -344,132 +172,6 @@ export default function PartnerRelayPage() {
         })();
     }, [partnerId]);
 
-    // ── Seed: pull entry-stage blocks on Test Chat open ──────────────
-    //
-    // Mirrors the live widget's first impression. Re-runs whenever the
-    // partner clicks Clear (we flip `seeded` back to false there).
-    useEffect(() => {
-        if (!partnerId || seeded) return;
-        if (chatMessages.length > 0) {
-            setSeeded(true);
-            return;
-        }
-        let cancelled = false;
-        (async () => {
-            try {
-                const res = await fetch('/api/relay/chat/seed', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ partnerId }),
-                });
-                const data = await res.json();
-                if (cancelled) return;
-                if (data.success && Array.isArray(data.seedMessages)) {
-                    const seeds: ChatMessage[] = data.seedMessages.map(
-                        (sm: {
-                            blockId?: string;
-                            blockData?: Record<string, unknown>;
-                            stageId?: string;
-                        }) => ({
-                            role: 'assistant' as const,
-                            content: '',
-                            blockId: sm.blockId,
-                            blockData: sm.blockData,
-                            stageId: sm.stageId,
-                        }),
-                    );
-                    if (seeds.length > 0) setChatMessages(seeds);
-                    if (data.entryStage) {
-                        setFlowMeta({
-                            stageId: data.entryStage.id,
-                            stageLabel: data.entryStage.label,
-                            stageType: data.entryStage.type,
-                        });
-                    }
-                }
-            } catch (err) {
-                console.error('[relay] seed failed:', err);
-            } finally {
-                if (!cancelled) setSeeded(true);
-            }
-        })();
-        return () => {
-            cancelled = true;
-        };
-    }, [partnerId, seeded, chatMessages.length]);
-
-    // ── Chat test ────────────────────────────────────────────────────
-
-    const sendChatMessage = async (messageText: string) => {
-        const text = messageText.trim();
-        if (!text || !partnerId || chatSending) return;
-
-        const userMsg: ChatMessage = { role: 'user', content: text };
-        const updatedMessages = [...chatMessages, userMsg];
-        setChatMessages(updatedMessages);
-        setChatSending(true);
-
-        try {
-            const res = await fetch('/api/relay/chat', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    partnerId,
-                    conversationId,
-                    messages: updatedMessages.map(m => ({ role: m.role, content: m.content })),
-                }),
-            });
-
-            const data = await res.json();
-
-            if (data.success && data.response) {
-                // The server response is now admin-registry-first:
-                //   { type: 'text', blockId?, text, suggestions? }
-                // `blockId` (when present) maps to a preview component in
-                // src/app/admin/relay/blocks/previews/**. No partner-data
-                // payload — the preview is a self-contained design.
-                const assistantMsg: ChatMessage = {
-                    role: 'assistant',
-                    content: data.response.text || '',
-                    blockId: typeof data.response.blockId === 'string' ? data.response.blockId : undefined,
-                    blockData: data.response.blockData && typeof data.response.blockData === 'object'
-                        ? data.response.blockData
-                        : undefined,
-                    suggestions: Array.isArray(data.response.suggestions) ? data.response.suggestions : undefined,
-                    stageId: data.flowMeta?.stageId,
-                };
-                setChatMessages(prev => [...prev, assistantMsg]);
-
-                if (data.flowMeta) {
-                    setFlowMeta({
-                        stageId: data.flowMeta.stageId,
-                        stageLabel: data.flowMeta.stageLabel,
-                        stageType: data.flowMeta.stageType,
-                        suggestedBlockTypes: data.flowMeta.suggestedBlockTypes,
-                        leadTemperature: data.flowMeta.leadTemperature,
-                        interactionCount: data.flowMeta.interactionCount,
-                    });
-                }
-
-                if (data.signals) {
-                    setSignals(data.signals as TestChatSignalsDebug);
-                }
-            } else {
-                setChatMessages(prev => [...prev, {
-                    role: 'assistant',
-                    content: `Error: ${data.error || 'Unknown error'}`,
-                }]);
-            }
-        } catch (e: any) {
-            setChatMessages(prev => [...prev, {
-                role: 'assistant',
-                content: `Network error: ${e.message}`,
-            }]);
-        } finally {
-            setChatSending(false);
-        }
-    };
-
     // ── Loading / auth guard ─────────────────────────────────────────
 
     if (authLoading || configLoading) {
@@ -516,11 +218,25 @@ export default function PartnerRelayPage() {
                 onSlugUpdated={(newSlug) => setConfig(c => ({ ...c, relaySlug: newSlug }))}
             />
 
-            <Tabs defaultValue="test" className="space-y-6">
+            <div className="mb-6 flex items-center justify-between rounded-lg border bg-muted/40 px-4 py-3">
+                <div className="flex items-center gap-3">
+                    <Play className="h-4 w-4 text-muted-foreground" />
+                    <div>
+                        <p className="text-sm font-medium">Test your chat</p>
+                        <p className="text-xs text-muted-foreground">
+                            Preview the Relay assistant using scenarios from your Business Categories.
+                        </p>
+                    </div>
+                </div>
+                <Button asChild size="sm">
+                    <Link href="/partner/relay/test-chat">
+                        Open Test Chat
+                    </Link>
+                </Button>
+            </div>
+
+            <Tabs defaultValue="setup" className="space-y-6">
                 <TabsList>
-                    <TabsTrigger value="test" className="gap-2">
-                        <Play className="h-4 w-4" /> Test Chat
-                    </TabsTrigger>
                     <TabsTrigger value="setup" className="gap-2">
                         <Settings className="h-4 w-4" /> Setup
                     </TabsTrigger>
@@ -536,198 +252,6 @@ export default function PartnerRelayPage() {
                     <TabsTrigger value="storefront">Storefront</TabsTrigger>
                 </TabsList>
 
-                {/* ── Section 0: Test Chat ──────────────────────────── */}
-                <TabsContent value="test" className="space-y-6">
-                    <link
-                        href="https://fonts.googleapis.com/css2?family=Karla:wght@300;400;500;600;700;800&display=swap"
-                        rel="stylesheet"
-                    />
-                    <div
-                        style={{
-                            display: 'flex',
-                            gap: 20,
-                            alignItems: 'flex-start',
-                            justifyContent: 'center',
-                            fontFamily: SCENARIO_SIDEBAR_FONT,
-                        }}
-                    >
-                        <aside
-                            style={{
-                                width: 260,
-                                flexShrink: 0,
-                                borderRadius: 16,
-                                border: `1px solid ${T.bdrL}`,
-                                background: T.surface,
-                                overflow: 'hidden',
-                                alignSelf: 'stretch',
-                                display: 'flex',
-                                flexDirection: 'column',
-                            }}
-                        >
-                            <div
-                                style={{
-                                    padding: '14px 16px',
-                                    borderBottom: `1px solid ${T.bdrL}`,
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'space-between',
-                                }}
-                            >
-                                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                                    <div
-                                        style={{
-                                            width: 28,
-                                            height: 28,
-                                            borderRadius: 8,
-                                            background: T.accent,
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            justifyContent: 'center',
-                                            color: '#fff',
-                                        }}
-                                    >
-                                        <MessageSquare size={14} strokeWidth={2.5} />
-                                    </div>
-                                    <div>
-                                        <div style={{ fontSize: 13, fontWeight: 700, color: T.t1 }}>Scenarios</div>
-                                        <div style={{ fontSize: 11, color: T.t3 }}>{STUB_SCENARIOS.length} saved</div>
-                                    </div>
-                                </div>
-                                <button
-                                    type="button"
-                                    disabled
-                                    title="Create scenario (coming soon)"
-                                    style={{
-                                        width: 26,
-                                        height: 26,
-                                        borderRadius: 8,
-                                        background: T.accentBg,
-                                        border: `1px solid ${T.accentBg2}`,
-                                        color: T.accent,
-                                        cursor: 'not-allowed',
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        justifyContent: 'center',
-                                        opacity: 0.7,
-                                    }}
-                                >
-                                    <Plus size={14} strokeWidth={2.5} />
-                                </button>
-                            </div>
-                            <div
-                                style={{
-                                    padding: 10,
-                                    display: 'flex',
-                                    flexDirection: 'column',
-                                    gap: 8,
-                                }}
-                            >
-                                {STUB_SCENARIOS.map((s) => {
-                                    const active = s.id === activeScenarioId;
-                                    return (
-                                        <button
-                                            key={s.id}
-                                            type="button"
-                                            onClick={() => setActiveScenarioId(s.id)}
-                                            style={{
-                                                textAlign: 'left',
-                                                padding: '10px 12px',
-                                                borderRadius: 10,
-                                                border: `1px solid ${active ? T.accent : T.bdrL}`,
-                                                background: active ? T.accentBg : T.surface,
-                                                cursor: 'pointer',
-                                                display: 'flex',
-                                                alignItems: 'flex-start',
-                                                gap: 8,
-                                                transition: 'background 0.15s ease, border-color 0.15s ease',
-                                            }}
-                                        >
-                                            <div style={{ flex: 1, minWidth: 0 }}>
-                                                <div
-                                                    style={{
-                                                        fontSize: 12,
-                                                        fontWeight: 700,
-                                                        color: active ? T.accent : T.t1,
-                                                        marginBottom: 3,
-                                                        overflow: 'hidden',
-                                                        textOverflow: 'ellipsis',
-                                                        whiteSpace: 'nowrap',
-                                                    }}
-                                                >
-                                                    {s.title}
-                                                </div>
-                                                {s.description && (
-                                                    <div
-                                                        style={{
-                                                            fontSize: 11,
-                                                            color: T.t3,
-                                                            lineHeight: 1.4,
-                                                            display: '-webkit-box',
-                                                            WebkitLineClamp: 2,
-                                                            WebkitBoxOrient: 'vertical',
-                                                            overflow: 'hidden',
-                                                        }}
-                                                    >
-                                                        {s.description}
-                                                    </div>
-                                                )}
-                                                {s.vertical && (
-                                                    <div style={{ fontSize: 10, color: T.t4, marginTop: 4 }}>
-                                                        {s.vertical}
-                                                    </div>
-                                                )}
-                                            </div>
-                                            <ChevronRight
-                                                size={13}
-                                                strokeWidth={2.5}
-                                                style={{
-                                                    color: active ? T.accent : T.t4,
-                                                    flexShrink: 0,
-                                                    marginTop: 2,
-                                                }}
-                                            />
-                                        </button>
-                                    );
-                                })}
-                            </div>
-                        </aside>
-                        <div style={{ flexShrink: 0 }}>
-                            <TestChatPanel
-                                brandName={config.brandName || 'Relay'}
-                                brandEmoji={config.brandEmoji}
-                                tagline={config.welcomeMessage || config.tagline}
-                                theme={relayTheme}
-                                messages={chatMessages}
-                                sending={chatSending}
-                                onSend={sendChatMessage}
-                                onClear={() => {
-                                    setChatMessages([]);
-                                    setFlowMeta(null);
-                                    setSignals(null);
-                                    setSeeded(false);
-                                }}
-                                callbacks={sessionCallbacks}
-                                currentStageLabel={flowMeta?.stageLabel}
-                            />
-                        </div>
-                    </div>
-                    <div style={{ maxWidth: 420, margin: '0 auto' }}>
-                        <TestChatFlowPanel flowMeta={flowMeta} theme={relayTheme} />
-                        <TestChatSignalsPanel
-                            signals={signals}
-                            flowStage={flowMeta?.stageLabel}
-                            theme={relayTheme}
-                        />
-                        {partnerId && (
-                            <TestChatProductDiagnostic
-                                partnerId={partnerId}
-                                conversationId={conversationId}
-                                theme={relayTheme}
-                                refreshKey={chatMessages.length}
-                            />
-                        )}
-                    </div>
-                </TabsContent>
 
                 {/* ── Section 1: Setup ──────────────────────────────── */}
                 <TabsContent value="setup" className="space-y-6">
@@ -889,38 +413,47 @@ export default function PartnerRelayPage() {
                         </CardHeader>
                         <CardContent>
                             <div className="space-y-3">
-                                {diagRunning && diagnostics.length === 0 && (
-                                    <div className="flex justify-center py-4">
-                                        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-                                    </div>
-                                )}
-                                {diagnostics.map((check, i) => (
-                                    <div key={i} className="flex items-start gap-3 p-3 rounded-lg bg-muted/50">
-                                        <DiagIcon status={check.status} />
-                                        <div className="flex-1">
-                                            <p className="font-medium text-sm">{check.label}</p>
-                                            <p className="text-xs text-muted-foreground">{check.description}</p>
-                                            {check.fix && check.status !== 'pass' && (
-                                                <div className="flex items-center gap-2 mt-1.5">
-                                                    <p className="text-xs text-yellow-600">Fix: {check.fix}</p>
-                                                    {DIAG_LINKS[check.label] && (
-                                                        <Link
-                                                            href={DIAG_LINKS[check.label]}
-                                                            className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
-                                                        >
-                                                            Go <ExternalLink className="h-3 w-3" />
-                                                        </Link>
-                                                    )}
-                                                </div>
-                                            )}
+                                {(() => {
+                                    const visible = diagnostics.filter(
+                                        (c) => !HIDDEN_DIAGNOSTIC_LABELS.has(c.label),
+                                    );
+                                    if (diagRunning && visible.length === 0) {
+                                        return (
+                                            <div className="flex justify-center py-4">
+                                                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                                            </div>
+                                        );
+                                    }
+                                    if (!diagRunning && visible.length === 0) {
+                                        return (
+                                            <p className="text-sm text-muted-foreground text-center py-4">
+                                                Click &quot;Re-run&quot; to check your setup.
+                                            </p>
+                                        );
+                                    }
+                                    return visible.map((check, i) => (
+                                        <div key={i} className="flex items-start gap-3 p-3 rounded-lg bg-muted/50">
+                                            <DiagIcon status={check.status} />
+                                            <div className="flex-1">
+                                                <p className="font-medium text-sm">{check.label}</p>
+                                                <p className="text-xs text-muted-foreground">{check.description}</p>
+                                                {check.fix && check.status !== 'pass' && (
+                                                    <div className="flex items-center gap-2 mt-1.5">
+                                                        <p className="text-xs text-yellow-600">Fix: {check.fix}</p>
+                                                        {DIAG_LINKS[check.label] && (
+                                                            <Link
+                                                                href={DIAG_LINKS[check.label]}
+                                                                className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
+                                                            >
+                                                                Go <ExternalLink className="h-3 w-3" />
+                                                            </Link>
+                                                        )}
+                                                    </div>
+                                                )}
+                                            </div>
                                         </div>
-                                    </div>
-                                ))}
-                                {!diagRunning && diagnostics.length === 0 && (
-                                    <p className="text-sm text-muted-foreground text-center py-4">
-                                        Click &quot;Re-run&quot; to check your setup.
-                                    </p>
-                                )}
+                                    ));
+                                })()}
                             </div>
                         </CardContent>
                     </Card>
@@ -1023,17 +556,6 @@ export default function PartnerRelayPage() {
                     <RelayStorefrontManager partnerId={partnerId!} accentColor={config.accentColor} />
                 </TabsContent>
             </Tabs>
-
-            {partnerId && (
-                <CheckoutFlow
-                    partnerId={partnerId}
-                    conversationId={conversationId}
-                    theme={relayTheme}
-                    open={checkoutOpen}
-                    onClose={() => setCheckoutOpen(false)}
-                    onOrderCreated={handleOrderCreated}
-                />
-            )}
         </div>
     );
 }
