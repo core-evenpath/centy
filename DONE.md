@@ -714,12 +714,12 @@ Files:
 - src/lib/relay/scenarios/types.ts (new) — Scenario, ScenarioMessage, ScenarioInput types
 - src/lib/relay/scenarios/firestore.ts (new) — list/get/create/update/delete helpers using firebase-admin, partners/{partnerId}/scenarios collection
 - src/app/api/partner/relay/scenarios/route.ts (new) — GET (list by partnerId), POST (create)
-- src/app/partner/(protected)/relay/page.tsx (full replacement) — two-column layout, scenarios left, phone simulator right, visual language ported from admin/relay/flows phone simulator, inline styles, Karla font, T color tokens, stub data only. Note: the file lives under the (protected) route group because that is the file-system path Next.js uses to resolve /partner/relay in this project; the spec's literal path src/app/partner/relay/page.tsx would have produced a routing conflict.
+- src/app/partner/(protected)/relay/page.tsx (Test Chat tab only) — added a Scenarios sidebar (260px, left of the phone) using admin/relay/flows visual language: T color tokens, Karla font, inline styles. All pre-existing features are retained: Setup, Embed & Diagnostics, Conversations, Flows, Storefront tabs; real chat wiring through `sendChatMessage`; cart/checkout integration; seed-on-open; TestChatPanel (phone frame + header + messages + input) continues to own the phone simulator, so block rendering, typing indicator, and empty-state are unchanged. Note: the file lives under the (protected) route group because that is the file-system path Next.js uses to resolve /partner/relay in this project; the spec's literal path src/app/partner/relay/page.tsx would have produced a routing conflict.
 
 Explicitly deferred to next prompt:
-- Wiring partner/relay UI to /api/partner/relay/scenarios
+- Wiring the scenarios sidebar to /api/partner/relay/scenarios (selecting a scenario is currently a visual-only highlight)
 - Scenario editing/creation UI
-- Block rendering inside messages
 - PUT/DELETE single-scenario route
+- Driving chat seed messages from a selected scenario
 
-Stub data in use: STUB_SCENARIOS constant inside partner/(protected)/relay/page.tsx.
+Stub data in use: STUB_SCENARIOS constant inside partner/(protected)/relay/page.tsx (3 example entries, empty messages arrays).
