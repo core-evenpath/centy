@@ -13,6 +13,8 @@ import TestChatHeader from '@/components/partner/relay/test-chat/TestChatHeader'
 import TestChatMessages from '@/components/partner/relay/test-chat/TestChatMessages';
 import TestChatInput from '@/components/partner/relay/test-chat/TestChatInput';
 import TestChatBento from '@/components/partner/relay/test-chat/TestChatBento';
+import BlockDataChecklist from '@/components/partner/relay/test-chat/BlockDataChecklist';
+import { getDataGuideForFunction } from '@/lib/relay/block-data-guide';
 import TestChatFlowPanel, {
     type TestChatFlowMeta,
 } from '@/components/partner/relay/test-chat/TestChatFlowPanel';
@@ -103,6 +105,21 @@ export default function PartnerRelayTestChatPage() {
     // default view; tapping a tile or the "Ask anything" input transitions
     // to the live chat. Switching scenario or clearing resets to home.
     const [showHome, setShowHome] = useState(true);
+
+    // Data checklist highlight — when the partner taps a bento tile tied
+    // to a taxonomy data section, we scroll/flash the matching section in
+    // the checklist below the phone.
+    const [highlightSectionId, setHighlightSectionId] = useState<string | null>(null);
+
+    const activeCategory = useMemo(
+        () => categories.find((c) => categoryKey(c) === activeCategoryKey) ?? categories[0] ?? null,
+        [categories, activeCategoryKey],
+    );
+    const activeFunctionId = activeCategory?.functionId ?? null;
+    const dataGuide = useMemo(
+        () => getDataGuideForFunction(activeFunctionId),
+        [activeFunctionId],
+    );
 
     const relayTheme = useMemo(() => buildThemeFromAccent(config.accentColor), [config.accentColor]);
 
@@ -509,6 +526,7 @@ export default function PartnerRelayTestChatPage() {
                                             setFlowMeta(null);
                                             setSeeded(false);
                                             setShowHome(true);
+                                            setHighlightSectionId(null);
                                         }}
                                         style={{
                                             textAlign: 'left',
@@ -590,7 +608,14 @@ export default function PartnerRelayTestChatPage() {
                         {showHome ? (
                             <TestChatBento
                                 theme={relayTheme}
-                                onTileTap={() => setShowHome(false)}
+                                functionId={activeFunctionId}
+                                onTileTap={(tile) => {
+                                    if (tile.sectionId && dataGuide) {
+                                        setHighlightSectionId(tile.sectionId);
+                                        return;
+                                    }
+                                    setShowHome(false);
+                                }}
                             />
                         ) : (
                             <TestChatMessages
@@ -622,6 +647,17 @@ export default function PartnerRelayTestChatPage() {
             <div style={{ maxWidth: 420, margin: '24px auto 0' }}>
                 <TestChatFlowPanel flowMeta={flowMeta} theme={relayTheme} />
             </div>
+
+            {dataGuide && (
+                <div className="mt-8">
+                    <BlockDataChecklist
+                        guide={dataGuide}
+                        partnerId={partnerId}
+                        highlightSectionId={highlightSectionId}
+                        onHighlightConsumed={() => setHighlightSectionId(null)}
+                    />
+                </div>
+            )}
 
             {partnerId && (
                 <CheckoutFlow

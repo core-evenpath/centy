@@ -1,16 +1,29 @@
 'use client';
 
-import { MessageCircle, Search, Eye, Star, ShoppingBag, Phone, ChevronRight } from 'lucide-react';
+import {
+    MessageCircle,
+    Search,
+    Eye,
+    Star,
+    ShoppingBag,
+    Phone,
+    ChevronRight,
+    Coffee,
+    Leaf,
+    Sliders,
+    Activity,
+    Layers,
+} from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import type { RelayTheme } from '@/components/relay/blocks/types';
 
 // ── Test Chat v1 home screen (bento) ─────────────────────────────────
 //
-// Placeholder homescreen — there will be more homescreen versions; this
-// bento grid is v1. Keep the tile set fixed for now so the visual can be
-// iterated independently of the scenario/block wiring.
+// v1 = the placeholder home screen. Later versions can render something
+// else entirely (flow map, rich hero, etc). Tiles for this version are
+// a mix of function-specific block tiles + a neutral fallback set.
 
-interface BentoTile {
+export interface BentoTile {
     id: string;
     label: string;
     sub: string;
@@ -18,32 +31,67 @@ interface BentoTile {
     size: 'large' | 'medium';
     iconFg: string;
     iconBg: string;
+    /** Data-guide section that backs this tile (when the partner taps
+     * it, we surface that section in the checklist below). */
+    sectionId?: string;
 }
 
-const DEFAULT_TILES = (theme: RelayTheme): BentoTile[] => {
-    const peachBg = theme.accentBg;
-    const peachFg = theme.accent;
-    const rose = '#be185d';
-    const roseBg = 'rgba(190,24,93,0.08)';
-    const teal = '#0d9488';
-    const tealBg = 'rgba(13,148,136,0.08)';
+function palette(theme: RelayTheme) {
+    return {
+        accent: { fg: theme.accent, bg: theme.accentBg },
+        rose: { fg: '#be185d', bg: 'rgba(190,24,93,0.08)' },
+        teal: { fg: '#0d9488', bg: 'rgba(13,148,136,0.08)' },
+    };
+}
+
+// Fallback v1 tiles — mirror the reference design exactly. Used when we
+// don't have a taxonomy-specific tile set yet.
+function defaultTiles(theme: RelayTheme): BentoTile[] {
+    const p = palette(theme);
     return [
-        { id: 'greeting', label: 'Greeting', sub: 'Get started', icon: MessageCircle, size: 'large', iconFg: peachFg, iconBg: peachBg },
-        { id: 'menu_item', label: 'Menu Item Card', sub: 'Explore options', icon: Search, size: 'medium', iconFg: peachFg, iconBg: peachBg },
-        { id: 'order_customizer', label: 'Order Customizer', sub: 'View details', icon: Eye, size: 'medium', iconFg: peachFg, iconBg: peachBg },
-        { id: 'diner_reviews', label: 'Diner Reviews', sub: 'What customers say', icon: Star, size: 'medium', iconFg: rose, iconBg: roseBg },
-        { id: 'cart', label: 'Cart', sub: 'Take action', icon: ShoppingBag, size: 'medium', iconFg: teal, iconBg: tealBg },
-        { id: 'contact', label: 'Contact Card', sub: 'Talk to our team', icon: Phone, size: 'medium', iconFg: peachFg, iconBg: peachBg },
+        { id: 'greeting', label: 'Greeting', sub: 'Get started', icon: MessageCircle, size: 'large', iconFg: p.accent.fg, iconBg: p.accent.bg },
+        { id: 'menu_item', label: 'Menu Item Card', sub: 'Explore options', icon: Search, size: 'medium', iconFg: p.accent.fg, iconBg: p.accent.bg },
+        { id: 'order_customizer', label: 'Order Customizer', sub: 'View details', icon: Eye, size: 'medium', iconFg: p.accent.fg, iconBg: p.accent.bg },
+        { id: 'diner_review', label: 'Diner Reviews', sub: 'What customers say', icon: Star, size: 'medium', iconFg: p.rose.fg, iconBg: p.rose.bg },
+        { id: 'cart', label: 'Cart', sub: 'Take action', icon: ShoppingBag, size: 'medium', iconFg: p.teal.fg, iconBg: p.teal.bg },
+        { id: 'contact', label: 'Contact Card', sub: 'Talk to our team', icon: Phone, size: 'medium', iconFg: p.accent.fg, iconBg: p.accent.bg },
     ];
-};
+}
+
+// Beverage-Focused taxonomy tiles — every tile is tied to a DataSection
+// id in src/lib/relay/block-data-guide.ts so tapping surfaces the right
+// upload step.
+function beverageCafeTiles(theme: RelayTheme): BentoTile[] {
+    const p = palette(theme);
+    return [
+        { id: 'menu_item', label: 'Menu Item Card', sub: 'Signature drinks & food', icon: Search, size: 'large', iconFg: p.accent.fg, iconBg: p.accent.bg, sectionId: 'food_menu' },
+        { id: 'drink_menu', label: 'Drink Menu', sub: 'Hot, iced, juices', icon: Coffee, size: 'medium', iconFg: p.accent.fg, iconBg: p.accent.bg, sectionId: 'food_menu' },
+        { id: 'daily_specials', label: "Today's Specials", sub: "What's new today", icon: Star, size: 'medium', iconFg: p.rose.fg, iconBg: p.rose.bg, sectionId: 'food_menu' },
+        { id: 'dietary_filter', label: 'Dietary Filter', sub: 'Vegan · Gluten-free', icon: Leaf, size: 'medium', iconFg: p.teal.fg, iconBg: p.teal.bg, sectionId: 'dietary_tags' },
+        { id: 'order_customizer', label: 'Order Customizer', sub: 'Size, milk, syrup', icon: Sliders, size: 'medium', iconFg: p.accent.fg, iconBg: p.accent.bg, sectionId: 'order_customizer' },
+        { id: 'nutrition', label: 'Nutrition Info', sub: 'Calories & allergens', icon: Activity, size: 'medium', iconFg: p.accent.fg, iconBg: p.accent.bg, sectionId: 'nutrition' },
+        { id: 'category_browser', label: 'Categories', sub: 'Coffee · Tea · Pastries', icon: Layers, size: 'medium', iconFg: p.accent.fg, iconBg: p.accent.bg, sectionId: 'menu_categories' },
+        { id: 'diner_review', label: 'Diner Reviews', sub: 'What customers say', icon: Star, size: 'medium', iconFg: p.rose.fg, iconBg: p.rose.bg, sectionId: 'diner_reviews' },
+    ];
+}
+
+export function tilesForFunction(
+    functionId: string | null | undefined,
+    theme: RelayTheme,
+): BentoTile[] {
+    if (functionId === 'beverage_cafe') return beverageCafeTiles(theme);
+    return defaultTiles(theme);
+}
 
 interface Props {
     theme: RelayTheme;
-    onTileTap: (tile: { id: string; label: string }) => void;
+    tiles?: BentoTile[];
+    functionId?: string | null;
+    onTileTap: (tile: { id: string; label: string; sectionId?: string }) => void;
 }
 
-export default function TestChatBento({ theme, onTileTap }: Props) {
-    const tiles = DEFAULT_TILES(theme);
+export default function TestChatBento({ theme, tiles, functionId, onTileTap }: Props) {
+    const resolvedTiles = tiles ?? tilesForFunction(functionId ?? null, theme);
 
     return (
         <div
@@ -60,14 +108,20 @@ export default function TestChatBento({ theme, onTileTap }: Props) {
                 scrollbarWidth: 'none',
             }}
         >
-            {tiles.map((tile) => {
+            {resolvedTiles.map((tile) => {
                 const Icon = tile.icon;
                 const isLarge = tile.size === 'large';
                 return (
                     <button
                         key={tile.id}
                         type="button"
-                        onClick={() => onTileTap({ id: tile.id, label: tile.label })}
+                        onClick={() =>
+                            onTileTap({
+                                id: tile.id,
+                                label: tile.label,
+                                sectionId: tile.sectionId,
+                            })
+                        }
                         style={{
                             gridColumn: isLarge ? '1 / -1' : 'auto',
                             background: theme.surface,
