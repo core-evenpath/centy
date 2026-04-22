@@ -20,6 +20,10 @@ import { getCommerceFlowTemplate } from '@/lib/relay/flow-templates/commerce';
 import { getLeadFlowTemplate } from '@/lib/relay/flow-templates/lead';
 import { getEngagementFlowTemplate } from '@/lib/relay/flow-templates/engagement';
 import { getInfoFlowTemplate } from '@/lib/relay/flow-templates/info';
+import {
+  buildFlowSyncServer,
+  loadSystemFlowTemplate,
+} from '@/lib/relay/flow-loader';
 import type {
   ConversationFlowState,
   FlowDefinition,
@@ -98,7 +102,20 @@ async function loadFlowDefinition(
     if (infoTpl) return infoTpl as unknown as FlowDefinition;
   }
   const template = getFlowTemplateForFunction(functionId);
-  return template ? (template as unknown as FlowDefinition) : null;
+  if (template) return template as unknown as FlowDefinition;
+
+  // Tier 2+3 fallback for functionIds with no hardcoded template:
+  // admin-authored systemFlowTemplates doc, then auto-generate from
+  // the block registry (buildFlowSyncServer). Parity with the admin
+  // UI's useFlowTemplate hook — without this the server path returns
+  // null for every functionId not listed in lib/flow-templates.
+  const firestoreTpl = await loadSystemFlowTemplate(functionId);
+  if (firestoreTpl) return firestoreTpl;
+
+  const generated = buildFlowSyncServer(functionId);
+  if (generated) return generated as unknown as FlowDefinition;
+
+  return null;
 }
 
 export async function loadFlowSignal(
