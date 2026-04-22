@@ -49,7 +49,11 @@ import {
     Play,
     GitBranch,
     Layers,
+    ChevronRight,
+    Plus,
 } from 'lucide-react';
+import { T } from '@/app/admin/relay/flows/flow-helpers';
+import type { Scenario } from '@/lib/relay/scenarios/types';
 
 const DEFAULT_CONFIG: RelayConfig = {
     enabled: false,
@@ -66,6 +70,47 @@ const ACCENT_COLORS = [
 ];
 
 const EMOJI_OPTIONS = ['💬', '🤖', '✨', '🏨', '🍽️', '💼', '🎯', '🌟'];
+
+// ── Test Chat scenarios sidebar ──────────────────────────────────────
+// Stub data only — the scenarios backend (/api/partner/relay/scenarios +
+// src/lib/relay/scenarios/*) is scaffolded but UI wiring is deferred to
+// a follow-up prompt. Selecting a scenario here is a no-op placeholder
+// for the eventual seed behavior.
+const STUB_SCENARIO_NOW = Date.now();
+const STUB_SCENARIOS: Scenario[] = [
+    {
+        id: 'stub-1',
+        partnerId: 'stub',
+        title: 'New patient booking',
+        description: 'Prospective patient asks about teeth whitening availability.',
+        vertical: 'dental_care',
+        messages: [],
+        createdAt: STUB_SCENARIO_NOW,
+        updatedAt: STUB_SCENARIO_NOW,
+    },
+    {
+        id: 'stub-2',
+        partnerId: 'stub',
+        title: 'Botox pricing inquiry',
+        description: 'Returning client asks about touch-up pricing.',
+        vertical: 'aesthetic_clinic',
+        messages: [],
+        createdAt: STUB_SCENARIO_NOW,
+        updatedAt: STUB_SCENARIO_NOW,
+    },
+    {
+        id: 'stub-3',
+        partnerId: 'stub',
+        title: 'Emergency appointment',
+        description: 'Patient with a broken crown needs same-day help.',
+        vertical: 'dental_care',
+        messages: [],
+        createdAt: STUB_SCENARIO_NOW,
+        updatedAt: STUB_SCENARIO_NOW,
+    },
+];
+
+const SCENARIO_SIDEBAR_FONT = "'Karla', -apple-system, sans-serif";
 
 // ── Diagnostic fix links ─────────────────────────────────────────────
 
@@ -138,6 +183,7 @@ export default function PartnerRelayPage() {
     const [signals, setSignals] = useState<TestChatSignalsDebug | null>(null);
     const [seeded, setSeeded] = useState(false);
     const [checkoutOpen, setCheckoutOpen] = useState(false);
+    const [activeScenarioId, setActiveScenarioId] = useState<string>(STUB_SCENARIOS[0].id);
 
     // Compute relay theme from accent color
     const relayTheme = useMemo(() => buildThemeFromAccent(config.accentColor), [config.accentColor]);
@@ -492,23 +538,179 @@ export default function PartnerRelayPage() {
 
                 {/* ── Section 0: Test Chat ──────────────────────────── */}
                 <TabsContent value="test" className="space-y-6">
-                    <TestChatPanel
-                        brandName={config.brandName || 'Relay'}
-                        brandEmoji={config.brandEmoji}
-                        tagline={config.welcomeMessage || config.tagline}
-                        theme={relayTheme}
-                        messages={chatMessages}
-                        sending={chatSending}
-                        onSend={sendChatMessage}
-                        onClear={() => {
-                            setChatMessages([]);
-                            setFlowMeta(null);
-                            setSignals(null);
-                            setSeeded(false);
-                        }}
-                        callbacks={sessionCallbacks}
-                        currentStageLabel={flowMeta?.stageLabel}
+                    <link
+                        href="https://fonts.googleapis.com/css2?family=Karla:wght@300;400;500;600;700;800&display=swap"
+                        rel="stylesheet"
                     />
+                    <div
+                        style={{
+                            display: 'flex',
+                            gap: 20,
+                            alignItems: 'flex-start',
+                            justifyContent: 'center',
+                            fontFamily: SCENARIO_SIDEBAR_FONT,
+                        }}
+                    >
+                        <aside
+                            style={{
+                                width: 260,
+                                flexShrink: 0,
+                                borderRadius: 16,
+                                border: `1px solid ${T.bdrL}`,
+                                background: T.surface,
+                                overflow: 'hidden',
+                                alignSelf: 'stretch',
+                                display: 'flex',
+                                flexDirection: 'column',
+                            }}
+                        >
+                            <div
+                                style={{
+                                    padding: '14px 16px',
+                                    borderBottom: `1px solid ${T.bdrL}`,
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'space-between',
+                                }}
+                            >
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                    <div
+                                        style={{
+                                            width: 28,
+                                            height: 28,
+                                            borderRadius: 8,
+                                            background: T.accent,
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center',
+                                            color: '#fff',
+                                        }}
+                                    >
+                                        <MessageSquare size={14} strokeWidth={2.5} />
+                                    </div>
+                                    <div>
+                                        <div style={{ fontSize: 13, fontWeight: 700, color: T.t1 }}>Scenarios</div>
+                                        <div style={{ fontSize: 11, color: T.t3 }}>{STUB_SCENARIOS.length} saved</div>
+                                    </div>
+                                </div>
+                                <button
+                                    type="button"
+                                    disabled
+                                    title="Create scenario (coming soon)"
+                                    style={{
+                                        width: 26,
+                                        height: 26,
+                                        borderRadius: 8,
+                                        background: T.accentBg,
+                                        border: `1px solid ${T.accentBg2}`,
+                                        color: T.accent,
+                                        cursor: 'not-allowed',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        opacity: 0.7,
+                                    }}
+                                >
+                                    <Plus size={14} strokeWidth={2.5} />
+                                </button>
+                            </div>
+                            <div
+                                style={{
+                                    padding: 10,
+                                    display: 'flex',
+                                    flexDirection: 'column',
+                                    gap: 8,
+                                }}
+                            >
+                                {STUB_SCENARIOS.map((s) => {
+                                    const active = s.id === activeScenarioId;
+                                    return (
+                                        <button
+                                            key={s.id}
+                                            type="button"
+                                            onClick={() => setActiveScenarioId(s.id)}
+                                            style={{
+                                                textAlign: 'left',
+                                                padding: '10px 12px',
+                                                borderRadius: 10,
+                                                border: `1px solid ${active ? T.accent : T.bdrL}`,
+                                                background: active ? T.accentBg : T.surface,
+                                                cursor: 'pointer',
+                                                display: 'flex',
+                                                alignItems: 'flex-start',
+                                                gap: 8,
+                                                transition: 'background 0.15s ease, border-color 0.15s ease',
+                                            }}
+                                        >
+                                            <div style={{ flex: 1, minWidth: 0 }}>
+                                                <div
+                                                    style={{
+                                                        fontSize: 12,
+                                                        fontWeight: 700,
+                                                        color: active ? T.accent : T.t1,
+                                                        marginBottom: 3,
+                                                        overflow: 'hidden',
+                                                        textOverflow: 'ellipsis',
+                                                        whiteSpace: 'nowrap',
+                                                    }}
+                                                >
+                                                    {s.title}
+                                                </div>
+                                                {s.description && (
+                                                    <div
+                                                        style={{
+                                                            fontSize: 11,
+                                                            color: T.t3,
+                                                            lineHeight: 1.4,
+                                                            display: '-webkit-box',
+                                                            WebkitLineClamp: 2,
+                                                            WebkitBoxOrient: 'vertical',
+                                                            overflow: 'hidden',
+                                                        }}
+                                                    >
+                                                        {s.description}
+                                                    </div>
+                                                )}
+                                                {s.vertical && (
+                                                    <div style={{ fontSize: 10, color: T.t4, marginTop: 4 }}>
+                                                        {s.vertical}
+                                                    </div>
+                                                )}
+                                            </div>
+                                            <ChevronRight
+                                                size={13}
+                                                strokeWidth={2.5}
+                                                style={{
+                                                    color: active ? T.accent : T.t4,
+                                                    flexShrink: 0,
+                                                    marginTop: 2,
+                                                }}
+                                            />
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                        </aside>
+                        <div style={{ flexShrink: 0 }}>
+                            <TestChatPanel
+                                brandName={config.brandName || 'Relay'}
+                                brandEmoji={config.brandEmoji}
+                                tagline={config.welcomeMessage || config.tagline}
+                                theme={relayTheme}
+                                messages={chatMessages}
+                                sending={chatSending}
+                                onSend={sendChatMessage}
+                                onClear={() => {
+                                    setChatMessages([]);
+                                    setFlowMeta(null);
+                                    setSignals(null);
+                                    setSeeded(false);
+                                }}
+                                callbacks={sessionCallbacks}
+                                currentStageLabel={flowMeta?.stageLabel}
+                            />
+                        </div>
+                    </div>
                     <div style={{ maxWidth: 420, margin: '0 auto' }}>
                         <TestChatFlowPanel flowMeta={flowMeta} theme={relayTheme} />
                         <TestChatSignalsPanel

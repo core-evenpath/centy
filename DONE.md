@@ -707,3 +707,19 @@ POST /api/relay/chat
 - **Per-turn analytics writes** — signals are visible in Test Chat but not persisted to `partners/{pid}/relayAnalytics`.
 - **Partner-facing "why did you pick this block?"** — the debug panel exists for the partner surface; customer-facing chat gets only the block + text.
 - **Live widget signals UI** — the public `/r/[partnerId]` page uses the same endpoint so the orchestrator benefits apply, but the debug overlay is Test-Chat-only.
+
+## Partner/Relay Test Chat Rebuild + Scenario Backend Scaffold
+
+Files:
+- src/lib/relay/scenarios/types.ts (new) — Scenario, ScenarioMessage, ScenarioInput types
+- src/lib/relay/scenarios/firestore.ts (new) — list/get/create/update/delete helpers using firebase-admin, partners/{partnerId}/scenarios collection
+- src/app/api/partner/relay/scenarios/route.ts (new) — GET (list by partnerId), POST (create)
+- src/app/partner/(protected)/relay/page.tsx (Test Chat tab only) — added a Scenarios sidebar (260px, left of the phone) using admin/relay/flows visual language: T color tokens, Karla font, inline styles. All pre-existing features are retained: Setup, Embed & Diagnostics, Conversations, Flows, Storefront tabs; real chat wiring through `sendChatMessage`; cart/checkout integration; seed-on-open; TestChatPanel (phone frame + header + messages + input) continues to own the phone simulator, so block rendering, typing indicator, and empty-state are unchanged. Note: the file lives under the (protected) route group because that is the file-system path Next.js uses to resolve /partner/relay in this project; the spec's literal path src/app/partner/relay/page.tsx would have produced a routing conflict.
+
+Explicitly deferred to next prompt:
+- Wiring the scenarios sidebar to /api/partner/relay/scenarios (selecting a scenario is currently a visual-only highlight)
+- Scenario editing/creation UI
+- PUT/DELETE single-scenario route
+- Driving chat seed messages from a selected scenario
+
+Stub data in use: STUB_SCENARIOS constant inside partner/(protected)/relay/page.tsx (3 example entries, empty messages arrays).
