@@ -13,15 +13,32 @@ import {
     Sliders,
     Activity,
     Layers,
+    BarChart3,
+    Shield,
+    Clock,
+    Utensils,
+    Calendar,
+    Package,
+    Tag,
+    Heart,
+    Wrench,
+    CreditCard,
+    FileText,
+    MapPin,
+    Award,
+    Users,
+    Sparkles,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import type { RelayTheme } from '@/components/relay/blocks/types';
+import type { TestChatBlockInfo } from '@/actions/relay-test-chat-actions';
 
 // ── Test Chat v1 home screen (bento) ─────────────────────────────────
 //
 // v1 = the placeholder home screen. Later versions can render something
-// else entirely (flow map, rich hero, etc). Tiles for this version are
-// a mix of function-specific block tiles + a neutral fallback set.
+// else entirely. Tiles are built from the real block registry (via the
+// backend server action) so adding a block to a vertical automatically
+// shows up here without touching this component.
 
 export interface BentoTile {
     id: string;
@@ -31,23 +48,170 @@ export interface BentoTile {
     size: 'large' | 'medium';
     iconFg: string;
     iconBg: string;
-    /** Data-guide section that backs this tile (when the partner taps
-     * it, we surface that section in the checklist below). */
     sectionId?: string;
 }
 
-function palette(theme: RelayTheme) {
+// Map block family → (icon, tint colour). Falls back to accent + Layers.
+interface TintPalette {
+    accent: { fg: string; bg: string };
+    rose: { fg: string; bg: string };
+    teal: { fg: string; bg: string };
+    blue: { fg: string; bg: string };
+    violet: { fg: string; bg: string };
+}
+
+function paletteFor(theme: RelayTheme): TintPalette {
     return {
         accent: { fg: theme.accent, bg: theme.accentBg },
         rose: { fg: '#be185d', bg: 'rgba(190,24,93,0.08)' },
         teal: { fg: '#0d9488', bg: 'rgba(13,148,136,0.08)' },
+        blue: { fg: '#2563eb', bg: 'rgba(37,99,235,0.08)' },
+        violet: { fg: '#7c3aed', bg: 'rgba(124,58,237,0.08)' },
     };
 }
 
-// Fallback v1 tiles — mirror the reference design exactly. Used when we
-// don't have a taxonomy-specific tile set yet.
-function defaultTiles(theme: RelayTheme): BentoTile[] {
-    const p = palette(theme);
+// Block id → icon (preferred when available). Falls back to family → icon,
+// then stage → icon, then Layers. Covers the Beverage-Focused set plus
+// the shared blocks that show up across verticals.
+const BLOCK_ICON_BY_ID: Record<string, LucideIcon> = {
+    // Shared
+    greeting: MessageCircle,
+    cart: ShoppingBag,
+    contact: Phone,
+    promo: Tag,
+    nudge: Sparkles,
+    // Beverage-Focused
+    menu_item: Search,
+    drink_menu: Coffee,
+    daily_specials: Star,
+    dietary_filter: Leaf,
+    order_customizer: Sliders,
+    nutrition: Activity,
+    category_browser: Layers,
+    diner_review: Star,
+    // Common across verticals
+    product_card: Package,
+    product_detail: Eye,
+    service_card: Wrench,
+    review: Star,
+    booking: Calendar,
+    availability: Calendar,
+    finance_calc: CreditCard,
+    intake_form: FileText,
+    location: MapPin,
+    loyalty_progress: Award,
+    class_schedule: Calendar,
+    stylist_profile: Users,
+    membership_tier: Heart,
+};
+
+const FAMILY_ICON: Record<string, LucideIcon> = {
+    menu: Search,
+    beverage: Coffee,
+    ordering: Sliders,
+    preferences: Leaf,
+    marketing: Star,
+    info: Activity,
+    social_proof: Star,
+    shared: MessageCircle,
+    catalog: Package,
+    service: Wrench,
+    booking: Calendar,
+    pricing: CreditCard,
+    valuation: BarChart3,
+    parts: Package,
+    safety: Shield,
+};
+
+const STAGE_ICON: Record<string, LucideIcon> = {
+    greeting: MessageCircle,
+    discovery: Search,
+    showcase: Eye,
+    comparison: BarChart3,
+    social_proof: Star,
+    conversion: ShoppingBag,
+    objection: Shield,
+    handoff: Phone,
+    followup: Clock,
+};
+
+function pickIcon(block: TestChatBlockInfo): LucideIcon {
+    return (
+        BLOCK_ICON_BY_ID[block.id] ||
+        FAMILY_ICON[block.family] ||
+        STAGE_ICON[block.stage] ||
+        Utensils
+    );
+}
+
+const FAMILY_TINT: Record<string, keyof TintPalette> = {
+    social_proof: 'rose',
+    marketing: 'rose',
+    beverage: 'accent',
+    preferences: 'teal',
+    shared: 'accent',
+    menu: 'accent',
+    ordering: 'accent',
+    info: 'blue',
+    catalog: 'accent',
+    booking: 'violet',
+    pricing: 'accent',
+    safety: 'teal',
+};
+
+function pickTint(block: TestChatBlockInfo, palette: TintPalette) {
+    const key = FAMILY_TINT[block.family] ?? 'accent';
+    return palette[key];
+}
+
+// Build tiles from a list of blocks — first block becomes the large tile.
+// Section ids come via an optional lookup so the page can inject the
+// block-data-guide section mapping without this component knowing about
+// the guide structure.
+export function buildTilesFromBlocks(
+    blocks: TestChatBlockInfo[],
+    theme: RelayTheme,
+    getSectionIdForBlock?: (blockId: string) => string | undefined,
+): BentoTile[] {
+    const palette = paletteFor(theme);
+    return blocks.map((b, idx) => {
+        const tint = pickTint(b, palette);
+        return {
+            id: b.id,
+            label: b.label,
+            sub: shortSub(b),
+            icon: pickIcon(b),
+            size: idx === 0 ? ('large' as const) : ('medium' as const),
+            iconFg: tint.fg,
+            iconBg: tint.bg,
+            sectionId: getSectionIdForBlock?.(b.id),
+        };
+    });
+}
+
+// Short, human-friendly caption derived from the block's desc / stage.
+function shortSub(b: TestChatBlockInfo): string {
+    // Use first clause of the desc up to 28 chars; fall back to stage label.
+    const raw = (b.desc ?? '').split(/[.,]/)[0]?.trim();
+    if (raw && raw.length > 0 && raw.length < 40) return raw;
+    const STAGE_LABEL: Record<string, string> = {
+        greeting: 'Get started',
+        discovery: 'Explore options',
+        showcase: 'View details',
+        comparison: 'Side by side',
+        social_proof: 'What customers say',
+        conversion: 'Take action',
+        objection: 'Answer concerns',
+        handoff: 'Talk to our team',
+        followup: 'Track & revisit',
+    };
+    return STAGE_LABEL[b.stage] ?? 'Open preview';
+}
+
+// Fallback v1 tiles — reference-design mock used when the page has no
+// backend blocks yet (initial load) or for taxonomies without entries.
+export function defaultV1Tiles(theme: RelayTheme): BentoTile[] {
+    const p = paletteFor(theme);
     return [
         { id: 'greeting', label: 'Greeting', sub: 'Get started', icon: MessageCircle, size: 'large', iconFg: p.accent.fg, iconBg: p.accent.bg },
         { id: 'menu_item', label: 'Menu Item Card', sub: 'Explore options', icon: Search, size: 'medium', iconFg: p.accent.fg, iconBg: p.accent.bg },
@@ -58,40 +222,32 @@ function defaultTiles(theme: RelayTheme): BentoTile[] {
     ];
 }
 
-// Beverage-Focused taxonomy tiles — every tile is tied to a DataSection
-// id in src/lib/relay/block-data-guide.ts so tapping surfaces the right
-// upload step.
-function beverageCafeTiles(theme: RelayTheme): BentoTile[] {
-    const p = palette(theme);
-    return [
-        { id: 'menu_item', label: 'Menu Item Card', sub: 'Signature drinks & food', icon: Search, size: 'large', iconFg: p.accent.fg, iconBg: p.accent.bg, sectionId: 'food_menu' },
-        { id: 'drink_menu', label: 'Drink Menu', sub: 'Hot, iced, juices', icon: Coffee, size: 'medium', iconFg: p.accent.fg, iconBg: p.accent.bg, sectionId: 'food_menu' },
-        { id: 'daily_specials', label: "Today's Specials", sub: "What's new today", icon: Star, size: 'medium', iconFg: p.rose.fg, iconBg: p.rose.bg, sectionId: 'food_menu' },
-        { id: 'dietary_filter', label: 'Dietary Filter', sub: 'Vegan · Gluten-free', icon: Leaf, size: 'medium', iconFg: p.teal.fg, iconBg: p.teal.bg, sectionId: 'dietary_tags' },
-        { id: 'order_customizer', label: 'Order Customizer', sub: 'Size, milk, syrup', icon: Sliders, size: 'medium', iconFg: p.accent.fg, iconBg: p.accent.bg, sectionId: 'order_customizer' },
-        { id: 'nutrition', label: 'Nutrition Info', sub: 'Calories & allergens', icon: Activity, size: 'medium', iconFg: p.accent.fg, iconBg: p.accent.bg, sectionId: 'nutrition' },
-        { id: 'category_browser', label: 'Categories', sub: 'Coffee · Tea · Pastries', icon: Layers, size: 'medium', iconFg: p.accent.fg, iconBg: p.accent.bg, sectionId: 'menu_categories' },
-        { id: 'diner_review', label: 'Diner Reviews', sub: 'What customers say', icon: Star, size: 'medium', iconFg: p.rose.fg, iconBg: p.rose.bg, sectionId: 'diner_reviews' },
-    ];
-}
-
-export function tilesForFunction(
-    functionId: string | null | undefined,
-    theme: RelayTheme,
-): BentoTile[] {
-    if (functionId === 'beverage_cafe') return beverageCafeTiles(theme);
-    return defaultTiles(theme);
-}
-
 interface Props {
     theme: RelayTheme;
-    tiles?: BentoTile[];
-    functionId?: string | null;
+    tiles: BentoTile[];
     onTileTap: (tile: { id: string; label: string; sectionId?: string }) => void;
 }
 
-export default function TestChatBento({ theme, tiles, functionId, onTileTap }: Props) {
-    const resolvedTiles = tiles ?? tilesForFunction(functionId ?? null, theme);
+export default function TestChatBento({ theme, tiles, onTileTap }: Props) {
+    if (tiles.length === 0) {
+        return (
+            <div
+                style={{
+                    flex: 1,
+                    padding: 24,
+                    background: theme.bg,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: theme.t3,
+                    fontSize: 13,
+                    textAlign: 'center',
+                }}
+            >
+                Loading your blocks…
+            </div>
+        );
+    }
 
     return (
         <div
@@ -108,7 +264,7 @@ export default function TestChatBento({ theme, tiles, functionId, onTileTap }: P
                 scrollbarWidth: 'none',
             }}
         >
-            {resolvedTiles.map((tile) => {
+            {tiles.map((tile) => {
                 const Icon = tile.icon;
                 const isLarge = tile.size === 'large';
                 return (

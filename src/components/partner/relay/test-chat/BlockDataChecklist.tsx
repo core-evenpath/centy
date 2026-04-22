@@ -9,11 +9,12 @@ import {
     ExternalLink,
     Loader2,
     Sparkles,
+    Clock3,
 } from 'lucide-react';
 import {
-    getPartnerModuleAction,
-    getModuleItemsAction,
-} from '@/actions/modules-actions';
+    getModuleSampleSummaryAction,
+    type ModuleSampleSummary,
+} from '@/actions/relay-test-chat-actions';
 import type {
     DataSection,
     FunctionDataGuide,
@@ -21,12 +22,13 @@ import type {
 
 // ── Data you need to upload to get your blocks working ──────────────
 //
-// Reads the taxonomy-specific guide and renders one card per data
-// section. Each card shows: which blocks consume the data, current
-// upload status (item count for module-backed sections), a short how-to
-// hint, and a deep-link CTA that takes the partner straight to the
-// editor. Sections tagged `design_only` are listed as preview-only so
-// the partner knows they don't need to touch data for them yet.
+// Drives the upload checklist that sits below the Test Chat phone. For
+// each section in the taxonomy-specific guide we show:
+//   - live status pill (Checking… → N items / Needs data / Not set up / Preview only)
+//   - sample item chips (names of the 3 most-recently-updated items)
+//   - last-updated relative time
+//   - per-block status chips (ready vs still-needs-data)
+//   - deep link CTA into /partner/relay/modules/{slug}
 
 interface Props {
     guide: FunctionDataGuide;
@@ -35,20 +37,14 @@ interface Props {
     onHighlightConsumed?: () => void;
 }
 
-interface ModuleStatus {
-    state: 'loading' | 'not_enabled' | 'empty' | 'populated' | 'error';
-    itemCount?: number;
-}
-
 export default function BlockDataChecklist({
     guide,
     partnerId,
     highlightSectionId,
     onHighlightConsumed,
 }: Props) {
-    // Map of moduleSlug → status. One entry per unique slug referenced
-    // by the guide; sections that share a slug share a status row.
-    const [moduleStatus, setModuleStatus] = useState<Record<string, ModuleStatus>>({});
+    const [summaries, setSummaries] = useState<Record<string, ModuleSampleSummary>>({});
+    const [loadingSlugs, setLoadingSlugs] = useState<Set<string>>(new Set());
     const sectionRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
     const uniqueSlugs = useMemo(() => {
@@ -62,41 +58,26 @@ export default function BlockDataChecklist({
     useEffect(() => {
         if (!partnerId || uniqueSlugs.length === 0) return;
         let cancelled = false;
-        setModuleStatus((prev) => {
-            const next = { ...prev };
-            uniqueSlugs.forEach((slug) => {
-                if (!next[slug]) next[slug] = { state: 'loading' };
-            });
-            return next;
-        });
-
+        setLoadingSlugs(new Set(uniqueSlugs));
         (async () => {
             for (const slug of uniqueSlugs) {
                 try {
-                    const pm = await getPartnerModuleAction(partnerId, slug);
+                    const res = await getModuleSampleSummaryAction(partnerId, slug);
                     if (cancelled) return;
-                    if (!pm.success || !pm.data) {
-                        setModuleStatus((prev) => ({
-                            ...prev,
-                            [slug]: { state: 'not_enabled' },
-                        }));
-                        continue;
+                    if (res.success && res.summary) {
+                        setSummaries((prev) => ({ ...prev, [slug]: res.summary! }));
                     }
-                    const items = await getModuleItemsAction(partnerId, pm.data.partnerModule.id, {
-                        pageSize: 1,
-                    });
-                    if (cancelled) return;
-                    const total = items.success && items.data ? items.data.total : 0;
-                    setModuleStatus((prev) => ({
-                        ...prev,
-                        [slug]: {
-                            state: total > 0 ? 'populated' : 'empty',
-                            itemCount: total,
-                        },
-                    }));
                 } catch {
-                    if (cancelled) return;
-                    setModuleStatus((prev) => ({ ...prev, [slug]: { state: 'error' } }));
+                    // leave as loading → falls through to "checking…" forever
+                    // which is visually distinguishable, but skip noisy errors
+                } finally {
+                    if (!cancelled) {
+                        setLoadingSlugs((prev) => {
+                            const next = new Set(prev);
+                            next.delete(slug);
+                            return next;
+                        });
+                    }
                 }
             }
         })();
@@ -105,21 +86,20 @@ export default function BlockDataChecklist({
         };
     }, [partnerId, uniqueSlugs]);
 
-    // Scroll to highlighted section when one is requested.
     useEffect(() => {
         if (!highlightSectionId) return;
         const el = sectionRefs.current[highlightSectionId];
-        if (el) {
-            el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        }
+        if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
         const timer = setTimeout(() => onHighlightConsumed?.(), 1800);
         return () => clearTimeout(timer);
     }, [highlightSectionId, onHighlightConsumed]);
 
-    const requiredCount = guide.sections.filter((s) => s.status === 'required').length;
-    const readyCount = guide.sections.filter((s) => {
-        if (s.status !== 'required' || !s.moduleSlug) return false;
-        return moduleStatus[s.moduleSlug]?.state === 'populated';
+    // Readiness roll-up across required sections.
+    const requiredSections = guide.sections.filter((s) => s.status === 'required');
+    const readyCount = requiredSections.filter((s) => {
+        if (!s.moduleSlug) return false;
+        const sum = summaries[s.moduleSlug];
+        return sum && sum.enabled && sum.total > 0;
     }).length;
 
     return (
@@ -135,18 +115,25 @@ export default function BlockDataChecklist({
                         every block picks them up automatically.
                     </p>
                 </div>
-                {requiredCount > 0 && (
-                    <div className="shrink-0 rounded-full border bg-muted/50 px-3 py-1 text-xs font-medium">
-                        {readyCount} / {requiredCount} required ready
+                {requiredSections.length > 0 && (
+                    <div
+                        className={`shrink-0 rounded-full border px-3 py-1 text-xs font-medium ${
+                            readyCount === requiredSections.length
+                                ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                                : 'bg-muted/50'
+                        }`}
+                    >
+                        {readyCount} / {requiredSections.length} required ready
                     </div>
                 )}
             </header>
 
             <div className="divide-y">
                 {guide.sections.map((section) => {
-                    const status = section.moduleSlug
-                        ? moduleStatus[section.moduleSlug]
-                        : undefined;
+                    const summary = section.moduleSlug ? summaries[section.moduleSlug] : undefined;
+                    const loading = section.moduleSlug
+                        ? loadingSlugs.has(section.moduleSlug) && !summary
+                        : false;
                     const highlighted = highlightSectionId === section.id;
                     return (
                         <div
@@ -160,11 +147,17 @@ export default function BlockDataChecklist({
                             ].join(' ')}
                         >
                             <div className="flex items-start gap-3">
-                                <StatusGlyph section={section} status={status} />
+                                <StatusGlyph section={section} summary={summary} loading={loading} />
                                 <div className="flex-1 min-w-0">
                                     <div className="flex flex-wrap items-center gap-2">
                                         <h3 className="text-sm font-semibold">{section.name}</h3>
-                                        <StatusPill section={section} status={status} />
+                                        <StatusPill section={section} summary={summary} loading={loading} />
+                                        {summary?.lastUpdatedAt && (
+                                            <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground">
+                                                <Clock3 className="h-3 w-3" />
+                                                Updated {relativeTime(summary.lastUpdatedAt)}
+                                            </span>
+                                        )}
                                     </div>
                                     <p className="text-sm text-muted-foreground mt-1 leading-relaxed">
                                         {section.description}
@@ -178,14 +171,49 @@ export default function BlockDataChecklist({
 
                                     <div className="mt-2.5 flex flex-wrap gap-1.5">
                                         {section.blocks.map((b) => (
-                                            <span
+                                            <BlockChip
                                                 key={b.id}
-                                                className="inline-flex items-center rounded-full border bg-muted/40 px-2.5 py-0.5 text-[11px] font-medium text-muted-foreground"
-                                            >
-                                                {b.label}
-                                            </span>
+                                                label={b.label}
+                                                status={chipStatus(section, summary, loading)}
+                                            />
                                         ))}
                                     </div>
+
+                                    {summary && summary.sampleNames.length > 0 && (
+                                        <div className="mt-3 rounded-lg border bg-muted/30 px-3 py-2">
+                                            <div className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                                                Sample items
+                                            </div>
+                                            <div className="mt-1 flex flex-wrap gap-1.5">
+                                                {summary.sampleNames.map((n) => (
+                                                    <span
+                                                        key={n}
+                                                        className="inline-flex items-center rounded-md border bg-background px-2 py-0.5 text-[11px]"
+                                                    >
+                                                        {n}
+                                                    </span>
+                                                ))}
+                                                {summary.total > summary.sampleNames.length && (
+                                                    <span className="inline-flex items-center px-2 py-0.5 text-[11px] text-muted-foreground">
+                                                        +{summary.total - summary.sampleNames.length} more
+                                                    </span>
+                                                )}
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {section.status !== 'design_only' && summary && !summary.enabled && (
+                                        <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                                            The <span className="font-semibold">{section.moduleSlug}</span> module
+                                            isn't set up yet. Open the editor to enable it and start adding items.
+                                        </div>
+                                    )}
+                                    {section.status === 'required' && summary?.enabled && summary.total === 0 && (
+                                        <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                                            The module exists but has zero items. Add your first entries so these
+                                            blocks show real content in the chat.
+                                        </div>
+                                    )}
 
                                     {section.route && (
                                         <div className="mt-3">
@@ -210,19 +238,21 @@ export default function BlockDataChecklist({
 
 function StatusGlyph({
     section,
-    status,
+    summary,
+    loading,
 }: {
     section: DataSection;
-    status?: ModuleStatus;
+    summary?: ModuleSampleSummary;
+    loading: boolean;
 }) {
     const cn = 'h-5 w-5 shrink-0 mt-0.5';
     if (section.status === 'design_only') {
         return <CircleDashed className={`${cn} text-muted-foreground`} />;
     }
-    if (!status || status.state === 'loading') {
+    if (loading) {
         return <Loader2 className={`${cn} animate-spin text-muted-foreground`} />;
     }
-    if (status.state === 'populated') {
+    if (summary?.enabled && summary.total > 0) {
         return <CheckCircle2 className={`${cn} text-emerald-600`} />;
     }
     if (section.status === 'required') {
@@ -233,27 +263,32 @@ function StatusGlyph({
 
 function StatusPill({
     section,
-    status,
+    summary,
+    loading,
 }: {
     section: DataSection;
-    status?: ModuleStatus;
+    summary?: ModuleSampleSummary;
+    loading: boolean;
 }) {
     const base =
         'inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide';
     if (section.status === 'design_only') {
         return <span className={`${base} border bg-muted/50 text-muted-foreground`}>Preview only</span>;
     }
-    if (!status || status.state === 'loading') {
+    if (loading) {
         return <span className={`${base} border bg-muted/50 text-muted-foreground`}>Checking…</span>;
     }
-    if (status.state === 'populated') {
+    if (summary?.enabled && summary.total > 0) {
         return (
             <span className={`${base} border border-emerald-200 bg-emerald-50 text-emerald-700`}>
-                {status.itemCount ?? 0} items
+                {summary.total} item{summary.total === 1 ? '' : 's'}
             </span>
         );
     }
-    if (status.state === 'empty') {
+    if (summary && !summary.enabled) {
+        return <span className={`${base} border border-amber-200 bg-amber-50 text-amber-700`}>Not set up</span>;
+    }
+    if (summary && summary.enabled && summary.total === 0) {
         if (section.status === 'required') {
             return (
                 <span className={`${base} border border-amber-200 bg-amber-50 text-amber-700`}>
@@ -263,8 +298,56 @@ function StatusPill({
         }
         return <span className={`${base} border bg-muted/50 text-muted-foreground`}>Optional</span>;
     }
-    if (status.state === 'not_enabled') {
-        return <span className={`${base} border border-amber-200 bg-amber-50 text-amber-700`}>Not set up</span>;
-    }
     return <span className={`${base} border bg-muted/50 text-muted-foreground`}>Unknown</span>;
+}
+
+function BlockChip({
+    label,
+    status,
+}: {
+    label: string;
+    status: 'ready' | 'pending' | 'design' | 'unknown';
+}) {
+    const tone =
+        status === 'ready'
+            ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+            : status === 'pending'
+                ? 'border-amber-200 bg-amber-50 text-amber-700'
+                : 'border bg-muted/40 text-muted-foreground';
+    const dot =
+        status === 'ready' ? 'bg-emerald-500' : status === 'pending' ? 'bg-amber-500' : 'bg-muted-foreground/40';
+    return (
+        <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-[11px] font-medium ${tone}`}>
+            <span className={`h-1.5 w-1.5 rounded-full ${dot}`} />
+            {label}
+        </span>
+    );
+}
+
+function chipStatus(
+    section: DataSection,
+    summary: ModuleSampleSummary | undefined,
+    loading: boolean,
+): 'ready' | 'pending' | 'design' | 'unknown' {
+    if (section.status === 'design_only') return 'design';
+    if (loading) return 'unknown';
+    if (summary?.enabled && summary.total > 0) return 'ready';
+    if (section.status === 'required') return 'pending';
+    return 'unknown';
+}
+
+// Naive relative-time formatter — good enough for "Updated 3h ago".
+// Accepts ISO strings stored on ModuleItem.updatedAt / createdAt.
+function relativeTime(iso: string): string {
+    const d = Date.parse(iso);
+    if (Number.isNaN(d)) return '';
+    const diffMs = Date.now() - d;
+    const minute = 60_000;
+    const hour = 60 * minute;
+    const day = 24 * hour;
+    if (diffMs < minute) return 'just now';
+    if (diffMs < hour) return `${Math.floor(diffMs / minute)}m ago`;
+    if (diffMs < day) return `${Math.floor(diffMs / hour)}h ago`;
+    if (diffMs < 30 * day) return `${Math.floor(diffMs / day)}d ago`;
+    return new Date(d).toLocaleDateString();
 }
