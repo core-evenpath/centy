@@ -8,7 +8,11 @@ import {
 import { getBusinessPersonaAction } from '@/actions/business-persona-actions';
 import type { RelayConfig } from '@/actions/relay-actions';
 import type { SelectedBusinessCategory } from '@/lib/business-taxonomy/types';
-import TestChatPanel from '@/components/partner/relay/test-chat/TestChatPanel';
+import TestChatPhoneFrame from '@/components/partner/relay/test-chat/TestChatPhoneFrame';
+import TestChatHeader from '@/components/partner/relay/test-chat/TestChatHeader';
+import TestChatMessages from '@/components/partner/relay/test-chat/TestChatMessages';
+import TestChatInput from '@/components/partner/relay/test-chat/TestChatInput';
+import TestChatBento from '@/components/partner/relay/test-chat/TestChatBento';
 import TestChatFlowPanel, {
     type TestChatFlowMeta,
 } from '@/components/partner/relay/test-chat/TestChatFlowPanel';
@@ -94,6 +98,11 @@ export default function PartnerRelayTestChatPage() {
     const [flowMeta, setFlowMeta] = useState<TestChatFlowMeta | null>(null);
     const [seeded, setSeeded] = useState(false);
     const [checkoutOpen, setCheckoutOpen] = useState(false);
+
+    // Home screen toggle — mirrors /admin/relay/flows: bento home is the
+    // default view; tapping a tile or the "Ask anything" input transitions
+    // to the live chat. Switching scenario or clearing resets to home.
+    const [showHome, setShowHome] = useState(true);
 
     const relayTheme = useMemo(() => buildThemeFromAccent(config.accentColor), [config.accentColor]);
 
@@ -494,7 +503,13 @@ export default function PartnerRelayTestChatPage() {
                                     <button
                                         key={key}
                                         type="button"
-                                        onClick={() => setActiveCategoryKey(key)}
+                                        onClick={() => {
+                                            setActiveCategoryKey(key);
+                                            setChatMessages([]);
+                                            setFlowMeta(null);
+                                            setSeeded(false);
+                                            setShowHome(true);
+                                        }}
                                         style={{
                                             textAlign: 'left',
                                             padding: '10px 12px',
@@ -550,23 +565,57 @@ export default function PartnerRelayTestChatPage() {
                         )}
                     </div>
                 </aside>
-                <div style={{ flexShrink: 0 }}>
-                    <TestChatPanel
-                        brandName={config.brandName || 'Relay'}
-                        brandEmoji={config.brandEmoji}
-                        tagline={config.welcomeMessage || config.tagline}
-                        theme={relayTheme}
-                        messages={chatMessages}
-                        sending={chatSending}
-                        onSend={sendChatMessage}
-                        onClear={() => {
-                            setChatMessages([]);
-                            setFlowMeta(null);
-                            setSeeded(false);
-                        }}
-                        callbacks={sessionCallbacks}
-                        currentStageLabel={flowMeta?.stageLabel}
-                    />
+                <div
+                    style={{
+                        flexShrink: 0,
+                        padding: '24px 0 12px',
+                        fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
+                    }}
+                >
+                    <style>{`@keyframes testChatPulse { 0%,100%{opacity:1} 50%{opacity:.3} }`}</style>
+                    <TestChatPhoneFrame theme={relayTheme}>
+                        <TestChatHeader
+                            brandName={config.brandName || 'Relay'}
+                            brandEmoji={config.brandEmoji}
+                            theme={relayTheme}
+                            canClear={!showHome}
+                            onClear={() => {
+                                setChatMessages([]);
+                                setFlowMeta(null);
+                                setSeeded(false);
+                                setShowHome(true);
+                            }}
+                            stageLabel={flowMeta?.stageLabel}
+                        />
+                        {showHome ? (
+                            <TestChatBento
+                                theme={relayTheme}
+                                onTileTap={() => setShowHome(false)}
+                            />
+                        ) : (
+                            <TestChatMessages
+                                messages={chatMessages}
+                                sending={chatSending}
+                                theme={relayTheme}
+                                brandName={config.brandName || 'Relay'}
+                                brandEmoji={config.brandEmoji}
+                                tagline={config.welcomeMessage || config.tagline}
+                                onSend={(text) => {
+                                    setShowHome(false);
+                                    sendChatMessage(text);
+                                }}
+                                callbacks={sessionCallbacks}
+                            />
+                        )}
+                        <TestChatInput
+                            theme={relayTheme}
+                            disabled={chatSending}
+                            onSend={(text) => {
+                                setShowHome(false);
+                                sendChatMessage(text);
+                            }}
+                        />
+                    </TestChatPhoneFrame>
                 </div>
             </div>
 
