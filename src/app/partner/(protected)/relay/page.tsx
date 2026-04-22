@@ -19,6 +19,7 @@ import TestChatFlowPanel, {
 import TestChatSignalsPanel, {
     type TestChatSignalsDebug,
 } from '@/components/partner/relay/test-chat/TestChatSignalsPanel';
+import TestChatProductDiagnostic from '@/components/partner/relay/test-chat/TestChatProductDiagnostic';
 import CheckoutFlow from '@/components/relay/checkout/CheckoutFlow';
 import { useRelaySession } from '@/hooks/useRelaySession';
 import { useRelayCheckout } from '@/hooks/useRelayCheckout';
@@ -515,6 +516,14 @@ export default function PartnerRelayPage() {
                             flowStage={flowMeta?.stageLabel}
                             theme={relayTheme}
                         />
+                        {partnerId && (
+                            <TestChatProductDiagnostic
+                                partnerId={partnerId}
+                                conversationId={conversationId}
+                                theme={relayTheme}
+                                refreshKey={chatMessages.length}
+                            />
+                        )}
                     </div>
                 </TabsContent>
 
