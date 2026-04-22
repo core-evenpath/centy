@@ -24,6 +24,10 @@ import {
     type TestChatBlockInfo,
 } from '@/actions/relay-test-chat-actions';
 import { getBlockPreviewDataAction } from '@/actions/relay-block-sources-actions';
+import {
+    ensureRequiredModulesEnabledAction,
+    quickStartTaxonomyDataAction,
+} from '@/actions/relay-sample-data-actions';
 import TestChatFlowPanel, {
     type TestChatFlowMeta,
 } from '@/components/partner/relay/test-chat/TestChatFlowPanel';
@@ -89,8 +93,9 @@ interface ChatMessage {
 }
 
 export default function PartnerRelayTestChatPage() {
-    const { currentWorkspace, loading: authLoading } = useMultiWorkspaceAuth();
+    const { user, currentWorkspace, loading: authLoading } = useMultiWorkspaceAuth();
     const partnerId = currentWorkspace?.partnerId;
+    const userId = user?.uid;
 
     const [config, setConfig] = useState<RelayConfig>(DEFAULT_CONFIG);
     const [configLoading, setConfigLoading] = useState(true);
@@ -329,6 +334,32 @@ export default function PartnerRelayTestChatPage() {
             cancelled = true;
         };
     }, [activeFunctionId]);
+
+    // ── Auto-enable required modules for the partner's taxonomy ─────
+    //
+    // Goal: every block that needs data has its backing module enabled
+    // so the partner never lands on "Not set up". Idempotent on the
+    // server (enablePartnerModuleAction is a no-op when the module is
+    // already there).
+
+    const [modulesEnsured, setModulesEnsured] = useState(false);
+    useEffect(() => {
+        if (!partnerId || !activeFunctionId || modulesEnsured) return;
+        let cancelled = false;
+        (async () => {
+            try {
+                await ensureRequiredModulesEnabledAction(partnerId, activeFunctionId);
+            } catch {
+                // non-fatal; checklist will surface "Not set up" and let
+                // the partner enable manually.
+            } finally {
+                if (!cancelled) setModulesEnsured(true);
+            }
+        })();
+        return () => {
+            cancelled = true;
+        };
+    }, [partnerId, activeFunctionId, modulesEnsured]);
 
     // ── Seed: pull entry-stage blocks on chat open ────────────────────
 
@@ -747,6 +778,7 @@ export default function PartnerRelayTestChatPage() {
                     <BlockDataChecklist
                         guide={dataGuide}
                         partnerId={partnerId}
+                        userId={userId}
                         highlightSectionId={highlightSectionId}
                         onHighlightConsumed={() => setHighlightSectionId(null)}
                     />

@@ -14,6 +14,7 @@ import {
     deleteAllModuleItemsAction,
     exportModuleItemsAction,
 } from '@/actions/modules-actions';
+import { seedSampleItemsAction } from '@/actions/relay-sample-data-actions';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft, Plus, Settings, Package, Trash2, Loader2, AlertTriangle, Upload, Download, ChevronDown, Sparkles } from 'lucide-react';
 import { ImportDialog } from '@/components/partner/modules/ImportDialog';
@@ -73,6 +74,29 @@ export default function ModuleManagePage({ params }: PageProps) {
     const [isImportOpen, setIsImportOpen] = useState(false);
     const [isExporting, setIsExporting] = useState(false);
     const [showCustomFields, setShowCustomFields] = useState(false);
+    const [isSeedingSamples, setIsSeedingSamples] = useState(false);
+
+    const handleSeedSamples = async () => {
+        if (!partnerId || !user?.uid) return;
+        setIsSeedingSamples(true);
+        try {
+            const res = await seedSampleItemsAction(partnerId, slug, user.uid);
+            if (res.success) {
+                toast.success(
+                    res.created && res.created > 0
+                        ? `Added ${res.created} sample items`
+                        : 'Sample items are ready',
+                );
+                await Promise.all([refetch(), refetchModule()]);
+            } else {
+                toast.error(res.error || 'Could not load sample items');
+            }
+        } catch (err: any) {
+            toast.error(err?.message || 'Could not load sample items');
+        } finally {
+            setIsSeedingSamples(false);
+        }
+    };
 
     const ingest = useAIIngest({
         partnerId: partnerId || '',
@@ -386,16 +410,32 @@ export default function ModuleManagePage({ params }: PageProps) {
                     {iError && (
                         <p className="text-red-500 text-sm mb-4">Error loading items: {iError}</p>
                     )}
-                    <div className="flex items-center justify-center gap-3">
+                    <div className="flex items-center justify-center gap-3 flex-wrap">
                         <Button onClick={ingest.startIngest} size="lg">
                             <Sparkles className="h-4 w-4 mr-2" />
                             Let AI collect for you
+                        </Button>
+                        <Button
+                            onClick={handleSeedSamples}
+                            variant="outline"
+                            size="lg"
+                            disabled={isSeedingSamples}
+                        >
+                            {isSeedingSamples ? (
+                                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                            ) : (
+                                <Package className="h-4 w-4 mr-2" />
+                            )}
+                            {isSeedingSamples ? 'Loading samples…' : 'Load sample items'}
                         </Button>
                         <Button onClick={handleCreate} variant="outline" size="lg">
                             <Plus className="mr-2 h-4 w-4" />
                             Add manually
                         </Button>
                     </div>
+                    <p className="text-xs text-slate-500 mt-4">
+                        Sample items let you test how the blocks will render in the chat — you can delete them later.
+                    </p>
                 </div>
             ) : (
                 <ItemsList
