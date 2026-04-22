@@ -3,6 +3,7 @@
 
 import { revalidatePath } from 'next/cache';
 import { invalidatePartnerBusinessCache } from '@/lib/cache-utils';
+import { indexBusinessPersona } from '@/lib/relay/retrieval/index-persona';
 import { db } from '@/lib/firebase-admin';
 import { FieldValue, Timestamp } from 'firebase-admin/firestore';
 import type {
@@ -510,6 +511,10 @@ export async function saveBusinessPersonaAction(
         }
 
         console.log(`✅ Business persona saved for partner ${partnerId} (${setupProgress.overallPercentage}% complete)`);
+
+        void indexBusinessPersona(partnerId).catch((e) => {
+            console.error('[relay-index] persona indexing failed:', { partnerId, error: e });
+        });
 
         try {
             await invalidatePartnerBusinessCache(partnerId);
