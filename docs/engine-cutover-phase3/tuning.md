@@ -23,16 +23,16 @@ Phase 3 closes when all the above ship cleanly and production code surface is sm
 
 ## 2. Baseline context
 
-tsc baseline = **100** (updated 2026-04-21 per Phase 0 recon — Phase 3/4 work reduced the count from 276 to 100; see `docs/relay-mission/PHASE_0_RECON.md`).
+tsc baseline = **276** (corrected 2026-04-22 — MR-1.M04 measured main at 276 after relay-mission PRs merged; the prior 100 figure was an incorrect worktree measurement from MR-1.M01; see `docs/relay-mission/PHASE_0_RECON.md`).
 
-The 401 figure was a stable but incorrect measurement: `scripts/extract-block-registry-data.js` declared `ServerSubVerticalData` as `{ id, blocks }` in its output template but emitted vertical-source literals carrying `{ id, name, industryId, blocks }`. 125 identical TS2353 errors resulted. Baseline investigation (see `docs/baseline-investigation/outcome.md`) widened the interface and regenerated the file; baseline fell to 276. Subsequent Phase 3/4 work brought it to 100.
+The 401 figure was a stable but incorrect measurement: `scripts/extract-block-registry-data.js` declared `ServerSubVerticalData` as `{ id, blocks }` in its output template but emitted vertical-source literals carrying `{ id, name, industryId, blocks }`. 125 identical TS2353 errors resulted. Baseline investigation (see `docs/baseline-investigation/outcome.md`) widened the interface and regenerated the file; baseline fell to 276.
 
-Every session measures against 100 with:
+Every session measures against 276 with:
 ```
 rm -rf .next && rm -f tsconfig.tsbuildinfo && npx tsc --noEmit 2>&1 | grep -c "error TS"
 ```
 
-The remaining 100 errors are distributed cleanup concerns. Bringing 100 to zero is **not a mission prerequisite** — it's separate work.
+The remaining 276 errors are distributed cleanup concerns. Bringing 276 to zero is **not a mission prerequisite** — it's separate work.
 
 ---
 
@@ -145,6 +145,6 @@ Per-session template (adapted from Phase 2 per-engine sessions):
 
 ## 8. Baseline drift discipline
 
-`tsc = 100` is the anchor. Every milestone leaves tsc at ≤ 100 (never higher). Cleanup milestones may bring it lower; that's welcome but not required.
+`tsc = 276` is the anchor. Every milestone leaves tsc at ≤ 276 (never higher). Cleanup milestones may bring it lower; that's welcome but not required.
 
-If a milestone introduces drift (> 100), stop at commit boundary, escalate to a dedicated cleanup session. Never amend or force-push to "fix" drift silently.
+If a milestone introduces drift (> 276), stop at commit boundary, escalate to a dedicated cleanup session. Never amend or force-push to "fix" drift silently.
