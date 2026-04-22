@@ -3,7 +3,7 @@
 > **The mission.** `/admin/relay/flows` drives a flows-based conversation in `/partner/relay`, grounded in RAG over the partner's real data.
 > Every workstream serves this or waits behind it.
 
-**Status:** MR-1.M03 shipped · last updated 2026-04-21
+**Status:** MR-1.M04 shipped · last updated 2026-04-22
 **Owner:** [assign]
 **Critical path:** MR-1 → MR-2 → MR-3 → MR-4 → MR-5 → then unfreeze P3.S3 / P5 / P7
 
@@ -77,7 +77,7 @@ Session-by-session hop status. Update in place at session close.
 | 01  | OK | pre-P3 | Engine recipes | Stable |
 | 02  | HALF | 2026-04-21 | Phase 0 recon | Disconnected collections — MR-3 design decision needed (see MR-3.M00) |
 | 03  | OK | Phase 2 | Partner toolkit | Stable |
-| 04  | HALF | 2026-04-21 | MR-1.M03 | Items + persona indexed; docs indexer still MISSING (M04). Hop flips to OK when docs indexer + backfill land. |
+| 04  | HALF | 2026-04-22 | MR-1.M04 | Items + persona + docs indexers all live. Hop flips to OK when backfill script (M05) lands. |
 | 05  | OK | pre-P3 | Subdomain path works | Embed path separate (P5, out of mission scope) |
 | 06  | HALF | 2026-04-21 | MR-2.M01 | `loadRagSignal` now queries `relayRetrieval/{pid}/items`; multi-source (persona/docs) in MR-2.M02+ |
 | 07  | HALF | Phase 4 | TestChatProducts fix landed structured path | Unstructured waits on hop 4 |
@@ -197,7 +197,7 @@ The fallback simplification in M05 may overlap with MR-2's graceful zero-result 
 - [ ] Verify assigned task matches an MR milestone
 - [ ] If no match, halt and add to Freeze List with rationale
 - [ ] Check [`SESSION_LOG.md`](./SESSION_LOG.md) — what did the last session ship?
-- [ ] Verify `tsc` baseline (≤100 per `docs/engine-cutover-phase3/tuning.md`)
+- [ ] Verify `tsc` baseline (≤276 per `docs/engine-cutover-phase3/tuning.md`)
 - [ ] Verify `npm test -- --run` green
 
 ### During session
@@ -229,7 +229,7 @@ Referenced from this doc. Read as needed, in this order of priority:
 
 **Operating principles**
 - [`docs/booking-pilot/00-context.md`](../booking-pilot/00-context.md) — pause-on-ambiguity, one-milestone-per-commit, root-cause-only
-- [`docs/engine-cutover-phase3/tuning.md`](../engine-cutover-phase3/tuning.md) — baseline discipline, session template, tsc anchor (100)
+- [`docs/engine-cutover-phase3/tuning.md`](../engine-cutover-phase3/tuning.md) — baseline discipline, session template, tsc anchor (276)
 
 **What's been shipped**
 - [`docs/engine-cutover-phase3/plan.md`](../engine-cutover-phase3/plan.md) — Phase 3 milestones (M01–M09)
@@ -259,3 +259,4 @@ Append-only. One entry per substantive update to this doc.
 | 2026-04-21 | [assign] | Initial version. 8-hop pipeline, 5 MRs, freeze list. Status baseline: MR-1 not started, hop 04 MISSING is the load-bearing gap. |
 | 2026-04-21 | Claude (Phase 0) | Corrected hop 02 explanation: admin writes `systemFlowTemplates`, orchestrator reads `partners/{pid}/relayConfig/flowDefinition` — disconnected. Corrected hop 06: retrieval call already exists in `signals/rag.ts`; gets empty-result. MR-2 scope narrowed accordingly. |
 | 2026-04-21 | Claude (MR-1.M01) | Refined hop 02 / hop 06 per Phase 0 recon. Hop 02 gap is structural (disconnected collections), not precedence. Hop 06's `loadRagSignal` exists and works — the data, not the mechanism, is missing. MR-2 shrunk from "build abstraction" to "extend existing" (~3h). MR-3 renamed + gained M00 design decision (Options A/B/C). tsc anchor 276 → 100 in tuning.md and session protocol. |
+| 2026-04-22 | Claude (MR-1.M04) | Hop 04 status updated: all three indexers (items/persona/docs) now live; backfill (M05) remaining. Status HALF→HALF. Corrected tsc anchor 100 → 276 throughout (100 was an incorrect worktree measurement from M01). |

@@ -43,6 +43,51 @@ Copy this block at the top of a new session, fill in at session close.
 
 > Newest at top. Prepend new sessions above existing entries.
 
+## [2026-04-22] MR-1 Session 4 — doc indexer + upload endpoint
+
+**MR targeted:** MR-1
+**Milestones attempted:** MR-1.M04
+**Milestones shipped:** MR-1.M04 (2f7a0e1e) · tsc baseline correction (066d634e)
+**tsc before → after:** 276 → 276
+**Tests before → after:** 752 → 762 (+10)
+**Hops touched:** 04 (HALF → HALF; all indexers live, backfill pending)
+
+### What shipped
+- `src/ai/fireRagSetup.ts` — extended `indexToFirestore` / `indexPdfFile` with optional `extraFieldsFactory` param; thesis-docs shape unchanged
+- `src/__tests__/helpers/firestore-admin-mock.ts` — added `.add()` support to `CollectionRef` (auto-ID write)
+- `src/lib/relay/retrieval/index-docs.ts` — `indexRelayDoc`: reads `excludedVaultDocIds` guard, indexes to `relayRetrieval/{pid}/docs` with `{ kind, chunkIdx, indexedAt }` extra fields
+- `src/app/api/relay/upload-doc/route.ts` — POST multipart/form-data; 10 MB cap; writes `vaultFiles` metadata; fire-and-forget indexing with temp-file cleanup in `.finally()`
+- `src/lib/relay/retrieval/__tests__/index-docs.test.ts` — 7 tests (collection path, factory shape, exclusion guard, missing config, rethrows)
+- `src/ai/__tests__/fireRagSetup.test.ts` — 3 backward-compat tests for `indexToFirestore` with and without factory
+- `docs/engine-cutover-phase3/tuning.md` — corrected tsc baseline anchor 100 → 276 (100 was an incorrect worktree measurement from MR-1.M01)
+
+### Hop status changes
+- Hop 04: HALF → HALF (all three indexers — items / persona / docs — are now live; backfill script M05 still needed before flip to OK)
+
+### Halts / scope surprises
+- 7 TypeScript errors in `index-docs.test.ts` from `mock.calls[0]` typed as `[]` tuple; fixed with `as unknown as IndexPdfFileArgs` cast at each call site.
+- tsc count on main measured 287 (not 100 as tuning.md claimed). After M04 changes: 276. Net reduction of 11; none introduced.
+
+### Open operator actions (cumulative)
+- [ ] `gcloud` Firestore vector index for `relayRetrieval/{pid}/items` (from MR-1.M02)
+- [ ] `gcloud` Firestore vector index for `relayRetrieval/{pid}/persona` (from MR-1.M03)
+- [ ] `gcloud` Firestore vector index for `relayRetrieval/{pid}/docs` (this session):
+  ```
+  gcloud firestore indexes composite create \
+    --collection-group=docs \
+    --query-scope=COLLECTION_GROUP \
+    --field-config=vector-config='{"dimension":"768","flat":"{}"}',field-path=embedding
+  ```
+
+### What's next
+- MR-1.M05 — backfill script: one-shot CLI, iterates all active partners, calls all three indexers, idempotent re-run safe
+- MR-2.M02 — multi-kind retrieval (persona + docs) in orchestrator compose
+
+### Links
+- PR: #TBD
+
+---
+
 ## [2026-04-21] MR-1 Session 3 — persona indexer
 
 **MR targeted:** MR-1
