@@ -10,7 +10,7 @@ import { usePathname } from 'next/navigation';
 // new page means adding one row here, not updating N places.
 //
 // Active-tab detection uses `usePathname()` with prefix matching so
-// nested routes (e.g. /admin/relay/modules/[slug] later) still light
+// nested routes (e.g. /admin/relay/data/[slug] later) still light
 // up the right tab.
 
 interface NavEntry {
@@ -37,9 +37,9 @@ const ENTRIES: NavEntry[] = [
     hint: 'Engine-scoped view: which blocks fire per engine, by stage.',
   },
   {
-    href: '/admin/relay/modules',
-    label: 'Modules ↔ Blocks',
-    hint: 'Where modules power which blocks, and where the data gaps are.',
+    href: '/admin/relay/data',
+    label: 'Data',
+    hint: 'Which Relay blocks have the data they need, where drift lives.',
   },
   {
     href: '/admin/relay/flows',

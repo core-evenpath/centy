@@ -5,7 +5,7 @@
 // is safe to import from server actions, client components, and tests.
 //
 // Consumed by `getRelayModuleAnalyticsAction` (PR B) and the UX rework
-// in `/admin/relay/modules` (PR D).
+// in `/admin/relay/data` (PR D, renamed from /modules in PR E1).
 
 import type { ServerBlockData } from '@/app/admin/relay/blocks/previews/_registry-data';
 import type { BlockTag } from '@/lib/relay/engine-types';

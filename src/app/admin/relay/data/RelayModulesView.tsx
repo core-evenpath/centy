@@ -1,6 +1,6 @@
 'use client';
 
-// ── Client orchestrator for /admin/relay/modules ────────────────────────
+// ── Client orchestrator for /admin/relay/data ───────────────────────────
 //
 // Owns the vertical filter + active tab state, then hands the
 // filtered rows to the card components. Stays thin — each card lives

@@ -1,6 +1,6 @@
 // ── Module analytics types ──────────────────────────────────────────────
 //
-// Shapes returned by `/admin/relay/modules`. Kept here (no
+// Shapes returned by `/admin/relay/data`. Kept here (no
 // `'use server'` / `server-only`) so the client view component can
 // import the types without pulling the action module into the client
 // bundle.
