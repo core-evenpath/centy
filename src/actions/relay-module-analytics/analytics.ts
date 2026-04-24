@@ -1,6 +1,6 @@
 'use server';
 
-// ── /admin/relay/modules analytics action ───────────────────────────────
+// ── /admin/relay/data analytics action ──────────────────────────────────
 //
 // Joins the block registry (`ALL_BLOCKS_DATA`) with `systemModules` and
 // partner `businessModules` to tell the admin three things:
