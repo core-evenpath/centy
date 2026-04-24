@@ -5,6 +5,7 @@ import { findPartnerByPhoneNumberId, processAndUploadMedia, getWhatsAppProfilePi
 import { incrementContactMessageCountAction, triggerPersonaGenerationAction } from '@/actions/persona-actions';
 import { getPlatformMetaConfig, getDecryptedAppSecret } from '@/actions/admin-platform-actions';
 import { transcribeAudioFromUrl } from '@/lib/gemini-service';
+import { parseMetaWebhookMessage } from '@/lib/meta-whatsapp-message-parser';
 import crypto from 'crypto';
 import type {
     MetaWebhookPayload,
@@ -270,112 +271,15 @@ async function handleIncomingMessage(
         customerWaId,
         customerName
     );
-    let content = '';
+    const parsed = parseMetaWebhookMessage(message);
+    let content = parsed.content;
     let mediaUrl = '';
-    let mimeType = '';
-    let filename = '';
-    let mediaId = '';
+    const mimeType = parsed.mimeType || '';
+    const filename = parsed.filename || '';
+    const mediaId = parsed.mediaId || '';
     let audioTranscription = '';
-    let errorCode: number | undefined;
-    let errorMessage: string | undefined;
-
-    switch (message.type) {
-        case 'text':
-            content = message.text?.body || '';
-            break;
-        case 'image':
-            content = message.image?.caption || '[IMAGE]';
-            mediaId = message.image?.id || '';
-            mimeType = message.image?.mime_type || '';
-            break;
-        case 'document':
-            content = message.document?.caption || '[DOCUMENT]';
-            mediaId = message.document?.id || '';
-            mimeType = message.document?.mime_type || '';
-            filename = message.document?.filename || '';
-            break;
-        case 'audio':
-            content = '[AUDIO]';
-            mediaId = message.audio?.id || '';
-            mimeType = message.audio?.mime_type || '';
-            break;
-        case 'voice':
-            content = '[VOICE]';
-            mediaId = message.voice?.id || '';
-            mimeType = message.voice?.mime_type || 'audio/ogg';
-            break;
-        case 'video':
-            content = message.video?.caption || '[VIDEO]';
-            mediaId = message.video?.id || '';
-            mimeType = message.video?.mime_type || '';
-            break;
-        case 'sticker':
-            content = '[STICKER]';
-            mediaId = message.sticker?.id || '';
-            mimeType = message.sticker?.mime_type || '';
-            break;
-        case 'location':
-            if (message.location) {
-                const loc = message.location;
-                content = `📍 Location: ${loc.name || ''} (${loc.latitude}, ${loc.longitude})`.trim();
-            }
-            break;
-        case 'contacts':
-            if (message.contacts) {
-                const names = message.contacts.map(c => c.name.formatted_name).join(', ');
-                content = `👤 Shared contact${message.contacts.length > 1 ? 's' : ''}: ${names}`;
-            }
-            break;
-        case 'interactive': {
-            // Button/list reply sent by the user in response to an interactive template.
-            const interactive = message.interactive;
-            if (interactive?.type === 'button_reply' && interactive.button_reply) {
-                content = interactive.button_reply.title;
-            } else if (interactive?.type === 'list_reply' && interactive.list_reply) {
-                const { title, description } = interactive.list_reply;
-                content = description ? `${title} — ${description}` : title;
-            } else {
-                content = '[Interactive reply]';
-            }
-            break;
-        }
-        case 'button':
-            // Quick-reply button tap on a template message.
-            content = message.button?.text || '[Button reply]';
-            break;
-        case 'reaction':
-            // Emoji reaction to a previous message. An empty emoji means the reaction was removed.
-            content = message.reaction?.emoji
-                ? `Reacted ${message.reaction.emoji}`
-                : 'Removed reaction';
-            break;
-        case 'order': {
-            const order = message.order;
-            const itemCount = order?.product_items?.length ?? 0;
-            const note = order?.text ? ` — "${order.text}"` : '';
-            content = `🛒 Order placed (${itemCount} item${itemCount === 1 ? '' : 's'})${note}`;
-            break;
-        }
-        case 'system':
-            // WhatsApp-generated system notices (e.g. a user changed their number).
-            content = message.system?.body || 'System notification';
-            break;
-        case 'unsupported': {
-            // Meta sends this when the customer sent a message feature the Cloud API
-            // cannot deliver: view-once, polls, payment requests, third-party stickers,
-            // disappearing messages, live location, etc. The reason is in `errors`.
-            // https://developers.facebook.com/docs/whatsapp/cloud-api/webhooks/payload-examples
-            const err = message.errors?.[0];
-            errorCode = err?.code;
-            errorMessage = err?.error_data?.details || err?.message || err?.title;
-            const reason = errorMessage || 'This message type is not supported by WhatsApp Cloud API.';
-            content = `⚠️ Unsupported message: ${reason}`;
-            break;
-        }
-        default:
-            // Unknown types land here; surface something useful instead of a bare tag.
-            content = `⚠️ Unhandled message type (${message.type})`;
-    }
+    const errorCode = parsed.errorCode;
+    const errorMessage = parsed.errorMessage;
 
     // Process Media if mediaId exists
     if (mediaId) {
