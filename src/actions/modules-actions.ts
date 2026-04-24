@@ -727,7 +727,7 @@ export async function enablePartnerModuleAction(
 
         await categoriesBatch.commit();
 
-        revalidatePath(`/partner/relay/modules`);
+        revalidatePath(`/partner/relay/data`);
         return { success: true, data: { moduleId } };
     } catch (error) {
         console.error('Error enabling partner module:', error);
@@ -761,7 +761,7 @@ export async function disablePartnerModuleAction(
             });
         }
 
-        revalidatePath(`/partner/relay/modules`);
+        revalidatePath(`/partner/relay/data`);
         return { success: true };
     } catch (error) {
         console.error('Error disabling partner module:', error);
@@ -913,7 +913,7 @@ export async function createModuleItemAction(
             }
         }
 
-        revalidatePath(`/partner/relay/modules/${partnerModule.moduleSlug}`);
+        revalidatePath(`/partner/relay/data/${partnerModule.moduleSlug}`);
         triggerCoreHubSync(partnerId, `item created in ${moduleId}`);
         void indexModuleItem(partnerId, moduleId, itemId).catch((e) => {
             console.error('[relay-index] item indexing failed:', { partnerId, moduleId, itemId, error: e });
@@ -1018,7 +1018,7 @@ export async function updateModuleItemAction(
             await batch.commit();
         }
 
-        revalidatePath(`/partner/relay/modules`);
+        revalidatePath(`/partner/relay/data`);
         triggerCoreHubSync(partnerId, `item updated in ${moduleId}`);
         // M07: shadow-mode Health recompute. Non-throwing — any failure
         // is logged and swallowed inside the helper.
@@ -1054,7 +1054,7 @@ export async function reorderItemsAction(
         }
 
         await batch.commit();
-        revalidatePath(`/partner/relay/modules`);
+        revalidatePath(`/partner/relay/data`);
         return { success: true };
     } catch (error) {
         console.error('Error reordering items:', error);
@@ -1105,7 +1105,7 @@ export async function deleteModuleItemAction(
             }
         }
 
-        revalidatePath(`/partner/relay/modules`);
+        revalidatePath(`/partner/relay/data`);
         triggerCoreHubSync(partnerId, `item deleted from ${moduleId}`);
         return { success: true };
     } catch (error) {
@@ -1145,7 +1145,7 @@ export async function bulkUpdateModuleItemsAction(
 
         await batch.commit();
 
-        revalidatePath(`/partner/relay/modules`);
+        revalidatePath(`/partner/relay/data`);
         triggerCoreHubSync(partnerId, `bulk update in ${moduleId}`);
         return { success: true, data: { updated, failed } };
     } catch (error) {
@@ -1351,8 +1351,8 @@ export async function executeModuleMigrationAction(
 
         const completedAt = new Date().toISOString();
 
-        revalidatePath(`/partner/relay/modules`);
-        revalidatePath(`/partner/relay/modules/${partnerModule.moduleSlug}`);
+        revalidatePath(`/partner/relay/data`);
+        revalidatePath(`/partner/relay/data/${partnerModule.moduleSlug}`);
 
         return {
             success: itemsFailed === 0,
@@ -1504,7 +1504,7 @@ export async function bulkCreateModuleItemsAction(
                 updatedAt: now,
             });
 
-        revalidatePath(`/partner/relay/modules/${partnerModule.moduleSlug}`);
+        revalidatePath(`/partner/relay/data/${partnerModule.moduleSlug}`);
         triggerCoreHubSync(partnerId, `bulk create in ${moduleId}`);
         return { success: true, data: { created, failed } };
     } catch (error) {
@@ -1558,9 +1558,9 @@ export async function deleteAllModuleItemsAction(
 
         const moduleSlug = partnerModuleDoc.data()?.moduleSlug;
         if (moduleSlug) {
-            revalidatePath(`/partner/relay/modules/${moduleSlug}`);
+            revalidatePath(`/partner/relay/data/${moduleSlug}`);
         }
-        revalidatePath(`/partner/relay/modules`);
+        revalidatePath(`/partner/relay/data`);
         triggerCoreHubSync(partnerId, `all items deleted from ${moduleId}`);
 
         return { success: true, data: { deleted } };
@@ -1743,7 +1743,7 @@ export async function resetPartnerModulesAction(
             await batch.commit();
         }
 
-        revalidatePath('/partner/relay/modules');
+        revalidatePath('/partner/relay/data');
         return { success: true, data: { deleted } };
 
     } catch (error) {
@@ -1788,7 +1788,7 @@ export async function addPartnerCustomFieldAction(
             updatedAt: new Date().toISOString(),
         });
 
-        revalidatePath('/partner/relay/modules');
+        revalidatePath('/partner/relay/data');
         return { success: true, data: { fieldId: field.id } };
     } catch (error) {
         console.error('Error adding custom field:', error);
@@ -1826,7 +1826,7 @@ export async function updatePartnerCustomFieldAction(
             updatedAt: new Date().toISOString(),
         });
 
-        revalidatePath('/partner/relay/modules');
+        revalidatePath('/partner/relay/data');
         return { success: true };
     } catch (error) {
         console.error('Error updating custom field:', error);
@@ -1856,7 +1856,7 @@ export async function removePartnerCustomFieldAction(
             updatedAt: new Date().toISOString(),
         });
 
-        revalidatePath('/partner/relay/modules');
+        revalidatePath('/partner/relay/data');
         return { success: true };
     } catch (error) {
         console.error('Error removing custom field:', error);
@@ -2137,5 +2137,47 @@ export async function exportModuleItemsAction(
     } catch (error: any) {
         console.error('Error exporting module items:', error);
         return { success: false, error: 'Failed to export items' };
+    }
+}
+
+// ── PR E5: downloadable CSV template ────────────────────────────────
+//
+// Produces an empty CSV with just the header row derived from the
+// partner's current module schema. Headers match exportModuleItemsAction
+// so a partner can export existing items, edit a template, and
+// re-import without column-alignment surprises.
+//
+// Resolution goes through getPartnerModuleByIdAction → the Relay-aware
+// getSystemModuleAction (PR E4), so the schema comes from relaySchemas
+// for Relay-bound modules and systemModules for platform modules.
+export async function getRelaySchemaTemplateCSVAction(
+    partnerId: string,
+    moduleId: string,
+): Promise<ModulesActionResponse<{ csvContent: string; filename: string; headerCount: number }>> {
+    try {
+        const moduleResult = await getPartnerModuleByIdAction(partnerId, moduleId);
+        if (!moduleResult.success || !moduleResult.data) {
+            return { success: false, error: moduleResult.error || 'Module not found' };
+        }
+
+        const { partnerModule, systemModule } = moduleResult.data;
+        const schema = systemModule.schema;
+
+        const fixedColumns = ['name', 'description', 'category', 'price', 'currency', 'isActive', 'isFeatured'];
+        const dynamicColumns = schema.fields.map((f) => f.name);
+        const headers = [...fixedColumns, ...dynamicColumns];
+
+        // Single header row + trailing newline so spreadsheet tools
+        // open the file with a single blank data row ready to fill.
+        const csvContent = `${headers.join(',')}\n`;
+        const filename = `${partnerModule.moduleSlug}_template_${new Date().toISOString().split('T')[0]}.csv`;
+
+        return {
+            success: true,
+            data: { csvContent, filename, headerCount: headers.length },
+        };
+    } catch (error: any) {
+        console.error('Error generating schema template:', error);
+        return { success: false, error: 'Failed to generate template' };
     }
 }

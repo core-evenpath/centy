@@ -56,7 +56,7 @@ function StatusBadge({ status }: { status: TemplateStatus }) {
     if (status === 'module-needed') {
         return (
             <a
-                href="/partner/relay/modules"
+                href="/partner/relay/data"
                 onClick={(e) => e.stopPropagation()}
                 className="inline-flex items-center gap-1 px-2 py-0.5 bg-amber-50 text-amber-700 rounded-full text-[11px] font-semibold hover:bg-amber-100 transition-colors"
             >
@@ -168,7 +168,7 @@ export function FeedCard({ template, status, onSelect }: FeedCardProps) {
 
                         {status === 'module-needed' ? (
                             <a
-                                href="/partner/relay/modules"
+                                href="/partner/relay/data"
                                 className="w-full mt-1 py-2.5 bg-amber-600 text-white rounded-lg text-sm font-semibold hover:bg-amber-700 transition-colors flex items-center justify-center gap-2"
                             >
                                 Set up module first <span>→</span>

@@ -242,7 +242,7 @@ export interface ClearSampleResult {
 // Inverse of `seedSampleItemsAction` / `quickStartTaxonomyDataAction`:
 // wipes every item from the listed modules so the partner can start
 // over. Modules stay enabled (matches the partner's expectation —
-// /partner/relay/modules shows the module cards, just empty) so the
+// /partner/relay/data shows the module cards, just empty) so the
 // flow can re-seed without re-enabling.
 //
 // Acts on *all* items in each module, not just ones we seeded — the

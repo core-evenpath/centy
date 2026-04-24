@@ -32,7 +32,7 @@ export default function ModuleSettingsPage() {
         <div className="container mx-auto py-8 max-w-4xl">
             <div className="mb-6">
                 <Button variant="ghost" className="mb-4 pl-0 hover:pl-0 hover:bg-transparent" asChild>
-                    <Link href="/partner/relay/modules">
+                    <Link href="/partner/relay/data">
                         <ArrowLeft className="mr-2 h-4 w-4" />
                         Back to Dashboard
                     </Link>
@@ -101,7 +101,7 @@ export default function ModuleSettingsPage() {
                     <div className="text-center py-12 border rounded-lg bg-muted/10">
                         <p className="text-muted-foreground">No active modules found.</p>
                         <Button variant="link" asChild>
-                            <Link href="/partner/relay/modules">Enable a Module</Link>
+                            <Link href="/partner/relay/data">Enable a Module</Link>
                         </Button>
                     </div>
                 )}

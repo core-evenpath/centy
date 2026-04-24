@@ -403,7 +403,7 @@ function NotFoundPanel({
         </strong>{' '}
         &ldquo;{suggestedName}&rdquo; — answers collected will appear under{' '}
         <Link
-          href="/partner/relay/modules"
+          href="/partner/relay/data"
           style={{ color: theme.amber, fontWeight: 600, textDecoration: 'underline' }}
         >
           Modules → {suggestedName}

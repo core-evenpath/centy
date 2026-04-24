@@ -538,7 +538,7 @@ export async function syncShopifyProducts(
         console.log(`🛍️ Product sync complete for ${partnerId}: ${created} created, ${updated} updated, ${deleted} deactivated`);
 
         revalidatePath('/partner/apps/shopify');
-        revalidatePath(`/partner/relay/modules/${config.linkedModuleSlug}`);
+        revalidatePath(`/partner/relay/data/${config.linkedModuleSlug}`);
         return {
             success: true,
             message: `Synced ${totalSynced} products (${created} new, ${updated} updated, ${deleted} removed)`,

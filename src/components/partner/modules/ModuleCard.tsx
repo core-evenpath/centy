@@ -73,7 +73,7 @@ export function ModuleCard({ module, variant, onClick }: ModuleCardProps) {
             <CardFooter className="border-t bg-muted/20 p-4">
                 {variant === 'enabled' && (
                     <Button variant="default" size="sm" asChild className="w-full">
-                        <Link href={`/partner/relay/modules/${slug}`}>
+                        <Link href={`/partner/relay/data/${slug}`}>
                             Manage Items
                             <ArrowRight className="ml-2 h-3.5 w-3.5" />
                         </Link>
