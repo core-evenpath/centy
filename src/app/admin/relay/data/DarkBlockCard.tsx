@@ -58,9 +58,9 @@ export default function DarkBlockCard({
 
         <div className="flex items-center gap-2 pt-1">
           <Button size="sm" variant="outline" asChild>
-            <Link href={`/admin/modules?slug=${moduleSlug}`}>
+            <Link href={`/admin/relay/data/${moduleSlug}`}>
               <Package className="h-3 w-3 mr-1" />
-              View Module
+              View schema
             </Link>
           </Button>
         </div>

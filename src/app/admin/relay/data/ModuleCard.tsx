@@ -21,9 +21,9 @@ export default function ModuleCard({ module }: { module: ModuleBlockUsage }) {
             {module.moduleName}
           </CardTitle>
           <Link
-            href={`/admin/modules/${module.moduleId}`}
+            href={`/admin/relay/data/${module.moduleSlug}`}
             className="text-muted-foreground hover:text-foreground"
-            aria-label={`Open ${module.moduleName} in admin modules`}
+            aria-label={`Open ${module.moduleName} schema viewer`}
           >
             <ExternalLink className="h-4 w-4" />
           </Link>
