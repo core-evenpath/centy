@@ -1,6 +1,7 @@
 import { db as adminDb } from '@/lib/firebase-admin';
 import HealthShell from './components/HealthShell';
 import RelayPageIntro from '../components/RelayPageIntro';
+import RelaySubNav from '../components/RelaySubNav';
 import type { PartnerOption } from '../blocks/components/PartnerSelector';
 import type { Engine } from '@/lib/relay/engine-types';
 import { getPartnerEngines } from '@/lib/relay/engine-recipes';
@@ -39,14 +40,11 @@ export default async function RelayHealthPage() {
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16, padding: 16 }}>
+      <RelaySubNav />
       <RelayPageIntro
         title="Relay Health"
         description="Partner-scoped engine diagnostics. Pick a partner and an engine to see which flow stages have blocks, which required fields are unbound, which modules are empty, and which blocks have no home in the flow. This is the go-to surface when a partner's chat is misbehaving and you need to pinpoint where the wiring broke."
-        links={[
-          { href: '/admin/relay/engine', label: 'Block Engine →' },
-          { href: '/admin/relay/modules', label: 'Modules ↔ Blocks →' },
-        ]}
       />
       <HealthShell partners={partners} partnerEnginesById={partnerEnginesById} />
     </div>
