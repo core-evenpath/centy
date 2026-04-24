@@ -15,6 +15,8 @@ import RelayModulesView from './RelayModulesView';
 import RelayPageIntro from '../components/RelayPageIntro';
 import RelaySubNav from '../components/RelaySubNav';
 import MigrationButton from './MigrationButton';
+import BackfillButton from './BackfillButton';
+import LegacyCleanupButton from './LegacyCleanupButton';
 
 export const metadata = {
   title: 'Relay Data · Admin',
@@ -33,6 +35,8 @@ export default async function AdminRelayDataPage() {
         description="Read-only health dashboard for the Relay block ↔ data graph. Identify dark blocks that need data, see which partners have live data flowing, spot modules powering the most surfaces, and catch schema drift between what blocks read and what module schemas expose. For generic platform schemas (task trackers, CRMs, etc.), use /admin/modules."
       />
       <MigrationButton />
+      <BackfillButton />
+      <LegacyCleanupButton />
 
       {result.success && result.data ? (
         <RelayModulesView data={result.data} />

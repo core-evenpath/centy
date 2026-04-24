@@ -77,9 +77,42 @@ export async function getSystemModuleAction(
     identifier: string
 ): Promise<ModulesActionResponse<SystemModule>> {
     try {
+        // ── PR E4: Relay-aware resolution ─────────────────────────────
+        //
+        // Relay-owned schemas live in the dedicated `relaySchemas`
+        // collection (introduced PR E2, cut over PR E3). Check there
+        // first by slug, then fall back to `systemModules` for platform
+        // schemas (task trackers, CRMs, non-Relay use cases).
+        //
+        // Legacy slug normalization: partner docs still carrying the
+        // pre-migration `moduleSlug: 'moduleItems'` are remapped via
+        // RELAY_SCHEMA_SLUG_MAP ('moduleItems' → 'items'), so reads
+        // succeed even before the backfill runs.
+        const { RELAY_SCHEMA_SLUG_MAP } = await import(
+            '@/actions/relay-schema-migration'
+        );
+        const normalized = RELAY_SCHEMA_SLUG_MAP[identifier] ?? identifier;
+
+        // Relay schemas are keyed by slug-as-doc-id, not `mod_*` ids.
+        // Direct doc lookup covers both the canonical slug (`items`)
+        // and the normalized legacy slug path above.
+        if (!normalized.startsWith('mod_')) {
+            const relayDoc = await adminDb
+                .collection('relaySchemas')
+                .doc(normalized)
+                .get();
+            if (relayDoc.exists) {
+                return {
+                    success: true,
+                    data: { id: relayDoc.id, ...relayDoc.data() } as SystemModule,
+                };
+            }
+        }
+
+        // ── systemModules fallback (platform schemas) ─────────────────
         // If identifier looks like a document ID (starts with 'mod_'), fetch by ID first
-        if (identifier.startsWith('mod_')) {
-            const doc = await adminDb.collection('systemModules').doc(identifier).get();
+        if (normalized.startsWith('mod_')) {
+            const doc = await adminDb.collection('systemModules').doc(normalized).get();
             if (doc.exists) {
                 return { success: true, data: { id: doc.id, ...doc.data() } as SystemModule };
             }
@@ -88,7 +121,7 @@ export async function getSystemModuleAction(
         // Otherwise (or if ID lookup missed), search by slug
         const snapshot = await adminDb
             .collection('systemModules')
-            .where('slug', '==', identifier)
+            .where('slug', '==', normalized)
             .limit(1)
             .get();
 
