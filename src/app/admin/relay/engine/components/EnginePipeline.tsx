@@ -4,7 +4,7 @@ import React, { useMemo } from 'react';
 import type { ServerBlockData } from '../../blocks/previews/_registry-data';
 import type { EngineHealthDoc } from '@/lib/relay/health';
 import { BOOKING_CANONICAL_STAGES } from '@/lib/relay/health';
-import { BlockCard } from '../../blocks/components/BlockCard';
+import { BlockCard } from './BlockCard';
 import type { BlockDotSummary, DotStatus } from './HealthDots';
 
 // Human-readable labels per canonical stage.
