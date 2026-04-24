@@ -142,15 +142,15 @@ function MiniSpaceConfirmation({ data }: { data?: BlockPreviewProps['data'] } = 
 }
 
 export const SHARED_BLOCKS: VerticalBlockDef[] = [
-  { id: 'greeting', family: 'shared', label: 'Greeting', stage: 'greeting', desc: 'Welcome message with brand identity and quick action buttons', preview: MiniGreeting, intents: ['hello', 'hi', 'start', 'hey'], module: null, status: 'active' },
-  { id: 'suggestions', family: 'shared', label: 'Quick Replies', stage: 'greeting', desc: 'Tappable suggestion chips for guided conversation flow', preview: MiniSuggestions, intents: [], module: null, status: 'active' },
-  { id: 'nudge', family: 'shared', label: 'Smart Nudge', stage: 'social_proof', desc: 'Non-blocking contextual suggestion, upsell, or info tip', preview: MiniNudge, intents: [], module: null, status: 'active' },
-  { id: 'promo', family: 'shared', label: 'Promo Banner', stage: 'showcase', desc: 'Promotional offer with discount code, countdown, or sale info', preview: MiniPromo, intents: ['offer', 'deal', 'discount', 'promo', 'sale'], module: null, status: 'active' },
-  { id: 'cart', family: 'shared', label: 'Cart', stage: 'conversion', desc: 'Shopping cart with line items, discounts, and checkout CTA', preview: MiniCart, intents: ['cart', 'checkout', 'order', 'buy'], module: null, status: 'active' },
-  { id: 'contact', family: 'shared', label: 'Contact Card', stage: 'handoff', desc: 'Business contact info with click-to-call, email, WhatsApp', preview: MiniContact, intents: ['contact', 'phone', 'email', 'reach', 'call'], module: null, status: 'active' },
+  { id: 'greeting', family: 'shared', label: 'Greeting', stage: 'greeting', desc: 'Welcome message with brand identity and quick action buttons', preview: MiniGreeting, intents: ['hello', 'hi', 'start', 'hey'], module: null, status: 'active', noModuleReason: 'conversation' },
+  { id: 'suggestions', family: 'shared', label: 'Quick Replies', stage: 'greeting', desc: 'Tappable suggestion chips for guided conversation flow', preview: MiniSuggestions, intents: [], module: null, status: 'active', noModuleReason: 'ai_generated' },
+  { id: 'nudge', family: 'shared', label: 'Smart Nudge', stage: 'social_proof', desc: 'Non-blocking contextual suggestion, upsell, or info tip', preview: MiniNudge, intents: [], module: null, status: 'active', noModuleReason: 'ai_generated' },
+  { id: 'promo', family: 'shared', label: 'Promo Banner', stage: 'showcase', desc: 'Promotional offer with discount code, countdown, or sale info', preview: MiniPromo, intents: ['offer', 'deal', 'discount', 'promo', 'sale'], module: null, status: 'active', noModuleReason: 'design_only' },
+  { id: 'cart', family: 'shared', label: 'Cart', stage: 'conversion', desc: 'Shopping cart with line items, discounts, and checkout CTA', preview: MiniCart, intents: ['cart', 'checkout', 'order', 'buy'], module: null, status: 'active', noModuleReason: 'checkout' },
+  { id: 'contact', family: 'shared', label: 'Contact Card', stage: 'handoff', desc: 'Business contact info with click-to-call, email, WhatsApp', preview: MiniContact, intents: ['contact', 'phone', 'email', 'reach', 'call'], module: null, status: 'active', noModuleReason: 'navigation' },
   // M03 confirmations — service-engine read blocks; cross-vertical
-  { id: 'booking_confirmation', family: 'shared', label: 'Booking Confirmation', stage: 'followup', desc: 'Confirmed booking reference with service details and date/time', preview: MiniBookingConfirmation, intents: ['booking', 'confirmation', 'reference', 'reminder'], module: null, status: 'active', engines: ['service'] },
-  { id: 'space_confirmation', family: 'shared', label: 'Space Confirmation', stage: 'followup', desc: 'Confirmed space reservation with check-in/check-out dates', preview: MiniSpaceConfirmation, intents: ['reservation', 'confirmation', 'stay', 'check-in'], module: null, status: 'active', engines: ['service'] },
+  { id: 'booking_confirmation', family: 'shared', label: 'Booking Confirmation', stage: 'followup', desc: 'Confirmed booking reference with service details and date/time', preview: MiniBookingConfirmation, intents: ['booking', 'confirmation', 'reference', 'reminder'], module: null, status: 'active', engines: ['service'], noModuleReason: 'checkout' },
+  { id: 'space_confirmation', family: 'shared', label: 'Space Confirmation', stage: 'followup', desc: 'Confirmed space reservation with check-in/check-out dates', preview: MiniSpaceConfirmation, intents: ['reservation', 'confirmation', 'stay', 'check-in'], module: null, status: 'active', engines: ['service'], noModuleReason: 'ai_generated' },
 ];
 
 export const SHARED_BLOCK_IDS = SHARED_BLOCKS.map(b => b.id);
