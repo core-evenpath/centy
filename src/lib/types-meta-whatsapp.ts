@@ -50,11 +50,27 @@ export interface MetaWebhookMessage {
     from: string;
     id: string;
     timestamp: string;
-    type: 'text' | 'image' | 'document' | 'audio' | 'video' | 'sticker' | 'location' | 'contacts' | 'interactive' | 'button' | 'reaction';
+    type:
+        | 'text'
+        | 'image'
+        | 'document'
+        | 'audio'
+        | 'voice'
+        | 'video'
+        | 'sticker'
+        | 'location'
+        | 'contacts'
+        | 'interactive'
+        | 'button'
+        | 'reaction'
+        | 'order'
+        | 'system'
+        | 'unsupported';
     text?: { body: string };
     image?: MetaMediaObject;
     document?: MetaMediaObject;
     audio?: MetaMediaObject;
+    voice?: MetaMediaObject;
     video?: MetaMediaObject;
     sticker?: MetaMediaObject;
     location?: {
@@ -67,6 +83,32 @@ export interface MetaWebhookMessage {
     interactive?: MetaInteractiveObject;
     button?: { text: string; payload: string };
     reaction?: { message_id: string; emoji: string };
+    order?: {
+        catalog_id: string;
+        text?: string;
+        product_items: Array<{
+            product_retailer_id: string;
+            quantity: string | number;
+            item_price: string | number;
+            currency: string;
+        }>;
+    };
+    system?: {
+        body?: string;
+        type?: string;
+        identity?: string;
+        wa_id?: string;
+        customer?: string;
+    };
+    // Present when type === 'unsupported' and sometimes on delivery failures.
+    // Meta documents this on the message object for unsupported-type webhooks.
+    // See: developers.facebook.com/docs/whatsapp/cloud-api/webhooks (unsupported messages).
+    errors?: Array<{
+        code: number;
+        title: string;
+        message?: string;
+        error_data?: { details: string };
+    }>;
     context?: {
         from: string;
         id: string;
@@ -178,7 +220,24 @@ export interface MetaWhatsAppMessage {
     conversationId: string;
     senderId: string;
     partnerId: string;
-    type: 'text' | 'image' | 'document' | 'audio' | 'video' | 'location' | 'contact' | 'interactive' | 'template' | 'sticker' | 'reaction';
+    type:
+        | 'text'
+        | 'image'
+        | 'document'
+        | 'audio'
+        | 'video'
+        | 'voice'
+        | 'location'
+        | 'contact'
+        | 'contacts'
+        | 'interactive'
+        | 'button'
+        | 'template'
+        | 'sticker'
+        | 'reaction'
+        | 'order'
+        | 'system'
+        | 'unsupported';
     content: string;
     direction: 'inbound' | 'outbound';
     platform: 'meta_whatsapp';
