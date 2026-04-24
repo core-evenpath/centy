@@ -5,8 +5,10 @@ import { ExternalLink } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import type { ModuleBlockUsage } from '@/lib/relay/module-analytics-types';
+import EngineChips from './EngineChips';
 
 export default function ModuleCard({ module }: { module: ModuleBlockUsage }) {
+  const schemaFieldCount = module.schemaFields?.length ?? 0;
   return (
     <Card>
       <CardHeader className="pb-2">
@@ -31,12 +33,23 @@ export default function ModuleCard({ module }: { module: ModuleBlockUsage }) {
         <div className="text-sm text-muted-foreground">
           {module.itemCount} items across {module.partnerCount} partner
           {module.partnerCount === 1 ? '' : 's'}
+          {' · '}
+          <span title="Schema field count from systemModule.schema.fields">
+            {schemaFieldCount} schema field{schemaFieldCount === 1 ? '' : 's'}
+          </span>
         </div>
 
         <div>
-          <p className="text-xs text-muted-foreground mb-2">
-            Powers these blocks:
-          </p>
+          <div className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground mb-1">
+            Engines
+          </div>
+          <EngineChips engines={module.engines} emptyLabel="No engines tagged" />
+        </div>
+
+        <div>
+          <div className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground mb-1">
+            Powers these blocks
+          </div>
           <div className="flex flex-wrap gap-1">
             {module.connectedBlocks.map((b) => (
               <Badge key={b.blockId} variant="secondary" className="text-xs">
