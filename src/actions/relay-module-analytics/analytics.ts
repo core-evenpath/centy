@@ -49,9 +49,16 @@ export interface GetRelayModuleAnalyticsResult {
   error?: string;
 }
 
-async function loadSystemModules(): Promise<Map<string, ModuleInfo>> {
+// PR E3: read Relay schemas from the dedicated `relaySchemas` collection
+// introduced in PR E2 (not the shared `systemModules`). The block
+// registry's `.module` values now resolve against this store.
+//
+// Doc shape mirrors `systemModules` (copied by the migration action),
+// so the field extraction logic is unchanged — only the collection
+// name differs.
+async function loadRelaySchemas(): Promise<Map<string, ModuleInfo>> {
   const out = new Map<string, ModuleInfo>();
-  const snap = await db.collection('systemModules').get();
+  const snap = await db.collection('relaySchemas').get();
   snap.docs.forEach((doc) => {
     const d = doc.data();
     const slug: string | undefined = d.slug;
@@ -191,7 +198,7 @@ function buildModuleUsage(
 export async function getRelayModuleAnalyticsAction(): Promise<GetRelayModuleAnalyticsResult> {
   try {
     const [modules, configured, counts] = await Promise.all([
-      loadSystemModules(),
+      loadRelaySchemas(),
       loadConfiguredBlockIds(),
       loadModuleItemCounts(),
     ]);
