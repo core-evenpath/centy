@@ -120,3 +120,141 @@ export async function migrateSystemModulesToRelaySchemasAction(): Promise<RelayS
     };
   }
 }
+
+// ── PR E4: partner businessModules slug backfill ─────────────────────
+//
+// Idempotent scan of every partner's `businessModules` subcollection.
+// Any doc still carrying the pre-migration legacy slug (e.g.
+// `moduleSlug: 'moduleItems'`) is rewritten to the new target slug
+// (`'items'`) from RELAY_SCHEMA_SLUG_MAP. Runs a single
+// collection-group write batch per slug rename.
+//
+// getSystemModuleAction already normalises legacy slugs at read-time,
+// so this backfill is cosmetic — but it closes out the migration so
+// PR E5+ and all downstream consumers see only one canonical slug.
+
+export interface RelaySchemaBackfillResult {
+  success: boolean;
+  renamed: Array<{ sourceSlug: string; targetSlug: string; docCount: number }>;
+  error?: string;
+}
+
+export async function backfillPartnerModuleSlugsAction(): Promise<RelaySchemaBackfillResult> {
+  const renamed: RelaySchemaBackfillResult['renamed'] = [];
+  try {
+    for (const [sourceSlug, targetSlug] of Object.entries(RELAY_SCHEMA_SLUG_MAP)) {
+      // collectionGroup walks every partner's businessModules
+      // subcollection in a single query.
+      const snap = await adminDb
+        .collectionGroup('businessModules')
+        .where('moduleSlug', '==', sourceSlug)
+        .get();
+
+      if (snap.empty) {
+        renamed.push({ sourceSlug, targetSlug, docCount: 0 });
+        continue;
+      }
+
+      // Batch writes in chunks of 400 to stay under Firestore's 500-op
+      // limit with margin.
+      const docs = snap.docs;
+      let written = 0;
+      for (let i = 0; i < docs.length; i += 400) {
+        const batch = adminDb.batch();
+        const chunk = docs.slice(i, i + 400);
+        for (const doc of chunk) {
+          batch.update(doc.ref, {
+            moduleSlug: targetSlug,
+            slugBackfilledFrom: sourceSlug,
+            slugBackfilledAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+          });
+        }
+        await batch.commit();
+        written += chunk.length;
+      }
+
+      renamed.push({ sourceSlug, targetSlug, docCount: written });
+    }
+    return { success: true, renamed };
+  } catch (err: any) {
+    console.error('[relay-schema-migration] backfill failed:', err);
+    return {
+      success: false,
+      renamed,
+      error: err?.message ?? 'unknown',
+    };
+  }
+}
+
+// ── PR E4: delete the legacy systemModules Relay doc ─────────────────
+//
+// Destructive. Only safe once (a) the schema migration has run so
+// relaySchemas/{targetSlug} exists, and (b) the partner backfill has
+// run so no partner `businessModules.moduleSlug` points at the old
+// slug anymore.
+//
+// The action checks both preconditions and refuses to delete unless
+// they hold, to prevent accidentally breaking partner reads.
+
+export interface RelaySchemaCleanupResult {
+  success: boolean;
+  deleted: Array<{ sourceSlug: string; docId: string }>;
+  error?: string;
+}
+
+export async function deleteLegacyRelaySystemModulesAction(): Promise<RelaySchemaCleanupResult> {
+  const deleted: RelaySchemaCleanupResult['deleted'] = [];
+  try {
+    for (const [sourceSlug, targetSlug] of Object.entries(RELAY_SCHEMA_SLUG_MAP)) {
+      // Precondition 1: relaySchemas/{targetSlug} exists.
+      const relayDoc = await adminDb
+        .collection('relaySchemas')
+        .doc(targetSlug)
+        .get();
+      if (!relayDoc.exists) {
+        return {
+          success: false,
+          deleted,
+          error: `relaySchemas/${targetSlug} is missing. Run the schema migration first.`,
+        };
+      }
+
+      // Precondition 2: no partner still references the source slug.
+      const stragglers = await adminDb
+        .collectionGroup('businessModules')
+        .where('moduleSlug', '==', sourceSlug)
+        .limit(1)
+        .get();
+      if (!stragglers.empty) {
+        return {
+          success: false,
+          deleted,
+          error: `At least one partner businessModule still has moduleSlug='${sourceSlug}'. Run the partner backfill first.`,
+        };
+      }
+
+      // Find and delete the legacy systemModules doc by slug.
+      const src = await adminDb
+        .collection('systemModules')
+        .where('slug', '==', sourceSlug)
+        .limit(1)
+        .get();
+      if (src.empty) {
+        // Already deleted / never existed — treat as success.
+        continue;
+      }
+      const doc = src.docs[0];
+      await doc.ref.delete();
+      deleted.push({ sourceSlug, docId: doc.id });
+    }
+    return { success: true, deleted };
+  } catch (err: any) {
+    console.error('[relay-schema-migration] cleanup failed:', err);
+    return {
+      success: false,
+      deleted,
+      error: err?.message ?? 'unknown',
+    };
+  }
+}
