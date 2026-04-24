@@ -77,21 +77,21 @@ export async function getSystemModuleAction(
     identifier: string
 ): Promise<ModulesActionResponse<SystemModule>> {
     try {
-        // ── PR E4: Relay-aware resolution ─────────────────────────────
+        // ── Relay-aware resolution ────────────────────────────────────
         //
         // Relay-owned schemas live in the dedicated `relaySchemas`
-        // collection (introduced PR E2, cut over PR E3). Check there
-        // first by slug, then fall back to `systemModules` for platform
+        // collection (generated from the block registry — see
+        // generateRelaySchemasFromRegistryAction). Check there first
+        // by slug, then fall back to `systemModules` for platform
         // schemas (task trackers, CRMs, non-Relay use cases).
         //
         // Legacy slug normalization: partner docs still carrying the
-        // pre-migration `moduleSlug: 'moduleItems'` are remapped via
-        // RELAY_SCHEMA_SLUG_MAP ('moduleItems' → 'items'), so reads
-        // succeed even before the backfill runs.
-        const { RELAY_SCHEMA_SLUG_MAP } = await import(
-            '@/actions/relay-schema-migration'
+        // pre-rename `moduleSlug: 'moduleItems'` are remapped via
+        // LEGACY_SLUG_ALIASES so reads keep succeeding.
+        const { LEGACY_SLUG_ALIASES } = await import(
+            '@/lib/relay/legacy-slug-map'
         );
-        const normalized = RELAY_SCHEMA_SLUG_MAP[identifier] ?? identifier;
+        const normalized = LEGACY_SLUG_ALIASES[identifier] ?? identifier;
 
         // Relay schemas are keyed by slug-as-doc-id, not `mod_*` ids.
         // Direct doc lookup covers both the canonical slug (`items`)
@@ -1957,15 +1957,15 @@ export async function deriveModulesFromRegistryAction(): Promise<{
             desc: string;
         }>>();
 
-        // PR E3: skip slugs owned by the relay-schema-separation rollout
-        // so this generic "derive from blocks" action doesn't materialise
-        // Relay-bound schemas as stray systemModules docs. Those live in
-        // `relaySchemas` now. PR E5/E6 will replace this path with a
-        // Relay-aware derivation that writes to `relaySchemas`.
-        const { RELAY_SCHEMA_SLUG_MAP } = await import(
-            '@/actions/relay-schema-migration'
+        // Skip slugs owned by the Relay schema rollout so this generic
+        // "derive from blocks" action doesn't materialise Relay-bound
+        // schemas as stray systemModules docs. Those live in
+        // `relaySchemas` now (generated via
+        // generateRelaySchemasFromRegistryAction).
+        const { LEGACY_SLUG_ALIASES } = await import(
+            '@/lib/relay/legacy-slug-map'
         );
-        const relayBoundSlugs = new Set(Object.values(RELAY_SCHEMA_SLUG_MAP));
+        const relayBoundSlugs = new Set(Object.values(LEGACY_SLUG_ALIASES));
 
         for (const block of ALL_BLOCKS) {
             if (!block.module) continue;
