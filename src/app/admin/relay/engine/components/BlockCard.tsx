@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import type { ServerBlockData } from '../previews/_registry-data';
+import type { ServerBlockData } from '../../blocks/previews/_registry-data';
 import { HealthDots, type BlockDotSummary } from './HealthDots';
 
 interface Props {

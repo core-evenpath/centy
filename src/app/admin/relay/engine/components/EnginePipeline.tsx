@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useMemo } from 'react';
-import type { ServerBlockData } from '../previews/_registry-data';
+import type { ServerBlockData } from '../../blocks/previews/_registry-data';
 import type { EngineHealthDoc } from '@/lib/relay/health';
 import { BOOKING_CANONICAL_STAGES } from '@/lib/relay/health';
 import { BlockCard } from './BlockCard';
@@ -67,7 +67,7 @@ interface Props {
   health?: EngineHealthDoc | null;
 }
 
-export function BookingPipeline({ blocks, health }: Props) {
+export function EnginePipeline({ blocks, health }: Props) {
   const hideHealth = !health;
 
   const dotSummaries = useMemo(
