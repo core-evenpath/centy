@@ -1867,7 +1867,11 @@ export async function backfillRelayBlockConfigsAction(): Promise<{
                     applicableIndustries: mod.applicableIndustries || [],
                     applicableFunctions: mod.applicableFunctions || [],
                     dataSchema: {
-                        sourceCollection: 'moduleItems',
+                        // Informational — partner items actually live at
+                        // partners/{pid}/businessModules/{moduleId}/items.
+                        // Use the actual module slug rather than a
+                        // legacy hardcoded 'moduleItems' string.
+                        sourceCollection: mod.slug,
                         sourceFields: mod.agentConfig.displayFields || [],
                         displayTemplate: mod.agentConfig.relayBlockType || 'card',
                         maxItems: 10,
@@ -1920,8 +1924,19 @@ export async function deriveModulesFromRegistryAction(): Promise<{
             desc: string;
         }>>();
 
+        // PR E3: skip slugs owned by the relay-schema-separation rollout
+        // so this generic "derive from blocks" action doesn't materialise
+        // Relay-bound schemas as stray systemModules docs. Those live in
+        // `relaySchemas` now. PR E5/E6 will replace this path with a
+        // Relay-aware derivation that writes to `relaySchemas`.
+        const { RELAY_SCHEMA_SLUG_MAP } = await import(
+            '@/actions/relay-schema-migration'
+        );
+        const relayBoundSlugs = new Set(Object.values(RELAY_SCHEMA_SLUG_MAP));
+
         for (const block of ALL_BLOCKS) {
             if (!block.module) continue;
+            if (relayBoundSlugs.has(block.module)) continue;
             if (!moduleSlugs.has(block.module)) {
                 moduleSlugs.set(block.module, []);
             }
@@ -1972,7 +1987,7 @@ export async function deriveModulesFromRegistryAction(): Promise<{
 
                 const result = await createSystemModuleAction({
                     slug,
-                    name: slug === 'moduleItems' ? 'Items / Products' : slug.replace(/^module/, '').replace(/([A-Z])/g, ' $1').trim(),
+                    name: slug === 'items' ? 'Items / Products' : slug.replace(/^module/, '').replace(/([A-Z])/g, ' $1').trim(),
                     description: `Auto-derived from ${blocks.length} block(s): ${blocks.slice(0, 5).map(b => b.label).join(', ')}${blocks.length > 5 ? '...' : ''}`,
                     icon: primaryFamily === 'catalog' ? '📦' : primaryFamily === 'commerce' ? '🛒' : '📋',
                     color: 'blue',
