@@ -19,6 +19,10 @@ import {
   buildBlockVerticalMap,
   resolveBlockVerticals,
 } from '@/lib/relay/module-analytics-derive';
+import {
+  getEnginesForModule,
+  getFieldDriftForBlock,
+} from '@/lib/relay/block-module-graph';
 import type {
   BlockModuleBinding,
   ModuleBlockUsage,
@@ -30,6 +34,8 @@ interface ModuleInfo {
   name: string;
   color: string;
   slug: string;
+  /** Field names from the live schema — used for drift comparison. */
+  schemaFields: string[];
 }
 
 interface ModuleCounts {
@@ -50,11 +56,24 @@ async function loadSystemModules(): Promise<Map<string, ModuleInfo>> {
     const d = doc.data();
     const slug: string | undefined = d.slug;
     if (!slug) return;
+    // Pull live schema field names so we can diff against block.reads
+    // for drift detection. Schema shape is `{ fields: [{ name, type, ...}] }`.
+    const rawFields = d.schema?.fields;
+    const schemaFields: string[] = Array.isArray(rawFields)
+      ? rawFields
+          .map((f: unknown) =>
+            typeof f === 'object' && f && 'name' in f && typeof (f as { name: unknown }).name === 'string'
+              ? (f as { name: string }).name
+              : null,
+          )
+          .filter((n): n is string => !!n)
+      : [];
     out.set(slug, {
       id: doc.id,
       name: d.name || slug,
       color: d.color || '#6366f1',
       slug,
+      schemaFields,
     });
   });
   return out;
@@ -104,6 +123,11 @@ function bindBlock(
     moduleConnected: false,
     isDark: false,
     isConfigured: configured.has(block.id),
+    // PR B: copy schema-contract + engine metadata from the registry so
+    // the UI can render reads/drift/engine chips without re-joining.
+    reads: block.reads,
+    engines: block.engines,
+    noModuleReason: block.noModuleReason,
   };
 
   if (!moduleSlug) {
@@ -112,7 +136,15 @@ function bindBlock(
   }
 
   const module = modules.get(moduleSlug);
-  if (module) binding.moduleName = module.name;
+  if (module) {
+    binding.moduleName = module.name;
+    binding.moduleSchemaFields = module.schemaFields;
+    // Drift is only meaningful when the block declares `reads`. When
+    // unannotated, `driftFields` stays undefined so the UI can treat
+    // the block as "pending annotation" distinct from "fields missing".
+    const drift = getFieldDriftForBlock(block, module.schemaFields);
+    if (!drift.unannotated) binding.driftFields = drift.missing;
+  }
 
   const moduleCounts = counts.get(moduleSlug);
   binding.moduleItemCount = moduleCounts?.items ?? 0;
@@ -145,6 +177,11 @@ function buildModuleUsage(
       connectedBlocks: connected,
       itemCount: c?.items ?? 0,
       partnerCount: c?.partners.size ?? 0,
+      // PR B: engine union across the blocks that bind this module
+      // (derived pure from ALL_BLOCKS_DATA), plus schema fields for
+      // side-by-side comparison in the UX rework (PR D).
+      engines: getEnginesForModule(slug, ALL_BLOCKS_DATA),
+      schemaFields: module.schemaFields,
     });
   }
   out.sort((a, b) => a.moduleName.localeCompare(b.moduleName));
