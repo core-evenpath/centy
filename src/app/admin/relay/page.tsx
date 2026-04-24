@@ -1,6 +1,7 @@
 import { getRelayStatsAction, getRelayDiagnosticsAction, getFlowTemplatesListAction } from '@/actions/relay-admin-actions';
 import { getSystemFlowTemplatesFromDB } from '@/actions/flow-engine-actions';
 import RelayDashboard from './RelayDashboard';
+import RelaySubNav from './components/RelaySubNav';
 
 export default async function RelayAdminPage() {
   const [statsResult, diagResult, templatesResult, flowResult] = await Promise.all([
@@ -36,11 +37,14 @@ export default async function RelayAdminPage() {
   } : null;
 
   return (
-    <RelayDashboard
-      initialStats={statsResult.success ? statsResult.stats : { activeBlocks: 0, totalBlocks: 0, flowStages: 0, transitions: 0, intents: 0 }}
-      initialDiagnostics={diagResult.success ? diagResult.checks : []}
-      initialTemplates={templatesResult.success ? templatesResult.templates : []}
-      initialFlowTemplate={initialFlowTemplate}
-    />
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 12, padding: 16 }}>
+      <RelaySubNav />
+      <RelayDashboard
+        initialStats={statsResult.success ? statsResult.stats : { activeBlocks: 0, totalBlocks: 0, flowStages: 0, transitions: 0, intents: 0 }}
+        initialDiagnostics={diagResult.success ? diagResult.checks : []}
+        initialTemplates={templatesResult.success ? templatesResult.templates : []}
+        initialFlowTemplate={initialFlowTemplate}
+      />
+    </div>
   );
 }

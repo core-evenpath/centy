@@ -181,18 +181,15 @@ export default function AdminRelayDashboard({ initialStats, initialDiagnostics, 
       <style>{`*{box-sizing:border-box;}button:hover{opacity:0.92;}button:active{transform:scale(0.97);}`}</style>
 
       <div style={{ background: T.surface, borderBottom: `1px solid ${T.bdr}`, padding: "20px 32px" }}>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-          <div>
-            <div style={{ fontSize: "9px", fontWeight: 700, color: T.pri, textTransform: "uppercase", letterSpacing: "1.5px" }}>Admin</div>
-            <div style={{ fontSize: "22px", fontWeight: 600, color: T.t1, marginTop: "2px" }}>Relay Command Center</div>
-            <div style={{ fontSize: "13px", color: T.t3, marginTop: "2px" }}>Manage conversation flows, block registry, and widget configuration</div>
-          </div>
-          <div style={{ display: "flex", gap: "8px" }}>
-            <Link href="/admin/relay/modules" style={{ padding: "8px 16px", borderRadius: "8px", border: `1px solid ${T.bdr}`, background: T.surface, color: T.t1, fontSize: "12px", fontWeight: 600, cursor: "pointer", textDecoration: "none", display: "inline-block" }}>Modules ↔ Blocks</Link>
-            <Link href="/admin/relay/blocks" style={{ padding: "8px 16px", borderRadius: "8px", border: `1px solid ${T.bdr}`, background: T.surface, color: T.t1, fontSize: "12px", fontWeight: 600, cursor: "pointer", textDecoration: "none", display: "inline-block" }}>Block Registry</Link>
-            <Link href="/admin/relay/engine" style={{ padding: "8px 16px", borderRadius: "8px", border: `1px solid ${T.bdr}`, background: T.surface, color: T.t1, fontSize: "12px", fontWeight: 600, cursor: "pointer", textDecoration: "none", display: "inline-block" }}>Block Engine</Link>
-            <Link href="/admin/relay/flows" style={{ padding: "8px 16px", borderRadius: "8px", border: "none", background: T.pri, color: "#fff", fontSize: "12px", fontWeight: 600, cursor: "pointer", textDecoration: "none", display: "inline-block" }}>Flow Editor</Link>
-          </div>
+        <div>
+          {/*
+            Cross-page nav used to live here as a row of Link buttons;
+            consolidated into the shared RelaySubNav which now sits
+            above this dashboard (see src/app/admin/relay/page.tsx).
+          */}
+          <div style={{ fontSize: "9px", fontWeight: 700, color: T.pri, textTransform: "uppercase", letterSpacing: "1.5px" }}>Admin</div>
+          <div style={{ fontSize: "22px", fontWeight: 600, color: T.t1, marginTop: "2px" }}>Relay Command Center</div>
+          <div style={{ fontSize: "13px", color: T.t3, marginTop: "2px" }}>Manage conversation flows, block registry, and widget configuration</div>
         </div>
 
         <div style={{ display: "flex", gap: "2px", marginTop: "16px", background: T.bg, borderRadius: "8px", padding: "3px" }}>

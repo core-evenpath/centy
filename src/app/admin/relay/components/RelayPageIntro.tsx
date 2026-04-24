@@ -1,29 +1,30 @@
-import Link from 'next/link';
-
-// ── Relay admin page header ─────────────────────────────────────────
+// ── Relay admin page intro ──────────────────────────────────────────
 //
-// Consistent intro strip placed at the top of every /admin/relay/*
-// page so admins know what each surface is for at a glance. Keep copy
-// concise — this is "what is this page?", not a manual.
+// Consistent intro strip placed on every /admin/relay/* page, directly
+// under the shared RelaySubNav. Keep copy concise — this is "what is
+// this page for?", not a manual.
+//
+// Cross-page navigation lives in RelaySubNav; this component no longer
+// accepts ad-hoc links. If a page needs page-specific callouts (e.g.
+// "deep link into a specific module editor"), render those inline in
+// the page itself rather than pushing them up here.
 
 interface Props {
   title: string;
   description: string;
-  /** Optional sibling-page quick-jump links shown inline under the copy. */
-  links?: Array<{ href: string; label: string }>;
 }
 
-export default function RelayPageIntro({ title, description, links }: Props) {
+export default function RelayPageIntro({ title, description }: Props) {
   return (
     <section
       style={{
-        padding: '16px 20px',
-        borderRadius: 12,
-        background: '#f7f3ec',
+        padding: '14px 18px',
+        borderRadius: 10,
+        background: '#ffffff',
         border: '1px solid #e8e4dc',
         display: 'flex',
         flexDirection: 'column',
-        gap: 8,
+        gap: 6,
       }}
     >
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, flexWrap: 'wrap' }}>
@@ -51,25 +52,6 @@ export default function RelayPageIntro({ title, description, links }: Props) {
       >
         {description}
       </p>
-      {links && links.length > 0 && (
-        <div style={{ display: 'flex', gap: 14, marginTop: 2, flexWrap: 'wrap' }}>
-          {links.map((l) => (
-            <Link
-              key={l.href}
-              href={l.href}
-              style={{
-                fontSize: 12,
-                fontWeight: 600,
-                color: '#4a4a42',
-                textDecoration: 'none',
-                borderBottom: '1px dotted #b8b4ac',
-              }}
-            >
-              {l.label}
-            </Link>
-          ))}
-        </div>
-      )}
     </section>
   );
 }
