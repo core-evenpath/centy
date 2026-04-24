@@ -7,7 +7,7 @@ import React from 'react';
 //   dot 2 — Module connection (does the block bind a module?)
 //   dot 3 — Fields (all required fields bound and non-empty?)
 //
-// Status derivation is done upstream in BookingPipeline from the
+// Status derivation is done upstream in EnginePipeline from the
 // EngineHealthDoc's aggregate arrays + each block's static `module`
 // metadata. This component is a pure presentation concern.
 

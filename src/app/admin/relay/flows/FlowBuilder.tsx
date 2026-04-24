@@ -93,7 +93,7 @@ export default function RelayFlowMockup() {
   const scenarioName = selectedScenario?.name;
 
   return (
-    <div style={{ display: 'flex', height: '100vh', background: T.bg, fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" }}>
+    <div style={{ display: 'flex', flex: 1, minHeight: 0, background: T.bg, fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" }}>
       <style>{`@keyframes flowpulse { 0%,100%{opacity:1} 50%{opacity:.3} } button:active { transform: scale(0.98); } ::-webkit-scrollbar { display: none; }`}</style>
 
       <FlowSidebar selectedId={selectedId} onSelect={handleSelect} isPlaying={isPlaying} onTogglePlay={handleTogglePlay} onReset={handleReset} templateSource={source} />
