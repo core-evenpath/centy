@@ -15,6 +15,8 @@ export const C = {
 export const F = "'Karla', -apple-system, BlinkMacSystemFont, sans-serif";
 export const FM = "'JetBrains Mono', ui-monospace, monospace";
 export const FS = "'Fraunces', 'Karla', serif";
+// FD: upright editorial display face (same family as FS but used without italic)
+export const FD = "'Fraunces', 'Georgia', 'Times New Roman', serif";
 
 export const icons = {
   zap: 'M13 2L3 14h9l-1 8 10-12h-9l1-8z',

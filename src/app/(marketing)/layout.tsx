@@ -12,7 +12,7 @@ const karla = Karla({
 
 const fraunces = Fraunces({
   subsets: ['latin'],
-  style: ['italic'],
+  style: ['normal', 'italic'],
   axes: ['opsz'],
   variable: '--font-fraunces',
   display: 'swap',
