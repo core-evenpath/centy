@@ -150,8 +150,8 @@ const SHARED_BLOCKS_DATA: ServerBlockData[] = [
   { id: 'cart', family: 'shared', label: 'Cart', stage: 'conversion', desc: 'Shopping cart with line items, discounts, and checkout CTA', intents: ['cart', 'checkout', 'order', 'buy'], module: null, status: 'active', engines: ['shared'], noModuleReason: 'checkout' },
   { id: 'contact', family: 'shared', label: 'Contact Card', stage: 'handoff', desc: 'Business contact info with click-to-call, email, WhatsApp', intents: ['contact', 'phone', 'email', 'reach', 'call'], module: null, status: 'active', engines: ['shared'], noModuleReason: 'navigation' },
   // M03 confirmations — service-engine read blocks; cross-vertical
-  { id: 'booking_confirmation', family: 'shared', label: 'Booking Confirmation', stage: 'followup', desc: 'Confirmed booking reference with service details and date/time', intents: ['booking', 'confirmation', 'reference', 'reminder'], module: null, status: 'active', engines: ['service'] },
-  { id: 'space_confirmation', family: 'shared', label: 'Space Confirmation', stage: 'followup', desc: 'Confirmed space reservation with check-in/check-out dates', intents: ['reservation', 'confirmation', 'stay', 'check-in'], module: null, status: 'active', engines: ['service'] },
+  { id: 'booking_confirmation', family: 'shared', label: 'Booking Confirmation', stage: 'followup', desc: 'Confirmed booking reference with service details and date/time', intents: ['booking', 'confirmation', 'reference', 'reminder'], module: null, status: 'active', engines: ['service'], noModuleReason: 'checkout' },
+  { id: 'space_confirmation', family: 'shared', label: 'Space Confirmation', stage: 'followup', desc: 'Confirmed space reservation with check-in/check-out dates', intents: ['reservation', 'confirmation', 'stay', 'check-in'], module: null, status: 'active', engines: ['service'], noModuleReason: 'ai_generated' },
 ];
 
 export const SHARED_BLOCK_IDS_DATA: string[] = SHARED_BLOCKS_DATA.map(b => b.id);
