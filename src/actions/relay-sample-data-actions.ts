@@ -22,6 +22,7 @@ import {
     getPartnerModuleAction,
     bulkCreateModuleItemsAction,
     getModuleItemsAction,
+    deleteAllModuleItemsAction,
 } from '@/actions/modules-actions';
 import type { ModuleItem } from '@/lib/modules/types';
 import { getDataGuideForFunction } from '@/lib/relay/block-data-guide';
@@ -230,6 +231,79 @@ export async function quickStartTaxonomyDataAction(
         }
     }
     return { success: true, sectionsSeeded };
+}
+
+export interface ClearSampleResult {
+    success: boolean;
+    sectionsCleared: Array<{ moduleSlug: string; deleted: number }>;
+    error?: string;
+}
+
+// Inverse of `seedSampleItemsAction` / `quickStartTaxonomyDataAction`:
+// wipes every item from the listed modules so the partner can start
+// over. Modules stay enabled (matches the partner's expectation —
+// /partner/relay/modules shows the module cards, just empty) so the
+// flow can re-seed without re-enabling.
+//
+// Acts on *all* items in each module, not just ones we seeded — the
+// partner opted in via the "Clear sample data" confirmation.
+export async function clearSampleItemsForModulesAction(
+    partnerId: string,
+    moduleSlugs: string[],
+): Promise<ClearSampleResult> {
+    try {
+        const seen = new Set<string>();
+        const sectionsCleared: ClearSampleResult['sectionsCleared'] = [];
+        for (const slug of moduleSlugs) {
+            if (!slug || seen.has(slug)) continue;
+            seen.add(slug);
+            const pm = await getPartnerModuleAction(partnerId, slug);
+            if (!pm.success || !pm.data) {
+                // Module never enabled → nothing to clear, skip silently.
+                continue;
+            }
+            const moduleId = pm.data.partnerModule.id;
+            const del = await deleteAllModuleItemsAction(partnerId, moduleId);
+            if (del.success) {
+                sectionsCleared.push({
+                    moduleSlug: slug,
+                    deleted: del.data?.deleted ?? 0,
+                });
+            }
+        }
+        return { success: true, sectionsCleared };
+    } catch (err: any) {
+        console.error('[sample-data] clearSampleItemsForModulesAction failed:', err);
+        return {
+            success: false,
+            sectionsCleared: [],
+            error: err?.message ?? 'unknown',
+        };
+    }
+}
+
+// Taxonomy-scoped wrapper used by the Test Chat "Clear sample data"
+// button: walks the same sections that `quickStartTaxonomyDataAction`
+// seeds, so clearing is the exact inverse of starting.
+export async function clearTaxonomyDataAction(
+    partnerId: string,
+    functionId: string,
+): Promise<ClearSampleResult> {
+    const guide = getDataGuideForFunction(functionId);
+    if (!guide) {
+        return {
+            success: false,
+            sectionsCleared: [],
+            error: `No data guide for function "${functionId}"`,
+        };
+    }
+    const slugs: string[] = [];
+    for (const section of guide.sections) {
+        if (!section.moduleSlug) continue;
+        if (section.status === 'design_only') continue;
+        slugs.push(section.moduleSlug);
+    }
+    return clearSampleItemsForModulesAction(partnerId, slugs);
 }
 
 // Ensures every required module for the partner's taxonomy is enabled.

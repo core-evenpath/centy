@@ -18,10 +18,18 @@ import TestChatBento, {
     defaultV1Tiles,
 } from '@/components/partner/relay/test-chat/TestChatBento';
 import BlockDataChecklist from '@/components/partner/relay/test-chat/BlockDataChecklist';
-import { getDataGuideForFunction, getSectionForBlock } from '@/lib/relay/block-data-guide';
+import {
+    getDataGuideForFunction,
+    getSectionForBlock,
+    buildGuideFromBlocks,
+    mergeGuideWithRegistry,
+    type FunctionDataGuide,
+} from '@/lib/relay/block-data-guide';
 import {
     getTestChatBlocksAction,
+    getFlowHomeScreenForFunctionAction,
     type TestChatBlockInfo,
+    type FlowHomeScreen,
 } from '@/actions/relay-test-chat-actions';
 import { getBlockPreviewDataAction } from '@/actions/relay-block-sources-actions';
 import {
@@ -130,16 +138,37 @@ export default function PartnerRelayTestChatPage() {
         [categories, activeCategoryKey],
     );
     const activeFunctionId = activeCategory?.functionId ?? null;
-    const dataGuide = useMemo(
-        () => getDataGuideForFunction(activeFunctionId),
-        [activeFunctionId],
-    );
 
     // Backend-sourced block definitions for the active taxonomy. Tiles
     // are derived from these so anything the admin registry ships turns
     // into a bento entry automatically.
     const [backendBlocks, setBackendBlocks] = useState<TestChatBlockInfo[]>([]);
     const [blocksLoading, setBlocksLoading] = useState(false);
+
+    // Merge curated guide + registry-derived fallback so the checklist
+    // covers every block the partner will see in chat, even for
+    // taxonomies that don't have a hand-written guide yet.
+    const dataGuide: FunctionDataGuide | null = useMemo(() => {
+        if (!activeFunctionId) return null;
+        const curated = getDataGuideForFunction(activeFunctionId);
+        if (backendBlocks.length === 0) return curated;
+        const registryGuide = buildGuideFromBlocks(
+            activeFunctionId,
+            activeCategory?.label || activeFunctionId,
+            backendBlocks,
+        );
+        return mergeGuideWithRegistry(curated, registryGuide);
+    }, [activeFunctionId, activeCategory?.label, backendBlocks]);
+
+    // Admin-configured homescreen for this flow (from /admin/relay/flows).
+    // `layout` decides whether Test Chat opens on the bento home or drops
+    // the partner straight into the chat view.
+    const [flowHomeScreen, setFlowHomeScreen] = useState<FlowHomeScreen | null>(null);
+    const [homeScreenLoaded, setHomeScreenLoaded] = useState(false);
+    const layoutHasHome =
+        !flowHomeScreen ||
+        flowHomeScreen.layout === 'bento' ||
+        flowHomeScreen.layout === 'storefront';
 
     const relayTheme = useMemo(() => buildThemeFromAccent(config.accentColor), [config.accentColor]);
 
@@ -334,6 +363,49 @@ export default function PartnerRelayTestChatPage() {
             cancelled = true;
         };
     }, [activeFunctionId]);
+
+    // ── Load flow homescreen config ──────────────────────────────────
+    //
+    // The admin picks `bento | storefront | chat_first` in
+    // /admin/relay/flows. We mirror that here so Test Chat opens on the
+    // same surface the partner's customer will see. When the layout is
+    // neither bento nor storefront (future: `chat_first`), we skip the
+    // home screen entirely and go straight to the chat view.
+
+    useEffect(() => {
+        if (!activeFunctionId) {
+            setFlowHomeScreen(null);
+            setHomeScreenLoaded(true);
+            return;
+        }
+        let cancelled = false;
+        setHomeScreenLoaded(false);
+        (async () => {
+            try {
+                const res = await getFlowHomeScreenForFunctionAction(activeFunctionId);
+                if (cancelled) return;
+                setFlowHomeScreen(res.homeScreen);
+            } catch {
+                if (!cancelled) setFlowHomeScreen(null);
+            } finally {
+                if (!cancelled) setHomeScreenLoaded(true);
+            }
+        })();
+        return () => {
+            cancelled = true;
+        };
+    }, [activeFunctionId]);
+
+    // When the flow config lands (or changes after a scenario switch),
+    // respect the admin's layout choice for the initial view. Only
+    // re-applies when the partner is currently on the home screen — once
+    // they've opened chat we don't yank them back.
+    useEffect(() => {
+        if (!homeScreenLoaded || !flowHomeScreen) return;
+        const showsHome =
+            flowHomeScreen.layout === 'bento' || flowHomeScreen.layout === 'storefront';
+        setShowHome((prev) => (prev ? showsHome : prev));
+    }, [homeScreenLoaded, flowHomeScreen]);
 
     // ── Auto-enable required modules for the partner's taxonomy ─────
     //
@@ -656,6 +728,9 @@ export default function PartnerRelayTestChatPage() {
                                             setChatMessages([]);
                                             setFlowMeta(null);
                                             setSeeded(false);
+                                            // Reset to home optimistically; the flow-config
+                                            // effect will flip this off for chat-first layouts
+                                            // once the new template loads.
                                             setShowHome(true);
                                             setHighlightSectionId(null);
                                         }}
@@ -732,7 +807,10 @@ export default function PartnerRelayTestChatPage() {
                                 setChatMessages([]);
                                 setFlowMeta(null);
                                 setSeeded(false);
-                                setShowHome(true);
+                                // Respect the admin layout — for chat-first
+                                // flows we stay in the chat view even after
+                                // a reset.
+                                setShowHome(layoutHasHome);
                             }}
                             stageLabel={flowMeta?.stageLabel}
                         />
